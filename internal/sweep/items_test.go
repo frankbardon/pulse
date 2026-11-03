@@ -21,7 +21,7 @@ func decodeRequest(t *testing.T, raw string) *types.Request {
 
 func mustExpandItems(t *testing.T, r *types.Request) (*types.Request, []FanOut) {
 	t.Helper()
-	out, fan, err := ExpandItems(r, nil)
+	out, fan, err := ExpandItems(r, Options{}, nil)
 	if err != nil {
 		t.Fatalf("ExpandItems: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestExpandItems_FeaturesAttributesAndPlain(t *testing.T) {
 
 	plain := decodeRequest(t, `{"windows": [{"type": "WIN_LAG", "field": "x", "order_by": [{"field": "t"}]}]}`)
 	var seen int
-	got, fan, err := ExpandItems(plain, func(n int) error { seen = n; return nil })
+	got, fan, err := ExpandItems(plain, Options{}, func(n int) error { seen = n; return nil })
 	if err != nil || got != plain || fan != nil {
 		t.Fatalf("plain request: got %p want %p, fan %v, err %v", got, plain, fan, err)
 	}
@@ -158,7 +158,7 @@ func TestExpandItems_PreflightBeforeRender(t *testing.T) {
 		 "type": "WIN_LAG", "field": "x", "label": "l{{n}}_{{m}}", "order_by": [{"field": "t"}]}]}`)
 	sentinel := stderrors.New("over")
 	var seen int
-	out, fan, err := ExpandItems(r, func(n int) error { seen = n; return sentinel })
+	out, fan, err := ExpandItems(r, Options{}, func(n int) error { seen = n; return sentinel })
 	if err != sentinel || seen != 7 || out != nil || fan != nil {
 		t.Fatalf("err = %v seen = %d out = %v, want the preflight error with 7 and nothing built", err, seen, out)
 	}
@@ -227,7 +227,7 @@ func TestExpandItems_Faults(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, _, err := ExpandItems(decodeRequest(t, c.body), nil)
+			_, _, err := ExpandItems(decodeRequest(t, c.body), Options{}, nil)
 			requireForEachInvalid(t, err, c.reason, c.field)
 		})
 	}
@@ -258,6 +258,6 @@ func TestExpand_NestedForEachInSweep(t *testing.T) {
 	c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "request": {
 		"label_unused": "{{a}}",
 		"windows": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "WIN_LAG", "field": "x", "label": "{{d}}", "order_by": []}]}}}`)
-	_, err := Expand(c, nil)
+	_, err := Expand(c, Options{}, nil)
 	requireForEachInvalid(t, err, ReasonNestedInSweep, "sweep.request.windows[0].for_each")
 }

@@ -73,7 +73,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 			return nil, nil, err
 		}
 	}
-	exp, err := banner.ExpandCompose(composed, s.composeSlotsPreflight)
+	exp, err := banner.ExpandCompose(composed, s.composeSweepOptions(composed), s.composeSlotsPreflight)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -301,7 +301,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// any item renders); everything below judges the expanded request,
 	// while PredictResult.Request stays as written.
 	written := req
-	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits())
+	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits(), opts.instance().SweepOptions())
 	if xerr != nil {
 		// The items did not expand: the plan indexes the request as
 		// written.

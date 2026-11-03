@@ -28,7 +28,7 @@ type itemFan struct {
 // does not expand is a caveat, and the items are described as written.
 func (e *explainer) expandItems(prefix string, r *types.Request) (*types.Request, *itemFan) {
 	f := &itemFan{e: e, written: map[string][]int{}, fans: map[string]sweep.FanOut{}, told: map[string]bool{}}
-	x, fan, _, err := descx.ExpandRequestItems(r, limits.Limits{})
+	x, fan, _, err := descx.ExpandRequestItems(r, limits.Limits{}, e.inst.SweepOptions())
 	if err != nil {
 		code := string(errors.PULSE_FOR_EACH_INVALID)
 		var ce *errors.CodedError

@@ -214,7 +214,7 @@ type Expansion struct {
 
 // ExpandCompose turns c into its effective request — the ONE expansion
 // every Compose surface consumes. Order: banner Validate; then the sweep
-// expansion (sweep.Expand) whose MaxComposeSlots preflight is handed
+// expansion (sweep.Expand, judged with the instance facts in opts) whose MaxComposeSlots preflight is handed
 // explicit + sweep + banner slots, so no banner bypasses the limit and
 // nothing renders past it; then one slot per section × block, appended
 // in section order (Total first, then the groups). Each slot is a deep
@@ -223,13 +223,13 @@ type Expansion struct {
 // the group's columns, the base `labels` scoped to the bindings the slot
 // groups by (scopeLabels), and — on a group slot — the section's own
 // overlays appended, or the banner overlays when it sets none.
-func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*Expansion, error) {
+func ExpandCompose(c *types.ComposedRequest, opts sweep.Options, preflight func(slots int) error) (*Expansion, error) {
 	if c == nil {
 		return &Expansion{}, nil
 	}
 	spec := c.Banner
 	if spec == nil {
-		exp, err := sweep.Expand(c, preflight)
+		exp, err := sweep.Expand(c, opts, preflight)
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +239,7 @@ func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*
 		return nil, ce
 	}
 	n := Count(spec)
-	exp, err := sweep.Expand(c, func(slots int) error {
+	exp, err := sweep.Expand(c, opts, func(slots int) error {
 		if preflight == nil {
 			return nil
 		}

@@ -160,7 +160,8 @@ type pendingItem struct {
 // attributes, windows) and declared order within a list, is checked
 // structurally (the compose sweep's axis rules) and by the reference
 // rule (every axis named by a placeholder in the item, every
-// placeholder naming an axis, none inside an expression slot —
+// placeholder naming an axis, none inside an expression slot — the
+// built-in ones plus the extension params opts.ExprParams flags,
 // PULSE_FOR_EACH_EXPR_SPLICE); then preflight, when non-nil, with
 // DerivedCount — plain items plus expanded ones — BEFORE anything is
 // rendered, so an oversized product is refused without being built;
@@ -177,7 +178,7 @@ type pendingItem struct {
 // replaced in place by its rendered items, plain items kept (the
 // caller's pointers) — and one FanOut per for_each item. req is never
 // modified.
-func ExpandItems(req *types.Request, preflight func(derived int) error) (*types.Request, []FanOut, error) {
+func ExpandItems(req *types.Request, opts Options, preflight func(derived int) error) (*types.Request, []FanOut, error) {
 	if req == nil {
 		return nil, nil, nil
 	}
@@ -196,7 +197,7 @@ func ExpandItems(req *types.Request, preflight func(derived int) error) (*types.
 		if err != nil {
 			return itemInternalFault(path, err)
 		}
-		if ce := checkItemReferences(path, list, spec, body); ce != nil {
+		if ce := checkItemReferences(path, list, spec, body, opts); ce != nil {
 			return ce
 		}
 		pending = append(pending, pendingItem{path: path, spec: spec, body: body})
@@ -351,13 +352,13 @@ func itemBody(item any) (json.RawMessage, error) {
 // expression-slot list (internal/exprslots) matches the key paths it
 // would from a request root — a feature's params.fit_on, not an
 // attribute's. Its other faults are left to the item-rooted scan.
-func checkItemReferences(path, list string, spec *types.ForEach, body json.RawMessage) *errors.CodedError {
+func checkItemReferences(path, list string, spec *types.ForEach, body json.RawMessage, opts Options) *errors.CodedError {
 	all := make([]*template.Variable, len(spec.Axes))
 	for i, ax := range spec.Axes {
 		all[i] = &template.Variable{Name: ax.Name, Type: template.VarString}
 	}
 	nested := wrap(list, append(append([]byte("["), body...), ']'))
-	if err := template.Validate(&template.Template{Target: template.TargetRequest, Variables: all, Body: nested}); err != nil {
+	if err := template.ValidateWith(&template.Template{Target: template.TargetRequest, Variables: all, Body: nested}, opts.validate()); err != nil {
 		var tce *errors.CodedError
 		if stderrors.As(err, &tce) && tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 			return itemReferenceFault(path, list, err)

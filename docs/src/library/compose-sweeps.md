@@ -102,7 +102,8 @@ is decoded.
 A sweep never splices an axis value's text into an expression. A
 `{{axis}}` inside an expression string — a filterer's or attribute's
 `expression`, a regression's `holdout`, an overlay's `params.formula`,
-a feature's `params.fit_on`, in the request or the sweep overlays — is
+a feature's `params.fit_on`, an embedder extension's expression-capable
+param, in the request or the sweep overlays — is
 `PULSE_SWEEP_EXPR_SPLICE`, refused before any slot is substituted, by
 `PredictCompose` and the runtime alike (details `field`, `placeholder`,
 `slot`). Spliced text could rewrite the expression's logic. Carry the

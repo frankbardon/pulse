@@ -135,7 +135,8 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // named by a placeholder in the request body, the AUTHORED label pattern
 // or the overlays — the default label does not count — and every
 // placeholder names an axis, and none sits inside an expression slot —
-// internal/exprslots, PULSE_SWEEP_EXPR_SPLICE); then preflight, when
+// internal/exprslots, plus the extension params opts.ExprParams flags —
+// PULSE_SWEEP_EXPR_SPLICE); then preflight, when
 // non-nil, with the
 // total slot count (explicit + expanded) BEFORE anything is rendered,
 // so an oversized product is refused without being built; then one
@@ -149,7 +150,7 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // returns c itself. Label collisions are NOT checked here: each
 // collision site checks the effective slot list it is handed, explicit
 // and sweep slots in one namespace.
-func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansion, error) {
+func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) error) (*Expansion, error) {
 	if c == nil {
 		return &Expansion{}, nil
 	}
@@ -170,7 +171,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 	if ce := nestedForEachRefusal(spec.Request); ce != nil {
 		return nil, ce
 	}
-	if ce := checkReferences(spec); ce != nil {
+	if ce := checkReferences(spec, opts); ce != nil {
 		return nil, ce
 	}
 	n := Count(spec)
@@ -427,13 +428,13 @@ func renderOverlays(body json.RawMessage, vars []*template.Variable, values map[
 // the substitution's: every placeholder must name an axis (validation
 // with every axis declared), and every axis must be named somewhere
 // (validation with that axis alone undeclared must fail on it).
-func checkReferences(spec *types.SweepSpec) *errors.CodedError {
+func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 	body := referenceBody(spec)
 	all := make([]*template.Variable, len(spec.Axes))
 	for i, ax := range spec.Axes {
 		all[i] = &template.Variable{Name: ax.Name, Type: template.VarString}
 	}
-	if err := template.Validate(&template.Template{Target: template.TargetRequest, Variables: all, Body: body}); err != nil {
+	if err := template.ValidateWith(&template.Template{Target: template.TargetRequest, Variables: all, Body: body}, opts.validate()); err != nil {
 		return referenceFault(err)
 	}
 	for i, ax := range spec.Axes {

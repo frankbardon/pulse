@@ -29,7 +29,7 @@ Six items: `tv_lag1`, `tv_lag2`, `tv_lag4`, `search_lag1`, … in that order.
 ## Axes, modes, placeholders
 
 - Axes and modes are the compose sweep's ([`compose-sweeps`](compose-sweeps.md)): unique identifier names, non-empty scalar values; `grid` (default) is the Cartesian product, first axis slowest; `zip` walks equal-length axes in lockstep.
-- `{{axis}}` splices text inside a string such as `label` or `field` — never inside an expression (a formula `expression`, a params-borne `fit_on` or centroid filter): there it is `PULSE_FOR_EACH_EXPR_SPLICE`, refused before expansion. `{"$var": "axis"}` splices a whole value type-preserving, but only inside `params` (opaque JSON; a whole `fit_on` expression too); a typed key such as `order_by` cannot hold the marker.
+- `{{axis}}` splices text inside a string such as `label` or `field` — never inside an expression (a formula `expression`, a params-borne `fit_on` or centroid filter, an extension's expression param): there it is `PULSE_FOR_EACH_EXPR_SPLICE`, refused before expansion. `{"$var": "axis"}` splices a whole value type-preserving, but only inside `params` (opaque JSON; a whole `fit_on` expression too); a typed key such as `order_by` cannot hold the marker.
 - To vary a value a formula reads, use a compose sweep whose request sets `"params": {"x": {"$var": "x"}}` and read `params.x`.
 - Every axis must be referenced in the item and every placeholder must name an axis. Not expr-lang: there is no arithmetic.
 

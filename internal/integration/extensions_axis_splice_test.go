@@ -1,0 +1,268 @@
+package integration_test
+
+import (
+	"context"
+	"encoding/json"
+	stderrors "errors"
+	"testing"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
+)
+
+// for_each and compose sweep axis tokens over expression-capable
+// extension params (U79 E1-S5): the runtime (the extension registry's
+// ScalarParamsByOperator) and predict (the instance snapshot) hand the
+// same visible flagged keys to the expansions, so an axis `{{token}}`
+// inside one is PULSE_FOR_EACH_EXPR_SPLICE / PULSE_SWEEP_EXPR_SPLICE —
+// slot extension_param — with the built-in slots' details, identically
+// on Process, Compose, ComposeParallel and their predicts; an unflagged
+// key keeps interpolating, and an extension a feature profile hides
+// flags nothing.
+
+// composeRunners are the two Compose runtimes.
+func composeRunners(p *pulse.Pulse) map[string]func(*pulse.ComposedRequest) (*pulse.ComposedResponse, error) {
+	ctx := context.Background()
+	return map[string]func(*pulse.ComposedRequest) (*pulse.ComposedResponse, error){
+		"Compose": func(r *pulse.ComposedRequest) (*pulse.ComposedResponse, error) { return p.Compose(ctx, r) },
+		"ComposeParallel": func(r *pulse.ComposedRequest) (*pulse.ComposedResponse, error) {
+			return p.ComposeParallel(ctx, r, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+		},
+	}
+}
+
+// requireAxisSplice asserts err is code with the splice details at field.
+func requireAxisSplice(t *testing.T, what string, err error, code perr.Code, field, placeholder string) *perr.CodedError {
+	t.Helper()
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != code {
+		t.Fatalf("%s err = %v, want %s", what, err, code)
+	}
+	if ce.Details["field"] != field || ce.Details["placeholder"] != placeholder || ce.Details["slot"] != "extension_param" {
+		t.Fatalf("%s details = %v, want field %s placeholder %s slot extension_param", what, ce.Details, field, placeholder)
+	}
+	return ce
+}
+
+// requirePredictSame asserts predict's first error is ce, field for field.
+func requirePredictSame(t *testing.T, what string, errs []*descriptor.EnvelopeEntry, ce *perr.CodedError) {
+	t.Helper()
+	if len(errs) == 0 {
+		t.Fatalf("%s: predict raised nothing, runtime refused %s", what, ce.Message)
+	}
+	got := errs[0]
+	if got.Code != string(ce.Code) || got.Message != ce.Message || jsonOf(got.Details) != jsonOf(ce.Details) {
+		t.Fatalf("%s: predict %s %q %s, runtime %s %q %s", what, got.Code, got.Message, jsonOf(got.Details), ce.Code, ce.Message, jsonOf(ce.Details))
+	}
+}
+
+// sweepBatch is a compose batch whose sweep over w (1, 2) renders req.
+func sweepBatch(t *testing.T, req *types.Request) *pulse.ComposedRequest {
+	t.Helper()
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &pulse.ComposedRequest{Sweep: &types.SweepSpec{Axes: []types.SweepAxis{{Name: "w", Values: []any{1, 2}}}, Request: raw}}
+}
+
+// TestSweepExprSplice_ExtensionParamEveryCategory: per extension
+// category, a sweep axis token in the flagged `scale` is refused
+// PULSE_SWEEP_EXPR_SPLICE by Compose and ComposeParallel, and
+// PredictCompose raises the identical error; the same token in the
+// unflagged `tag` predicts clean and runs.
+func TestSweepExprSplice_ExtensionParamEveryCategory(t *testing.T) {
+	t.Parallel()
+
+	p, cohort := openE2E(t, exprExtensions(&paramCapture{}))
+	ctx := context.Background()
+	for _, tc := range strictCases() {
+		t.Run(tc.category, func(t *testing.T) {
+			bad := func() *pulse.ComposedRequest {
+				return sweepBatch(t, withReqParams(tc.request(cohort, json.RawMessage(`{"scale":"params.k * {{w}}"}`))))
+			}
+			field := "sweep.request." + tc.slot + ".params.scale"
+			var ce *perr.CodedError
+			for name, run := range composeRunners(p) {
+				_, err := run(bad())
+				ce = requireAxisSplice(t, name, err, perr.PULSE_SWEEP_EXPR_SPLICE, field, "w")
+			}
+			env, err := p.PredictCompose(ctx, bad())
+			if err != nil {
+				t.Fatalf("PredictCompose: %v", err)
+			}
+			requirePredictSame(t, "PredictCompose", env.Errors, ce)
+
+			ok := func() *pulse.ComposedRequest {
+				return sweepBatch(t, withReqParams(tc.request(cohort, json.RawMessage(`{"scale":2,"tag":"t_{{w}}"}`))))
+			}
+			if env, err := p.PredictCompose(ctx, ok()); err != nil || len(env.Errors) > 0 {
+				t.Fatalf("PredictCompose (unflagged key) = %v %s", err, jsonOf(env.Errors))
+			}
+			for name, run := range composeRunners(p) {
+				resp, err := run(ok())
+				if err != nil || len(resp.Responses) != 2 {
+					t.Fatalf("%s (unflagged key) = %v", name, err)
+				}
+			}
+		})
+	}
+}
+
+// forEachCases are the categories an item for_each reaches, each
+// fanning its extension item out over k (2, 3) with a k-varying label
+// and nothing downstream reading that label.
+func forEachCases() []strictCase {
+	fe := &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{2, 3}}}}
+	count := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}}
+	var out []strictCase
+	for _, tc := range strictCases() {
+		build := tc.request
+		switch tc.category {
+		case "attribute":
+			out = append(out, strictCase{tc.category, tc.slot, func(c *types.Cohort, p json.RawMessage) *types.Request {
+				r := build(c, p)
+				r.Attributes[0].ForEach, r.Attributes[0].Label, r.Aggregations = fe, "a{{k}}", count
+				return r
+			}})
+		case "feature":
+			out = append(out, strictCase{tc.category, tc.slot, func(c *types.Cohort, p json.RawMessage) *types.Request {
+				r := build(c, p)
+				r.Features[0].ForEach, r.Features[0].Label, r.Aggregations = fe, "f{{k}}", count
+				return r
+			}})
+		case "window":
+			out = append(out, strictCase{tc.category, tc.slot, func(c *types.Cohort, p json.RawMessage) *types.Request {
+				r := build(c, p)
+				r.Windows[0].ForEach, r.Windows[0].Label = fe, "w{{k}}"
+				return r
+			}})
+		}
+	}
+	return out
+}
+
+// TestForEachExprSplice_ExtensionParamEveryCategory: per category an
+// item for_each reaches, an axis token in the flagged `scale` is
+// refused PULSE_FOR_EACH_EXPR_SPLICE by Process (Predict identical) and,
+// as a Compose slot, by Compose and ComposeParallel (PredictCompose
+// identical); the same token in the unflagged `tag` predicts valid and
+// runs.
+func TestForEachExprSplice_ExtensionParamEveryCategory(t *testing.T) {
+	t.Parallel()
+
+	p, cohort := openE2E(t, exprExtensions(&paramCapture{}))
+	ctx := context.Background()
+	cases := forEachCases()
+	if len(cases) != 3 {
+		t.Fatalf("for_each cases = %d, want attribute, feature, window", len(cases))
+	}
+	for _, tc := range cases {
+		t.Run(tc.category, func(t *testing.T) {
+			bad := func() *types.Request {
+				return withReqParams(tc.request(cohort, json.RawMessage(`{"scale":"params.k * {{k}}"}`)))
+			}
+			field := tc.slot + ".params.scale"
+			_, err := p.Process(ctx, bad())
+			ce := requireAxisSplice(t, "Process", err, perr.PULSE_FOR_EACH_EXPR_SPLICE, field, "k")
+			res, err := p.Predict(ctx, bad())
+			if err != nil {
+				t.Fatalf("Predict: %v", err)
+			}
+			if res.Valid {
+				t.Fatal("Predict valid, Process refused")
+			}
+			requirePredictSame(t, "Predict", res.Errors, ce)
+
+			batch := func() *pulse.ComposedRequest {
+				r := bad()
+				r.Label = "fe"
+				return &pulse.ComposedRequest{Requests: []*pulse.Request{r}}
+			}
+			for name, run := range composeRunners(p) {
+				_, err := run(batch())
+				ce = requireAxisSplice(t, name, err, perr.PULSE_FOR_EACH_EXPR_SPLICE, field, "k")
+			}
+			env, err := p.PredictCompose(ctx, batch())
+			if err != nil {
+				t.Fatalf("PredictCompose: %v", err)
+			}
+			requirePredictSame(t, "PredictCompose", env.Errors, ce)
+
+			ok := func() *types.Request {
+				return withReqParams(tc.request(cohort, json.RawMessage(`{"scale":2,"tag":"t_{{k}}"}`)))
+			}
+			if res, err := p.Predict(ctx, ok()); err != nil || !res.Valid {
+				t.Fatalf("Predict (unflagged key) = %v %s", err, jsonOf(res.Errors))
+			}
+			if _, err := p.Process(ctx, ok()); err != nil {
+				t.Fatalf("Process (unflagged key) = %v", err)
+			}
+		})
+	}
+}
+
+// TestAxisExprSplice_ExtensionParamHidden: an extension a feature
+// profile hides acts never-registered, so its flagged key is not an
+// expression slot on that instance: neither expansion refuses the token
+// as a splice, and predict and the runtime agree on the refusal that
+// remains (the hidden operator itself).
+func TestAxisExprSplice_ExtensionParamHidden(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	writeParityCohort(t, fsys, "e2e.pulse", paritySchema(t), 0, paritySmallRows)
+	fp := &pulse.FeatureProfile{Features: []string{"capability:process", "capability:compose", "capability:compose_sweep",
+		"capability:for_each", "AGG_COUNT", "AGG_SUM"}}
+	p, err := pulse.New(pulse.Options{FS: fsys, Extensions: exprExtensions(&paramCapture{}), FeatureProfile: fp})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	cohort := &types.Cohort{Filename: "e2e.pulse"}
+	ctx := context.Background()
+	notSplice := func(what string, err error) *perr.CodedError {
+		t.Helper()
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) {
+			t.Fatalf("%s err = %v, want a coded refusal of the hidden operator", what, err)
+		}
+		if ce.Code == perr.PULSE_SWEEP_EXPR_SPLICE || ce.Code == perr.PULSE_FOR_EACH_EXPR_SPLICE {
+			t.Fatalf("%s refused %s: a hidden extension flags nothing", what, ce.Code)
+		}
+		return ce
+	}
+
+	agg := strictCases()[0]
+	batch := func() *pulse.ComposedRequest {
+		return sweepBatch(t, withReqParams(agg.request(cohort, json.RawMessage(`{"scale":"params.k * {{w}}"}`))))
+	}
+	var ce *perr.CodedError
+	for name, run := range composeRunners(p) {
+		_, err := run(batch())
+		ce = notSplice(name, err)
+	}
+	env, err := p.PredictCompose(ctx, batch())
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(ce.Code) {
+		t.Fatalf("PredictCompose errors %s, runtime %s", jsonOf(env.Errors), ce.Code)
+	}
+
+	feat := forEachCases()[1]
+	item := func() *types.Request {
+		return withReqParams(feat.request(cohort, json.RawMessage(`{"scale":"params.k * {{k}}"}`)))
+	}
+	_, err = p.Process(ctx, item())
+	ce = notSplice("Process", err)
+	res, err := p.Predict(ctx, item())
+	if err != nil {
+		t.Fatalf("Predict: %v", err)
+	}
+	if res.Valid || len(res.Errors) == 0 || res.Errors[0].Code != string(ce.Code) {
+		t.Fatalf("Predict errors %s, runtime %s", jsonOf(res.Errors), ce.Code)
+	}
+}

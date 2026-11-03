@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/slotfail"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -396,7 +397,7 @@ func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
 // the same MaxDerivedColumns check over its plain items); expanding an
 // already-expanded request is a no-op.
 func (s *Service) expandItems(req *types.Request) error {
-	out, _, _, err := descx.ExpandRequestItems(req, s.Limits())
+	out, _, _, err := descx.ExpandRequestItems(req, s.Limits(), s.sweepOptions(req))
 	if err != nil {
 		return err
 	}
@@ -404,6 +405,28 @@ func (s *Service) expandItems(req *types.Request) error {
 		req.Features, req.Attributes, req.Windows = out.Features, out.Attributes, out.Windows
 	}
 	return nil
+}
+
+// sweepOptions is the instance facts req's item for_each expansion
+// judges with: the visible extensions' expression-capable params keys
+// (ExtensionRegistry.ScalarParamsByOperator), so an axis token in one is
+// PULSE_FOR_EACH_EXPR_SPLICE exactly as predict's
+// InstanceSnapshot.SweepOptions refuses it. Built only when req fans
+// out: the for_each-free path never reads it.
+func (s *Service) sweepOptions(req *types.Request) sweep.Options {
+	if !sweep.HasForEach(req) {
+		return sweep.Options{}
+	}
+	return sweep.Options{ExprParams: s.extensions.ScalarParamsByOperator()}
+}
+
+// composeSweepOptions is sweepOptions for a compose batch's sweep
+// (PULSE_SWEEP_EXPR_SPLICE): built only when the batch sweeps.
+func (s *Service) composeSweepOptions(c *types.ComposedRequest) sweep.Options {
+	if c == nil || c.Sweep == nil {
+		return sweep.Options{}
+	}
+	return sweep.Options{ExprParams: s.extensions.ScalarParamsByOperator()}
 }
 
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema

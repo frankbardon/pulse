@@ -2855,7 +2855,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_EXPR_SPLICE: {
-		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2872,7 +2872,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_EXPR_SPLICE: {
-		Message: "A window, feature or attribute item carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, or a params-borne fit or centroid filter expression), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "A window, feature or attribute item carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, a params-borne fit or centroid filter expression, or an embedder extension's expression-capable param), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

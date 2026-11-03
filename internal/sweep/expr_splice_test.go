@@ -71,7 +71,7 @@ func TestSweepExprSplice_Refused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":[1,2]}],`+tc.sweep+`}}`)
 			preflight := false
-			_, err := Expand(c, func(int) error { preflight = true; return nil })
+			_, err := Expand(c, Options{}, func(int) error { preflight = true; return nil })
 			requireSplice(t, err, errors.PULSE_SWEEP_EXPR_SPLICE, tc.field, "w", tc.slot)
 			if preflight {
 				t.Fatal("the preflight ran: the refusal must precede any count or substitution")
@@ -105,7 +105,7 @@ func TestSweepExprSplice_Allowed(t *testing.T) {
 				vals = `["wave == 1","wave == 2"]`
 			}
 			c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":`+vals+`}],`+body+`}}`)
-			exp, err := Expand(c, nil)
+			exp, err := Expand(c, Options{}, nil)
 			if err != nil {
 				t.Fatalf("refused: %v", err)
 			}
@@ -155,7 +155,7 @@ func TestForEachExprSplice_Refused(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			preflight := false
-			_, _, err := ExpandItems(decodeRequest(t, tc.req), func(int) error { preflight = true; return nil })
+			_, _, err := ExpandItems(decodeRequest(t, tc.req), Options{}, func(int) error { preflight = true; return nil })
 			requireSplice(t, err, errors.PULSE_FOR_EACH_EXPR_SPLICE, tc.field, "k", tc.slot)
 			if preflight {
 				t.Fatal("the preflight ran: the refusal must precede any count or substitution")
@@ -196,5 +196,101 @@ func TestForEachExprSplice_Allowed(t *testing.T) {
 	}
 	if got := string(out.Features[1].Params); got != `{"fit_on":"wave < 3","smoothing":5,"target":"y"}` {
 		t.Fatalf("feature 1 params = %s", got)
+	}
+}
+
+// extOpts flags the extension param `scale` of AGG_ACME_X, FEAT_ACME_X
+// and FILTER_ACME_X — the instance facts the runtime and predict hand
+// the expansions (Options.ExprParams).
+var extOpts = Options{ExprParams: map[string][]string{
+	"AGG_ACME_X": {"scale"}, "FEAT_ACME_X": {"scale"}, "FILTER_ACME_X": {"scale"},
+}}
+
+// TestSweepExprSplice_ExtensionParam: an `{{axis}}` token in a params
+// key Options.ExprParams flags for the object's literal `type` is
+// PULSE_SWEEP_EXPR_SPLICE, slot extension_param, before the preflight —
+// also on an extension filterer nested in an attribute's fit_on; the
+// same body with no instance facts, an unflagged key, another operator
+// or a templated `type` expands.
+func TestSweepExprSplice_ExtensionParam(t *testing.T) {
+	t.Parallel()
+
+	refused := []struct{ name, request, field string }{
+		{"aggregation", `{"aggregations":[{"type":"AGG_ACME_X","field":"x","params":{"scale":"params.k * {{w}}"}}]}`,
+			"sweep.request.aggregations[0].params.scale"},
+		{"nested filterer", `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["a","b"],"params":{"fit_on":[{"type":"FILTER_ACME_X","params":{"scale":"{{w}}"}}]}}]}`,
+			"sweep.request.attributes[0].params.fit_on[0].params.scale"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := `{"requests":[],"sweep":{"axes":[{"name":"w","values":[1,2]}],"request":` + tc.request + `}}`
+			preflight := false
+			_, err := Expand(decodeComposed(t, raw), extOpts, func(int) error { preflight = true; return nil })
+			requireSplice(t, err, errors.PULSE_SWEEP_EXPR_SPLICE, tc.field, "w", exprslots.SlotExtensionParam)
+			if preflight {
+				t.Fatal("the preflight ran: the refusal must precede any count or substitution")
+			}
+			if _, err := Expand(decodeComposed(t, raw), Options{}, nil); err != nil {
+				t.Fatalf("without instance facts: %v", err)
+			}
+		})
+	}
+	allowed := map[string]string{
+		"unflagged key":  `{"aggregations":[{"type":"AGG_ACME_X","field":"x","params":{"scale":2,"tag":"t{{w}}"}}]}`,
+		"other operator": `{"aggregations":[{"type":"AGG_ACME_Y","field":"x","params":{"scale":"{{w}}"}}]}`,
+		"marker":         `{"aggregations":[{"type":"AGG_ACME_X","field":"x","params":{"scale":{"$var":"w"}}}]}`,
+	}
+	for name, request := range allowed {
+		t.Run(name, func(t *testing.T) {
+			c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":[1,2]}],"request":`+request+`}}`)
+			if _, err := Expand(c, extOpts, nil); err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+		})
+	}
+	t.Run("templated type", func(t *testing.T) {
+		c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":["AGG_ACME_X","AGG_ACME_Y"]}],`+
+			`"request":{"aggregations":[{"type":"{{w}}","field":"x","params":{"scale":"{{w}}"}}]}}}`)
+		if _, err := Expand(c, extOpts, nil); err != nil {
+			t.Fatalf("refused: %v", err)
+		}
+	})
+}
+
+// TestForEachExprSplice_ExtensionParam: an `{{axis}}` token in a
+// flagged extension param of a for_each item (or of an extension
+// filterer nested in it) is PULSE_FOR_EACH_EXPR_SPLICE, request-rooted,
+// slot extension_param, before the preflight; an unflagged key and the
+// same item without instance facts expand.
+func TestForEachExprSplice_ExtensionParam(t *testing.T) {
+	t.Parallel()
+
+	const fe = `"for_each":{"axes":[{"name":"k","values":[2,3]}]}`
+	refused := []struct{ name, req, field string }{
+		{"feature", `{"features":[{"type":"ATTR_ZSCORE"},{` + fe + `,"type":"FEAT_ACME_X","field":"g","label":"f{{k}}","params":{"scale":"params.k * {{k}}"}}]}`,
+			"features[1].params.scale"},
+		{"nested filterer", `{"attributes":[{` + fe + `,"type":"ATTR_MAHALANOBIS","label":"m{{k}}","fields":["a","b"],"params":{"fit_on":[{"type":"FILTER_ACME_X","params":{"scale":"{{k}}"}}]}}]}`,
+			"attributes[0].params.fit_on[0].params.scale"},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			preflight := false
+			_, _, err := ExpandItems(decodeRequest(t, tc.req), extOpts, func(int) error { preflight = true; return nil })
+			requireSplice(t, err, errors.PULSE_FOR_EACH_EXPR_SPLICE, tc.field, "k", exprslots.SlotExtensionParam)
+			if preflight {
+				t.Fatal("the preflight ran: the refusal must precede any count or substitution")
+			}
+			if _, _, err := ExpandItems(decodeRequest(t, tc.req), Options{}, nil); err != nil {
+				t.Fatalf("without instance facts: %v", err)
+			}
+		})
+	}
+	r := decodeRequest(t, `{"features":[{`+fe+`,"type":"FEAT_ACME_X","field":"g","label":"f{{k}}","params":{"scale":2,"tag":"t{{k}}"}}]}`)
+	out, _, err := ExpandItems(r, extOpts, nil)
+	if err != nil {
+		t.Fatalf("unflagged key refused: %v", err)
+	}
+	if len(out.Features) != 2 || string(out.Features[1].Params) != `{"scale":2,"tag":"t3"}` {
+		t.Fatalf("features = %d, params[1] %s", len(out.Features), out.Features[1].Params)
 	}
 }

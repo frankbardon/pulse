@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -51,7 +52,7 @@ func TestExpandCompose_SlotsAndOverrides(t *testing.T) {
 	explicit := &types.Request{Label: "x", Cohort: &types.Cohort{Filename: "c.pulse"}}
 	sp := spec()
 	before, _ := json.Marshal(sp)
-	exp, err := banner.ExpandCompose(&types.ComposedRequest{Requests: []*types.Request{explicit}, Banner: sp}, nil)
+	exp, err := banner.ExpandCompose(&types.ComposedRequest{Requests: []*types.Request{explicit}, Banner: sp}, sweep.Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestExpandCompose_PreflightCountsBannerSlots(t *testing.T) {
 		Sweep: &types.SweepSpec{Axes: []types.SweepAxis{{Name: "op", Values: []any{"AGG_SUM", "AGG_MAX"}}},
 			Request: json.RawMessage(`{"cohort":{"filename":"c.pulse"},"aggregations":[{"type":"{{op}}","field":"x"}]}`)},
 		Banner: spec(),
-	}, func(n int) error { seen = n; return stderrors.New("stop") })
+	}, sweep.Options{}, func(n int) error { seen = n; return stderrors.New("stop") })
 	if err == nil || seen != 1+2+6 {
 		t.Fatalf("preflight saw %d (err %v), want 9", seen, err)
 	}
@@ -165,7 +166,7 @@ func TestExpandCompose_ScopesLabels(t *testing.T) {
 		{Field: "kpi", Table: "k"},
 		{Field: "nowhere", Table: "n"},
 	}
-	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, nil)
+	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, sweep.Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +200,7 @@ func TestExpandCompose_ScopesLabels(t *testing.T) {
 		t.Fatal("scoping changed the spec")
 	}
 	// No labels: no slot gains a `labels` key.
-	exp, err = banner.ExpandCompose(&types.ComposedRequest{Banner: spec()}, nil)
+	exp, err = banner.ExpandCompose(&types.ComposedRequest{Banner: spec()}, sweep.Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +223,7 @@ func TestExpandCompose_SectionOverlaysReplace(t *testing.T) {
 		{Name: "mean", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
 		{Name: "mean2", Kind: types.OverlayKindPairwisePropZ, Scope: types.OverlayScopeColumn},
 	}
-	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, nil)
+	exp, err := banner.ExpandCompose(&types.ComposedRequest{Banner: sp}, sweep.Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

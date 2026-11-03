@@ -13,7 +13,9 @@ import (
 // Predict, the Compose and chain validators — so the item lists they
 // judge and run cannot drift: sweep.ExpandItems with the
 // MaxDerivedColumns preflight over l (the instance's effective limits),
-// checked BEFORE any item renders. A request without a for_each comes
+// checked BEFORE any item renders, and the instance facts so
+// (InstanceSnapshot.SweepOptions at predict, the runtime registry's
+// ScalarParamsByOperator in the service) the splice ban judges with. A request without a for_each comes
 // back as req itself, after the same limit check over its plain items.
 // The caller runs the slot gate (SlotRefusal) first, so a hidden
 // `for_each` is an unknown field before its contents are judged.
@@ -21,7 +23,7 @@ import (
 // The returned finding is the Certain MaxDerivedColumns breach when the
 // limit refused the request (nil otherwise), for predict's
 // LimitFindings.
-func ExpandRequestItems(req *types.Request, l limits.Limits) (*types.Request, []sweep.FanOut, *limits.Finding, error) {
+func ExpandRequestItems(req *types.Request, l limits.Limits, so sweep.Options) (*types.Request, []sweep.FanOut, *limits.Finding, error) {
 	// The for_each-free fast path (every request without a fan-out):
 	// the same limit over the plain items, no closure, no clone.
 	// Read straight off the struct: limits.Evaluate's by-name lookup
@@ -36,7 +38,7 @@ func ExpandRequestItems(req *types.Request, l limits.Limits) (*types.Request, []
 		return req, nil, nil, nil
 	}
 	var finding *limits.Finding
-	out, fan, err := sweep.ExpandItems(req, func(derived int) error {
+	out, fan, err := sweep.ExpandItems(req, so, func(derived int) error {
 		if f, ok := limits.Evaluate(l, limits.MaxDerivedColumns, int64(derived), limits.Certain); ok {
 			finding = &f
 			return f.Err()
@@ -85,7 +87,7 @@ func predictForEachRefusal(req *types.Request, err error, finding *limits.Findin
 // the chain itself when no stage changes, else a shallow clone whose
 // changed stages carry their expanded Request. A refusal is located by
 // details.stage (RefusalAt).
-func ExpandChainItems(req *types.ChainRequest, l limits.Limits) (*types.ChainRequest, error) {
+func ExpandChainItems(req *types.ChainRequest, l limits.Limits, so sweep.Options) (*types.ChainRequest, error) {
 	if req == nil {
 		return nil, nil
 	}
@@ -94,7 +96,7 @@ func ExpandChainItems(req *types.ChainRequest, l limits.Limits) (*types.ChainReq
 		if st == nil || st.Request == nil {
 			continue
 		}
-		out, _, _, err := ExpandRequestItems(st.Request, l)
+		out, _, _, err := ExpandRequestItems(st.Request, l, so)
 		if err != nil {
 			return nil, RefusalAt(err, "stage", i)
 		}

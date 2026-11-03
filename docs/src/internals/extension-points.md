@@ -361,7 +361,10 @@ A request template's `{{token}}` inside such a param (at
 `PULSE_TEMPLATE_EXPR_SPLICE` (`details.slot` `extension_param`) at
 `pulse.New` and on every template rescan, as in a built-in expression
 slot; pass the value through request `params` or a whole-value
-`{"$var": …}` marker. An operator a feature profile hides flags
+`{"$var": …}` marker. Likewise an item `for_each` axis `{{token}}` there
+is `PULSE_FOR_EACH_EXPR_SPLICE` and a Compose `sweep` axis token
+`PULSE_SWEEP_EXPR_SPLICE`, same `details.slot`, refused identically by
+predict and the runtime. An operator a feature profile hides flags
 nothing.
 
 When `Streamable=true`, the probe at `pulse.New` time asserts that the

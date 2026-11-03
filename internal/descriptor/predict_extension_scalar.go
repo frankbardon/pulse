@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/scalarslot"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -75,6 +76,31 @@ func addScalarKey(out map[paramread.Key][]string, cat paramread.Category, name, 
 	k := paramread.Key{Category: cat, Op: name}
 	out[k] = append(out[k], key)
 	return out
+}
+
+// SweepOptions is the instance facts the item for_each and compose sweep
+// expansions judge with (sweep.Options): ExprParams is the visible
+// extension operators' expression-capable params keys by operator name
+// — predict's twin of the runtime's
+// processing.ExtensionRegistry.ScalarParamsByOperator, so an axis
+// token in one is refused identically on both sides. A hidden operator
+// flags nothing. The zero value when none flags a param. Nil-safe.
+func (s *InstanceSnapshot) SweepOptions() sweep.Options {
+	keys := extensionScalarKeys(s)
+	if len(keys) == 0 {
+		return sweep.Options{}
+	}
+	var out map[string][]string
+	for k, v := range keys {
+		if s.Hidden(k.Op) {
+			continue
+		}
+		if out == nil {
+			out = make(map[string][]string, len(keys))
+		}
+		out[k.Op] = append(out[k.Op], v...)
+	}
+	return sweep.Options{ExprParams: out}
 }
 
 // extensionFlagged is the extscalar.Flagged of the instance opts

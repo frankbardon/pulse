@@ -302,7 +302,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		}
 		result.Banner = bannerSummary(req.Banner)
 	}
-	exp, xerr := banner.ExpandCompose(req, composeSlotsPreflight(opts))
+	exp, xerr := banner.ExpandCompose(req, opts.instance().SweepOptions(), composeSlotsPreflight(opts))
 	if xerr != nil {
 		addCodedError(env, xerr)
 		if f, ok := limitRefusalFinding(xerr); ok {
@@ -1508,7 +1508,7 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	}
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
-	expanded, _, _, xerr := ExpandRequestItems(slot, l)
+	expanded, _, _, xerr := ExpandRequestItems(slot, l, opts.instance().SweepOptions())
 	if xerr != nil {
 		early(slot, nil) // not expanded: indexes the slot as written
 		located := RefusalAt(xerr, key, idx)

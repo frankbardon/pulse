@@ -100,7 +100,7 @@ func composeWindowUnresolved(req *types.ComposedRequest, slots []*types.Request,
 			continue
 		}
 		fr := f.Request
-		if expanded, _, _, err := ExpandRequestItems(fr, l); err == nil {
+		if expanded, _, _, err := ExpandRequestItems(fr, l, opts.instance().SweepOptions()); err == nil {
 			fr = expanded
 		}
 		out = append(out, requestUnresolved(fr, opts.withModels(fitCatalog(i)), "fits["+strconv.Itoa(i)+"].request.")...)
