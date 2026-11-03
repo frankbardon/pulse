@@ -1373,6 +1373,7 @@ Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pu
 | — | `PULSE_FIT_INVALID` reason `from_sweep_window_cycle` (`details.slot`, `window`, `param`): a sweep slot's window reads the fit its sweep binds in a scalar param | added | sweep the param as an axis; read the winner only in explicit slots | U79 (E1-S2) |
 | — | `descriptor.Param.Expression` (`expression,omitempty`) marks a manifest param that takes a number or a scalar expression; set on the six window params above | added | none | U79 (E1-S2) |
 | — | a template `{{token}}` inside a window scalar param string is `PULSE_TEMPLATE_EXPR_SPLICE` (slot `window_param`) | behaviour | pass the value through `params` or a whole-value `$var` | U79 (E1-S2) |
+| — | `pulse.ParamMeta.Expression` (opt-in, `JSONType` `number` only — else `PULSE_EXTENSION_PARAM_INVALID` `expression_not_number` at `pulse.New`): the param also takes a scalar-expression string, resolved before the factory decodes its params, so the factory always receives a plain number (an integral value as a plain integer). Projected as `descriptor.OperatorParamMeta.Expression` / `Param.Expression` (manifest `expression`). Refusals: `PULSE_REQUEST_PARAM_INVALID` `details.reason` `param_invalid` / `param_not_numeric` / `param_not_finite`, or the shared code located at the param; a request-bound one is listed under predict's `unresolved_scalars`. A `FieldInputs` hook sees `0` in an expression's place | added | none; set `Expression` to accept expressions | U79 (E1-S3) |
 
 ## Third-party dependency
 

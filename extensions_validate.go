@@ -700,6 +700,20 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 				},
 			)
 		}
+		if p.Expression && p.JSONType != "number" {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q param[%d] (%q) sets Expression but has JSONType %q; only a \"number\" param takes an expression", cat, regName, i, p.Name, p.JSONType),
+				map[string]any{
+					"category":    string(cat),
+					"name":        regName,
+					"param_index": i,
+					"param_name":  p.Name,
+					"reason":      "expression_not_number",
+					"json_type":   p.JSONType,
+				},
+			)
+		}
 		if err := validateParamExample(p, i, cat, regName); err != nil {
 			return err
 		}

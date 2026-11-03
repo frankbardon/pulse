@@ -321,6 +321,42 @@ generic placeholder (see [Probe validation](#probe-validation-full-surface)),
 so a factory that accepts only certain values — an enum-like string —
 declares one it accepts. On any other param it is documentation only.
 
+**Expression-capable number params.** Set `ParamMeta.Expression` on a
+`JSONType: "number"` param to let a request write it as a number OR as
+a scalar-expression string — literals, `params.<name>`, `coef()` /
+`sweep_axis()` over the request's bound models, `lookup()` /
+`range_label()`, the expression built-ins and your own expression
+functions — evaluated once before the operator runs, never per record:
+
+```go
+Params: []pulse.ParamMeta{
+    {Name: "scale", JSONType: "number", Required: true, Expression: true},
+},
+// a request: "params": {"scale": "params.base * 2"}
+```
+
+Pulse resolves it in the same pre-resolution pass as the built-in
+window params, in every one of the nine categories (a facet's
+filterers and a `MAT_DISTANCE` `params.between` grouper included), so
+your factory's own decode only ever receives a plain number: an
+integral value as a plain integer (it decodes into an `int` field),
+any other as its shortest round-trip decimal. A `FieldInputs` hook
+runs before the pass and sees the number `0` in the expression's
+place. A bad expression is refused `PULSE_REQUEST_PARAM_INVALID`
+(`details.reason` `param_invalid` / `param_not_numeric` /
+`param_not_finite`, `details.path` / `param` / `expression`), and a
+shared code (`PULSE_PARAMS_UNDECLARED`, `PULSE_MODEL_*`, a table code)
+keeps its code, located at the param — by predict and every runtime
+arm alike. An expression over literals and params is computed at
+predict; one calling `coef()`, `sweep_axis()`, `lookup()` or an
+embedder function is listed under predict's `unresolved_scalars`
+(`{path, expression, reads}`) and judged at run time. The manifest
+marks the param `expression: true`. `Expression` on any other
+`JSONType` is `PULSE_EXTENSION_PARAM_INVALID` (`details.reason`
+`expression_not_number`) at `pulse.New`. Without the flag a string
+stays a `wrong_type` refusal. Your range checks stay yours: the
+factory judges the resolved number exactly as it judges a literal.
+
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
 Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`. The

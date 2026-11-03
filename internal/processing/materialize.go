@@ -62,6 +62,10 @@ type DerivedEmit func(source int64, values []any) error
 // attributes' Response-level warnings (a fitted vector attribute's
 // singular or insufficient fit) are read back through DeriveWarnings.
 func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter RecordIterator, cols []DerivedColumn, emit DerivedEmit) error {
+	req, err := p.resolveExtensionScalars(req)
+	if err != nil {
+		return err
+	}
 	req = p.prepare(req)
 	p.deriveWarnings = nil
 	var all []*Record

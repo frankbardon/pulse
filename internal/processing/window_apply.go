@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/windowscalar"
 
@@ -113,12 +114,18 @@ func (p *Processor) resolveWindowScalars(windows []*types.Window) ([]*types.Wind
 // its params (the registry's fold), its bound models, the instance's
 // tables and the embedder's expression functions.
 func (p *Processor) scalarEnv() scalarslot.Env {
-	env := scalarslot.Env{Params: p.exts.Params(), Fits: p.catalog(), Tables: p.exts.TablesCatalog()}
-	if p.exts != nil {
-		for _, fn := range p.exts.ExprFunctions {
+	return scalarEnvOf(p.exts, p.models)
+}
+
+// scalarEnvOf is the scalar-slot environment of a request run over exts
+// (its params fold, tables and expression functions) and models.
+func scalarEnvOf(exts *ExtensionRegistry, models *model.Set) scalarslot.Env {
+	env := scalarslot.Env{Params: exts.Params(), Fits: catalogOf(models), Tables: exts.TablesCatalog()}
+	if exts != nil {
+		for _, fn := range exts.ExprFunctions {
 			env.Extensions = append(env.Extensions, fn.Name)
 		}
-		env.Lookup = len(p.exts.LookupTables) > 0
+		env.Lookup = len(exts.LookupTables) > 0
 	}
 	return env
 }

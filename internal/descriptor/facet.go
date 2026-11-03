@@ -154,6 +154,10 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 		result.Valid = false
 		return env
 	}
+	// The extension filterers' expression-capable params, judged over
+	// the facet's params and models — the runtime resolves them right
+	// after it binds the models.
+	validateFacetExtensionScalars(env, req, models, opts)
 	// Multiplicity on the overlays — the pass FacetSchema runs right
 	// after the slot gate (ResolveFacetMultiplicity).
 	facetPlan, merr := ResolveFacetMultiplicity(req, opts.DefaultMultiplicity, opts.instance())

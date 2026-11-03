@@ -39,6 +39,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprreads"
 	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/paramread"
 )
 
 // Component categories: the manifest section an operator's Param list
@@ -305,6 +306,35 @@ type readsWalker struct {
 	idx readsIndex
 	ext *ExtensionsSnapshot
 	out []slotEntry
+	// scalars are the extension operators' expression-capable params
+	// (snapshotScalarKeys), built on first use.
+	scalars      map[paramread.Key][]string
+	scalarsBuilt bool
+}
+
+// slotExtensionParam names an expression-capable extension param
+// (pulse.ParamMeta.Expression) to expression: a scalar slot whose
+// identifiers are variables, never columns.
+const slotExtensionParam = "extension_param"
+
+// extensionScalars reads the expression-capable params of extension
+// operator typ (category cat) written as expression strings — the
+// params the pre-resolution pass (internal/extscalar) evaluates.
+func (w *readsWalker) extensionScalars(params map[string]any, at readsPath, prefix string, req readsPath, cat, typ string) {
+	if w.ext == nil || params == nil {
+		return
+	}
+	if !w.scalarsBuilt {
+		w.scalars, w.scalarsBuilt = snapshotScalarKeys(w.ext), true
+	}
+	if cat == catPostTest {
+		cat = catTest
+	}
+	for _, k := range w.scalars[paramread.Key{Category: paramread.Category(cat), Op: typ}] {
+		if src, ok := params[k].(string); ok {
+			w.expression(src, at, prefix+k, req, slotExtensionParam)
+		}
+	}
 }
 
 func (w *readsWalker) emit(at readsPath, key string, req readsPath, columns, params []string) *slotEntry {
@@ -516,6 +546,7 @@ func (w *readsWalker) component(obj map[string]any, at, req readsPath, cat strin
 		w.value(v, at, "params."+p.Name, req, shapeAuto)
 	}
 	w.fieldInputs(obj, at, req, cat, typ)
+	w.extensionScalars(params, at, "params.", req, cat, typ)
 	if params == nil {
 		return
 	}
@@ -531,6 +562,8 @@ func (w *readsWalker) component(obj map[string]any, at, req readsPath, cat strin
 			w.typed(obj, at, req, sub, nil)
 			if bt, _ := b["type"].(string); bt != "" {
 				w.fieldInputsAt(b, at, "params.between.params", req, catGrouper, bt)
+				bp, _ := b["params"].(map[string]any)
+				w.extensionScalars(bp, at, "params.between.params.", req, catGrouper, bt)
 			}
 		}
 	}
@@ -748,7 +781,7 @@ func (w *readsWalker) expression(src string, at readsPath, key string, req reads
 	if len(reads.Funcs) > 0 {
 		e.Funcs = reads.Funcs
 	}
-	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam {
+	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam || slot == slotExtensionParam {
 		e.Variables = reads.Vars
 		return
 	}

@@ -768,6 +768,7 @@ pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
 pulse: type ParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse: type ParamMeta field Example any "json:\"example,omitempty\""
+pulse: type ParamMeta field Expression bool "json:\"expression,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
@@ -1967,6 +1968,7 @@ pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omite
 pulse/descriptor: type OperatorParamMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type OperatorParamMeta field Example any "json:\"example,omitempty\""
+pulse/descriptor: type OperatorParamMeta field Expression bool "json:\"expression,omitempty\""
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
@@ -6671,4 +6673,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bee88809b264da9e84c0ec07365ec658fbcb1888b2f2991e59335e2bdce1b6c2
+// golden-hash: 5e5b847dbe18ae311fa5047e4f48debf1d8b46f36f8b37bc88ec7bfd4fced3ee

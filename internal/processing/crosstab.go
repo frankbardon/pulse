@@ -510,6 +510,10 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	// the stamped spec, so cells, every margin, the normalization
 	// denominators and the auxiliaries are all weighted from raw rows;
 	// counts stay raw (.claude/reference/weighting.md "Crosstab").
+	req, err := p.resolveExtensionScalars(req)
+	if err != nil {
+		return nil, err
+	}
 	req = p.prepare(req)
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {

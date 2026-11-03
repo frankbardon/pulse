@@ -2077,11 +2077,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default. An Example must marshal to a JSON value of the param's JSONType (details.expected / got).",
+				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default. An Example must marshal to a JSON value of the param's JSONType (details.expected / got). Expression is valid only on a JSONType number param (reason expression_not_number): drop it, or declare the param a number.",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
 			},
 			{
@@ -3385,7 +3385,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_PARAM_INVALID: {
-		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it.",
+		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it. A number param the registration declares expression-capable (the manifest marks it `expression`) also takes a scalar-expression string, evaluated once before the operator runs: one that does not compile or reads an identifier other than params is details.reason \"param_invalid\", one yielding a string, bool or null \"param_not_numeric\", NaN or an infinity \"param_not_finite\" (details.expression) — at predict when it reads only literals and params, at run time when it calls coef(), sweep_axis(), lookup() or an embedder function.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3396,6 +3396,11 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Hint:     "reason exactly_one_of: supply exactly one of details.members in the params object — drop all but one of details.present, or add one when it is empty (the manifest marks each member with exactly_one_of).",
 				Examples: []any{map[string]any{"params": map[string]any{"span": 7}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Hint:     "reason param_*: write the param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() over a bound model, lookup() and the built-ins that yields a finite number. Only a param the manifest marks `expression` takes an expression; any other string is reason wrong_type.",
+				Examples: []any{map[string]any{"params": map[string]any{"scale": "params.scale * 2"}}},
 			},
 		},
 	},

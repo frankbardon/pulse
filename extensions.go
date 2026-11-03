@@ -225,6 +225,23 @@ type ParamMeta struct {
 	// passes the probe. On any other param it is documentation only.
 	// Projected into the manifest as example. Nil = none.
 	Example any `json:"example,omitempty"`
+	// Expression opts a "number" param in to scalar expressions: a
+	// request may write it as a JSON number OR as an expression string
+	// (literals, params.<name>, coef() / sweep_axis() over the request's
+	// bound models, lookup() / range_label(), the expression built-ins
+	// and the embedder's functions), evaluated ONCE before the operator
+	// runs, never per record. Pulse resolves it in the same
+	// pre-resolution pass as the built-in window params, so the
+	// factory's own decode always receives a plain number — an
+	// integral value written as a plain integer. A bad expression is
+	// refused PULSE_REQUEST_PARAM_INVALID (details.reason
+	// param_invalid / param_not_numeric / param_not_finite) at predict
+	// and at run time alike; one calling a request-bound function is
+	// listed under predict's unresolved_scalars and judged at run time.
+	// Valid only with JSONType "number" (PULSE_EXTENSION_PARAM_INVALID,
+	// details.reason expression_not_number, otherwise). Projected into
+	// the manifest as expression. False = literal only.
+	Expression bool `json:"expression,omitempty"`
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory

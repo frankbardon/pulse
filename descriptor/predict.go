@@ -280,13 +280,15 @@ type PredictResult struct {
 	// runs without a schema. Omitted when the request carries no window.
 	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
 
-	// UnresolvedScalars lists every scalar-expression window param
-	// predict could not compute — a WIN_DISTRIBUTED_LAG decay / shape /
-	// scale / max_lag or WIN_EWMA alpha / decay calling coef(),
-	// sweep_axis(), lookup(), range_label() or an embedder function — in
-	// window order, its path indexing the EXPANDED request
-	// (windows[0].params.decay). Its value and the param's range checks
-	// wait for the runtime. Not a warning and not a refusal: a param over
+	// UnresolvedScalars lists every scalar-expression param predict
+	// could not compute — a WIN_DISTRIBUTED_LAG decay / shape / scale /
+	// max_lag or WIN_EWMA alpha / decay, then an extension operator's
+	// expression-capable number param (pulse.ParamMeta.Expression),
+	// calling coef(), sweep_axis(), lookup(), range_label() or an
+	// embedder function — windows first in window order, then the
+	// extension params in slot order, its path indexing the EXPANDED
+	// request (windows[0].params.decay, aggregations[1].params.scale).
+	// Its value and the param's range checks wait for the runtime. Not a warning and not a refusal: a param over
 	// literals and params is resolved and range-checked here, so it
 	// never appears. Omitted when every scalar param resolved.
 	UnresolvedScalars []UnresolvedScalar `json:"unresolved_scalars,omitempty"`
@@ -1069,7 +1071,8 @@ type OptimizeSummary struct {
 // UnresolvedScalar is one ComposeValidationResult.UnresolvedScalars or
 // PredictResult.UnresolvedScalars entry: a scalar-expression slot (a
 // number-or-expression request slot — an optimize variable's lower /
-// upper / start, a scalar window param) whose
+// upper / start, a scalar window param, an extension operator's
+// expression-capable number param) whose
 // expression calls a request-bound function — coef(), sweep_axis(),
 // lookup(), range_label() or an embedder function — so predict checks
 // it but cannot compute it. Its value and the slot's range checks wait

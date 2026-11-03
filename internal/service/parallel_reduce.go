@@ -91,6 +91,12 @@ func (s *Service) reduceParallelBuffered(
 	// Every worker builds its aggregators off the stamped spec, so each
 	// slot carries its resolved weight (processing.StampWeightsWith).
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
+	// Every extension factory decodes its expression-capable params as
+	// plain numbers (the pass Processor.Process runs on the serial arm).
+	req, err := processing.ResolveExtensionScalars(req, s.requestExtensions(req), model.SetFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
 	req = processing.ResolveAggregationInputs(req, schema, s.extensions, catalogOf(model.SetFrom(ctx)))

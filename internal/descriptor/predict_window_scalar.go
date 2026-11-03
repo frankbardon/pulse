@@ -23,7 +23,13 @@ import (
 // elsewhere, and the runtime folds none either), the catalog opts
 // carries, the instance's tables and the embedder's functions.
 func windowScalarEnv(req *types.Request, opts *PredictOptions) scalarslot.Env {
-	params, _ := exprenv.NormalizeParams(req.Params)
+	return scalarEnvFor(req.Params, opts)
+}
+
+// scalarEnvFor is the static scalar-slot environment of a request host
+// carrying params, over the catalog opts carries.
+func scalarEnvFor(p types.Params, opts *PredictOptions) scalarslot.Env {
+	params, _ := exprenv.NormalizeParams(p)
 	tables := ExprTables(extensionsFromOpts(opts), opts.instance())
 	return scalarslot.Env{
 		Params:     params,
@@ -70,8 +76,9 @@ func windowUnresolved(req *types.Request, opts *PredictOptions, prefix string) [
 	return out
 }
 
-// composeWindowUnresolved is the batch's window params the static pass
-// left to the runtime: every slot's (requests[i]., judged on its
+// composeWindowUnresolved is the batch's scalar params — built-in
+// window params, then expression-capable extension params — the static
+// pass left to the runtime: every slot's (requests[i]., judged on its
 // normalized request against its catalog), then every request-bound
 // fit's (fits[i].request., against the populations and its own loaded
 // entries; a from_sweep fit's request is a sweep slot, listed there).
@@ -85,7 +92,7 @@ func composeWindowUnresolved(req *types.ComposedRequest, slots []*types.Request,
 		if i < len(catalogs) {
 			cat = catalogs[i]
 		}
-		out = append(out, windowUnresolved(slot, opts.withModels(cat), "requests["+strconv.Itoa(i)+"].")...)
+		out = append(out, requestUnresolved(slot, opts.withModels(cat), "requests["+strconv.Itoa(i)+"].")...)
 	}
 	l := opts.instance().Limits()
 	for i, f := range req.Fits {
@@ -96,7 +103,7 @@ func composeWindowUnresolved(req *types.ComposedRequest, slots []*types.Request,
 		if expanded, _, _, err := ExpandRequestItems(fr, l); err == nil {
 			fr = expanded
 		}
-		out = append(out, windowUnresolved(fr, opts.withModels(fitCatalog(i)), "fits["+strconv.Itoa(i)+"].request.")...)
+		out = append(out, requestUnresolved(fr, opts.withModels(fitCatalog(i)), "fits["+strconv.Itoa(i)+"].request.")...)
 	}
 	if len(out) == 0 {
 		return nil

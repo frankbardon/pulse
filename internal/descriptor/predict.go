@@ -572,7 +572,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	validateRequestBody(env, req, schema, opts, werr)
 	// The scalar window params the body's static pass left to the
 	// runtime (validateWindows judged the rest).
-	result.UnresolvedScalars = windowUnresolved(req, opts, "")
+	result.UnresolvedScalars = requestUnresolved(req, opts, "")
 
 	// Populate the predict surface from req.Overlays. One descriptor per
 	// spec in matching order; OverlayCost is a per-kind multiplier keyed
@@ -729,6 +729,10 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
+
+	// The expression-capable extension params (internal/extscalar —
+	// the pass the engine runs before any extension factory).
+	validateExtensionScalars(env, req, opts)
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.

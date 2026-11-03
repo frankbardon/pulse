@@ -68,6 +68,17 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if err != nil {
 		return nil, err
 	}
+	// The extension filterers' expression-capable params
+	// (internal/extscalar), resolved against the facet's params and
+	// models before any filterer is built — predict judges them at the
+	// same point.
+	if fs, rerr := processing.ResolveExtensionScalarFilterers("filterers", req.Filterers, s.extensions, model.SetFrom(ctx)); rerr != nil {
+		return nil, rerr
+	} else if len(fs) > 0 && &fs[0] != &req.Filterers[0] {
+		cp := *req
+		cp.Filterers = fs
+		req = &cp
+	}
 	mult, err := descx.ResolveFacetMultiplicity(req, s.defaultMultiplicity, s.instance)
 	if err != nil {
 		return nil, err

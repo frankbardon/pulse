@@ -91,6 +91,7 @@ func addRuntimeMatrixOps(r *processing.ExtensionRegistry, regs []MatrixOpRegistr
 		r.Streamable[key] = reg.Streamable
 		r.Mergeable[key] = reg.Streamable
 		r.WeightAware[key] = reg.WeightAware
+		addScalarParams(r, "matrix", string(reg.Name), reg.Params)
 		if reg.FieldInputs != nil {
 			r.FieldInputs[key] = processing.FieldInputsFunc(reg.FieldInputs)
 		}
@@ -155,6 +156,7 @@ func matrixParamSnapshot(in []ParamMeta) []descriptor.Param {
 			Description:  p.Description,
 			ExactlyOneOf: p.ExactlyOneOf,
 			Example:      p.Example,
+			Expression:   p.Expression,
 		}
 	}
 	return out

@@ -148,10 +148,11 @@ type ComposeValidationResult struct {
 
 	// UnresolvedScalars lists every scalar-expression slot predict could
 	// not compute — an optimize bound or start, or a slot's or fit
-	// request's scalar window param, calling coef(), sweep_axis(),
-	// lookup(), range_label() or an embedder function — optimize
-	// blocks first, then the slots' windows, then the fit requests'
-	// (each request's windows indexed on its item-expanded list): its
+	// request's scalar window param or expression-capable extension
+	// param, calling coef(), sweep_axis(), lookup(), range_label() or an
+	// embedder function — optimize blocks first, then the slots' (each
+	// slot's windows, then its extension params), then the fit
+	// requests' (each request indexed on its item-expanded lists): its
 	// path, the expression and the request-bound functions it reads.
 	// Its value, and the slot's range checks (bounds_crossed,
 	// start_out_of_bounds, a window param's range, finiteness), wait for

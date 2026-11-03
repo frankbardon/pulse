@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -9,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -193,6 +195,15 @@ type ExtensionRegistry struct {
 	// the projection to "every field" so the runtime stays correct
 	// for embedders that haven't opted in.
 	FieldInputs map[string]FieldInputsFunc
+
+	// ScalarParams are the expression-capable params keys
+	// (pulse.ParamMeta.Expression) per extension operator, keyed
+	// StreamabilityKey(paramread category, name) — "test" for either
+	// test tier — each sorted. ResolveExtensionScalars rewrites every
+	// such key written as an expression string to its number before the
+	// factory decodes its params; FieldInputsFor hands the field
+	// callback a stand-in number in its place. Absent: none.
+	ScalarParams map[string][]string
 
 	// hidden is the instance feature-set predicate installed by
 	// WithHidden: true for an operator name that resolves on this
@@ -971,7 +982,50 @@ func (r *ExtensionRegistry) FieldInputsFor(category, name string, raw json.RawMe
 	if fn == nil {
 		return nil, true
 	}
-	return fn(raw), true
+	return fn(r.scalarStandIns(category, name, raw)), true
+}
+
+// scalarStandIns is raw with every expression-capable param of
+// (category, name) written as an expression string replaced by the
+// number 0: a projection callback runs before the expressions are
+// resolved, and its decode must see the param's declared type. A
+// number param names no column, so the stand-in leaves the field list
+// as the resolved value would. raw itself when there is nothing to
+// replace.
+func (r *ExtensionRegistry) scalarStandIns(category, name string, raw json.RawMessage) json.RawMessage {
+	keys := r.ScalarParams[StreamabilityKey(category, name)]
+	if len(keys) == 0 || len(raw) == 0 {
+		return raw
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil || m == nil {
+		return raw
+	}
+	changed := false
+	for _, k := range keys {
+		if v := bytes.TrimSpace(m[k]); len(v) > 0 && v[0] == '"' {
+			m[k] = json.RawMessage("0")
+			changed = true
+		}
+	}
+	if !changed {
+		return raw
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// ExtensionScalarParams returns the expression-capable params keys of
+// extension operator op in category cat (nil: none, or op is hidden) —
+// the runtime's extscalar.Flagged. Nil-receiver-safe.
+func (r *ExtensionRegistry) ExtensionScalarParams(cat paramread.Category, op string) []string {
+	if r == nil || len(r.ScalarParams) == 0 || r.isHidden(op) {
+		return nil
+	}
+	return r.ScalarParams[StreamabilityKey(string(cat), op)]
 }
 
 // CustomAggregatorNames returns the overlay-only aggregator names in

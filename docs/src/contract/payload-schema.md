@@ -132,8 +132,10 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   function — an optimize bound, or a `WIN_DISTRIBUTED_LAG` decay /
   shape / scale / max_lag or `WIN_EWMA` alpha / decay window param
   (`windows[0].params.decay`, under `requests[i].` / `fits[i].request.`
-  in a batch). Those window params take a number or an expression
-  string; the window `params` object stays open in this schema.
+  in a batch), or an embedder extension operator's number param its
+  registration declares expression-capable (`aggregations[0].params.scale`;
+  the manifest marks it `expression`). Those params take a number or an
+  expression string; a slot's `params` object stays open in this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
