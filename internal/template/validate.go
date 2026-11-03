@@ -496,34 +496,78 @@ func (s *bodyScan) text(str, path string, keys []string, axes axisScope) error {
 // expression-capable params key (ValidateOptions.ExprParams): the string
 // directly at params.<key> of an object whose `type` is a literal
 // operator name flagging that key. A `type` that is itself template
-// syntax names no operator before render, so it flags nothing. Variables
-// and axis tokens alike, as in a built-in slot; the normal descent then
-// walks the params object as usual.
+// syntax — an interpolation or a whole-value `{"$var"}` marker — names
+// no operator before render, so it is judged conservatively: every key
+// ANY instance operator flags is held to the ban (the refusal carries
+// details.type_templated). Variables and axis tokens alike, as in a
+// built-in slot; the normal descent then walks the params object as
+// usual.
 func (s *bodyScan) extensionParams(obj map[string]any, path string, axes axisScope) error {
 	if len(s.exprParams) == 0 {
-		return nil
-	}
-	op, ok := obj["type"].(string)
-	if !ok {
 		return nil
 	}
 	params, ok := obj[exprslots.ParamsKey].(map[string]any)
 	if !ok {
 		return nil
 	}
-	for _, key := range s.exprParams[op] {
+	var keys []string
+	templated := false
+	switch op := obj["type"].(type) {
+	case string:
+		if templated = strings.Contains(op, interpOpen); !templated {
+			keys = s.exprParams[op]
+		}
+	case map[string]any:
+		templated = isLoneMarkerKey(op)
+	}
+	if templated {
+		keys = s.anyFlagged()
+	}
+	for _, key := range keys {
 		str, ok := params[key].(string)
 		if !ok || !strings.Contains(str, interpOpen) {
 			continue
 		}
 		at := childPath(path, key)
 		if err := walkInterpolation(s.t, str, at, func(string) {}, func(name string) error {
-			return exprSplice(s.t, name, at, exprslots.SlotExtensionParam, axes.has(name))
+			err := exprSplice(s.t, name, at, exprslots.SlotExtensionParam, axes.has(name))
+			if templated {
+				markTemplatedType(err)
+			}
+			return err
 		}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// anyFlagged is every params key some instance operator flags
+// expression-capable (ValidateOptions.ExprParams), sorted and
+// deduplicated: the keys a templated `type` is judged by.
+func (s *bodyScan) anyFlagged() []string {
+	var out []string
+	for _, keys := range s.exprParams {
+		out = append(out, keys...)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// DetailTypeTemplated is the extension-param splice refusal's details
+// key set (true) when the object's `type` is itself template syntax, so
+// the key was judged against every operator that flags it.
+const DetailTypeTemplated = "type_templated"
+
+// markTemplatedType adds details.type_templated to an extension-param
+// splice refusal and says why in its message.
+func markTemplatedType(err error) {
+	ce, ok := err.(*errors.CodedError)
+	if !ok {
+		return
+	}
+	ce.Details[DetailTypeTemplated] = true
+	ce.Message += "; the object's `type` is itself template syntax, so a params key any instance operator flags as an expression is held to this rule"
 }
 
 // exprSplice builds the `{{token}}`-inside-an-expression fault. It is a

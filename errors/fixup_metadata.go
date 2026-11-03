@@ -2880,7 +2880,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_EXPR_SPLICE: {
-		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param — any key a visible extension flags when the object's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2897,7 +2897,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_EXPR_SPLICE: {
-		Message: "A window, feature, attribute, aggregation or matrix item, or a Compose `optimize` block, carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, a params-borne fit or centroid filter expression, a scalar-expression param, an optimize objective, constraint or bound, or an embedder extension's expression-capable param), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "A window, feature, attribute, aggregation or matrix item, or a Compose `optimize` block, carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, a params-borne fit or centroid filter expression, a scalar-expression param, an optimize objective, constraint or bound, or an embedder extension's expression-capable param — any key a visible extension flags when the item's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4194,7 +4194,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_EXPR_SPLICE: {
-		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula, an optimize bound, or an expression-capable operator param such as a window or embedder extension param). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula, an optimize bound, or an expression-capable operator param such as a window or embedder extension param — any key a visible extension flags when the object's `type` is itself template syntax, `details.type_templated`). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

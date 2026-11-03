@@ -100,8 +100,9 @@ func TestTemplateExprSplice_ExtensionAxisTokenRefused(t *testing.T) {
 // TestTemplateExprSplice_ExtensionParamAllowed: what the hook leaves
 // alone — an unflagged key of a flagged operator, a flagged key's name
 // on an operator that does not flag it (built-in or extension), a
-// whole-value marker and the escape in a flagged key, a `type` that is
-// itself template syntax, and a request-level params entry.
+// whole-value marker and the escape in a flagged key, a key no
+// operator flags under a `type` that is itself template syntax, and a
+// request-level params entry.
 func TestTemplateExprSplice_ExtensionParamAllowed(t *testing.T) {
 	t.Parallel()
 
@@ -111,7 +112,8 @@ func TestTemplateExprSplice_ExtensionParamAllowed(t *testing.T) {
 		{"unflagged extension", `{"aggregations": [{"type": "AGG_ACME_Y", "params": {"scale": "{{w}}"}}]}`},
 		{"whole-value marker", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": {"$var": "w"}}}]}`},
 		{"escape", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": "'{{{{w}}'"}}]}`},
-		{"templated type", `{"aggregations": [{"type": "{{f}}", "params": {"scale": "{{w}}"}}]}`},
+		{"templated type, key nobody flags", `{"aggregations": [{"type": "{{f}}", "params": {"tag": "{{w}}"}}]}`},
+		{"templated type, marker value", `{"aggregations": [{"type": "{{f}}", "params": {"scale": {"$var": "w"}}}]}`},
 		{"request params", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": 2}}], "params": {"scale": "{{w}}"}}`},
 	}
 	for _, c := range cases {
@@ -120,6 +122,47 @@ func TestTemplateExprSplice_ExtensionParamAllowed(t *testing.T) {
 				t.Fatalf("ParseWith = %v, want the template to validate", err)
 			}
 		})
+	}
+}
+
+// TestTemplateExprSplice_ExtensionTemplatedTypeRefused: a `type` that is
+// itself template syntax (an interpolation or a whole-value marker)
+// names no operator before render, so the ban is conservative: a token
+// in any params key SOME instance operator flags is refused, slot
+// extension_param, with details.type_templated — the key matched
+// against every operator, not the one the type will render to.
+func TestTemplateExprSplice_ExtensionTemplatedTypeRefused(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ name, body, path string }{
+		{"interpolated type", `{"aggregations": [{"type": "{{f}}", "field": "s", "params": {"scale": "params.k * {{w}}"}}]}`, "body.aggregations[0].params.scale"},
+		{"partly interpolated type", `{"aggregations": [{"type": "AGG_{{f}}", "params": {"scale": "{{w}}"}}]}`, "body.aggregations[0].params.scale"},
+		{"marker type", `{"aggregations": [{"type": {"$var": "f"}, "params": {"scale": "{{w}}"}}]}`, "body.aggregations[0].params.scale"},
+		{"key another category flags", `{"windows": [{"type": "{{f}}", "field": "s", "params": {"gain": "{{w}}"}}]}`, "body.windows[0].params.gain"},
+		{"nested filterer", `{"attributes": [{"type": "ATTR_MAHALANOBIS", "fields": ["a", "b"], "params": {"fit_on": [{"type": "{{f}}", "params": {"scale": "{{w}}"}}]}}]}`,
+			"body.attributes[0].params.fit_on[0].params.scale"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := template.ParseWith([]byte(spliceDoc("request", c.body)), extOpts)
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEMPLATE_EXPR_SPLICE {
+				t.Fatalf("ParseWith = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
+			}
+			if ce.Details["path"] != c.path || ce.Details["slot"] != exprslots.SlotExtensionParam || ce.Details[template.DetailTypeTemplated] != true {
+				t.Errorf("details %+v, want path %q slot %q type_templated", ce.Details, c.path, exprslots.SlotExtensionParam)
+			}
+			if _, err := template.Parse([]byte(spliceDoc("request", c.body))); err != nil {
+				t.Errorf("Parse (no instance facts) = %v, want the template to validate", err)
+			}
+		})
+	}
+	// A literal type keeps the precise per-operator match: no
+	// type_templated on its refusal.
+	_, err := template.ParseWith([]byte(spliceDoc("request", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": "{{w}}"}}]}`)), extOpts)
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Details[template.DetailTypeTemplated] != nil {
+		t.Fatalf("literal type: err %v, want a refusal without type_templated", err)
 	}
 }
 

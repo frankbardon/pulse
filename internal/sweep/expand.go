@@ -489,6 +489,7 @@ func referenceFault(err error) *errors.CodedError {
 			"carry the axis value through the request's params — `\"params\": {"+strconv.Quote(name)+
 				": {\"$var\": "+strconv.Quote(name)+"}}` read as `params."+name+"` — or sweep whole "+
 				"expressions with a `{\"$var\": "+strconv.Quote(name)+"}` marker supplying the slot")
+		carryTemplatedType(ce, tce)
 	} else if name != "" {
 		ce = invalidWith(field, ReasonPlaceholderUnknown,
 			"sweep placeholder "+strconv.Quote(name)+" at "+field+" names no axis; declare an axis "+
@@ -514,6 +515,18 @@ func exprSplice(code errors.Code, noun, field, name, slot, fix string) *errors.C
 			" slot); a "+noun+" never splices an axis value's text into an expression, which would let the "+
 			"value rewrite its logic — "+fix,
 		map[string]any{"field": field, "placeholder": name, "slot": slot})
+}
+
+// carryTemplatedType copies the template scan's details.type_templated
+// onto the splice refusal built from it, saying why: the object's
+// `type` is itself a placeholder, so the params key was judged against
+// every instance operator flagging it (template.DetailTypeTemplated).
+func carryTemplatedType(ce, tce *errors.CodedError) {
+	if tce.Details[template.DetailTypeTemplated] != true {
+		return
+	}
+	ce.Details[template.DetailTypeTemplated] = true
+	ce.Message += "; the object's `type` is itself a placeholder, so a params key any instance operator flags as an expression is held to this rule"
 }
 
 // scanPath maps a reference-scan body path (`body.request.x`) to its

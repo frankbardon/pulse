@@ -266,3 +266,65 @@ func TestAxisExprSplice_ExtensionParamHidden(t *testing.T) {
 		t.Fatalf("Predict errors %s, runtime %s", jsonOf(res.Errors), ce.Code)
 	}
 }
+
+// TestAxisExprSplice_ExtensionTemplatedType: an operator `type` that is
+// itself an axis placeholder names no operator before substitution, so
+// both expansions judge the params key against every visible operator:
+// an axis token in the flagged `scale` is refused (sweep: Compose,
+// ComposeParallel; for_each: Process) with details.type_templated, and
+// predict raises the identical error; the unflagged `tag` expands.
+func TestAxisExprSplice_ExtensionTemplatedType(t *testing.T) {
+	t.Parallel()
+
+	p, cohort := openE2E(t, exprExtensions(&paramCapture{}))
+	ctx := context.Background()
+	sweepJSON := func(params string) *pulse.ComposedRequest {
+		var c pulse.ComposedRequest
+		raw := `{"params":{"k":3},"sweep":{"axes":[{"name":"w","values":["AGG_ACME_STRICT"]}],"request":{"cohort":{"filename":"` +
+			cohort.Filename + `"},"aggregations":[{"type":"{{w}}","field":"score","label":"v","params":` + params + `}]}}}`
+		if err := json.Unmarshal([]byte(raw), &c); err != nil {
+			t.Fatal(err)
+		}
+		return &c
+	}
+	var ce *perr.CodedError
+	for name, run := range composeRunners(p) {
+		_, err := run(sweepJSON(`{"scale":"params.k * {{w}}"}`))
+		ce = requireAxisSplice(t, name, err, perr.PULSE_SWEEP_EXPR_SPLICE, "sweep.request.aggregations[0].params.scale", "w")
+		if ce.Details["type_templated"] != true {
+			t.Fatalf("%s details %v, want type_templated", name, ce.Details)
+		}
+	}
+	env, err := p.PredictCompose(ctx, sweepJSON(`{"scale":"params.k * {{w}}"}`))
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	requirePredictSame(t, "PredictCompose", env.Errors, ce)
+	if env, err := p.PredictCompose(ctx, sweepJSON(`{"scale":2,"tag":"t_{{w}}"}`)); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("PredictCompose (unflagged key) = %v %s", err, jsonOf(env.Errors))
+	}
+
+	item := func(params string) *types.Request {
+		r := withReqParams(&types.Request{Cohort: cohort, Aggregations: []*types.Aggregation{{
+			Type: "AGG_ACME_{{x}}", Field: "score", Label: "v{{x}}", Params: json.RawMessage(params),
+			ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "x", Values: []any{"STRICT"}}}},
+		}}})
+		return r
+	}
+	_, err = p.Process(ctx, item(`{"scale":"{{x}}"}`))
+	ce = requireAxisSplice(t, "Process", err, perr.PULSE_FOR_EACH_EXPR_SPLICE, "aggregations[0].params.scale", "x")
+	if ce.Details["type_templated"] != true {
+		t.Fatalf("Process details %v, want type_templated", ce.Details)
+	}
+	res, err := p.Predict(ctx, item(`{"scale":"{{x}}"}`))
+	if err != nil || res.Valid {
+		t.Fatalf("Predict = valid %v, %v; Process refused", res.Valid, err)
+	}
+	requirePredictSame(t, "Predict", res.Errors, ce)
+	if res, err := p.Predict(ctx, item(`{"scale":2,"tag":"t_{{x}}"}`)); err != nil || !res.Valid {
+		t.Fatalf("Predict (unflagged key) = %v %s", err, jsonOf(res.Errors))
+	}
+	if _, err := p.Process(ctx, item(`{"scale":2,"tag":"t_{{x}}"}`)); err != nil {
+		t.Fatalf("Process (unflagged key) = %v", err)
+	}
+}

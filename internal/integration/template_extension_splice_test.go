@@ -147,3 +147,41 @@ func TestTemplateExprSplice_ExtensionParamHidden(t *testing.T) {
 		t.Fatalf("pulse.New (hidden) = %v, want nil", err)
 	}
 }
+
+// TestTemplateExprSplice_ExtensionTemplatedType: a template whose
+// operator `type` is itself a variable names no operator before render,
+// so the ban judges the params key against every visible operator: a
+// token in the flagged `scale` fails pulse.New PULSE_TEMPLATE_EXPR_SPLICE
+// with details.type_templated, while the same token in the unflagged
+// `tag` loads and renders.
+func TestTemplateExprSplice_ExtensionTemplatedType(t *testing.T) {
+	t.Parallel()
+
+	ext := onlyCategory(exprExtensions(&paramCapture{}), "aggregator")
+	doc := func(params string) string {
+		return `{"target": "request", "variables": [
+  {"name": "w", "type": "number", "default": 3},
+  {"name": "op", "type": "string", "default": "AGG_ACME_STRICT"}
+], "body": {"aggregations": [{"type": "{{op}}", "field": "score", "label": "v", "params": ` + params + `}]}}`
+	}
+	dir := t.TempDir()
+	writeTemplateFile(t, dir, "bad.json", doc(`{"scale": "params.k * {{w}}"}`))
+	_, err := newTemplatePulse(ext, dir, nil)
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEMPLATE_EXPR_SPLICE {
+		t.Fatalf("pulse.New = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
+	}
+	if ce.Details["slot"] != "extension_param" || ce.Details["type_templated"] != true || ce.Details["variable"] != "w" {
+		t.Fatalf("details %v, want slot extension_param, type_templated, variable w", ce.Details)
+	}
+
+	dir = t.TempDir()
+	writeTemplateFile(t, dir, "ok.json", doc(`{"scale": 2, "tag": "t_{{w}}"}`))
+	p, err := newTemplatePulse(ext, dir, nil)
+	if err != nil {
+		t.Fatalf("pulse.New (unflagged key) = %v, want nil", err)
+	}
+	if r, err := p.RenderTemplate("ok", nil); err != nil || !strings.Contains(string(r.JSON), `"tag":"t_3"`) {
+		t.Fatalf("RenderTemplate = %v", err)
+	}
+}

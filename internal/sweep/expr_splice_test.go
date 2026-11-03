@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/template"
 )
 
 // requireSplice asserts err is code with the field, placeholder and
@@ -25,6 +26,16 @@ func requireSplice(t *testing.T, err error, code errors.Code, field, placeholder
 	}
 	if !strings.Contains(ce.Message, "{{"+placeholder+"}}") {
 		t.Fatalf("message %q does not name the placeholder", ce.Message)
+	}
+}
+
+// requireTemplatedType asserts err carries details.type_templated and
+// says so in its message.
+func requireTemplatedType(t *testing.T, err error) {
+	t.Helper()
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Details[template.DetailTypeTemplated] != true || !strings.Contains(ce.Message, "`type` is itself a placeholder") {
+		t.Fatalf("err %v, want details.type_templated and its message", err)
 	}
 }
 
@@ -256,11 +267,19 @@ func TestSweepExprSplice_ExtensionParam(t *testing.T) {
 			}
 		})
 	}
+	// A `type` that is itself an axis placeholder names no operator
+	// before substitution: a token in a key any instance operator flags
+	// is refused, details.type_templated; a key nobody flags expands.
 	t.Run("templated type", func(t *testing.T) {
 		c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":["AGG_ACME_X","AGG_ACME_Y"]}],`+
 			`"request":{"aggregations":[{"type":"{{w}}","field":"x","params":{"scale":"{{w}}"}}]}}}`)
+		_, err := Expand(c, extOpts, nil)
+		requireSplice(t, err, errors.PULSE_SWEEP_EXPR_SPLICE, "sweep.request.aggregations[0].params.scale", "w", exprslots.SlotExtensionParam)
+		requireTemplatedType(t, err)
+		c = decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"w","values":["AGG_ACME_X","AGG_ACME_Y"]}],`+
+			`"request":{"aggregations":[{"type":"{{w}}","field":"x","params":{"tag":"{{w}}"}}]}}}`)
 		if _, err := Expand(c, extOpts, nil); err != nil {
-			t.Fatalf("refused: %v", err)
+			t.Fatalf("unflagged key refused: %v", err)
 		}
 	})
 }
@@ -297,6 +316,15 @@ func TestForEachExprSplice_ExtensionParam(t *testing.T) {
 			}
 		})
 	}
+	t.Run("templated type", func(t *testing.T) {
+		const ops = `"for_each":{"axes":[{"name":"k","values":["X","Y"]}]}`
+		_, _, err := ExpandItems(decodeRequest(t, `{"aggregations":[{`+ops+`,"type":"AGG_ACME_{{k}}","field":"x","label":"a{{k}}","params":{"scale":"2 * {{k}}"}}]}`), extOpts, nil)
+		requireSplice(t, err, errors.PULSE_FOR_EACH_EXPR_SPLICE, "aggregations[0].params.scale", "k", exprslots.SlotExtensionParam)
+		requireTemplatedType(t, err)
+		if _, _, err := ExpandItems(decodeRequest(t, `{"aggregations":[{`+ops+`,"type":"AGG_ACME_{{k}}","field":"x","label":"a{{k}}","params":{"scale":2,"tag":"{{k}}"}}]}`), extOpts, nil); err != nil {
+			t.Fatalf("unflagged key refused: %v", err)
+		}
+	})
 	r := decodeRequest(t, `{"features":[{`+fe+`,"type":"FEAT_ACME_X","field":"g","label":"f{{k}}","params":{"scale":2,"tag":"t{{k}}"}}]}`)
 	out, _, err := ExpandItems(r, extOpts, nil)
 	if err != nil {

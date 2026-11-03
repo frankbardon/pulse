@@ -582,6 +582,7 @@ func itemReferenceFault(path, list string, err error) *errors.CodedError {
 				": {\"$var\": "+strconv.Quote(name)+"}}` and the expression reads `params."+name+"`), or, for an "+
 				"expression inside params, supply it whole with a `{\"$var\": "+strconv.Quote(name)+"}` axis marker "+
 				"whose values are the complete expressions")
+		carryTemplatedType(ce, tce)
 	} else if name != "" {
 		ce = forEachInvalid(field, ReasonPlaceholderUnknown,
 			"for_each placeholder "+strconv.Quote(name)+" at "+field+" names no axis; declare an axis "+
