@@ -74,6 +74,34 @@ For a headerless format, assert the record COUNT on a one-record and a
 many-record source, and assert the first record's VALUES — a count
 alone passes on a reader that drops record one and duplicates another.
 
+### Third-party decoders: recover at the boundary, cap what they trust
+
+A reader that hands source bytes to a library Pulse does not own (the
+Arrow IPC and Parquet readers, the xlsx parser) must survive any input
+with a coded error:
+
+- `defer iocore.RecoverDecode("<format>", &err)` in every method that
+  calls into the library. A panic there becomes `DATA_FILE` with
+  `details.format` and `details.panic`. In `ReadRows`, recover only
+  around the library's cell reads: a panic raised by the caller's row
+  callback is the caller's own and must propagate. The Arrow and
+  Parquet readers track this with an `inCallback` flag.
+- Wrap every library error as `iocore.SourceFileError` (`DATA_FILE`,
+  the library error kept as `Cause`).
+- Never let the library size an allocation from a length the source
+  merely declares. Cap it from the source size before decoding: the
+  xlsx unzip limit is `1032 x` the input (DEFLATE's maximum ratio), and
+  the Arrow reader's `preflightIPC` refuses flatbuffer counts and
+  compressed-buffer claims the bytes cannot back, plus buffer lists
+  shorter than the schema reads (the decoder indexes past them). Also bound work
+  that grows with declared structure instead of stored bytes: an xlsx
+  grid far sparser than its stored cells, or Arrow Null-typed rows no
+  buffer backs.
+- Give the reader an unexported `open` seam so a test can inject a
+  panicking decoder. Add a `Fuzz<Format>Import` target under
+  `internal/testutil/fuzzcontract` with `MaxAlloc` set
+  (`internal/io/arrow/arrow_fuzz_test.go` is the model).
+
 ## 3. Register and wire it up
 
 Registration is spread across **four** places, and a format wired into

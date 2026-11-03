@@ -20,6 +20,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 
 	parrow "github.com/frankbardon/pulse/internal/io/arrow"
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -98,10 +99,11 @@ func findOverlayFieldIndex(sc *arrow.Schema) int {
 // populated list in row 0 of the first record-batch / row-group; the
 // reader walks the materialised Arrow table column for the first non-
 // empty list across all chunks and stops on the first hit.
-func (r *Reader) ReadOverlays() ([]*types.OverlayLayer, error) {
+func (r *Reader) ReadOverlays() (layers []*types.OverlayLayer, err error) {
 	if err := r.init(); err != nil {
 		return nil, err
 	}
+	defer iocore.RecoverDecode("parquet", &err)
 	overlayFieldIdx := findOverlayFieldIndex(r.arrowSc)
 	if overlayFieldIdx < 0 {
 		return nil, nil

@@ -20,6 +20,9 @@
 //     Contract.Timeout (a hang is reported, with the input, rather than
 //     stalling the fuzzer). A target that builds a Pulse instance caps
 //     the engine with [Limits].
+//     With Contract.MaxAlloc set, one call may also allocate at most
+//     that many heap bytes in total — the guard for a decoder that
+//     sizes a buffer from a length the input merely declares.
 //  3. Coded errors only. Every non-nil error satisfies
 //     errors.As(err, **errors.CodedError) — Pulse's public errors
 //     package — and its code is a registered one (errors.ParseCode). A
@@ -36,7 +39,11 @@ package fuzzcontract
 import (
 	stderrors "errors"
 	"fmt"
+	"os"
+	"runtime"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +67,11 @@ type Contract struct {
 	MaxInput int
 	// Timeout bounds one target call. 0 is DefaultTimeout.
 	Timeout time.Duration
+	// MaxAlloc caps the heap bytes one target call may allocate in
+	// total (runtime.MemStats.TotalAlloc across the call). 0 is no cap.
+	// The figure is process-wide, so it also counts whatever else runs
+	// meanwhile — size it well above an honest input's need.
+	MaxAlloc uint64
 }
 
 // Run holds target(input) to the contract under the default Contract.
@@ -94,6 +106,10 @@ func (c Contract) Run(tb testing.TB, input []byte, target func([]byte) error) {
 		input = input[:maxInput]
 	}
 
+	var before runtime.MemStats
+	if c.MaxAlloc > 0 {
+		runtime.ReadMemStats(&before)
+	}
 	done := make(chan outcome, 1)
 	go func() {
 		var out outcome
@@ -118,6 +134,14 @@ func (c Contract) Run(tb testing.TB, input []byte, target func([]byte) error) {
 	if out.panicked {
 		tb.Fatalf("fuzzcontract: target panicked on input %q: %v\n%s", input, out.recovered, out.stack)
 		return
+	}
+	if c.MaxAlloc > 0 {
+		var after runtime.MemStats
+		runtime.ReadMemStats(&after)
+		if got := after.TotalAlloc - before.TotalAlloc; got > c.MaxAlloc {
+			tb.Fatalf("fuzzcontract: target allocated %d bytes (cap %d) on input %q", got, c.MaxAlloc, input)
+			return
+		}
 	}
 	if msg := checkError(out.err); msg != "" {
 		tb.Fatalf("fuzzcontract: %s on input %q", msg, input)
@@ -166,4 +190,28 @@ func Limits() limits.Limits {
 		MaxJoinBuildRows:   10_000,
 		MaxDerivedColumns:  64,
 	}
+}
+
+// CorpusEntry reads the single []byte input of a committed fuzz corpus
+// file (testdata/fuzz/<Target>/<name>, "go test fuzz v1" encoding), so
+// a regression test can pin the very input the fuzzer found.
+func CorpusEntry(tb testing.TB, path string) []byte {
+	tb.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		tb.Fatalf("fuzzcontract: %v", err)
+		return nil
+	}
+	header, body, ok := strings.Cut(string(raw), "\n")
+	body = strings.TrimSpace(body)
+	if !ok || header != "go test fuzz v1" || !strings.HasPrefix(body, "[]byte(") || !strings.HasSuffix(body, ")") || strings.Contains(body, "\n") {
+		tb.Fatalf("fuzzcontract: %s is not a one-[]byte go test fuzz v1 corpus file", path)
+		return nil
+	}
+	in, err := strconv.Unquote(strings.TrimSuffix(strings.TrimPrefix(body, "[]byte("), ")"))
+	if err != nil {
+		tb.Fatalf("fuzzcontract: %s: %v", path, err)
+		return nil
+	}
+	return []byte(in)
 }

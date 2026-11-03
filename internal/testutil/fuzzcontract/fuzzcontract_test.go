@@ -1,6 +1,7 @@
 package fuzzcontract
 
 import (
+	"bytes"
 	stderrors "errors"
 	"fmt"
 	"go/parser"
@@ -115,6 +116,45 @@ func TestFuzzContract_PassesCodedAndNil(t *testing.T) {
 			t.Fatalf("%s: want no failure, got %q", name, got)
 		}
 	}
+}
+
+func TestFuzzContract_FlagsOverAllocation(t *testing.T) {
+	t.Parallel()
+	var sink []byte
+	got := run(t, Contract{MaxAlloc: 1 << 20}, []byte("in-alloc"), func([]byte) error {
+		sink = make([]byte, 8<<20)
+		return nil
+	})
+	requireOneFailure(t, got, "allocated", "cap 1048576", `"in-alloc"`)
+	if got := run(t, Contract{MaxAlloc: 64 << 20}, []byte("x"), func([]byte) error {
+		sink = make([]byte, 1<<10)
+		return nil
+	}); len(got) != 0 {
+		t.Fatalf("an allocation under the cap was flagged: %q", got)
+	}
+	_ = sink
+}
+
+func TestFuzzContract_CorpusEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good")
+	want := []byte("a\x00\"b\xff")
+	if err := os.WriteFile(good, []byte("go test fuzz v1\n[]byte("+strconv.Quote(string(want))+")\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := CorpusEntry(t, good); !bytes.Equal(got, want) {
+		t.Fatalf("CorpusEntry = %q, want %q", got, want)
+	}
+	bad := filepath.Join(dir, "bad")
+	if err := os.WriteFile(bad, []byte("go test fuzz v1\nstring(\"x\")\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ft := &fakeTB{TB: t}
+	if got := CorpusEntry(ft, bad); got != nil {
+		t.Fatalf("a malformed corpus file returned %q", got)
+	}
+	requireOneFailure(t, ft.failures(), "not a one-[]byte")
 }
 
 func TestFuzzContract_CapsInput(t *testing.T) {

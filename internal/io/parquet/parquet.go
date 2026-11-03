@@ -82,6 +82,10 @@ type Reader struct {
 	// the callback.
 	curChunks [][]arrow.Array
 	curRow    int
+
+	// open replaces the Parquet open (openFile) — a test seam for a
+	// decoder that panics; nil is the production open.
+	open func(src *bytes.Reader) (*file.Reader, error)
 }
 
 // RowList implements iocore.ListAwareReader: the current row's column
@@ -133,25 +137,39 @@ func NewReaderFromBytes(data []byte, opts ...Option) *Reader {
 	return &Reader{data: data, opts: o}
 }
 
-func (r *Reader) init() error {
+func (r *Reader) init() (err error) {
 	if r.arrowSc != nil {
 		return nil
 	}
+	// The Parquet and pqarrow decoders are third-party code handed
+	// untrusted bytes: a panic inside them is a malformed source, never
+	// a crash.
+	defer iocore.RecoverDecode("parquet", &err)
+	defer func() {
+		if err != nil {
+			r.releaseDecoded()
+		}
+	}()
 	if r.data == nil {
 		if r.fs == nil {
-			return fmt.Errorf("parquet.Reader: no data source")
+			return errors.NewCodedError(errors.DATA_FILE, "parquet.Reader: no data source")
 		}
 		data, err := afero.ReadFile(r.fs, r.path)
 		if err != nil {
-			return fmt.Errorf("parquet.Reader: reading %s: %w", r.path, err)
+			ce := iocore.SourceFileError("parquet", fmt.Sprintf("parquet.Reader: reading %s", r.path), err)
+			ce.Details["path"] = r.path
+			return ce
 		}
 		r.data = data
 	}
 
-	br := bytes.NewReader(r.data)
-	pqFile, err := file.NewParquetReader(br)
+	open := r.open
+	if open == nil {
+		open = openFile
+	}
+	pqFile, err := open(bytes.NewReader(r.data))
 	if err != nil {
-		return fmt.Errorf("parquet.Reader: opening parquet: %w", err)
+		return iocore.SourceFileError("parquet", "parquet.Reader: opening parquet", err)
 	}
 	r.pqFile = pqFile
 
@@ -159,14 +177,13 @@ func (r *Reader) init() error {
 		Parallel: r.opts.workers > 1,
 	}, memory.NewGoAllocator())
 	if err != nil {
-		return fmt.Errorf("parquet.Reader: creating arrow reader: %w", err)
+		return iocore.SourceFileError("parquet", "parquet.Reader: creating arrow reader", err)
 	}
 
 	sc, err := arrowReader.Schema()
 	if err != nil {
-		return fmt.Errorf("parquet.Reader: reading schema: %w", err)
+		return iocore.SourceFileError("parquet", "parquet.Reader: reading schema", err)
 	}
-	r.arrowSc = sc
 
 	r.int96 = make([]bool, len(arrowReader.Manifest.Fields))
 	for i := range arrowReader.Manifest.Fields {
@@ -180,13 +197,32 @@ func (r *Reader) init() error {
 	// Parallel flag in ArrowReadProperties — no manual row-group dispatch needed.
 	tbl, err := arrowReader.ReadTable(context.Background())
 	if err != nil {
-		return fmt.Errorf("parquet.Reader: reading table: %w", err)
+		return iocore.SourceFileError("parquet", "parquet.Reader: reading table", err)
 	}
 	r.tbl = tbl
 
+	r.arrowSc = sc
 	r.header = nil
 	r.started = false
 	return nil
+}
+
+// openFile is the production Parquet open over the in-memory source.
+func openFile(src *bytes.Reader) (*file.Reader, error) {
+	return file.NewParquetReader(src)
+}
+
+// releaseDecoded drops whatever a failed init had already decoded.
+func (r *Reader) releaseDecoded() {
+	if r.tbl != nil {
+		r.tbl.Release()
+		r.tbl = nil
+	}
+	if r.pqFile != nil {
+		_ = r.pqFile.Close()
+		r.pqFile = nil
+	}
+	r.arrowSc = nil
 }
 
 // ReadHeader returns column names from the Parquet schema.
@@ -223,10 +259,22 @@ func (r *Reader) ReadHeader() ([]string, error) {
 // The top-level "overlays" sidecar column (when present) is filtered
 // from the row tuple — host-data row consumers see only the host
 // columns. Use ReadOverlays to extract the embedded overlay layers.
-func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
+func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) (err error) {
 	if err := r.init(); err != nil {
 		return err
 	}
+	// Reading a cell is Arrow library code over decoded source buffers;
+	// a panic there is a malformed source. A panic inside fn is the
+	// caller's own and propagates unchanged.
+	var inCallback bool
+	defer func() {
+		if rec := recover(); rec != nil {
+			if inCallback {
+				panic(rec)
+			}
+			err = iocore.DecodePanicError("parquet", rec)
+		}
+	}()
 	if !r.started {
 		if _, err := r.ReadHeader(); err != nil {
 			return err
@@ -302,7 +350,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 		}
 
 		r.curRow = rowIdx
-		if err := fn(row); err != nil {
+		inCallback = true
+		err := fn(row)
+		inCallback = false
+		if err != nil {
 			if err == iocore.ErrStopIteration() {
 				return nil
 			}

@@ -42,6 +42,10 @@ type Reader struct {
 	rows    [][]string // cached rows (excelize doesn't support true streaming for afero)
 	rowIdx  int
 	started bool
+
+	// open replaces the workbook open (openWorkbook) — a test seam for
+	// a parser that panics; nil is the production open.
+	open func(data []byte) (*excelize.File, error)
 }
 
 // NewReader creates an Excel reader from a filesystem path.
@@ -67,26 +71,41 @@ func NewReaderFromBytes(data []byte, opts ...Option) *Reader {
 	return r
 }
 
-func (r *Reader) init() error {
+func (r *Reader) init() (err error) {
 	if r.file != nil {
 		return nil
 	}
+	// The workbook parser is third-party code handed untrusted bytes: a
+	// panic inside it is a malformed source, never a crash.
+	defer iocore.RecoverDecode("excel", &err)
+	defer func() {
+		if err != nil && r.file != nil {
+			_ = r.file.Close()
+			r.file = nil
+		}
+	}()
 
 	// Load the data.
 	if r.data == nil {
 		if r.fs == nil {
-			return fmt.Errorf("excel.Reader: no data source")
+			return errors.NewCodedError(errors.DATA_FILE, "excel.Reader: no data source")
 		}
 		data, err := afero.ReadFile(r.fs, r.path)
 		if err != nil {
-			return fmt.Errorf("excel.Reader: reading %s: %w", r.path, err)
+			ce := iocore.SourceFileError("excel", fmt.Sprintf("excel.Reader: reading %s", r.path), err)
+			ce.Details["path"] = r.path
+			return ce
 		}
 		r.data = data
 	}
 
-	f, err := excelize.OpenReader(bytes.NewReader(r.data))
+	open := r.open
+	if open == nil {
+		open = openWorkbook
+	}
+	f, err := open(r.data)
 	if err != nil {
-		return fmt.Errorf("excel.Reader: opening workbook: %w", err)
+		return iocore.SourceFileError("excel", "excel.Reader: opening workbook", err)
 	}
 	r.file = f
 
@@ -102,9 +121,12 @@ func (r *Reader) init() error {
 	// and works correctly with afero-sourced bytes.
 	allRows, err := f.GetRows(r.sheet)
 	if err != nil {
-		return fmt.Errorf("excel.Reader: reading sheet %q: %w", r.sheet, err)
+		return iocore.SourceFileError("excel", fmt.Sprintf("excel.Reader: reading sheet %q", r.sheet), err)
 	}
 
+	if err := checkGrid(allRows); err != nil {
+		return err
+	}
 	if len(allRows) > 0 {
 		r.header = allRows[0]
 		r.rows = allRows[1:]
@@ -116,6 +138,62 @@ func (r *Reader) init() error {
 	r.started = false
 
 	return nil
+}
+
+// Grid bounds for checkGrid. An import materialises every data row at
+// the header's width, so its cost is rows x header width whatever the
+// sheet stores. Up to gridFloorCells of that grid is always accepted;
+// past it, the grid may be at most gridSparsity times the cells the
+// sheet actually holds.
+const (
+	gridFloorCells = 1 << 21
+	gridSparsity   = 64
+)
+
+// checkGrid refuses a sheet whose import grid no stored cell backs. A
+// cell reference alone (XFD1 in the header, A1048576 in the data)
+// widens or lengthens the grid every row is padded to: a workbook of a
+// few kilobytes could otherwise demand billions of cells — minutes of
+// work and gigabytes of allocation for a sheet that is all blanks.
+func checkGrid(rows [][]string) error {
+	if len(rows) < 2 {
+		return nil
+	}
+	var present int64
+	for _, row := range rows {
+		present += int64(len(row))
+	}
+	width, data := int64(len(rows[0])), int64(len(rows)-1)
+	grid := width * data
+	if grid <= gridFloorCells || grid <= gridSparsity*present {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.DATA_FILE,
+		fmt.Sprintf("excel.Reader: the sheet's %d data rows at its %d-column header width make %d cells, but it stores only %d: more than %dx sparser than its stored cells and over %d cells",
+			data, width, grid, present, gridSparsity, gridFloorCells),
+		map[string]any{"format": "excel", "rows": data, "columns": width, "cells": grid, "stored_cells": present},
+	)
+}
+
+// maxDeflateRatio is DEFLATE's maximum expansion: one compressed byte
+// decodes to at most 1032 bytes. archive/zip reads only STORE (1:1) and
+// DEFLATE, and refuses an entry whose decoded size differs from the size
+// its header declares — so no honest workbook declares more than
+// maxDeflateRatio times its own length in total.
+const maxDeflateRatio = 1032
+
+// openWorkbook is the production workbook open. Its unzip limit is the
+// most the source could honestly decode to: the parser sizes a buffer
+// from each entry's DECLARED length, so a crafted header claiming
+// gigabytes would otherwise be allocated before a byte is read.
+func openWorkbook(data []byte) (*excelize.File, error) {
+	limit := min(int64(len(data))*maxDeflateRatio, int64(excelize.UnzipSizeLimit))
+	limit = max(limit, 1)
+	return excelize.OpenReader(bytes.NewReader(data), excelize.Options{
+		UnzipSizeLimit:    limit,
+		UnzipXMLSizeLimit: min(limit, int64(excelize.StreamChunkSize)),
+	})
 }
 
 // ReadHeader returns the column names from the first row.
