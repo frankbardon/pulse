@@ -72,18 +72,20 @@ STATICCHECK_VERSION ?= latest
 STATICCHECK=honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 
 # cover is the per-package coverage gate CI's coverage job runs. It
-# attributes every package's statements to the whole test run
-# (-coverpkg=./...), so a package counts the tests of every other package
-# (encoding is exercised from elsewhere; the root package by the
-# black-box suite in ./internal/integration), over BOTH tiers (-tags
-# heavy). citest cover-merge dedupes the raw profile (every test binary
-# repeats every block, ~1 GB) into coverage.out; cover-check then fails
+# instruments the floored packages (-coverpkg = `citest cover-pkgs`, the
+# .github/coverage-floors.txt dirs as import paths — the same list ci.yml
+# and cache-warm.yml use) and attributes their statements to the whole
+# test run, so a package counts the tests of every other package
+# (encoding is exercised from elsewhere), over BOTH tiers (-tags heavy).
+# citest cover-merge dedupes the raw profile (every test binary repeats
+# every floored block, ~500 MB) into coverage.out; cover-check then fails
 # on any package below its floor in .github/coverage-floors.txt, or absent
 # from the profile. `go tool cover -html=coverage.out` browses it.
 # A test failure still prints the table, then fails the target.
 cover:
 	status=0; \
-	$(GO) test -count=1 -tags heavy -timeout=30m -coverpkg=./... -coverprofile=coverage.raw.out $(TESTFLAGS) ./... || status=1; \
+	COVERPKG=$$($(GO) run ./internal/tools/citest cover-pkgs) || exit 1; \
+	$(GO) test -count=1 -tags heavy -timeout=30m -coverpkg="$$COVERPKG" -coverprofile=coverage.raw.out $(TESTFLAGS) ./... || status=1; \
 	$(GO) run ./internal/tools/citest cover-merge -o coverage.out coverage.raw.out || exit 1; \
 	rm -f coverage.raw.out; \
 	$(GO) run ./internal/tools/citest cover-check -profile coverage.out || status=1; \

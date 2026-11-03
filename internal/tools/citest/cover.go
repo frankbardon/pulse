@@ -38,8 +38,8 @@ type coverBlock struct {
 
 // mergeProfiles reads one or more `go test -coverprofile` files into one
 // block set keyed by `file:startLine.startCol,endLine.endCol`. A block
-// listed more than once (every test binary built with -coverpkg=./...
-// reports every package, and profiles of several runs or jobs are
+// listed more than once (every test binary built with -coverpkg reports
+// every listed package, and profiles of several runs or jobs are
 // concatenated) counts once, covered if any listing has a non-zero count.
 func mergeProfiles(names []string, rs []io.Reader) (map[string]*coverBlock, error) {
 	blocks := map[string]*coverBlock{}
@@ -118,8 +118,8 @@ func parseProfiles(names []string, rs []io.Reader) (map[string]pkgCover, error) 
 }
 
 // writeMerged writes blocks as one `mode: set` profile, one sorted line
-// per block. A -coverpkg=./... profile of the whole tree repeats every
-// block once per test binary (~1 GB for the fast tier); merged it is a
+// per block. A -coverpkg profile of the whole tree repeats every block
+// once per test binary (~500 MB for the fast tier); merged it is a
 // few MB, small enough to hand between CI jobs, and still a valid input
 // to cover-check and `go tool cover`.
 func writeMerged(w io.Writer, blocks map[string]*coverBlock) error {
@@ -325,24 +325,9 @@ func coverCheckMain(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "citest cover-check: no -profile given")
 		return 2
 	}
-	fp := *floorsPath
-	if fp == "" {
-		fp = filepath.Join(*root, coverfloors.File)
-	}
-	tf, err := os.Open(fp)
+	floors, err := loadFloors(*root, *floorsPath)
 	if err != nil {
 		fmt.Fprintln(stderr, "citest cover-check:", err)
-		return 2
-	}
-	floors, err := coverfloors.Parse(tf)
-	tf.Close()
-	if err != nil {
-		fmt.Fprintln(stderr, "citest cover-check:", err)
-		return 2
-	}
-	if probs := coverfloors.Validate(*root, floors); len(probs) > 0 {
-		sort.Strings(probs)
-		fmt.Fprintln(stderr, "citest cover-check: floor table invalid:\n  "+strings.Join(probs, "\n  "))
 		return 2
 	}
 	module, err := modulePath(*root)

@@ -1,12 +1,14 @@
 # Per-package statement-coverage floors: one `<package-dir> <percent>` per
 # line, the dir relative to the module root. This file is the ONE source of
 # the floors. `go run ./internal/tools/citest cover-check` (make cover; CI's
-# coverage job) measures a -coverpkg=./... profile of BOTH test tiers
-# against it and fails on any package below its floor or absent from the
-# profile; TestPerPackageCoverageFloors (internal/integration) validates it
-# structurally (a real package dir, 0..100, no duplicate). A package's
-# figure counts statements covered by ANY test in the repo, so a package
-# tested from elsewhere (encoding) is measured fairly.
+# coverage job) measures a profile of BOTH test tiers against it and fails
+# on any package below its floor or absent from the profile;
+# TestPerPackageCoverageFloors (internal/integration) validates it
+# structurally (a real package dir, 0..100, no duplicate). It is also the
+# -coverpkg list: `citest cover-pkgs` prints these dirs as import paths,
+# and only they are instrumented. A package's figure counts statements
+# covered by ANY test in the repo, so a package tested from elsewhere
+# (encoding) is measured fairly.
 encoding              95
 internal/encoding     95
 descriptor            95

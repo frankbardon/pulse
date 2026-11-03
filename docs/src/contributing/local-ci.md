@@ -115,22 +115,33 @@ pre-push default.
 make cover
 ```
 
-Runs both tiers once with `-coverpkg=./... -coverprofile`, so a
-package's figure counts statements covered by any test in the repo (a
-package tested from elsewhere, such as `encoding`, is measured fairly).
+Runs both tiers once with `-coverpkg="$(citest cover-pkgs)"
+-coverprofile`. `citest cover-pkgs` prints the floored packages (the
+`.github/coverage-floors.txt` dirs) as comma-separated import paths, and
+`make cover`, `ci.yml` and `cache-warm.yml` all take the list from it
+(`TestCoverpkgFlagsDeriveFromFloorTable` pins that). Every test binary
+records those packages, so a package's figure counts statements covered
+by any test in the repo (a package tested from elsewhere, such as
+`encoding`, is measured fairly). Packages without a floor are not
+instrumented: they cost compile time and profile size, and nothing reads
+their figures. The figures equal a `-coverpkg=./...` run's, block for
+block, because instrumenting other packages does not change which
+statements of a floored package a test executes.
 `citest cover-merge` dedupes the raw profile (every test binary repeats
-every block) into `coverage.out`, and `citest cover-check` compares each
+every floored block) into `coverage.out`, and `citest cover-check` compares each
 package with its floor in `.github/coverage-floors.txt`, the one source
 of the floors. It prints a `package / floor / coverage / status` table
 and fails on a package below its floor or absent from the profile.
 `TestPerPackageCoverageFloors` validates the table itself: every entry
 a real package directory, every floor in 0..100, no duplicate. CI's
-`coverage` job runs the same check over the profiles of `test (1.26)`
-and every `test-heavy` shard.
+`coverage` job runs the same check over the profiles of both
+`coverage-fast` legs and every `test-heavy` shard.
 
 ```bash
 go run ./internal/tools/citest cover-check -profile coverage.out   # re-check without re-running
 go tool cover -html=coverage.out                                   # browse it
+go run ./internal/tools/citest cover-pkgs                          # the -coverpkg list
+go run ./internal/tools/citest cover-shard 1 2                     # coverage-fast leg 1 of 2's packages
 ```
 
 ## Descriptor contract gates
@@ -216,13 +227,23 @@ the sum:
 | `lint` | needs the three above (fails, never skips, if one failed), then `make staticcheck-merge`; together the four jobs run exactly `make lint` |
 | `docs` | `mdbook build docs` |
 | `build` | `make build`, `make smoke` |
-| `test (1.26)` | the fast tier: `go test -count=1 -json -coverpkg=./... -coverprofile ./...`, plus `citest heavy-check` |
+| `test (1.26)` | the fast tier: `go test -count=1 -json ./...` (no coverage), plus `citest heavy-check` |
+| `coverage-fast (1)`, `coverage-fast (2)` | the fast tier again with `-coverpkg="$(citest cover-pkgs)" -coverprofile`, split in two by `citest cover-shard` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
-| `coverage` | needs the test jobs (fails, never skips, if one failed); `citest cover-check` over their merged `-coverpkg=./...` profiles: [Coverage floors](#coverage-floors) |
+| `coverage` | needs `coverage-fast` and `test-heavy` (fails, never skips, if one failed); `citest cover-check` over their merged profiles: [Coverage floors](#coverage-floors) |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
 Each shard runs only the heavy tests it owns, with `go test -tags heavy
--run '^(...)$'`. The fast tests run once, in `test (1.26)`.
+-run '^(...)$'`. The fast tests run in `test (1.26)`, and again,
+instrumented, in `coverage-fast`. Coverage stays out of `test (1.26)`
+because it is the critical path: on a cold cache the instrumented
+compile plus run took it to 8m34s, past the 8-minute job cap.
+`coverage-fast` splits the fast tier into two legs with `citest
+cover-shard <leg> <legs>`: every package with a fast-tier test file,
+heaviest first (by test-file bytes) onto the lighter leg. The legs
+partition the fast tier, so their merged profile equals one whole-tier
+run's, and they depend only on the tree, so a new package needs no list
+entry.
 `.github/heavy-shards.txt` assigns heavy tests to shards with one
 `<shard> <package> <Test>` line per test. A heavy test the file does not
 name runs in the `catchall` shard, so a new heavy test is never skipped.
@@ -293,8 +314,8 @@ GitHub scopes an Actions cache to the ref that saved it. A run can
 restore caches saved on its own branch or on the default branch
 (`main`), never a sibling branch's. `ci.yml` runs only on branch
 dispatches and tag releases, so without help `main` holds no Go cache
-and every branch's first CI run compiles cold (a full coverage compile
-is roughly 170 s on a runner).
+and every branch's first CI run compiles cold (the plain fast-tier
+compile is roughly 250 s on a runner).
 
 `.github/workflows/cache-warm.yml` fills that gap. It runs on every push
 to `main` and on `workflow_dispatch`, and only compiles, so no test
@@ -303,10 +324,12 @@ runs:
 | Step | Runs |
 |---|---|
 | Drop stale caches | deletes the ref's `setup-go-*` caches, so the restore misses and the job saves a cache of this tree |
-| Set up Go | `actions/setup-go` with `go-version: "1.26"` and the default `cache` and `cache-dependency-path` (`go.sum`), as in `test` / `test-heavy` |
+| Set up Go | `actions/setup-go` with `go-version: "1.26"` and the default `cache` and `cache-dependency-path` (`go.sum`), as in `test` / `coverage-fast` / `test-heavy` |
 | Build | `go build ./...` |
-| Compile tests (fast tier) | `go test -count=1 -run '^$' -coverpkg=./... ./...`, the `test (1.26)` compile |
-| Compile tests (heavy tier) | `go test -tags heavy -count=1 -run '^$' -coverpkg=./... ./...`, the build `citest heavy-run` does |
+| Compile tests (fast tier) | `go test -count=1 -run '^$' ./...`, the `test (1.26)` compile |
+| Select coverage packages | `COVERPKG=$(citest cover-pkgs)` for the two steps below |
+| Compile tests (fast tier, coverage) | `go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`; the `coverage-fast` legs compile subsets of it |
+| Compile tests (heavy tier, coverage) | `go test -tags heavy -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`, the build `citest heavy-run` does |
 
 The settings have to match the test jobs exactly. `setup-go` keys its
 cache as `setup-go-<OS>-<arch>-<image>-go-<resolved Go version>-<hash of
