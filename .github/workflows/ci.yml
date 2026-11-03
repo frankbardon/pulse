@@ -21,8 +21,10 @@ name: CI
 #   test-heavy (1..6, catchall)  the heavy tier, split by
 #                           .github/heavy-shards.txt (a heavy test the list
 #                           does not name runs in the catchall shard)
-#   test-windows, test-macos     the fast tier per OS (non-blocking, U77)
-#   smoke-windows, smoke-macos   build + smoke per OS (non-blocking, U77)
+#   test-windows (1, 2)     the fast tier on Windows, split by package
+#                           (.github/fast-shards.txt, `citest fast-run`)
+#   test-macos              the fast tier on macOS (arm64)
+#   smoke-windows, smoke-macos   build + smoke per OS
 #   apidiff                 exported-API delta vs the latest v* tag;
 #                           advisory, not required, dispatch only
 on:
@@ -260,18 +262,29 @@ jobs:
           "$RUNNER_TEMP/citest" heavy-run "$SHARD" -count=1 -timeout=30m -json \
             | "$RUNNER_TEMP/citest" filter -json-out "$RUNNER_TEMP/test-heavy.json" -title "test-heavy ($SHARD)"
 
-  # Windows and macOS legs (U77). NON-BLOCKING while their failures are
-  # inventoried and fixed: `continue-on-error: true` keeps a red leg from
-  # failing the run, and none of the four is a required check yet. The
-  # test legs mirror the ubuntu fast tier (`test (1.26)`); filter's
-  # package result lines carry each package's wall time, and the -json
-  # stream is kept as an artifact. go test runs every package even when
-  # one fails (no -failfast). Steps use bash (Git Bash on Windows), and
-  # the helper binary carries the platform's exe suffix (`go env GOEXE`).
+  # Windows and macOS legs (U77), blocking like the ubuntu jobs. The test
+  # legs run the same fast tier as `test (1.26)` (no -parallel 1, no
+  # budget; filter reports the slowest tests), in one step: a separate
+  # compile step would link every test binary twice, which costs ~80 s on
+  # Windows. Steps use bash (Git Bash on Windows), and the helper binary
+  # carries the platform's exe suffix (`go env GOEXE`).
+  #
+  # test-windows is split in two by package (`citest fast-run`,
+  # .github/fast-shards.txt; every package of ./... runs in exactly one
+  # shard) and runs WITHOUT the setup-go cache. Measured (E1-S3, 4 vCPU
+  # runner): one unsharded cold job takes 7m17s, two-thirds of it
+  # compiling and linking ~145 test binaries, and the build + module
+  # cache is 2 GB, whose restore alone costs ~45 s. setup-go saves the
+  # cache only on a green run whose key missed, so a red run always
+  # started cold anyway. Cache-free shards take the same time every run,
+  # well inside the 8-minute wall.
   test-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        fast-shard: ["1", "2"]
     steps:
       - uses: actions/checkout@v7
 
@@ -279,6 +292,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: "1.26"
+          cache: false
 
       - name: Build CI test helper
         shell: bash
@@ -286,36 +300,28 @@ jobs:
           go build -o "$RUNNER_TEMP/citest$(go env GOEXE)" ./internal/tools/citest
           echo "CITEST=$RUNNER_TEMP/citest$(go env GOEXE)" >> "$GITHUB_ENV"
 
-      - name: Compile tests (fast tier)
+      - name: Test (fast tier, shard ${{ matrix.fast-shard }})
         shell: bash
-        run: |
-          start=$SECONDS
-          if ! go test -count=1 -run '^$' ./... > "$RUNNER_TEMP/compile.log" 2>&1; then
-            cat "$RUNNER_TEMP/compile.log"
-            exit 1
-          fi
-          echo "### test-windows (fast tier): compile $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
-          echo "compiled fast-tier tests in $((SECONDS - start)) s"
-
-      - name: Test (fast tier)
-        shell: bash
+        env:
+          SHARD: ${{ matrix.fast-shard }}
         run: |
           set -o pipefail
-          go test -count=1 -json ./... \
-            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-windows (fast tier)"
+          "$CITEST" fast-run "$SHARD" -count=1 -json \
+            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-windows ($SHARD)"
 
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: test-windows-json
+          name: test-windows-${{ matrix.fast-shard }}-json
           path: ${{ runner.temp }}/test.json
           retention-days: 7
           if-no-files-found: warn
 
+  # One macOS (arm64) job: cold it takes ~4 min. setup-go's default cache
+  # key (go.sum), as on the ubuntu `test` job.
   test-macos:
     runs-on: macos-latest
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -330,23 +336,12 @@ jobs:
           go build -o "$RUNNER_TEMP/citest$(go env GOEXE)" ./internal/tools/citest
           echo "CITEST=$RUNNER_TEMP/citest$(go env GOEXE)" >> "$GITHUB_ENV"
 
-      - name: Compile tests (fast tier)
-        shell: bash
-        run: |
-          start=$SECONDS
-          if ! go test -count=1 -run '^$' ./... > "$RUNNER_TEMP/compile.log" 2>&1; then
-            cat "$RUNNER_TEMP/compile.log"
-            exit 1
-          fi
-          echo "### test-macos (fast tier): compile $((SECONDS - start)) s" >> "$GITHUB_STEP_SUMMARY"
-          echo "compiled fast-tier tests in $((SECONDS - start)) s"
-
       - name: Test (fast tier)
         shell: bash
         run: |
           set -o pipefail
           go test -count=1 -json ./... \
-            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-macos (fast tier)"
+            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-macos"
 
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
@@ -358,11 +353,11 @@ jobs:
 
   # The `build` job's build + embedder smoke module, per OS. Windows runners
   # may lack make, so that leg runs the `make build` / `make smoke` commands
-  # directly (keep them in step with the Makefile); macOS runs make.
+  # directly (keep them in step with the Makefile); macOS runs make. Both
+  # keep setup-go's cache, keyed on every go.sum like `build`.
   smoke-windows:
     runs-on: windows-latest
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -388,7 +383,6 @@ jobs:
   smoke-macos:
     runs-on: macos-latest
     timeout-minutes: 30
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -404,70 +398,52 @@ jobs:
       - name: Embedder smoke module
         run: make smoke
 
-  # TEMPORARY (E1-S3 timing experiment; removed before the story ends).
-  exp-windows:
-    runs-on: windows-latest
+  # TEMPORARY (E1-S3 cold-cache measurement; removed before the story ends).
+  exp-cold-test-macos:
+    runs-on: macos-latest
     timeout-minutes: 30
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [base, one, def-one, def-a, def-b]
     steps:
       - uses: actions/checkout@v7
-      - name: Set up Go (cold)
-        uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26"
           cache: false
-      - name: Defender off
-        if: startsWith(matrix.variant, 'def')
-        shell: pwsh
+      - shell: bash
         run: |
-          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
-          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled | Format-List
-          $paths = @($env:RUNNER_TEMP, $env:GITHUB_WORKSPACE, (go env GOCACHE), (go env GOMODCACHE), (go env GOROOT), $env:TEMP)
-          try { Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop } catch { Write-Host "Set-MpPreference: $_" }
-          foreach ($p in $paths) { try { Add-MpPreference -ExclusionPath $p -ErrorAction Stop } catch { Write-Host "exclusion $p : $_" } }
-          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Format-List
-      - name: Status
-        shell: pwsh
-        run: |
-          Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled | Format-List
-          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
-          go env GOCACHE GOMODCACHE
-          (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
-      - name: Download modules
-        shell: bash
-        run: |
-          start=$SECONDS; go mod download; echo "mod download $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Compile tests (base only)
-        if: matrix.variant == 'base'
-        shell: bash
-        run: |
-          start=$SECONDS
-          go test -count=1 -run '^$' ./... > "$RUNNER_TEMP/compile.log" 2>&1 || { cat "$RUNNER_TEMP/compile.log"; exit 1; }
-          echo "compile $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Test
-        shell: bash
-        env:
-          VARIANT: ${{ matrix.variant }}
-        run: |
+          go build -o "$RUNNER_TEMP/citest" ./internal/tools/citest
           set -o pipefail
-          heavy='^github.com/frankbardon/pulse(/internal/integration|/internal/cli|/cmd/pulse|/internal/docgen|/internal/sem)?$'
-          case "$VARIANT" in
-            def-a) pkgs=$(go list ./... | grep -E "$heavy") ;;
-            def-b) pkgs=$(go list ./... | grep -vE "$heavy") ;;
-            *) pkgs=./... ;;
-          esac
-          start=$SECONDS
-          go test -count=1 -json $pkgs > "$RUNNER_TEMP/test.json" || echo "go test failed"
-          echo "$VARIANT test step $((SECONDS - start)) s" | tee -a "$GITHUB_STEP_SUMMARY"
-          go build -o "$RUNNER_TEMP/citest.exe" ./internal/tools/citest
-          "$RUNNER_TEMP/citest.exe" filter -title "exp $VARIANT" < "$RUNNER_TEMP/test.json" | tail -5
-      - name: Cache size
-        shell: bash
-        run: du -sh "$(go env GOCACHE)" "$(go env GOMODCACHE)"
+          go test -count=1 -json ./... | "$RUNNER_TEMP/citest" filter -title "exp-cold test-macos"
+
+  exp-cold-smoke-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+      - shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "bin/pulse$(go env GOEXE)" ./cmd/pulse
+      - shell: bash
+        working-directory: internal/embeddersmoke
+        env:
+          GOFLAGS: -mod=mod
+        run: go vet ./... && go test -count=1 ./...
+
+  exp-cold-smoke-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+      - run: make build
+      - run: make smoke
 
   # apidiff reports the exported-API delta against the latest release tag,
   # using a pinned `apidiff -m` over a git-worktree checkout of that tag.

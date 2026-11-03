@@ -3,6 +3,8 @@
 //
 //	go run ./internal/tools/citest heavy-check
 //	go run ./internal/tools/citest heavy-run <shard> [go test flags...]
+//	go run ./internal/tools/citest fast-list
+//	go run ./internal/tools/citest fast-run <shard> [go test flags...]
 //	go run ./internal/tools/citest parallel-check
 //	go test -json ./... | go run ./internal/tools/citest filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]
 //
@@ -18,6 +20,13 @@
 // runs in exactly one shard). It exits with the first failing status; an
 // empty shard exits 0. heavy-list prints `<shard> <package> <Test>` for
 // every heavy test.
+//
+// fast-run runs one fast-tier shard (the test-windows legs): `go test
+// <flags> <packages>` over the shard's share of `go list ./...`. Every
+// package lands in exactly one shard: .github/fast-shards.txt pins a few
+// expensive packages, and each other package goes to the shard holding the
+// fewest packages so far. Shard ids are the ci.yml `fast-shard:` matrix.
+// fast-list prints `<shard> <package>` for every package.
 //
 // filter reads a `go test -json` stream on stdin, copies it to -json-out,
 // prints the non-verbose human-readable log (package result lines, plus the
@@ -66,6 +75,16 @@ func main() {
 		}
 	case "parallel-check":
 		code, err = parallelCheckMain(".", os.Stdout)
+	case "fast-list":
+		err = fastList(".", os.Stdout)
+		if err != nil {
+			code = 1
+		}
+	case "fast-run":
+		if len(os.Args) < 3 {
+			usage()
+		}
+		code, err = fastRun(".", os.Args[2], os.Args[3:])
 	case "filter":
 		code = filterMain(os.Args[2:], os.Stdin, os.Stdout)
 	default:
@@ -81,6 +100,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
+	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | fast-list | fast-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]]")
 	os.Exit(2)
 }
