@@ -737,12 +737,6 @@ func New(opts Options) (*Pulse, error) {
 	if err := loadPopulationsFromDir(&opts); err != nil {
 		return nil, err
 	}
-	// Built eagerly: a malformed template must fail startup with its path
-	// named, not the first render that reaches it.
-	templates, err := loadTemplateStore(&opts)
-	if err != nil {
-		return nil, err
-	}
 	universe, err := validateExtensionUniverse(opts.Extensions)
 	if err != nil {
 		return nil, err
@@ -827,7 +821,16 @@ func New(opts Options) (*Pulse, error) {
 	// The engine's worker-pool recovers honour the knob per instance.
 	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
-	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
+	runtimeExt := buildRuntimeExtensions(visibleExt)
+	svc.SetExtensions(runtimeExt)
+	// Built eagerly: a malformed template must fail startup with its path
+	// named, not the first render that reaches it. After the extensions:
+	// a `{{token}}` in a visible extension's expression-capable param is
+	// refused like one in a built-in expression slot.
+	templates, err := loadTemplateStore(&opts, runtimeExt.ScalarParamsByOperator())
+	if err != nil {
+		return nil, err
+	}
 	extSnap := buildExtensionsSnapshot(visibleExt)
 	popSet, popMetas, err := registeredPopulations(visibleExt.Populations, decodedPopulations)
 	if err != nil {

@@ -356,6 +356,13 @@ marks the param `expression: true`. `Expression` on any other
 `expression_not_number`) at `pulse.New`. Without the flag a string
 stays a `wrong_type` refusal. Your range checks stay yours: the
 factory judges the resolved number exactly as it judges a literal.
+A request template's `{{token}}` inside such a param (at
+`params.<key>` of an object whose literal `type` is your operator) is
+`PULSE_TEMPLATE_EXPR_SPLICE` (`details.slot` `extension_param`) at
+`pulse.New` and on every template rescan, as in a built-in expression
+slot; pass the value through request `params` or a whole-value
+`{"$var": …}` marker. An operator a feature profile hides flags
+nothing.
 
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.

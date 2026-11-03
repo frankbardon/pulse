@@ -4169,7 +4169,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_EXPR_SPLICE: {
-		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula, an optimize bound, or an expression-capable operator param such as a window or embedder extension param). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

@@ -50,3 +50,30 @@ func TestFieldInputsFor_ScalarStandIn(t *testing.T) {
 		t.Fatalf("a hidden operator's params = %v, want none", keys)
 	}
 }
+
+// TestScalarParamsByOperator: the template validator's flagged-keys
+// map is ScalarParams keyed by operator name alone, every category
+// kept, a hidden operator absent, and each list a copy.
+func TestScalarParamsByOperator(t *testing.T) {
+	t.Parallel()
+
+	var nilReg *ExtensionRegistry
+	if got := nilReg.ScalarParamsByOperator(); got != nil {
+		t.Fatalf("nil registry = %v, want nil", got)
+	}
+	r := &ExtensionRegistry{ScalarParams: map[string][]string{
+		StreamabilityKey("aggregator", "AGG_X_EXT"): {"scale"},
+		StreamabilityKey("window", "WIN_X_EXT"):     {"alpha", "scale"},
+		StreamabilityKey("matrix", "MAT_X_HIDDEN"):  {"k"},
+	}}
+	r = r.WithHidden(func(name string) bool { return name == "MAT_X_HIDDEN" })
+	got := r.ScalarParamsByOperator()
+	if len(got) != 2 || len(got["AGG_X_EXT"]) != 1 || got["AGG_X_EXT"][0] != "scale" ||
+		len(got["WIN_X_EXT"]) != 2 || got["WIN_X_EXT"][1] != "scale" {
+		t.Fatalf("ScalarParamsByOperator = %v", got)
+	}
+	got["AGG_X_EXT"][0] = "mutated"
+	if r.ExtensionScalarParams(paramread.Category("aggregator"), "AGG_X_EXT")[0] != "scale" {
+		t.Fatal("the returned list aliases the registry's")
+	}
+}

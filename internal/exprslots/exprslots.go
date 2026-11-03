@@ -69,6 +69,13 @@ const (
 	SlotOptimizeConstraint = "optimize_constraint"
 	SlotOptimizeBound      = "optimize_bound"
 	SlotWindowParam        = "window_param"
+	// SlotExtensionParam names an embedder extension's
+	// expression-capable params key (pulse.ParamMeta.Expression). It has
+	// no row in the static table: which keys are flagged is an instance
+	// fact, handed to the template validator by the facade
+	// (internal/template.ValidateOptions.ExprParams) and read by the
+	// request reads walker from the extensions snapshot.
+	SlotExtensionParam = "extension_param"
 )
 
 var slots = []Slot{

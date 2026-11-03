@@ -3,6 +3,7 @@ package processing
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -1026,6 +1027,32 @@ func (r *ExtensionRegistry) ExtensionScalarParams(cat paramread.Category, op str
 		return nil
 	}
 	return r.ScalarParams[StreamabilityKey(string(cat), op)]
+}
+
+// ScalarParamsByOperator returns ScalarParams keyed by operator name
+// alone — an extension name carries its category prefix, so it is
+// unique across categories — each list a copy; hidden operators are
+// absent, as ExtensionScalarParams answers none for them. Nil when no
+// visible operator flags a param. Plain data for a consumer that must
+// not import this package: the request-template validator refuses a
+// `{{token}}` spliced into one of these keys
+// (internal/template.ValidateOptions.ExprParams). Nil-receiver-safe.
+func (r *ExtensionRegistry) ScalarParamsByOperator() map[string][]string {
+	if r == nil || len(r.ScalarParams) == 0 {
+		return nil
+	}
+	var out map[string][]string
+	for key, keys := range r.ScalarParams {
+		_, op, ok := strings.Cut(key, "|")
+		if !ok || len(keys) == 0 || r.isHidden(op) {
+			continue
+		}
+		if out == nil {
+			out = make(map[string][]string)
+		}
+		out[op] = append([]string(nil), keys...)
+	}
+	return out
 }
 
 // CustomAggregatorNames returns the overlay-only aggregator names in

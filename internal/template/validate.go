@@ -36,6 +36,28 @@ import (
 // before substitution it is not a request and its markers are not request
 // fields.
 func Parse(data []byte) (*Template, error) {
+	return ParseWith(data, ValidateOptions{})
+}
+
+// ValidateOptions carries the instance facts declaration validation
+// reads beyond the document itself. The zero value is Parse / Validate.
+// Plain data only: the facade fills it, so the package never learns
+// about the instance it serves and its import ceiling
+// (TestTemplatePackage_ImportBoundary) holds.
+type ValidateOptions struct {
+	// ExprParams maps an operator type name to the params keys that
+	// carry a scalar expression on this instance — an embedder
+	// extension's Expression-flagged params (pulse.ParamMeta.Expression).
+	// A `{{token}}` in the string at one of those keys, directly under
+	// the `params` object of a body object whose `type` is that literal
+	// name, is PULSE_TEMPLATE_EXPR_SPLICE (slot
+	// exprslots.SlotExtensionParam), exactly as in a built-in
+	// expression slot. Nil: only the built-in slots.
+	ExprParams map[string][]string
+}
+
+// ParseWith is Parse with the instance facts in opts.
+func ParseWith(data []byte, opts ValidateOptions) (*Template, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 
@@ -48,7 +70,7 @@ func Parse(data []byte) (*Template, error) {
 		return nil, errors.NewCodedError(errors.PULSE_TEMPLATE_INVALID,
 			"template document carries trailing content after the closing brace; a template file holds exactly one JSON object")
 	}
-	if err := Validate(&t); err != nil {
+	if err := ValidateWith(&t, opts); err != nil {
 		return nil, err
 	}
 	return &t, nil
@@ -123,6 +145,11 @@ func parseFaultMessage(err error) string {
 // and, when the fault is variable-scoped, the variable under
 // errors.DetailVariable.
 func Validate(t *Template) error {
+	return ValidateWith(t, ValidateOptions{})
+}
+
+// ValidateWith is Validate with the instance facts in opts.
+func ValidateWith(t *Template, opts ValidateOptions) error {
 	if t == nil {
 		return errors.NewCodedError(errors.PULSE_TEMPLATE_INVALID,
 			"template document is nil")
@@ -136,7 +163,7 @@ func Validate(t *Template) error {
 	if err := validateVariables(t); err != nil {
 		return err
 	}
-	return validateBodyReferences(t)
+	return validateBodyReferences(t, opts)
 }
 
 // validateTarget enforces the closed target enum. Absent and unrecognised
@@ -284,7 +311,7 @@ func validateDefault(t *Template, v *Variable) error {
 // is a runtime condition; a typo'd variable name inside a block that
 // happens not to be selected today is still a typo, and hiding it until
 // the day someone supplies that variable is the opposite of fail-fast.
-func validateBodyReferences(t *Template) error {
+func validateBodyReferences(t *Template, opts ValidateOptions) error {
 	body, err := decodeJSON(t.Body)
 	if err != nil {
 		// Unreachable: validateBody has already established the body
@@ -303,7 +330,7 @@ func validateBodyReferences(t *Template) error {
 			declared[v.Name] = struct{}{}
 		}
 	}
-	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath, nil, nil)
+	return (&bodyScan{t: t, declared: declared, exprParams: opts.ExprParams}).value(body, bodyPath, nil, nil)
 }
 
 // bodyScan is the declaration-time body walker. It mirrors the render
@@ -313,6 +340,9 @@ func validateBodyReferences(t *Template) error {
 type bodyScan struct {
 	t        *Template
 	declared map[string]struct{}
+	// exprParams is ValidateOptions.ExprParams: the instance's
+	// expression-capable params keys per operator type name.
+	exprParams map[string][]string
 }
 
 // value dispatches on the node's JSON kind. axes is the for_each axis
@@ -391,6 +421,11 @@ func (s *bodyScan) object(obj map[string]any, path string, keys []string, axes, 
 			scope = swept
 		}
 		childKeys := append(keys[:len(keys):len(keys)], key)
+		if key == exprslots.ParamsKey {
+			if err := s.extensionParams(obj, childPath(path, key), scope); err != nil {
+				return err
+			}
+		}
 		if sub, ok := obj[key].(map[string]any); ok && key == sweepKey && len(sweepAx) > 0 {
 			if err := s.object(sub, childPath(path, key), childKeys, scope, scope.with(sweepAx)); err != nil {
 				return err
@@ -455,6 +490,40 @@ func (s *bodyScan) text(str, path string, keys []string, axes axisScope) error {
 		}
 		return nil
 	})
+}
+
+// extensionParams refuses a `{{token}}` in an instance
+// expression-capable params key (ValidateOptions.ExprParams): the string
+// directly at params.<key> of an object whose `type` is a literal
+// operator name flagging that key. A `type` that is itself template
+// syntax names no operator before render, so it flags nothing. Variables
+// and axis tokens alike, as in a built-in slot; the normal descent then
+// walks the params object as usual.
+func (s *bodyScan) extensionParams(obj map[string]any, path string, axes axisScope) error {
+	if len(s.exprParams) == 0 {
+		return nil
+	}
+	op, ok := obj["type"].(string)
+	if !ok {
+		return nil
+	}
+	params, ok := obj[exprslots.ParamsKey].(map[string]any)
+	if !ok {
+		return nil
+	}
+	for _, key := range s.exprParams[op] {
+		str, ok := params[key].(string)
+		if !ok || !strings.Contains(str, interpOpen) {
+			continue
+		}
+		at := childPath(path, key)
+		if err := walkInterpolation(s.t, str, at, func(string) {}, func(name string) error {
+			return exprSplice(s.t, name, at, exprslots.SlotExtensionParam, axes.has(name))
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // exprSplice builds the `{{token}}`-inside-an-expression fault. It is a

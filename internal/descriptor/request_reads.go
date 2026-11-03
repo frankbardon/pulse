@@ -314,8 +314,9 @@ type readsWalker struct {
 
 // slotExtensionParam names an expression-capable extension param
 // (pulse.ParamMeta.Expression) to expression: a scalar slot whose
-// identifiers are variables, never columns.
-const slotExtensionParam = "extension_param"
+// identifiers are variables, never columns. The noun is shared with the
+// template splice refusal's details.slot.
+const slotExtensionParam = exprslots.SlotExtensionParam
 
 // extensionScalars reads the expression-capable params of extension
 // operator typ (category cat) written as expression strings — the
