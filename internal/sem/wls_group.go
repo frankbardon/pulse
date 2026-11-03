@@ -415,9 +415,7 @@ func (j *jointWLS) robustVCov(x []float64, parts []*wlsPart, deltas [][][]float6
 			}
 		}
 	}
-	var t1, t2 mat.Dense
-	t1.Mul(bread, meat)
-	t2.Mul(&t1, bread)
+	t2 := mul(mul(bread, meat), bread)
 	div := total - float64(len(parts))
 	vcov := mat.NewSymDense(k, nil)
 	for a := 0; a < k; a++ {
@@ -504,9 +502,8 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 				gm.Set(a, b, gam[a][b])
 			}
 		}
-		var gwd, bg mat.Dense
-		gwd.Mul(gm, wd)
-		bg.Mul(wd.T(), &gwd)
+		gwd := mul(gm, wd)
+		bg := mul(wd.T(), gwd)
 		trv := 0.0
 		for a := 0; a < size; a++ {
 			trv += float64(w[a] * gam[a][a])
@@ -514,19 +511,18 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 				t1 += float64(w[a] * gam[a][b] * w[b] * gam[b][a])
 			}
 		}
-		tr += trv - float64(fg*mat.Sum(elementMul(einv, &bg)))
+		tr += trv - float64(fg*mat.Sum(elementMul(einv, bg)))
 		vgwd := mat.NewDense(size, k, nil)
 		for r := 0; r < size; r++ {
 			for c := 0; c < k; c++ {
 				vgwd.Set(r, c, w[r]*gwd.At(r, c))
 			}
 		}
-		var t2g mat.Dense
-		t2g.Mul(gwd.T(), vgwd)
-		t2g.Scale(fg, &t2g)
-		mt2.Add(mt2, &t2g)
-		bg.Scale(fg, &bg)
-		mc.Add(mc, &bg)
+		t2g := mul(gwd.T(), vgwd)
+		t2g.Scale(fg, t2g)
+		mt2.Add(mt2, t2g)
+		bg.Scale(fg, bg)
+		mc.Add(mc, bg)
 		// The baseline's U is V on the group's covariances.
 		cor := size - len(p.stats.Pairs)
 		for a := cor; a < size; a++ {
@@ -536,8 +532,7 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 			}
 		}
 	}
-	var ec mat.Dense
-	ec.Mul(einv, mc)
+	ec := mul(einv, mc)
 	tr2 := t1 - 2*mat.Sum(elementMul(einv, mt2))
 	for a := 0; a < k; a++ {
 		for b := 0; b < k; b++ {

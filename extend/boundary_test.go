@@ -21,7 +21,8 @@ var allowedModuleImports = map[string]bool{
 	"github.com/frankbardon/pulse/errors":   true,
 	// linalg carries the read-only *linalg.CoMoment a matrix operator
 	// finalizes over (MatrixInput.CoMoment); it is itself a leaf over
-	// the standard library, gonum and errors (TestLinalgImportBoundary).
+	// the standard library, gonum, errors and the stdlib-only kernel
+	// package internal/gonumorder (TestLinalgImportBoundary).
 	"github.com/frankbardon/pulse/linalg": true,
 }
 

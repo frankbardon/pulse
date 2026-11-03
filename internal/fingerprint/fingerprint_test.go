@@ -570,13 +570,44 @@ var requestFigures = []requestFigure{
 	{"process.mtcars.kendall_inference_mpg_wt_hp", "mtcars.pulse",
 		`{"vectors":[{"name":"v","fields":["mpg","wt","hp"]}],"matrices":[{"type":"MAT_CORRELATION","vector":"v","name":"m","params":{"method":"kendall","inference":true}}]}`,
 		[]string{"matrices.0.primary.values.*", "matrices.0.auxiliary.*"}},
+	// MAT_SEM and ATTR_SEM_SCORE (U78 test-hygiene, TODO #599): the
+	// model arithmetic runs on internal/gonumorder (internal/sem
+	// matops.go), so every fit — converged, or stopped early by SLSQP's
+	// ftol or Fisher scoring's objective-decrease test, which before
+	// differed between arches by up to ~7.9e-4 relative or by their
+	// iteration count — stops at the same iterate on every arch. The
+	// attitude path model is also held at 1e-12 in
+	// decomposition_test.go (its pre-#599 tolerance row).
+	{"process.attitude.sem_path_fisher", "attitude.pulse",
+		`{"vectors":[{"name":"v","fields":["rating","complaints","privileges","learning","raises"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f =~ complaints + privileges + learning + raises\nrating ~ f","solver":"fisher","grad_tol":1e-12}}]}`,
+		[]string{"matrices.0.primary.*", "matrices.0.auxiliary.estimates.*", "matrices.0.auxiliary.residual_covariance.*", "matrices.0.scalars.*"}},
+	{"process.attitude.sem_path_slsqp", "attitude.pulse",
+		`{"vectors":[{"name":"v","fields":["rating","complaints","privileges","learning","raises"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f =~ complaints + privileges + learning + raises\nrating ~ f"}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*", "matrices.0.scalars.*"}},
+	{"process.attitude.sem_path_rank2", "attitude.pulse",
+		`{"vectors":[{"name":"v","fields":["rating","complaints","privileges","learning","raises"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f =~ complaints + privileges + learning + raises\nrating ~ f","solver":"fisher","information":"rank2"}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*", "matrices.0.scalars.*"}},
+	{"process.attitude.sem_meanstructure", "attitude.pulse",
+		`{"vectors":[{"name":"v","fields":["rating","complaints","privileges","learning","raises"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f =~ complaints + privileges + learning + raises\nrating ~ f","meanstructure":true}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*", "matrices.0.scalars.*"}},
+	{"process.two_factor.sem_cfa_slsqp", "two_factor.pulse",
+		`{"vectors":[{"name":"v","fields":["v1","v2","v3","v4","v5","v6"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f1 =~ v1 + v2 + v3\nf2 =~ v4 + v5 + v6"}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*", "matrices.0.scalars.*"}},
+	{"process.two_factor.sem_cfa_fisher", "two_factor.pulse",
+		`{"vectors":[{"name":"v","fields":["v1","v2","v3","v4","v5","v6"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f1 =~ v1 + v2 + v3\nf2 =~ v4 + v5 + v6","solver":"fisher"}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*", "matrices.0.scalars.*"}},
+	{"process.two_factor.sem_cfa_bootstrap", "two_factor.pulse",
+		`{"vectors":[{"name":"v","fields":["v1","v2","v3","v4","v5","v6"]}],"matrices":[{"type":"MAT_SEM","vector":"v","name":"m","params":{"model":"f1 =~ v1 + v2 + v3\nf2 =~ v4 + v5 + v6","meanstructure":true,"resample":"bootstrap","bootstrap_iters":20,"rng_seed":7}}]}`,
+		[]string{"matrices.0.auxiliary.estimates.*"}},
+	{"process.attitude.sem_score", "attitude.pulse",
+		`{"vectors":[{"name":"v","fields":["complaints","privileges","learning","raises"]}],"attributes":[{"type":"ATTR_SEM_SCORE","label":"s","vector":"v","params":{"model":"f =~ complaints + privileges + learning + raises","latent":"f"}},{"type":"ATTR_SEM_SCORE","label":"b","vector":"v","params":{"model":"f =~ complaints + privileges + learning + raises","latent":"f","method":"bartlett"}}],"aggregations":[{"type":"AGG_SUM","field":"s","label":"sum_s"},{"type":"AGG_MAX","field":"s","label":"max_s"},{"type":"AGG_MIN","field":"b","label":"min_b"}]}`,
+		[]string{"data.0.sum_s", "data.0.max_s", "data.0.min_b"}},
 	// MAT_FACTOR (ml / minres, promax / geomin / entropy) is not pinned
 	// here: every figure starts from gonum's SymEigen and the ML / GPA
 	// iterations carry its last-ulp differences 1–384 ulp (relative
 	// <= ~1e-13) across arches. It, MAT_PCA, MAT_COLLINEARITY,
-	// ATTR_PC_SCORE / ATTR_FACTOR_SCORE, OVERLAY_CORRESPONDENCE and a
-	// converged MAT_SEM fit are pinned at 1e-12 relative in
-	// decomposition_test.go (E4-S4).
+	// ATTR_PC_SCORE / ATTR_FACTOR_SCORE and OVERLAY_CORRESPONDENCE are
+	// pinned at 1e-12 relative in decomposition_test.go (E4-S4).
 }
 
 // facetFigures: end-to-end figures through pulse.FacetSchema (E3-S3:

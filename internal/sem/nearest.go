@@ -111,8 +111,9 @@ func CovNearest(s *mat.SymDense, threshold float64) (*Nearest, error) {
 
 // PositiveDefinite reports whether s factors by Cholesky — the test
 // semopy's load_cov applies (LAPACK dpotrf) before falling back to
-// CovNearest.
+// CovNearest — mat.Cholesky's own pivot test, in the
+// architecture-independent port (matops.go).
 func PositiveDefinite(s *mat.SymDense) bool {
-	var ch mat.Cholesky
-	return ch.Factorize(s)
+	_, ok := factorize(s)
+	return ok
 }

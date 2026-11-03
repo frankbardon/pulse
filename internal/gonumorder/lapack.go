@@ -1,23 +1,24 @@
-package linalg
+package gonumorder
 
 import "math"
 
-// The LAPACK half of the gonum-order SPD port (see gonumorder_blas.go
-// for the contract). Every routine mirrors the lapack/gonum routine of
-// the same name in gonum v0.17.0, restricted to an upper triangle and a
-// non-unit diagonal, over row-major storage with leading dimension lda.
+// The LAPACK half of the SPD port (package comment: the contract). Every
+// routine mirrors the lapack/gonum routine of the same name in gonum
+// v0.17.0, restricted to an upper triangle and a non-unit diagonal, over
+// row-major storage with leading dimension lda. The general-matrix
+// routines internal/sem reaches are in ge.go.
 
 // gonum's machine constants (lapack/gonum/lapack.go): dlamchS is the
 // smallest normal number, dlamchP is eps·base = 2⁻⁵².
 const (
-	goDlamchS = 0x1p-1022
-	goDlamchP = 0x1p-52
+	dlamchS = 0x1p-1022
+	dlamchP = 0x1p-52
 )
 
-// goDlansyUpperMaxRowSum is lapack/gonum Dlansy(MaxRowSum, Upper): the
+// DlansyUpperMaxRowSum is lapack/gonum Dlansy(MaxRowSum, Upper): the
 // 1-norm (= ∞-norm) of the symmetric matrix whose upper triangle is a.
 // work needs n elements.
-func goDlansyUpperMaxRowSum(n int, a []float64, lda int, work []float64) float64 {
+func DlansyUpperMaxRowSum(n int, a []float64, lda int, work []float64) float64 {
 	if n == 0 {
 		return 0
 	}
@@ -45,41 +46,41 @@ func goDlansyUpperMaxRowSum(n int, a []float64, lda int, work []float64) float64
 	return maxV
 }
 
-// goDpotrfUpper is lapack/gonum Dpotrf(Upper): A = Uᵀ·U in place. Up to
-// goLapackNB it is the unblocked goDpotf2Upper; beyond, gonum's blocked
+// DpotrfUpper is lapack/gonum Dpotrf(Upper): A = Uᵀ·U in place. Up to
+// lapackNB it is the unblocked Dpotf2Upper; beyond, gonum's blocked
 // Dsyrk / Dpotf2 / Dgemm / Dtrsm sweep. It reports whether A is positive
 // definite.
-func goDpotrfUpper(n int, a []float64, lda int) bool {
+func DpotrfUpper(n int, a []float64, lda int) bool {
 	if n == 0 {
 		return true
 	}
-	nb := goLapackNB
+	nb := lapackNB
 	if n <= nb {
-		return goDpotf2Upper(n, a, lda)
+		return Dpotf2Upper(n, a, lda)
 	}
 	for j := 0; j < n; j += nb {
 		jb := min(nb, n-j)
-		goDsyrkUpper(true, jb, j, -1, a[j:], lda, 1, a[j*lda+j:], lda)
-		if !goDpotf2Upper(jb, a[j*lda+j:], lda) {
+		DsyrkUpper(true, jb, j, -1, a[j:], lda, 1, a[j*lda+j:], lda)
+		if !Dpotf2Upper(jb, a[j*lda+j:], lda) {
 			return false
 		}
 		if j+jb < n {
-			goDgemm(true, false, jb, n-j-jb, j, -1, a[j:], lda, a[j+jb:], lda, 1, a[j*lda+j+jb:], lda)
-			goDtrsmLeftUpper(true, jb, n-j-jb, 1, a[j*lda+j:], lda, a[j*lda+j+jb:], lda)
+			Dgemm(true, false, jb, n-j-jb, j, -1, a[j:], lda, a[j+jb:], lda, 1, a[j*lda+j+jb:], lda)
+			DtrsmLeftUpper(true, jb, n-j-jb, 1, a[j*lda+j:], lda, a[j*lda+j+jb:], lda)
 		}
 	}
 	return true
 }
 
-// goDpotf2Upper is lapack/gonum Dpotf2(Upper): per column j, the pivot
+// Dpotf2Upper is lapack/gonum Dpotf2(Upper): per column j, the pivot
 // A[j][j] − Ddot(column j above the diagonal), its square root, then
 // the row tail updated by Dgemv(Trans) and scaled by the pivot's
 // reciprocal. A pivot ≤ 0 or NaN stops the factorisation (false).
-func goDpotf2Upper(n int, a []float64, lda int) bool {
+func Dpotf2Upper(n int, a []float64, lda int) bool {
 	for j := 0; j < n; j++ {
 		ajj := a[j*lda+j]
 		if j != 0 {
-			ajj -= goDdot(j, a[j:], lda, a[j:], lda)
+			ajj -= Ddot(j, a[j:], lda, a[j:], lda)
 		}
 		if ajj <= 0 || math.IsNaN(ajj) {
 			a[j*lda+j] = ajj
@@ -88,17 +89,17 @@ func goDpotf2Upper(n int, a []float64, lda int) bool {
 		ajj = math.Sqrt(ajj)
 		a[j*lda+j] = ajj
 		if j < n-1 {
-			goDgemvT(j, n-j-1, -1, a[j+1:], lda, a[j:], lda, 1, a[j*lda+j+1:], 1)
-			goDscal(n-j-1, 1/ajj, a[j*lda+j+1:], 1)
+			DgemvT(j, n-j-1, -1, a[j+1:], lda, a[j:], lda, 1, a[j*lda+j+1:], 1)
+			Dscal(n-j-1, 1/ajj, a[j*lda+j+1:], 1)
 		}
 	}
 	return true
 }
 
-// goDpoconUpper is lapack/gonum Dpocon(Upper): the reciprocal 1-norm
+// DpoconUpper is lapack/gonum Dpocon(Upper): the reciprocal 1-norm
 // condition estimate of A = Uᵀ·U from the factor u and anorm = ‖A‖₁
 // (Hager–Higham estimator Dlacn2 over Dlatrs triangular solves).
-func goDpoconUpper(n int, u []float64, lda int, anorm float64) float64 {
+func DpoconUpper(n int, u []float64, lda int, anorm float64) float64 {
 	if n == 0 {
 		return 1
 	}
@@ -114,30 +115,30 @@ func goDpoconUpper(n int, u []float64, lda int, anorm float64) float64 {
 		isave         [3]int
 	)
 	for {
-		ainvnm, kase = goDlacn2(n, work[n:], work, iwork, ainvnm, kase, &isave)
+		ainvnm, kase = Dlacn2(n, work[n:], work, iwork, ainvnm, kase, &isave)
 		if kase == 0 {
 			if ainvnm != 0 {
 				rcond = (1 / ainvnm) / anorm
 			}
 			return rcond
 		}
-		sl := goDlatrsUpper(true, normin, n, u, lda, work, work[2*n:])
+		sl := DlatrsUpper(true, normin, n, u, lda, work, work[2*n:])
 		normin = true
-		su := goDlatrsUpper(false, normin, n, u, lda, work, work[2*n:])
+		su := DlatrsUpper(false, normin, n, u, lda, work, work[2*n:])
 		scale := sl * su
 		if scale != 1 {
-			ix := goIdamax(n, work, 1)
-			if scale == 0 || scale < float64(math.Abs(work[ix])*goDlamchS) {
+			ix := Idamax(n, work, 1)
+			if scale == 0 || scale < float64(math.Abs(work[ix])*dlamchS) {
 				return rcond
 			}
-			goDrscl(n, scale, work, 1)
+			Drscl(n, scale, work, 1)
 		}
 	}
 }
 
-// goDlacn2 is lapack/gonum Dlacn2: one reverse-communication step of the
+// Dlacn2 is lapack/gonum Dlacn2: one reverse-communication step of the
 // 1-norm estimator. v and x hold n elements, isgn n ints.
-func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[3]int) (float64, int) {
+func Dlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[3]int) (float64, int) {
 	const itmax = 5
 	if kase == 0 {
 		for i := 0; i < n; i++ {
@@ -152,7 +153,7 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 			v[0] = x[0]
 			return math.Abs(v[0]), 0
 		}
-		est = goDasum(n, x, 1)
+		est = Dasum(n, x, 1)
 		for i := 0; i < n; i++ {
 			x[i] = math.Copysign(1, x[i])
 			isgn[i] = int(x[i])
@@ -160,7 +161,7 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 		isave[0] = 2
 		return est, 2
 	case 2:
-		isave[1] = goIdamax(n, x, 1)
+		isave[1] = Idamax(n, x, 1)
 		isave[2] = 2
 		for i := 0; i < n; i++ {
 			x[i] = 0
@@ -171,7 +172,7 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 	case 3:
 		copy(v[:n], x[:n])
 		estold := est
-		est = goDasum(n, v, 1)
+		est = Dasum(n, v, 1)
 		sameSigns := true
 		for i := 0; i < n; i++ {
 			if int(math.Copysign(1, x[i])) != isgn[i] {
@@ -189,7 +190,7 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 		}
 	case 4:
 		jlast := isave[1]
-		isave[1] = goIdamax(n, x, 1)
+		isave[1] = Idamax(n, x, 1)
 		if x[jlast] != math.Abs(x[isave[1]]) && isave[2] < itmax {
 			isave[2]++
 			for i := 0; i < n; i++ {
@@ -200,7 +201,7 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 			return est, 1
 		}
 	case 5:
-		tmp := 2 * (goDasum(n, x, 1)) / float64(3*n)
+		tmp := 2 * (Dasum(n, x, 1)) / float64(3*n)
 		if tmp > est {
 			copy(v[:n], x[:n])
 			est = tmp
@@ -216,15 +217,15 @@ func goDlacn2(n int, v, x []float64, isgn []int, est float64, kase int, isave *[
 	return est, 1
 }
 
-// goDrscl is lapack/gonum Drscl: x /= a, applied as a multiply by 1/a in
+// Drscl is lapack/gonum Drscl: x /= a, applied as a multiply by 1/a in
 // at most a few under/overflow-safe steps.
-func goDrscl(n int, a float64, x []float64, incX int) {
+func Drscl(n int, a float64, x []float64, incX int) {
 	if n == 0 {
 		return
 	}
 	cden := a
 	cnum := 1.0
-	smlnum := goDlamchS
+	smlnum := dlamchS
 	bignum := 1 / smlnum
 	for {
 		cden1 := cden * smlnum
@@ -242,33 +243,33 @@ func goDrscl(n int, a float64, x []float64, incX int) {
 			mul = cnum / cden
 			done = true
 		}
-		goDscal(n, mul, x, incX)
+		Dscal(n, mul, x, incX)
 		if done {
 			return
 		}
 	}
 }
 
-// goDlatrsUpper is lapack/gonum Dlatrs(Upper, trans, NonUnit): solve
+// DlatrsUpper is lapack/gonum Dlatrs(Upper, trans, NonUnit): solve
 // op(U)·x = scale·b with scaling that guards against overflow, for a
 // unit-stride x. cnorm holds the column norms of U's strict upper part
 // (computed when normin is false). The common case is one Dtrsv; the
 // careful per-column loop runs only when the growth bound says it must.
-func goDlatrsUpper(trans, normin bool, n int, a []float64, lda int, x, cnorm []float64) float64 {
+func DlatrsUpper(trans, normin bool, n int, a []float64, lda int, x, cnorm []float64) float64 {
 	if n == 0 {
 		return 1
 	}
-	smlnum := goDlamchS / goDlamchP
+	smlnum := dlamchS / dlamchP
 	bignum := 1 / smlnum
 	scale := 1.0
 
 	if !normin {
 		cnorm[0] = 0
 		for j := 1; j < n; j++ {
-			cnorm[j] = goDasum(j, a[j:], lda)
+			cnorm[j] = Dasum(j, a[j:], lda)
 		}
 	}
-	imax := goIdamax(n, cnorm, 1)
+	imax := Idamax(n, cnorm, 1)
 	var tscal float64
 	if cnorm[imax] <= bignum {
 		tscal = 1
@@ -276,11 +277,11 @@ func goDlatrsUpper(trans, normin bool, n int, a []float64, lda int, x, cnorm []f
 		tmax := cnorm[imax]
 		if tmax <= math.MaxFloat64 {
 			tscal = 1 / float64(smlnum*tmax)
-			goDscal(n, tscal, cnorm, 1)
+			Dscal(n, tscal, cnorm, 1)
 		} else {
 			tmax = 0
 			for j := 1; j < n; j++ {
-				tmax = math.Max(goDlangeColumnMaxAbs(j, a[j:], lda), tmax)
+				tmax = math.Max(DlangeColumnMaxAbs(j, a[j:], lda), tmax)
 			}
 			if tmax <= math.MaxFloat64 {
 				tscal = 1 / float64(smlnum*tmax)
@@ -295,13 +296,13 @@ func goDlatrsUpper(trans, normin bool, n int, a []float64, lda int, x, cnorm []f
 					}
 				}
 			} else {
-				goDtrsvUpper(trans, n, a, lda, x)
+				DtrsvUpper(trans, n, a, lda, x)
 				return scale
 			}
 		}
 	}
 
-	j := goIdamax(n, x, 1)
+	j := Idamax(n, x, 1)
 	xmax := math.Abs(x[j])
 	xbnd := xmax
 	var grow float64
@@ -351,16 +352,16 @@ func goDlatrsUpper(trans, normin bool, n int, a []float64, lda int, x, cnorm []f
 
 Solve:
 	if float64(grow*tscal) > smlnum {
-		goDtrsvUpper(trans, n, a, lda, x)
+		DtrsvUpper(trans, n, a, lda, x)
 		if tscal != 1 {
-			goDscal(n, 1/tscal, cnorm, 1)
+			Dscal(n, 1/tscal, cnorm, 1)
 		}
 		return scale
 	}
 
 	if xmax > bignum {
 		scale = bignum / xmax
-		goDscal(n, scale, x, 1)
+		Dscal(n, scale, x, 1)
 		xmax = bignum
 	}
 	if !trans {
@@ -372,7 +373,7 @@ Solve:
 			case tjj > smlnum:
 				if tjj < 1 && xj > float64(tjj*bignum) {
 					rec := 1 / xj
-					goDscal(n, rec, x, 1)
+					Dscal(n, rec, x, 1)
 					scale *= rec
 					xmax *= rec
 				}
@@ -384,7 +385,7 @@ Solve:
 					if cnorm[j] > 1 {
 						rec /= cnorm[j]
 					}
-					goDscal(n, rec, x, 1)
+					Dscal(n, rec, x, 1)
 					scale *= rec
 					xmax *= rec
 				}
@@ -403,16 +404,16 @@ Solve:
 				rec := 1 / xj
 				if cnorm[j] > float64((bignum-xmax)*rec) {
 					rec *= 0.5
-					goDscal(n, rec, x, 1)
+					Dscal(n, rec, x, 1)
 					scale *= rec
 				}
 			} else if float64(xj*cnorm[j]) > bignum-xmax {
-				goDscal(n, 0.5, x, 1)
+				Dscal(n, 0.5, x, 1)
 				scale *= 0.5
 			}
 			if j > 0 {
-				goDaxpy(j, float64(-x[j]*tscal), a[j:], lda, x, 1)
-				i := goIdamax(j, x, 1)
+				Daxpy(j, float64(-x[j]*tscal), a[j:], lda, x, 1)
+				i := Idamax(j, x, 1)
 				xmax = math.Abs(x[i])
 			}
 		}
@@ -431,14 +432,14 @@ Solve:
 					uscal /= tjjs
 				}
 				if rec < 1 {
-					goDscal(n, rec, x, 1)
+					Dscal(n, rec, x, 1)
 					scale *= rec
 					xmax *= rec
 				}
 			}
 			var sumj float64
 			if uscal == 1 {
-				sumj = goDdot(j, a[j:], lda, x, 1)
+				sumj = Ddot(j, a[j:], lda, x, 1)
 			} else {
 				for i := 0; i < j; i++ {
 					sumj += float64(float64(a[i*lda+j]*uscal) * x[i])
@@ -453,7 +454,7 @@ Solve:
 				case tjj > smlnum:
 					if tjj < 1 && xj > float64(tjj*bignum) {
 						rec = 1 / xj
-						goDscal(n, rec, x, 1)
+						Dscal(n, rec, x, 1)
 						scale *= rec
 						xmax *= rec
 					}
@@ -461,7 +462,7 @@ Solve:
 				case tjj > 0:
 					if xj > float64(tjj*bignum) {
 						rec = float64(tjj*bignum) / xj
-						goDscal(n, rec, x, 1)
+						Dscal(n, rec, x, 1)
 						scale *= rec
 						xmax *= rec
 					}
@@ -482,15 +483,15 @@ Solve:
 	}
 	scale /= tscal
 	if tscal != 1 {
-		goDscal(n, 1/tscal, cnorm, 1)
+		Dscal(n, 1/tscal, cnorm, 1)
 	}
 	return scale
 }
 
-// goDlangeColumnMaxAbs is lapack/gonum Dlange(MaxAbs) over the m×1
+// DlangeColumnMaxAbs is lapack/gonum Dlange(MaxAbs) over the m×1
 // column a[0], a[lda], …: the largest |a[i·lda]|, NaN-propagating via
 // math.Max.
-func goDlangeColumnMaxAbs(m int, a []float64, lda int) float64 {
+func DlangeColumnMaxAbs(m int, a []float64, lda int) float64 {
 	var value float64
 	for i := 0; i < m; i++ {
 		value = math.Max(value, math.Abs(a[i*lda]))
@@ -498,95 +499,95 @@ func goDlangeColumnMaxAbs(m int, a []float64, lda int) float64 {
 	return value
 }
 
-// goDpotrsUpperVec is lapack/gonum Dpotrs(Upper) for one right-hand
+// DpotrsUpperVec is lapack/gonum Dpotrs(Upper) for one right-hand
 // side: b ← A⁻¹·b through Uᵀ·y = b then U·x = y (two Dtrsm calls).
-func goDpotrsUpperVec(n int, u []float64, lda int, b []float64) {
+func DpotrsUpperVec(n int, u []float64, lda int, b []float64) {
 	if n == 0 {
 		return
 	}
-	goDtrsmLeftUpper(true, n, 1, 1, u, lda, b, 1)
-	goDtrsmLeftUpper(false, n, 1, 1, u, lda, b, 1)
+	DtrsmLeftUpper(true, n, 1, 1, u, lda, b, 1)
+	DtrsmLeftUpper(false, n, 1, 1, u, lda, b, 1)
 }
 
-// goDpotriUpper is lapack/gonum Dpotri(Upper): overwrite the factor U
+// DpotriUpper is lapack/gonum Dpotri(Upper): overwrite the factor U
 // with the upper triangle of A⁻¹ = U⁻¹·U⁻ᵀ (Dtrtri, then Dlauum). False
 // when U has a zero diagonal.
-func goDpotriUpper(n int, a []float64, lda int) bool {
+func DpotriUpper(n int, a []float64, lda int) bool {
 	if n == 0 {
 		return true
 	}
-	if !goDtrtriUpper(n, a, lda) {
+	if !DtrtriUpper(n, a, lda) {
 		return false
 	}
-	goDlauumUpper(n, a, lda)
+	DlauumUpper(n, a, lda)
 	return true
 }
 
-// goDtrtriUpper is lapack/gonum Dtrtri(Upper, NonUnit): U ← U⁻¹ in
-// place, blocked by goLapackNB.
-func goDtrtriUpper(n int, a []float64, lda int) bool {
+// DtrtriUpper is lapack/gonum Dtrtri(Upper, NonUnit): U ← U⁻¹ in
+// place, blocked by lapackNB.
+func DtrtriUpper(n int, a []float64, lda int) bool {
 	for i := 0; i < n; i++ {
 		if a[i*lda+i] == 0 {
 			return false
 		}
 	}
-	nb := goLapackNB
+	nb := lapackNB
 	if nb > n {
-		goDtrti2Upper(n, a, lda)
+		Dtrti2Upper(n, a, lda)
 		return true
 	}
 	for j := 0; j < n; j += nb {
 		jb := min(nb, n-j)
-		goDtrmmLeftUpperNoTrans(j, jb, 1, a, lda, a[j:], lda)
-		goDtrsmRightUpperNoTrans(j, jb, -1, a[j*lda+j:], lda, a[j:], lda)
-		goDtrti2Upper(jb, a[j*lda+j:], lda)
+		DtrmmLeftUpperNoTrans(j, jb, 1, a, lda, a[j:], lda)
+		DtrsmRightUpperNoTrans(j, jb, -1, a[j*lda+j:], lda, a[j:], lda)
+		Dtrti2Upper(jb, a[j*lda+j:], lda)
 	}
 	return true
 }
 
-// goDtrti2Upper is lapack/gonum Dtrti2(Upper, NonUnit): the unblocked
+// Dtrti2Upper is lapack/gonum Dtrti2(Upper, NonUnit): the unblocked
 // triangular inverse, column by column.
-func goDtrti2Upper(n int, a []float64, lda int) {
+func Dtrti2Upper(n int, a []float64, lda int) {
 	for j := 0; j < n; j++ {
 		ajj := 1 / a[j*lda+j]
 		a[j*lda+j] = ajj
 		ajj *= -1
-		goDtrmvUpperNoTrans(j, a, lda, a[j:], lda)
-		goDscal(j, ajj, a[j:], lda)
+		DtrmvUpperNoTrans(j, a, lda, a[j:], lda)
+		Dscal(j, ajj, a[j:], lda)
 	}
 }
 
-// goDlauumUpper is lapack/gonum Dlauum(Upper): U ← U·Uᵀ (upper
-// triangle) in place, blocked by goLapackNB.
-func goDlauumUpper(n int, a []float64, lda int) {
+// DlauumUpper is lapack/gonum Dlauum(Upper): U ← U·Uᵀ (upper
+// triangle) in place, blocked by lapackNB.
+func DlauumUpper(n int, a []float64, lda int) {
 	if n == 0 {
 		return
 	}
-	nb := goLapackNB
+	nb := lapackNB
 	if n <= nb {
-		goDlauu2Upper(n, a, lda)
+		Dlauu2Upper(n, a, lda)
 		return
 	}
 	for i := 0; i < n; i += nb {
 		ib := min(nb, n-i)
-		goDtrmmRightUpperTrans(i, ib, 1, a[i*lda+i:], lda, a[i:], lda)
-		goDlauu2Upper(ib, a[i*lda+i:], lda)
+		DtrmmRightUpperTrans(i, ib, 1, a[i*lda+i:], lda, a[i:], lda)
+		Dlauu2Upper(ib, a[i*lda+i:], lda)
 		if n-i-ib > 0 {
-			goDgemm(false, true, i, ib, n-i-ib, 1, a[i+ib:], lda, a[i*lda+i+ib:], lda, 1, a[i:], lda)
-			goDsyrkUpper(false, ib, n-i-ib, 1, a[i*lda+i+ib:], lda, 1, a[i*lda+i:], lda)
+			Dgemm(false, true, i, ib, n-i-ib, 1, a[i+ib:], lda, a[i*lda+i+ib:], lda, 1, a[i:], lda)
+			DsyrkUpper(false, ib, n-i-ib, 1, a[i*lda+i+ib:], lda, 1, a[i*lda+i:], lda)
 		}
 	}
 }
 
-// goDlauu2Upper is lapack/gonum Dlauu2(Upper): the unblocked U·Uᵀ.
-func goDlauu2Upper(n int, a []float64, lda int) {
+// Dlauu2Upper is lapack/gonum Dlauu2(Upper): the unblocked U·Uᵀ.
+func Dlauu2Upper(n int, a []float64, lda int) {
 	for i := 0; i < n; i++ {
 		aii := a[i*lda+i]
 		if i < n-1 {
-			a[i*lda+i] = goDdot(n-i, a[i*lda+i:], 1, a[i*lda+i:], 1)
-			goDgemvN(i, n-i-1, 1, a[i+1:], lda, a[i*lda+i+1:], 1, aii, a[i:], lda)
+			a[i*lda+i] = Ddot(n-i, a[i*lda+i:], 1, a[i*lda+i:], 1)
+			DgemvN(i, n-i-1, 1, a[i+1:], lda, a[i*lda+i+1:], 1, aii, a[i:], lda)
 		} else {
-			goDscal(i+1, aii, a[i:], lda)
+			Dscal(i+1, aii, a[i:], lda)
 		}
 	}
 }

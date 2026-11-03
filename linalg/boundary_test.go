@@ -12,17 +12,21 @@ import (
 
 // linalgAllowed reports whether a non-stdlib import is permitted in
 // package linalg. linalg is a leaf: the standard library, gonum (its
-// backend for routines with no bit contract) and Pulse's coded-error
-// package, nothing else — in particular never anything under internal/,
-// so the engine and synth can both depend on it without a cycle and an
-// embedder importing it drags in no engine.
+// backend for routines with no bit contract), Pulse's coded-error
+// package and internal/gonumorder (the gonum-order kernels its SPD path
+// runs, shared with internal/sem; itself a standard-library-only leaf,
+// TestGonumOrderImportBoundary), nothing else — in particular nothing
+// else under internal/, so the engine and synth can both depend on it
+// without a cycle and an embedder importing it drags in no engine.
 func linalgAllowed(path string) bool {
 	return path == "github.com/frankbardon/pulse/errors" ||
+		path == "github.com/frankbardon/pulse/internal/gonumorder" ||
 		path == "gonum.org/v1/gonum" || strings.HasPrefix(path, "gonum.org/v1/gonum/")
 }
 
 // TestLinalgImportBoundary fails when a non-test file in linalg imports
-// anything outside the standard library, gonum and pulse/errors.
+// anything outside the standard library, gonum, pulse/errors and
+// internal/gonumorder.
 func TestLinalgImportBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +57,7 @@ func TestLinalgImportBoundary(t *testing.T) {
 			}
 			if !linalgAllowed(path) {
 				t.Errorf("%s imports %q; linalg may import only the standard library, "+
-					"gonum.org/v1/gonum/... and github.com/frankbardon/pulse/errors", f, path)
+					"gonum.org/v1/gonum/..., github.com/frankbardon/pulse/errors and internal/gonumorder", f, path)
 			}
 		}
 	}

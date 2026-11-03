@@ -156,7 +156,7 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
 - **Matrix operators' own arithmetic:** co-moments, `MAT_CORRELATION` and its inference, the `MAT_CORRELATION` determinant, partial correlation, distance metrics (`aitchison` included), and the ridge schedule. The factor-analysis ML and rotation steps are FMA-free too, but they start from a gonum eigen decomposition, so `MAT_FACTOR` figures are listed under Not covered.
 - **The `linalg` SPD path:** `FactorSPD` / `SPDFactor` / `Mul`. This is a port of gonum v0.17.0's amd64 operation order with no fused multiply-adds. On amd64 it gives exactly the bits gonum gave; arm64 now gives the same bits.
 - **Regression:** OLS, GLM, ridge, lasso / elastic net, Bayes-linear, HC and cluster standard errors, and Newey–West (HAC). The automatic HAC lag is an exact integer.
-- **`MAT_SEM`'s own arithmetic:** the distribution replacements, the `:=` defined-parameter derivatives, the polychoric and WLSMV weight blocks.
+- **`MAT_SEM` fits and `ATTR_SEM_SCORE`,** whether a fit converges or stops early (SLSQP's `ftol`, Fisher scoring's objective-decrease test, `information: rank2`, mean structure, multi-group, DWLS / WLSMV, bootstrap). The model's matrix products, inverses and Cholesky factor, inverse and log-determinant run the same gonum-order port as the SPD path. The rest of the arithmetic is FMA-free on `detmath`: the distribution replacements, the `:=` defined-parameter derivatives, the polychoric and WLSMV weight blocks, and the SLSQP solver.
 - **The shared MMM fixture** (`internal/mmmfixture`).
 
 **How it is enforced:**
@@ -165,18 +165,13 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
   - `TestCrossArchFMAReport_RepoWide` (heavy tier) finds products the compiler fuses.
   - `TestCrossArchBannedMath_RepoWide` (fast tier) finds banned stdlib transcendentals.
 - **Per-package `*_NoFMAContraction` gates** in `detmath`, `statdist`, `optimize`, `mcmc`, `sem`, `distlagparams`, `regmmm` and `mmmfixture`.
-- **A fingerprint golden.** `internal/fingerprint` pins the exact bits of covered figures, end to end and from direct calls, in the normal test tier. The golden is generated on arm64, and CI's linux/amd64 run checks it.
+- **A fingerprint golden.** `internal/fingerprint` pins the exact bits of covered figures, end to end and from direct calls, in the normal test tier. `internal/sem`'s fit golden does the same for a corpus of `MAT_SEM` fits. Both goldens are generated on arm64, and CI's linux/amd64 run checks them.
 - **A tolerance golden.** `TestDecomposition_Tolerance` pins the figures that are not covered (below) at 1e-12 relative.
 
 **Not covered** (accepted residuals; the arm64 vs amd64 spreads below were measured):
 
 - **gonum's eigen, SVD and QR internals.** gonum's amd64 assembly and its arm64 pure Go add in a different order, and no barrier changes that. Ordering, sign and rank decisions are fixed (see Eigen, SVD, QR and rank above), but the values can differ in their last ulps. The same applies to every figure computed from those values: `MAT_PCA`, `MAT_FACTOR`, `TEST_MANOVA`, `MAT_COLLINEARITY`, `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` and `OVERLAY_CORRESPONDENCE`. They are pinned at 1e-12 relative, not bit for bit. The scan cannot see fused multiply-adds inside gonum code.
-- **`MAT_SEM` fits.** Every fit runs gonum matrix calls (`Mul`, `Inverse`, `LogDet`, Cholesky), and the optimiser amplifies their last-ulp differences:
-  - A fit that stops early (default SLSQP `ftol` 1e-6) differs by about 7.9e-4 relative. With `ftol` 1e-15 the gap is still 2.9e-8 on a two-factor CFA.
-  - A `fisher` fit can stop on the objective-decrease (`small`) test. It reports `converged: true` on both architectures, but after a different number of iterations (18 vs 20), and its estimates differ by about 3.8e-9. `converged: true` reached this way means the parameters are accurate to about √eps only.
-  - A `fisher` + rank-2 fit can flip its `converged` flag, with 44 vs 43 iterations.
-  - Other spreads: `meanstructure` about 1.3e-2; multi-group fits about 8e-8; `WLSMV` about 3.5e-9; bootstrap figures near zero up to about 1 relative.
-  - A path model that runs the same number of iterations on both architectures differs by 1.3e-12 on z. Only fully converged fits are pinned (at 1e-12).
+- **`MAT_SEM`'s two fallbacks.** A sample covariance that is not positive definite is replaced through `cov_nearest`'s eigenvalue clip, and an information matrix that does not factor is inverted through an SVD pseudo-inverse. Both run gonum's eigen or SVD, so a fit that takes either fallback keeps that residual.
 - **The stdlib `math.Exp` on amd64 depends on the CPU.** It picks an FMA or a non-FMA code path at run time. Pulse's GLM links use `ExpAMD64FMA`, a portable port that pins the FMA-hardware bits. Any remaining stdlib `Exp` would follow the CI runner's CPU.
 - **Allowlisted sites.** These are the offline example-CSV generator (`internal/examples/fixtures/gen.go`, never compiled into Pulse; every figure reads the committed CSV) and the test helper `invariance.Within`, whose tolerance bound is never a result figure.
 

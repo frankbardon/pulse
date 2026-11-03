@@ -57,6 +57,8 @@ their `kn` / `wn` / `fn` / `ke` / `we` / `fe` tables (`src/math/rand/v2/normal.g
 (Sun Microsystems) and Cephes (Stephen L. Moshier) notices reproduced in the
 ported files. Its `Tanh` ports FreeBSD msun's `s_tanh.c` directly, under the
 Sun Microsystems notice reproduced in `linalg/detmath/tanh.go`.
+`internal/gonumorder`'s `LogAMD64` is a port of the same release's amd64
+assembly `math.Log` (`src/math/log_amd64.s`), under the same notice.
 
 ```
 Copyright 2009 The Go Authors.
@@ -142,8 +144,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Gonum
 
-`linalg/gonumorder_blas.go` and `linalg/gonumorder_lapack.go` (the SPD path
-under `linalg.FactorSPD` / `SPDFactor` / `linalg.Mul`) and `internal/sem/dot.go`
+`internal/gonumorder` (the SPD path under `linalg.FactorSPD` / `SPDFactor` /
+`linalg.Mul`, and the `MAT_SEM` model arithmetic `internal/sem/matops.go`
+runs on it) and `internal/sem/dot.go`
 port the operation order of gonum v0.17.0 (`blas/gonum`, `lapack/gonum` and
 the amd64 assembly kernels of `internal/asm/f64`), <https://www.gonum.org/>,
 with every floating-point product wrapped in an explicit `float64(...)`

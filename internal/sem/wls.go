@@ -521,9 +521,7 @@ func fitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options, pointOnly
 	meat := sandwichMeat(d, w, nacov)
 	vcov := mat.NewSymDense(len(x), nil)
 	{
-		var t1, t2 mat.Dense
-		t1.Mul(bread, meat)
-		t2.Mul(&t1, bread)
+		t2 := mul(mul(bread, meat), bread)
 		for i := 0; i < len(x); i++ {
 			for j := i; j < len(x); j++ {
 				vcov.SetSym(i, j, (t2.At(i, j)+t2.At(j, i))/2/(n-1))
@@ -629,9 +627,7 @@ func sandwichMeat(d [][]float64, w []float64, gamma [][]float64) *mat.SymDense {
 			g.Set(i, j, gamma[i][j])
 		}
 	}
-	var gw, out mat.Dense
-	gw.Mul(g, wd)
-	out.Mul(wd.T(), &gw)
+	out := mul(wd.T(), mul(g, wd))
 	m := mat.NewSymDense(n, nil)
 	for i := 0; i < n; i++ {
 		for j := i; j < n; j++ {
@@ -682,9 +678,7 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 			vd.Set(i, j, w[i]*d[i][j])
 		}
 	}
-	var a, u mat.Dense
-	a.Mul(vd, einv)
-	u.Mul(&a, vd.T())
+	u := mul(mul(vd, einv), vd.T())
 	g := mat.NewDense(size, size, nil)
 	for i := range nacov {
 		for j := range nacov[i] {
@@ -701,8 +695,7 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 			um.Set(i, j, v)
 		}
 	}
-	var ug mat.Dense
-	ug.Mul(um, g)
+	ug := mul(um, g)
 	trUG, trUG2 := 0.0, 0.0
 	for i := 0; i < size; i++ {
 		trUG += ug.At(i, i)
