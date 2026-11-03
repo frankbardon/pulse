@@ -248,5 +248,5 @@ func Raw(name string) (string, bool) {
 	if err != nil {
 		return virtualBody(name)
 	}
-	return string(data), true
+	return NormalizeNewlines(string(data)), true
 }
