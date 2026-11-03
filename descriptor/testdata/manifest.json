@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
-    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
+    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
     "commands": [
       {
         "name": "process",
@@ -13801,7 +13801,7 @@
       },
       {
         "name": "item-fan-out",
-        "description": "for_each on a window, feature or attribute item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, a derived-column limit and predict parity."
+        "description": "for_each on a window, feature, attribute, aggregation or matrix item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity."
       },
       {
         "name": "join-design",
@@ -15228,7 +15228,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 271,
+    "examples_count": 272,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21178,10 +21178,16 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_expanded_items",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: cb31550919f3816b007fce0f8fe2315dcf1252bd9968a4510e22ffcb936d4bb6
+// golden-hash: 2b4905f2cae13db9413fd622b2819c640162dfc0296af65b16eec68a19976d61

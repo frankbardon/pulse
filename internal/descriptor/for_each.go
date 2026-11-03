@@ -12,17 +12,18 @@ import (
 // Compose slot), Service.ProcessChain per stage, Service.Materialize,
 // Predict, the Compose and chain validators — so the item lists they
 // judge and run cannot drift: sweep.ExpandItems with the
-// MaxDerivedColumns preflight over l (the instance's effective limits),
-// checked BEFORE any item renders, and the instance facts so
+// MaxDerivedColumns then MaxExpandedItems preflight over l (the
+// instance's effective limits), checked BEFORE any item renders, and
+// the instance facts so
 // (InstanceSnapshot.SweepOptions at predict, the runtime registry's
 // ScalarParamsByOperator in the service) the splice ban judges with. A request without a for_each comes
 // back as req itself, after the same limit check over its plain items.
 // The caller runs the slot gate (SlotRefusal) first, so a hidden
 // `for_each` is an unknown field before its contents are judged.
 //
-// The returned finding is the Certain MaxDerivedColumns breach when the
-// limit refused the request (nil otherwise), for predict's
-// LimitFindings.
+// The returned finding is the Certain MaxDerivedColumns or
+// MaxExpandedItems breach when a limit refused the request (nil
+// otherwise), for predict's LimitFindings.
 func ExpandRequestItems(req *types.Request, l limits.Limits, so sweep.Options) (*types.Request, []sweep.FanOut, *limits.Finding, error) {
 	// The for_each-free fast path (every request without a fan-out):
 	// the same limit over the plain items, no closure, no clone.
@@ -38,8 +39,12 @@ func ExpandRequestItems(req *types.Request, l limits.Limits, so sweep.Options) (
 		return req, nil, nil, nil
 	}
 	var finding *limits.Finding
-	out, fan, err := sweep.ExpandItems(req, so, func(derived int) error {
-		if f, ok := limits.Evaluate(l, limits.MaxDerivedColumns, int64(derived), limits.Certain); ok {
+	out, fan, err := sweep.ExpandItems(req, so, func(c sweep.Counts) error {
+		if f, ok := limits.Evaluate(l, limits.MaxDerivedColumns, int64(c.Derived), limits.Certain); ok {
+			finding = &f
+			return f.Err()
+		}
+		if f, ok := limits.Evaluate(l, limits.MaxExpandedItems, int64(c.Expanded), limits.Certain); ok {
 			finding = &f
 			return f.Err()
 		}

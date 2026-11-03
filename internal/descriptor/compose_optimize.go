@@ -1,12 +1,15 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
 	"github.com/frankbardon/pulse/internal/resultcall"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -66,9 +69,39 @@ func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions
 // ResultCatalog is the result() catalog of the batch's effective slots
 // with each aggregation judged non-numeric by kinds.IsNonScalarSlot —
 // the one builder predict (OptimizeCheck) and the runtime (its entry
-// check, the pre-phase and the solve's reader) share.
+// check, the pre-phase and the solve's reader) share. A slot whose
+// aggregations fan out (`for_each`) is cataloged with the aggregations
+// it will run (resultItemsExpanded), so result() names an expanded
+// label exactly as the slot's response carries it.
 func ResultCatalog(requests []*types.Request, kinds vectors.AggregationKinds) *resultcall.Catalog {
-	return resultcall.CatalogWith(requests, kinds.IsNonScalarSlot)
+	return resultcall.CatalogWith(resultItemsExpanded(requests), kinds.IsNonScalarSlot)
+}
+
+// resultItemsExpanded is requests with each slot carrying an
+// aggregation for_each replaced by its item-expanded clone (index
+// aligned); requests itself when none does. The expansion is the one
+// every slot runs (sweep.ExpandItems), without limits: a slot whose
+// for_each does not expand keeps its items as written, and its own
+// expansion refuses it when the slot is validated or run.
+func resultItemsExpanded(requests []*types.Request) []*types.Request {
+	var out []*types.Request
+	for i, r := range requests {
+		if r == nil || !slices.ContainsFunc(r.Aggregations, func(a *types.Aggregation) bool { return a != nil && a.ForEach != nil }) {
+			continue
+		}
+		x, _, err := sweep.ExpandItems(r, sweep.Options{}, nil)
+		if err != nil {
+			continue
+		}
+		if out == nil {
+			out = slices.Clone(requests)
+		}
+		out[i] = x
+	}
+	if out == nil {
+		return requests
+	}
+	return out
 }
 
 // optimizeUnresolved is the blocks' unresolved bounds and starts as

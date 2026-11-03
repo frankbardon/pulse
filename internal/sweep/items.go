@@ -28,16 +28,37 @@ const (
 	// `for_each`. A sweep body is substituted once per slot; a second
 	// fan-out inside it is refused rather than expanded twice.
 	ReasonNestedInSweep = "nested_in_sweep"
+	// ReasonPositionUnsupported: an aggregation carrying a `for_each`
+	// sits where no fan-out runs — a crosstab `cell`, `cells` or
+	// `margin_aggregations` entry (a banner cell lands there too). Only
+	// a Request.Aggregations item fans out.
+	ReasonPositionUnsupported = "position_unsupported"
 )
 
-// The fanned-out item lists, in pipeline order (features run first,
-// then attributes, then windows) — the order expansion checks, counts
-// and reports them.
+// The fanned-out item lists, in expansion order (features run first,
+// then attributes, then windows; the aggregations and matrices, which
+// may read any of their columns, come after) — the order expansion
+// checks, counts and reports them. The first three are derived columns
+// (MaxDerivedColumns); the last two are result items, whose fan-out
+// counts toward MaxExpandedItems.
 const (
-	listFeatures   = "features"
-	listAttributes = "attributes"
-	listWindows    = "windows"
+	listFeatures     = "features"
+	listAttributes   = "attributes"
+	listWindows      = "windows"
+	listAggregations = "aggregations"
+	listMatrices     = "matrices"
 )
+
+// Counts are the figures ExpandItems hands its preflight before any
+// item renders.
+type Counts struct {
+	// Derived is DerivedCount: the window, feature and attribute items
+	// once every for_each is expanded, plain items included.
+	Derived int
+	// Expanded is ExpandedCount: the aggregation and matrix items the
+	// for_each fan-outs add (plain items excluded).
+	Expanded int
+}
 
 // FanOut describes one for_each item: where it sits, its axes and the
 // number of items it expands to.
@@ -79,6 +100,40 @@ func DerivedCount(req *types.Request) int {
 	return n
 }
 
+// ExpandedCount is the number of aggregation and matrix items req's
+// for_each fan-outs add: the axis product (grid) or common length (zip)
+// of every fanned-out Aggregations and Matrices item, summed; plain
+// items do not count. It saturates at math.MaxInt. A further kind
+// counting toward the same limit sums FanOutCount per item
+// (AddSaturating).
+func ExpandedCount(req *types.Request) int {
+	if req == nil {
+		return 0
+	}
+	n := 0
+	for _, a := range req.Aggregations {
+		n = addSaturating(n, FanOutCount(forEachOf(a)))
+	}
+	for i := range req.Matrices {
+		n = addSaturating(n, FanOutCount(req.Matrices[i].ForEach))
+	}
+	return n
+}
+
+// FanOutCount is the number of items one for_each expands to — the
+// axis product (grid) or common length (zip) — and 0 for nil. Structure
+// is not checked.
+func FanOutCount(fe *types.ForEach) int {
+	if fe == nil {
+		return 0
+	}
+	return countAxes(fe.Axes, fe.Mode)
+}
+
+// AddSaturating is a + b saturating at math.MaxInt, for a caller
+// summing FanOutCount figures.
+func AddSaturating(a, b int) int { return addSaturating(a, b) }
+
 func addSaturating(n, k int) int {
 	if k > math.MaxInt-n {
 		return math.MaxInt
@@ -93,8 +148,10 @@ func itemCount(fe *types.ForEach) int {
 	return countAxes(fe.Axes, fe.Mode)
 }
 
-// HasForEach reports whether any window, feature or attribute item of
-// req carries a for_each.
+// HasForEach reports whether any window, feature, attribute,
+// aggregation or matrix item of req carries a for_each — or an
+// aggregation where no fan-out runs (a crosstab cell), which
+// ExpandItems refuses.
 func HasForEach(req *types.Request) bool {
 	return forEachPath(req) != ""
 }
@@ -120,7 +177,44 @@ func forEachPath(req *types.Request) string {
 			return itemPath(listWindows, i)
 		}
 	}
+	for i, a := range req.Aggregations {
+		if forEachOf(a) != nil {
+			return itemPath(listAggregations, i)
+		}
+	}
+	for i := range req.Matrices {
+		if req.Matrices[i].ForEach != nil {
+			return itemPath(listMatrices, i)
+		}
+	}
+	if p, _ := misplacedForEach(req); p != "" {
+		return p
+	}
 	return ""
+}
+
+// misplacedForEach is the path of the first aggregation carrying a
+// for_each where no fan-out runs — a crosstab's cell, cells or
+// margin_aggregations entry — and its for_each; "" when none.
+func misplacedForEach(req *types.Request) (string, *types.ForEach) {
+	ct := req.Crosstab
+	if ct == nil {
+		return "", nil
+	}
+	if ct.Cell != nil && ct.Cell.ForEach != nil {
+		return "crosstab.cell", ct.Cell.ForEach
+	}
+	for _, l := range []struct {
+		name  string
+		items []*types.Aggregation
+	}{{"crosstab.cells", ct.Cells}, {"crosstab.margin_aggregations", ct.MarginAggregations}} {
+		for i, a := range l.items {
+			if a != nil && a.ForEach != nil {
+				return itemPath(l.name, i), a.ForEach
+			}
+		}
+	}
+	return "", nil
 }
 
 func forEachOf(item any) *types.ForEach {
@@ -134,6 +228,14 @@ func forEachOf(item any) *types.ForEach {
 			return v.ForEach
 		}
 	case *types.Window:
+		if v != nil {
+			return v.ForEach
+		}
+	case *types.Aggregation:
+		if v != nil {
+			return v.ForEach
+		}
+	case *types.MatrixSpec:
 		if v != nil {
 			return v.ForEach
 		}
@@ -156,15 +258,20 @@ type pendingItem struct {
 // Materialize, and predict — so the item lists they judge and run
 // cannot drift.
 //
-// Order of checks: every for_each item, in pipeline order (features,
-// attributes, windows) and declared order within a list, is checked
+// Order of checks: an aggregation carrying a for_each where no fan-out
+// runs (a crosstab cell, cells or margin_aggregations entry) is refused
+// (ReasonPositionUnsupported); then every for_each item, in expansion
+// order (features, attributes, windows, aggregations, matrices) and
+// declared order within a list, is checked
 // structurally (the compose sweep's axis rules) and by the reference
 // rule (every axis named by a placeholder in the item, every
 // placeholder naming an axis, none inside an expression slot — the
 // built-in ones plus the extension params opts.ExprParams flags,
-// PULSE_FOR_EACH_EXPR_SPLICE); then preflight, when non-nil, with
-// DerivedCount — plain items plus expanded ones — BEFORE anything is
-// rendered, so an oversized product is refused without being built;
+// PULSE_FOR_EACH_EXPR_SPLICE); then preflight, when non-nil, with the
+// Counts — DerivedCount (plain plus expanded column items) and
+// ExpandedCount (the aggregation and matrix items the fan-outs add) —
+// BEFORE anything is rendered, so an oversized product is refused
+// without being built;
 // then each for_each item renders once per combination (grid: first axis
 // slowest; zip: lockstep) through internal/template — `{{axis}}`
 // renders the value's text exactly as written, `{"$var": "axis"}`
@@ -174,13 +281,19 @@ type pendingItem struct {
 //
 // Without a for_each ExpandItems calls preflight and returns req itself
 // and no fan-outs. With one it returns a shallow clone whose Features,
-// Attributes and Windows are the expanded lists — each for_each item
-// replaced in place by its rendered items, plain items kept (the
-// caller's pointers) — and one FanOut per for_each item. req is never
-// modified.
-func ExpandItems(req *types.Request, opts Options, preflight func(derived int) error) (*types.Request, []FanOut, error) {
+// Attributes, Windows, Aggregations and Matrices are the expanded lists
+// — each for_each item replaced in place by its rendered items, plain
+// items kept (the caller's pointers; a plain matrix spec by value) — and
+// one FanOut per for_each item. req is never modified.
+func ExpandItems(req *types.Request, opts Options, preflight func(Counts) error) (*types.Request, []FanOut, error) {
 	if req == nil {
 		return nil, nil, nil
+	}
+	if path, spec := misplacedForEach(req); spec != nil {
+		return nil, nil, forEachInvalid(path+".for_each", ReasonPositionUnsupported,
+			"the aggregation at "+path+" carries a for_each, but only a request `aggregations` item fans out; "+
+				"spell the crosstab cell out, or move the fanned-out aggregation to `aggregations`",
+			map[string]any{})
 	}
 	var pending []pendingItem
 	var fanOuts []FanOut
@@ -223,8 +336,18 @@ func ExpandItems(req *types.Request, opts Options, preflight func(derived int) e
 			return nil, nil, ce
 		}
 	}
+	for i, a := range req.Aggregations {
+		if ce := check(listAggregations, i, a); ce != nil {
+			return nil, nil, ce
+		}
+	}
+	for i := range req.Matrices {
+		if ce := check(listMatrices, i, &req.Matrices[i]); ce != nil {
+			return nil, nil, ce
+		}
+	}
 	if preflight != nil {
-		if err := preflight(DerivedCount(req)); err != nil {
+		if err := preflight(Counts{Derived: DerivedCount(req), Expanded: ExpandedCount(req)}); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -247,7 +370,35 @@ func ExpandItems(req *types.Request, opts Options, preflight func(derived int) e
 	if out.Windows, err = expandList(listWindows, req.Windows, bodies); err != nil {
 		return nil, nil, err
 	}
+	if out.Aggregations, err = expandList(listAggregations, req.Aggregations, bodies); err != nil {
+		return nil, nil, err
+	}
+	if out.Matrices, err = expandValues(listMatrices, req.Matrices, bodies); err != nil {
+		return nil, nil, err
+	}
 	return &out, fanOuts, nil
+}
+
+// expandValues is expandList over a value slice ([]types.MatrixSpec):
+// the input slice when it carries no pending item, else a fresh slice
+// of plain specs (copied by value) and rendered ones.
+func expandValues[T any](list string, items []T, pending map[string]pendingItem) ([]T, *errors.CodedError) {
+	ptrs := make([]*T, len(items))
+	for i := range items {
+		ptrs[i] = &items[i]
+	}
+	expanded, ce := expandList(list, ptrs, pending)
+	if ce != nil {
+		return nil, ce
+	}
+	if len(expanded) == len(ptrs) && (len(ptrs) == 0 || &expanded[0] == &ptrs[0]) {
+		return items, nil
+	}
+	out := make([]T, len(expanded))
+	for i, p := range expanded {
+		out[i] = *p
+	}
+	return out, nil
 }
 
 // expandList rebuilds one item list: plain items kept, each pending
@@ -336,6 +487,14 @@ func itemBody(item any) (json.RawMessage, error) {
 		c.ForEach = nil
 		return json.Marshal(&c)
 	case *types.Window:
+		c := *v
+		c.ForEach = nil
+		return json.Marshal(&c)
+	case *types.Aggregation:
+		c := *v
+		c.ForEach = nil
+		return json.Marshal(&c)
+	case *types.MatrixSpec:
 		c := *v
 		c.ForEach = nil
 		return json.Marshal(&c)
@@ -474,9 +633,11 @@ func combinationDetails(values map[string]any, idx int) map[string]any {
 // item's axis names.
 func nestedForEachRefusal(body json.RawMessage) *errors.CodedError {
 	var probe struct {
-		Features   []map[string]json.RawMessage `json:"features"`
-		Attributes []map[string]json.RawMessage `json:"attributes"`
-		Windows    []map[string]json.RawMessage `json:"windows"`
+		Features     []map[string]json.RawMessage `json:"features"`
+		Attributes   []map[string]json.RawMessage `json:"attributes"`
+		Windows      []map[string]json.RawMessage `json:"windows"`
+		Aggregations []map[string]json.RawMessage `json:"aggregations"`
+		Matrices     []map[string]json.RawMessage `json:"matrices"`
 	}
 	if json.Unmarshal(body, &probe) != nil {
 		// Left to the strict body decode, which names the fault.
@@ -485,7 +646,10 @@ func nestedForEachRefusal(body json.RawMessage) *errors.CodedError {
 	for _, l := range []struct {
 		name  string
 		items []map[string]json.RawMessage
-	}{{listFeatures, probe.Features}, {listAttributes, probe.Attributes}, {listWindows, probe.Windows}} {
+	}{
+		{listFeatures, probe.Features}, {listAttributes, probe.Attributes}, {listWindows, probe.Windows},
+		{listAggregations, probe.Aggregations}, {listMatrices, probe.Matrices},
+	} {
 		for i, item := range l.items {
 			if _, ok := item["for_each"]; ok {
 				path := itemPath(l.name, i)

@@ -218,7 +218,8 @@ vanishes — optionality is spelled `$when`, always.
 
 ### Items that fan out — `for_each`
 
-A window, feature or attribute item may carry a `for_each`, which fans
+A window, feature, attribute, aggregation or matrix item may carry a
+`for_each`, which fans
 it out over parameter axes after the template renders, using the same
 two placeholder spellings (`{{axis}}` in a non-expression string,
 `{"$var": "axis"}` as a whole value inside `params`). The renderer recognises such an item

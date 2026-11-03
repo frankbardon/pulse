@@ -1949,7 +1949,9 @@ const (
 	PULSE_MODEL_FILE_UNREADABLE Code = "PULSE_MODEL_FILE_UNREADABLE"
 
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
-	// window, feature or attribute item: no axes, an axis name that is
+	// window, feature, attribute, aggregation or matrix item (or one on
+	// an aggregation where no fan-out runs — a crosstab or banner cell,
+	// reason position_unsupported): no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
 	// unknown mode (the sampling modes random / lhs are compose-sweep
 	// only, as is an axis `range` — reason range_unsupported), unequal
@@ -1965,9 +1967,10 @@ const (
 	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
 
 	// PULSE_FOR_EACH_EXPR_SPLICE indicates a `{{token}}` placeholder
-	// inside an expression-bearing string of a window, feature or
-	// attribute item carrying a `for_each` (an attribute `expression`, a
-	// params-borne `fit_on` or centroid `filter` expression; the slot list
+	// inside an expression-bearing string of a window, feature,
+	// attribute, aggregation or matrix item carrying a `for_each` (an
+	// attribute `expression`, a params-borne `fit_on` or centroid
+	// `filter` expression, a scalar-expression param; the slot list
 	// is internal/exprslots). Splicing an axis value's text into an
 	// expression would let the value rewrite the expression's logic, so
 	// the request is refused before any item is substituted — identically

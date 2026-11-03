@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:1e8df9efcf57420cfe4b49f4d9014ff1cdeb1b5e97048892d11d91f8ae9bcdee",
-    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
+    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
     "commands": [
       {
         "name": "process",
@@ -2501,10 +2501,16 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_expanded_items",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: e1b20ab6ba33bfa505d2a14f374503afae7f992133e4cb3e3a06732e469e83bd
+// golden-hash: 3fd435c53c85f9d1acb1cb705852f3fd6583f3d9894b4299bdf3403190621da5

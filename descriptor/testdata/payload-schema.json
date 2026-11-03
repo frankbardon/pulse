@@ -36,6 +36,9 @@
             "null"
           ]
         },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
+        },
         "label": {
           "type": "string"
         },
@@ -3556,6 +3559,9 @@
             "array",
             "null"
           ]
+        },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
         },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
@@ -7595,4 +7601,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 83cdc54959c7f829d85cf72d44491a1a991c206c9ec686a468dfdb38d685843b
+// golden-hash: e408e25068949f1385e272b6ff9cef46e4099a50b6f7c775fdc2a8f343db94d7

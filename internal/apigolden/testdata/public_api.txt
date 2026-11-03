@@ -241,6 +241,7 @@ pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
 pulse: const DefaultMaxDerivedColumns int64 = 1000
 pulse: const DefaultMaxEstimatedMemory int64 = -1
+pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
 pulse: const DefaultMaxMatrixDim int64 = 2048
@@ -434,6 +435,7 @@ pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose
 pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
 pulse: type FeatureProfileLimits field MaxDerivedColumns int64 "json:\"max_derived_columns,omitempty\""
 pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
+pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
 pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
@@ -644,6 +646,7 @@ pulse: type Limits field MaxComposeSlots int64
 pulse: type Limits field MaxCrosstabCells int64
 pulse: type Limits field MaxDerivedColumns int64
 pulse: type Limits field MaxEstimatedMemory int64
+pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
 pulse: type Limits field MaxMatrixDim int64
@@ -5049,6 +5052,7 @@ pulse/types: type Advisory field Message string "json:\"message\""
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
 pulse/types: type Aggregation field Fields []string "json:\"fields,omitempty\""
+pulse/types: type Aggregation field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Aggregation field Label string "json:\"label,omitempty\""
 pulse/types: type Aggregation field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Aggregation field Type pulse/types.AggregationType "json:\"type\""
@@ -5816,6 +5820,7 @@ pulse/types: type MatrixResult method (MatrixResult) MarshalJSON() ([]byte, erro
 pulse/types: type MatrixSpec struct
 pulse/types: type MatrixSpec field Encoding pulse/types.MatrixEncoding "json:\"encoding,omitempty\""
 pulse/types: type MatrixSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type MatrixSpec field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type MatrixSpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type MatrixSpec field Name string "json:\"name,omitempty\""
 pulse/types: type MatrixSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
@@ -6679,4 +6684,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1370637721e3fe9b904a719614a748187be21569a8e31169fdba185fe0a5d333
+// golden-hash: c67ff9f7727b938c319575d779e0e095488ca086e8b01f892bded5afd8d05563

@@ -26,6 +26,7 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `MaxChainStages` | `max_chain_stages` | `1,000` | stages | fan-out through ProcessChain | up front, and in `PredictChain` |
 | `MaxJoinBuildRows` | `max_join_build_rows` | `100,000,000` | records | a join's in-memory build side | predict (`certain`, from the right side's header) + the build loop |
 | `MaxDerivedColumns` | `max_derived_columns` | `1,000` | window + feature + attribute items | fan-out through an item `for_each`; counts every plain item plus every EXPANDED one (a multi-output feature counts once) | predict (`certain`) + before any `for_each` item renders, on every request host (Process, each Compose slot, each chain stage, Materialize) |
+| `MaxExpandedItems` | `max_expanded_items` | `1,000` | aggregation + matrix items a `for_each` adds | fan-out through an aggregation or matrix `for_each`; counts only the items a fan-out ADDS (every combination of every fanned-out aggregation and matrix; plain items never count, so a request without one never trips it). Windows, features and attributes count toward `MaxDerivedColumns` instead | predict (`certain`) + before any `for_each` item renders, right after the `MaxDerivedColumns` check, on the same request hosts |
 
 `RequestTimeout` and `MaxEstimatedMemory` are opt-in: their default is
 `Unlimited`. There is no output row cap; output volume is the embedder's

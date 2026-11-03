@@ -733,7 +733,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 // (`{{ch}}_spend`) matches.
 const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
 
-// relaxForEachItems lets a features / attributes / windows item that
+// relaxForEachItems lets a features / attributes / windows /
+// aggregations / matrices item that
 // carries a `for_each` spell any cohort-bound string — the operator type,
 // a field, partition_by / order_by entries, a regression target or
 // predictor, a weight field — as an axis placeholder, while an item
@@ -747,7 +748,7 @@ const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
 // the key was never added) is left untouched, so the placeholder branch
 // disappears with the capability.
 func relaxForEachItems(props map[string]any) {
-	for _, slot := range []string{"features", "attributes", "windows"} {
+	for _, slot := range forEachSlots {
 		arr, _ := props[slot].(map[string]any)
 		item, _ := arr["items"].(map[string]any)
 		ip, _ := item["properties"].(map[string]any)
@@ -922,8 +923,10 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["order_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the date or datetime field ordering each subject's records by instant.")
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {
-		for _, slot := range []string{"features", "attributes", "windows"} {
-			itemProps(slot)["for_each"] = forEachSchema()
+		for _, slot := range forEachSlots {
+			if ip := itemProps(slot); ip != nil {
+				ip["for_each"] = forEachSchema()
+			}
 		}
 	}
 
@@ -2063,13 +2066,17 @@ func optimizeSchemaBase() map[string]any {
 	}
 }
 
+// forEachSlots are the request item lists whose items take a `for_each`,
+// in expansion order.
+var forEachSlots = []string{"features", "attributes", "windows", "aggregations", "matrices"}
+
 // forEachSchema describes an item `for_each` (types.ForEach): the item
 // fanned out over parameter axes before validation. Bound only when
 // capability:for_each is enabled.
 func forEachSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
-		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. Counts toward Limits.MaxDerivedColumns. Not allowed inside a pulse_compose sweep body.",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward Limits.MaxDerivedColumns; the aggregations and matrices it adds count toward Limits.MaxExpandedItems (each rendered matrix needs its own name). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
 		"properties": map[string]any{
 			"axes": map[string]any{
 				"type":        "array",

@@ -116,8 +116,9 @@ const multiplicityKey = "multiplicity"
 // multiplicitySlotGate is the one gate every `multiplicity` key shares.
 var multiplicitySlotGate = gatedSlot{key: multiplicityKey, visible: capabilityGate(featMultiplicity)}
 
-// forEachKey is the JSON key of the item fan-out on a window, feature
-// or attribute; every one rides capability:for_each.
+// forEachKey is the JSON key of the item fan-out on a window, feature,
+// attribute, aggregation or matrix spec; every one rides
+// capability:for_each.
 const forEachKey = "for_each"
 
 // forEachSlotGate is the one gate every `for_each` key shares.
@@ -189,7 +190,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		outputSlotGate,
 	},
-	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
+	reflect.TypeOf(types.Aggregation{}): {weightSlotGate, forEachSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
 	// MEASURE-folded payload slots it alone produces.
 	reflect.TypeOf(types.CrosstabSpec{}): {crosstabCellsSlotGate},
@@ -203,7 +204,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate, {key: "from_sweep", visible: capabilityGate(featSweepBind)}},
-	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
+	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
 	reflect.TypeOf(types.Feature{}):            {forEachSlotGate},
@@ -772,8 +773,10 @@ func nestedHoldoutRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 
 // nestedForEachRefusal refuses the first item `for_each` set inside req
 // when inst hides capability:for_each, in expansion order: features,
-// attributes, windows. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
-// item (details.path), valid_keys over its visible keys.
+// attributes, windows, aggregations, matrices, then a crosstab's cell,
+// cells and margin_aggregations. The refusal is
+// PULSE_REQUEST_UNKNOWN_FIELD at that item (details.path), valid_keys
+// over its visible keys.
 func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if req == nil || inst.Enabled(featForEach) {
 		return nil
@@ -794,6 +797,31 @@ func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 	for i, w := range req.Windows {
 		if w != nil && w.ForEach != nil {
 			return at(fmt.Sprintf("windows[%d]", i), w)
+		}
+	}
+	for i, a := range req.Aggregations {
+		if a != nil && a.ForEach != nil {
+			return at(fmt.Sprintf("aggregations[%d]", i), a)
+		}
+	}
+	for i := range req.Matrices {
+		if req.Matrices[i].ForEach != nil {
+			return at(fmt.Sprintf("matrices[%d]", i), &req.Matrices[i])
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ct.Cell != nil && ct.Cell.ForEach != nil {
+			return at("crosstab.cell", ct.Cell)
+		}
+		for _, l := range []struct {
+			name  string
+			items []*types.Aggregation
+		}{{"crosstab.cells", ct.Cells}, {"crosstab.margin_aggregations", ct.MarginAggregations}} {
+			for i, a := range l.items {
+				if a != nil && a.ForEach != nil {
+					return at(fmt.Sprintf("%s[%d]", l.name, i), a)
+				}
+			}
 		}
 	}
 	return nil

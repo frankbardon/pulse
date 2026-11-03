@@ -151,11 +151,19 @@ func TestForEachExprSplice_Refused(t *testing.T) {
 		{"feature fit_on",
 			`{"features":[{` + fe + `,"type":"FEAT_TARGET_ENCODE","field":"g","label":"te{{k}}","params":{"target":"y","fit_on":"wave < {{k}}"}}]}`,
 			"features[0].params.fit_on", exprslots.SlotFeatureFitOn},
+		// The aggregation and matrix kinds (library-gaps E7-S1): an
+		// AGG_CONSTANT expr is a scalar expression slot like any other.
+		{"constant expr",
+			`{"aggregations":[{"type":"AGG_COUNT","field":"a"},{` + fe + `,"type":"AGG_CONSTANT","label":"c{{k}}","params":{"expr":"params.base * {{k}}"}}]}`,
+			"aggregations[1].params.expr", exprslots.SlotConstantExpr},
+		{"matrix params expression",
+			`{"matrices":[{` + fe + `,"type":"MAT_COVARIANCE","name":"m{{k}}","fields":["a","b"],"params":{"between":{"type":"GROUP_CATEGORY","field":"g"},"filter":[{"type":"FILTER_EXPRESSION","expression":"a > {{k}}"}]}}]}`,
+			"matrices[0].params.filter[0].expression", exprslots.SlotExpression},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			preflight := false
-			_, _, err := ExpandItems(decodeRequest(t, tc.req), Options{}, func(int) error { preflight = true; return nil })
+			_, _, err := ExpandItems(decodeRequest(t, tc.req), Options{}, func(Counts) error { preflight = true; return nil })
 			requireSplice(t, err, errors.PULSE_FOR_EACH_EXPR_SPLICE, tc.field, "k", tc.slot)
 			if preflight {
 				t.Fatal("the preflight ran: the refusal must precede any count or substitution")
@@ -203,7 +211,7 @@ func TestForEachExprSplice_Allowed(t *testing.T) {
 // and FILTER_ACME_X — the instance facts the runtime and predict hand
 // the expansions (Options.ExprParams).
 var extOpts = Options{ExprParams: map[string][]string{
-	"AGG_ACME_X": {"scale"}, "FEAT_ACME_X": {"scale"}, "FILTER_ACME_X": {"scale"},
+	"AGG_ACME_X": {"scale"}, "FEAT_ACME_X": {"scale"}, "FILTER_ACME_X": {"scale"}, "MAT_ACME_X": {"scale"},
 }}
 
 // TestSweepExprSplice_ExtensionParam: an `{{axis}}` token in a params
@@ -271,11 +279,15 @@ func TestForEachExprSplice_ExtensionParam(t *testing.T) {
 			"features[1].params.scale"},
 		{"nested filterer", `{"attributes":[{` + fe + `,"type":"ATTR_MAHALANOBIS","label":"m{{k}}","fields":["a","b"],"params":{"fit_on":[{"type":"FILTER_ACME_X","params":{"scale":"{{k}}"}}]}}]}`,
 			"attributes[0].params.fit_on[0].params.scale"},
+		{"aggregation", `{"aggregations":[{` + fe + `,"type":"AGG_ACME_X","field":"x","label":"a{{k}}","params":{"scale":"{{k}} * 2"}}]}`,
+			"aggregations[0].params.scale"},
+		{"matrix", `{"matrices":[{` + fe + `,"type":"MAT_ACME_X","name":"m{{k}}","fields":["a","b"],"params":{"scale":"{{k}} * 2"}}]}`,
+			"matrices[0].params.scale"},
 	}
 	for _, tc := range refused {
 		t.Run(tc.name, func(t *testing.T) {
 			preflight := false
-			_, _, err := ExpandItems(decodeRequest(t, tc.req), extOpts, func(int) error { preflight = true; return nil })
+			_, _, err := ExpandItems(decodeRequest(t, tc.req), extOpts, func(Counts) error { preflight = true; return nil })
 			requireSplice(t, err, errors.PULSE_FOR_EACH_EXPR_SPLICE, tc.field, "k", exprslots.SlotExtensionParam)
 			if preflight {
 				t.Fatal("the preflight ran: the refusal must precede any count or substitution")

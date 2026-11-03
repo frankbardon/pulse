@@ -138,7 +138,7 @@ func TestExpandItems_FeaturesAttributesAndPlain(t *testing.T) {
 
 	plain := decodeRequest(t, `{"windows": [{"type": "WIN_LAG", "field": "x", "order_by": [{"field": "t"}]}]}`)
 	var seen int
-	got, fan, err := ExpandItems(plain, Options{}, func(n int) error { seen = n; return nil })
+	got, fan, err := ExpandItems(plain, Options{}, func(c Counts) error { seen = c.Derived; return nil })
 	if err != nil || got != plain || fan != nil {
 		t.Fatalf("plain request: got %p want %p, fan %v, err %v", got, plain, fan, err)
 	}
@@ -158,7 +158,7 @@ func TestExpandItems_PreflightBeforeRender(t *testing.T) {
 		 "type": "WIN_LAG", "field": "x", "label": "l{{n}}_{{m}}", "order_by": [{"field": "t"}]}]}`)
 	sentinel := stderrors.New("over")
 	var seen int
-	out, fan, err := ExpandItems(r, Options{}, func(n int) error { seen = n; return sentinel })
+	out, fan, err := ExpandItems(r, Options{}, func(c Counts) error { seen = c.Derived; return sentinel })
 	if err != sentinel || seen != 7 || out != nil || fan != nil {
 		t.Fatalf("err = %v seen = %d out = %v, want the preflight error with 7 and nothing built", err, seen, out)
 	}
@@ -260,4 +260,173 @@ func TestExpand_NestedForEachInSweep(t *testing.T) {
 		"windows": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "WIN_LAG", "field": "x", "label": "{{d}}", "order_by": []}]}}}`)
 	_, err := Expand(c, Options{}, nil)
 	requireForEachInvalid(t, err, ReasonNestedInSweep, "sweep.request.windows[0].for_each")
+}
+
+// Aggregations and matrices fan out AFTER the windows (library-gaps
+// E7-S1): an aggregation reading the `{{ch}}_lag` window each channel
+// adds, a matrix spec in the []MatrixSpec value slice named per
+// combination, plain items kept in place, the fan-outs reported in
+// expansion order, the input untouched.
+func TestExpandItems_AggregationsAndMatricesAfterWindows(t *testing.T) {
+	t.Parallel()
+
+	r := decodeRequest(t, `{
+		"windows": [{"for_each": {"axes": [{"name": "ch", "values": ["tv", "search"]}]},
+			"type": "WIN_LAG", "field": "{{ch}}", "label": "{{ch}}_lag", "order_by": [{"field": "week"}]}],
+		"aggregations": [
+			{"type": "AGG_COUNT", "field": "week", "label": "n"},
+			{"for_each": {"axes": [{"name": "ch", "values": ["tv", "search"]}, {"name": "op", "values": ["AGG_SUM", "AGG_AVERAGE"]}]},
+			 "type": "{{op}}", "field": "{{ch}}_lag", "label": "{{ch}}_{{op}}"}],
+		"matrices": [
+			{"type": "MAT_COVARIANCE", "name": "plain", "fields": ["tv", "search"]},
+			{"for_each": {"axes": [{"name": "d", "values": [0, 1]}]},
+			 "type": "MAT_COVARIANCE", "name": "cov_ddof{{d}}", "fields": ["tv", "search"], "params": {"ddof": {"$var": "d"}}}]
+	}`)
+	before, _ := json.Marshal(r)
+	out, fan := mustExpandItems(t, r)
+	var aggs []string
+	for _, a := range out.Aggregations {
+		aggs = append(aggs, string(a.Type)+":"+a.Field+":"+a.Label)
+	}
+	wantAggs := []string{"AGG_COUNT:week:n", "AGG_SUM:tv_lag:tv_AGG_SUM", "AGG_AVERAGE:tv_lag:tv_AGG_AVERAGE",
+		"AGG_SUM:search_lag:search_AGG_SUM", "AGG_AVERAGE:search_lag:search_AGG_AVERAGE"}
+	if !reflect.DeepEqual(aggs, wantAggs) {
+		t.Fatalf("aggregations = %v, want %v", aggs, wantAggs)
+	}
+	if out.Aggregations[0] != r.Aggregations[0] {
+		t.Fatal("a plain aggregation must be the caller's pointer")
+	}
+	var mats []string
+	for _, m := range out.Matrices {
+		mats = append(mats, m.Name+":"+string(m.Params))
+		if m.ForEach != nil {
+			t.Fatalf("expanded matrix %s still carries a for_each", m.Name)
+		}
+	}
+	if want := []string{"plain:", `cov_ddof0:{"ddof":0}`, `cov_ddof1:{"ddof":1}`}; !reflect.DeepEqual(mats, want) {
+		t.Fatalf("matrices = %v, want %v", mats, want)
+	}
+	if got := windowLabels(out.Windows); !reflect.DeepEqual(got, []string{"tv_lag", "search_lag"}) {
+		t.Fatalf("windows = %v", got)
+	}
+	var paths []string
+	for _, f := range fan {
+		paths = append(paths, f.Path)
+	}
+	if want := []string{"windows[0]", "aggregations[1]", "matrices[1]"}; !reflect.DeepEqual(paths, want) {
+		t.Fatalf("fan-out paths = %v, want %v", paths, want)
+	}
+	if got, want := (Counts{Derived: DerivedCount(r), Expanded: ExpandedCount(r)}), (Counts{Derived: 2, Expanded: 6}); got != want {
+		t.Fatalf("counts = %+v, want %+v (plain aggregations and matrices never count)", got, want)
+	}
+	after, _ := json.Marshal(r)
+	if string(after) != string(before) {
+		t.Fatal("ExpandItems modified its input")
+	}
+
+	// A request whose matrices carry no for_each keeps its slice.
+	plain := decodeRequest(t, `{"aggregations": [{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "AGG_SUM", "field": "{{f}}"}],
+		"matrices": [{"type": "MAT_COVARIANCE", "fields": ["a", "b"]}]}`)
+	x, _ := mustExpandItems(t, plain)
+	if &x.Matrices[0] != &plain.Matrices[0] {
+		t.Fatal("a for_each-free matrices list must come back as the input slice")
+	}
+}
+
+// The preflight sees the aggregation and matrix fan-out in
+// Counts.Expanded before anything renders.
+func TestExpandItems_ExpandedCountPreflight(t *testing.T) {
+	t.Parallel()
+
+	r := decodeRequest(t, `{
+		"aggregations": [{"type": "AGG_COUNT", "field": "x"},
+			{"for_each": {"axes": [{"name": "f", "values": ["a", "b", "c"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "s_{{f}}"}],
+		"matrices": [{"for_each": {"axes": [{"name": "d", "values": [0, 1]}, {"name": "m", "values": ["pairwise", "listwise"]}]},
+			"type": "MAT_COVARIANCE", "name": "c{{d}}{{m}}", "fields": ["a", "b"], "params": {"ddof": {"$var": "d"}, "missing": "{{m}}"}}]
+	}`)
+	sentinel := stderrors.New("over")
+	var seen Counts
+	out, fan, err := ExpandItems(r, Options{}, func(c Counts) error { seen = c; return sentinel })
+	if err != sentinel || out != nil || fan != nil || seen != (Counts{Derived: 0, Expanded: 7}) {
+		t.Fatalf("err = %v seen = %+v, want the preflight error with Expanded 7 and nothing built", err, seen)
+	}
+}
+
+// The per-slot weight survives the item re-encode on both new kinds:
+// absent stays absent, `null` stays an explicit opt-out, a field and a
+// {field, kind} object stay set (types.SlotWeight's custom omitzero
+// encoding).
+func TestExpandItems_SlotWeightRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	r := decodeRequest(t, `{
+		"aggregations": [
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "absent"},
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "null", "weight": null},
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "field", "weight": "w_{{f}}"},
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "kind", "weight": {"field": "w", "kind": "frequency"}}],
+		"matrices": [
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "MAT_COVARIANCE", "name": "m_{{f}}", "fields": ["{{f}}", "b"], "weight": null},
+			{"for_each": {"axes": [{"name": "f", "values": ["a"]}]}, "type": "MAT_COVARIANCE", "name": "n_{{f}}", "fields": ["{{f}}", "b"], "weight": "w"}]
+	}`)
+	out, _ := mustExpandItems(t, r)
+	a := out.Aggregations
+	if !a[0].Weight.IsZero() {
+		t.Fatal("an absent weight became set")
+	}
+	if !a[1].Weight.IsNull() {
+		t.Fatal("a null weight lost its opt-out")
+	}
+	if s := a[2].Weight.Spec(); s == nil || s.Field != "w_a" || s.Kind != "" {
+		t.Fatalf("field weight = %+v", s)
+	}
+	if s := a[3].Weight.Spec(); s == nil || s.Field != "w" || s.Kind != "frequency" {
+		t.Fatalf("kind weight = %+v", s)
+	}
+	if !out.Matrices[0].Weight.IsNull() {
+		t.Fatal("a matrix's null weight lost its opt-out")
+	}
+	if s := out.Matrices[1].Weight.Spec(); s == nil || s.Field != "w" {
+		t.Fatalf("matrix weight = %+v", s)
+	}
+}
+
+// A for_each on an aggregation where no fan-out runs — a crosstab
+// cell, cells or margin_aggregations entry — is refused rather than
+// silently ignored.
+func TestExpandItems_MisplacedAggregationRefused(t *testing.T) {
+	t.Parallel()
+
+	const fe = `"for_each": {"axes": [{"name": "f", "values": ["a", "b"]}]}`
+	for name, ct := range map[string]string{
+		"crosstab.cell.for_each":                   `{"cell": {` + fe + `, "type": "AGG_SUM", "field": "{{f}}"}}`,
+		"crosstab.cells[1].for_each":               `{"cells": [{"type": "AGG_COUNT", "field": "x"}, {` + fe + `, "type": "AGG_SUM", "field": "{{f}}"}]}`,
+		"crosstab.margin_aggregations[0].for_each": `{"margin_aggregations": [{` + fe + `, "type": "AGG_SUM", "field": "{{f}}"}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := decodeRequest(t, `{"crosstab": `+ct+`}`)
+			if !HasForEach(r) {
+				t.Fatal("HasForEach misses the misplaced for_each, so the fast path would skip the refusal")
+			}
+			_, _, err := ExpandItems(r, Options{}, nil)
+			requireForEachInvalid(t, err, ReasonPositionUnsupported, name)
+		})
+	}
+}
+
+// A compose sweep body carrying an aggregation or matrix for_each is
+// refused nested_in_sweep like the other kinds.
+func TestExpand_NestedForEachInSweep_NewKinds(t *testing.T) {
+	t.Parallel()
+
+	for field, body := range map[string]string{
+		"sweep.request.aggregations[1].for_each": `"aggregations": [{"type": "AGG_COUNT", "field": "x"}, {"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "AGG_SUM", "field": "x", "label": "s{{d}}"}]`,
+		"sweep.request.matrices[0].for_each":     `"matrices": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "MAT_COVARIANCE", "name": "m{{d}}", "fields": ["a", "b"]}]`,
+	} {
+		t.Run(field, func(t *testing.T) {
+			c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "label": "l{{a}}", "request": {`+body+`}}}`)
+			_, err := Expand(c, Options{}, nil)
+			requireForEachInvalid(t, err, ReasonNestedInSweep, field)
+		})
+	}
 }

@@ -391,7 +391,8 @@ func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
 }
 
 // expandItems expands every item for_each of req IN PLACE — its
-// Features, Attributes and Windows become the expanded lists, as smart
+// Features, Attributes, Windows, Aggregations and Matrices become the
+// expanded lists, as smart
 // defaults resolve in place — through descx.ExpandRequestItems against
 // this service's limits. A for_each-free request is untouched (after
 // the same MaxDerivedColumns check over its plain items); expanding an
@@ -403,6 +404,7 @@ func (s *Service) expandItems(req *types.Request) error {
 	}
 	if out != req {
 		req.Features, req.Attributes, req.Windows = out.Features, out.Attributes, out.Windows
+		req.Aggregations, req.Matrices = out.Aggregations, out.Matrices
 	}
 	return nil
 }

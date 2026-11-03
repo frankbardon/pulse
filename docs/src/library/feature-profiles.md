@@ -86,7 +86,8 @@ unknown preset or a precision outside 1–17 is refused with
 names the root `--limit` flag and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
-`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`.
+`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`,
+`max_expanded_items`.
 
 ```json
 {
@@ -363,8 +364,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   then refused `PULSE_PARAMS_UNDECLARED`, as on any request declaring no
   such name.
 - **Item fan-out.** Without `capability:for_each` a `for_each` on a
-  window, feature or attribute item (inside Compose requests and chain
-  stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under
+  window, feature, attribute, aggregation or matrix item (inside Compose
+  requests and chain stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under
   `details.path` (`windows[1].for_each`); the payload schema and the MCP tool
   input schemas drop the key and the `ForEach` definition. A
   hand-expanded request runs unchanged.

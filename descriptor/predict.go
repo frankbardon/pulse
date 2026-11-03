@@ -263,7 +263,8 @@ type PredictResult struct {
 	LimitFindings []LimitFinding `json:"limit_findings,omitempty"`
 
 	// ForEach lists every item `for_each` the request carries, in
-	// expansion order (features, attributes, windows): where the item
+	// expansion order (features, attributes, windows, aggregations,
+	// matrices): where the item
 	// sits, its axes, the resolved mode and how many items it expands
 	// to. Every other section judges the EXPANDED request — the item
 	// lists the runtime runs — while Request stays as written. Omitted
@@ -1122,11 +1123,11 @@ type VectorFitSummary struct {
 	Members []string `json:"members,omitempty"`
 }
 
-// ForEachSummary describes one window, feature or attribute item's
-// `for_each` fan-out: PredictResult.ForEach.
+// ForEachSummary describes one window, feature, attribute, aggregation
+// or matrix item's `for_each` fan-out: PredictResult.ForEach.
 type ForEachSummary struct {
 	// Path is the item's request-rooted path as written, e.g.
-	// `windows[0]`.
+	// `windows[0]`, `aggregations[1]`, `matrices[0]`.
 	Path string `json:"path"`
 	// Axes are the item's axes in declared order.
 	Axes []SweepAxisSummary `json:"axes"`
@@ -1134,8 +1135,10 @@ type ForEachSummary struct {
 	Mode types.SweepMode `json:"mode"`
 	// ExpandedCount is the number of items the for_each expands to — the
 	// axis product under grid, the common axis length under zip. Plain
-	// items plus every expanded count is what
-	// Options.Limits.MaxDerivedColumns bounds.
+	// items plus every expanded count of the window, feature and
+	// attribute items is what Options.Limits.MaxDerivedColumns bounds;
+	// the aggregation and matrix items' expanded counts alone are what
+	// Options.Limits.MaxExpandedItems bounds.
 	ExpandedCount int `json:"expanded_count"`
 }
 

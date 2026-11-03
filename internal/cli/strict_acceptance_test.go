@@ -84,6 +84,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.aggregations", body: req(`"aggregations":[{"type":"AGG_SUM","field":"n","lable":"t"}]`), path: "aggregations[0].lable", unknown: "lable"},
 		{family: "request.aggregations.params", body: req(`"aggregations":[{"type":"AGG_PERCENTILE","field":"n","params":{"percentil":50}}]`), path: "aggregations[0].params.percentil", unknown: "percentil"},
 		{family: "request.aggregations.weight", body: req(`"aggregations":[{"type":"AGG_SUM","field":"n","weight":{"feild":"n"}}]`), path: "aggregations[0].weight.feild", unknown: "feild"},
+		{family: "request.aggregations.for_each", body: req(`"aggregations":[{"for_each":{"axis":[{"name":"f","values":["n"]}]},"type":"AGG_SUM","field":"{{f}}","label":"s_{{f}}"}]`), path: "aggregations[0].for_each.axis", unknown: "axis"},
 		{family: "request.attributes", body: req(agg + `,"attributes":[{"type":"ATTR_ZSCORE","field":"n","lable":"z"}]`), path: "attributes[0].lable", unknown: "lable"},
 		{family: "request.attributes.params", body: req(agg + `,"attributes":[{"type":"ATTR_ZSCORE","field":"n","label":"z","params":{"ddoff":1}}]`), path: "attributes[0].params.ddoff", unknown: "ddoff"},
 		{family: "request.attributes.for_each", body: req(agg + `,"attributes":[{"for_each":{"axis":[{"name":"f","values":["n"]}]},"type":"ATTR_ZSCORE","field":"{{f}}","label":"z_{{f}}"}]`), path: "attributes[0].for_each.axis", unknown: "axis"},
@@ -108,6 +109,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.vectors", body: req(agg + `,"vectors":[{"name":"v","feilds":["n"]}]`), path: "vectors[0].feilds", unknown: "feilds"},
 		{family: "request.matrices", body: req(`"matrices":[{"name":"m","type":"MAT_CORRELATION","feilds":["n"]}]`), path: "matrices[0].feilds", unknown: "feilds"},
 		{family: "request.matrices.params", body: req(`"matrices":[{"name":"m","type":"MAT_COVARIANCE","fields":["n","n2"],"params":{"ddoff":1}}]`), path: "matrices[0].params.ddoff", unknown: "ddoff"},
+		{family: "request.matrices.for_each", body: req(`"matrices":[{"for_each":{"axes":[{"name":"k","values":[0]}],"mdoe":"zip"},"name":"m{{k}}","type":"MAT_COVARIANCE","fields":["n","n2"]}]`), path: "matrices[0].for_each.mdoe", unknown: "mdoe"},
 		{family: "request.models", body: req(agg + `,"models":[{"name":"m","paht":"x.json"}]`), path: "models[0].paht", unknown: "paht"},
 		{family: "request.populations", body: req(agg + `,"populations":[{"name":"p","paht":"x.json"}]`), path: "populations[0].paht", unknown: "paht"},
 		{family: "request.joins", body: req(agg + `,"joins":[{"right":"x.pulse","knid":"inner"}]`), path: "joins[0].knid", unknown: "knid"},
@@ -124,6 +126,13 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.crosstab.cells.params", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cells":[{"type":"AGG_COUNT","field":"n","label":"c"},{"type":"AGG_PERCENTILE","field":"n","label":"p","params":{"percentil":50}}]`), path: "crosstab.cells[1].params.percentil", unknown: "percentil"},
 		{family: "request.crosstab.margin_aggregations", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margin_aggregations":[{"type":"AGG_SUM","feild":"n"}]`), path: "crosstab.margin_aggregations[0].feild", unknown: "feild"},
 		{family: "request.crosstab.margin_aggregations.params", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margin_aggregations":[{"type":"AGG_PERCENTILE","field":"n","label":"p","params":{"percentil":50}}]`), path: "crosstab.margin_aggregations[0].params.percentil", unknown: "percentil"},
+		// A crosstab-position aggregation for_each is refused
+		// position_unsupported, but a misspelled key inside it is the
+		// strict decoder's first.
+		{family: "request.crosstab.cell.for_each", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cell":{"type":"AGG_COUNT","field":"n","for_each":{"axis":[{"name":"f","values":["n"]}]}}`), path: "crosstab.cell.for_each.axis", unknown: "axis"},
+		{family: "request.crosstab.cell.for_each.axes", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cell":{"type":"AGG_COUNT","field":"n","for_each":{"axes":[{"name":"f","valeus":["n"]}]}}`), path: "crosstab.cell.for_each.axes[0].valeus", unknown: "valeus"},
+		{family: "request.crosstab.cells.for_each", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],"cells":[{"type":"AGG_COUNT","field":"n","for_each":{"axis":[{"name":"f","values":["n"]}]}}]`), path: "crosstab.cells[0].for_each.axis", unknown: "axis"},
+		{family: "request.crosstab.margin_aggregations.for_each", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margin_aggregations":[{"type":"AGG_SUM","field":"n","for_each":{"axis":[{"name":"f","values":["n"]}]}}]`), path: "crosstab.margin_aggregations[0].for_each.axis", unknown: "axis"},
 		{family: "request.crosstab.margins", body: xt(`"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `,"margins":{"rows":true,"grnad":true}`), path: "crosstab.margins.grnad", unknown: "grnad"},
 		{family: "request.overlays", body: req(`"crosstab":{"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `},"overlays":[{"name":"o","kind":"OVERLAY_SHARE_OF_ROW","scoep":"row"}]`), path: "overlays[0].scoep", unknown: "scoep"},
 		{family: "request.overlays.params", body: req(`"crosstab":{"rows":[` + grp + `],"columns":[` + grp + `],` + cell + `},"overlays":[{"name":"o","kind":"OVERLAY_PAIRWISE_PROP_Z","scope":"row","params":{"n_sourse":"row_margin_n"}}]`), path: "overlays[0].params.n_sourse", unknown: "n_sourse"},

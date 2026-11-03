@@ -1173,6 +1173,12 @@ type Aggregation struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// ForEach, when set, fans this item out over parameter axes before
+	// validation (see ForEach). Only a Request.Aggregations item fans
+	// out; a crosstab or banner cell carrying one is refused. Gated by
+	// capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // Filterer defines a filter to apply to records before processing.

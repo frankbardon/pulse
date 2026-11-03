@@ -1,16 +1,16 @@
 ---
 name: item-fan-out
-description: for_each on a window, feature or attribute item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, a derived-column limit and predict parity.
+description: for_each on a window, feature, attribute, aggregation or matrix item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [ForEach, Window, Feature, Attribute]
+covers: [ForEach, Window, Feature, Attribute, Aggregation, MatrixSpec]
 requires: [capability:for_each]
 ---
 
 # Item fan-out (`for_each`)
 
-`for_each` on ONE `windows`, `features` or `attributes` item replaces it, in place, by one ordinary item per axis combination before anything else checks the request. Use it for a parameter grid of near-identical derived columns (an adstock grid of smoothing windows over several channels) instead of writing every item out. Plain items in the same list are untouched; the expanded list keeps declared order, which is the output column order.
+`for_each` on ONE `windows`, `features`, `attributes`, `aggregations` or `matrices` item replaces it, in place, by one ordinary item per axis combination before anything else checks the request. Use it for a parameter grid of near-identical items (an adstock grid of windows over channels, an aggregation per channel, a matrix per invariance step) instead of writing every item out. Plain items are untouched; the expanded list keeps declared order, the output order. Aggregations and matrices expand after the windows, so an aggregation may read `{{ch}}_lag`.
 
 ```jsonc
 "windows": [{
@@ -52,11 +52,12 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 - Each rendered item decodes STRICTLY into its slot type: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path` from the item (`windows[0].bogus`), the combination in `index` / `values`.
 - Every other fault is `PULSE_FOR_EACH_INVALID` with `details.field` (e.g. `windows[0].for_each.axes[1]`) and `details.reason`: the sweep's structural reasons, `axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`, `item_decode`.
-- A `for_each` inside a compose `sweep` body is refused (`nested_in_sweep`): add the item's axes to the sweep instead.
+- A `for_each` inside a compose `sweep` body is refused (`nested_in_sweep`): add the item's axes to the sweep instead. On a crosstab or banner cell it is `position_unsupported`.
+- Each rendered matrix needs its own `name` (`"name": "{{step}}"`); a repeat is the usual duplicate-name refusal.
 
 ## Limits, predict, hashing
 
-- `Limits.MaxDerivedColumns` (default 1,000) counts every plain item plus every expanded one across the three lists, before any item renders; over it is `PULSE_LIMIT_EXCEEDED`.
+- Checked before any item renders, over is `PULSE_LIMIT_EXCEEDED`: `Limits.MaxDerivedColumns` (default 1,000) counts plain plus expanded window, feature and attribute items; `Limits.MaxExpandedItems` (default 1,000) counts the aggregations and matrices a `for_each` adds (plain ones never count).
 - Predict expands exactly as the runtime does and reports each fan-out under `for_each` `[{path, axes, mode, expanded_count}]`; its other answers judge the expanded items. Predict before running a large grid.
 - Every request host expands: a process run, each compose slot, each chain stage, and a materialize run (every expanded item becomes a column). The echoed request carries the expanded items; its canonical hash equals the hand-written twin's.
 
@@ -64,7 +65,7 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 - In a stored request template (`request-templating`) the renderer leaves a `for_each` item's own `{{axis}}` and `{"$var": "axis"}` untouched for the expansion — no escape needed; an axis token inside an expression is refused at load (`PULSE_TEMPLATE_EXPR_SPLICE`). Template variables still substitute beside them and inside `for_each` itself, so `"values": {"$var": "decays"}` takes an axis list from a `list` variable. Axis names must be literal; a template variable named like an axis is refused at load (`PULSE_TEMPLATE_AXIS_COLLISION`).
 - A cohort-bound MCP tool schema lets an item WITH `for_each` spell its field, type, `partition_by` / `order_by` keys and other enum-bound strings as `{{axis}}` placeholders; an item without one keeps the strict enums.
-- Explain describes the expanded items (each naming its column) and states each fan-out.
+- Explain describes the expanded items (each naming its column or result) and states each fan-out.
 
 ## See
 

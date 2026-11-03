@@ -1737,8 +1737,14 @@ and labels.
 
 ### Item fan-out (`for_each`)
 
-`Window`, `Feature` and `Attribute` each carry an optional `for_each`
-(`ForEach {axes, mode}` — the sweep's `SweepAxis` list and `SweepMode`).
+`Window`, `Feature`, `Attribute`, `Aggregation` and `MatrixSpec` each
+carry an optional `for_each` (`ForEach {axes, mode}` — the sweep's
+`SweepAxis` list and `SweepMode`). Aggregations and matrices expand
+after the windows, so an aggregation may read a column a window
+fan-out adds; only a `Request.aggregations` item fans out (on a
+crosstab or banner cell the key is refused, reason
+`position_unsupported`), and each rendered matrix needs its own
+`name`.
 Before any other check the item is replaced IN PLACE by one ordinary
 item per axis combination (grid: first axis slowest; zip: lockstep),
 each rendered from the item's own body with the sweep substitution —
@@ -1747,7 +1753,8 @@ expression slot it is `PULSE_FOR_EACH_EXPR_SPLICE`), `{"$var":
 "axis"}` as a whole value inside `params` (opaque JSON; a typed
 non-string key cannot hold the marker) — and decoded strictly. Plain
 items are untouched, so a list may mix both, and no response shape
-changes: each expanded item produces its own column. The key is
+changes: each expanded item produces its own column (or aggregation,
+or matrix result). The key is
 `omitempty`, so a for_each-free request is byte-identical on the wire
 and under `CanonicalHash`. It is gated by `capability:for_each`: on an
 instance that hides it the `for_each` properties and the `ForEach` def
@@ -1756,8 +1763,10 @@ malformed for_each is `PULSE_FOR_EACH_INVALID` with `details.field` (a
 request-rooted path such as `windows[0].for_each.axes[1]`) and
 `details.reason`; a `for_each` inside a sweep body is refused with
 reason `nested_in_sweep`. `Limits.MaxDerivedColumns` (default 1,000)
-bounds plain plus expanded window, feature and attribute items, checked
-before any item renders. Predict reports each fan-out as `for_each
+bounds plain plus expanded window, feature and attribute items and
+`Limits.MaxExpandedItems` (default 1,000) the aggregations and matrices
+a `for_each` adds (plain ones never count), both checked before any
+item renders. Predict reports each fan-out as `for_each
 [{path, axes, mode, expanded_count}]` on the predict result (not
 payload-reachable, so not in this schema).
 
