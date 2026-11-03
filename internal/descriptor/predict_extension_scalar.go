@@ -165,10 +165,11 @@ func extensionUnresolved(req *types.Request, opts *PredictOptions, prefix string
 
 // requestUnresolved is every scalar slot of req the static pass left to
 // the runtime: its built-in window params, then its expression-capable
-// extension params.
+// extension params, then its AGG_CONSTANT expressions.
 func requestUnresolved(req *types.Request, opts *PredictOptions, prefix string) []descriptor.UnresolvedScalar {
 	out := windowUnresolved(req, opts, prefix)
-	return append(out, extensionUnresolved(req, opts, prefix)...)
+	out = append(out, extensionUnresolved(req, opts, prefix)...)
+	return append(out, constantUnresolved(req, opts, prefix)...)
 }
 
 // validateFacetExtensionScalars reports every refused expression-capable

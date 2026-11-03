@@ -4983,6 +4983,7 @@ pulse/types: const AGG_AUC pulse/types.AggregationType = "AGG_AUC"
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
 pulse/types: const AGG_CI_LOWER pulse/types.AggregationType = "AGG_CI_LOWER"
 pulse/types: const AGG_CI_UPPER pulse/types.AggregationType = "AGG_CI_UPPER"
+pulse/types: const AGG_CONSTANT pulse/types.AggregationType = "AGG_CONSTANT"
 pulse/types: const AGG_COUNT pulse/types.AggregationType = "AGG_COUNT"
 pulse/types: const AGG_DISTINCT_COUNT pulse/types.AggregationType = "AGG_DISTINCT_COUNT"
 pulse/types: const AGG_DISTINCT_SUM pulse/types.AggregationType = "AGG_DISTINCT_SUM"
@@ -6673,4 +6674,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 5e5b847dbe18ae311fa5047e4f48debf1d8b46f36f8b37bc88ec7bfd4fced3ee
+// golden-hash: bc5c44ab3300aba64a204da1fd17be0c4eb81e84be97dd943177d4f0cfe469b6

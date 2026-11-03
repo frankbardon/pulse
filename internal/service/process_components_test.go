@@ -1094,6 +1094,9 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 		types.AGG_VEC_MEAN: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
 		types.AGG_VEC_SUM:  {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
 		types.AGG_VEC_SD:   {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", fields: []string{"num", "den"}},
+
+		// AGG_CONSTANT reads no column; an expression constant.
+		types.AGG_CONSTANT: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", params: json.RawMessage(`{"type":"u8","expr":"2 * 3"}`)},
 	}
 
 	// Sanity: the fixture map must cover every registered aggregator.

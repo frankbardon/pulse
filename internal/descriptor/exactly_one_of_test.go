@@ -18,6 +18,17 @@ import (
 var exactlyOneOfSamples = map[string]map[string]any{
 	string(types.WIN_EWMA):       {"alpha": 0.3, "decay": 0.7},
 	string(types.FEAT_BUCKETIZE): {"boundaries": []float64{10, 20}, "quantiles": 4},
+	string(types.AGG_CONSTANT):   {"value": 2.5, "expr": "1 + 1.5"},
+}
+
+// exactlyOneOfProbeBase is the params (beside the group members) and
+// slot keys a probe of an operator needs to be otherwise valid:
+// AGG_CONSTANT's required type, and the label its fieldless slot needs.
+var exactlyOneOfProbeBase = map[string]struct {
+	params map[string]any
+	slot   map[string]any
+}{
+	string(types.AGG_CONSTANT): {params: map[string]any{"type": "f64"}, slot: map[string]any{"label": "probe"}},
 }
 
 // exactlyOneOfExempt lists component operators whose predict refuses an
@@ -88,6 +99,19 @@ func componentProbeRequest(t *testing.T, o descriptor.Operator, params map[strin
 	entry := map[string]any{"type": o.Name, "field": field}
 	if params != nil {
 		entry["params"] = params
+	}
+	if base, ok := exactlyOneOfProbeBase[o.Name]; ok {
+		merged := map[string]any{}
+		for k, v := range base.params {
+			merged[k] = v
+		}
+		for k, v := range params {
+			merged[k] = v
+		}
+		entry["params"] = merged
+		for k, v := range base.slot {
+			entry[k] = v
+		}
 	}
 	req := map[string]any{}
 	switch o.Category {

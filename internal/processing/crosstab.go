@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"sort"
 	"strings"
 
@@ -523,11 +524,11 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	// dividing one map by another is undefined. Reject up-front so the
 	// dispatch loop below can treat every scalar/rich routing as safe.
 	for _, cell := range spec.CellAggregations() {
-		if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && cell.Type.MapValued() {
+		if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && (cell.Type.MapValued() || aggconst.NonNumeric(cell)) {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
 				"crosstab normalize="+string(spec.NormalizeOrDefault())+
-					" is incompatible with map-valued cell aggregator "+
+					" is incompatible with "+normalizeRefusedWhat(cell)+" cell aggregator "+
 					string(cell.Type),
 				map[string]any{
 					"aggregation": string(cell.Type),

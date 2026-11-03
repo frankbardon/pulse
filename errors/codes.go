@@ -2198,8 +2198,9 @@ const (
 	// PULSE_CROSSTAB_NORMALIZE_MAP_VALUED indicates the Crosstab
 	// section requested a normalize mode (row / column / total)
 	// paired with a cell aggregator whose output is map-valued
-	// (AGG_SET_FREQUENCY). Dividing one map by another is undefined;
-	// drop the normalize directive or pick a scalar aggregator (e.g.
+	// (AGG_SET_FREQUENCY) or an AGG_CONSTANT of a non-numeric
+	// params.type. Dividing such values is undefined; drop the
+	// normalize directive or pick a scalar aggregator (e.g.
 	// AGG_SET_CARDINALITY_SUM) for normalized output.
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED Code = "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED"
 

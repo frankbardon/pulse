@@ -54,7 +54,8 @@ type Slot struct {
 	// Scalar marks a scalar-expression slot (internal/scalarslot): a
 	// JSON number or an expression string, its owner field a
 	// number-or-expression type (types.OptimizeBound) or a params
-	// object key (a window param) rather than a Go string. A `{{token}}` in its string form is refused like any
+	// object key (a window param, an AGG_CONSTANT expr) rather than a
+	// Go string. A `{{token}}` in its string form is refused like any
 	// expression's; a number there is no expression.
 	Scalar bool
 }
@@ -69,6 +70,7 @@ const (
 	SlotOptimizeConstraint = "optimize_constraint"
 	SlotOptimizeBound      = "optimize_bound"
 	SlotWindowParam        = "window_param"
+	SlotConstantExpr       = "constant_expr"
 	// SlotExtensionParam names an embedder extension's
 	// expression-capable params key (pulse.ParamMeta.Expression). It has
 	// no row in the static table: which keys are flagged is an instance
@@ -134,6 +136,15 @@ var slots = []Slot{
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "shape"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "scale"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "max_lag"}, Scalar: true},
+	// An AGG_CONSTANT slot's params.expr (internal/aggconst): a scalar
+	// expression resolved into the slot's literal value before any
+	// operator is built. Rooted at every aggregation position: the
+	// aggregation lists, and a crosstab's or banner section's cell /
+	// cells.
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"aggregations", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cell", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cells", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"crosstab", "margin_aggregations", ParamsKey, "expr"}, Scalar: true},
 }
 
 // FeatureFitOnParam is the feature params key carrying a row

@@ -180,6 +180,19 @@ const (
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 	AGG_VEC_SD   AggregationType = "AGG_VEC_SD"
+
+	// AGG_CONSTANT emits one typed constant, the same in every row,
+	// group, crosstab cell and margin — in place of a single-value
+	// formula node that only puts a constant into results. Fieldless:
+	// the slot names no Field, Vector or Fields, and needs a Label.
+	// Params: `type` (one of the 22 field-type names) and exactly one
+	// of `value` (a literal judged against the type; null emits null)
+	// or `expr` (a scalar expression over params.<name>, coef(),
+	// sweep_axis(), lookup(), …, for the numeric, packed_bool, date
+	// and datetime types). The wire value matches what the existing
+	// aggregators write for the type. Streamable + mergeable; it takes
+	// no weight (a slot weight is refused).
+	AGG_CONSTANT AggregationType = "AGG_CONSTANT"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -201,6 +214,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
+		AGG_CONSTANT,
 	}
 }
 

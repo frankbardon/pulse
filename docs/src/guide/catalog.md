@@ -2,7 +2,7 @@
 
 The operators this instance offers, one page per category. Each page opens with a summary table and then a detail block per operator.
 
-- [Aggregators](catalog/aggregator.md) (37)
+- [Aggregators](catalog/aggregator.md) (38)
 - [Attributes](catalog/attribute.md) (22)
 - [Filterers](catalog/filterer.md) (12)
 - [Groupers](catalog/grouper.md) (10)

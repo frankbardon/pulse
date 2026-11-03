@@ -77,6 +77,8 @@ func aggMemorySlot(at types.AggregationType, label string, members int) *types.A
 	case types.AGG_SET_UNION, types.AGG_SET_INTERSECTION, types.AGG_SET_FREQUENCY,
 		types.AGG_SET_CARDINALITY_SUM, types.AGG_SET_CARDINALITY_AVG, types.AGG_SET_DISTINCT_VALUES:
 		a.Field = "tags"
+	case types.AGG_CONSTANT:
+		a.Field, a.Params = "", json.RawMessage(`{"type":"f64","value":1}`)
 	}
 	return a
 }

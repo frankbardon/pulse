@@ -52,12 +52,14 @@ type Operator struct {
 	// Field: it reads no value column at all — the order-only windows
 	// WIN_ROW_NUMBER / WIN_RANK / WIN_DENSE_RANK compute from their
 	// order_by keys, and a slot naming a field is refused
-	// PULSE_WINDOW_INVALID on predict and at run time alike. Its
+	// PULSE_WINDOW_INVALID on predict and at run time alike; AGG_CONSTANT
+	// emits its params' constant, and a field (vector, fields) on its
+	// slot is PROCESSING_CONFIG reason field_not_accepted. Its
 	// AcceptsTypes is empty ("no field input"), never a type list — the
 	// opposite of IgnoresField, whose slot requires a field name it then
 	// discards. Held by descriptor's
 	// TestCapabilities_ForbidsFieldMatchesWindowRule against the shared
-	// window rule (internal/windowparams.FieldForbidden).
+	// window rule (internal/windowparams.FieldForbidden) and AGG_CONSTANT.
 	ForbidsField bool `json:"forbids_field,omitempty"`
 
 	// IgnoresFrame marks a window operator that accepts (or requires) a

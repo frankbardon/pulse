@@ -494,6 +494,11 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_SET_CARDINALITY_SUM: set(),
 		types.AGG_SET_CARDINALITY_AVG: set(),
 		types.AGG_SET_DISTINCT_VALUES: set(),
+
+		// AGG_CONSTANT reads no column: every record reaching the slot
+		// is n, nulls in the cohort's field included.
+		types.AGG_CONSTANT: {schema: numSchema, params: json.RawMessage(`{"type":"f64","value":2.5}`), records: numRecs,
+			expectedN: 10, expectedNull: 0, filteredRecords: 10},
 	}
 
 	// Sanity: the fixture map must cover every registered aggregator.

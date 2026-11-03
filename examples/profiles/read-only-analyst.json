@@ -75,6 +75,7 @@
     "AGG_VEC_MEAN",
     "AGG_VEC_SUM",
     "AGG_VEC_SD",
+    "AGG_CONSTANT",
     "ATTR_CODE_IN",
     "ATTR_DATE_PART",
     "ATTR_FACTOR_SCORE",

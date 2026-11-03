@@ -20,6 +20,7 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 	"AGG_AVERAGE":             purposeAggAverage,
 	"AGG_CI_LOWER":            purposeAggCILower,
 	"AGG_CI_UPPER":            purposeAggCIUpper,
+	"AGG_CONSTANT":            purposeAggConstant,
 	"AGG_COUNT":               purposeAggCount,
 	"AGG_DISTINCT_COUNT":      purposeAggDistinctCount,
 	"AGG_DISTINCT_SUM":        purposeAggDistinctSum,
@@ -58,6 +59,29 @@ var aggregatorPurposes = map[string]descriptor.Purpose{
 // --- Totals and counts -----------------------------------------------
 
 var (
+	purposeAggConstant = descriptor.Purpose{
+		Plain:   "Puts one fixed value, such as a target or a reference figure, into every result row, group and table cell.",
+		Intents: []string{IntentPrepare},
+		Questions: []string{
+			"Can the result carry the sales target next to each region's actual sales?",
+			"Can every row show the reference date the figures were cut on?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "The quarterly target beside each team's actual figure.",
+			descriptor.DomainSurvey:  "The benchmark score beside each segment's own score.",
+			descriptor.DomainScience: "The reference value a measurement is read against, in every group.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the value differs from row to row", Use: "ATTR_FORMULA"},
+			{When: "you want a figure computed from the data", Use: "AGG_SUM"},
+		},
+		Assumptions: []string{
+			"The value is the same in every row, group, table cell and margin; it reads no field and skips no row.",
+			"A value written as an expression is worked out once before the run.",
+		},
+		Level: descriptor.LevelBasic,
+	}
+
 	purposeAggAverage = descriptor.Purpose{
 		Plain:   "Average of a numeric field, over all rows or per group.",
 		KnownAs: []string{"mean", "arithmetic mean"},

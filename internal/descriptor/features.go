@@ -399,6 +399,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_VEC_MEAN"),
 	op("AGG_VEC_SUM"),
 	op("AGG_VEC_SD"),
+	op("AGG_CONSTANT"),
 	// Attributes — types.AllAttributeTypes().
 	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),

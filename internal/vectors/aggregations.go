@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
@@ -128,6 +129,21 @@ func (k AggregationKinds) IsArrayValued(t types.AggregationType) bool {
 func (k AggregationKinds) IsNonScalar(t types.AggregationType) bool {
 	r := k.Routed(t)
 	return k.IsArrayValued(t) || slices.Contains(NonScalarAggregationTypes(), r) || k.extension(r).NonScalar
+}
+
+// IsNonScalarSlot is IsNonScalar for one aggregation slot: its type is
+// non-scalar, or it is an AGG_CONSTANT whose params.type writes no
+// single number (aggconst.NonNumeric — a decimal string, a label, a
+// label list, a number array). Every consumer holding the slot asks
+// this, so a constant is judged by what it writes.
+func (k AggregationKinds) IsNonScalarSlot(a *types.Aggregation) bool {
+	if a == nil {
+		return false
+	}
+	if k.IsNonScalar(a.Type) {
+		return true
+	}
+	return k.Routed(a.Type) == types.AGG_CONSTANT && aggconst.NonNumeric(a)
 }
 
 // NonScalarAggregationTypes returns the built-in aggregation types
@@ -426,7 +442,9 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, cat model.
 		builtin := slices.Contains(types.AllAggregationTypes(), typ)
 		ext := kinds.extension(typ)
 		if !IsVectorAggregation(typ) && !ext.VectorInput {
-			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) {
+			// AGG_CONSTANT reads no column at all: a vector input on it
+			// is its own reading's field_not_accepted (internal/aggconst).
+			if HasAggregationVectorInput(s.Agg) && (builtin || ext.Registered) && typ != types.AGG_CONSTANT {
 				msg := s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector; drop vector / fields (" + vectorAggregationList(" / ", " / ") + " aggregate a vector)"
 				if ext.Registered {
 					msg = s.Path + " (" + string(s.Agg.Type) + ") reads field, not a vector: the extension is not registered with VectorInput; drop vector / fields"

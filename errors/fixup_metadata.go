@@ -3358,12 +3358,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
-		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
+		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell) or is a constant of a non-numeric params.type (a decimal string, a label, a label list, a number array). Dividing such values is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG) so normalization is defined.",
+				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG, or a constant of a numeric type) so normalization is defined.",
 				Examples: []any{"none"},
 			},
 			{

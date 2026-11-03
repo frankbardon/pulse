@@ -49,6 +49,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-average`](skills/op-agg-average.md): Arithmetic mean of a numeric field across the input set.
 - [`op-agg-ci-lower`](skills/op-agg-ci-lower.md): Lower bound of the confidence interval for the mean.
 - [`op-agg-ci-upper`](skills/op-agg-ci-upper.md): Upper bound of the confidence interval for the mean.
+- [`op-agg-constant`](skills/op-agg-constant.md): One typed constant in every row, group, crosstab cell and margin; fieldless.
 - [`op-agg-count`](skills/op-agg-count.md): Count records that pass the active filter, optionally per group.
 - [`op-agg-distinct-count`](skills/op-agg-distinct-count.md): Count distinct non-null values across the input set.
 - [`op-agg-distinct-sum`](skills/op-agg-distinct-sum.md): Sum a value field once per distinct key.

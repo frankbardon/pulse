@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/extscalar"
 	"github.com/frankbardon/pulse/internal/model"
@@ -8,8 +9,11 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ResolveExtensionScalars is the runtime's extension scalar-param pass
-// (internal/extscalar): every expression-capable extension param
+// ResolveExtensionScalars is the runtime's request scalar pre-resolution
+// pass. First every AGG_CONSTANT params.expr (internal/aggconst) is
+// evaluated and rewritten into the literal params.value it stands for;
+// then the extension scalar-param pass (internal/extscalar): every
+// expression-capable extension param
 // (pulse.ParamMeta.Expression) written as an expression string is
 // evaluated against the request's params (exts' fold), its bound
 // models (coef(), sweep_axis()), the instance's tables and the
@@ -23,12 +27,32 @@ import (
 // that builds operators off a request without a Processor (the
 // parallel decode and shard reducers, a facet's filterers).
 func ResolveExtensionScalars(req *types.Request, exts *ExtensionRegistry, models *model.Set) (*types.Request, error) {
+	req, err := resolveConstantScalars(req, exts, models)
+	if err != nil {
+		return nil, err
+	}
 	if req == nil || exts == nil || len(exts.ScalarParams) == 0 {
 		return req, nil
 	}
 	res := extscalar.Resolve(req, exts.ExtensionScalarParams, extensionScalarEnv(exts, models), true)
 	if len(res.Refusals) > 0 {
 		return nil, res.Refusals[0]
+	}
+	return res.Request, nil
+}
+
+// resolveConstantScalars is the AGG_CONSTANT half of the pass: every
+// slot's params.expr evaluated against the request's params, bound
+// models, tables and expression functions (run true) and written as
+// params.value; the first refusal is raised (predict reports it first).
+// A hidden AGG_CONSTANT is left to the unknown-aggregation refusal.
+func resolveConstantScalars(req *types.Request, exts *ExtensionRegistry, models *model.Set) (*types.Request, error) {
+	if req == nil || exts.isHidden(string(types.AGG_CONSTANT)) {
+		return req, nil
+	}
+	res := aggconst.ResolveRequest(req, aggconst.EnvFunc(extensionScalarEnv(exts, models)), true)
+	if len(res.Refusals) > 0 {
+		return nil, res.Refusals[0].Refusal.Coded()
 	}
 	return res.Request, nil
 }

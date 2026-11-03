@@ -49,6 +49,8 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_VEC_MEAN: true,
 		AGG_VEC_SUM:  true,
 		AGG_VEC_SD:   true,
+
+		AGG_CONSTANT: true,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]
@@ -125,6 +127,9 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_VEC_MEAN: MarginRecompute,
 		AGG_VEC_SUM:  MarginRecompute,
 		AGG_VEC_SD:   MarginRecompute,
+
+		// The same constant in every cell and margin.
+		AGG_CONSTANT: MarginIndependent,
 	}
 	for _, agg := range AllAggregationTypes() {
 		want, ok := expected[agg]

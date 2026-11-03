@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -156,9 +157,13 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		// Reject normalize × map-valued aggregator. Map cells
 		// (AGG_SET_FREQUENCY today) cannot be divided by a margin —
 		// the operation is undefined.
-		if mode != types.CrosstabNormalizeNone && cellRoute.MapValued() {
+		if mode != types.CrosstabNormalizeNone && (cellRoute.MapValued() || (cellRoute == types.AGG_CONSTANT && aggconst.NonNumeric(cell))) {
+			what := "map-valued"
+			if cellRoute == types.AGG_CONSTANT {
+				what = "non-numeric (AGG_CONSTANT params.type)"
+			}
 			env.AddError(string(errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED),
-				"crosstab normalize="+string(mode)+" is incompatible with map-valued cell aggregator "+string(cell.Type)+
+				"crosstab normalize="+string(mode)+" is incompatible with "+what+" cell aggregator "+string(cell.Type)+
 					" — drop normalize or pick a scalar aggregator",
 				map[string]any{"aggregation": string(cell.Type), "normalize": string(mode)})
 		}

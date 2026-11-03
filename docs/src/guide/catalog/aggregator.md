@@ -8,6 +8,7 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_AVERAGE`](#op-agg_average) | Average of a numeric field, over all rows or per group. | What is the average order value? | basic | [`AGG_MEDIAN`](#op-agg_median) when the field is skewed or has extreme values and you want the typical row.<br>[`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) when rows carry weights.<br>[`AGG_WELFORD`](#op-agg_welford) when you also need the spread around the average. |
 | [`AGG_CI_LOWER`](#op-agg_ci_lower) | Lower end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down. | How precisely do we know the average satisfaction in each segment? | intermediate | [`AGG_CI_UPPER`](#op-agg_ci_upper) when you want the upper end of the same interval.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want to test whether two group means differ.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when you want the range individual rows fall in, not the mean. |
 | [`AGG_CI_UPPER`](#op-agg_ci_upper) | Upper end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down. | What is the highest average wait time the data are consistent with at 95% confidence? | intermediate | [`AGG_CI_LOWER`](#op-agg_ci_lower) when you want the lower end of the same interval.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want to test whether two group means differ. |
+| [`AGG_CONSTANT`](#op-agg_constant) | Puts one fixed value, such as a target or a reference figure, into every result row, group and table cell. | Can the result carry the sales target next to each region's actual sales? | basic | [`ATTR_FORMULA`](attribute.md#op-attr_formula) when the value differs from row to row.<br>[`AGG_SUM`](#op-agg_sum) when you want a figure computed from the data. |
 | [`AGG_COUNT`](#op-agg_count) | Number of rows that have a value in a field, over all rows or per group. | How many responses did each region return? | basic | [`AGG_NULL_COUNT`](#op-agg_null_count) when you want the rows where the field is empty.<br>[`AGG_DISTINCT_COUNT`](#op-agg_distinct_count) when you want how many different values appear, not how many rows.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want a count for every value of the field: group by it, then count.<br>[`AGG_FREQUENCY`](#op-agg_frequency) when you want how many rows hold one particular value, such as the Yes answers. |
 | [`AGG_DISTINCT_COUNT`](#op-agg_distinct_count) | Number of different values a field takes, over all rows or per group. | How many different customers ordered this month? | basic | [`AGG_COUNT`](#op-agg_count) when you want how many rows there are, not how many different values.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want how many rows hold each value: group by the field, then count.<br>[`AGG_SET_DISTINCT_VALUES`](#op-agg_set_distinct_values) when the field is a multi-select and each combination is the unit. |
 | [`AGG_DISTINCT_SUM`](#op-agg_distinct_sum) | Total of a numeric field counting each key once, such as a respondent's weight summed once per respondent. | What is the weighted base when each respondent appears on several rows? | intermediate | [`AGG_SUM`](#op-agg_sum) when every row is its own unit and should be added.<br>[`AGG_DISTINCT_COUNT`](#op-agg_distinct_count) when you want how many keys there are, not a total. |
@@ -190,6 +191,37 @@ Upper end of a confidence interval for the mean of a numeric field, showing how 
 **Glossary:** [`confidence-interval`](../glossary.md#term-confidence-interval), [`mean`](../glossary.md#term-mean), [`standard-error`](../glossary.md#term-standard-error), [`sample-size`](../glossary.md#term-sample-size), [`independence`](../glossary.md#term-independence)
 
 **Skill:** [`op-agg-ci-upper`](../skills/op-agg-ci-upper.md)
+
+<a id="op-agg_constant"></a>
+
+### `AGG_CONSTANT`
+
+Puts one fixed value, such as a target or a reference figure, into every result row, group and table cell.
+
+**Level:** basic
+
+**Questions it answers:**
+
+- Can the result carry the sales target next to each region's actual sales?
+- Can every row show the reference date the figures were cut on?
+
+**Use cases by domain:**
+
+- *survey:* The benchmark score beside each segment's own score.
+- *ops:* The quarterly target beside each team's actual figure.
+- *science:* The reference value a measurement is read against, in every group.
+
+**Assumptions:**
+
+- The value is the same in every row, group, table cell and margin; it reads no field and skips no row.
+- A value written as an expression is worked out once before the run.
+
+**Use something else:**
+
+- [`ATTR_FORMULA`](attribute.md#op-attr_formula) when the value differs from row to row.
+- [`AGG_SUM`](#op-agg_sum) when you want a figure computed from the data.
+
+**Skill:** [`op-agg-constant`](../skills/op-agg-constant.md)
 
 <a id="op-agg_count"></a>
 
