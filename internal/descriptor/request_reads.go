@@ -426,8 +426,10 @@ func (w *readsWalker) compose(top map[string]any) {
 	}
 }
 
-// optimizeBounds reads each decision variable's `"params.<name>"`
-// lower / upper / start.
+// optimizeBounds reads each decision variable's lower / upper / start
+// written as a scalar expression (a number reads nothing): the params,
+// functions and identifiers it reads, exprreads over the source like
+// every expression slot (exprslots.SlotOptimizeBound).
 func (w *readsWalker) optimizeBounds(o map[string]any, at, req readsPath) {
 	vars, ok := o["variables"].([]any)
 	if !ok {
@@ -440,16 +442,9 @@ func (w *readsWalker) optimizeBounds(o map[string]any, at, req readsPath) {
 		}
 		vat := at.key("variables").at(j)
 		for _, k := range []string{"lower", "upper", "start"} {
-			s, ok := vo[k].(string)
-			if !ok {
-				continue
+			if s, ok := vo[k].(string); ok {
+				w.expression(s, vat, k, req, exprslots.SlotOptimizeBound)
 			}
-			name, ok := strings.CutPrefix(s, "params.")
-			if !ok || name == "" {
-				w.fail(vat, k, req, "want a number or \"params.<name>\"")
-				continue
-			}
-			w.emit(vat, k, req, nil, []string{name})
 		}
 	}
 }
@@ -753,7 +748,7 @@ func (w *readsWalker) expression(src string, at readsPath, key string, req reads
 	if len(reads.Funcs) > 0 {
 		e.Funcs = reads.Funcs
 	}
-	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint {
+	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound {
 		e.Variables = reads.Vars
 		return
 	}

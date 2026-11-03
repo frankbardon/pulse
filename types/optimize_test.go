@@ -51,9 +51,10 @@ func TestOptimize_ComposedOptimizeFreeByteIdentity(t *testing.T) {
 	}
 }
 
-// TestOptimize_BoundWire: a bound is a JSON number or "params.<name>";
-// it round-trips, an absent start is omitted, and any other shape is a
-// decode error.
+// TestOptimize_BoundWire: a bound is a JSON number or an expression
+// string ("params.<name>" the simplest); it round-trips byte for byte,
+// an absent start is omitted, and a blank string or any other shape is
+// a decode error.
 func TestOptimize_BoundWire(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +76,20 @@ func TestOptimize_BoundWire(t *testing.T) {
 	if b, _ = json.Marshal(v); !strings.Contains(string(b), `"start":0`) {
 		t.Fatalf("a zero start is dropped: %s", b)
 	}
-	for _, bad := range []string{`"tv_lo"`, `"params."`, `true`, `[1]`, `{}`} {
+	if err := json.Unmarshal([]byte(`{"name":"tv","lower":"params.cur * params.lo_share","upper":"coef(\"m\", \"tv\") * 2","start":"params.tv_lo"}`), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Lower.IsParam() || v.Lower.Param() != "" || v.Lower.Expr() != "params.cur * params.lo_share" || v.Lower.Value() != 0 ||
+		!v.Upper.IsExpr() || v.Start.Param() != "tv_lo" || !v.Start.IsExpr() || BoundValue(3).IsExpr() {
+		t.Fatalf("decoded expressions %+v", v)
+	}
+	if b, _ = json.Marshal(v); string(b) != `{"name":"tv","lower":"params.cur * params.lo_share","upper":"coef(\"m\", \"tv\") * 2","start":"params.tv_lo"}` {
+		t.Fatalf("re-encoded expressions %s", b)
+	}
+	if BoundParam("a-b").IsParam() || BoundExpr("params.x").Param() != "x" {
+		t.Fatal("IsParam / Param must read exactly params.<identifier>")
+	}
+	for _, bad := range []string{`""`, `"  "`, `true`, `[1]`, `{}`} {
 		var bnd OptimizeBound
 		if err := json.Unmarshal([]byte(bad), &bnd); err == nil {
 			t.Errorf("%s decoded as %+v", bad, bnd)

@@ -9,11 +9,11 @@ covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, 
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment; only nulls differ.
 
 ## Field binding
 
-A field is named bare and binds by schema type:
+Fields bind bare, by schema type:
 
 | Field type | Binds as | Write |
 |---|---|---|
@@ -87,6 +87,9 @@ A formula's result is a scalar (`bool` → `1.0` / `0.0`); a filter's must be `b
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`.<!-- feature: ATTR_FORMULA --> Weights, the extra scan, recipes: `formula-totals`.<!-- /feature -->
 <!-- feature: capability:params -->
 - `params.name` reads a request constant (read-only; refusals, Compose / chain inheritance: `request-params`).
+<!-- /feature -->
+<!-- feature: capability:compose_optimize -->
+- Optimize bounds take scalar expressions (`compose-optimize`).
 <!-- /feature -->
 
 ## See

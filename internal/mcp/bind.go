@@ -1994,7 +1994,7 @@ func optimizeSchemaBase() map[string]any {
 			"description": d,
 			"oneOf": []any{
 				map[string]any{"type": "number"},
-				map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
 			},
 		}
 	}
@@ -2013,8 +2013,8 @@ func optimizeSchemaBase() map[string]any {
 						"type": "object",
 						"properties": map[string]any{
 							"name":  map[string]any{"type": "string", "description": "Identifier the expressions read; unique, not `params` or a function name."},
-							"lower": bound("Lower bound: a number or \"params.<name>\"."),
-							"upper": bound("Upper bound (>= lower): a number or \"params.<name>\"."),
+							"lower": bound("Lower bound: a number or a scalar expression."),
+							"upper": bound("Upper bound (>= lower): a number or a scalar expression."),
 							"start": bound("First starting value, within the bounds; omit for the midpoint."),
 						},
 						"required": []string{"name", "lower", "upper"},

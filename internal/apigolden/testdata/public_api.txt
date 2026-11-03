@@ -168,6 +168,7 @@ pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "js
 pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
 pulse: type ComposePredictResult field Slots []pulse/descriptor.ComposeSlotPredict "json:\"slots,omitempty\""
 pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
+pulse: type ComposePredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
@@ -2276,6 +2277,10 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type UnresolvedScalar struct
+pulse/descriptor: type UnresolvedScalar field Expression string "json:\"expression\""
+pulse/descriptor: type UnresolvedScalar field Path string "json:\"path\""
+pulse/descriptor: type UnresolvedScalar field Reads []string "json:\"reads\""
 pulse/descriptor: type ValidationCertification struct
 pulse/descriptor: type ValidationCertification field Dataset string "json:\"dataset\""
 pulse/descriptor: type ValidationCertification field Difficulty string "json:\"difficulty,omitempty\""
@@ -5179,6 +5184,7 @@ pulse/types: type BannerSpec field Request *pulse/types.Request "json:\"request\
 pulse/types: type BannerSpec field Sections []pulse/types.BannerSection "json:\"sections\""
 pulse/types: type BannerSpec field Total bool "json:\"total,omitempty\""
 pulse/types: const BannerTotalLabel untyped string = "Total"
+pulse/types: func BoundExpr(src string) pulse/types.OptimizeBound
 pulse/types: func BoundParam(name string) pulse/types.OptimizeBound
 pulse/types: func BoundValue(v float64) pulse/types.OptimizeBound
 pulse/types: func CanonicalHash(tag string, v any) string
@@ -5847,6 +5853,8 @@ pulse/types: const OptimizeActiveLower pulse/types.OptimizeActiveBound = "lower"
 pulse/types: const OptimizeActiveUpper pulse/types.OptimizeActiveBound = "upper"
 pulse/types: type OptimizeBound struct
 pulse/types: type OptimizeBound method (*OptimizeBound) UnmarshalJSON(raw []byte) error
+pulse/types: type OptimizeBound method (OptimizeBound) Expr() string
+pulse/types: type OptimizeBound method (OptimizeBound) IsExpr() bool
 pulse/types: type OptimizeBound method (OptimizeBound) IsParam() bool
 pulse/types: type OptimizeBound method (OptimizeBound) IsZero() bool
 pulse/types: type OptimizeBound method (OptimizeBound) MarshalJSON() ([]byte, error)
@@ -6650,4 +6658,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7fe0aa73668ad56da0138366ba34b4fd22ffd5e14aec4e1aaf9ad28ec475bc69
+// golden-hash: e352c11c24da659601a54bdb8e867cbef4d011293530b4d41b78e61b34371ad6

@@ -62,6 +62,22 @@ func (s *Service) optimizeLoader(refs model.Refs) (*model.Loaded, *errors.CodedE
 	return loaded, nil
 }
 
+// solveOptimizeBlock compiles block i against the bound set — every
+// bound and start evaluated, then range-checked, on the models' values —
+// and solves it. A bound or start that reads a Compose fit that failed
+// on its data fails the block alone with the fit's code, exactly as the
+// objective's read does; any other Compile refusal is fatal.
+func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblock.Env, set *model.Set) (*optsolve.Outcome, error) {
+	c, cerr := optblock.Compile(spec, i, env, s.extensions.ExprBoundWithModels(set))
+	if cerr != nil {
+		if se, ok := optsolve.FailedFit(cerr); ok {
+			return &optsolve.Outcome{Result: types.OptimizeResult{Name: spec.Name, Direction: spec.Direction, Error: se}, Failed: true}, nil
+		}
+		return nil, cerr
+	}
+	return optsolve.Solve(spec, i, c, optblock.EffectiveSeed(spec))
+}
+
 // runComposeOptimize solves every `optimize` block once the fits have
 // run (fits: the batch's bound set — the registered populations plus
 // every fit), in declaration order, each against its own compiled
@@ -103,11 +119,7 @@ func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *compo
 				return nil, nil, descx.RefusalAt(err, "optimize", i)
 			}
 		}
-		c, cerr := optblock.Compile(spec, i, env, s.extensions.ExprBoundWithModels(set))
-		if cerr != nil {
-			return nil, nil, cerr
-		}
-		res, err := optsolve.Solve(spec, i, c, optblock.EffectiveSeed(spec))
+		res, err := s.solveOptimizeBlock(spec, i, env, set)
 		if err != nil {
 			return nil, nil, err
 		}

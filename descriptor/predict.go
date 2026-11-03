@@ -1055,6 +1055,23 @@ type OptimizeSummary struct {
 	RNGSeed int64 `json:"rng_seed"`
 }
 
+// UnresolvedScalar is one ComposeValidationResult.UnresolvedScalars
+// entry: a scalar-expression slot (a number-or-expression request slot,
+// such as an optimize variable's lower / upper / start) whose
+// expression calls a request-bound function — coef(), sweep_axis(),
+// lookup(), range_label() or an embedder function — so predict checks
+// it but cannot compute it. Its value and the slot's range checks wait
+// for the runtime. It is neither a warning nor a refusal.
+type UnresolvedScalar struct {
+	// Path is the slot's request-rooted path
+	// (optimize[0].variables[1].upper).
+	Path string `json:"path"`
+	// Expression is the slot's expression as written.
+	Expression string `json:"expression"`
+	// Reads are the request-bound functions it calls, sorted.
+	Reads []string `json:"reads"`
+}
+
 // ComparisonSummary is one ComposeValidationResult.Compare entry: a
 // ComposedRequest `compare` entry (a nested-model comparison) as predict
 // resolves it, statically — validated, never computed.

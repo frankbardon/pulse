@@ -27,7 +27,8 @@ An **optimize block** answers "what values of these knobs give the best outcome?
 
 ## The block
 
-- `variables[{name, lower, upper, start?}]`: a bound is a number or `"params.<name>"`. `start` defaults to the midpoint. A name is an identifier, not `params` or a function.
+- `variables[{name, lower, upper, start?}]`: a bound is a number or a scalar expression read once before the solve: literals, `params.<name>`, `coef()`, `sweep_axis()`, `lookup()`, built-ins; no variable or field. E.g. `"params.current_tv * params.lower_share"`. It must be finite (`bound_not_finite`; a bad one `bound_invalid` / `bound_not_numeric`). `start` defaults to the midpoint. A name is an identifier, not `params` or a function.
+- Predict range-checks a params-only bound. One calling `coef()` / `sweep_axis()` / `lookup()` is listed under `unresolved_scalars` {`path`, `expression`, `reads`} (not a warning); the runtime range-checks it after the fits.
 - `objective`: an expression over the variables, `params.<name>`, `coef()` of a batch fit, `hill()`, other expression functions, `lookup()`. `direction` (`maximize` | `minimize`) is required.
 - `constraints[{expr, type}]`: `eq` means `expr = 0`, `ineq` means `expr >= 0`. A budget is `"a + b + c - params.budget"` as `eq`. At most as many `eq` as variables.
 - `starts` (default 8, 1..1000): the solver runs from `start` plus `starts` minus one seeded Latin-hypercube points inside the bounds and reports the best converged one. `rng_seed` 0 derives the seed from the spec alone; the effective seed comes back. `tolerance` (0 = 1e-6) and `max_iterations` (0 = 100).<!-- feature: capability:models --> `models` loads saved model files for `coef()` with no refit (`compose-fits`, Loading).<!-- /feature -->

@@ -941,14 +941,14 @@ func priorPrecisionDef() any {
 // optimizeBoundDef is an optimize variable's lower / upper / start.
 // types.OptimizeBound has no exported fields (its states are behind
 // constructors), so reflection would describe an empty object; on the
-// wire it is a number or a "params.<name>" reference to a numeric batch
-// param.
+// wire it is a number or a scalar expression string (internal/
+// scalarslot), "params.<name>" the simplest.
 func optimizeBoundDef() any {
 	return map[string]any{
-		"description": "A decision variable's bound or start: a number, or \"params.<name>\" naming a batch param that holds a finite number.",
+		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() over the batch fits and the block's models, lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
 		"oneOf": []any{
 			map[string]any{"type": "number"},
-			map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+			map[string]any{"type": "string", "minLength": 1},
 		},
 	}
 }

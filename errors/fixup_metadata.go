@@ -4966,7 +4966,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_VARIABLE_INVALID: {
-		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number or `\"params.<name>\"` naming a batch param (an identifier, `bound_invalid`) that holds a finite number (`bound_not_numeric`; an undeclared param is PULSE_PARAMS_UNDECLARED). `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `param`, `lower`, `upper` and `value`.",
+		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4976,8 +4976,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"optimize", "*", "variables", "*", "lower"},
-				Hint:     "Set both bounds — numbers or \"params.<name>\" references to numeric batch params — with lower <= upper, and keep any start between them.",
-				Examples: []any{0, "params.budget_floor"},
+				Hint:     "Set both bounds — numbers or scalar expressions over params, coef() and the built-ins that yield finite numbers — with lower <= upper, and keep any start between them.",
+				Examples: []any{0, "params.budget_floor", "params.current_tv * params.lower_share"},
 			},
 		},
 	},

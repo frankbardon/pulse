@@ -1507,9 +1507,12 @@ summary echoes it as `from_sweep`.
 {name, variables, objective, direction, constraints, starts, rng_seed,
 tolerance, max_iterations}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
-upper, start}`, each bound an `OptimizeBound` — a number or
-`"params.<name>"` naming a numeric batch param (`start` optional; the
-midpoint when absent). `objective` and every `constraints[i].expr`
+upper, start}`, each bound an `OptimizeBound` — a number or a
+scalar expression string read once before the solve (literals,
+`params.<name>`, `coef()` / `sweep_axis()` over the batch fits and the
+block's `models`, `lookup()` and the built-ins; no variable, no record
+field), `"params.<name>"` the simplest, yielding a finite number
+(`start` optional; the midpoint when absent). `objective` and every `constraints[i].expr`
 (type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
 variables, `params.<name>`, `coef()` over the batch's `fits` and the
 built-ins; `direction` is `maximize` or `minimize` (required); `starts`
@@ -1538,7 +1541,11 @@ equals every free variable's `marginal`), `starts_agreeing` the
 converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots are gated by
 `capability:compose_optimize`. `pulse_predict` with `composed` lists the
 blocks as `optimize [{name, direction, variables, constraints, starts,
-rng_seed}]` on the predict result (not payload-reachable).
+rng_seed}]` on the predict result (not payload-reachable), and every
+bound or start whose expression calls a request-bound function under
+`unresolved_scalars [{path, expression, reads}]` — not statically
+resolved, so its range checks run at runtime; a bound over literals and
+params is range-checked by predict and never listed.
 
 ### Compose comparisons
 

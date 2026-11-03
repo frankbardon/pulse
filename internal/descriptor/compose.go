@@ -146,6 +146,17 @@ type ComposeValidationResult struct {
 	// runtime's too); omitted without optimize blocks.
 	Optimize []descriptor.OptimizeSummary `json:"optimize,omitempty"`
 
+	// UnresolvedScalars lists every scalar-expression slot predict could
+	// not compute — an optimize bound or start calling coef(),
+	// sweep_axis(), lookup(), range_label() or an embedder function —
+	// in request order: its path, the expression and the request-bound
+	// functions it reads. Its value, and the slot's range checks
+	// (bounds_crossed, start_out_of_bounds, finiteness), wait for the
+	// runtime. Not a warning and not a refusal: a slot over literals and
+	// params is resolved and range-checked here, so it never appears.
+	// Omitted when every scalar slot resolved.
+	UnresolvedScalars []descriptor.UnresolvedScalar `json:"unresolved_scalars,omitempty"`
+
 	// Compare lists the request's `compare` entries (nested-model
 	// comparisons) in declaration order — name, fits, the resolved test
 	// and distribution and the tested terms — validated statically,
@@ -344,12 +355,14 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	if _, oerr := OptimizeRefusal(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles); oerr != nil {
+	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles)
+	if oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
 		return env, req
 	}
 	result.Optimize = optimizeSummaries(req.Optimize)
+	result.UnresolvedScalars = optimizeUnresolved(checked)
 	// Then the nested-model comparisons — the runtime's compareRefusal,
 	// run right after its optimize rules; nothing past it runs on a
 	// refusal.

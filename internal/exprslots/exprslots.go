@@ -51,6 +51,12 @@ type Slot struct {
 	// for the optimize slots, which internal/optblock compiles (its own
 	// PULSE_OPTIMIZE_EXPRESSION_INVALID, no exprenv compile site).
 	Sites []string
+	// Scalar marks a scalar-expression slot (internal/scalarslot): a
+	// JSON number or an expression string, its owner field a
+	// number-or-expression type (types.OptimizeBound) rather than a Go
+	// string. A `{{token}}` in its string form is refused like any
+	// expression's; a number there is no expression.
+	Scalar bool
 }
 
 // The slot names.
@@ -61,6 +67,7 @@ const (
 	SlotFeatureFitOn       = "feature_fit_on"
 	SlotOptimizeObjective  = "optimize_objective"
 	SlotOptimizeConstraint = "optimize_constraint"
+	SlotOptimizeBound      = "optimize_bound"
 )
 
 var slots = []Slot{
@@ -104,6 +111,12 @@ var slots = []Slot{
 		Owners: []string{"OptimizeConstraint"},
 		Tail:   []string{"optimize", "constraints", "expr"},
 	},
+	// An optimize decision variable's lower / upper / start: a number
+	// or a scalar expression (internal/optblock through
+	// internal/scalarslot).
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "lower"}, Scalar: true},
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "upper"}, Scalar: true},
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "start"}, Scalar: true},
 }
 
 // FeatureFitOnParam is the feature params key carrying a row

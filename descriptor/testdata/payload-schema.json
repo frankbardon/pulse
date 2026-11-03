@@ -3822,13 +3822,13 @@
       "type": "string"
     },
     "OptimizeBound": {
-      "description": "A decision variable's bound or start: a number, or \"params.\u003cname\u003e\" naming a batch param that holds a finite number.",
+      "description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.\u003cname\u003e, coef() / sweep_axis() over the batch fits and the block's models, lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
       "oneOf": [
         {
           "type": "number"
         },
         {
-          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "minLength": 1,
           "type": "string"
         }
       ]
@@ -7588,4 +7588,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d8b23a841fdc31e0d1e82555310a8156d1f28c8a89c523133d677e2aa6496dfb
+// golden-hash: 7d70c209fb3c10422150dbe4784fe46112ce0e51f5bc8d1779a92f944d865942

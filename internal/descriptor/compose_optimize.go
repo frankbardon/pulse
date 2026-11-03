@@ -28,12 +28,24 @@ import (
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
 func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
+	checked, cerr := OptimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load)
+	if cerr != nil || checked == nil {
+		return nil, cerr
+	}
+	return checked.Loaded, nil
+}
+
+// OptimizeCheck is OptimizeRefusal that also returns the bounds and
+// starts the declaration-only check left unresolved (optblock.CheckAll)
+// — predict's ComposeValidationResult.UnresolvedScalars. Nil, nil when
+// the batch declares no block.
+func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) (*optblock.Checked, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
 	fits := model.CatalogFromFits(req.Fits).WithSweepAxes(sweepAxes)
-	return optblock.CheckLoaded(req.Optimize, optblock.Env{
+	return optblock.CheckAll(req.Optimize, optblock.Env{
 		Params:     params,
 		Fits:       fits,
 		Extensions: exprFunctions,
@@ -42,6 +54,19 @@ func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctio
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
 	})
+}
+
+// optimizeUnresolved is the blocks' unresolved bounds and starts as
+// ComposeValidationResult.UnresolvedScalars entries (nil without any).
+func optimizeUnresolved(checked *optblock.Checked) []descriptor.UnresolvedScalar {
+	if checked == nil || len(checked.Unresolved) == 0 {
+		return nil
+	}
+	out := make([]descriptor.UnresolvedScalar, len(checked.Unresolved))
+	for i, u := range checked.Unresolved {
+		out[i] = descriptor.UnresolvedScalar{Path: u.Field, Expression: u.Expression, Reads: u.Reads}
+	}
+	return out
 }
 
 // predictExprFunctionNames is the embedder ExprFunction names the

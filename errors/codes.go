@@ -3950,12 +3950,17 @@ const (
 	// decision variable that cannot be solved over: a missing name, a
 	// name that is not an identifier, is `params` or an expression
 	// function's name, or repeats another variable's; a missing lower or
-	// upper bound; a bound or start whose param is not an identifier
-	// or does not hold a finite number;
-	// a lower bound above the upper; or a start outside the bounds.
-	// Refused identically by predict and the runtime before any fit or
-	// slot runs. Details carry "optimize", "field", "reason", "variable"
-	// and, where they apply, "param", "lower", "upper" and "value".
+	// upper bound; a bound or start whose scalar expression does not
+	// compile or reads an identifier other than params (bound_invalid),
+	// does not yield a number (bound_not_numeric) or yields a non-finite
+	// one (bound_not_finite); a lower bound above the upper; or a start
+	// outside the bounds. Refused identically by predict and the runtime
+	// before any fit or slot runs — except a bound calling a
+	// request-bound function (coef(), sweep_axis(), …), whose value and
+	// range checks the runtime judges once the fits have run. Details
+	// carry "optimize", "field", "reason", "variable" and, where they
+	// apply, "expression", "param", "identifier", "compile_error",
+	// "result_type", "lower", "upper" and "value".
 	PULSE_OPTIMIZE_VARIABLE_INVALID Code = "PULSE_OPTIMIZE_VARIABLE_INVALID"
 
 	// PULSE_OPTIMIZE_EXPRESSION_INVALID indicates an `optimize` block's

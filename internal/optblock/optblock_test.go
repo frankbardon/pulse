@@ -3,6 +3,7 @@ package optblock_test
 import (
 	"encoding/json"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/expr-lang/expr"
@@ -93,9 +94,22 @@ func TestOptimize_RefusalsTable(t *testing.T) {
 		{"param bounds crossed", func(s *types.OptimizeSpec) {
 			s.Variables[1].Lower, s.Variables[1].Upper = types.BoundParam("budget"), types.BoundParam("floor")
 		}, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundsCrossed, "optimize[0].variables[1]"},
-		{"non-finite bound", func(s *types.OptimizeSpec) { s.Variables[0].Upper = types.BoundValue(math.Inf(1)) }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotNumeric, "optimize[0].variables[0].upper"},
+		{"non-finite bound", func(s *types.OptimizeSpec) { s.Variables[0].Upper = types.BoundValue(math.Inf(1)) }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotFinite, "optimize[0].variables[0].upper"},
+		{"non-finite bound expression", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("params.budget / 0") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotFinite, "optimize[0].variables[1].upper"},
+		{"non-finite start expression", func(s *types.OptimizeSpec) { s.Variables[0].Start = types.BoundExpr("log(-1)") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotFinite, "optimize[0].variables[0].start"},
+		{"bound expression not numeric", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("params.budget > 1") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotNumeric, "optimize[0].variables[1].upper"},
+		{"bound reads a variable", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("p * 2") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundInvalid, "optimize[0].variables[1].upper"},
+		{"bound unknown function", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("cap(params.budget)") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundInvalid, "optimize[0].variables[1].upper"},
+		{"expression bounds crossed", func(s *types.OptimizeSpec) {
+			s.Variables[1].Lower = types.BoundExpr("params.budget * 0.9")
+			s.Variables[1].Upper = types.BoundExpr("params.floor + 1")
+		}, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundsCrossed, "optimize[0].variables[1]"},
+		{"expression start outside bounds", func(s *types.OptimizeSpec) { s.Variables[1].Start = types.BoundExpr("params.budget * 2") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonStartOutOfBounds, "optimize[0].variables[1].start"},
+		{"bound coef unknown term", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr(`coef("demand", "cost") * 10`) }, errors.PULSE_MODEL_TERM_UNKNOWN, "", "optimize[0].variables[1].upper"},
+		{"bound sweep_axis not sweep-bound", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr(`sweep_axis("demand", "decay")`) }, errors.PULSE_MODEL_TERM_UNKNOWN, "", "optimize[0].variables[1].upper"},
+		{"bound expression undeclared param", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("params.budget * params.share") }, errors.PULSE_PARAMS_UNDECLARED, "", "optimize[0].variables[1].upper"},
 		{"param bound not numeric", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundParam("label") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundNotNumeric, "optimize[0].variables[1].upper"},
-		{"param bound not a name", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundParam("a-b") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundInvalid, "optimize[0].variables[1].upper"},
+		{"bound does not compile", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundExpr("params.budget *") }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonBoundInvalid, "optimize[0].variables[1].upper"},
 		{"param bound undeclared", func(s *types.OptimizeSpec) { s.Variables[1].Upper = types.BoundParam("ceiling") }, errors.PULSE_PARAMS_UNDECLARED, "", "optimize[0].variables[1].upper"},
 		{"start outside bounds", func(s *types.OptimizeSpec) { s.Variables[0].Start = types.BoundValue(0) }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonStartOutOfBounds, "optimize[0].variables[0].start"},
 		{"unknown identifier", func(s *types.OptimizeSpec) { s.Objective = "p * units" }, errors.PULSE_OPTIMIZE_EXPRESSION_INVALID, optblock.ReasonUnknownIdentifier, "optimize[0].objective"},
@@ -272,5 +286,76 @@ func TestOptimize_RangeLabelInReach(t *testing.T) {
 	spec.Variables[1].Name = "range_label"
 	if cerr := optblock.Check([]types.OptimizeSpec{spec}, testEnv()); cerr == nil || cerr.Details["reason"] != optblock.ReasonNameReserved {
 		t.Fatalf("a variable named range_label: %v, want %s", cerr, optblock.ReasonNameReserved)
+	}
+}
+
+// TestOptimize_ExpressionBounds: a bound or start is any scalar
+// expression. Over literals and params (G11: a share of a current
+// figure) Check resolves it and runs bounds_crossed /
+// start_out_of_bounds statically. One calling coef() or sweep_axis() is
+// checked but left Unresolved by Check — no range check — and Compile,
+// with the bound implementations, evaluates it and range-checks it.
+func TestOptimize_ExpressionBounds(t *testing.T) {
+	t.Parallel()
+
+	params, cerr := exprenv.NormalizeParams(map[string]any{"current_tv": 400, "lower_share": 0.5, "upper_share": 1.5})
+	if cerr != nil {
+		t.Fatal(cerr)
+	}
+	fits := append(demandFits(), types.FitSpec{
+		Name:      "best",
+		FromSweep: &types.FitFromSweep{Regression: "m"},
+		Request:   &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "units", Predictors: []string{"tv"}}}},
+	})
+	env := optblock.Env{Params: params, Fits: model.CatalogFromFits(fits)}
+	spec := types.OptimizeSpec{
+		Name: "budget",
+		Variables: []types.OptimizeVariable{
+			{Name: "tv", Lower: types.BoundExpr("params.current_tv * params.lower_share"), Upper: types.BoundExpr("params.current_tv * params.upper_share"), Start: types.BoundParam("current_tv")},
+			{Name: "price", Lower: types.BoundValue(0), Upper: types.BoundExpr(`-coef("demand", "(intercept)") / coef("demand", "price")`)},
+			{Name: "d", Lower: types.BoundValue(0), Upper: types.BoundExpr(`sweep_axis("best", "decay") * 2`), Start: types.BoundExpr(`sweep_axis("best", "decay")`)},
+		},
+		Objective: "tv + price + d",
+		Direction: types.OptimizeMaximize,
+	}
+	checked, cerr := optblock.CheckAll([]types.OptimizeSpec{spec}, env)
+	if cerr != nil {
+		t.Fatalf("check: %v", cerr)
+	}
+	want := []optblock.Unresolved{
+		{Field: "optimize[0].variables[1].upper", Expression: `-coef("demand", "(intercept)") / coef("demand", "price")`, Reads: []string{"coef"}},
+		{Field: "optimize[0].variables[2].upper", Expression: `sweep_axis("best", "decay") * 2`, Reads: []string{"sweep_axis"}},
+		{Field: "optimize[0].variables[2].start", Expression: `sweep_axis("best", "decay")`, Reads: []string{"sweep_axis"}},
+	}
+	if !reflect.DeepEqual(checked.Unresolved, want) {
+		t.Fatalf("unresolved = %+v\nwant %+v", checked.Unresolved, want)
+	}
+
+	// The runtime's bound implementations resolve every one.
+	coefs := map[string]float64{"(intercept)": 120, "price": -4}
+	bound := exprenv.Bound{
+		Coef:      func(args ...any) (any, error) { return coefs[args[1].(string)], nil },
+		SweepAxis: func(...any) (any, error) { return 0.6, nil },
+	}
+	c, cerr := optblock.Compile(&spec, 0, env, bound)
+	if cerr != nil {
+		t.Fatalf("compile: %v", cerr)
+	}
+	if !reflect.DeepEqual(c.Lower, []float64{200, 0, 0}) || !reflect.DeepEqual(c.Upper, []float64{600, 30, 1.2}) {
+		t.Fatalf("bounds = %v %v", c.Lower, c.Upper)
+	}
+	if c.Start[0] != 400 || !math.IsNaN(c.Start[1]) || c.Start[2] != 0.6 || c.Unresolved != nil {
+		t.Fatalf("starts = %v, unresolved %v", c.Start, c.Unresolved)
+	}
+
+	// The deferred range checks run at runtime on the resolved values.
+	bound.SweepAxis = func(...any) (any, error) { return -0.5, nil }
+	if _, cerr := optblock.Compile(&spec, 0, env, bound); cerr == nil || cerr.Details["reason"] != optblock.ReasonBoundsCrossed || cerr.Details["field"] != "optimize[0].variables[2]" {
+		t.Fatalf("runtime bounds_crossed: %v", cerr)
+	}
+	bound.SweepAxis = func(...any) (any, error) { return 0.6, nil }
+	coefs["price"] = 0
+	if _, cerr := optblock.Compile(&spec, 0, env, bound); cerr == nil || cerr.Details["reason"] != optblock.ReasonBoundNotFinite || cerr.Details["field"] != "optimize[0].variables[1].upper" {
+		t.Fatalf("runtime non-finite: %v", cerr)
 	}
 }
