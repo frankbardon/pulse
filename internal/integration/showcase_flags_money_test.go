@@ -23,7 +23,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// The four U45 showcase shapes (TODO #317, in-pulse proof): a credit
+// The four U45 showcase shapes (see #317, in-pulse proof): a credit
 // logistic fit on a packed_bool outcome scored with exp, an A/B
 // proportion test on a packed_bool conversion flag, a chi-square
 // directly on a packed_bool churn flag, and calendar-month retention

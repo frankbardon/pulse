@@ -85,7 +85,7 @@ func TestFilterToFile_FlattenMatchesSingleFileTwin(t *testing.T) {
 	}
 }
 
-// TestPredictRoots_ChainAcceptsArchive (U51 FR-40, TODO #360): stage 0
+// TestPredictRoots_ChainAcceptsArchive (U51 FR-40, see #360): stage 0
 // of PredictChain reads a shard archive — valid, the same verdict and
 // stage schemas as its single-file twin and as its flattened copy — and
 // ProcessChain runs it with the answer of the twin (predict ≡ runtime).

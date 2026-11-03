@@ -17,7 +17,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ParamMeta.Example (U53 decision #11, TODO #488): an example value the
+// ParamMeta.Example (U53 decision #11, see #488): an example value the
 // registration probe hands the factory in place of the generic JSONType
 // placeholder, so a factory accepting only certain values registers.
 // pulse.New checks it is a value of the declared JSONType with the

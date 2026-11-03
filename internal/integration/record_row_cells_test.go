@@ -289,7 +289,7 @@ func TestRecordRowCells_EveryFieldTypeIsJSONNative(t *testing.T) {
 // the record row still renders the decimal string — the cell keeps its
 // value and scale until the row is final. A value window over the
 // decimal itself (WIN_LAG) is refused by the accepted-types table
-// (internal/fieldaccept, TODO #199), so it cannot copy the cell.
+// (internal/fieldaccept, see #199), so it cannot copy the cell.
 func TestRecordRowCells_DecimalWindowCopyRendersAndOrders(t *testing.T) {
 	t.Parallel()
 

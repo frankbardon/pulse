@@ -43,7 +43,7 @@
 #                   (Heywood / ultra-Heywood under minres)
 #   reversed_items  seeded Likert 1-5 battery with two reverse-keyed items
 #   two_factor      seeded two-factor battery (six items, r(F1, F2) = .3),
-#                   a proper fit under every weight kind (TODO #410)
+#                   a proper fit under every weight kind (see #410)
 # The two vendored fixtures gain two SEEDED weight columns (w_freq,
 # w_prob) that are not part of the original data; the header says so.
 #
@@ -247,7 +247,7 @@ for (j in c("r1", "r2", "r3", "r4", "r5")) {
   if (min(rv[[j]]) != 1 || max(rv[[j]]) != 5) stop("reversed_items: ", j, " must span 1..5 so psych's observed-range reversal equals the declared 1..5")
 }
 
-# two_factor (TODO #410): a clean, well-identified two-factor battery so
+# two_factor (see #410): a clean, well-identified two-factor battery so
 # ATTR_FACTOR_SCORE's weighted Bartlett scores are pinned on real values —
 # the other weighted factor-score fixtures are mostly Heywood cases,
 # whose Bartlett scores are null. Six items, two correlated factors
@@ -313,7 +313,7 @@ pair_n <- function(X) {
   ok <- !is.na(as.matrix(X))
   crossprod(ok * 1)
 }
-# Weighted pairwise deletion (TODO #270): cov.wt has no pairwise mode,
+# Weighted pairwise deletion (see #270): cov.wt has no pairwise mode,
 # so every entry is the one-rule wcov over THAT entry's complete rows —
 # the diagonal over the rows where the item is present, an off-diagonal
 # over the rows where both are. Under probability weights each entry
@@ -546,7 +546,7 @@ for (kind in w_kinds) {
   add_rel("likert_ties", lk, c("q1", "q2"), kind)
 }
 add_rel("nulls", nl, paste0("x", 1:4), "none", "pairwise")
-# Weighted pairwise (TODO #270): per-entry n_eff under probability.
+# Weighted pairwise (see #270): per-entry n_eff under probability.
 # They pin the covariance figures (alpha, item_sd, ...); they add no
 # mv_fa_minres case — the minres solver is pinned on the cases above,
 # and on the probability R psych's L-BFGS-B stops ~1.6e-5 short of the
@@ -621,7 +621,7 @@ for (kind in w_kinds) {
   add_pca("nulls", nl, paste0("x", 1:4), kind)
 }
 add_pca("nulls", nl, paste0("x", 1:4), "none", missing = "pairwise")
-# Weighted pairwise (TODO #270): per-entry n_eff in the covariance, the
+# Weighted pairwise (see #270): per-entry n_eff in the covariance, the
 # smallest pair's own N* in Bartlett.
 for (kind in c("frequency", "probability")) {
   add_pca("nulls", nl, paste0("x", 1:4), kind, missing = "pairwise")
@@ -660,7 +660,7 @@ add_coll <- function(fx, df, response, preds, kind, missing = "listwise") {
       mu <- colMeans(X, na.rm = TRUE)
       sdp <- sqrt(colSums(sweep(X, 2, mu)^2, na.rm = TRUE) / colSums(!is.na(X)))
     } else {
-      # Weighted pairwise (TODO #266): every correlation entry is the
+      # Weighted pairwise (see #266): every correlation entry is the
       # one-rule weighted fit over that pair's own rows (pw_cor), each
       # member's mean and population sd (sum w (x - mu)^2 / sum w) over
       # the rows where it is present. All three are scale-free ratios of
@@ -740,7 +740,7 @@ for (kind in w_kinds) {
   add_coll("weighted", wd, "y", paste0("x", 1:4), kind)
 }
 add_coll("nulls", nl, NULL, paste0("x", 1:4), "none", "pairwise")
-# Weighted pairwise (TODO #266): per-pair weighted correlation, per-member
+# Weighted pairwise (see #266): per-pair weighted correlation, per-member
 # weighted mean and population sd; kind-free (scale-free ratios).
 for (kind in c("frequency", "probability")) add_coll("nulls", nl, NULL, paste0("x", 1:4), kind, "pairwise")
 col_doc <- c(mv_meta("collinearity diagnostics",
@@ -968,5 +968,5 @@ source(file.path(script_dir, "gen_robust_vcov_glm.R"), local = FALSE)
 # The singular-decision golden (mv_singularity.json: the one
 # rank-tolerance rule against Matrix::rankMatrix and base::chol on a
 # borderline near-singular draw, a full-rank control and an exact
-# dependency; TODO #408). Matrix + base R only.
+# dependency; see #408). Matrix + base R only.
 source(file.path(script_dir, "gen_singularity.R"), local = FALSE)

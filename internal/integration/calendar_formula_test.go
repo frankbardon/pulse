@@ -16,7 +16,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// Calendar formulas (U45 E4-S1, TODO #316): weekday / month_index /
+// Calendar formulas (U45 E4-S1, see #316): weekday / month_index /
 // date_trunc over epoch days, to_day over a datetime in the request's
 // inherited zone, log1p — through every expression site and execution
 // arm, against a stdlib oracle.

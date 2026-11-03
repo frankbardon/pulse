@@ -23,7 +23,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// Matrix-at-scale benchmarks (matrix-extensions-hardening E8-S1, TODO
+// Matrix-at-scale benchmarks (matrix-extensions-hardening E8-S1, see
 // #157). Never run in CI: CI runs no benchmarks.
 //
 //   - BenchmarkMatrixScale: MAT_COVARIANCE listwise and pairwise, plus
