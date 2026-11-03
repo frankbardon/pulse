@@ -4,7 +4,7 @@
 
 Relocated verbatim from CLAUDE.md (section `### Byte-layout invariants`). CLAUDE.md keeps the always-load half inline, compressed — the 9-byte header, the schema block, the dictionary blocks, the record data, the per-record null bitmap, a one-line parent-group summary, the 22 field types and a two-line shard archive variant; the detail those lines dropped is the last paragraph below ("The always-load half, long form"). Everything below is the long form it points at: the wide-set word order (the one genuine `.pulse` payload rule here), the three sidecar files that sit BESIDE a `.pulse` cohort and are not `.pulse` layouts, the SPSS fidelity model in both directions, the default-on projected buffered decode, the standalone regression model file (`.pulse-model.json`), the standalone vector-fit population file (`.pulse-population.json`) and the standalone SEM fit file (`.pulse-sem.json`).
 
-Load it before changing any of them — CLAUDE.md's Update Demand table names this file as a required companion for a `.pulse` file-format change, a registered field type, shard archive layout, the sidecar point-lookup index or its manifest, a registered I/O format (SPSS in particular), and the projection contract.
+Load it before changing any of them, or the mmap read path / an atomic rewrite's rename (`byte-layout/mmap-and-rewrites.md`) — CLAUDE.md's Update Demand table names this file as a required companion for a `.pulse` file-format change, a registered field type, shard archive layout, the sidecar point-lookup index or its manifest, a registered I/O format (SPSS in particular), and the projection contract.
 
 `format_version` does NOT move for anything described here: none of these surfaces is payload-reachable (`io.PredictReport`, `descriptor.InspectResult`, the sidecar documents and the index format all sit outside `types/`), so `descriptor/testdata/payload-schema.json` is untouched. The sidecar index MANIFEST carries its OWN `format_version` (`"1"`), independent of both `encoding.FormatVersion` and `IndexFormatVersion`.
 
@@ -45,6 +45,9 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 31. The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (relocated at U18 E1-S1)
 32. SPSS type hints — `@PulseType` (cohort-reshape E6-S2)
 33. Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4)
+34. Memory-mapped reads — platforms (U77 E2-S1)
+35. Pulse's own mappings never block its rewrites
+36. A view another reader holds — the recorded decision (U77 E2-S1, owner decision #4)
 
 ## Section map
 
@@ -57,4 +60,5 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, sidecar skip, collisions, the populations directory) |
 | `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |
 | `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1 to 6); Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |
+| `byte-layout/mmap-and-rewrites.md` | Memory-mapped reads — platforms (U77 E2-S1); Pulse's own mappings never block its rewrites; A view another reader holds — the recorded decision (U77 E2-S1, owner decision #4) |
 | `byte-layout/history.md` (not loaded by default) | CLAUDE.md's sidecar contract sentence, pre-compression (relocated verbatim at weighting…; Contract: `.claude/reference/byte-layout.md` — load it before touching any of these. No… |

@@ -119,7 +119,9 @@ type FilterToFileResult struct {
 //     engine produces byte-identical output for identical inputs.
 //   - The output is written via atomic rename: a temp file is staged
 //     in OutputDir and renamed to the final path on success. A
-//     partially-written .pulse file never appears at the target path.
+//     partially-written .pulse file never appears at the target path;
+//     a refused rename (on Windows, an output another reader still
+//     holds open or maps) is ENCODING_IO with the target unchanged.
 //   - The output name defaults to `{source-hash}_{predicate-hash}.pulse`
 //     so independent consumers reach the same expected path without
 //     coordination.

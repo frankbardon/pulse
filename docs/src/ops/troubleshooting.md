@@ -157,14 +157,20 @@ the MCP env block. Re-read [`pulse mcp`](../cli/mcp.md).
 
 ## mmap / file-mapping failures
 
-On very large `.pulse` files the streaming reader uses memory mapping
-where available. If your environment forbids mmap (some sandboxed
-containers, very locked-down macOS configurations), the reader falls
-back to a buffered read.
+A single-file `.pulse` cohort on a real directory is read through a
+memory map on Linux, macOS, FreeBSD and Windows. If your environment
+forbids mmap (some sandboxed containers, very locked-down macOS
+configurations), the reader falls back to a buffered read.
 
 **Fix:** typically transparent. If you suspect a regression, run with
 verbose Go runtime tracing or compare against a non-mmap file by
 copying it to `/tmp` and re-running.
+
+**Windows: a rewrite fails with `ENCODING_IO` / `SERVICE_RESOURCE`
+"renaming … onto …".** Another process (or your own code) still holds
+the cohort open or mapped, and Windows refuses to replace a file in
+use. The cohort is unchanged. Close the other reader and retry. See
+[Tuning Limits](../library/tuning-limits.md#memory-mapped-reads-and-rewrites-windows).
 
 ## When in doubt: predict, then process
 

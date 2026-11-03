@@ -1518,7 +1518,9 @@ func (p *Pulse) importFile(ctx context.Context, spec ImportSpec) (*ImportResult,
 }
 
 // Drop removes a managed import handle (and its sidecar) from the pool.
-// Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown.
+// Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown, and
+// SERVICE_RESOURCE when a file cannot be deleted — on Windows, a cohort
+// another reader still holds open or maps (the sidecar then stays).
 func (p *Pulse) Drop(ctx context.Context, handle string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpDrop}, func(ctx context.Context) error {
 		return p.drop(ctx, handle)
@@ -1539,7 +1541,10 @@ func (p *Pulse) Imports(ctx context.Context) ([]ImportEntry, error) {
 // SweepImports removes every expired managed handle and returns the
 // list of swept handle names. Invoked opportunistically by ImportFile
 // and exposed here for callers that want explicit control (CLI
-// maintenance, periodic ticker, etc.).
+// maintenance, periodic ticker, etc.). An expired handle whose cohort
+// cannot be deleted — on Windows, one another reader still holds open
+// or maps — keeps its sidecar, is not listed, and is retried by the
+// next sweep.
 func (p *Pulse) SweepImports(ctx context.Context) ([]string, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpImportsSweep}, func(ctx context.Context) ([]string, error) {
 		return p.sweepImports(ctx)

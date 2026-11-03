@@ -397,6 +397,31 @@ than these four-bucket runs. The shard count does not: merged partials
 are released. Beyond the number of shards, extra shard workers sit
 idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
 
+## Memory-mapped reads and rewrites (Windows)
+
+A single-file cohort on a real directory (`Options.DataDir`,
+`PULSE_DATA_DIR`, or any `Options.FS` that resolves real paths) is read
+through a memory map on Linux, macOS, FreeBSD and Windows; elsewhere,
+and on an in-memory or custom filesystem without real paths, it is read
+whole instead. The parallel-decode arm needs the map, so `DecodeWorkers`
+fans out on Windows too. A map lasts only as long as the operation that
+took it (a `CohortReader` holds the file open until `Close`), and Pulse
+releases it before any of its own rewrites, so a rewrite right after a
+read always works.
+Shard archives are never mapped.
+
+On Windows a file that another reader still holds open or mapped cannot
+be replaced: while any process (or your own code) maps or holds open a
+cohort, `WidenSetField`, an in-place `Dedup`, a `Materialize` /
+`NewCohortBuilder` / import onto it, or a `FilterToFile` onto it fails
+with its coded rename error (`ENCODING_IO`, or `SERVICE_RESOURCE` for
+`FilterToFile`). The cohort is left byte-identical, with no temporary
+file behind, and the reader keeps reading the old bytes. Retry once the
+reader has closed. A managed-import `Drop` of such a cohort is
+`SERVICE_RESOURCE`, and the TTL sweep skips it and retries on its next
+run. On Linux and macOS these rewrites succeed under a reader, which
+keeps the old file's bytes.
+
 ## `RequestTimeout` and the caller's context
 
 `RequestTimeout` is an inner deadline in addition to the caller's ctx. It

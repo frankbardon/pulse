@@ -27,7 +27,7 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 ## Owned TODO items
 
 - [ ] **#668** Windows and macOS CI jobs: every `ci.yml` job is `runs-on: ubuntu-latest` while release ships Windows and macOS binaries by cross-compile only; run the fast tier and `make smoke` on `windows-latest` and `macos-latest`. Evidence: `.github/workflows/ci.yml` · [U77](units/U77-ci-platform.md)
-- [ ] **#669** Windows mmap: `internal/service/mmap_other.go:11` states Windows `MapViewOfFile` is "not implemented" (the non-mmap fallback is in use); implement it, or declare the fallback final and document it · [U77](units/U77-ci-platform.md)
+- [x] **#669** Windows mmap: `internal/service/mmap_other.go:11` states Windows `MapViewOfFile` is "not implemented" (the non-mmap fallback is in use); implement it, or declare the fallback final and document it. Done in U77 (E2-S1): `internal/service/mmap_windows.go` maps cohorts read-only; every atomic rewrite releases its own source first (in-place `FilterToFile` fixed); a view another reader holds makes a rewrite fail with its coded rename error, recorded in `.claude/reference/byte-layout/mmap-and-rewrites.md` · [U77](units/U77-ci-platform.md)
 - [ ] **#670** Fuzz tests on untrusted input, run in CI: request JSON decode, the expr parser, the NDJSON / JSON / Arrow / Parquet / Excel importers, full `.pulse` record read and shard-archive open (only `encoding`, `errors`, spss, csv/tsv header and arena fuzz exist; no `-fuzz` step in CI). Evidence: the eight `func Fuzz` sites · [U77](units/U77-ci-platform.md)
 - [ ] **#671** `govulncheck ./...` in `ci.yml` and as a release gate, plus the `github-actions` ecosystem in `.github/dependabot.yml` (none today) · [U77](units/U77-ci-platform.md)
 
