@@ -64,6 +64,10 @@ const (
 	FeatureDispersion = "dispersion"
 	// FeatureTheta: `theta`, a REG_GLM negative_binomial fit's θ.
 	FeatureTheta = "theta"
+	// FeatureSweepAxes: `sweep_axes`, a sweep-bound fit's (`from_sweep`)
+	// winning slot's axis values, each kept as raw JSON — what
+	// sweep_axis() reads off the loaded model.
+	FeatureSweepAxes = "sweep_axes"
 )
 
 // fileFeature is one optional model-file section: the registry entry a
@@ -131,6 +135,16 @@ var fileFeatures = []fileFeature{
 				return fmt.Sprintf("carries a theta, which only a REG_GLM negative_binomial fit has, but its family is %s", strconv.Quote(f.Family))
 			case !(f.Theta > 0 && !math.IsInf(float64(f.Theta), 1)):
 				return "has a theta that is not a finite number > 0"
+			}
+			return ""
+		},
+	},
+	{
+		name: FeatureSweepAxes, key: "sweep_axes",
+		present: func(f *File) bool { return f.SweepAxes != nil },
+		rule: func(f *File) string {
+			if len(f.SweepAxes) == 0 {
+				return "has an empty sweep_axes (a sweep has at least one axis)"
 			}
 			return ""
 		},
@@ -247,6 +261,12 @@ type File struct {
 	// non-finite float null): what the registration's Scorer reads
 	// beside the coefficients.
 	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
+	// SweepAxes (feature sweep_axes) are a sweep-bound fit's
+	// (FitSpec.FromSweep) winning slot's axis values (RankEntry.Axes),
+	// each in its JSON form — a number, string or bool reads back
+	// exactly. Present: the loaded model is sweep-bound and
+	// sweep_axis() reads these; absent: it is not (not_sweep_bound).
+	SweepAxes map[string]json.RawMessage `json:"sweep_axes,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -402,6 +422,48 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	// writer lists exactly what is present.
 	f.Features = f.presentFeatures()
 	return f, nil
+}
+
+// SetSweepAxes records a sweep-bound fit's winning axis values
+// (RankEntry.Axes) as the file's sweep_axes section, each value in its
+// JSON form (types.MarshalFinite), and re-derives the features list. A
+// nil or empty axes leaves the file as is: only a sweep-bound fit
+// carries the section.
+func (f *File) SetSweepAxes(axes map[string]any) error {
+	if len(axes) == 0 {
+		return nil
+	}
+	out := make(map[string]json.RawMessage, len(axes))
+	for k, v := range axes {
+		b, err := types.MarshalFinite(v)
+		if err != nil {
+			return errors.WrapCodedError(err, errors.PROCESSING_INTERNAL, "encoding model sweep axis "+k)
+		}
+		out[k] = json.RawMessage(b)
+	}
+	f.SweepAxes = out
+	f.Features = f.presentFeatures()
+	return nil
+}
+
+// sweepAxisValues reads the sweep_axes section back into the values
+// sweep_axis() reads: a number as a json.Number holding its exact
+// literal (SweepAxis normalizes it to float64, as it does the
+// expansion's), a string or bool as is. Nil for none; the file decode
+// already proved each value valid JSON.
+func (f *File) sweepAxisValues() map[string]any {
+	if f.SweepAxes == nil {
+		return nil
+	}
+	out := make(map[string]any, len(f.SweepAxes))
+	for k, b := range f.SweepAxes {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.UseNumber()
+		var v any
+		_ = dec.Decode(&v)
+		out[k] = v
+	}
+	return out
 }
 
 // Encode writes f as the model file's bytes: indented JSON (map keys
@@ -561,7 +623,9 @@ func (f *File) check() string {
 
 // Bind rebuilds the Bound the saved fit had, under name: the same
 // predictors, terms and figures, bit for bit. Its Result carries the
-// saved figures only (no R² or deviance).
+// saved figures only (no R² or deviance). A file carrying sweep_axes
+// binds sweep-bound (SweepBound + SweepAxes), so sweep_axis() reads the
+// saved winner's axes.
 func (f *File) Bind(name string) (*Bound, error) {
 	spec := &types.RegressionSpec{
 		Type:       f.Type,
@@ -573,7 +637,14 @@ func (f *File) Bind(name string) (*Bound, error) {
 		Selection:  f.Selection,
 		Resample:   f.Resample,
 	}
-	return Bind(name, spec, f.Result())
+	b, err := Bind(name, spec, f.Result())
+	if err != nil {
+		return nil, err
+	}
+	if f.SweepAxes != nil {
+		b.SweepBound, b.SweepAxes = true, f.sweepAxisValues()
+	}
+	return b, nil
 }
 
 // Result is the RegressionResult the file's figures describe.

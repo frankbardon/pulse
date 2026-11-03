@@ -285,6 +285,11 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			// coef() term exactly as the bound model does.
 			sig.Coefficients, sig.CoefficientsKnown = sortedKeys(files[j].Coefficients), true
 		}
+		if files[j].SweepAxes != nil {
+			// The file names the saved winner's axes, so predict judges a
+			// sweep_axis() axis exactly as the bound model does.
+			sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedKeys(files[j].SweepAxes), true
+		}
 		out[r.Name] = sig
 	}
 	return out

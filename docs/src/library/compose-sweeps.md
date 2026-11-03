@@ -235,6 +235,16 @@ failed bound fit (no winner) nulls a formula with
 `sweep_axis` is reserved: an embedder `ExprFunctions` entry of that name
 is `PULSE_EXTENSION_NAME_RESERVED`.
 
+A bound fit that `save`s keeps its winner: the model file lists feature
+`sweep_axes`, the winning slot's axis values as raw JSON (a number,
+string or bool reads back exactly). Any later request loading it with
+`models: [{name, path}]` — a slot's formula, filter, window param or
+`AGG_CONSTANT` `expr`, an `optimize` block, a `Materialize` run — reads
+those values through `sweep_axis("<name>", "<axis>")`, as the batch that
+fitted it did, and predict judges an unknown axis statically. A model
+file without `sweep_axes` (any fit not bound from a sweep) stays
+`not_sweep_bound`.
+
 ## Echo and return shaping
 
 With `Options.EchoRequest` / `--echo-request` the echo carries the

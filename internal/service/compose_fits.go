@@ -249,7 +249,7 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 			p.saveWarnings[i] = append(p.saveWarnings[i], fitWarning(w, i))
 		}
 	}
-	w, err := s.saveFitModel(ctx, i, fits[i], p.results[i])
+	w, err := s.saveFitModel(ctx, i, fits[i], p.results[i], p.winnerAxes[i])
 	if err != nil {
 		p.errs[i] = err
 		return

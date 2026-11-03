@@ -61,7 +61,7 @@ func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, 
 			p := s.modelProvenance(req)
 			prov = &p
 		}
-		overwrote, err := s.writeModel(ctx, spec.Save, name, spec, res, *prov)
+		overwrote, err := s.writeModel(ctx, spec.Save, name, spec, res, *prov, nil)
 		if err != nil {
 			return err
 		}
@@ -77,14 +77,16 @@ func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, 
 }
 
 // saveFitModel writes fit's model file (FitSpec.Save) under the fit's
-// name from its full-precision result. It returns the
+// name from its full-precision result — a sweep-bound fit's with axes,
+// its winning slot's axis values (feature sweep_axes), so the loaded
+// model reads them through sweep_axis(). It returns the
 // PULSE_MODEL_OVERWRITTEN warning (details.fit = i) when it replaced a
 // file, nil otherwise.
-func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, res *types.RegressionResult) (*types.ResponseWarning, error) {
+func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, res *types.RegressionResult, axes map[string]any) (*types.ResponseWarning, error) {
 	if fit.Save == "" {
 		return nil, nil
 	}
-	overwrote, err := s.writeModel(ctx, fit.Save, fit.Name, fit.Request.Regressions[0], res, s.modelProvenance(fit.Request))
+	overwrote, err := s.writeModel(ctx, fit.Save, fit.Name, fit.Request.Regressions[0], res, s.modelProvenance(fit.Request), axes)
 	if err != nil || !overwrote {
 		return nil, err
 	}
@@ -94,13 +96,17 @@ func (s *Service) saveFitModel(ctx context.Context, i int, fit types.FitSpec, re
 }
 
 // writeModel encodes the model file and writes it to path atomically;
-// overwrote reports whether a file was replaced.
-func (s *Service) writeModel(ctx context.Context, path, name string, spec *types.RegressionSpec, res *types.RegressionResult, prov model.Provenance) (bool, error) {
+// overwrote reports whether a file was replaced. axes are a
+// sweep-bound fit's winning axis values (nil for any other fit).
+func (s *Service) writeModel(ctx context.Context, path, name string, spec *types.RegressionSpec, res *types.RegressionResult, prov model.Provenance, axes map[string]any) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
 	f, err := model.NewFile(name, spec, res, prov)
 	if err != nil {
+		return false, err
+	}
+	if err := f.SetSweepAxes(axes); err != nil {
 		return false, err
 	}
 	data, err := f.Encode()

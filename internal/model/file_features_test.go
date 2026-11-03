@@ -30,13 +30,13 @@ func wantFeatures(t *testing.T, got *File, data []byte, want ...string) {
 	}
 }
 
-// TestModelFile_FeatureRegistry: the registry names the four sections
+// TestModelFile_FeatureRegistry: the registry names the five sections
 // in the order the writer lists them, and each governs a real document
 // key of File — the one entry a new section adds.
 func TestModelFile_FeatureRegistry(t *testing.T) {
 	t.Parallel()
 
-	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta}
+	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes}
 	if got := FileFeatures(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileFeatures() = %v, want %v", got, want)
 	}
@@ -65,46 +65,56 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 		res.Theta = 2.6694094873181985
 	}
 	hc3 := &types.RegressionCovarianceResult{Type: types.CovarianceHC3}
+	axes := map[string]any{"decay": json.Number("0.4"), "penalty": "l2", "lagged": true}
 	cases := []struct {
 		name string
 		fit  func() (*types.RegressionSpec, *types.RegressionResult)
 		want []string
+		axes map[string]any
 	}{
-		{"none", fullFit, nil},
+		{"none", fullFit, nil, nil},
 		{"robust_covariance", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance}},
+		}, []string{FeatureRobustCovariance}, nil},
 		{"dispersion", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			r.Dispersion = 1.2575235440954267
 			return s, r
-		}, []string{FeatureDispersion}},
+		}, []string{FeatureDispersion}, nil},
 		{"theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			return s, r
-		}, []string{FeatureTheta}},
+		}, []string{FeatureTheta}, nil},
 		{"robust_covariance+theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance, FeatureTheta}},
+		}, []string{FeatureRobustCovariance, FeatureTheta}, nil},
 		{"dispersion+theta", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := fullFit()
 			nb(s, r)
 			s.Theta, s.Dispersion = 1.7, types.NegBinDispersionEstimated
 			r.Theta, r.Dispersion = 1.7, 1.2832190573164217
 			return s, r
-		}, []string{FeatureDispersion, FeatureTheta}},
-		{"outputs", extResult, []string{FeatureOutputs}},
+		}, []string{FeatureDispersion, FeatureTheta}, nil},
+		{"outputs", extResult, []string{FeatureOutputs}, nil},
 		{"robust_covariance+outputs", func() (*types.RegressionSpec, *types.RegressionResult) {
 			s, r := extResult()
 			r.Covariance = hc3
 			return s, r
-		}, []string{FeatureRobustCovariance, FeatureOutputs}},
+		}, []string{FeatureRobustCovariance, FeatureOutputs}, nil},
+		{"sweep_axes", fullFit, []string{FeatureSweepAxes}, axes},
+		{"robust_covariance+theta+sweep_axes", func() (*types.RegressionSpec, *types.RegressionResult) {
+			s, r := fullFit()
+			nb(s, r)
+			r.Covariance = hc3
+			return s, r
+		}, []string{FeatureRobustCovariance, FeatureTheta, FeatureSweepAxes}, axes},
+		{"outputs+sweep_axes", extResult, []string{FeatureOutputs, FeatureSweepAxes}, axes},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -112,6 +122,9 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 			spec, res := tc.fit()
 			f, err := NewFile("m", spec, res, Provenance{Cohort: "c.pulse"})
 			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.SetSweepAxes(tc.axes); err != nil {
 				t.Fatal(err)
 			}
 			got, data := roundTrip(t, f)
@@ -134,6 +147,9 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 			loaded, err := got.Bind("m")
 			if err != nil {
 				t.Fatal(err)
+			}
+			if loaded.SweepBound != (tc.axes != nil) || !reflect.DeepEqual(loaded.SweepAxes, tc.axes) {
+				t.Errorf("sweep binding %v %v, want %v", loaded.SweepBound, loaded.SweepAxes, tc.axes)
 			}
 			if BuiltinRegression(res.Type) {
 				want, err := Bind("m", spec, res)

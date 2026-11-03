@@ -153,7 +153,7 @@ func TestComposeSweepBind_SweepFirstSchedule(t *testing.T) {
 // TestComposeSweepBind_EqualsHandWrittenFit: the bound fit's result is,
 // to the byte, an authored fit of the winning slot's body; the slot
 // scoring it reads the same figures; and its `save` writes the same
-// model file.
+// model file plus the winning axes (feature sweep_axes).
 func TestComposeSweepBind_EqualsHandWrittenFit(t *testing.T) {
 	t.Parallel()
 
@@ -179,13 +179,30 @@ func TestComposeSweepBind_EqualsHandWrittenFit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var boundDoc, handDoc map[string]json.RawMessage
+	if err := json.Unmarshal(boundFile, &boundDoc); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(handFile, &handDoc); err != nil {
+		t.Fatal(err)
+	}
+	var axes map[string]json.RawMessage
+	_ = json.Unmarshal(boundDoc["sweep_axes"], &axes)
+	if !bytes.Equal(bytes.Join(bytes.Fields(boundDoc["features"]), nil), []byte(`["sweep_axes"]`)) {
+		t.Errorf("bound file features %s, want [sweep_axes]", boundDoc["features"])
+	}
+	if len(axes) != 1 || string(axes["hi"]) != "40" {
+		t.Errorf("bound file sweep_axes %s, want {hi: 40}", boundDoc["sweep_axes"])
+	}
+	delete(boundDoc, "features")
+	delete(boundDoc, "sweep_axes")
 	for _, part := range []struct {
 		name string
 		a, b any
 	}{
 		{"fit", bound.Fits["best"], written.Fits["best"]},
 		{"scored", bound.Responses[0].Data, written.Responses[0].Data},
-		{"model file", json.RawMessage(boundFile), json.RawMessage(handFile)},
+		{"model file less sweep_axes", boundDoc, handDoc},
 	} {
 		ab, _ := json.Marshal(part.a)
 		bb, _ := json.Marshal(part.b)

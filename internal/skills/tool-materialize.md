@@ -13,7 +13,7 @@ A derived value lives only inside the request that computes it: a later request 
 
 ## Input
 
-- `request` (object, required): a request body<!-- feature: capability:process --> (the `pulse_process` shape)<!-- /feature --> with `cohort`. Only `cohort`, `label`, `features`, `filterers`, `attributes`, `windows`, `sort`, `weight`, `time_zone`, `disable_components`<!-- feature: capability:materialize_output -->, `output`<!-- /feature -->.
+- `request` (object, required): a request body<!-- feature: capability:process --> (the `pulse_process` shape)<!-- /feature --> with `cohort`. Only `cohort`, `label`, `features`, `filterers`, `attributes`, `windows`, `sort`, `weight`, `time_zone`, `disable_components`, `params`<!-- feature: capability:models -->, `models` (loaded fits for `coef()` / `sweep_axis()`)<!-- /feature --><!-- feature: capability:materialize_output -->, `output`<!-- /feature -->.
 - `out` (string; required unless `predict`): the NEW `.pulse` path, relative to the data dir.
 - `overwrite` (bool): replace an existing cohort at `out`.
 - `predict` (bool): validate only; writes nothing.
