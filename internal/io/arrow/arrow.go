@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -52,6 +53,10 @@ type Reader struct {
 	// the callback.
 	curCols []arrow.Array
 	curRow  int
+
+	// open replaces the IPC open (openFile) — a test seam for a
+	// decoder that panics; nil is the production open.
+	open func(src *bytes.Reader, size int64) (*ipc.FileReader, error)
 }
 
 // RowList implements iocore.ListAwareReader: the current row's column
@@ -91,48 +96,178 @@ func NewReaderFromBytes(data []byte) *Reader {
 	return &Reader{data: data}
 }
 
-func (r *Reader) init() error {
+func (r *Reader) init() (err error) {
 	if r.arrowSc != nil {
 		return nil
 	}
+	// The IPC decoder is third-party code handed untrusted bytes: a
+	// panic inside it is a malformed source, never a crash.
+	defer iocore.RecoverDecode("arrow", &err)
+	defer func() {
+		if err != nil {
+			r.releaseDecoded()
+		}
+	}()
 	if r.data == nil {
 		if r.fs == nil {
-			return fmt.Errorf("arrow.Reader: no data source")
+			return errors.NewCodedError(errors.DATA_FILE, "arrow.Reader: no data source")
 		}
 		data, err := afero.ReadFile(r.fs, r.path)
 		if err != nil {
-			return fmt.Errorf("arrow.Reader: reading %s: %w", r.path, err)
+			ce := iocore.SourceFileError("arrow", fmt.Sprintf("arrow.Reader: reading %s", r.path), err)
+			ce.Details["path"] = r.path
+			return ce
 		}
 		r.data = data
 	}
 
 	// bytes.Reader implements ReadAtSeeker, which is what ipc.NewFileReader
 	// requires (the file format is footer-indexed and needs random access).
-	br := bytes.NewReader(r.data)
-	fr, err := ipc.NewFileReader(br, ipc.WithAllocator(memory.NewGoAllocator()))
+	if err := preflightIPC(r.data); err != nil {
+		return iocore.SourceFileError("arrow", "arrow.Reader: refusing arrow file", err)
+	}
+	open := r.open
+	if open == nil {
+		open = openFile
+	}
+	fr, err := open(bytes.NewReader(r.data), int64(len(r.data)))
 	if err != nil {
-		return fmt.Errorf("arrow.Reader: opening arrow file: %w", err)
+		return iocore.SourceFileError("arrow", "arrow.Reader: opening arrow file", err)
 	}
 	r.fileReader = fr
-	r.arrowSc = fr.Schema()
+	sc := fr.Schema()
 
 	// Materialize all record batches into a slice. We use RecordBatchAt rather
 	// than RecordBatch because the latter releases the previously returned
 	// batch on the next call, which would invalidate every batch we cached
 	// before the last one. RecordBatchAt transfers ownership to the caller.
 	n := fr.NumRecords()
-	r.batches = make([]arrow.RecordBatch, 0, n)
+	var unbacked int64
+	r.batches = make([]arrow.RecordBatch, 0, min(n, len(r.data)))
 	for i := 0; i < n; i++ {
 		rec, err := fr.RecordBatchAt(i)
 		if err != nil {
-			return fmt.Errorf("arrow.Reader: reading batch %d: %w", i, err)
+			return iocore.SourceFileError("arrow", fmt.Sprintf("arrow.Reader: reading batch %d", i), err)
 		}
 		r.batches = append(r.batches, rec)
+		extra, err := validateBatch(rec)
+		if err != nil {
+			return iocore.SourceFileError("arrow", fmt.Sprintf("arrow.Reader: invalid batch %d", i), err)
+		}
+		if unbacked += extra; unbacked > maxUnbackedRows {
+			return iocore.SourceFileError("arrow", fmt.Sprintf(
+				"arrow.Reader: invalid batch %d: declares %d rows; %d rows or nested elements are more than its decoded buffers back (at most %d per file)",
+				i, rec.NumRows(), unbacked, maxUnbackedRows), nil)
+		}
 	}
 
+	r.arrowSc = sc
 	r.header = nil
 	r.started = false
 	return nil
+}
+
+// openFile is the production IPC open: footer-indexed random access over
+// the in-memory source, with no message body or metadata larger than the
+// source itself (a decoder sizes its buffers from the declared lengths,
+// so a crafted header must not claim more than the bytes there are).
+func openFile(src *bytes.Reader, size int64) (*ipc.FileReader, error) {
+	limit := max(size, 1)
+	return ipc.NewFileReader(src,
+		ipc.WithAllocator(memory.NewGoAllocator()),
+		ipc.WithBodySizeLimit(limit),
+		ipc.WithMetadataSizeLimit(limit),
+	)
+}
+
+// maxUnbackedRows is how many rows, across a whole file, may exceed
+// what the decoded buffers back (see validateBatch).
+const maxUnbackedRows = 1 << 16
+
+// validateBatch runs the Arrow library's own full validation over every
+// column of one decoded batch, so a crafted IPC file whose buffers
+// disagree with their declared lengths or offsets is refused here
+// rather than read out of bounds later.
+//
+// It returns how many of the batch's rows its decoded buffers do not
+// back. Every buffer-backed column spends at least one bit per row (a
+// packed boolean is the densest), so a batch whose rows outnumber
+// eight per decoded buffer byte carries rows only zero-width columns
+// (Arrow's Null type) or none at all could hold — a declared count no
+// byte backs, which the import would otherwise iterate however large.
+// The caller allows maxUnbackedRows of them per file.
+//
+// The same holds one level down: a nested child (a list's items, a
+// struct's fields, a run-end encoded array's runs) whose elements
+// outnumber eight per byte of its own buffers is backed by nothing,
+// and formatting each row walks every element (one 2 KiB file declared
+// a list<null> child of 7.2e16 items). Those elements count against
+// the same per-file allowance.
+func validateBatch(rec arrow.RecordBatch) (unbacked int64, err error) {
+	type fullValidator interface{ ValidateFull() error }
+	var bytes int64
+	for c, col := range rec.Columns() {
+		if v, ok := col.(fullValidator); ok {
+			if err := v.ValidateFull(); err != nil {
+				return 0, fmt.Errorf("column %d: %w", c, err)
+			}
+		}
+		bytes += dataBytes(col.Data())
+		for _, child := range col.Data().Children() {
+			unbacked = addSat(unbacked, unbackedElements(child))
+		}
+	}
+	return addSat(unbacked, max(rec.NumRows()-8*bytes, 0)), nil
+}
+
+// unbackedElements sums, over d and its descendants, the elements each
+// node declares beyond eight per byte of the buffers under it.
+func unbackedElements(d arrow.ArrayData) int64 {
+	n := max(int64(d.Len())-8*dataBytes(d), 0)
+	for _, c := range d.Children() {
+		n = addSat(n, unbackedElements(c))
+	}
+	return n
+}
+
+// addSat adds two non-negative counts, saturating at math.MaxInt64.
+func addSat(a, b int64) int64 {
+	if a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	return a + b
+}
+
+// dataBytes is the total buffer length of d and its children.
+func dataBytes(d arrow.ArrayData) int64 {
+	var n int64
+	for _, b := range d.Buffers() {
+		if b != nil {
+			n += int64(b.Len())
+		}
+	}
+	for _, c := range d.Children() {
+		n += dataBytes(c)
+	}
+	if d.DataType().ID() == arrow.DICTIONARY {
+		if dict := d.Dictionary(); dict != nil {
+			n += dataBytes(dict)
+		}
+	}
+	return n
+}
+
+// releaseDecoded drops whatever a failed init had already decoded.
+func (r *Reader) releaseDecoded() {
+	for _, b := range r.batches {
+		b.Release()
+	}
+	r.batches = nil
+	if r.fileReader != nil {
+		_ = r.fileReader.Close()
+		r.fileReader = nil
+	}
+	r.arrowSc = nil
 }
 
 // ReadHeader returns column names from the Arrow schema.
@@ -170,10 +305,22 @@ func (r *Reader) ReadHeader() ([]string, error) {
 // The top-level "overlays" sidecar column (when present) is filtered
 // from the row tuple — host-data row consumers see only the host
 // columns. Use ReadOverlays to extract the embedded overlay layers.
-func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) error {
+func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) (err error) {
 	if err := r.init(); err != nil {
 		return err
 	}
+	// Reading a cell is Arrow library code over decoded source buffers;
+	// a panic there is a malformed source. A panic inside fn is the
+	// caller's own and propagates unchanged.
+	var inCallback bool
+	defer func() {
+		if rec := recover(); rec != nil {
+			if inCallback {
+				panic(rec)
+			}
+			err = iocore.DecodePanicError("arrow", rec)
+		}
+	}()
 	if !r.started {
 		if _, err := r.ReadHeader(); err != nil {
 			return err
@@ -241,7 +388,10 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 			}
 
 			r.curCols, r.curRow = cols, i
-			if err := fn(row); err != nil {
+			inCallback = true
+			err := fn(row)
+			inCallback = false
+			if err != nil {
 				if err == iocore.ErrStopIteration() {
 					return nil
 				}
@@ -271,10 +421,11 @@ type timestampCol struct {
 // first non-empty list element across the first record-batch; the
 // canonical writer emits the populated list in row 0 of batch 0 (§ 3.2
 // "emit once" optimisation), so this scan terminates on the first row.
-func (r *Reader) ReadOverlays() ([]*types.OverlayLayer, error) {
+func (r *Reader) ReadOverlays() (layers []*types.OverlayLayer, err error) {
 	if err := r.init(); err != nil {
 		return nil, err
 	}
+	defer iocore.RecoverDecode("arrow", &err)
 	overlayFieldIdx := -1
 	for c := 0; c < r.arrowSc.NumFields(); c++ {
 		if r.arrowSc.Field(c).Name == OverlaysFieldName {

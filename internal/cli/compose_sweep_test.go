@@ -25,8 +25,8 @@ func sweepCLIFixture(t *testing.T) (dir string, write func(name, body string) st
 		}
 		return path
 	}
-	slot := `{"cohort":{"filename":"` + cohort + `"},"groups":[{"type":"GROUP_CATEGORY","field":"cat"}],"aggregations":[{"type":"AGG_SUM","field":"n","label":"t"}]}`
-	body := `{"cohort":{"filename":"` + cohort + `"},"groups":[{"type":"GROUP_CATEGORY","field":"cat"}],"aggregations":[{"type":"{{op}}","field":"n","label":"t"}]}`
+	slot := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"groups":[{"type":"GROUP_CATEGORY","field":"cat"}],"aggregations":[{"type":"AGG_SUM","field":"n","label":"t"}]}`
+	body := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"groups":[{"type":"GROUP_CATEGORY","field":"cat"}],"aggregations":[{"type":"{{op}}","field":"n","label":"t"}]}`
 	composed = `{"requests":[` + slot + `],"sweep":{"axes":[{"name":"op","values":["AGG_SUM","AGG_MAX","AGG_MIN"]}],"request":` + body + `}}`
 	return dir, write, composed
 }
@@ -268,7 +268,7 @@ func TestAPICompose_SampledSweepSeedSurfaces(t *testing.T) {
 	cohort := grid[strings.Index(grid, `"filename":"`)+len(`"filename":"`):]
 	cohort = cohort[:strings.Index(cohort, `"`)]
 	sampled := `{"sweep":{"mode":"random","samples":3,"rng_seed":21,"axes":[{"name":"cut","range":{"min":0,"max":4}}],
-		"request":{"cohort":{"filename":"` + cohort + `"},"params":{"cut":{"$var":"cut"}},
+		"request":{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"params":{"cut":{"$var":"cut"}},
 		"filterers":[{"type":"FILTER_EXPRESSION","expression":"n > params.cut"}],
 		"aggregations":[{"type":"AGG_COUNT","field":"n","label":"c"}]},"rank":{"by":"components.aggregations.c.n"}}}`
 	path := write("sampled.json", sampled)

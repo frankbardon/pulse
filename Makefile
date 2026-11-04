@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -65,6 +65,26 @@ test-heavy:
 # hand-run `go mod tidy` in the nested module.
 smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
+
+# vulncheck runs govulncheck in default (symbol) mode over the root
+# module, once per shipped GOOS family: linux (the unix code paths) and
+# windows. A finding is reachable only if the call graph reaches it, so
+# each GOOS needs its own pass. ./... never descends into the nested
+# internal/embeddersmoke module. GOVULNCHECK_VERSION is the ONE pin: the
+# ci.yml `vulncheck` job runs this target, so CI and local agree. Bump it
+# deliberately, never to `latest`. Needs network (vuln.go.dev). Stdlib
+# findings are judged against the running toolchain: CI's floating
+# "1.26" patch, locally whatever `go version` reports.
+# The binary is installed for the HOST (into bin/tools/<version>/) and
+# only its scan gets GOOS: `GOOS=windows go run` would build a Windows
+# executable the host cannot exec.
+GOVULNCHECK_VERSION ?= v1.9.0
+GOVULNCHECK_BIN=$(CURDIR)/$(BUILD_DIR)/tools/$(GOVULNCHECK_VERSION)
+
+vulncheck:
+	GOBIN="$(GOVULNCHECK_BIN)" GOOS= GOARCH= $(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	GOOS=linux "$(GOVULNCHECK_BIN)/govulncheck" ./...
+	GOOS=windows "$(GOVULNCHECK_BIN)/govulncheck" ./...
 
 # STATICCHECK_VERSION pins the staticcheck module version; CI resolves
 # `latest` once per job and passes it in, so the merged runs share a version.

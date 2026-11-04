@@ -35,7 +35,7 @@ const exportReadBufferSize = 64 << 10
 // it reports its own count and raises its own errors.
 func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	if j.FS == nil {
-		return nil, fmt.Errorf("ExportJob.FS is required")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "ExportJob.FS is required")
 	}
 
 	// A single-file cohort or a whole shard archive: the archive reads
@@ -582,7 +582,7 @@ func countTrue(bs []bool) int {
 // means no schema-level refusal was found, never that the export cannot fail.
 func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if j.FS == nil {
-		return nil, fmt.Errorf("ExportJob.FS is required")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "ExportJob.FS is required")
 	}
 
 	// The same dispatch Run makes: a shard archive predicts as its

@@ -21,7 +21,7 @@ func TestFormulaCompileError_Envelope(t *testing.T) {
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
 	cohort := createTestPulseFile(t, dir)
 	req := filepath.Join(dir, "req.json")
-	body := `{"cohort":{"filename":"` + cohort + `"},"filterers":[{"type":"FILTER_EXPRESSION","expression":"age >"}],` +
+	body := `{"cohort":{"filename":"` + jsonEsc(cohort) + `"},"filterers":[{"type":"FILTER_EXPRESSION","expression":"age >"}],` +
 		`"aggregations":[{"type":"AGG_COUNT","field":"age"}]}`
 	if err := os.WriteFile(req, []byte(body), 0o644); err != nil {
 		t.Fatal(err)

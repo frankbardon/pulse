@@ -104,6 +104,7 @@ func HasHeading(md, heading string) bool {
 // md unchanged when it does not begin with one. The budget gates measure
 // what it returns.
 func StripFrontmatter(md string) string {
+	md = NormalizeNewlines(md)
 	if !strings.HasPrefix(md, "---\n") {
 		return md
 	}

@@ -7,8 +7,15 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 
+	"github.com/frankbardon/pulse/internal/iocore"
 	"github.com/frankbardon/pulse/types"
 )
+
+// overlayLayoutError codes an embedded "overlays" column whose shape or
+// JSON is not the one the writer emits: the source's layout is invalid.
+func overlayLayoutError(msg string, cause error) error {
+	return iocore.SourceFileError("arrow", msg, cause)
+}
 
 // JSONMarshalOverlay centralises encoding/json marshalling of overlay
 // sub-payloads (Ref / Payload / Summary) so the Writer path and the
@@ -108,7 +115,7 @@ func ReadOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
 	}
 	la, ok := listArr.(*array.List)
 	if !ok {
-		return nil, fmt.Errorf("arrow.overlay: expected list array, got %T", listArr)
+		return nil, overlayLayoutError(fmt.Sprintf("arrow.overlay: expected list array, got %T", listArr), nil)
 	}
 	if la.Len() == 0 {
 		return nil, nil
@@ -117,7 +124,10 @@ func ReadOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
 	values := la.ListValues()
 	structArr, ok := values.(*array.Struct)
 	if !ok {
-		return nil, fmt.Errorf("arrow.overlay: expected struct values, got %T", values)
+		return nil, overlayLayoutError(fmt.Sprintf("arrow.overlay: expected struct values, got %T", values), nil)
+	}
+	if err := checkOverlayStruct(structArr); err != nil {
+		return nil, err
 	}
 
 	// Walk each row's list element; return the first non-empty list.
@@ -148,6 +158,23 @@ func ReadOverlaysFromArray(listArr arrow.Array) ([]*types.OverlayLayer, error) {
 	return nil, nil
 }
 
+// overlayStructFields is the field count of OverlaysFieldType's struct.
+const overlayStructFields = 7
+
+// checkOverlayStruct refuses an overlay struct array that does not
+// carry the seven string fields decodeOverlayStruct reads.
+func checkOverlayStruct(s *array.Struct) error {
+	if s.NumField() != overlayStructFields {
+		return overlayLayoutError(fmt.Sprintf("arrow.overlay: overlay struct has %d fields, want %d", s.NumField(), overlayStructFields), nil)
+	}
+	for f := 0; f < overlayStructFields; f++ {
+		if _, ok := s.Field(f).(*array.String); !ok {
+			return overlayLayoutError(fmt.Sprintf("arrow.overlay: overlay struct field %d is %T, want a string array", f, s.Field(f)), nil)
+		}
+	}
+	return nil
+}
+
 // decodeOverlayStruct rebuilds one OverlayLayer from row i of the
 // overlay struct array. Mirrors the field order in OverlaysFieldType.
 func decodeOverlayStruct(s *array.Struct, i int) (*types.OverlayLayer, error) {
@@ -166,12 +193,12 @@ func decodeOverlayStruct(s *array.Struct, i int) (*types.OverlayLayer, error) {
 	}
 	if !refCol.IsNull(i) {
 		if err := json.Unmarshal([]byte(refCol.Value(i)), &layer.Ref); err != nil {
-			return nil, fmt.Errorf("arrow.overlay: unmarshal ref: %w", err)
+			return nil, overlayLayoutError("arrow.overlay: unmarshal ref", err)
 		}
 	}
 	if !payloadCol.IsNull(i) {
 		if err := json.Unmarshal([]byte(payloadCol.Value(i)), &layer.Payload); err != nil {
-			return nil, fmt.Errorf("arrow.overlay: unmarshal payload: %w", err)
+			return nil, overlayLayoutError("arrow.overlay: unmarshal payload", err)
 		}
 	}
 	// Defensive: ensure Payload.Shape matches the inline discriminator
@@ -180,7 +207,7 @@ func decodeOverlayStruct(s *array.Struct, i int) (*types.OverlayLayer, error) {
 	if !summaryCol.IsNull(i) {
 		var sum types.OverlaySummary
 		if err := json.Unmarshal([]byte(summaryCol.Value(i)), &sum); err != nil {
-			return nil, fmt.Errorf("arrow.overlay: unmarshal summary: %w", err)
+			return nil, overlayLayoutError("arrow.overlay: unmarshal summary", err)
 		}
 		layer.Summary = &sum
 	}

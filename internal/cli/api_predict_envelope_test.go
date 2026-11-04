@@ -74,8 +74,11 @@ func TestAPIPredict_ReadsCohortThroughFacadePath(t *testing.T) {
 		}
 	}
 
+	// An unopenable cohort is the facade's coded DATA_FILE (the predict
+	// roots' code), carried as its own code — never the PREDICT_ERROR
+	// placeholder an uncoded fault falls back to.
 	env, raw := run(filepath.Join(dir, "nope.pulse"))
-	if len(env.Errors) != 1 || env.Errors[0].Code != "PREDICT_ERROR" {
-		t.Errorf("missing cohort: want one PREDICT_ERROR, got\n%s", raw)
+	if len(env.Errors) != 1 || env.Errors[0].Code != "DATA_FILE" {
+		t.Errorf("missing cohort: want one DATA_FILE, got\n%s", raw)
 	}
 }

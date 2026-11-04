@@ -176,7 +176,7 @@ func streamEnd(ctx context.Context, end func(error)) func(error) {
 
 func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(error)) (StreamResult[Row], error) {
 	if req == nil {
-		return StreamResult[Row]{}, errors.New("pulse: nil request")
+		return StreamResult[Row]{}, argumentError("pulse: nil request")
 	}
 	ctx, release := p.svc.BoundRequest(ctx)
 	estimated := int64(-1)
@@ -363,7 +363,7 @@ func (p *Pulse) SynthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 
 func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions, end func(error)) (StreamResult[Row], error) {
 	if spec == nil {
-		return StreamResult[Row]{}, errors.New("pulse: nil synth spec")
+		return StreamResult[Row]{}, argumentError("pulse: nil synth spec")
 	}
 
 	chunks := make(chan StreamChunk[Row], streamBuffer)

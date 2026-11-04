@@ -402,7 +402,7 @@ func TestCountingFs_OsFs_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
-		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on builds carrying mmapFileBytes (mmapSupportedOS: unix + windows), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -499,7 +499,7 @@ func TestCountingFs_BasePathFs_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
-		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on builds carrying mmapFileBytes (mmapSupportedOS: unix + windows), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -554,7 +554,7 @@ func TestCountingFs_RealPatherStub_MmapEngagesZeroReadFile(t *testing.T) {
 	t.Parallel()
 
 	if !mmapSupportedOS() {
-		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on builds carrying mmapFileBytes (mmapSupportedOS: unix + windows), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s", runtime.GOOS)
 	}
 	dir := t.TempDir()
@@ -616,7 +616,7 @@ func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
 		// MemMapFs always works, but to compare against the OsFs / mmap
 		// shapes we need a kernel that supports mmap. Skip gracefully on
 		// Windows.
-		// skip-audit(#675): kept — platform skip: the mmap path exists only on darwin / linux / freebsd (mmapSupportedOS), so the assertion is not applicable elsewhere
+		// skip-audit(#675): kept — platform skip: the mmap path exists only on builds carrying mmapFileBytes (mmapSupportedOS: unix + windows), so the assertion is not applicable elsewhere
 		t.Skipf("mmap unsupported on %s — cross-shape byte-equality is mmap-conditional", runtime.GOOS)
 	}
 
@@ -679,16 +679,10 @@ func TestCountingFs_ProcessOutputByteEqualAcrossFsShapes(t *testing.T) {
 	}
 }
 
-// mmapSupportedOS reports whether the running kernel supports the
-// mmapFileBytes fast path. Matches the build-tag set in mmap_unix.go.
-func mmapSupportedOS() bool {
-	switch runtime.GOOS {
-	case "darwin", "linux", "freebsd":
-		return true
-	default:
-		return false
-	}
-}
+// mmapSupportedOS reports whether this build carries the mmapFileBytes
+// fast path: the build-tagged mmapSupported constant (mmap_unix.go,
+// mmap_windows.go, mmap_other.go), never a GOOS list of its own.
+func mmapSupportedOS() bool { return mmapSupported }
 
 // mustReadSchema is a tiny helper for the direct-iterator paths that
 // need a schema without going through Service.Open's full path. We

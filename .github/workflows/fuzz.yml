@@ -1,0 +1,123 @@
+name: Fuzz
+
+# Live fuzzing of every fuzz target in the module: weekly, and on demand
+# (`gh workflow run fuzz.yml --ref <branch> [-f fuzztime=2m]`). Advisory:
+# not a required check, never part of ci.yml, so a crasher it finds never
+# blocks a merge by itself — it is triaged and fixed like any bug, with
+# the crasher committed under the package's testdata/fuzz/<Target>/ as the
+# regression entry (docs/src/contributing/local-ci.md, "Fuzzing").
+#
+# One matrix leg per target. `citest fuzz-check` (TestRepoFuzzMatrix_InSync,
+# fast tier) fails when a `func FuzzXxx` has no leg or a leg names no
+# target, so a new target cannot be left out. Keep each leg on one line in
+# the `- { pkg: "./dir", target: FuzzXxx }` form the check parses.
+on:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: "go test -fuzztime per target (e.g. 10m, 2m, 50000x)"
+        required: false
+        default: "10m"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pkg: ".", target: FuzzCohortRead }
+          - { pkg: ".", target: FuzzRequestDecode }
+          - { pkg: ".", target: FuzzShardArchiveOpen }
+          - { pkg: "./encoding", target: FuzzCategoricalDictionary }
+          - { pkg: "./encoding", target: FuzzDynamicSchemaReader }
+          - { pkg: "./encoding", target: FuzzPulseFileHeader }
+          - { pkg: "./errors", target: FuzzParseCode }
+          - { pkg: "./internal/io/arrow", target: FuzzArrowImport }
+          - { pkg: "./internal/io/csv", target: FuzzCsvHeaderParse }
+          - { pkg: "./internal/io/excel", target: FuzzExcelImport }
+          - { pkg: "./internal/io/jsonarray", target: FuzzJSONArrayImport }
+          - { pkg: "./internal/io/jsonshared", target: FuzzJSONSharedImport }
+          - { pkg: "./internal/io/ndjson", target: FuzzNDJSONImport }
+          - { pkg: "./internal/io/parquet", target: FuzzParquetImport }
+          - { pkg: "./internal/io/spss", target: FuzzParseDictionary }
+          - { pkg: "./internal/io/spss", target: FuzzReadRows }
+          - { pkg: "./internal/io/tsv", target: FuzzTsvHeaderParse }
+          - { pkg: "./internal/processing", target: FuzzExprParse }
+          - { pkg: "./internal/processing/arena", target: FuzzArena_AllocResetIntegrity }
+    env:
+      PKG: ${{ matrix.pkg }}
+      TARGET: ${{ matrix.target }}
+      # A scheduled run has no inputs: it takes the 10m default.
+      FUZZTIME: ${{ inputs.fuzztime || '10m' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: |
+            go.sum
+            .github/workflows/fuzz.yml
+
+      - name: Check fuzztime
+        run: |
+          if ! [[ "$FUZZTIME" =~ ^[0-9]+(s|m|h|x)$ ]]; then
+            echo "::error::fuzztime must look like 10m, 90s, 1h or 50000x; got '$FUZZTIME'"
+            exit 1
+          fi
+
+      # -run '^$' skips the package's ordinary tests (CI runs those).
+      # -fuzzminimizetime 20x: the default 60 s minimization of every new
+      # interesting input stalls the workers on a slow target; 20 runs keep
+      # a crasher small enough to read. -timeout 0: -fuzztime bounds the
+      # run, and the fuzz engine flags a hung input on its own.
+      - name: go test -fuzz
+        run: |
+          go test -run '^$' -fuzz "^${TARGET}\$" -fuzztime "$FUZZTIME" \
+            -fuzzminimizetime 20x -timeout 0 "$PKG"
+
+      # A failing input is written to $PKG/testdata/fuzz/$TARGET/<id>,
+      # beside the committed corpus; only the untracked files are new.
+      - name: Collect crashers
+        if: failure()
+        run: |
+          dir="$PKG/testdata/fuzz/$TARGET"
+          out="$RUNNER_TEMP/crashers/$TARGET"
+          mkdir -p "$out"
+          git ls-files --others --exclude-standard -- "$dir" > "$RUNNER_TEMP/new.txt"
+          {
+            echo "## $TARGET found a failing input"
+            echo
+            if [ -s "$RUNNER_TEMP/new.txt" ]; then
+              echo "Download the \`fuzz-crashers-$TARGET\` artifact, copy each file into \`$dir/\`, then reproduce:"
+              echo
+              echo '```sh'
+              while read -r f; do
+                cp "$f" "$out/"
+                echo "go test -run='^$TARGET/$(basename "$f")\$' $PKG"
+              done < "$RUNNER_TEMP/new.txt"
+              echo '```'
+              echo
+              echo "Fix the fault and commit the file under \`$dir/\` as its regression entry."
+            else
+              echo "No new corpus file was written (a build or setup failure, or a crash outside the fuzz function); see the job log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload crashers
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crashers-${{ matrix.target }}
+          path: ${{ runner.temp }}/crashers/${{ matrix.target }}
+          if-no-files-found: ignore
+          retention-days: 30

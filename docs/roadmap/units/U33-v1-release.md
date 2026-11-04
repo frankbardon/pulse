@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684]
 branch: v1-release
 ---
 
@@ -180,4 +180,10 @@ Filed from [U38 handed on](U38-skill-sync.md#handed-on); tick in [`TODO.md`](../
 Filed from [U37 handed on](U37-shell-completion.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze.
-- [ ] **#508** — **Completion candidates containing `:` are split by the shell scripts.** Escape per shell in `writeCandidates` or document it in `completion.md`.
+- [x] **#508** — **Completion candidates containing `:` are split by the shell scripts.** Escape per shell in `writeCandidates` or document it in `completion.md`. *Done in U77 (E1-S2): escaped candidates, bash / fish scripts patched, documented in `completion.md`.*
+
+## Inherited from U77
+
+Filed from [U77 handed on](U77-ci-platform.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#684** — **Path messages quote with `%q`.** On Windows every backslash of a path in an error or warning message reads doubled (`"C:\\Users\\…"`). Sweep the ~137 engine sites to one path-quoting helper (Unix output unchanged) and repoint the four tests that match `strconv.Quote(path)`.

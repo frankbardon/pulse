@@ -46,14 +46,14 @@ func loadLookupTablesFromDir(opts *Options) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("pulse: lookup tables dir %q: %w", dir, err)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %q", dir), err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("pulse: lookup tables dir %q is not a directory", dir)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %q is not a directory", dir), nil)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("pulse: reading lookup tables dir %q: %w", dir, err)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: reading lookup tables dir %q", dir), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -75,7 +75,7 @@ func loadLookupTablesFromDir(opts *Options) error {
 		path := filepath.Join(dir, name)
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("pulse: reading lookup table %s: %w", path, err)
+			return tableFileError("lookup_table", path, "pulse: reading lookup table "+path, err)
 		}
 		tbl, err := ParseLookupTableFile(tableName, raw)
 		if err != nil {
@@ -99,7 +99,7 @@ func loadLookupTablesFromDir(opts *Options) error {
 func lookupFileErrorAtPath(err error, path string) error {
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) {
-		return fmt.Errorf("pulse: parsing lookup table %s: %w", path, err)
+		return tableFileError("lookup_table", path, "pulse: parsing lookup table "+path, err)
 	}
 	details := make(map[string]any, len(ce.Details)+1)
 	for k, v := range ce.Details {

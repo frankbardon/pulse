@@ -774,19 +774,19 @@ func New(opts Options) (*Pulse, error) {
 		// Custom FS provided: use it directly.
 		fsCfg, err = fs.New(fs.WithFs(opts.FS))
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	} else if opts.DataDir != "" {
 		// Explicit data directory.
 		fsCfg, err = fs.New(fs.WithDataDir(opts.DataDir))
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	} else {
 		// Fall back to environment defaults.
 		fsCfg, err = fs.Default()
 		if err != nil {
-			return nil, fmt.Errorf("pulse: configuring filesystem: %w", err)
+			return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring filesystem", nil, err)
 		}
 	}
 
@@ -805,10 +805,10 @@ func New(opts Options) (*Pulse, error) {
 	visibleExt := withoutHiddenExtensions(opts.Extensions, featureSet)
 
 	if opts.ShardWorkers < 0 {
-		return nil, fmt.Errorf("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
+		return nil, argumentError("pulse: ShardWorkers must be >= 0 (0 means runtime.NumCPU(), 1 forces serial)")
 	}
 	if opts.DecodeWorkers < 0 {
-		return nil, fmt.Errorf("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
+		return nil, argumentError("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
 	effectiveLimits, err := resolveLimits(opts, featureProfile)
 	if err != nil {
@@ -892,7 +892,7 @@ func New(opts Options) (*Pulse, error) {
 		Logger:                    opts.Logger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("pulse: configuring imports manager: %w", err)
+		return nil, keepCodedOr(errors.SERVICE_VALIDATION, "pulse: configuring imports manager", nil, err)
 	}
 	templates.SetLogger(opts.Logger)
 
@@ -1016,6 +1016,9 @@ func (p *Pulse) Process(ctx context.Context, req *Request) (*Response, error) {
 }
 
 func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
+	if req == nil {
+		return nil, argumentError("pulse: process requires a request")
+	}
 	resp, err := p.svc.Process(ctx, req)
 	if err == nil && req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
@@ -1339,6 +1342,9 @@ func (p *Pulse) Import(ctx context.Context, job *pio.ImportJob) (*pio.ImportRepo
 }
 
 func (p *Pulse) importJob(ctx context.Context, job *pio.ImportJob) (*pio.ImportReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: import requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1365,6 +1371,9 @@ func (p *Pulse) Export(ctx context.Context, job *pio.ExportJob) (*pio.ExportRepo
 }
 
 func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: export requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1406,6 +1415,9 @@ func (p *Pulse) PredictExport(ctx context.Context, job *pio.ExportJob) (*pio.Pre
 }
 
 func (p *Pulse) predictExport(ctx context.Context, job *pio.ExportJob) (*pio.PredictReport, error) {
+	if job == nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict export requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1435,6 +1447,9 @@ func (p *Pulse) ExportTransfer(ctx context.Context, job *pio.TransferExportJob) 
 }
 
 func (p *Pulse) exportTransfer(ctx context.Context, job *pio.TransferExportJob) (*pio.TransferReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: export transfer requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1453,6 +1468,9 @@ func (p *Pulse) ImportTransfer(ctx context.Context, job *pio.TransferImportJob) 
 }
 
 func (p *Pulse) importTransfer(ctx context.Context, job *pio.TransferImportJob) (*pio.TransferReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: import transfer requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1474,6 +1492,9 @@ func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 }
 
 func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: convert requires a job")
+	}
 	if job.FS == nil {
 		job.FS = p.fsys
 	}
@@ -1521,7 +1542,9 @@ func (p *Pulse) importFile(ctx context.Context, spec ImportSpec) (*ImportResult,
 }
 
 // Drop removes a managed import handle (and its sidecar) from the pool.
-// Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown.
+// Returns PULSE_IMPORT_SOURCE_MISSING when the handle is unknown, and
+// SERVICE_RESOURCE when a file cannot be deleted — on Windows, a cohort
+// another reader still holds open or maps (the sidecar then stays).
 func (p *Pulse) Drop(ctx context.Context, handle string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpDrop}, func(ctx context.Context) error {
 		return p.drop(ctx, handle)
@@ -1542,7 +1565,10 @@ func (p *Pulse) Imports(ctx context.Context) ([]ImportEntry, error) {
 // SweepImports removes every expired managed handle and returns the
 // list of swept handle names. Invoked opportunistically by ImportFile
 // and exposed here for callers that want explicit control (CLI
-// maintenance, periodic ticker, etc.).
+// maintenance, periodic ticker, etc.). An expired handle whose cohort
+// cannot be deleted — on Windows, one another reader still holds open
+// or maps — keeps its sidecar, is not listed, and is retried by the
+// next sweep.
 func (p *Pulse) SweepImports(ctx context.Context) ([]string, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpImportsSweep}, func(ctx context.Context) ([]string, error) {
 		return p.sweepImports(ctx)
@@ -1589,11 +1615,11 @@ func (p *Pulse) inspect(ctx context.Context, path string) (*descriptor.InspectRe
 		return nil, err
 	}
 	if len(env.Errors) > 0 {
-		return nil, fmt.Errorf("pulse: inspect: %s", env.Errors[0].Message)
+		return nil, envelopeEntryError("pulse: inspect", env.Errors[0])
 	}
 	result, ok := env.Data.(*descriptor.InspectResult)
 	if !ok {
-		return nil, fmt.Errorf("pulse: inspect returned unexpected type")
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "pulse: inspect returned unexpected type")
 	}
 	return result, nil
 }
@@ -1635,7 +1661,7 @@ func (p *Pulse) inspectEnvelope(ctx context.Context, path string, opts *descript
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: inspect anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for inspect: %w", err)
+		return nil, cohortOpenError("pulse: reading file for inspect", path, err)
 	}
 	defer src.close()
 
@@ -1668,8 +1694,11 @@ func (p *Pulse) Predict(ctx context.Context, req *Request) (*descriptor.PredictR
 }
 
 func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictResult, error) {
+	if req == nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
+	}
 	if req.Cohort == nil {
-		return nil, fmt.Errorf("pulse: predict requires a cohort")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
 
 	path := resolveCohortPath(req.Cohort)
@@ -1685,7 +1714,7 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+		return nil, cohortOpenError("pulse: reading file for predict", path, err)
 	}
 	defer src.close()
 
@@ -1701,12 +1730,12 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 			p.touchManaged(ctx, path)
 			return result, nil
 		}
-		return nil, fmt.Errorf("pulse: predict: %s", env.Errors[0].Message)
+		return nil, envelopeEntryError("pulse: predict", env.Errors[0])
 	}
 
 	result, ok := env.Data.(*descriptor.PredictResult)
 	if !ok {
-		return nil, fmt.Errorf("pulse: predict returned unexpected type")
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "pulse: predict returned unexpected type")
 	}
 	p.touchManaged(ctx, path)
 	return result, nil
@@ -1744,10 +1773,10 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 		return nil, err
 	}
 	if req == nil {
-		return nil, fmt.Errorf("pulse: predict requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
 	if req.Cohort == nil {
-		return nil, fmt.Errorf("pulse: predict requires a cohort")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
 	path := resolveCohortPath(req.Cohort)
 	src, err := p.openCohortSource(path)
@@ -1755,7 +1784,7 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 		if af, ok := asAnchorFault(err); ok {
 			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
 		}
-		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+		return nil, cohortOpenError("pulse: reading file for predict", path, err)
 	}
 	defer src.close()
 
@@ -1821,7 +1850,7 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		return nil, err
 	}
 	if req == nil {
-		return nil, fmt.Errorf("pulse: predict requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
 	return descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{
 		Strict:                p.svc.Strict(),
@@ -1963,10 +1992,10 @@ func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 
 func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: sample request is required")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request is required")
 	}
 	if req.Cohort == nil || req.Cohort.Filename == "" {
-		return nil, fmt.Errorf("pulse: sample request requires Cohort.Filename")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
 	}
 	path := req.Cohort.Filename
 	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
@@ -2198,6 +2227,9 @@ func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts 
 }
 
 func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
+	if spec == nil {
+		return nil, argumentError("pulse: synth requires a spec")
+	}
 	// A supplied fidelity model is refit on the source BEFORE generation:
 	// a request the engine refuses fails the call with its own code and
 	// nothing is written. See fidelityModelRefit.
@@ -2282,7 +2314,7 @@ func (p *Pulse) FacetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 
 func (p *Pulse) facetSchema(ctx context.Context, req *FacetRequest) (*FacetResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: facet schema requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: facet schema requires a request")
 	}
 	resp, err := p.svc.FacetSchema(ctx, req)
 	if err == nil && req.Cohort != nil {
@@ -2338,7 +2370,7 @@ func (p *Pulse) Lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 
 func (p *Pulse) lookup(ctx context.Context, req *LookupRequest) (*LookupResult, error) {
 	if req == nil {
-		return nil, fmt.Errorf("pulse: lookup requires a request")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: lookup requires a request")
 	}
 	resp, err := p.svc.Lookup(ctx, req)
 	if err == nil && req.Cohort != nil {

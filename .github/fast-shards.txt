@@ -1,0 +1,20 @@
+# Fast-tier CI shards for the Windows legs: one `<shard> <package>` line
+# per PINNED package. ci.yml runs each shard as one `test-windows (<shard>)`
+# job; every shard id here must be in its `fast-shard:` matrix. A package
+# this file does not name goes to the shard holding the fewest packages so
+# far (sorted order, ties to the lowest id), so every package of ./... runs
+# in exactly one shard and a new package needs no line. Pin a package only
+# to rebalance. List the split with `go run ./internal/tools/citest
+# fast-list`; run one shard as CI does with `fast-run <shard> -count=1`.
+#
+# Balance (E1-S3): a cold Windows runner (4 vCPU) spends most of a shard
+# compiling and linking test binaries, so the package COUNT drives the
+# wall, plus the long poles below (Windows fast-tier run time, warm: the
+# root package 41 s, ./internal/integration 59 s, ./internal/service 47 s,
+# ./internal/cli 26 s). The four long poles are pinned two per shard;
+# everything else splits by count.
+
+1 .
+1 ./internal/service
+2 ./internal/integration
+2 ./internal/cli

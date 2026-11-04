@@ -2,10 +2,10 @@ package io
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
@@ -57,14 +57,23 @@ func (c *CohortRecords) Close() error {
 	return err
 }
 
+// readingPulseFileError is an unopenable (or unsizable) cohort: DATA_FILE,
+// message "reading pulse file: <fs error>" (export's historical text),
+// details.path, the fs error kept as Cause.
+func readingPulseFileError(path string, err error) *errors.CodedError {
+	ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE, "reading pulse file: "+err.Error(), map[string]any{"path": path})
+	ce.Cause = err
+	return ce
+}
+
 // OpenCohortRecords opens path on fsys for a sequential record pass.
-// An unopenable path is the plain "reading pulse file" error export has
-// always returned; header, schema and archive faults keep their own
+// An unopenable path is DATA_FILE "reading pulse file: ..."
+// (readingPulseFileError); header, schema and archive faults keep their own
 // codes (ENCODING_INVALID, PULSE_COHORT_COMPRESSED, the PULSE_ARCHIVE_*
 // / PULSE_SHARD_* codes). The caller owns Close.
 //
 // An anchored path opens its ARCHIVE: the reserved entry is refused
-// before the archive is opened, an unopenable archive is the same plain
+// before the archive is opened, an unopenable archive is the same DATA_FILE
 // "reading pulse file" error, and the rest are encx.OpenArchiveEntryRecords'
 // refusals (PULSE_ARCHIVE_MAGIC_INVALID for a single file,
 // PULSE_SHARD_MISSING + details.entry for an unknown entry).
@@ -78,7 +87,7 @@ func OpenCohortRecords(fsys afero.Fs, path string) (*CohortRecords, error) {
 	}
 	f, err := fsys.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading pulse file: %w", err)
+		return nil, readingPulseFileError(path, err)
 	}
 	var c *CohortRecords
 	if anchored {
@@ -97,7 +106,7 @@ func OpenCohortRecords(fsys afero.Fs, path string) (*CohortRecords, error) {
 func anchoredRecordsFromFile(f afero.File, entry string) (*CohortRecords, error) {
 	st, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("reading pulse file: %w", err)
+		return nil, readingPulseFileError(f.Name(), err)
 	}
 	ar, err := encx.OpenArchiveEntryRecords(f, st.Size(), entry)
 	if err != nil {
@@ -116,7 +125,7 @@ func anchoredRecordsFromFile(f afero.File, entry string) (*CohortRecords, error)
 func cohortRecordsFromFile(f afero.File) (*CohortRecords, error) {
 	st, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("reading pulse file: %w", err)
+		return nil, readingPulseFileError(f.Name(), err)
 	}
 	size := st.Size()
 	isArch, err := encx.IsArchive(f, size)

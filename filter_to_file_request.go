@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -119,7 +118,9 @@ type FilterToFileResult struct {
 //     engine produces byte-identical output for identical inputs.
 //   - The output is written via atomic rename: a temp file is staged
 //     in OutputDir and renamed to the final path on success. A
-//     partially-written .pulse file never appears at the target path.
+//     partially-written .pulse file never appears at the target path;
+//     a refused rename (on Windows, an output another reader still
+//     holds open or maps) is ENCODING_IO with the target unchanged.
 //   - The output name defaults to `{source-hash}_{predicate-hash}.pulse`
 //     so independent consumers reach the same expected path without
 //     coordination.
@@ -131,13 +132,13 @@ func (p *Pulse) FilterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 
 func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRequest) (*FilterToFileResult, error) {
 	if req == nil {
-		return nil, errors.New("filter_to_file: nil request")
+		return nil, argumentError("filter_to_file: nil request")
 	}
 	if req.SourcePath == "" {
-		return nil, errors.New("filter_to_file: source path required")
+		return nil, argumentError("filter_to_file: source path required")
 	}
 	if req.OutputDir == "" {
-		return nil, errors.New("filter_to_file: output dir required")
+		return nil, argumentError("filter_to_file: output dir required")
 	}
 	inst := p.svc.InstanceSnapshot()
 	if len(req.Models) > 0 && !inst.Enabled(descx.FeatureModels) {
@@ -181,7 +182,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 
 	srcHash, err := p.sourceHash(req.SourcePath)
 	if err != nil {
-		return nil, fmt.Errorf("filter_to_file: hashing source: %w", err)
+		return nil, keepCodedOr(perr.SERVICE_RESOURCE, "filter_to_file: hashing source", map[string]any{"path": req.SourcePath}, err)
 	}
 	// The zone the predicate's to_day() reads (req.TimeZone, else
 	// Options.DefaultTimeZone, else UTC) keys the output too, as do the
@@ -229,11 +230,14 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	replacing, _ := afero.Exists(p.fsys, outPath)
 	if err := p.fsys.Rename(tempPath, outPath); err != nil {
 		_ = p.fsys.Remove(tempPath)
-		return nil, fmt.Errorf("filter_to_file: rename to %s: %w", outPath, err)
+		// Coded like every other atomic rewrite's rename: on Windows a
+		// view another reader still maps over outPath refuses it.
+		return nil, perr.WrapCodedError(err, perr.ENCODING_IO,
+			fmt.Sprintf("filter_to_file: renaming %s onto %s", tempPath, outPath))
 	}
 	outHash, err := contentHash(p.fsys, outPath)
 	if err != nil {
-		return nil, fmt.Errorf("filter_to_file: hashing output: %w", err)
+		return nil, keepCodedOr(perr.SERVICE_RESOURCE, "filter_to_file: hashing output", map[string]any{"path": outPath}, err)
 	}
 	p.touchManaged(ctx, req.SourcePath)
 	res := &FilterToFileResult{
@@ -273,10 +277,10 @@ func (r *FilterToFileRequest) canonicalPredicate(inst *descx.InstanceSnapshot, r
 	hasExpr := r.Expression != ""
 	hasFilts := len(r.Filterers) > 0
 	if hasExpr && hasFilts {
-		return "", nil, errors.New("filter_to_file: Expression and Filterers are mutually exclusive")
+		return "", nil, argumentError("filter_to_file: Expression and Filterers are mutually exclusive")
 	}
 	if !hasExpr && !hasFilts {
-		return "", nil, errors.New("filter_to_file: predicate required (Expression or Filterers)")
+		return "", nil, argumentError("filter_to_file: predicate required (Expression or Filterers)")
 	}
 	if hasExpr {
 		return r.Expression, nil, nil
@@ -328,7 +332,7 @@ func (p *Pulse) registeredFilterer(t types.FiltererType) bool {
 // with Process's code, message and details (Service.FilterToFileZones).
 func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, registered func(types.FiltererType) bool) (expr string, direct bool, err error) {
 	if f == nil {
-		return "", false, errors.New("filter_to_file: nil filterer")
+		return "", false, argumentError("filter_to_file: nil filterer")
 	}
 	if inst.Hidden(string(f.Type)) {
 		return "", false, unsupportedFilterType(f.Type)
@@ -336,7 +340,7 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, regis
 	switch f.Type {
 	case types.FILTER_EXPRESSION:
 		if f.Expression == "" {
-			return "", false, errors.New("filter_to_file: FILTER_EXPRESSION requires Expression")
+			return "", false, argumentError("filter_to_file: FILTER_EXPRESSION requires Expression")
 		}
 		return f.Expression, false, nil
 	case types.FILTER_INCLUDE:
@@ -345,7 +349,7 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, regis
 		return inListExpr(f.Field, f.Values, true), false, nil
 	case types.FILTER_RANGE:
 		if len(f.Values) != 2 {
-			return "", false, errors.New("filter_to_file: FILTER_RANGE requires exactly two Values")
+			return "", false, argumentError("filter_to_file: FILTER_RANGE requires exactly two Values")
 		}
 		return fmt.Sprintf("%s >= %s && %s <= %s", f.Field, f.Values[0], f.Field, f.Values[1]), false, nil
 	case types.FILTER_NULL:
@@ -359,7 +363,7 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, regis
 		case "is_not_null":
 			return f.Field + " != nil", false, nil
 		default:
-			return "", false, fmt.Errorf("filter_to_file: FILTER_NULL mode %q not supported (expected is_null / is_not_null)", mode)
+			return "", false, argumentError(fmt.Sprintf("filter_to_file: FILTER_NULL mode %q not supported (expected is_null / is_not_null)", mode))
 		}
 	}
 	if !registered(f.Type) {
@@ -425,7 +429,7 @@ func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) 
 		}
 		data, err := p.svc.ReadModelFile(r.Path)
 		if err != nil {
-			return nil, fmt.Errorf("filter_to_file: hashing model %s: %w", r.Path, err)
+			return nil, keepCodedOr(perr.SERVICE_RESOURCE, "filter_to_file: hashing model "+r.Path, map[string]any{"path": r.Path}, err)
 		}
 		sum := sha256.Sum256(data)
 		out[i] = modelIdentity{Name: r.Name, Path: r.Path, SHA256: hex.EncodeToString(sum[:])}

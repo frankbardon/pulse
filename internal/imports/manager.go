@@ -461,12 +461,14 @@ func (m *Manager) Drop(_ context.Context, handle string) error {
 	}
 	if tExists {
 		if err := m.afs.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("imports.Drop: removing %s: %w", target, err)
+			return perr.WrapCodedError(err, perr.SERVICE_RESOURCE,
+				fmt.Sprintf("imports.Drop: removing %s", target))
 		}
 	}
 	if sExists {
 		if err := m.afs.Remove(sidecarPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("imports.Drop: removing %s: %w", sidecarPath, err)
+			return perr.WrapCodedError(err, perr.SERVICE_RESOURCE,
+				fmt.Sprintf("imports.Drop: removing %s", sidecarPath))
 		}
 	}
 	return nil
@@ -527,7 +529,13 @@ func (m *Manager) sweep(ctx context.Context, explicit bool) ([]string, error) {
 		if sc.ExpiresAt.IsZero() || sc.ExpiresAt.After(now) {
 			continue
 		}
-		_ = m.afs.Remove(m.handlePath(sc.Handle))
+		// The cohort goes first and the sidecar only once it is gone: a
+		// cohort another reader still holds open (on Windows a held
+		// handle or mapped view refuses the delete) keeps its sidecar,
+		// so the next sweep retries it instead of orphaning it.
+		if err := m.afs.Remove(m.handlePath(sc.Handle)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		_ = m.afs.Remove(m.handlePath(sc.Handle) + SidecarSuffix)
 		swept = append(swept, sc.Handle)
 	}

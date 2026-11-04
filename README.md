@@ -506,6 +506,7 @@ make fmt      # gofmt -w .
 make vet      # go vet
 make lint     # gofmt check (fmt-check) + go vet + staticcheck (make staticcheck) on both test tiers (auto-installed via go run); CI splits it into parallel jobs
 make cover    # both tiers with coverage; fails on a package below its .github/coverage-floors.txt floor
+make vulncheck  # pinned govulncheck over ./..., GOOS=linux then GOOS=windows (needs network)
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
 make dist     # 6-platform release archives (binary + completions/) + checksums.txt in ./dist (VERSION=v1.2.3)
 make sites ARGS="op MAT_PCA"  # change-site checklist (op / new-op / slot) for contributors

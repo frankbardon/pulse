@@ -152,7 +152,10 @@ func LoadExtensionSkills(fsys fs.FS, ext *ExtensionsSnapshot, deps map[string][]
 		if err != nil {
 			return nil, skillInvalid(stem, SkillReasonLayout, "cannot read "+name+": "+err.Error(), nil)
 		}
-		s, err := checkExtensionSkillHeader(stem, string(data), operators)
+		// A skill authored on Windows arrives CRLF; every scanner below
+		// (frontmatter, sections, fences, budgets) and the served body
+		// work on LF.
+		s, err := checkExtensionSkillHeader(stem, skills.NormalizeNewlines(string(data)), operators)
 		if err != nil {
 			return nil, err
 		}

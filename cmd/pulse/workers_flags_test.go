@@ -74,7 +74,7 @@ func TestWorkerFlags_ReachTheRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqPath := filepath.Join(dir, "request.json")
-	req := `{"cohort": {"filename": "` + arch + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`
+	req := `{"cohort": {"filename": "` + jsonEsc(arch) + `"}, "aggregations": [{"type": "AGG_COUNT", "field": "age"}]}`
 	if err := os.WriteFile(reqPath, []byte(req), 0o644); err != nil {
 		t.Fatal(err)
 	}

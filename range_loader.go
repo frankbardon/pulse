@@ -49,14 +49,14 @@ func loadRangeTablesFromDir(opts *Options) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("pulse: range tables dir %q: %w", dir, err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q", dir), err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("pulse: range tables dir %q is not a directory", dir)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q is not a directory", dir), nil)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("pulse: reading range tables dir %q: %w", dir, err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: reading range tables dir %q", dir), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -81,11 +81,11 @@ func loadRangeTablesFromDir(opts *Options) error {
 		path := filepath.Join(dir, name)
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("pulse: reading range table %s: %w", path, err)
+			return tableFileError("range_table", path, "pulse: reading range table "+path, err)
 		}
 		tbl, err := parseRangeTableFile(raw)
 		if err != nil {
-			return fmt.Errorf("pulse: parsing range table %s: %w", path, err)
+			return tableFileError("range_table", path, "pulse: parsing range table "+path, err)
 		}
 		if opts.Extensions.RangeTables == nil {
 			opts.Extensions.RangeTables = map[string]RangeTable{}

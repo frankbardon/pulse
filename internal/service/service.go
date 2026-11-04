@@ -1061,7 +1061,7 @@ func (s *Service) processSingleFileParallelMaybe(
 	if cohort.fs == nil {
 		return nil, false, nil
 	}
-	if _, ok := resolveRealPath(cohort.fs, path); !ok {
+	if _, bail := mappableRealPath(cohort.fs, path); bail != "" {
 		return nil, false, nil
 	}
 	if !processing.CanMergeRequestWithExtensions(req, schema, s.extensions) {

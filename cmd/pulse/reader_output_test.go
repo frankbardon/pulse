@@ -174,7 +174,7 @@ func TestCliProcessRecordRows_RenderCalendarLiterals(t *testing.T) {
 	dir := t.TempDir()
 	path := writeReaderCohort(t, dir)
 	reqPath := filepath.Join(dir, "req.json")
-	req := `{"cohort":{"filename":"` + path + `"},"windows":[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"d"}]}]}`
+	req := `{"cohort":{"filename":"` + jsonEsc(path) + `"},"windows":[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"d"}]}]}`
 	if err := os.WriteFile(reqPath, []byte(req), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -30,8 +30,10 @@ import (
 // cohort's size and mtime, and the SPSS sidecar refuses a cohort whose
 // mtime moved (PULSE_SPSS_SIDECAR_STALE). Only files that
 // exist are returned, each spelled relative to the same root as cohort
-// (the cohort's directory joined with the sidecar's name); a cohort with
-// none returns an empty, non-nil slice.
+// and exactly as its owner spells it — cohort plus the sidecar's suffix
+// (spss.SidecarPath, the index path rules), so the caller's separators
+// and spelling are kept on every platform; a cohort with none returns
+// an empty, non-nil slice.
 //
 // Nothing is opened or validated — a stale or corrupt sidecar is still
 // listed, because it still has to move with (or be deleted beside) its
@@ -69,7 +71,10 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 		}
 		name := e.Name()
 		if exact[name] || idxName.MatchString(name) {
-			out = append(out, filepath.Join(dir, name))
+			// Every match starts with base: re-spell it as cohort + suffix
+			// (filepath.Join would rewrite a caller's a/c.pulse as a\c.pulse…
+			// on Windows and clean ./c.pulse to c.pulse…).
+			out = append(out, cohort+name[len(base):])
 		}
 	}
 	sort.Strings(out)

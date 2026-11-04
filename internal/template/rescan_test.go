@@ -3,6 +3,7 @@ package template_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -432,7 +433,7 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 		if err == nil {
 			t.Fatal("Reload() = nil error, want the walk fault for a root that is not a directory")
 		}
-		if !strings.Contains(err.Error(), dir) {
+		if !strings.Contains(err.Error(), strconv.Quote(dir)) {
 			t.Errorf("Reload() = %v, want the offending root named", err)
 		}
 

@@ -19,13 +19,15 @@ import (
 // hides is refused exactly as an unknown key (descx.StrictOptions), and
 // valid_keys / suggestions range over the visible keys only. A root
 // `_meta` example block is tolerated. Empty arguments decode to the
-// zero value.
+// zero value. Every other fault (malformed JSON, a wrong-typed value)
+// is SERVICE_VALIDATION (strictjson.DecodeRequestInto), never a raw
+// encoding/json error.
 func strictDecode[In any](raw json.RawMessage, inst *descx.InstanceSnapshot) (In, error) {
 	var in In
 	if len(raw) == 0 {
 		return in, nil
 	}
-	err := strictjson.DecodeInto(raw, &in, descx.StrictOptions(inst))
+	err := strictjson.DecodeRequestInto(raw, &in, descx.StrictOptions(inst), "tool arguments")
 	return in, err
 }
 

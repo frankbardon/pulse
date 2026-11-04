@@ -125,7 +125,7 @@ func TestCliExplain(t *testing.T) {
 		{[]string{"--response", respPath, "--root", "sample"}, "CLI_INPUT"},
 		{[]string{"--request", filepath.Join(dir, "missing.json")}, "CLI_INPUT"},
 		{[]string{"--request", reqPath, "--detail", "verbose"}, "SERVICE_VALIDATION"},
-		{[]string{"--request", writeFile(t, dir, "gone.json", `{"cohort":{"filename":"`+filepath.Join(dir, "gone.pulse")+`"}}`)}, "DATA_FILE"},
+		{[]string{"--request", writeFile(t, dir, "gone.json", `{"cohort":{"filename":"`+jsonEsc(filepath.Join(dir, "gone.pulse"))+`"}}`)}, "DATA_FILE"},
 	} {
 		text, _ := runApp(t, append(append([]string{"explain"}, tc.args...), "--json")...)
 		if env := decodeExplain(t, text); len(env.Errors) == 0 || env.Errors[0].Code != tc.want {

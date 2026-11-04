@@ -72,14 +72,15 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 
 // decodeMappable reports whether the parallel-decode reducer can map
 // cohort — the fs half of canParallelDecode: a single file (no shards)
-// on an fs that resolves a real on-disk path. Predict reads the same
-// answer through DecodeMappable.
+// on an fs that resolves a real on-disk path, on a build that can map
+// (mappableRealPath, shared with canParallelDecode). Predict reads the
+// same answer through DecodeMappable.
 func decodeMappable(cohort *Cohort) bool {
 	if cohort == nil || cohort.fs == nil || len(cohort.Shards()) > 0 {
 		return false
 	}
-	_, ok := resolveRealPath(cohort.fs, cohort.path)
-	return ok
+	_, bail := mappableRealPath(cohort.fs, cohort.path)
+	return bail == ""
 }
 
 // DecodeMappable opens the cohort at path and reports whether the

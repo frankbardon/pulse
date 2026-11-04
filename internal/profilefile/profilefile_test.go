@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestReadOS(t *testing.T) {
 			if ce.Details["path"] != tc.path {
 				t.Errorf("path detail = %v, want %s", ce.Details["path"], tc.path)
 			}
-			if !strings.Contains(ce.Message, tc.path) {
+			if !strings.Contains(ce.Message, strconv.Quote(tc.path)) {
 				t.Errorf("message %q does not name the path", ce.Message)
 			}
 		})

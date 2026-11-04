@@ -230,6 +230,10 @@ the sum:
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...` (no coverage), plus `citest heavy-check` |
 | `coverage-fast (1)`, `coverage-fast (2)` | the fast tier again with `-coverpkg="$(citest cover-pkgs)" -coverprofile`, split in two by `citest cover-shard` |
 | `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+| `test-windows (1)`, `test-windows (2)` | the fast tier on `windows-latest`, split by package (`citest fast-run`); no build cache |
+| `test-macos` | the fast tier on `macos-latest` (arm64) |
+| `smoke-windows`, `smoke-macos` | the `build` job per OS: build `cmd/pulse`, then the embedder smoke module |
+| `vulncheck` | `make vulncheck`: pinned `govulncheck ./...`, `GOOS=linux` then `GOOS=windows`; a reachable finding fails it (see [Vulnerability scan](#vulnerability-scan)) |
 | `coverage` | needs `coverage-fast` and `test-heavy` (fails, never skips, if one failed); `citest cover-check` over their merged profiles: [Coverage floors](#coverage-floors) |
 | `apidiff` | the exported-API delta against the latest `v*` tag; advisory, not required, skipped under a release |
 
@@ -270,10 +274,75 @@ summary. The report never fails a job; `pipefail` keeps `go test`'s
 exit status. Before its test step, `test (1.26)` compiles every
 fast-tier test binary on its own (`go test -run '^$' ./...`) and writes
 the compile time to the job summary, so compile and run cost read
-apart. Each Go job restores the `setup-go` module and build
+apart. Each Go job except the `test-windows` shards, `lint`,
+`coverage` and `vulncheck` restores the `setup-go` module and build
 cache. The lint jobs and `build` hash different files into their cache
 keys, so they never seed the cache the test jobs use; `cache-warm.yml`
 does ([Warm build cache](#warm-build-cache)).
+
+### Windows and macOS legs
+
+The four OS legs are blocking, like the ubuntu jobs, and each fits an
+8-minute wall on a cold cache (E1-S3 measured the numbers below; aim
+6 minutes). They run the same fast tier as `test (1.26)`: no
+`-parallel 1` and no budget, so a test that takes over 1 s on a slow
+runner is fine there. `make test` keeps the budget locally. Each test
+leg runs `go test` in one step. A separate compile step would link
+every test binary twice, and linking ~145 binaries is most of a cold
+Windows job.
+
+`test-windows` runs as two jobs, one per id in its `fast-shard:`
+matrix. `.github/fast-shards.txt` pins a few long-running packages
+(`<shard> <package>`). Every other package of `go list ./...` goes to
+the shard holding the fewest packages so far, so each package runs in
+exactly one shard and a new package needs no line.
+`TestRepoFastShardList_Valid` checks the list against the tree and the
+matrix. Pin a package only to rebalance; a new shard id means a new
+required check (see branch protection below).
+
+```bash
+go run ./internal/tools/citest fast-list            # <shard> <package>, every package
+go run ./internal/tools/citest fast-run 1 -count=1  # one shard, as CI runs it
+```
+
+The Windows test shards run without the `setup-go` cache. Cold, one
+unsharded job took over 7 minutes. Its build and module cache is 2 GB
+and takes ~45 s just to restore, and `setup-go` saves a cache only
+after a green run whose key missed, so a red run always started cold
+anyway. Every shard run is cold and takes the same time. `test-macos`
+and both smoke legs keep `setup-go`'s default cache: `test-macos` is
+keyed on `go.sum` like `test (1.26)`, and the smoke legs on every
+`go.sum` like `build`. They fit the wall cold too, and
+`cache-warm.yml` warms all three from `main` ([Warm build
+cache](#warm-build-cache)).
+
+**Reproducing a Windows failure.** Start from the failing job's log.
+Each shard also uploads its `go test -json` stream as the
+`test-windows-<shard>-json` artifact. Then narrow it down:
+
+- **Cross-check from macOS or Linux.** `GOOS=windows go vet ./...` and
+  `GOOS=windows go test -c -o /dev/null ./<pkg>` catch build-tag and
+  API mistakes, for example a `_unix.go` file with no Windows twin or a
+  `syscall` name Windows lacks. They run nothing, so a path or
+  file-locking bug still needs a Windows run.
+- **Run it on Windows.** On a Windows machine with Go and Git Bash, run
+  `go run ./internal/tools/citest fast-run <shard> -count=1 -run
+  '^TestName$'` or a plain `go test -count=1 -run '^TestName$'
+  ./<pkg>`. Without one, push the branch and dispatch `ci.yml`; the
+  shard named in the failing check reruns only its own packages.
+- **Common causes:** an OS path built with `path` instead of
+  `filepath` (or the reverse: a slash-separated fixture path compared
+  to an OS path), a file still open when `t.TempDir` cleanup or a
+  rename runs (Windows refuses to delete an open or mapped file), and
+  timer resolution, where a 1 ms deadline fires before the code it was
+  meant to interrupt has started.
+- **Line endings.** `.gitattributes` checks out every text file with LF
+  (`* text=auto eol=lf`) and marks `.pulse` cohorts and archives
+  `binary`. So a golden, fixture or embedded skill reads the same bytes
+  on Windows. A CRLF-shaped failure means a new binary extension
+  missing from `.gitattributes`, or text that reaches the engine from
+  outside the repository; in that case normalise CRLF to LF where it
+  enters, as the skill loader does.
 
 `make lint` runs serially on one machine; CI splits it so the two
 staticcheck tiers run in parallel with `fmt-vet`. Each staticcheck job
@@ -282,8 +351,12 @@ that version (`STATICCHECK_VERSION`). Locally, `make lint` stays the one
 command; `make staticcheck` runs the three staticcheck steps over a
 temporary directory.
 
-Branch protection requires the `lint` and `test (1.26)` check runs on
-the branch head before merge.
+Branch protection requires these check runs on the branch head before
+merge: `lint`, `test (1.26)`, `docs`, `build`, every `test-heavy (…)`
+shard, `test-windows (1)`, `test-windows (2)`, `test-macos`,
+`smoke-windows` and `smoke-macos` (and one approving review). A renamed
+job or a new shard id must be updated in the protection settings in
+the same change, or no run can satisfy the old name.
 
 A `v*.*.*` tag push (`release.yml`) reuses a passing `ci.yml` run when
 `scripts/release-ci-reuse.sh <tested-sha> <tag-sha>` accepts the run's
@@ -297,11 +370,14 @@ header records the evidence. A test, embed or build step that starts
 reading an allowlisted path must take it off the list in the same
 change. Any other change makes the release run the whole workflow itself
 (`workflow_call`). Run the script locally to see which way a tag would
-go: exit 0 reuses, exit 1 runs CI.
+go: exit 0 reuses, exit 1 runs CI. Reuse covers only the test suite.
+The release's own `vulncheck` job always rescans the tagged tree, and
+the publish waits for it (see [Vulnerability scan](#vulnerability-scan)).
 
 The archives build in parallel, one `dist` job per platform (`make dist
-DIST_FLAGS="--target <os>/<arch> --no-checksums"`). The `release` job
-then gathers them, writes `checksums.txt` with
+DIST_FLAGS="--target <os>/<arch> --no-checksums"`). Each `dist` job
+also waits for the release's `vulncheck` job to pass. The `release` job
+then gathers the archives, writes `checksums.txt` with
 `scripts/release-dist.sh --checksums-only`, and publishes. The asset set
 is the one a local `make dist VERSION=<tag>` builds. A tag containing
 `-` is published as a pre-release, and a release never takes Latest.
@@ -319,17 +395,21 @@ compile is roughly 250 s on a runner).
 
 `.github/workflows/cache-warm.yml` fills that gap. It runs on every push
 to `main` and on `workflow_dispatch`, and only compiles, so no test
-runs:
+runs. A `drop-stale` job first deletes every `setup-go-*` cache on the
+ref (all OSes), so each warm job's restore misses and the job saves a
+cache of this tree. Then one warm job per setup-go key runs, each
+needing `drop-stale`:
 
-| Step | Runs |
-|---|---|
-| Drop stale caches | deletes the ref's `setup-go-*` caches, so the restore misses and the job saves a cache of this tree |
-| Set up Go | `actions/setup-go` with `go-version: "1.26"` and the default `cache` and `cache-dependency-path` (`go.sum`), as in `test` / `coverage-fast` / `test-heavy` |
-| Build | `go build ./...` |
-| Compile tests (fast tier) | `go test -count=1 -run '^$' ./...`, the `test (1.26)` compile |
-| Select coverage packages | `COVERPKG=$(citest cover-pkgs)` for the two steps below |
-| Compile tests (fast tier, coverage) | `go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`; the `coverage-fast` legs compile subsets of it |
-| Compile tests (heavy tier, coverage) | `go test -tags heavy -count=1 -run '^$' -coverpkg="$COVERPKG" ./...`, the build `citest heavy-run` does |
+| Job | Warms | Compiles |
+|---|---|---|
+| `warm` (ubuntu, default `go.sum` key) | `test (1.26)`, `coverage-fast`, `test-heavy` (and `apidiff`, same key) | `go build ./...`; `go test -count=1 -run '^$' ./...` (the `test (1.26)` compile); with `COVERPKG=$(citest cover-pkgs)`, `go test -count=1 -run '^$' -coverpkg="$COVERPKG" ./...` (the `coverage-fast` legs compile subsets of it) and the same with `-tags heavy` (the build `citest heavy-run` does) |
+| `warm-macos` (macOS, default `go.sum` key) | `test-macos` | the CI helper, then `go test -count=1 -run '^$' ./...` |
+| `warm-smoke-macos` (macOS, `**/go.sum` key) | `smoke-macos` | `make build`; in `internal/embeddersmoke`, `go vet ./...` and `go test -count=1 -run '^$' ./...` with `CGO_ENABLED=0` (as `make smoke` exports) |
+| `warm-smoke-windows` (Windows, `**/go.sum` key) | `smoke-windows` | `go build -trimpath ./cmd/pulse` with `CGO_ENABLED=0`; the smoke module's `go vet` and test compile |
+
+The `test-windows` shards run with `cache: false`, so nothing warms
+them. The lint jobs and the ubuntu `build` job keep their own caches
+unwarmed: they are cheap cold.
 
 The settings have to match the test jobs exactly. `setup-go` keys its
 cache as `setup-go-<OS>-<arch>-<image>-go-<resolved Go version>-<hash of
@@ -338,6 +418,12 @@ cache-dependency-path>` and restores by exact key only, so a different
 `-coverpkg` compile is its own build-cache entry, so the warm compile
 also has to use the same flags. Both workflows carry a KEEP IN SYNC
 comment at those steps; change them together.
+`TestRepoCacheWarm_MatchesCachedJobs` (`internal/tools/citest`) checks
+the keys: every `ci.yml` job with a setup-go cache has a `cache-warm.yml`
+job with the same `runs-on`, `go-version` and `cache-dependency-path`
+(bar the lint and `build` jobs it exempts by name), and no warm job
+seeds a key no `ci.yml` job reads. It cannot check compile flags; keep
+those in sync by hand.
 
 A saved cache cannot be overwritten, and `setup-go` skips the save when
 its key already exists. The key changes only with `go.sum` or the Go
@@ -347,6 +433,114 @@ after each `main` push (the length of one cold compile) in which a branch
 run misses the cache. Dispatching `cache-warm.yml` on a branch saves into
 that branch's scope and also drops the branch's lint and `build` caches,
 which rebuild on the next CI run.
+
+## Vulnerability scan
+
+```bash
+make vulncheck   # needs network (vuln.go.dev)
+```
+
+`make vulncheck` installs `govulncheck` at the Makefile's
+`GOVULNCHECK_VERSION` (the one pin, which the `vulncheck` job in
+`ci.yml` also uses; bump it deliberately, never to `latest`) and runs
+it in default symbol mode over `./...` twice: `GOOS=linux`, then
+`GOOS=windows`. Only a finding the call graph reaches fails it; a
+vulnerable module the code never calls is listed but passes. `./...`
+does not include the nested `internal/embeddersmoke` module. Fix a
+dependency finding with `go get <module>@<fixed>` and `go mod tidy`
+(in the root and in `internal/embeddersmoke`). Standard-library
+findings are judged against the running toolchain. CI's `"1.26"`
+floats to the latest patch, so locally run it under that patch too,
+for example `GOTOOLCHAIN=go1.26.10 make vulncheck`. A toolchain that
+is not the latest patch of its minor can report standard-library
+findings that CI does not.
+
+**The release gate.** A tag push scans again. `release.yml` has its own
+`vulncheck` job running the same `make vulncheck`, with no `needs:` and
+no `if:`, so it starts beside `verify` on every tag. CI reuse (below,
+[When CI runs](#when-ci-runs)) never satisfies it: a reused CI run's
+scan is only as current as the vulnerability database was on the day
+it ran, and a vulnerability published since then must still stop the
+release. Both `dist` and `release` need the job and require
+`needs.vulncheck.result == 'success'` in their `if:`, so a reachable
+finding (or a scan that cannot run) blocks the publish.
+`TestRepoReleaseVulncheck_Gated` (`internal/tools/citest`) checks that
+shape: no `if:`, `needs:` or `continue-on-error` on the job, `make
+vulncheck` as its command, every `contents: write` job needing it, and
+`scripts/release-ci-reuse.sh` never mentioning it. To unblock a tag,
+fix the finding on `main` and tag the fixed commit. Do not edit the
+gate.
+
+## Fuzzing
+
+Every surface that reads untrusted bytes has a fuzz target: request JSON
+decode, expression compile, each importer (CSV / TSV headers, NDJSON,
+JSON array, JSON shared, Arrow, Parquet, Excel, SPSS), the `.pulse`
+header, schema, dictionaries and full record read, and shard-archive
+open.
+
+**The contract.** A target hands each input to
+`internal/testutil/fuzzcontract` (`fuzzcontract.Run`, or a tuned
+`fuzzcontract.Contract{...}.Run`). The contract fails the input when:
+
+1. **The surface panics.** The panic is recovered and reported with the
+   input and the panicking goroutine's stack.
+2. **The run is unbounded.** The input is capped at `MaxInput` (64 KiB by
+   default) before the surface sees it, and one call must return within
+   `Timeout` (10 s). A target that builds a Pulse instance also caps the
+   engine with `fuzzcontract.Limits()`. `MaxAlloc` caps the heap one call
+   may allocate. It catches a decoder that sizes a buffer from a length
+   the input only declares; the importer targets set 1 GiB.
+3. **An error is not coded.** Every non-nil error must satisfy
+   `errors.As(err, **errors.CodedError)` with a registered code. A raw
+   `encoding/json` or third-party library error that reaches a caller
+   fails the contract.
+
+Each target adds seeds with `f.Add` and may commit a corpus under its
+package's `testdata/fuzz/<Target>/`. Seeds and corpus files run as
+ordinary subtests in the fast tier, so keep them small.
+
+**Running a target locally.** `-fuzz` takes one package and a pattern
+that matches one target:
+
+```bash
+go test -run '^$' -fuzz '^FuzzNDJSONImport$' -fuzztime 2m -fuzzminimizetime 20x ./internal/io/ndjson
+```
+
+`-run '^$'` skips the package's other tests. Keep `-fuzzminimizetime`
+short. The default of 60 s per new interesting input stalls the workers
+on a slow target.
+
+**Reproducing a crasher.** A failing input is written to
+`<pkg>/testdata/fuzz/<Target>/<id>`, and `go test` prints its path.
+Rerun that one input as an ordinary test:
+
+```bash
+go test -run '^FuzzNDJSONImport/<id>$' ./internal/io/ndjson
+```
+
+Fix the fault, then commit the crasher file unchanged as its regression
+entry. It runs in every fast-tier run from then on.
+
+**The weekly workflow.** `.github/workflows/fuzz.yml` runs every
+Monday. It has one matrix leg per target, and each leg fuzzes for 10
+minutes (`-fuzztime=10m`). It is advisory: it is not part of `ci.yml`
+and not a required check. A failed leg uploads its new corpus files as
+the `fuzz-crashers-<Target>` artifact and writes the reproduction
+command to the job summary. Copy the files into the package's
+`testdata/fuzz/<Target>/` and run that command. To run the workflow on
+demand, optionally with a shorter fuzz time:
+
+```bash
+gh workflow run fuzz.yml --ref <branch> -f fuzztime=2m
+```
+
+**Keeping the matrix whole.** `go run ./internal/tools/citest
+fuzz-check` fails when a `func FuzzXxx(f *testing.F)` in the module has
+no `fuzz.yml` leg, or when a leg names no target.
+`TestRepoFuzzMatrix_InSync` runs the same check in the fast tier. A new
+target needs one matrix line, in the `- { pkg: "./dir", target: FuzzXxx }`
+form the check parses.
 
 ## CLAUDE.md hygiene gates
 

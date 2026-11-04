@@ -33,7 +33,7 @@ func TestCliSlotFailure_ExitFollowsTheEnvelope(t *testing.T) {
 	if out, err := runApp(t, "import", "csv", "-i", src, "-o", cohort); err != nil {
 		t.Fatalf("import: %v\n%s", err, out)
 	}
-	req := writeExitFile(t, f.p("sep_req.json"), `{"cohort":{"filename":"`+cohort+`"},"aggregations":[{"type":"AGG_COUNT","field":"x","label":"n"}],`+
+	req := writeExitFile(t, f.p("sep_req.json"), `{"cohort":{"filename":"`+jsonEsc(cohort)+`"},"aggregations":[{"type":"AGG_COUNT","field":"x","label":"n"}],`+
 		`"regressions":[{"type":"REG_GLM","name":"default","family":"binomial","target":"y","predictors":["x"]}]}`)
 
 	s, out, errOut := runExit(t, "api", "process", "--json", "-r", req)

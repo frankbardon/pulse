@@ -2,9 +2,12 @@ package pulse
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/observe"
@@ -180,7 +183,21 @@ func TestObservabilityStreamingEndOnce(t *testing.T) {
 	})
 
 	t.Run("ProcessStreamResult/drain", func(t *testing.T) {
-		p, rec := setup(t)
+		// More groups than the chunk buffer (streamBuffer) holds, so the
+		// producer blocks on the consumer's think-time and its
+		// read-to-terminator time spans several clock ticks on every
+		// platform (a sub-tick scan reads 0 on a coarse clock).
+		rec := newStreamRecorder()
+		fsys := afero.NewMemMapFs()
+		rows := make([][]string, 0, streamBuffer+3)
+		for i := range streamBuffer + 3 {
+			rows = append(rows, []string{strconv.Itoa(i), "r" + strconv.Itoa(i), "1"})
+		}
+		createTestPulseFile(t, fsys, obsCohort, []string{"id", "region", "amount"}, rows)
+		p, err := New(Options{FS: fsys, Hooks: rec.hooks()})
+		if err != nil {
+			t.Fatal(err)
+		}
 		sr, err := p.ProcessStreamResult(context.Background(), grouped())
 		if err != nil {
 			t.Fatal(err)
@@ -197,8 +214,8 @@ func TestObservabilityStreamingEndOnce(t *testing.T) {
 			t.Fatalf("%d ends at Done, want 1", total)
 		}
 		rec.assertOnce(t)
-		if got := rec.scan(); got <= 0 {
-			t.Errorf("scan %v, want the producer's read-to-terminator time", got)
+		if got := rec.scan(); got < thinkTime {
+			t.Errorf("scan %v, want the producer's read-to-terminator time (≥ %v of back-pressure)", got, thinkTime)
 		}
 	})
 

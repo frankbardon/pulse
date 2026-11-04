@@ -74,6 +74,71 @@ For a headerless format, assert the record COUNT on a one-record and a
 many-record source, and assert the first record's VALUES — a count
 alone passes on a reader that drops record one and duplicates another.
 
+### Third-party decoders: recover at the boundary, cap what they trust
+
+A reader that hands source bytes to a library Pulse does not own (the
+Arrow IPC and Parquet readers, the xlsx parser) must survive any input
+with a coded error:
+
+- `defer iocore.RecoverDecode("<format>", &err)` in every method that
+  calls into the library. A panic there becomes `DATA_FILE` with
+  `details.format` and `details.panic`. In `ReadRows`, recover only
+  around the library's cell reads: a panic raised by the caller's row
+  callback is the caller's own and must propagate. The Arrow and
+  Parquet readers track this with an `inCallback` flag.
+- Wrap every library error as `iocore.SourceFileError` (`DATA_FILE`,
+  the library error kept as `Cause`).
+- Never let the library size an allocation from a length the source
+  merely declares. Cap it from the source size before decoding: the
+  xlsx unzip limit is `1032 x` the input (DEFLATE's maximum ratio), and
+  the Arrow reader's `preflightIPC` refuses flatbuffer counts and
+  compressed-buffer claims the bytes cannot back, plus buffer lists
+  shorter than the schema reads (the decoder indexes past them). The
+  Parquet reader's `checkRowGroups` refuses a row group that declares
+  more rows than one of its column chunks holds values, and its guarded
+  SNAPPY codec (`snappy_guard.go`, registered in the decoder library's
+  process-wide codec registry) refuses a block whose stream header
+  declares more bytes than its page holds. Also bound work
+  that grows with declared structure instead of stored bytes: an xlsx
+  grid far sparser than its stored cells, or Arrow Null-typed rows and
+  nested elements (a `list<null>` child, say) no buffer backs.
+- Check what the decoder actually does with a block, not what the block
+  says it is. The Arrow decoder reads every footer dictionary block as a
+  dictionary batch without checking the message's header type, so
+  `preflightIPC` checks it as one whatever that type byte says.
+- Give the reader an unexported `open` seam so a test can inject a
+  panicking decoder. Add a `Fuzz<Format>Import` target under
+  `internal/testutil/fuzzcontract` with `MaxAlloc` set
+  (`internal/io/arrow/arrow_fuzz_test.go` is the model).
+
+### The fuzz target
+
+Every importer gets a fuzz target, whether or not a third-party library
+does the decoding. Pulse's own JSON readers have targets too
+(`internal/io/ndjson/ndjson_fuzz_test.go` is the smallest model). In
+`internal/io/<format>/<format>_fuzz_test.go`:
+
+1. `func Fuzz<Format>Import(f *testing.F)`. Seed it with `f.Add`: a
+   valid file, an empty one, a truncated one and a few typed or
+   malformed ones. Seeds run in the fast tier, so keep each small.
+2. In `f.Fuzz`, pass the input to `fuzzcontract.Run`. When a decoder
+   can size a buffer from a length the input declares (any binary
+   format), use `fuzzcontract.Contract{MaxAlloc: 1 << 30}.Run` instead.
+   The target function drives the whole read: `ImportJob.Predict`, then
+   `ImportJob.Run` with schema inference into an `afero.NewMemMapFs()`,
+   plus any sidecar or overlay read. It returns the first error.
+3. Run it locally for a few minutes (`go test -run '^$' -fuzz
+   '^Fuzz<Format>Import$' -fuzztime 2m -fuzzminimizetime 20x
+   ./internal/io/<format>`). Fix every crasher it finds and commit the
+   crasher file under `testdata/fuzz/Fuzz<Format>Import/` as its
+   regression entry.
+4. Add the target's leg to the `.github/workflows/fuzz.yml` matrix:
+   `- { pkg: "./internal/io/<format>", target: Fuzz<Format>Import }`.
+   `TestRepoFuzzMatrix_InSync` fails until you do.
+
+The contract, the weekly workflow and crasher reproduction are in
+[Running CI Gates Locally](../contributing/local-ci.md#fuzzing).
+
 ## 3. Register and wire it up
 
 Registration is spread across **four** places, and a format wired into

@@ -25,14 +25,20 @@ name: CI
 #   test-heavy (1..6, catchall)  the heavy tier, split by
 #                           .github/heavy-shards.txt (a heavy test the list
 #                           does not name runs in the catchall shard)
+#   test-windows (1, 2)     the fast tier on Windows, split by package
+#                           (.github/fast-shards.txt, `citest fast-run`)
+#   test-macos              the fast tier on macOS (arm64)
+#   smoke-windows, smoke-macos   build + smoke per OS
+#   vulncheck               make vulncheck: pinned govulncheck, GOOS
+#                           linux then windows
 #   coverage                needs coverage-fast + test-heavy; merges
 #                           their profiles and fails on a package below
 #                           its .github/coverage-floors.txt floor
+#   apidiff                 exported-API delta vs the latest v* tag;
+#                           advisory, not required, dispatch only
 # Every coverage run instruments -coverpkg="$(citest cover-pkgs)": the
 # floored packages only, as import paths (not ./..., which costs more
 # compile and a 2x profile for packages no floor reads).
-#   apidiff                 exported-API delta vs the latest v* tag;
-#                           advisory, not required, dispatch only
 # cache-warm.yml (every main push) seeds the build cache the test jobs
 # restore; branch runs can read only their own and main's caches.
 on:
@@ -408,6 +414,172 @@ jobs:
         run: |
           ls -l "$RUNNER_TEMP/cover"
           go run ./internal/tools/citest cover-check "$RUNNER_TEMP"/cover/*.out
+
+  # Windows and macOS legs (U77), blocking like the ubuntu jobs. The test
+  # legs run the same fast tier as `test (1.26)` (no -parallel 1, no
+  # budget; filter reports the slowest tests), in one step: a separate
+  # compile step would link every test binary twice, which costs ~80 s on
+  # Windows. Steps use bash (Git Bash on Windows), and the helper binary
+  # carries the platform's exe suffix (`go env GOEXE`).
+  #
+  # test-windows is split in two by package (`citest fast-run`,
+  # .github/fast-shards.txt; every package of ./... runs in exactly one
+  # shard) and runs WITHOUT the setup-go cache. Measured (E1-S3, 4 vCPU
+  # runner): one unsharded cold job takes 7m17s, two-thirds of it
+  # compiling and linking ~145 test binaries, and the build + module
+  # cache is 2 GB, whose restore alone costs ~45 s. setup-go saves the
+  # cache only on a green run whose key missed, so a red run always
+  # started cold anyway. Cache-free shards take the same time every run,
+  # well inside the 8-minute wall. A cache-warming workflow on main warms
+  # the legs that DO use setup-go's cache with the same setup-go inputs
+  # (test-macos: the default go.sum key; smoke-windows / smoke-macos:
+  # `**/go.sum`); the test-windows shards need none.
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        fast-shard: ["1", "2"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Build CI test helper
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/citest$(go env GOEXE)" ./internal/tools/citest
+          echo "CITEST=$RUNNER_TEMP/citest$(go env GOEXE)" >> "$GITHUB_ENV"
+
+      - name: Test (fast tier, shard ${{ matrix.fast-shard }})
+        shell: bash
+        env:
+          SHARD: ${{ matrix.fast-shard }}
+        run: |
+          set -o pipefail
+          "$CITEST" fast-run "$SHARD" -count=1 -json \
+            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-windows ($SHARD)"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-windows-${{ matrix.fast-shard }}-json
+          path: ${{ runner.temp }}/test.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  # One macOS (arm64) job: cold it takes ~4 min. setup-go's default cache
+  # key (go.sum), as on the ubuntu `test` job.
+  test-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      - name: Build CI test helper
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/citest$(go env GOEXE)" ./internal/tools/citest
+          echo "CITEST=$RUNNER_TEMP/citest$(go env GOEXE)" >> "$GITHUB_ENV"
+
+      - name: Test (fast tier)
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -count=1 -json ./... \
+            | "$CITEST" filter -json-out "$RUNNER_TEMP/test.json" -title "test-macos"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-macos-json
+          path: ${{ runner.temp }}/test.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  # The `build` job's build + embedder smoke module, per OS. Windows runners
+  # may lack make, so that leg runs the `make build` / `make smoke` commands
+  # directly (keep them in step with the Makefile); macOS runs make. Both
+  # keep setup-go's cache, keyed on every go.sum like `build`.
+  smoke-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: "**/go.sum"
+
+      - name: Build
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -o "bin/pulse$(go env GOEXE)" ./cmd/pulse
+
+      - name: Embedder smoke module
+        shell: bash
+        working-directory: internal/embeddersmoke
+        env:
+          GOFLAGS: -mod=mod
+        run: go vet ./... && go test -count=1 ./...
+
+  smoke-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: "**/go.sum"
+
+      - name: Build
+        run: make build
+
+      - name: Embedder smoke module
+        run: make smoke
+
+  # vulncheck runs `make vulncheck`: govulncheck at the Makefile's
+  # GOVULNCHECK_VERSION pin (the only pin; never `latest`), default
+  # symbol mode over the root module's ./... (the nested
+  # internal/embeddersmoke module is not part of it), once with
+  # GOOS=linux and once with GOOS=windows, both from this runner. A
+  # reachable finding fails the job. Stdlib findings are judged against
+  # setup-go's "1.26", which floats to the latest patch. One job, not a
+  # matrix, so the required check is plain `vulncheck`. No setup-go
+  # cache: the scan type-checks from source, so a build cache buys little
+  # and this job would only seed a weak one.
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: govulncheck (GOOS linux, windows)
+        run: |
+          go version
+          make vulncheck
 
   # apidiff reports the exported-API delta against the latest release tag,
   # using a pinned `apidiff -m` over a git-worktree checkout of that tag.

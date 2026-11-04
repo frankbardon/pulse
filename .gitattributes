@@ -1,0 +1,17 @@
+# Check out every text file with LF line endings on every platform.
+# Goldens, oracle fixtures, skill files and byte-budget gates hash or
+# measure the committed bytes; a CRLF checkout (core.autocrlf=true, the
+# Windows default) would change them. testdata/strd/.gitattributes keeps
+# the NIST StRD .dat files byte-for-byte (they are CRLF upstream).
+* text=auto eol=lf
+
+# Binary fixtures: never convert, never diff as text.
+*.pulse    binary
+*.zip      binary
+*.zst      binary
+*.parquet  binary
+*.arrow    binary
+*.xlsx     binary
+*.sav      binary
+*.png      binary
+*.ico      binary

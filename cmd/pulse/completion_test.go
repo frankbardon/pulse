@@ -82,14 +82,16 @@ func completeWords(t *testing.T, words ...string) (string, string, int) {
 }
 
 // candidates parses completion output ("name" or "name:usage" lines)
-// into the candidate names.
+// into the candidate names exactly as the shipped scripts do: split at
+// the first unescaped ":", backslash escapes dropped
+// (pcli.UnescapeCandidate) — so a Windows C:\... cohort comes back whole.
 func candidates(out string) []string {
 	var names []string
 	for _, line := range strings.Split(out, "\n") {
 		if line == "" {
 			continue
 		}
-		name, _, _ := strings.Cut(line, ":")
+		name, _ := pcli.UnescapeCandidate(line)
 		names = append(names, name)
 	}
 	return names
@@ -686,10 +688,13 @@ func TestCompletion_Fields(t *testing.T) {
 	}
 }
 
-// TestCompletion_CohortFailuresAreQuiet: a missing or corrupt cohort, an
-// unreadable or missing data dir and an unset PULSE_DATA_DIR complete
-// nothing, write nothing to stderr and exit 0 — the shell falls back to
-// its file completion.
+// TestCompletion_CohortFailuresAreQuiet: a missing or corrupt cohort, a
+// missing data dir and an unset PULSE_DATA_DIR complete nothing, write
+// nothing to stderr and exit 0 — the shell falls back to its file
+// completion. An unreadable data dir is covered by internal/cli's
+// TestCompletion_UnreadableDataDirIsQuiet through an injected
+// permission fault (a mode-000 directory is unreadable only on Unix,
+// and not even there for root).
 func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
 	// serial: swaps os.Args; t.Chdir moves the process working directory; t.Setenv mutates the process environment
 
@@ -698,17 +703,6 @@ func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
 	if err := os.WriteFile(corrupt, []byte("PULSE\x00\x00\x00\x09garbage"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	locked := filepath.Join(dir, "locked")
-	if err := os.MkdirAll(locked, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(locked, "hidden.pulse"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(locked, 0o000); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 	for _, tc := range []struct {
 		name    string
 		dataDir string
@@ -719,7 +713,6 @@ func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
 		{"not a cohort", dir, []string{"pulse", "recommend", "--cohort", dir, "--field"}},
 		{"unset data dir", "", []string{"pulse", "api", "facet", "--input"}},
 		{"missing data dir", filepath.Join(dir, "nope"), []string{"pulse", "widen"}},
-		{"unreadable data dir", locked, []string{"pulse", "cohort", "inspect"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("PULSE_DATA_DIR", tc.dataDir)
@@ -731,9 +724,6 @@ func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
 			out, stderr, st := completeWords(t, tc.words...)
 			if st != 0 || stderr != "" {
 				t.Errorf("status %d stderr %q, want 0 and nothing", st, stderr)
-			}
-			if tc.name == "unreadable data dir" && os.Geteuid() == 0 {
-				return // root reads a 000 directory anyway
 			}
 			if out != "" {
 				t.Errorf("output %q, want nothing", out)

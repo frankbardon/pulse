@@ -147,6 +147,16 @@ func writeMerged(w io.Writer, blocks map[string]*coverBlock) error {
 func mergeProfileFiles(dst string, inputs []string, removeInputs bool) error {
 	var names []string
 	var rs []io.Reader
+	var files []*os.File
+	// Every input is closed before any is removed: Windows refuses to
+	// delete a file that is still open.
+	closeAll := func() {
+		for _, f := range files {
+			f.Close()
+		}
+		files = nil
+	}
+	defer closeAll()
 	for _, p := range inputs {
 		f, err := os.Open(p)
 		if errors.Is(err, os.ErrNotExist) {
@@ -155,11 +165,12 @@ func mergeProfileFiles(dst string, inputs []string, removeInputs bool) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		files = append(files, f)
 		names = append(names, p)
 		rs = append(rs, f)
 	}
 	blocks, err := mergeProfiles(names, rs)
+	closeAll()
 	if err != nil {
 		return err
 	}

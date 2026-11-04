@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -313,10 +314,13 @@ func completeLeaf(t *testing.T, words ...string) []string {
 	if errOut.Len() != 0 {
 		t.Errorf("%v: stderr %q", words, errOut.String())
 	}
+	// Parse each line as the shipped scripts do (a Windows candidate
+	// prints escaped: \data\x.pulse as \\data\\x.pulse).
 	var got []string
 	for _, line := range strings.Split(out.String(), "\n") {
 		if line != "" {
-			got = append(got, line)
+			name, _ := UnescapeCandidate(line)
+			got = append(got, name)
 		}
 	}
 	return got
@@ -370,8 +374,10 @@ func TestCompletion_ReadOnly(t *testing.T) {
 	fx := newCompletionFixture(t)
 	before := snapshot(t, fx.fs.Fs)
 
-	if got := completeLeaf(t, "api", "facet", "--input"); !slices.Equal(got, []string{fx.archive, fx.single}) {
-		t.Errorf("cohort completion = %v, want [%s %s]", got, fx.archive, fx.single)
+	// Candidates are OS paths (filepath.Join under the data root).
+	wantArchive, wantSingle := filepath.FromSlash(fx.archive), filepath.FromSlash(fx.single)
+	if got := completeLeaf(t, "api", "facet", "--input"); !slices.Equal(got, []string{wantArchive, wantSingle}) {
+		t.Errorf("cohort completion = %v, want [%s %s]", got, wantArchive, wantSingle)
 	}
 	completeLeaf(t, "api", "facet", "--input", fx.single, "--field")
 	completeLeaf(t, "recommend", "--cohort", fx.archive, "--field")

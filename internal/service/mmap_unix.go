@@ -8,6 +8,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// mmapSupported reports that this build carries a real mmapFileBytes
+// (the test predicate the mmap-engagement suites key on).
+const mmapSupported = true
+
 // mmapFileBytes maps the regular file at path read-only and returns the
 // underlying byte slice plus a cleanup closure. The returned slice is
 // valid until cleanup is invoked; reading past cleanup is undefined and

@@ -146,6 +146,8 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
 Candidates are sorted and the same on every run. They are the full
 built-in vocabularies; a feature profile does not narrow them.
 
+A candidate holding a `:` or a `\` — a Windows cohort path such as `C:\data\people.pulse` — is printed escaped (`\` as `\\`, `:` as `\:`), because every script splits a completion line at its first `:` into a name and a description. The shipped scripts split at the first unescaped `:` and drop the escapes, so the path completes whole in bash, zsh and fish; the bash script also quotes each reply for the command line, so the shell keeps the backslashes. Ordinary Unix paths print unchanged.
+
 Not completed: request JSON bodies, time zones, charsets, numbers, free
 text and the source-file columns of the `import` family. Host file paths
 fall to the shell's default completion, normally file names. Completion reads only what a candidate list needs (the error-code

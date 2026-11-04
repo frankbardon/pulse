@@ -65,7 +65,7 @@ func List() []Metadata {
 		if err != nil {
 			continue
 		}
-		md, ok := parseMetadata(string(data))
+		md, ok := parseMetadata(NormalizeNewlines(string(data)))
 		if !ok {
 			continue
 		}
@@ -117,6 +117,7 @@ func Names() []string {
 // their key as the raw post-colon string — callers that need a parsed slice
 // should use parseList or go through Metadata via parseMetadata.
 func ParseFrontmatter(md string) map[string]string {
+	md = NormalizeNewlines(md)
 	result := make(map[string]string)
 	if !strings.HasPrefix(md, "---\n") {
 		return result
@@ -135,6 +136,21 @@ func ParseFrontmatter(md string) map[string]string {
 		}
 	}
 	return result
+}
+
+// NormalizeNewlines rewrites every CRLF (and any lone CR) line ending in
+// md to LF. Every skill scanner — frontmatter, `## ` sections, fences,
+// generated markers, the byte budgets — splits on "\n", so a skill file
+// authored or checked out on Windows is normalised once where it enters
+// the pipeline (the embedded pack in List / Raw, an embedder's
+// Extensions.Skills in LoadExtensionSkills). md is returned unchanged
+// (no allocation) when it carries no CR.
+func NormalizeNewlines(md string) string {
+	if !strings.Contains(md, "\r") {
+		return md
+	}
+	md = strings.ReplaceAll(md, "\r\n", "\n")
+	return strings.ReplaceAll(md, "\r", "\n")
 }
 
 // parseMetadata extracts the typed Metadata struct from a markdown file's

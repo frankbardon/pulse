@@ -112,16 +112,25 @@ func (r *Reader) init() error {
 	}
 	if r.data == nil {
 		if r.fs == nil {
-			return fmt.Errorf("ndjson.Reader: no data source")
+			return errors.NewCodedError(errors.DATA_FILE, "ndjson.Reader: no data source")
 		}
 		data, err := afero.ReadFile(r.fs, r.path)
 		if err != nil {
-			return fmt.Errorf("ndjson.Reader: reading %s: %w", r.path, err)
+			return &errors.CodedError{
+				Code:    errors.DATA_FILE,
+				Message: fmt.Sprintf("ndjson.Reader: reading %s: %v", r.path, err),
+				Details: map[string]any{"path": r.path},
+				Cause:   err,
+			}
 		}
 		r.data = data
 	}
 	r.buf = bytes.NewReader(r.data)
 	r.scanner = bufio.NewScanner(r.buf)
+	// The whole source is already in memory, so a line may be as long
+	// as the source itself: bufio.Scanner's 64 KiB default token cap
+	// would refuse a legitimate wide record (bufio.ErrTooLong).
+	r.scanner.Buffer(nil, len(r.data)+1)
 	r.started = false
 	r.header = nil
 	r.lineNum = 0
@@ -221,7 +230,14 @@ func (r *Reader) ReadHeader() ([]string, error) {
 
 		obj, keys, err := decodeLine(line)
 		if err != nil {
-			return nil, fmt.Errorf("ndjson.Reader: parsing header (line %d): %w", r.lineNum, err)
+			// The first object is row 1 as well as the column
+			// declaration: refused with the code every later
+			// malformed line carries.
+			return nil, errors.NewCodedErrorWithDetails(
+				errors.PULSE_IMPORT_ROW_ERROR,
+				fmt.Sprintf("ndjson.Reader: parsing header (line %d): %v", r.lineNum, err),
+				map[string]any{"row": 1, "line": r.lineNum},
+			)
 		}
 
 		r.header = keys
@@ -233,11 +249,21 @@ func (r *Reader) ReadHeader() ([]string, error) {
 	}
 
 	if err := r.scanner.Err(); err != nil {
-		return nil, fmt.Errorf("ndjson.Reader: scanning: %w", err)
+		return nil, scanError(err)
 	}
 
 	// Empty file.
 	return nil, nil
+}
+
+// scanError codes a line-scanner fault. The scanner reads an
+// in-memory source with an unbounded token cap, so this is defensive.
+func scanError(err error) error {
+	return &errors.CodedError{
+		Code:    errors.DATA_FILE,
+		Message: fmt.Sprintf("ndjson.Reader: scanning: %v", err),
+		Cause:   err,
+	}
 }
 
 // errStop is an internal sentinel used to unwind ReadRows when fn
@@ -346,7 +372,7 @@ func (r *Reader) ReadRows(ctx context.Context, fn func(row []string) error) erro
 	}
 
 	if err := r.scanner.Err(); err != nil {
-		return fmt.Errorf("ndjson.Reader: scanning: %w", err)
+		return scanError(err)
 	}
 
 	return nil

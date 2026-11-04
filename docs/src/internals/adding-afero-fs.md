@@ -4,8 +4,9 @@
 filesystem backend (a copy-on-read overlay caching remote objects, a
 base-path wrapper, any prefix-translating shim) under `pulse.Options.FS`.
 
-The Pulse iterator engages an `mmap` fast path when the cohort path
-ultimately resolves to a real on-disk file. The eligibility probe
+The Pulse iterator engages an `mmap` fast path (Linux, macOS, FreeBSD
+and Windows) when the cohort path ultimately resolves to a real on-disk
+file. The eligibility probe
 lives in `internal/service/fs_probe.go` and is documented inline; the gist:
 implement the `service.RealPather` capability interface so the probe
 can ask your fs "where is this file on disk?" without opening it.
@@ -34,11 +35,11 @@ then to the `afero.ReadFile` slow path.
 
 **Failure to implement this interface silently disables the mmap
 optimisation** — no error, no warning, just a regression in scan
-throughput on cold-cache wide cohorts. The mmap policy and probe
-order are documented in the [Cohort schema design
-skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
-("Iterator mmap policy"); the rationale for omitting an open-and-
-inspect fallback is inline at `internal/service/fs_probe.go`.
+throughput on cold-cache wide cohorts. The probe order and the
+rationale for omitting an open-and-inspect fallback are inline at
+`internal/service/fs_probe.go`; the platform implementations and what a
+mapping means for atomic rewrites on Windows are in
+`.claude/reference/byte-layout/mmap-and-rewrites.md`.
 
 ## The regression gate
 

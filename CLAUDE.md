@@ -176,7 +176,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make build` (default; `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
+`make build` (default; `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `vulncheck`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 

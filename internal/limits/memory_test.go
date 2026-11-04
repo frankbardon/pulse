@@ -237,7 +237,7 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 // decoding a schema block really allocates (TotalAlloc over one
 // ReadSchema), within a factor of two — on dictionaries of short,
 // 40-byte and 1000-byte labels (per-entry overhead, then the label
-// copies and the shared buffer's growth, dominate in turn).
+// copies, dominate in turn).
 // The schema decode is the archive term the memory estimate charges
 // for the canonical entry (E8-S3; shards read layout-only since E8-S5).
 func TestSchemaDecodeBytes_BoundsDecode(t *testing.T) {

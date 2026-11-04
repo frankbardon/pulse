@@ -138,6 +138,47 @@ func DecodeInto(raw []byte, out any, opts Options) error {
 	return decodeStrict(raw, out, opts)
 }
 
+// ReasonRequestDecode is details.reason on DecodeRequestInto's refusal
+// of a request body that is not well-formed JSON of the target shape.
+const ReasonRequestDecode = "request_decode"
+
+// DecodeRequestInto is DecodeInto at a request entry — a CLI request
+// file, an MCP tool's arguments — where every fault reaches a caller and
+// must therefore be coded. An unknown key keeps its located
+// PULSE_REQUEST_UNKNOWN_FIELD refusal, and a coded fault a type's own
+// UnmarshalJSON raises keeps its code; anything else (malformed JSON, a
+// wrong-typed value, trailing data) is SERVICE_VALIDATION, message
+// "parsing <what> JSON: <reason>", details {reason: request_decode,
+// offset (the byte offset encoding/json reports, when it reports one),
+// field (the wrong-typed value's path, when known)}, the encoding/json
+// error kept as Cause.
+func DecodeRequestInto(raw []byte, out any, opts Options, what string) error {
+	err := DecodeInto(raw, out, opts)
+	if err == nil {
+		return nil
+	}
+	var ce *perr.CodedError
+	if errors.As(err, &ce) {
+		return err
+	}
+	details := map[string]any{"reason": ReasonRequestDecode}
+	var syn *json.SyntaxError
+	var typ *json.UnmarshalTypeError
+	switch {
+	case errors.As(err, &syn):
+		details["offset"] = syn.Offset
+	case errors.As(err, &typ):
+		details["offset"] = typ.Offset
+		if typ.Field != "" {
+			details["field"] = typ.Field
+		}
+	}
+	coded := perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+		"parsing "+what+" JSON: "+err.Error(), details)
+	coded.Cause = err
+	return coded
+}
+
 // Check walks raw against type t (a pointer chain is dereferenced) and
 // returns the first object carrying an unrecognised or hidden key, or
 // nil. Malformed JSON yields nil: the decode reports it.

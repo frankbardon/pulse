@@ -3,7 +3,10 @@
 //
 //	go run ./internal/tools/citest heavy-check
 //	go run ./internal/tools/citest heavy-run <shard> [go test flags...]
+//	go run ./internal/tools/citest fast-list
+//	go run ./internal/tools/citest fast-run <shard> [go test flags...]
 //	go run ./internal/tools/citest parallel-check
+//	go run ./internal/tools/citest fuzz-check
 //	go run ./internal/tools/citest cover-check [-root DIR] [-floors FILE] -profile FILE [-profile FILE ...]
 //	go run ./internal/tools/citest cover-merge -o OUT IN...
 //	go run ./internal/tools/citest cover-pkgs [-root DIR] [-floors FILE]
@@ -22,6 +25,13 @@
 // runs in exactly one shard). It exits with the first failing status; an
 // empty shard exits 0. heavy-list prints `<shard> <package> <Test>` for
 // every heavy test.
+//
+// fast-run runs one fast-tier shard (the test-windows legs): `go test
+// <flags> <packages>` over the shard's share of `go list ./...`. Every
+// package lands in exactly one shard: .github/fast-shards.txt pins a few
+// expensive packages, and each other package goes to the shard holding the
+// fewest packages so far. Shard ids are the ci.yml `fast-shard:` matrix.
+// fast-list prints `<shard> <package>` for every package.
 //
 // filter reads a `go test -json` stream on stdin, copies it to -json-out,
 // prints the non-verbose human-readable log (package result lines, plus the
@@ -70,6 +80,10 @@
 //
 // parallel-check is the parallel-by-default gate (TestTestsParallelByDefault):
 // every top-level test calls t.Parallel() or carries "// serial: <reason>".
+//
+// fuzz-check keeps .github/workflows/fuzz.yml in sync with the tree
+// (TestRepoFuzzMatrix_InSync): every `func FuzzXxx(f *testing.F)` in the
+// root module has exactly one matrix leg and every leg names a real target.
 package main
 
 import (
@@ -101,6 +115,18 @@ func main() {
 		}
 	case "parallel-check":
 		code, err = parallelCheckMain(".", os.Stdout)
+	case "fuzz-check":
+		err = fuzzCheck(".", os.Stdout)
+	case "fast-list":
+		err = fastList(".", os.Stdout)
+		if err != nil {
+			code = 1
+		}
+	case "fast-run":
+		if len(os.Args) < 3 {
+			usage()
+		}
+		code, err = fastRun(".", os.Args[2], os.Args[3:])
 	case "filter":
 		code = filterMain(os.Args[2:], os.Stdin, os.Stdout)
 	case "cover-check":
@@ -124,6 +150,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | parallel-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]] | cover-check [-root DIR] [-floors FILE] -profile FILE... | cover-merge -o OUT IN... | cover-pkgs [-root DIR] [-floors FILE] | cover-shard [-root DIR] <leg> <legs>")
+	fmt.Fprintln(os.Stderr, "usage: citest heavy-check | heavy-list | heavy-run <shard> [go test flags] | fast-list | fast-run <shard> [go test flags] | parallel-check | fuzz-check | filter [-json-out FILE] [-budget 1s [-recheck] [-report-only]] | cover-check [-root DIR] [-floors FILE] -profile FILE... | cover-merge -o OUT IN... | cover-pkgs [-root DIR] [-floors FILE] | cover-shard [-root DIR] <leg> <legs>")
 	os.Exit(2)
 }

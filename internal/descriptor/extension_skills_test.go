@@ -321,3 +321,38 @@ func TestLoadExtensionSkills_TieredBudget(t *testing.T) {
 		t.Errorf("details = %v, want budget %d bytes %d", ce.Details, skills.OpBudget, skills.OpBudget+1)
 	}
 }
+
+// TestLoadExtensionSkills_CRLF: an embedder skill authored on Windows
+// (CRLF line endings) validates and is served exactly like its LF twin.
+// Before the fix the frontmatter scanner matched only "---\n", so the
+// CRLF file was refused PULSE_EXTENSION_SKILL_INVALID (no frontmatter).
+func TestLoadExtensionSkills_CRLF(t *testing.T) {
+	t.Parallel()
+
+	crlf := func(s string) string { return strings.ReplaceAll(s, "\n", "\r\n") }
+	got, err := LoadExtensionSkills(extSkillFS(map[string]string{
+		"op-agg-acme-trim.md": crlf(extSkillAtomic),
+		"ext-acme-guide.md":   crlf(extSkillTopical),
+	}), extSkillSnapshot(), extSkillDeps)
+	if err != nil {
+		t.Fatalf("CRLF skills refused: %v", err)
+	}
+	want, err := LoadExtensionSkills(extSkillFS(map[string]string{
+		"op-agg-acme-trim.md": extSkillAtomic,
+		"ext-acme-guide.md":   extSkillTopical,
+	}), extSkillSnapshot(), extSkillDeps)
+	if err != nil {
+		t.Fatalf("LF skills refused: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("CRLF loaded %d skills, LF %d", len(got), len(want))
+	}
+	for i := range got {
+		if got[i].Raw != want[i].Raw {
+			t.Errorf("%s: served body differs from the LF twin", got[i].Metadata.Name)
+		}
+		if got[i].Metadata.Name != want[i].Metadata.Name || got[i].Metadata.Operator != want[i].Metadata.Operator {
+			t.Errorf("metadata %+v, want %+v", got[i].Metadata, want[i].Metadata)
+		}
+	}
+}

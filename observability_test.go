@@ -7,8 +7,11 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
@@ -466,13 +469,40 @@ func TestObserveWorkUsesStartHookContext(t *testing.T) {
 	}
 }
 
+// obsPlainFailAgg is an embedder aggregator failing with an uncoded
+// error: TestObserveEndResultCode's uncoded source.
+type obsPlainFailAgg struct{}
+
+func (obsPlainFailAgg) Aggregate(extend.Rows, string) (float64, error) {
+	return 0, stderrors.New("obs: plain aggregate failure")
+}
+
+func obsPlainFailAggFactory(*types.Aggregation, *encoding.Schema) (extend.Aggregator, error) {
+	return obsPlainFailAgg{}, nil
+}
+
 // TestObserveEndResultCode checks duration and code for success, a
 // coded error and an uncoded error.
 func TestObserveEndResultCode(t *testing.T) {
 	t.Parallel()
 
 	rec := &hookRecorder{}
-	p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
+	// The start hook holds each operation open for a few clock ticks:
+	// these calls finish in microseconds, below the monotonic clock's
+	// granularity on some platforms (Windows ticks in up to ~15.6 ms
+	// steps), and a Duration of 0 would be indistinguishable from an
+	// unset one.
+	hooks := rec.hooks()
+	start := hooks.OnOperationStart
+	hooks.OnOperationStart = func(ctx context.Context, info observe.OperationInfo) context.Context {
+		time.Sleep(20 * time.Millisecond)
+		return start(ctx, info)
+	}
+	// The uncoded source: an embedder aggregator whose Aggregate returns
+	// a plain error, which the engine hands back as-is.
+	p, _ := obsFixture(t, Options{Hooks: hooks, Extensions: Extensions{Aggregators: []AggregatorRegistration{
+		{Name: "AGG_OBS_PLAIN_FAIL", Description: "Fails with an uncoded error.", Factory: obsPlainFailAggFactory},
+	}}})
 	ctx := context.Background()
 
 	cases := []struct {
@@ -485,7 +515,16 @@ func TestObserveEndResultCode(t *testing.T) {
 			_, err := p.WidenSetField(ctx, obsCohort, "region", "not_a_type")
 			return err
 		}, string(errors.ENCODING_TYPE_MISMATCH)},
-		{"uncoded", func() error { _, err := p.FacetSchema(ctx, nil); return err }, observe.CodeUncoded},
+		{"uncoded", func() error {
+			req := obsRequest()
+			req.Aggregations = []*types.Aggregation{{Type: "AGG_OBS_PLAIN_FAIL", Field: "amount"}}
+			_, err := p.Process(ctx, req)
+			var coded *errors.CodedError
+			if stderrors.As(err, &coded) {
+				t.Fatalf("the fixture's error is coded (%v); the uncoded case needs an uncoded source", err)
+			}
+			return err
+		}, observe.CodeUncoded},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
