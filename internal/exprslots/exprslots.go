@@ -51,6 +51,13 @@ type Slot struct {
 	// for the optimize slots, which internal/optblock compiles (its own
 	// PULSE_OPTIMIZE_EXPRESSION_INVALID, no exprenv compile site).
 	Sites []string
+	// Scalar marks a scalar-expression slot (internal/scalarslot): a
+	// JSON number or an expression string, its owner field a
+	// number-or-expression type (types.OptimizeBound) or a params
+	// object key (a window param, an AGG_CONSTANT expr) rather than a
+	// Go string. A `{{token}}` in its string form is refused like any
+	// expression's; a number there is no expression.
+	Scalar bool
 }
 
 // The slot names.
@@ -61,6 +68,17 @@ const (
 	SlotFeatureFitOn       = "feature_fit_on"
 	SlotOptimizeObjective  = "optimize_objective"
 	SlotOptimizeConstraint = "optimize_constraint"
+	SlotOptimizeBound      = "optimize_bound"
+	SlotWindowParam        = "window_param"
+	SlotConstantExpr       = "constant_expr"
+	SlotInlineModelNumber  = "inline_model_number"
+	// SlotExtensionParam names an embedder extension's
+	// expression-capable params key (pulse.ParamMeta.Expression). It has
+	// no row in the static table: which keys are flagged is an instance
+	// fact, handed to the template validator by the facade
+	// (internal/template.ValidateOptions.ExprParams) and read by the
+	// request reads walker from the extensions snapshot.
+	SlotExtensionParam = "extension_param"
 )
 
 var slots = []Slot{
@@ -104,7 +122,56 @@ var slots = []Slot{
 		Owners: []string{"OptimizeConstraint"},
 		Tail:   []string{"optimize", "constraints", "expr"},
 	},
+	// An optimize decision variable's lower / upper / start: a number
+	// or a scalar expression (internal/optblock through
+	// internal/scalarslot).
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "lower"}, Scalar: true},
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "upper"}, Scalar: true},
+	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "start"}, Scalar: true},
+	// A built-in window's scalar params (internal/windowscalar):
+	// WIN_EWMA alpha / decay, WIN_DISTRIBUTED_LAG decay / shape /
+	// scale / max_lag — a number or a scalar expression, resolved before
+	// the window's own reading. Rooted at the `windows` list.
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "alpha"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "decay"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "shape"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "scale"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "max_lag"}, Scalar: true},
+	// An AGG_CONSTANT slot's params.expr (internal/aggconst): a scalar
+	// expression resolved into the slot's literal value before any
+	// operator is built. Rooted at every aggregation position: the
+	// aggregation lists, and a crosstab's or banner section's cell /
+	// cells.
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"aggregations", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cell", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"cells", ParamsKey, "expr"}, Scalar: true},
+	{Name: SlotConstantExpr, Owners: []string{"Aggregation"}, Tail: []string{"crosstab", "margin_aggregations", ParamsKey, "expr"}, Scalar: true},
+	// An inline model's numbers (a `models` entry's `inline` body,
+	// internal/model's InlineNumberPaths): each a number or a scalar
+	// expression over params, resolved before the body is judged as a
+	// model file. Rooted at the `models` list; Wildcard keys (a
+	// coefficient's term, an adstock record's channel) match any key.
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_lower", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "ci_upper", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "coefficients", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "std_errors", Wildcard}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "conf_level"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "df"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "dispersion"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "n_eff"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "n_obs"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "sum_weights"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "theta"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "vcov", "values"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "decay"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "max_lag"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "scale"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "shape"}, Scalar: true},
 }
+
+// Wildcard in a Tail matches any one key (an inline model's
+// coefficient term).
+const Wildcard = "*"
 
 // FeatureFitOnParam is the feature params key carrying a row
 // expression (FEAT_TARGET_ENCODE params.fit_on).
@@ -152,7 +219,7 @@ func matches(keys, tail []string) bool {
 	}
 	off := len(keys) - len(tail)
 	for i, k := range tail {
-		if keys[off+i] != k {
+		if k != Wildcard && keys[off+i] != k {
 			return false
 		}
 	}

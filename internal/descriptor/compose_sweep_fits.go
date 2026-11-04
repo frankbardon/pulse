@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowscalar"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -22,7 +23,7 @@ func SweepFitScope(written, effective *types.ComposedRequest, explicit, count in
 	if written == nil || written.Sweep == nil {
 		return model.SweepScope{}
 	}
-	scope := model.SweepScope{Present: true, Ranked: written.Sweep.Rank != nil, Reads: SweepSlotReadsFit, Axes: []string{}}
+	scope := model.SweepScope{Present: true, Ranked: written.Sweep.Rank != nil, Reads: SweepSlotReadsFit, WindowReads: SweepSlotWindowReadsFit, Axes: []string{}}
 	for _, a := range written.Sweep.Axes {
 		scope.Axes = append(scope.Axes, a.Name)
 	}
@@ -62,6 +63,24 @@ func SweepSlotReadsFit(slot *types.Request, fit string) bool {
 		}
 	}
 	return false
+}
+
+// SweepSlotWindowReadsFit reports the first window of slot whose
+// scalar-expression param (internal/windowscalar) names the bound-model
+// name fit in a literal coef() / sweep_axis() call — the from_sweep
+// window cycle: its index and params key.
+func SweepSlotWindowReadsFit(slot *types.Request, fit string) (int, string, bool) {
+	if slot == nil || fit == "" {
+		return 0, "", false
+	}
+	for j, w := range slot.Windows {
+		for _, e := range windowscalar.Exprs(w) {
+			if coefcall.NamesFit(e.Src, fit) {
+				return j, e.Key, true
+			}
+		}
+	}
+	return 0, "", false
 }
 
 // paramsFitIs reports whether raw is a params object whose `fit` is

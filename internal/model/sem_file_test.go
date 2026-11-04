@@ -337,7 +337,7 @@ func TestSEMFile_ModelsEntryDispatch(t *testing.T) {
 	if cerr := CheckRefs(Refs{Models: rs}, nil); cerr != nil {
 		t.Fatal(cerr)
 	}
-	loaded, cerr := LoadFiles(Refs{Models: rs}, memRead(files))
+	loaded, cerr := LoadFiles(Refs{Models: rs}, memRead(files), nil)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}
@@ -388,14 +388,14 @@ func TestSEMFile_ModelsEntryDispatch(t *testing.T) {
 		{"model" + SEMSuffix, errors.PULSE_MODEL_FILE_INVALID}, // a model file under the SEM suffix
 		{"absent" + SEMSuffix, errors.PULSE_MODEL_FILE_UNREADABLE},
 	} {
-		_, cerr := LoadFiles(Refs{Models: refs("m", "m"+FileSuffix, "s", c.path)}, memRead(files))
+		_, cerr := LoadFiles(Refs{Models: refs("m", "m"+FileSuffix, "s", c.path)}, memRead(files), nil)
 		if cerr == nil || cerr.Code != c.code || cerr.Details["model"] != 1 || cerr.Details["name"] != "s" {
 			t.Fatalf("%s: %v, want %s at models[1]", c.path, cerr, c.code)
 		}
 	}
 	// A SEM file under the model suffix is the model file's refusal.
 	files["sem"+FileSuffix] = files[sem]
-	if _, cerr := LoadFiles(Refs{Models: refs("s", "sem"+FileSuffix)}, memRead(files)); cerr == nil || cerr.Code != errors.PULSE_MODEL_FILE_INVALID {
+	if _, cerr := LoadFiles(Refs{Models: refs("s", "sem"+FileSuffix)}, memRead(files), nil); cerr == nil || cerr.Code != errors.PULSE_MODEL_FILE_INVALID {
 		t.Fatalf("a SEM file under .pulse-model.json: %v", cerr)
 	}
 
@@ -427,7 +427,7 @@ func TestSEMFile_CheckLoadedSEM(t *testing.T) {
 
 	sem := "s" + SEMSuffix
 	rs := refs("m", "m"+FileSuffix, "s", sem)
-	loaded, cerr := LoadFiles(Refs{Models: rs}, memRead(map[string][]byte{"m" + FileSuffix: encodedFullFit(t), sem: encodedSEM(t, semFileFixture())}))
+	loaded, cerr := LoadFiles(Refs{Models: rs}, memRead(map[string][]byte{"m" + FileSuffix: encodedFullFit(t), sem: encodedSEM(t, semFileFixture())}), nil)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}

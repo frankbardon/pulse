@@ -59,13 +59,18 @@ func resolveTemplateDirs(opts *Options) []string {
 // override layer is not a fault), and a root that exists but is not a
 // directory is a DATA_FILE error naming the path.
 //
+// exprParams are the visible extensions' expression-capable params keys
+// per operator name (ExtensionRegistry.ScalarParamsByOperator): the store
+// refuses a `{{token}}` in one of them PULSE_TEMPLATE_EXPR_SPLICE, at
+// startup and on every rescan, as in a built-in expression slot.
+//
 // Like the label- and range-table loaders, this deliberately reads through
 // the os package rather than afero. Template directories are process
 // configuration, not cohort data.
-func loadTemplateStore(opts *Options) (*template.Store, error) {
+func loadTemplateStore(opts *Options, exprParams map[string][]string) (*template.Store, error) {
 	dirs := resolveTemplateDirs(opts)
 	if len(dirs) == 0 {
 		return nil, nil
 	}
-	return template.NewStore(dirs)
+	return template.NewStoreWith(dirs, template.ValidateOptions{ExprParams: exprParams})
 }

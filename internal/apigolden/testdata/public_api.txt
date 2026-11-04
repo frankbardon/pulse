@@ -160,6 +160,7 @@ pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "j
 pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
 pulse: type ComposePredictResult field Compare []pulse/descriptor.ComparisonSummary "json:\"compare,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
+pulse: type ComposePredictResult field ForEach []pulse/descriptor.ForEachSummary "json:\"for_each,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
 pulse: type ComposePredictResult field Optimize []pulse/descriptor.OptimizeSummary "json:\"optimize,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
@@ -168,10 +169,12 @@ pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "js
 pulse: type ComposePredictResult field Request *pulse/types.ComposedRequest "json:\"request\""
 pulse: type ComposePredictResult field Slots []pulse/descriptor.ComposeSlotPredict "json:\"slots,omitempty\""
 pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
+pulse: type ComposePredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse: type ComposedRequest field Base *pulse/types.Request "json:\"base,omitempty\""
 pulse: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -239,6 +242,7 @@ pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
 pulse: const DefaultMaxDerivedColumns int64 = 1000
 pulse: const DefaultMaxEstimatedMemory int64 = -1
+pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
 pulse: const DefaultMaxMatrixDim int64 = 2048
@@ -352,6 +356,7 @@ pulse: type FacetPredictResult field OverlaysApplied []pulse/descriptor.OverlayA
 pulse: type FacetPredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse: type FacetPredictResult field Request *pulse/types.FacetRequest "json:\"request\""
 pulse: type FacetPredictResult field SchemaInfo *pulse/descriptor.PredictSchemaInfo "json:\"schema_info,omitempty\""
+pulse: type FacetPredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type FacetPredictResult field Valid bool "json:\"valid\""
 pulse: type FacetRequest = pulse/types.FacetRequest
 pulse: type FacetRequest underlying struct
@@ -432,6 +437,7 @@ pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose
 pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
 pulse: type FeatureProfileLimits field MaxDerivedColumns int64 "json:\"max_derived_columns,omitempty\""
 pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
+pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
 pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
@@ -642,6 +648,7 @@ pulse: type Limits field MaxComposeSlots int64
 pulse: type Limits field MaxCrosstabCells int64
 pulse: type Limits field MaxDerivedColumns int64
 pulse: type Limits field MaxEstimatedMemory int64
+pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
 pulse: type Limits field MaxMatrixDim int64
@@ -767,6 +774,7 @@ pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
 pulse: type ParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse: type ParamMeta field Example any "json:\"example,omitempty\""
+pulse: type ParamMeta field Expression bool "json:\"expression,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
@@ -1206,6 +1214,7 @@ pulse: type SynthOptions field DisclosureSample int
 pulse: type SynthOptions field FidelityModel *pulse/types.Request
 pulse: type SynthOptions field FidelityReportPath string
 pulse: type SynthOptions field FidelityWarnings []string
+pulse: type SynthOptions field LookupTables map[string]pulse/internal/synth.LookupTable
 pulse: type SynthOptions field Seed int64
 pulse: type SynthOptions field SourceCohort string
 pulse: type SynthOptions field SyntheticOnly bool
@@ -1233,6 +1242,8 @@ pulse: type SynthSpec field SetCategoricalPairs []pulse/internal/synth.SetCatego
 pulse: type SynthSpec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
 pulse: type SynthSpec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse: type SynthSpec method (*SynthSpec) Hash() string
+pulse: type SynthSpec method (*SynthSpec) HashWithLookups(tables map[string]pulse/internal/synth.LookupTable) string
+pulse: type SynthSpec method (*SynthSpec) ReferencedLookupTables() []string
 pulse: type Template = pulse/internal/template.Template
 pulse: type Template underlying struct
 pulse: type Template field Body encoding/json.RawMessage "json:\"body\""
@@ -1963,6 +1974,7 @@ pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omite
 pulse/descriptor: type OperatorParamMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type OperatorParamMeta field Example any "json:\"example,omitempty\""
+pulse/descriptor: type OperatorParamMeta field Expression bool "json:\"expression,omitempty\""
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
@@ -2025,6 +2037,7 @@ pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omite
 pulse/descriptor: type Param field EnumValuesBy map[string][]string "json:\"enum_values_by,omitempty\""
 pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
 pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
+pulse/descriptor: type Param field Expression bool "json:\"expression,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field NamesColumn bool "json:\"names_column,omitempty\""
@@ -2077,6 +2090,7 @@ pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"st
 pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
+pulse/descriptor: type PredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictResult field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"-\""
 pulse/descriptor: type PredictResult field Weights []pulse/descriptor.ResolvedWeight "json:\"weights,omitempty\""
@@ -2276,6 +2290,10 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type UnresolvedScalar struct
+pulse/descriptor: type UnresolvedScalar field Expression string "json:\"expression\""
+pulse/descriptor: type UnresolvedScalar field Path string "json:\"path\""
+pulse/descriptor: type UnresolvedScalar field Reads []string "json:\"reads\""
 pulse/descriptor: type ValidationCertification struct
 pulse/descriptor: type ValidationCertification field Dataset string "json:\"dataset\""
 pulse/descriptor: type ValidationCertification field Difficulty string "json:\"difficulty,omitempty\""
@@ -2691,6 +2709,7 @@ pulse/errors: const PULSE_CHAIN_STAGE_JOIN pulse/errors.Code = "PULSE_CHAIN_STAG
 pulse/errors: const PULSE_COHORT_COMPRESSED pulse/errors.Code = "PULSE_COHORT_COMPRESSED"
 pulse/errors: const PULSE_COMPARISON_INVALID pulse/errors.Code = "PULSE_COMPARISON_INVALID"
 pulse/errors: const PULSE_COMPARISON_ROWS_DIFFER pulse/errors.Code = "PULSE_COMPARISON_ROWS_DIFFER"
+pulse/errors: const PULSE_COMPOSE_BASE_COLLISION pulse/errors.Code = "PULSE_COMPOSE_BASE_COLLISION"
 pulse/errors: const PULSE_COMPOSE_LABEL_COLLISION pulse/errors.Code = "PULSE_COMPOSE_LABEL_COLLISION"
 pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_CROSSTAB_AGG_UNCLASSIFIED"
 pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
@@ -2941,6 +2960,7 @@ pulse/errors: const PULSE_REGRESSION_INVALID pulse/errors.Code = "PULSE_REGRESSI
 pulse/errors: const PULSE_REGRESSION_WINDOW_UNAVAILABLE pulse/errors.Code = "PULSE_REGRESSION_WINDOW_UNAVAILABLE"
 pulse/errors: const PULSE_REQUEST_PARAM_INVALID pulse/errors.Code = "PULSE_REQUEST_PARAM_INVALID"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
+pulse/errors: const PULSE_RESULT_INVALID pulse/errors.Code = "PULSE_RESULT_INVALID"
 pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
 pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
@@ -4480,6 +4500,11 @@ pulse/synth: type FieldSpec field Precision uint8 "json:\"precision,omitempty\""
 pulse/synth: type FieldSpec field Scale uint8 "json:\"scale,omitempty\""
 pulse/synth: type FieldSpec field Type string "json:\"type\""
 pulse/synth: type FieldSpec field Vector *pulse/internal/synth.VectorSpec "json:\"vector,omitempty\""
+pulse/synth: func LookupDigest(t pulse/synth.LookupTable) string
+pulse/synth: type LookupTable = pulse/internal/synth.LookupTable
+pulse/synth: type LookupTable underlying struct
+pulse/synth: type LookupTable field Axes [][]string
+pulse/synth: type LookupTable field Rows map[string]float64
 pulse/synth: type ModelFidelity = pulse/internal/synth.ModelFidelity
 pulse/synth: type ModelFidelity underlying struct
 pulse/synth: type ModelFidelity field CapturedIntercept float64 "json:\"captured_intercept\""
@@ -4578,6 +4603,7 @@ pulse/synth: type Options field DisclosureSample int
 pulse/synth: type Options field FidelityModel *pulse/types.Request
 pulse/synth: type Options field FidelityReportPath string
 pulse/synth: type Options field FidelityWarnings []string
+pulse/synth: type Options field LookupTables map[string]pulse/internal/synth.LookupTable
 pulse/synth: type Options field Seed int64
 pulse/synth: type Options field SourceCohort string
 pulse/synth: type Options field SyntheticOnly bool
@@ -4832,6 +4858,8 @@ pulse/synth: type Spec field SetCategoricalPairs []pulse/internal/synth.SetCateg
 pulse/synth: type Spec field SetNumericPairs []pulse/internal/synth.SetNumericPairSpec "json:\"set_numeric_pairs,omitempty\""
 pulse/synth: type Spec field SetSetPairs []pulse/internal/synth.SetSetPairSpec "json:\"set_set_pairs,omitempty\""
 pulse/synth: type Spec method (*Spec) Hash() string
+pulse/synth: type Spec method (*Spec) HashWithLookups(tables map[string]pulse/internal/synth.LookupTable) string
+pulse/synth: type Spec method (*Spec) ReferencedLookupTables() []string
 pulse/synth: func SpecFromProfile(p *pulse/synth.Profile, rowCount int) (*pulse/synth.Spec, []string)
 pulse/synth: func Synth(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, output string, opts pulse/synth.Options) (*pulse/synth.Result, error)
 pulse/synth: func SynthBytes(spec *pulse/synth.Spec, opts pulse/synth.Options) ([]byte, *pulse/synth.Result, error)
@@ -4963,6 +4991,7 @@ pulse/types: const AGG_AUC pulse/types.AggregationType = "AGG_AUC"
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
 pulse/types: const AGG_CI_LOWER pulse/types.AggregationType = "AGG_CI_LOWER"
 pulse/types: const AGG_CI_UPPER pulse/types.AggregationType = "AGG_CI_UPPER"
+pulse/types: const AGG_CONSTANT pulse/types.AggregationType = "AGG_CONSTANT"
 pulse/types: const AGG_COUNT pulse/types.AggregationType = "AGG_COUNT"
 pulse/types: const AGG_DISTINCT_COUNT pulse/types.AggregationType = "AGG_DISTINCT_COUNT"
 pulse/types: const AGG_DISTINCT_SUM pulse/types.AggregationType = "AGG_DISTINCT_SUM"
@@ -5025,6 +5054,7 @@ pulse/types: type Advisory field Message string "json:\"message\""
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
 pulse/types: type Aggregation field Fields []string "json:\"fields,omitempty\""
+pulse/types: type Aggregation field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Aggregation field Label string "json:\"label,omitempty\""
 pulse/types: type Aggregation field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Aggregation field Type pulse/types.AggregationType "json:\"type\""
@@ -5179,6 +5209,7 @@ pulse/types: type BannerSpec field Request *pulse/types.Request "json:\"request\
 pulse/types: type BannerSpec field Sections []pulse/types.BannerSection "json:\"sections\""
 pulse/types: type BannerSpec field Total bool "json:\"total,omitempty\""
 pulse/types: const BannerTotalLabel untyped string = "Total"
+pulse/types: func BoundExpr(src string) pulse/types.OptimizeBound
 pulse/types: func BoundParam(name string) pulse/types.OptimizeBound
 pulse/types: func BoundValue(v float64) pulse/types.OptimizeBound
 pulse/types: func CanonicalHash(tag string, v any) string
@@ -5246,6 +5277,7 @@ pulse/types: type ComposeOverlaySpec field Targets []string "json:\"targets,omit
 pulse/types: type ComposeOverlaySpec field Within int "json:\"within,omitempty\""
 pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
+pulse/types: type ComposedRequest field Base *pulse/types.Request "json:\"base,omitempty\""
 pulse/types: type ComposedRequest field Compare []pulse/types.FitComparisonSpec "json:\"compare,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
@@ -5790,6 +5822,7 @@ pulse/types: type MatrixResult method (MatrixResult) MarshalJSON() ([]byte, erro
 pulse/types: type MatrixSpec struct
 pulse/types: type MatrixSpec field Encoding pulse/types.MatrixEncoding "json:\"encoding,omitempty\""
 pulse/types: type MatrixSpec field Fields []string "json:\"fields,omitempty\""
+pulse/types: type MatrixSpec field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type MatrixSpec field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type MatrixSpec field Name string "json:\"name,omitempty\""
 pulse/types: type MatrixSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
@@ -5815,8 +5848,9 @@ pulse/types: type MatrixValues method (*MatrixValues) UnmarshalJSON(b []byte) er
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixValues method (MatrixValues) Records() []map[string]any
 pulse/types: type ModelRef struct
+pulse/types: type ModelRef field Inline encoding/json.RawMessage "json:\"inline,omitempty\""
 pulse/types: type ModelRef field Name string "json:\"name\""
-pulse/types: type ModelRef field Path string "json:\"path\""
+pulse/types: type ModelRef field Path string "json:\"path,omitempty\""
 pulse/types: type Multiplicity struct
 pulse/types: type Multiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type Multiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
@@ -5847,6 +5881,8 @@ pulse/types: const OptimizeActiveLower pulse/types.OptimizeActiveBound = "lower"
 pulse/types: const OptimizeActiveUpper pulse/types.OptimizeActiveBound = "upper"
 pulse/types: type OptimizeBound struct
 pulse/types: type OptimizeBound method (*OptimizeBound) UnmarshalJSON(raw []byte) error
+pulse/types: type OptimizeBound method (OptimizeBound) Expr() string
+pulse/types: type OptimizeBound method (OptimizeBound) IsExpr() bool
 pulse/types: type OptimizeBound method (OptimizeBound) IsParam() bool
 pulse/types: type OptimizeBound method (OptimizeBound) IsZero() bool
 pulse/types: type OptimizeBound method (OptimizeBound) MarshalJSON() ([]byte, error)
@@ -5886,6 +5922,7 @@ pulse/types: type OptimizeResult method (OptimizeResult) MarshalJSON() ([]byte, 
 pulse/types: type OptimizeSpec struct
 pulse/types: type OptimizeSpec field Constraints []pulse/types.OptimizeConstraint "json:\"constraints,omitempty\""
 pulse/types: type OptimizeSpec field Direction pulse/types.OptimizeDirection "json:\"direction\""
+pulse/types: type OptimizeSpec field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,omitempty\""
 pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
@@ -5895,6 +5932,8 @@ pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
 pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
 pulse/types: type OptimizeSpec field Variables []pulse/types.OptimizeVariable "json:\"variables\""
 pulse/types: type OptimizeSpec method (*OptimizeSpec) EffectiveStarts() int
+pulse/types: type OptimizeSpec method (*OptimizeSpec) UnmarshalJSON(data []byte) error
+pulse/types: type OptimizeSpec method (OptimizeSpec) MarshalJSON() ([]byte, error)
 pulse/types: type OptimizeVariable struct
 pulse/types: type OptimizeVariable field Lower pulse/types.OptimizeBound "json:\"lower\""
 pulse/types: type OptimizeVariable field Name string "json:\"name\""
@@ -6650,4 +6689,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7fe0aa73668ad56da0138366ba34b4fd22ffd5e14aec4e1aaf9ad28ec475bc69
+// golden-hash: e6b234a9e14773fe9aca05cf9f6088e6b7acc57644a45710e8d5c95008f9422e

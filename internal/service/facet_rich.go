@@ -64,9 +64,20 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	s = s.forFacet(req)
 	// The request's `models` (for its filterers' coef()), loaded before
 	// any record is read — predict loads them at the same point.
-	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: req.Models})
+	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: req.Models, Params: req.Params})
 	if err != nil {
 		return nil, err
+	}
+	// The extension filterers' expression-capable params
+	// (internal/extscalar), resolved against the facet's params and
+	// models before any filterer is built — predict judges them at the
+	// same point.
+	if fs, rerr := processing.ResolveExtensionScalarFilterers("filterers", req.Filterers, s.extensions, model.SetFrom(ctx)); rerr != nil {
+		return nil, rerr
+	} else if len(fs) > 0 && &fs[0] != &req.Filterers[0] {
+		cp := *req
+		cp.Filterers = fs
+		req = &cp
 	}
 	mult, err := descx.ResolveFacetMultiplicity(req, s.defaultMultiplicity, s.instance)
 	if err != nil {

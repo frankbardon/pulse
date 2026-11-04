@@ -20,6 +20,7 @@ func TestUnitAndDefault(t *testing.T) {
 		MaxChainStages:     UnitCount,
 		MaxJoinBuildRows:   UnitCount,
 		MaxDerivedColumns:  UnitCount,
+		MaxExpandedItems:   UnitCount,
 	}
 	defs := Defaults()
 	for _, n := range Names() {

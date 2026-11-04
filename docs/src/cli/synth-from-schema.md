@@ -564,6 +564,16 @@ the quoted form compiles, so it is reported as the unknown FIELD it is
 (`PULSE_SYNTH_RULE_FIELD_UNKNOWN`), not as an expression that will not
 compile.
 
+`lookup("table", keys...)` reads a lookup table — the same tables and
+the same reader analyses use (`PULSE_LOOKUP_TABLES_DIR`, or
+`Extensions.LookupTables` / `LookupTablesDir` on a library instance).
+The table name must be a string literal. Every literal call is checked
+before the first row is drawn (`PULSE_LOOKUP_TABLE_UNKNOWN`,
+`PULSE_LOOKUP_MISS`). A key that reads a null field is a
+`PULSE_LOOKUP_MISS`, so guard it with `isnull`. Each referenced table's
+contents are part of the run's identity: the same spec, seed and tables
+give the same file, and a changed table gives a new one.
+
 Beyond expr-lang's stock built-ins (`abs`, `round`, `max`, `split`, …)
 the environment carries the same maths the formula attribute uses:
 `sqrt`, `exp`, `log`, `log1p`, `pow(x, y)`, `hill(x, k, s)`, `sin`,

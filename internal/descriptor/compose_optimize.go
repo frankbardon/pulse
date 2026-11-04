@@ -1,12 +1,17 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/resultcall"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/tablecall"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -24,16 +29,32 @@ import (
 // reads a block's `models` files. Predict (validateComposeExpanded) and
 // the runtime (Service.compose / composeParallel) call it at the same
 // point, right after model.CheckFits, so both refuse the same block
-// identically. It returns each block's decoded `models` files
+// identically. Every result(slot, aggregation) call is judged against
+// the batch's effective slots (ResultCatalog over req.Requests,
+// sweep and banner slots included, each aggregation judged by kinds —
+// the instance's view, so a non-numeric one is refused statically on
+// both sides). It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
-func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
+func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) ([]*model.Loaded, *errors.CodedError) {
+	checked, cerr := OptimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds)
+	if cerr != nil || checked == nil {
+		return nil, cerr
+	}
+	return checked.Loaded, nil
+}
+
+// OptimizeCheck is OptimizeRefusal that also returns the bounds and
+// starts the declaration-only check left unresolved (optblock.CheckAll)
+// — predict's ComposeValidationResult.UnresolvedScalars. Nil, nil when
+// the batch declares no block.
+func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) (*optblock.Checked, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
 	fits := model.CatalogFromFits(req.Fits).WithSweepAxes(sweepAxes)
-	return optblock.CheckLoaded(req.Optimize, optblock.Env{
+	return optblock.CheckAll(req.Optimize, optblock.Env{
 		Params:     params,
 		Fits:       fits,
 		Extensions: exprFunctions,
@@ -41,7 +62,59 @@ func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctio
 		Tables:     tables,
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
+		Results:    ResultCatalog(req.Requests, kinds),
 	})
+}
+
+// ResultCatalog is the result() catalog of the batch's effective slots
+// with each aggregation judged non-numeric by kinds.IsNonScalarSlot —
+// the one builder predict (OptimizeCheck) and the runtime (its entry
+// check, the pre-phase and the solve's reader) share. A slot whose
+// aggregations fan out (`for_each`) is cataloged with the aggregations
+// it will run (resultItemsExpanded), so result() names an expanded
+// label exactly as the slot's response carries it.
+func ResultCatalog(requests []*types.Request, kinds vectors.AggregationKinds) *resultcall.Catalog {
+	return resultcall.CatalogWith(resultItemsExpanded(requests), kinds.IsNonScalarSlot)
+}
+
+// resultItemsExpanded is requests with each slot carrying an
+// aggregation for_each replaced by its item-expanded clone (index
+// aligned); requests itself when none does. The expansion is the one
+// every slot runs (sweep.ExpandItems), without limits: a slot whose
+// for_each does not expand keeps its items as written, and its own
+// expansion refuses it when the slot is validated or run.
+func resultItemsExpanded(requests []*types.Request) []*types.Request {
+	var out []*types.Request
+	for i, r := range requests {
+		if r == nil || !slices.ContainsFunc(r.Aggregations, func(a *types.Aggregation) bool { return a != nil && a.ForEach != nil }) {
+			continue
+		}
+		x, _, err := sweep.ExpandItems(r, sweep.Options{}, nil)
+		if err != nil {
+			continue
+		}
+		if out == nil {
+			out = slices.Clone(requests)
+		}
+		out[i] = x
+	}
+	if out == nil {
+		return requests
+	}
+	return out
+}
+
+// optimizeUnresolved is the blocks' unresolved bounds and starts as
+// ComposeValidationResult.UnresolvedScalars entries (nil without any).
+func optimizeUnresolved(checked *optblock.Checked) []descriptor.UnresolvedScalar {
+	if checked == nil || len(checked.Unresolved) == 0 {
+		return nil
+	}
+	out := make([]descriptor.UnresolvedScalar, len(checked.Unresolved))
+	for i, u := range checked.Unresolved {
+		out[i] = descriptor.UnresolvedScalar{Path: u.Field, Expression: u.Expression, Reads: u.Reads}
+	}
+	return out
 }
 
 // predictExprFunctionNames is the embedder ExprFunction names the

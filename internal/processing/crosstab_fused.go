@@ -3,6 +3,7 @@ package processing
 import (
 	stderrors "errors"
 	"fmt"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -342,11 +343,11 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 	}
 	// Map-valued cell aggregators are incompatible with normalization;
 	// mirror the same gate the buffered RunCrosstab applies.
-	if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && spec.Cell.Type.MapValued() {
+	if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && (spec.Cell.Type.MapValued() || aggconst.NonNumeric(spec.Cell)) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
 			"crosstab normalize="+string(spec.NormalizeOrDefault())+
-				" is incompatible with map-valued cell aggregator "+
+				" is incompatible with "+normalizeRefusedWhat(spec.Cell)+" cell aggregator "+
 				string(spec.Cell.Type),
 			map[string]any{
 				"aggregation": string(spec.Cell.Type),

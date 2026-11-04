@@ -1631,6 +1631,17 @@ const (
 	// value.
 	PULSE_COMPOSE_LABEL_COLLISION Code = "PULSE_COMPOSE_LABEL_COLLISION"
 
+	// PULSE_COMPOSE_BASE_COLLISION indicates a ComposedRequest `base`
+	// that cannot be merged into an explicit slot: a base item's label
+	// or name equals one of the slot's own items in the same list
+	// (reason label_collision — two items would answer to one label),
+	// or the base sets `label` (reason base_label — a base names no
+	// slot). Refused identically by predict and the runtime before the
+	// sweep and banner expansion. Details carry "reason" and, where they
+	// apply, "request" (the slot index), "slot" (its label or
+	// request_<n>), "list" (the list key) and "label".
+	PULSE_COMPOSE_BASE_COLLISION Code = "PULSE_COMPOSE_BASE_COLLISION"
+
 	// PULSE_SWEEP_INVALID indicates a malformed ComposedRequest `sweep`
 	// block: no axes, an axis name that is not a unique identifier, an
 	// empty or non-scalar values list, an unknown mode (grid, zip,
@@ -1902,14 +1913,17 @@ const (
 	// parsed: not JSON (reason "json"), no model_format_version
 	// ("version_missing"), or a version-1 document with an unknown key,
 	// a mistyped value or a structural fault — no type or target, a
-	// predictor without a coefficient or outside terms, a malformed vcov
-	// ("schema"). Details carry "path" and "reason" (plus "model" and
+	// predictor without a coefficient or outside terms, a malformed vcov,
+	// a listed feature without its section or a section whose feature is
+	// unlisted ("schema"). Details carry "path" and "reason" (plus "model" and
 	// "name" when a Request `models` entry loads it).
 	PULSE_MODEL_FILE_INVALID Code = "PULSE_MODEL_FILE_INVALID"
 
 	// PULSE_MODEL_VERSION_UNSUPPORTED indicates a model file whose
-	// model_format_version this build does not read. Details carry
-	// "path", "version" and "supported".
+	// model_format_version this build does not read (the retired 2 to 6
+	// included: re-save the fit), or one listing a feature this build
+	// does not know. Details carry "path", "version" and "supported",
+	// plus "unknown_features" and "supported_features" for a feature.
 	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
 
 	// PULSE_MODEL_REGRESSION_UNREGISTERED indicates a `models` entry
@@ -1935,7 +1949,11 @@ const (
 	PULSE_MODEL_FILE_UNREADABLE Code = "PULSE_MODEL_FILE_UNREADABLE"
 
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
-	// window, feature or attribute item: no axes, an axis name that is
+	// window, feature, attribute, aggregation or matrix item or a Compose
+	// optimize block (or one on an aggregation where no fan-out runs — a
+	// crosstab or banner cell, reason position_unsupported; or a
+	// fanned-out optimize block whose name names no axis, reason
+	// name_without_axis): no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
 	// unknown mode (the sampling modes random / lhs are compose-sweep
 	// only, as is an axis `range` — reason range_unsupported), unequal
@@ -1951,9 +1969,11 @@ const (
 	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
 
 	// PULSE_FOR_EACH_EXPR_SPLICE indicates a `{{token}}` placeholder
-	// inside an expression-bearing string of a window, feature or
-	// attribute item carrying a `for_each` (an attribute `expression`, a
-	// params-borne `fit_on` or centroid `filter` expression; the slot list
+	// inside an expression-bearing string of a window, feature,
+	// attribute, aggregation or matrix item or a Compose optimize block
+	// carrying a `for_each` (an optimize objective, constraint or bound, an
+	// attribute `expression`, a params-borne `fit_on` or centroid
+	// `filter` expression, a scalar-expression param; the slot list
 	// is internal/exprslots). Splicing an axis value's text into an
 	// expression would let the value rewrite the expression's logic, so
 	// the request is refused before any item is substituted — identically
@@ -2198,8 +2218,9 @@ const (
 	// PULSE_CROSSTAB_NORMALIZE_MAP_VALUED indicates the Crosstab
 	// section requested a normalize mode (row / column / total)
 	// paired with a cell aggregator whose output is map-valued
-	// (AGG_SET_FREQUENCY). Dividing one map by another is undefined;
-	// drop the normalize directive or pick a scalar aggregator (e.g.
+	// (AGG_SET_FREQUENCY) or an AGG_CONSTANT of a non-numeric
+	// params.type. Dividing such values is undefined; drop the
+	// normalize directive or pick a scalar aggregator (e.g.
 	// AGG_SET_CARDINALITY_SUM) for normalized output.
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED Code = "PULSE_CROSSTAB_NORMALIZE_MAP_VALUED"
 
@@ -3950,12 +3971,17 @@ const (
 	// decision variable that cannot be solved over: a missing name, a
 	// name that is not an identifier, is `params` or an expression
 	// function's name, or repeats another variable's; a missing lower or
-	// upper bound; a bound or start whose param is not an identifier
-	// or does not hold a finite number;
-	// a lower bound above the upper; or a start outside the bounds.
-	// Refused identically by predict and the runtime before any fit or
-	// slot runs. Details carry "optimize", "field", "reason", "variable"
-	// and, where they apply, "param", "lower", "upper" and "value".
+	// upper bound; a bound or start whose scalar expression does not
+	// compile or reads an identifier other than params (bound_invalid),
+	// does not yield a number (bound_not_numeric) or yields a non-finite
+	// one (bound_not_finite); a lower bound above the upper; or a start
+	// outside the bounds. Refused identically by predict and the runtime
+	// before any fit or slot runs — except a bound calling a
+	// request-bound function (coef(), sweep_axis(), …), whose value and
+	// range checks the runtime judges once the fits have run. Details
+	// carry "optimize", "field", "reason", "variable" and, where they
+	// apply, "expression", "param", "identifier", "compile_error",
+	// "result_type", "lower", "upper" and "value".
 	PULSE_OPTIMIZE_VARIABLE_INVALID Code = "PULSE_OPTIMIZE_VARIABLE_INVALID"
 
 	// PULSE_OPTIMIZE_EXPRESSION_INVALID indicates an `optimize` block's
@@ -3968,6 +3994,20 @@ const (
 	// "field", "reason", "expression" and, where they apply,
 	// "identifier", "valid", "compile_error" and "result_type".
 	PULSE_OPTIMIZE_EXPRESSION_INVALID Code = "PULSE_OPTIMIZE_EXPRESSION_INVALID"
+
+	// PULSE_RESULT_INVALID indicates a result(slot, aggregation) call
+	// that cannot be read. Statically — refused identically by predict
+	// and the runtime before any fit or slot runs — the call sits outside
+	// a Compose optimize block (out_of_scope), an argument is not a
+	// string literal (args_not_literal), no slot carries the label
+	// (slot_unknown), the slot has no aggregation with the label
+	// (aggregation_unknown) or the slot is grouped (grouped). At run
+	// time, once the slot ran in the result pre-phase, the value is null
+	// (null), not a number (not_numeric) or infinite (not_finite).
+	// Details carry "reason", "slot", "aggregation" and, where they
+	// apply, "available", "expression", "type", "value", "rows",
+	// "optimize" and "field".
+	PULSE_RESULT_INVALID Code = "PULSE_RESULT_INVALID"
 
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
 	// dimensions disagree (a non-square or ragged matrix, a vector whose
@@ -4859,6 +4899,7 @@ var allCodes = []Code{
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,
 	PULSE_COMPOSE_LABEL_COLLISION,
+	PULSE_COMPOSE_BASE_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
 	PULSE_SWEEP_EXPR_SPLICE,
@@ -5053,6 +5094,7 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,
+	PULSE_RESULT_INVALID,
 	PULSE_VECTOR_INVALID,
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,

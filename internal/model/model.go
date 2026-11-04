@@ -104,6 +104,13 @@ type Bound struct {
 	SweepBound bool
 	SweepAxes  map[string]any
 
+	// Adstocks are a media-mix fit's adstock records by channel
+	// (AdstockLineage: a REG_MMM_HILL channel's WIN_DISTRIBUTED_LAG,
+	// a REG_MMM_BAYES channel's posterior decay; a model file's or an
+	// inline model's `adstock` section) — what response() reads. Nil for
+	// none; read one with Adstock.
+	Adstocks map[string]Adstock
+
 	// Design is the fit's influence face (FitDesign): its result's
 	// figures, plus what only the spec says — `bounds`, `intercept:
 	// false`, and the modifiers as the spec wrote them (Bind reads the

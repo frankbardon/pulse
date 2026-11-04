@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/slotfail"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -390,20 +391,44 @@ func (s *Service) ExtensionsSnapshot() *descx.ExtensionsSnapshot {
 }
 
 // expandItems expands every item for_each of req IN PLACE — its
-// Features, Attributes and Windows become the expanded lists, as smart
+// Features, Attributes, Windows, Aggregations and Matrices become the
+// expanded lists, as smart
 // defaults resolve in place — through descx.ExpandRequestItems against
 // this service's limits. A for_each-free request is untouched (after
 // the same MaxDerivedColumns check over its plain items); expanding an
 // already-expanded request is a no-op.
 func (s *Service) expandItems(req *types.Request) error {
-	out, _, _, err := descx.ExpandRequestItems(req, s.Limits())
+	out, _, _, err := descx.ExpandRequestItems(req, s.Limits(), s.sweepOptions(req))
 	if err != nil {
 		return err
 	}
 	if out != req {
 		req.Features, req.Attributes, req.Windows = out.Features, out.Attributes, out.Windows
+		req.Aggregations, req.Matrices = out.Aggregations, out.Matrices
 	}
 	return nil
+}
+
+// sweepOptions is the instance facts req's item for_each expansion
+// judges with: the visible extensions' expression-capable params keys
+// (ExtensionRegistry.ScalarParamsByOperator), so an axis token in one is
+// PULSE_FOR_EACH_EXPR_SPLICE exactly as predict's
+// InstanceSnapshot.SweepOptions refuses it. Built only when req fans
+// out: the for_each-free path never reads it.
+func (s *Service) sweepOptions(req *types.Request) sweep.Options {
+	if !sweep.HasForEach(req) {
+		return sweep.Options{}
+	}
+	return sweep.Options{ExprParams: s.extensions.ScalarParamsByOperator()}
+}
+
+// composeSweepOptions is sweepOptions for a compose batch's sweep
+// (PULSE_SWEEP_EXPR_SPLICE): built only when the batch sweeps.
+func (s *Service) composeSweepOptions(c *types.ComposedRequest) sweep.Options {
+	if c == nil || c.Sweep == nil {
+		return sweep.Options{}
+	}
+	return sweep.Options{ExprParams: s.extensions.ScalarParamsByOperator()}
 }
 
 // applyDefaults runs descriptor.ResolveDefaults against the cohort schema
@@ -680,6 +705,12 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// Every expression of this run folds the request's params: the
 	// arms below compile through the per-request registry.
 	s = s.forRequest(req)
+	// A Compose fit's adstock sink is this run's alone: cleared on ctx
+	// so no nested run fills it (adstock_lineage.go).
+	sink := adstockSinkFrom(ctx)
+	if sink != nil {
+		ctx = withAdstockSink(ctx, nil)
+	}
 
 	// A slot the instance hides is an unknown field. It runs before the
 	// join-count rule and the crosstab / joins dispatch below, so a
@@ -806,9 +837,16 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 	s.appendVectorWarnings(ctx, req, resp)
 	s.appendTargetLeakageWarnings(req, resp)
+	// A media-mix fit's adstock lineage, over the windows as this run
+	// resolved them: for a Compose fit's binding (the sink) and for the
+	// model files.
+	lineage := s.adstockLineage(ctx, req, resp, sink != nil)
+	if sink != nil {
+		sink.records = lineage
+	}
 	// Model files: every regression `save`, from the full-precision
 	// results (a `return` shapes the response later, in the facade).
-	if err := s.saveRegressionModels(ctx, req, resp); err != nil {
+	if err := s.saveRegressionModels(ctx, req, resp, lineage); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -1375,9 +1413,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err != nil {
 		return nil, err
 	}
-	// The optimize blocks, once the fits are bound and before any slot:
-	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
+	// The result pre-phase: every slot a block's result() reads runs
+	// now, once, before the blocks (runComposeResultPhase — ran marks
+	// it for the slot phase below). A failed one stops the batch before
+	// any block, its error naming the slot (resultPhaseFailure).
+	ran, _, err = runComposeResultPhase(composed, len(requests), ran, models, runSlots)
+	if err != nil {
+		return nil, err
+	}
+	// The optimize blocks, once the fits are bound and before every slot
+	// the result pre-phase did not run: they read no record
+	// (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded, responses)
 	if err != nil {
 		return nil, err
 	}

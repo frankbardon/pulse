@@ -419,6 +419,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return priorPrecisionDef()
 	case reflect.TypeFor[types.OptimizeBound]():
 		return optimizeBoundDef()
+	case reflect.TypeFor[types.OptimizeSpec]():
+		return b.optimizeSpecDef(t)
 	case reflect.TypeFor[types.FitResult]():
 		return b.fitResultDef()
 	case reflect.TypeFor[types.MatrixValues]():
@@ -581,6 +583,13 @@ var fieldOverrides = map[fieldKey]any{
 		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
 	},
 	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// An inline model is the model-file document, its numbers literal
+	// or scalar expressions over params; the generic RawMessage rule
+	// would describe operator params.
+	{reflect.TypeFor[types.ModelRef](), "inline"}: map[string]any{
+		"type":        "object",
+		"description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef(), sweep_axis() and response() read it, scoring it is refused.",
+	},
 	// A ranking entry's axes: the scalar each sweep axis took in the
 	// ranked slot, keyed by axis name.
 	{reflect.TypeFor[types.RankEntry](), "axes"}: map[string]any{
@@ -941,16 +950,87 @@ func priorPrecisionDef() any {
 // optimizeBoundDef is an optimize variable's lower / upper / start.
 // types.OptimizeBound has no exported fields (its states are behind
 // constructors), so reflection would describe an empty object; on the
-// wire it is a number or a "params.<name>" reference to a numeric batch
-// param.
+// wire it is a number or a scalar expression string (internal/
+// scalarslot), "params.<name>" the simplest.
 func optimizeBoundDef() any {
 	return map[string]any{
-		"description": "A decision variable's bound or start: a number, or \"params.<name>\" naming a batch param that holds a finite number.",
+		"description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.<name>, coef() / sweep_axis() / response() over the batch fits and the block's models, result(slot, aggregation) over an ungrouped Compose slot (run first, once), lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
 		"oneOf": []any{
 			map[string]any{"type": "number"},
-			map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+			map[string]any{"type": "string", "minLength": 1},
 		},
 	}
+}
+
+// VarMarkerSchema is a `{"$var": "axis"}` value: a fanned-out optimize
+// block's whole scalar, substituted from its for_each axis. Shared by
+// the payload schema (optimizeSpecDef) and the MCP pulse_compose input
+// schema, so the two admit the same marker.
+func VarMarkerSchema() map[string]any {
+	return map[string]any{
+		"type":                 "object",
+		"description":          "With a for_each on the block: the whole value taken from the named axis.",
+		"properties":           map[string]any{"$var": map[string]any{"type": "string"}},
+		"required":             []string{"$var"},
+		"additionalProperties": false,
+	}
+}
+
+// optimizeSpecDef is a Compose optimize block. With capability:for_each
+// visible, every scalar of the block — its own and its variables',
+// constraints' and models' — may be a whole `{"$var": "axis"}` marker
+// (types.OptimizeSpec keeps such a block as written for its fan-out),
+// but only in a block that carries a `for_each`: a block without one
+// re-applies the strict property shapes (`if`/`then`), as the runtime
+// refuses a marker there at decode. Arrays are never a marker (the MCP
+// binder's allowVarMarkers rule); their object items recurse. With
+// for_each hidden the block is the plain reflected struct.
+func (b *schemaBuilder) optimizeSpecDef(t reflect.Type) any {
+	strict := b.structSchema(t).(map[string]any)
+	if strict["properties"].(map[string]any)["for_each"] == nil {
+		return strict
+	}
+	out := b.varMarkerStruct(t)
+	out["if"] = map[string]any{"not": map[string]any{"required": []string{"for_each"}}}
+	out["then"] = map[string]any{"properties": strict["properties"]}
+	return out
+}
+
+// varMarkerDef names the $def holding VarMarkerSchema; registered only
+// when a fanned-out optimize block is describable, so an instance
+// hiding capability:for_each carries no such def.
+const varMarkerDef = "VarMarker"
+
+// varMarkerStruct is t's struct schema with every scalar property (all
+// but for_each and arrays) widened to anyOf [itself, $defs/VarMarker],
+// an array of structs carrying the same widening on its items, inline.
+func (b *schemaBuilder) varMarkerStruct(t reflect.Type) map[string]any {
+	s := maps.Clone(b.structSchema(t).(map[string]any))
+	props := maps.Clone(s["properties"].(map[string]any))
+	for i := range t.NumField() {
+		f := t.Field(i)
+		name, _, skip := jsonFieldName(f)
+		p, ok := props[name].(map[string]any)
+		if skip || f.PkgPath != "" || !ok || name == "for_each" {
+			continue
+		}
+		ft := f.Type
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+		if ft.Kind() == reflect.Slice && ft != rawMessageType {
+			if el := ft.Elem(); el.Kind() == reflect.Struct {
+				arr := maps.Clone(p)
+				arr["items"] = b.varMarkerStruct(el)
+				props[name] = arr
+			}
+			continue
+		}
+		b.defs[varMarkerDef] = VarMarkerSchema()
+		props[name] = map[string]any{"anyOf": []any{p, map[string]any{"$ref": "#/$defs/" + varMarkerDef}}}
+	}
+	s["properties"] = props
+	return s
 }
 
 // jsonFieldName replicates encoding/json's field-name resolution: the tag

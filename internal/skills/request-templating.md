@@ -12,14 +12,14 @@ requires: [capability:templates]
 
 Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Execution-free.
 
-**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution (`expression-language`). `{{}}` in an expression string (`expression`, `holdout`, overlay `params.formula`, feature `params.fit_on`) is `_EXPR_SPLICE` at load, axis tokens too; whole `$var`, `{{{{` are legal.
+**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution (`expression-language`). `{{}}` in an expression string (`expression`, `holdout`, overlay `params.formula`, feature `params.fit_on`, an `expression: true` param) is `_EXPR_SPLICE` at load, axis tokens too; whole `$var`, `{{{{` are legal.
 <!-- feature: capability:params -->
 Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` (`request-params`).
 <!-- /feature -->
 
 ## File shape
 
-`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request | composed | chain | facet | sample` (lowercase) picks the strict-decode root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, deliberately **not** runnable as-is.
+`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request | composed | chain | facet | sample` (lowercase) picks the strict-decode root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, **not** runnable as-is.
 
 ## Substitution — three forms
 

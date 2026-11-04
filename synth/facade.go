@@ -456,6 +456,12 @@ type ModelResidualPairFidelity = isynth.ModelResidualPairFidelity
 // ResidualUnmeasuredPair, whose reasoning this mirrors exactly.
 type ModelResidualUnmeasuredPair = isynth.ModelResidualUnmeasuredPair
 
+// LookupTable is a named lookup table the row environment's
+// lookup(table, keys...) reads (Options.LookupTables): Rows keyed by
+// the "|"-joined key arguments, and Axes, each declared key axis's
+// values in argument order (nil: none declared).
+type LookupTable = isynth.LookupTable
+
 // NumericPairProfile is one captured numeric-numeric pair's
 // reconstruction input.
 type NumericPairProfile = isynth.NumericPairProfile
@@ -917,7 +923,8 @@ type VectorSpec = isynth.VectorSpec
 // rows are appended tagged _synthetic=true; the source is never opened
 // for write. opts.SyntheticOnly writes the generated rows alone, with
 // no source row and no _synthetic column. Output is byte-identical for
-// the same (spec, seed) pair.
+// the same (spec, seed) pair — and, for a spec calling lookup(), the same
+// opts.LookupTables (Spec.HashWithLookups).
 func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error) {
 	return isynth.Synth(fs, spec, output, opts)
 }
@@ -926,6 +933,12 @@ func Synth(fs afero.Fs, spec *Spec, output string, opts Options) (*Result, error
 // touching a filesystem.
 func SynthBytes(spec *Spec, opts Options) ([]byte, *Result, error) {
 	return isynth.SynthBytes(spec, opts)
+}
+
+// LookupDigest is the content digest of t that Spec.HashWithLookups
+// folds in for every table a spec's lookup() calls name.
+func LookupDigest(t LookupTable) string {
+	return isynth.LookupDigest(t)
 }
 
 // ProfileFile reads a .pulse cohort (single file or shard archive) from

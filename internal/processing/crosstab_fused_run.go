@@ -52,6 +52,10 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstabFused requires a non-nil record iterator")
 	}
+	req, err := p.resolveExtensionScalars(req)
+	if err != nil {
+		return nil, err
+	}
 	req = p.prepare(req)
 
 	spec := req.Crosstab

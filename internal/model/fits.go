@@ -123,8 +123,9 @@ func CheckFits(fits []types.FitSpec) error {
 // from_sweep entry (types.FitFromSweep), after the name, is judged by
 // the from_sweep rules instead of the request rules — PULSE_FIT_INVALID
 // from_sweep_with_request, _no_sweep, _no_rank, _regression_unknown,
-// _signature_varies, _cycle (details.regression, and details.slot — the
-// 0-based sweep slot — on the last two) — then its `save` as a
+// _signature_varies, _cycle, _window_cycle (details.regression, and
+// details.slot — the 0-based sweep slot — on the last three; the window
+// cycle adds details.window and details.param) — then its `save` as a
 // regression fit's (CheckSavePath) and its name's uniqueness.
 func CheckFitsIn(fits []types.FitSpec, scope SweepScope) error {
 	seen := make(map[string]bool, len(fits))

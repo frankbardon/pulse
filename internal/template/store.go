@@ -199,6 +199,11 @@ type Store struct {
 	scans  uint64
 	parses uint64
 
+	// validate is the instance facts every parse is validated against
+	// (ValidateOptions), fixed at construction so a rescan judges a file
+	// exactly as startup did.
+	validate ValidateOptions
+
 	// logger receives the rescan lifecycle records; nil logs nothing.
 	// Set once by SetLogger before the store is shared.
 	logger *slog.Logger
@@ -333,8 +338,14 @@ func (p *prevSnapshot) faultFor(path string) *fileFault {
 // An empty dirs slice yields a usable empty store rather than an error:
 // "no template directories configured" is a normal deployment, not a fault.
 func NewStore(dirs []string) (*Store, error) {
-	s := &Store{dirs: slices.Clone(dirs), clock: time.Now}
-	res, err := scanDirs(s.dirs, nil, true)
+	return NewStoreWith(dirs, ValidateOptions{})
+}
+
+// NewStoreWith is NewStore validating every document — at construction
+// and on every later rescan — with the instance facts in opts.
+func NewStoreWith(dirs []string, opts ValidateOptions) (*Store, error) {
+	s := &Store{dirs: slices.Clone(dirs), clock: time.Now, validate: opts}
+	res, err := scanDirs(s.dirs, nil, true, s.validate)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +581,7 @@ func (s *Store) refresh(force bool) error {
 	}
 	// Not strict: past construction a broken document degrades to a
 	// recorded fault rather than aborting the walk.
-	res, err := scanDirs(dirs, prev, false)
+	res, err := scanDirs(dirs, prev, false, s.validate)
 	if err != nil {
 		return err
 	}
@@ -775,7 +786,7 @@ type scanResult struct {
 // that file's last-good parse forward if it has one, and keeps walking, so
 // one file mid-save cannot take the catalog down. Root-level faults abort
 // either way: there is no per-file scope to degrade a broken root to.
-func scanDirs(dirs []string, prev *prevSnapshot, strict bool) (scanResult, error) {
+func scanDirs(dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptions) (scanResult, error) {
 	res := scanResult{
 		byName: make(map[string][]*fileEntry),
 		faults: make(map[string][]*fileFault),
@@ -802,7 +813,7 @@ func scanDirs(dirs []string, prev *prevSnapshot, strict bool) (scanResult, error
 					"each configured template root must be a directory of *.json template files",
 				map[string]any{detailPath: dir})
 		}
-		if err := scanDir(dir, i, prev, &res, seenPaths, strict); err != nil {
+		if err := scanDir(dir, i, prev, &res, seenPaths, strict, opts); err != nil {
 			return scanResult{}, err
 		}
 	}
@@ -819,7 +830,7 @@ func scanDirs(dirs []string, prev *prevSnapshot, strict bool) (scanResult, error
 // against the file's derived name, carries that file's previous last-good
 // parse into the new index when it has one, and moves on — which is what
 // confines a half-written save to the one name it belongs to.
-func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, seenPaths map[string]struct{}, strict bool) error {
+func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, seenPaths map[string]struct{}, strict bool, opts ValidateOptions) error {
 	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return ioError(path, "walking template directory", walkErr)
@@ -882,7 +893,7 @@ func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, see
 
 		entry := unchangedEntry(prev, path, name, rootIndex, info)
 		if entry == nil {
-			entry, err = loadEntry(path, name, rootIndex, info)
+			entry, err = loadEntry(path, name, rootIndex, info, opts)
 			res.parsed++
 			if err != nil {
 				if strict {
@@ -983,12 +994,12 @@ func unchangedEntry(prev *prevSnapshot, path, name string, rootIndex int, info o
 // and mtime that no longer match the disk, so the next walk sees a
 // mismatch and re-reads it — the race resolves itself one rescan later
 // rather than latching stale content.
-func loadEntry(path, name string, rootIndex int, info os.FileInfo) (*fileEntry, error) {
+func loadEntry(path, name string, rootIndex int, info os.FileInfo, opts ValidateOptions) (*fileEntry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, ioError(path, "reading template file", err)
 	}
-	tmpl, err := Parse(data)
+	tmpl, err := ParseWith(data, opts)
 	if err != nil {
 		return nil, loadError(path, name, err)
 	}

@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U77, U78]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [466, 475, 523, 524, 573, 559, 577, 244, 245, 486, 676, 479]
+todo_items: [466, 475, 523, 524, 573, 559, 577, 244, 245, 486, 676, 479, 708]
 branch: predict-extension-parity-2
 ---
 
@@ -38,3 +38,4 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 - [ ] **#486** Extension attributes declaring an output dictionary, so an `extend` attribute emitting a categorical inherits a dictionary the way `ATTR_PREVIOUS_STATE` inherits its state field's. Found in U55 (E1-S2) · [U67](units/U67-predict-extension-parity-2.md)
 - [ ] **#676** Extension `OverlayKinds` registration: `internal/descriptor/extensions.go:103` reserves the `Options.Extensions.OverlayKinds` slot as "not yet implemented"; implement embedder-registered overlay kinds through predict, manifest, MCP and runtime, or remove the reserved slot · [U67](units/U67-predict-extension-parity-2.md)
 - [ ] **#479** `WIN_FORMULA`: a general post-window formula site — an expression over a grouped row's columns and window outputs (ratios, differences, a lift of two shares) — so a gains-table figure beyond `WIN_SHARE` / `WIN_LIFT` needs no new operator. Ships in v1.0.0 (owner decision 2026-11-02; U49 shipped a dedicated `WIN_LIFT` and the general site is additive) · [U67](units/U67-predict-extension-parity-2.md)
+- [ ] **#708** Predict does not fold a loaded or inline model's `coef()` / `sweep_axis()` / `response()` values although they are in the file; they stay under `unresolved_scalars` and their range checks run at runtime. A design option (fold what a loaded file states), found in library-gaps E3-S2 · [U67](units/U67-predict-extension-parity-2.md)

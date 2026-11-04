@@ -20,7 +20,7 @@ requires: [capability:synth]
 | Correlating modelled fields' residuals (`--residual-correlations`) | `synth-residual-correlations` |
 | Did captured coefficients survive? (`models` fidelity section) | `synth-model-recovery` |
 | Did residual correlations survive? (`model_residual_correlations`) | `synth-residual-recovery` |
-| Claim order; a rule that retires a model | `synth-conflicts` · `synth-rule-claims` |
+| Claim order; a rule (incl. `lookup()`) retiring a model | `synth-conflicts` · `synth-rule-claims` |
 
 ## Capture (`--fit-models`)
 
@@ -28,7 +28,7 @@ One linear model per numeric field (a probit for a `packed_bool`, `synth-margina
 
 **A numeric predictor enters only a numeric declared AFTER it** (adjusted r², the same 0.01 floor), so models form a DAG and generation draws each before the fields it predicts (`synth-model-draw`). Its term is `coefficient × value`, `level` empty; the fit absorbs what the pair shares, so their residual correlation is ~0.
 
-Cohort read ONCE; fits do NOT run per row. The scan retains a bounded Algorithm-R snapshot (`modelResidualCap`, 10,000, on its own RNG stream off `--seed` so `--conditional`'s reservoir is never perturbed); selection, fitting and residuals run over that snapshot afterwards (a frequency ranking needs the rows first). **Wire consequence: `n_obs` is the fit's support WITHIN the snapshot (≤10,000), not the cohort's row count** (`Profile.RowCount` is that).
+Cohort read ONCE; fits do NOT run per row. The scan retains a bounded Algorithm-R snapshot (`modelResidualCap`, 10,000, on its own RNG stream off `--seed` so `--conditional`'s reservoir is never perturbed); selection, fitting and residuals run over that snapshot afterwards (ranking needs the rows). **Wire consequence: `n_obs` is the fit's support WITHIN the snapshot (≤10,000), not the cohort's row count** (`Profile.RowCount` is that).
 
 One reference level per categorical drops into the intercept (full level set + intercept is rank-deficient). Set options are all kept — a multi-select is not a partition.
 

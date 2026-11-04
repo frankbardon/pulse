@@ -321,6 +321,55 @@ generic placeholder (see [Probe validation](#probe-validation-full-surface)),
 so a factory that accepts only certain values — an enum-like string —
 declares one it accepts. On any other param it is documentation only.
 
+**Expression-capable number params.** Set `ParamMeta.Expression` on a
+`JSONType: "number"` param to let a request write it as a number OR as
+a scalar-expression string — literals, `params.<name>`, `coef()` /
+`sweep_axis()` over the request's bound models, `lookup()` /
+`range_label()`, the expression built-ins and your own expression
+functions — evaluated once before the operator runs, never per record:
+
+```go
+Params: []pulse.ParamMeta{
+    {Name: "scale", JSONType: "number", Required: true, Expression: true},
+},
+// a request: "params": {"scale": "params.base * 2"}
+```
+
+Pulse resolves it in the same pre-resolution pass as the built-in
+window params, in every one of the nine categories (a facet's
+filterers and a `MAT_DISTANCE` `params.between` grouper included), so
+your factory's own decode only ever receives a plain number: an
+integral value as a plain integer (it decodes into an `int` field),
+any other as its shortest round-trip decimal. A `FieldInputs` hook
+runs before the pass and sees the number `0` in the expression's
+place. A bad expression is refused `PULSE_REQUEST_PARAM_INVALID`
+(`details.reason` `param_invalid` / `param_not_numeric` /
+`param_not_finite`, `details.path` / `param` / `expression`), and a
+shared code (`PULSE_PARAMS_UNDECLARED`, `PULSE_MODEL_*`, a table code)
+keeps its code, located at the param — by predict and every runtime
+arm alike. An expression over literals and params is computed at
+predict; one calling `coef()`, `sweep_axis()`, `lookup()` or an
+embedder function is listed under predict's `unresolved_scalars`
+(`{path, expression, reads}`; a facet's filterers on
+`FacetPredictResult` too) and judged at run time. The manifest
+marks the param `expression: true`. `Expression` on any other
+`JSONType` is `PULSE_EXTENSION_PARAM_INVALID` (`details.reason`
+`expression_not_number`) at `pulse.New`. Without the flag a string
+stays a `wrong_type` refusal. Your range checks stay yours: the
+factory judges the resolved number exactly as it judges a literal.
+A request template's `{{token}}` inside such a param (at
+`params.<key>` of an object whose literal `type` is your operator,
+or whose `type` is itself a placeholder while any visible operator
+flags `<key>` — `details.type_templated`) is
+`PULSE_TEMPLATE_EXPR_SPLICE` (`details.slot` `extension_param`) at
+`pulse.New` and on every template rescan, as in a built-in expression
+slot; pass the value through request `params` or a whole-value
+`{"$var": …}` marker. Likewise an item `for_each` axis `{{token}}` there
+is `PULSE_FOR_EACH_EXPR_SPLICE` and a Compose `sweep` axis token
+`PULSE_SWEEP_EXPR_SPLICE`, same `details.slot`, refused identically by
+predict and the runtime. An operator a feature profile hides flags
+nothing.
+
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
 Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`. The
@@ -988,7 +1037,7 @@ scores the whole model: `params.terms` and a `lower` / `upper`
 `scale_not_glm`. Without a `Scorer`, scoring a fit is
 `PULSE_MODEL_SCORE_INVALID` reason `no_scorer` and `save` is refused
 (`slot: "save"`), at predict and at runtime alike; the fit itself runs.
-A saved fit is a `model_format_version` 3 file carrying `outputs`
+A saved fit is a model file listing feature `outputs` and carrying them
 (`.claude/reference/byte-layout.md`, Model file); loading one on an
 instance that does not register its type, or hides it under a feature
 profile, is `PULSE_MODEL_REGRESSION_UNREGISTERED` at predict and

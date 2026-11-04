@@ -178,7 +178,9 @@ rejected outright at validation, so this is never a silent no-op.
 expression-bearing string — a filterer's or an attribute's
 `expression` (a `total()` argument included, and the filterers nested
 in an attribute's `params`), a regression's `holdout`, an overlay's
-`params.formula`, a feature's `params.fit_on`, at any depth of any
+`params.formula`, a feature's `params.fit_on`, an optimize bound, a
+window's or an embedder extension's expression-capable param (the
+manifest marks it `expression: true`), at any depth of any
 target — is `PULSE_TEMPLATE_EXPR_SPLICE`, raised at declaration
 validation, so the file fails at `pulse.New()`. Spliced text could
 rewrite the expression's logic (`"wave == {{w}}"` with `w` =
@@ -216,7 +218,8 @@ vanishes — optionality is spelled `$when`, always.
 
 ### Items that fan out — `for_each`
 
-A window, feature or attribute item may carry a `for_each`, which fans
+A window, feature, attribute, aggregation or matrix item may carry a
+`for_each`, which fans
 it out over parameter axes after the template renders, using the same
 two placeholder spellings (`{{axis}}` in a non-expression string,
 `{"$var": "axis"}` as a whole value inside `params`). The renderer recognises such an item
@@ -517,7 +520,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_UNRESOLVED` | an unguarded marker survived substitution — declared, but nothing resolved | Supply the variable, give it a default, or wrap the block in `$when`. Rendering hard-fails rather than emit a request carrying a literal marker string. |
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
 | `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item or a `sweep` in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
-| `PULSE_TEMPLATE_EXPR_SPLICE` | a `{{name}}` token — a variable's, or a `for_each` / `sweep` axis's — sits inside an expression string (`expression`, `holdout`, an overlay's `params.formula`, a feature's `params.fit_on`) | Pass the value as a request parameter — `"params": {"x": {"$var": "x"}}` and `params.x` in the expression — or supply the whole expression with a `{"$var": ...}` marker. An **author** fault, raised at declaration validation. |
+| `PULSE_TEMPLATE_EXPR_SPLICE` | a `{{name}}` token — a variable's, or a `for_each` / `sweep` axis's — sits inside an expression string (`expression`, `holdout`, an overlay's `params.formula`, a feature's `params.fit_on`, an expression-capable param) | Pass the value as a request parameter — `"params": {"x": {"$var": "x"}}` and `params.x` in the expression — or supply the whole expression with a `{"$var": ...}` marker. An **author** fault, raised at declaration validation. |
 
 Every JSON request Pulse decodes is strict; a template keeps its own
 code. An unknown key fails `PULSE_TEMPLATE_RENDER_INVALID` with

@@ -700,6 +700,20 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 				},
 			)
 		}
+		if p.Expression && p.JSONType != "number" {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q param[%d] (%q) sets Expression but has JSONType %q; only a \"number\" param takes an expression", cat, regName, i, p.Name, p.JSONType),
+				map[string]any{
+					"category":    string(cat),
+					"name":        regName,
+					"param_index": i,
+					"param_name":  p.Name,
+					"reason":      "expression_not_number",
+					"json_type":   p.JSONType,
+				},
+			)
+		}
 		if err := validateParamExample(p, i, cat, regName); err != nil {
 			return err
 		}
@@ -895,6 +909,28 @@ func validateExprFunctions(fns []ExprFunction) error {
 				errors.PULSE_EXTENSION_NAME_RESERVED,
 				fmt.Sprintf("extension expr function name %q is reserved for the sweep-bound fit's axis reader", fn.Name),
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.SweepAxisFunc}},
+			)
+		}
+		if fn.Name == exprenv.ResponseFunc {
+			// response(fit, channel, spend) reads a media-mix fit's
+			// steady-state response: predict and the runtime judge every
+			// literal call by the bound names and adstock records, so an
+			// embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the media-mix steady-state response reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.ResponseFunc}},
+			)
+		}
+		if fn.Name == exprenv.ResultFunc {
+			// result(slot, aggregation) reads a Compose slot's value in an
+			// optimize block: predict builds the slot dependency from every
+			// literal call and the batch runs those slots first, so an
+			// embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the Compose slot-value reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.ResultFunc}},
 			)
 		}
 		if fn.Name == exprenv.RangeLabelFunc {

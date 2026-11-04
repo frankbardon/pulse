@@ -35,6 +35,12 @@ const BayesName = types.REG_MMM_BAYES
 // HalfSaturationPrefix and ShapePrefix as in REG_MMM_HILL.
 const DecayPrefix = pmodel.MMMDecayPrefix
 
+// defaultMaxLag is the adstock window when params.max_lag is absent: 13
+// weeks, a quarter of carry-over (Jin et al. 2017's L). It is the
+// model package's, so a fit's adstock record (pmodel.AdstockLineage)
+// reads the same default.
+const defaultMaxLag = pmodel.MMMBayesDefaultMaxLag
+
 // The coefficient names REG_MMM_BAYES adds beyond its predictors.
 const (
 	interceptName = "(intercept)"

@@ -1,0 +1,157 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"testing"
+
+	"github.com/spf13/afero"
+
+	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/types"
+)
+
+// adstock_lineage_test.go pins where a media-mix fit's adstock record
+// (model.AdstockLineage) is taken: in the fit's own run, over its
+// windows as that run resolved them — on the Compose fit's binding, its
+// `save`, and a plain request's regression `save` alike.
+
+const hillSavePath = "models/hill.pulse-model.json"
+
+// hillFitRequest is a REG_MMM_HILL of y on the adstocked x_ad, whose
+// geometric decay is the expression decay (over the request's params d
+// = 0.6), plus the hand-built lag column x_l1 entering as a second
+// channel.
+func hillFitRequest(decay string) *types.Request {
+	return &types.Request{
+		Cohort: &types.Cohort{Filename: fitsCohort},
+		Params: types.Params{"d": json.Number("0.6")},
+		Windows: []*types.Window{
+			{Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "x_ad", OrderBy: []types.OrderKey{{Field: "week"}},
+				Params: json.RawMessage(`{"kernel": "geometric", "max_lag": 3, "decay": ` + decay + `}`)},
+			{Type: types.WIN_LAG, Field: "x", Label: "x_l1", OrderBy: []types.OrderKey{{Field: "week"}}},
+		},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_HILL, Name: "m", Target: "y",
+			Predictors: []string{"x_ad", "x_l1"}, Params: json.RawMessage(`{"channels": ["x_ad", "x_l1"]}`)}},
+	}
+}
+
+// wantHillAdstock is x_ad's record at decay 0.6.
+func wantHillAdstock() map[string]model.Adstock {
+	d := 0.6
+	return map[string]model.Adstock{"x_ad": {Kernel: "geometric", Decay: &d, MaxLag: 3, Normalize: true}}
+}
+
+// readSavedAdstock decodes the model file at path and returns its
+// features and adstock section.
+func readSavedAdstock(t *testing.T, fsys afero.Fs, path string) ([]string, map[string]model.Adstock) {
+	t.Helper()
+	data, err := afero.ReadFile(fsys, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := model.DecodeFile(path, data)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, data)
+	}
+	return f.Features, f.Adstock
+}
+
+// TestAdstockLineage_ComposeFitBindsAndSaves: a Compose REG_MMM_HILL fit
+// whose window decay is the expression params.d binds x_ad's record at
+// the resolved 0.6 (never the string) and writes it as feature adstock
+// in its save; the WIN_LAG-built channel x_l1 has none.
+func TestAdstockLineage_ComposeFitBindsAndSaves(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	ctx := context.Background()
+	set, _, _, err := svc.runComposeFits(ctx, []types.FitSpec{{Name: "hill", Request: hillFitRequest(`"params.d"`), Save: hillSavePath}}, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := set.Lookup("hill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Result.Error != nil {
+		t.Fatalf("the Hill fit failed: %+v", b.Result.Error)
+	}
+	if !reflect.DeepEqual(b.Adstocks, wantHillAdstock()) {
+		t.Fatalf("bound adstock %+v, want %+v", b.Adstocks, wantHillAdstock())
+	}
+	if _, ok := b.Adstock("x_l1"); ok {
+		t.Fatal("the WIN_LAG-built channel x_l1 has a record")
+	}
+	features, saved := readSavedAdstock(t, svc.fs.Fs(), hillSavePath)
+	if !reflect.DeepEqual(features, []string{model.FeatureOutputs, model.FeatureAdstock}) || !reflect.DeepEqual(saved, wantHillAdstock()) {
+		t.Fatalf("saved features %v adstock %+v", features, saved)
+	}
+}
+
+// TestAdstockLineage_RegressionSave: a plain request's REG_MMM_HILL
+// `save` writes the same record (the literal decay reads as itself);
+// an OLS save, and a Hill fit with no WIN_DISTRIBUTED_LAG channel, write
+// no adstock section.
+func TestAdstockLineage_RegressionSave(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	ctx := context.Background()
+	req := hillFitRequest(`0.6`)
+	req.Regressions[0].Save = hillSavePath
+	if _, err := svc.Process(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if features, saved := readSavedAdstock(t, svc.fs.Fs(), hillSavePath); !reflect.DeepEqual(saved, wantHillAdstock()) ||
+		!reflect.DeepEqual(features, []string{model.FeatureOutputs, model.FeatureAdstock}) {
+		t.Fatalf("saved features %v adstock %+v", features, saved)
+	}
+
+	lagOnly := hillFitRequest(`0.6`)
+	lagOnly.Windows = lagOnly.Windows[1:]
+	lagOnly.Regressions[0].Predictors, lagOnly.Regressions[0].Params = []string{"x_l1"}, json.RawMessage(`{"channels": ["x_l1"]}`)
+	lagOnly.Regressions[0].Save = "models/lag.pulse-model.json"
+	ols := fitRequest("0", "90")
+	ols.Regressions[0].Save = "models/ols.pulse-model.json"
+	for _, r := range []*types.Request{lagOnly, ols} {
+		if _, err := svc.Process(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+		if features, saved := readSavedAdstock(t, svc.fs.Fs(), r.Regressions[0].Save); saved != nil {
+			t.Errorf("%s: features %v adstock %+v, want none", r.Regressions[0].Save, features, saved)
+		}
+	}
+}
+
+// TestAdstockLineage_BayesFitBinds: a Compose REG_MMM_BAYES fit binds
+// each channel's record — geometric, its decay:<ch> posterior mean bit
+// for bit, the fit's params.max_lag, unnormalised — with no window in
+// the request.
+func TestAdstockLineage_BayesFitBinds(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: fitsCohort},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Name: "m", Target: "y", Predictors: []string{"x"},
+			Params: json.RawMessage(`{"channels": ["x"], "time": "week", "max_lag": 4, "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
+	}
+	set, _, _, err := svc.runComposeFits(context.Background(), []types.FitSpec{{Name: "bayes", Request: req}}, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := set.Lookup("bayes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Result.Error != nil {
+		t.Fatalf("the Bayes fit failed: %+v", b.Result.Error)
+	}
+	d := b.Result.Coefficients["decay:x"]
+	a, ok := b.Adstock("x")
+	if !ok || a.Kernel != "geometric" || a.Decay == nil || *a.Decay != d || a.MaxLag != 4 || a.Normalize || a.Shape != nil || a.Scale != nil {
+		t.Fatalf("bound adstock %+v %v, want geometric decay %v max_lag 4 unnormalised", a, ok, d)
+	}
+}

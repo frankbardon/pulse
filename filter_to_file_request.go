@@ -410,7 +410,8 @@ type modelIdentity struct {
 	SHA256 string `json:"sha256"`
 }
 
-// modelIdentities hashes every Models file's content, in entry order.
+// modelIdentities hashes every Models file's content (an inline
+// entry's body), in entry order.
 // The files were just loaded (BindFilterModels), so a read failure here
 // is the file vanishing mid-call.
 func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) {
@@ -419,6 +420,13 @@ func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) 
 	}
 	out := make([]modelIdentity, len(refs))
 	for i, r := range refs {
+		if r.Inline != nil {
+			// An inline model is its own content (a filter-to-file
+			// request declares no params, so the body fixes every value).
+			sum := sha256.Sum256(r.Inline)
+			out[i] = modelIdentity{Name: r.Name, SHA256: hex.EncodeToString(sum[:])}
+			continue
+		}
 		data, err := p.svc.ReadModelFile(r.Path)
 		if err != nil {
 			return nil, keepCodedOr(perr.SERVICE_RESOURCE, "filter_to_file: hashing model "+r.Path, map[string]any{"path": r.Path}, err)

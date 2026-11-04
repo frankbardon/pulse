@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
@@ -743,8 +744,9 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		}
 		// A vector aggregator (AGG_VEC_*, or an extension declared
 		// VectorInput) reads its members (step 11, source columns only),
-		// never a field.
-		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) {
+		// never a field. AGG_CONSTANT reads no column at all: a field it
+		// names is its own refusal (field_not_accepted), not this one.
+		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) && opRoute(inst, agg.Type) != types.AGG_CONSTANT {
 			w.check(agg.Field, func() *errors.CodedError {
 				return refusal("aggregation references unknown field: "+agg.Field,
 					map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
@@ -769,7 +771,9 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
 		}
 		agg := func(a *types.Aggregation, role string) {
-			axis(a.Field, role)
+			if opRoute(inst, a.Type) != types.AGG_CONSTANT {
+				axis(a.Field, role)
+			}
 			w.checkAgg(a, "crosstab "+role+" "+string(a.Type), "role", role)
 		}
 		for _, g := range spec.Rows {
@@ -839,6 +843,14 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				// number (judged below). Its expanded per-element
 				// columns are ordinary nullable f64 output columns:
 				// they join the output set like any scalar label.
+				if w.arrayCols == nil {
+					w.arrayCols = map[string]*types.Aggregation{}
+				}
+				w.arrayCols[label] = agg
+			} else if opRoute(inst, agg.Type) == types.AGG_CONSTANT && aggconst.NonNumeric(agg) {
+				// A constant of a non-numeric type (a decimal string, a
+				// label, a label list, a number array) names no single
+				// number either.
 				if w.arrayCols == nil {
 					w.arrayCols = map[string]*types.Aggregation{}
 				}
@@ -1314,7 +1326,8 @@ func windowsFirstReadsAggregate(i int, field string) *errors.CodedError {
 // order_by / partition_by, a post-test's field) of an array-valued
 // aggregation's bare label — one figure per vector member, no single
 // number — with PROCESSING_CONFIG {field, aggregation, reason:
-// "array_valued"} plus extra. An expanded per-element column is never
+// "array_valued"} plus extra; an AGG_CONSTANT of a non-numeric type
+// likewise, reason "non_scalar". An expanded per-element column is never
 // here: it is an ordinary output column the existence check judges.
 // It reports whether it refused, so the caller skips its own existence
 // check.
@@ -1324,11 +1337,15 @@ func (w *fieldRefWalk) arrayRef(name, at string, extra map[string]any) bool {
 		return false
 	}
 	details := map[string]any{"field": name, "aggregation": string(agg.Type), "reason": "array_valued"}
+	msg := at + ": " + name + " is array-valued (" + string(agg.Type) + ", one figure per vector member); it cannot be ordered by, windowed or tested — set params.expand and read an element column " + name + "[<element>]"
+	if agg.Type == types.AGG_CONSTANT {
+		details["reason"] = "non_scalar"
+		msg = at + ": " + name + " is an AGG_CONSTANT whose type writes no single number (a decimal string, a label, a label list or a number array); it cannot be ordered by, windowed or tested — give it a numeric type"
+	}
 	for k, v := range extra {
 		details[k] = v
 	}
-	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		at+": "+name+" is array-valued ("+string(agg.Type)+", one figure per vector member); it cannot be ordered by, windowed or tested — set params.expand and read an element column "+name+"[<element>]", details))
+	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, msg, details))
 	return true
 }
 

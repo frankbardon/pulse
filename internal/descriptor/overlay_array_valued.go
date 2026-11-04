@@ -204,7 +204,7 @@ func scoredValueReason(kind types.OverlayKind, a *types.Aggregation, kinds vecto
 	switch {
 	case kinds.IsArrayValued(t):
 		return reasonArrayValued
-	case kinds.IsNonScalar(t) && !overlayReadsPayload(kind, kinds.Routed(t)) && !priorMeasureOwns(kind, kinds.Routed(t)) && (gateOwns == nil || !gateOwns(t)):
+	case kinds.IsNonScalarSlot(a) && !overlayReadsPayload(kind, kinds.Routed(t)) && !priorMeasureOwns(kind, kinds.Routed(t)) && (gateOwns == nil || !gateOwns(t)):
 		return reasonNonScalar
 	}
 	if _, ok := codeInput(a, kinds, inputType); ok {

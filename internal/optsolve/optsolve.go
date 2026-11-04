@@ -93,7 +93,7 @@ func Solve(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed int64) (*
 	for k, x0 := range starts {
 		res, err, abort := s.minimize(f, g, x0, opts)
 		if abort != nil {
-			if se, ok := failedFit(abort); ok {
+			if se, ok := FailedFit(abort); ok {
 				// A read of a fit that failed on its data: no start can
 				// evaluate the block, which fails alone with the fit's
 				// own code.
@@ -429,10 +429,11 @@ func less(a, b float64) bool {
 	return a < b
 }
 
-// failedFit is err as the block's per-slot error when it is a read of
+// FailedFit is err as the block's per-slot error when it is a read of
 // a Compose fit that failed on its data (model.FailedFitRefusal, located
-// at the block): its own code, message and details.
-func failedFit(err error) (*types.SlotError, bool) {
+// at the block — by the solve, or by optblock.Compile resolving a bound
+// or start): its own code, message and details.
+func FailedFit(err error) (*types.SlotError, bool) {
 	var ce *errors.CodedError
 	if !stderrors.Is(err, model.ErrFitFailed) || !stderrors.As(err, &ce) {
 		return nil, false

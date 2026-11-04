@@ -296,6 +296,7 @@ func paramMetaSnapshot(in []ParamMeta) []descriptor.OperatorParamMeta {
 			Default:      p.Default,
 			ExactlyOneOf: p.ExactlyOneOf,
 			Example:      p.Example,
+			Expression:   p.Expression,
 		}
 	}
 	return out

@@ -170,7 +170,7 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 		if kinds.IsArrayValued(agg.Type) {
 			continue // the array-valued rule owns it
 		}
-		if kinds.IsNonScalar(agg.Type) {
+		if kinds.IsNonScalarSlot(agg) {
 			if !overlayReadsPayload(spec.Kind, kinds.Routed(agg.Type)) || !disabled(r) {
 				continue // the non-scalar rule owns it, or the components carry the moments
 			}

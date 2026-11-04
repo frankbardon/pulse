@@ -15,6 +15,7 @@ import (
 var exactlyOneOfRuntimeSamples = map[string]map[string]any{
 	string(types.WIN_EWMA):       {"alpha": 0.3, "decay": 0.7},
 	string(types.FEAT_BUCKETIZE): {"boundaries": []float64{0, 4, 8}, "quantiles": 4},
+	string(types.AGG_CONSTANT):   {"value": 2.5, "expr": "1 + 1.5"},
 }
 
 // runWithParams drives one window or feature operator's real runtime
@@ -47,6 +48,23 @@ func runWithParams(t *testing.T, name, category string, params map[string]any) e
 		}
 		f := &types.Feature{Type: types.FeatureType(name), Field: "score", Label: "out", Params: raw}
 		return feature.Apply(view, []*types.Feature{f}, s)
+	case "aggregator":
+		// AGG_CONSTANT: its required type beside the group members,
+		// through Process (the scalar pre-resolution pass resolves an
+		// expr before the factory reads the literal).
+		merged := map[string]any{"type": "f64"}
+		for k, v := range params {
+			merged[k] = v
+		}
+		b, err := json.Marshal(merged)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := numericSchema()
+		a := &types.Aggregation{Type: types.AggregationType(name), Label: "out", Params: b}
+		_, err = NewProcessor(s).Process(context.Background(), &types.Request{Aggregations: []*types.Aggregation{a}},
+			NewSliceIterator(emitsNumericRecords(s)))
+		return err
 	}
 	t.Fatalf("%s: no runtime arm for category %q; add one", name, category)
 	return nil

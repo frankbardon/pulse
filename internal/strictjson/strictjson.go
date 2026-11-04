@@ -282,6 +282,10 @@ var walkedUnmarshalers = map[reflect.Type]bool{
 	// nested or mixed list) are PULSE_PARAMS_INVALID, judged after the
 	// decode, never an unknown-field refusal.
 	reflect.TypeFor[types.Params](): true,
+	// OptimizeSpec keeps a for_each block carrying a {"$var"} marker as
+	// written; its keys are its fields (a marker sits where a scalar
+	// goes, which the key walk never descends into).
+	reflect.TypeFor[types.OptimizeSpec](): true,
 }
 
 // opaqueUnmarshalers never accept a JSON object, so there is no key to

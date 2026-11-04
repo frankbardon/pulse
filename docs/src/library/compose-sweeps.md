@@ -102,7 +102,8 @@ is decoded.
 A sweep never splices an axis value's text into an expression. A
 `{{axis}}` inside an expression string — a filterer's or attribute's
 `expression`, a regression's `holdout`, an overlay's `params.formula`,
-a feature's `params.fit_on`, in the request or the sweep overlays — is
+a feature's `params.fit_on`, an embedder extension's expression-capable
+param, in the request or the sweep overlays — is
 `PULSE_SWEEP_EXPR_SPLICE`, refused before any slot is substituted, by
 `PredictCompose` and the runtime alike (details `field`, `placeholder`,
 `slot`). Spliced text could rewrite the expression's logic. Carry the
@@ -197,9 +198,13 @@ type, target and predictors must not depend on an axis (predict reads
 the fit's signature from the sweep body); and no sweep slot may read the
 fit. A malformed binding is `PULSE_FIT_INVALID` with `details.reason`
 `from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
-`from_sweep_regression_unknown`, `from_sweep_signature_varies` or
-`from_sweep_cycle`, judged by predict and the runtime alike before
-anything runs.
+`from_sweep_regression_unknown`, `from_sweep_signature_varies`,
+`from_sweep_cycle` or `from_sweep_window_cycle` (a sweep slot's window
+reads the fit in a scalar param such as a `WIN_DISTRIBUTED_LAG` decay),
+judged by predict and the runtime alike before anything runs. An
+explicit slot's window may read the winner —
+`"decay": "sweep_axis(\"best\", \"decay_tv\")"` — and runs after the
+bind.
 
 A batch with a binding runs sweep-first: the authored fits, then the
 sweep slots (once — their responses are the batch's) and the rank, then
@@ -218,9 +223,10 @@ The winner's axis values are readable in the same batch:
 `sweep_axis("<fit>", "<axis>")` in an explicit slot's formula or filter
 and in an `optimize` expression returns the rank-1 slot's value of that
 axis (a number as a float, a string or bool `values` entry as is) — the
-decay a steady-state multiplier such as
+decay a hand-written steady-state multiplier such as
 `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`
-needs, which no coefficient carries. Its refusals mirror `coef()` and
+needs, which no coefficient carries (`response()` reads the bound fit's
+adstock record instead: see Media-Mix Models). Its refusals mirror `coef()` and
 predict raises them too: an unbound name is `PULSE_MODEL_UNKNOWN`; a fit
 not bound from the sweep is `PULSE_MODEL_TERM_UNKNOWN` with
 `details.reason: "not_sweep_bound"`, an axis the sweep lacks the same
@@ -229,6 +235,16 @@ failed bound fit (no winner) nulls a formula with
 `PULSE_FIT_UNAVAILABLE` and refuses a filter with the fit's own code.
 `sweep_axis` is reserved: an embedder `ExprFunctions` entry of that name
 is `PULSE_EXTENSION_NAME_RESERVED`.
+
+A bound fit that `save`s keeps its winner: the model file lists feature
+`sweep_axes`, the winning slot's axis values as raw JSON (a number,
+string or bool reads back exactly). Any later request loading it with
+`models: [{name, path}]` — a slot's formula, filter, window param or
+`AGG_CONSTANT` `expr`, an `optimize` block, a `Materialize` run — reads
+those values through `sweep_axis("<name>", "<axis>")`, as the batch that
+fitted it did, and predict judges an unknown axis statically. A model
+file without `sweep_axes` (any fit not bound from a sweep) stays
+`not_sweep_bound`.
 
 ## Echo and return shaping
 

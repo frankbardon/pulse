@@ -532,6 +532,17 @@ type Options struct {
 	// carries it; its working set is charged to the instance's
 	// MaxEstimatedMemory limit before generation (PULSE_LIMIT_EXCEEDED).
 	DisableDisclosure bool
+
+	// LookupTables are the named tables a rule `when` / `set_expr` or a
+	// constraint reads with lookup(table, keys...). Pulse.Synth and
+	// Pulse.SynthStream fill it from the instance (Extensions.LookupTables,
+	// LookupTablesDir, PULSE_LOOKUP_TABLES_DIR) when it is nil; a non-nil
+	// map (empty included) is used as given. Every literal call is
+	// judged against it before a row is drawn (PULSE_LOOKUP_TABLE_UNKNOWN,
+	// PULSE_LOOKUP_MISS), and the content digest of every table the spec
+	// names folds into Spec.HashWithLookups: same spec + seed + tables is
+	// a byte-identical file. A spec calling no lookup() ignores it.
+	LookupTables map[string]LookupTable
 }
 
 // Result is what the writer reports after a successful Synth call.

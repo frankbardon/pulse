@@ -26,6 +26,14 @@ func TestMatch(t *testing.T) {
 		{[]string{"overlays", "params", "formula"}, exprslots.SlotOverlayFormula},
 		{[]string{"requests", "overlays", "params", "formula"}, exprslots.SlotOverlayFormula},
 		{[]string{"features", "params", "fit_on"}, exprslots.SlotFeatureFitOn},
+		{[]string{"optimize", "variables", "lower"}, exprslots.SlotOptimizeBound},
+		{[]string{"optimize", "variables", "upper"}, exprslots.SlotOptimizeBound},
+		{[]string{"optimize", "variables", "start"}, exprslots.SlotOptimizeBound},
+		{[]string{"optimize", "variables", "name"}, ""},
+		{[]string{"windows", "params", "decay"}, exprslots.SlotWindowParam},
+		{[]string{"requests", "windows", "params", "max_lag"}, exprslots.SlotWindowParam},
+		{[]string{"windows", "params", "kernel"}, ""},
+		{[]string{"windows", "params", "offset"}, ""},
 		{[]string{"stages", "request", "features", "params", "fit_on"}, exprslots.SlotFeatureFitOn},
 		// An attribute's params.fit_on is a keyword or a filterer list.
 		{[]string{"attributes", "params", "fit_on"}, ""},
@@ -135,6 +143,7 @@ func TestTemplateExprSplice_SlotsCoverRequestRoots(t *testing.T) {
 		}
 	}
 	rawMessage := reflect.TypeOf(json.RawMessage(nil))
+	jsonUnmarshaler := reflect.TypeFor[json.Unmarshaler]()
 	anyMap := reflect.TypeOf(map[string]any(nil))
 	roots := []any{types.Request{}, types.ComposedRequest{}, types.ChainRequest{}, types.FacetRequest{}, types.SampleRequest{}}
 	seenOwner := map[string]bool{}
@@ -163,7 +172,9 @@ func TestTemplateExprSplice_SlotsCoverRequestRoots(t *testing.T) {
 				}
 				f, _ := fieldByKey(p.typ, s.Tail[i])
 				switch {
-				case i == len(s.Tail)-1 && f.Type.Kind() != reflect.String:
+				case i == len(s.Tail)-1 && s.Scalar && !f.Type.Implements(jsonUnmarshaler) && !reflect.PointerTo(f.Type).Implements(jsonUnmarshaler):
+					t.Errorf("%s.%s is %s, scalar slot %s expects a number-or-expression type (a json.Unmarshaler)", p.typ.Name(), f.Name, f.Type, s.Name)
+				case i == len(s.Tail)-1 && !s.Scalar && f.Type.Kind() != reflect.String:
 					t.Errorf("%s.%s is %s, slot %s expects a string", p.typ.Name(), f.Name, f.Type, s.Name)
 				case i < len(s.Tail)-1 && f.Type != rawMessage && f.Type != anyMap:
 					// A params object carrying the expression key.

@@ -104,9 +104,9 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
 - **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form (incl. regression `warnings`): `.claude/reference/response-components.md` (Per-slot failures).
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`); `base` merges into each explicit slot; optimize takes `for_each`; `result()` reads a slot in a pre-phase. Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
-**Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
+**Item fan-out.** A `for_each` on a window / feature / attribute / aggregation / matrix item expands in place before validation (absent = byte-identical). **Scalar-expression slots** (optimize bound, window param) report what predict cannot compute as `unresolved_scalars` (`execution-modes/scalar-slots.md`); `response()` reads a fit's channel curve. Long form: `execution-modes.md` (Item fan-out).
 
 **Multiplicity outputs.** Opt-in `multiplicity` adds `p_adjusted` + `significant_adjusted` BESIDE the raw p, which never moves. Long form: `execution-modes.md` (Multiplicity).
 
@@ -176,7 +176,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 ## Build / Env
 
-`make build` (default; ldflags `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `vulncheck`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
+`make build` (default; `VERSION` from `git describe` → `pulse.Version()`), `test` (fast tier), `test-heavy` (both tiers), `fmt`, `vet`, `lint`, `vulncheck`, `cover`, `clean`, `dist` (6-platform archives), `docs`, `docs-serve`, `docs-clean`. **Test tiers:** a test ≥ 1 s goes in a `*_heavy_test.go` file starting `//go:build heavy`; shared helpers stay untagged. CI runs by hand once, before merge (tiers, CI, release: `docs/src/contributing/local-ci.md`). A repo-root `.env` is auto-loaded. `make lint` = gofmt check + `go vet` + `staticcheck` on both tiers (CI's `lint` job), and must pass before any push.
 
 **Environment variables** — one line each; `pulse.Options` always overrides:
 
@@ -190,7 +190,7 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 - `PULSE_MCP_NO_COHORT_SCAN` — `pulse mcp` only (flag `--no-cohort-scan`): skip enumerating `.pulse` files as `pulse://` resources; the template stays, so cohorts stay readable. Library: `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan`.
 - `PULSE_FEATURE_PROFILE` — `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile.
 - `PULSE_TEMPLATES_DIR` — request-template roots, `os.PathListSeparator`-separated, PATH-style precedence (first root wins). **Precedence and the hot-reload phase table: `.claude/reference/request-templating.md` (Directory precedence, Hot-reload lifecycle).**
-- `PULSE_BENCH_DIR` — bench-only cohort cache (`make bench` / `bench-scale`; default `<tmp>/pulse-bench`).
+- `PULSE_BENCH_DIR` — bench-only cohort cache (default `<tmp>/pulse-bench`).
 
 Table file formats; sidecar skip; hard-fail on other bad `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 

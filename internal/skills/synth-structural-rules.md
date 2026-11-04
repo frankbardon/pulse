@@ -24,6 +24,7 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 | `row()` / `lag()`, panel reset, recursive adstock | `synth-cross-row` |
 | Random draws in a rule; `"output": false` helper fields | `synth-rule-draws` |
 | `trend` / `season` / `between` over a date / datetime | `synth-datetime` |
+| `lookup()` over the instance's tables; its codes and hash | `synth-rule-validation` |
 | Detector-specific rules and the emitted candidate order | `synth-rule-detectors` |
 
 ## Structural rules

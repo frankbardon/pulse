@@ -235,6 +235,23 @@ func TestExplain_EveryRoot(t *testing.T) {
 		t.Error("compose overlay not described")
 	}
 
+	// A compose `base` is explained inside every slot it merges into,
+	// its items first.
+	based := explain(t, nil, descriptor.ExplainRequest{Composed: &types.ComposedRequest{
+		Base:     &types.Request{Cohort: fixtureCohort, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}}},
+		Requests: []*types.Request{{Label: "a"}, {Label: "b", Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}}}},
+	}}, c)
+	for _, slot := range []string{"requests[0].aggregations[0]", "requests[1].aggregations[0]"} {
+		if !slices.ContainsFunc(based.Steps, func(s descriptor.ExplainStep) bool { return s.Slot == slot && s.Operator == string(types.AGG_COUNT) }) {
+			t.Errorf("base aggregation not explained at %s: %+v", slot, based.Steps)
+		}
+	}
+	if !slices.ContainsFunc(based.Steps, func(s descriptor.ExplainStep) bool {
+		return s.Slot == "requests[1].aggregations[1]" && s.Operator == string(types.AGG_SUM)
+	}) {
+		t.Errorf("slot b's own aggregation not explained after the base's: %+v", based.Steps)
+	}
+
 	chain := explain(t, nil, descriptor.ExplainRequest{Chain: &types.ChainRequest{
 		Cohort: fixtureCohort,
 		Stages: []*types.ChainStage{{Request: slotReq()}, {Request: &types.Request{Aggregations: []*types.Aggregation{{Field: "score"}}}}},

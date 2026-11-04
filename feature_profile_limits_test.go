@@ -32,6 +32,7 @@ func TestFeatureProfile_LimitsResolve(t *testing.T) {
 		MaxChainStages:     DefaultMaxChainStages,
 		MaxJoinBuildRows:   DefaultMaxJoinBuildRows,
 		MaxDerivedColumns:  DefaultMaxDerivedColumns,
+		MaxExpandedItems:   DefaultMaxExpandedItems,
 	}
 	if got != want {
 		t.Fatalf("Limits() = %+v; want %+v", got, want)
@@ -94,6 +95,7 @@ func TestFeatureProfile_LimitsRefused(t *testing.T) {
 		{"max_groups -2", FeatureProfileLimits{MaxGroups: -2}, "max_groups", int64(-2)},
 		{"max_join_build_rows -9", FeatureProfileLimits{MaxGroups: 3, MaxJoinBuildRows: -9}, "max_join_build_rows", int64(-9)},
 		{"max_derived_columns -3", FeatureProfileLimits{MaxDerivedColumns: -3}, "max_derived_columns", int64(-3)},
+		{"max_expanded_items -4", FeatureProfileLimits{MaxExpandedItems: -4}, "max_expanded_items", int64(-4)},
 		{"request_timeout unparseable", FeatureProfileLimits{RequestTimeout: "soon"}, "request_timeout", "soon"},
 		{"request_timeout negative", FeatureProfileLimits{RequestTimeout: "-2s"}, "request_timeout", "-2s"},
 	}
@@ -148,12 +150,12 @@ func TestFeatureProfile_LimitsUnknownKeyRefused(t *testing.T) {
 func TestFeatureProfile_LimitsRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	body := `{"features": [], "limits": {"request_timeout": "45s", "max_groups": 5, "max_join_build_rows": -1, "max_derived_columns": 9}}`
+	body := `{"features": [], "limits": {"request_timeout": "45s", "max_groups": 5, "max_join_build_rows": -1, "max_derived_columns": 9, "max_expanded_items": 11}}`
 	fp, err := ParseFeatureProfile([]byte(body))
 	if err != nil {
 		t.Fatalf("ParseFeatureProfile: %v", err)
 	}
-	want := &FeatureProfileLimits{RequestTimeout: "45s", MaxGroups: 5, MaxJoinBuildRows: -1, MaxDerivedColumns: 9}
+	want := &FeatureProfileLimits{RequestTimeout: "45s", MaxGroups: 5, MaxJoinBuildRows: -1, MaxDerivedColumns: 9, MaxExpandedItems: 11}
 	if !reflect.DeepEqual(fp.Limits, want) {
 		t.Fatalf("decoded limits = %+v; want %+v", fp.Limits, want)
 	}

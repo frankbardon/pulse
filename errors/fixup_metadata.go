@@ -1063,7 +1063,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
+		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike. A scalar-expression param (the manifest marks it `expression`: a number or an expression string) whose expression does not compile or reads an identifier other than params is details.reason `param_invalid`, one yielding a string, bool or null `param_not_numeric`, NaN or an infinity `param_not_finite`, and an integer param with a fraction `param_not_integer` (details.param, details.expression); its value then meets the operator's own range rules like a literal — at predict when it reads only literals and params, at run time when it calls coef(), sweep_axis() or lookup().",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -1084,6 +1084,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
 				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Windows", "*", "Params"},
+				Hint:     "details.reason param_*: write the scalar param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() / response() over a bound model and the built-ins that yields a finite number — an exact integer for an `int` param. A param the manifest does not mark `expression` takes a literal only.",
+				Examples: []any{map[string]any{"decay": "params.decay"}, map[string]any{"decay": `sweep_axis("fit", "decay_tv")`}},
 			},
 			{
 				Action: FixupRequiresReschema,
@@ -2071,11 +2077,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default. An Example must marshal to a JSON value of the param's JSONType (details.expected / got).",
+				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default. An Example must marshal to a JSON value of the param's JSONType (details.expected / got). Expression is valid only on a JSONType number param (reason expression_not_number): drop it, or declare the param a number.",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
 			},
 			{
@@ -2409,6 +2415,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_COMPOSE_BASE_COLLISION: {
+		Message: "The ComposedRequest `base` cannot be merged into an explicit slot, so nothing runs — predict refuses it identically. The base is merged into every `requests` entry (never the sweep body, banner slots or fit requests): a scalar or pointer the slot leaves unset takes the base's, `params` merge key-wise with the slot's key winning, and every list carries the base items first, then the slot's own. Reason `label_collision`: a base item's label or name equals one of the slot's own items in the same list, so two items would answer to one label — the slot index is under `request`, its label under `slot`, the list key under `list` and the label under `label`. Reason `base_label`: the base sets `label`, which names no slot (the base label is under `label`). Items with no label are not compared here; a duplicate default label is refused later by that list's own rule.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"requests", "*"},
+				Hint:   "Rename the slot's own item, or drop it from the slot when it repeats the base item, so every label in the merged list is unique.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"base", "label"},
+				Hint:   "Drop `label` from the base and label each slot in `requests` instead.",
+			},
+		},
+	},
 	PULSE_SWEEP_INVALID: {
 		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
@@ -2462,6 +2483,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"fits", "*", "request", "matrices", "*", "params", "estimator"},
 				Hint:   "Under `details.reason` `sem_ordinal`, a SEM fit binds a maximum-likelihood MAT_SEM only: drop the ordinal `estimator` (and `ordered`) from the fit request, or run the DWLS / WLSMV fit as a plain `matrices` entry of a slot.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request", "windows", "*", "params"},
+				Hint:   "Under `details.reason` `from_sweep_window_cycle`, a sweep slot's window (details.window) reads the sweep-bound fit in a scalar param (details.param): the sweep runs before the fit exists. Sweep that param as an axis ({\"$var\": \"<axis>\"}) and read the winner with sweep_axis() only in explicit slots, optimize blocks or later requests.",
 			},
 		},
 	},
@@ -2547,7 +2573,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind, residual_type}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind, residual_type}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2567,7 +2593,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`).",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2583,6 +2609,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Pass sweep_axis() a fit bound with `from_sweep` and an axis under `axes`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass response() a channel under `channels`, or build the channel's adstock with one lag-kernel window over raw spend (or declare it in the inline model's `adstock`) so the fit records one.",
 			},
 		},
 	},
@@ -2761,7 +2792,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model, population or SEM fit file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` / `sem_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible; a SEM fit whose matrices do not match its observed and inner variables or whose model does not re-specify them (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
+		Message: "A model, population or SEM fit file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` / `sem_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible; a SEM fit whose matrices do not match its observed and inner variables or whose model does not re-specify them (`schema`). The file is under `path` (an inline model has none and carries `inline: true`); a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2770,11 +2801,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads (the file under `path`, its version under `version`, the readable ones under `supported`; a registered population's name under `registered`).",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads, or a model file lists a feature this build does not know (the file under `path`, its version under `version`, the readable ones under `supported`; an unknown feature under `unknown_features`, the known ones under `supported_features`; a registered population's name under `registered`). Model files read version 1 only: the retired versions 2 to 6 are refused, never aliased.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the model or population with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+				Hint:   "Re-save the fit with this build (rerun it with `save`) — a model file of version 2 to 6 must be re-saved — or, for a newer file or an unknown feature, load it with the Pulse version that wrote it.",
 			},
 		},
 	},
@@ -2788,7 +2819,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` or `.pulse-sem.json` (a `models` entry: the suffix picks a model file or a SEM fit file) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` or `.pulse-sem.json` (a `models` entry: the suffix picks a model file or a SEM fit file) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A `models` entry sets exactly one of `path` and `inline` (`path_and_inline`; neither is `path_empty`). An inline model (`inline: true`) is a model-file document whose numbers may be scalar expressions over literals and `params.<name>` — no request-bound function: a number that does not compile, is not a number, is not finite or (`n_obs`) not an integer is `inline_invalid` / `inline_not_numeric` / `inline_not_finite` / `inline_not_integer`, the number's key path under `field`; its `type` must be a least-squares, generalized-linear, Bayesian-linear or media-mix type (`inline_type_unsupported`, the accepted ones under `valid`); and its coefficients must name exactly the terms that type reports for its predictors — the intercept, each predictor and a media-mix model's curve terms of every channel (`inline_term_unknown`, `inline_term_missing`, under `term`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2804,6 +2835,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"populations", "*", "path"},
 				Hint:   "Point `path` at the population file a vector fit's `save` wrote, e.g. `pops/brand.pulse-population.json`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"models", "*", "inline"},
+				Hint:   "Fix the inline model: keep `path` or `inline`, not both; write each number as a literal or an expression over params.<name> only; name exactly the intercept, the predictors and (media-mix) each channel's curve terms.",
 			},
 		},
 	},
@@ -2823,7 +2859,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_INVALID: {
-		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip` — the sampling modes `random` / `lhs` and a `range` axis are compose-`sweep` only (reasons `mode_unknown` / `range_unsupported`) — and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "A `for_each` on a window, feature, attribute, aggregation or matrix item, or on a Compose `optimize` block, is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip` — the sampling modes `random` / `lhs` and a `range` axis are compose-`sweep` only (reasons `mode_unknown` / `range_unsupported`) — and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. Only a request `aggregations` item fans out an aggregation: a for_each on a crosstab or banner cell is refused (reason `position_unsupported`). A fanned-out optimize block's `name` must carry an axis placeholder, so the blocks it adds stay distinct (reason `name_without_axis`), and its `{\"$var\"}` markers stand only for one whole value of the block or of one `variables` / `constraints` / `models` entry (anywhere inside a model's `inline` body) — never a whole list nor a list entry (reason `marker_position`, the positions the payload and MCP schemas admit). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2839,12 +2875,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"windows", "*", "label"},
-				Hint:   "Reference every axis with `{{axis}}` in a string (label, field) or `{\"$var\": \"axis\"}` inside params, name only declared axes, and correct the key under `unknown_field`. A for_each item works the same under `features` and `attributes`.",
+				Hint:   "Reference every axis with `{{axis}}` in a string (label, field) or `{\"$var\": \"axis\"}` inside params, name only declared axes, and correct the key under `unknown_field`. A for_each item works the same under `features`, `attributes`, `aggregations` and `matrices` (each rendered matrix needs its own `name`) and on a Compose `optimize` block (put an axis in its `name`, e.g. `budget_{{ch}}`).",
 			},
 		},
 	},
 	PULSE_SWEEP_EXPR_SPLICE: {
-		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param — any key a visible extension flags when the object's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2861,7 +2897,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_EXPR_SPLICE: {
-		Message: "A window, feature or attribute item carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, or a params-borne fit or centroid filter expression), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "A window, feature, attribute, aggregation or matrix item, or a Compose `optimize` block, carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, a params-borne fit or centroid filter expression, a scalar-expression param, an optimize objective, constraint or bound, or an embedder extension's expression-capable param — any key a visible extension flags when the item's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3347,12 +3383,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
-		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell). Dividing one map by another is undefined; the normalize directive cannot be applied.",
+		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell) or is a constant of a non-numeric params.type (a decimal string, a label, a label list, a number array). Dividing such values is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG) so normalization is defined.",
+				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG, or a constant of a numeric type) so normalization is defined.",
 				Examples: []any{"none"},
 			},
 			{
@@ -3374,7 +3410,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_PARAM_INVALID: {
-		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it.",
+		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it. A number param the registration declares expression-capable (the manifest marks it `expression`) also takes a scalar-expression string, evaluated once before the operator runs: one that does not compile or reads an identifier other than params is details.reason \"param_invalid\", one yielding a string, bool or null \"param_not_numeric\", NaN or an infinity \"param_not_finite\" (details.expression) — at predict when it reads only literals and params, at run time when it calls coef(), sweep_axis(), lookup() or an embedder function.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3385,6 +3421,11 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Hint:     "reason exactly_one_of: supply exactly one of details.members in the params object — drop all but one of details.present, or add one when it is empty (the manifest marks each member with exactly_one_of).",
 				Examples: []any{map[string]any{"params": map[string]any{"span": 7}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Hint:     "reason param_*: write the param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() / response() over a bound model, lookup() and the built-ins that yields a finite number. Only a param the manifest marks `expression` takes an expression; any other string is reason wrong_type.",
+				Examples: []any{map[string]any{"params": map[string]any{"scale": "params.scale * 2"}}},
 			},
 		},
 	},
@@ -4153,7 +4194,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_EXPR_SPLICE: {
-		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula, an optimize bound, or an expression-capable operator param such as a window or embedder extension param — any key a visible extension flags when the object's `type` is itself template syntax, `details.type_templated`). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -4966,7 +5007,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_VARIABLE_INVALID: {
-		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number or `\"params.<name>\"` naming a batch param (an identifier, `bound_invalid`) that holds a finite number (`bound_not_numeric`; an undeclared param is PULSE_PARAMS_UNDECLARED). `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `param`, `lower`, `upper` and `value`.",
+		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() / response() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), response(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4976,8 +5017,8 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"optimize", "*", "variables", "*", "lower"},
-				Hint:     "Set both bounds — numbers or \"params.<name>\" references to numeric batch params — with lower <= upper, and keep any start between them.",
-				Examples: []any{0, "params.budget_floor"},
+				Hint:     "Set both bounds — numbers or scalar expressions over params, coef() and the built-ins that yield finite numbers — with lower <= upper, and keep any start between them.",
+				Examples: []any{0, "params.budget_floor", "params.current_tv * params.lower_share"},
 			},
 		},
 	},
@@ -4993,6 +5034,22 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"optimize", "*", "constraints", "*", "expr"},
 				Hint:   "Write every constraint as a numeric expression: eq holds when it is 0, ineq when it is >= 0 (`params.budget - (tv + search)` for a spend cap).",
+			},
+		},
+	},
+	PULSE_RESULT_INVALID: {
+		Message: "A result(slot, aggregation) call cannot be read. result() reads one ungrouped aggregation value off a Compose slot's response, and only inside a Compose `optimize` block (its bounds, starts, objective and constraints): the slot runs in a pre-phase before the blocks, once, and keeps its normal place in `responses`. Statically, refused by predict and the runtime alike before anything runs: reason `out_of_scope` — the call sits anywhere else (a slot, a fit request, a window, extension or constant param, an inline model); `args_not_literal` — an argument is not a string literal; `slot_unknown` — no slot carries the label (the slot labels under `available`; an unlabelled slot is `request_<n>`); `aggregation_unknown` — the slot has no aggregation with that label (its labels under `available`); `grouped` — the slot has groups or a crosstab, so there is no single value. At run time: `null` — the value is undefined (no row reached it); `not_numeric` — it is not a number (its kind under `type`); `not_finite` — it is infinite (`value`). The slot is under `slot`, the label under `aggregation` and, located at a block, the block under `optimize` and the path under `field`. Predict lists a bound reading result() under `unresolved_scalars`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "variables", "*", "upper"},
+				Hint:     "Name an ungrouped Compose slot by its label and one of its aggregation labels, both as string literals, inside an optimize block.",
+				Examples: []any{`result("current", "spend_tv") * params.upper_share`},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"requests", "*", "filterers"},
+				Hint:   "For a null value, widen the slot's filters so at least one row reaches the aggregation, or bound the variable with a literal or a params expression instead.",
 			},
 		},
 	},

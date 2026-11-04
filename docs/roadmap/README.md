@@ -6,7 +6,7 @@ This directory sits outside the mdBook source (`docs/src/`) on purpose: planned 
 
 ## v1.0.0
 
-Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 80 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
+Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Work is planned as 81 Flow units in [`units/`](units/README.md); each TODO item links to its unit.
 
 | Theme | Index |
 |---|---|
@@ -25,7 +25,7 @@ Progress checklist for every committed v1.0.0 feature: [`TODO.md`](TODO.md). Wor
 2. Feature profiles FP1–FP3 and guided-analysis G1 come next, so every new surface is profile-filtered and carries purpose metadata from its first commit.
 3. Statistical integrity and the time-zone consolidation (step 0) land before the vector & matrix operators, so those operators are born weight-, multiplicity- and zone-aware.
 4. Response shaping and embedder operations are largely independent and can run in parallel with the vector & matrix work.
-5. The inventory units (U66–U78) close every remaining open item: CI platform coverage (U77) and test hygiene (U78) first, then U66–U76 in parallel. Everything outside the "Post-v1 backlog" section of `TODO.md` ships in v1.0.0 (owner decision 2026-11-02).
+5. The inventory units (U66–U78) close every remaining open item: CI platform coverage (U77) and test hygiene (U78) first, then U66–U76 in parallel. Everything outside the "Post-v1 backlog" section of `TODO.md` ships in v1.0.0 (owner decision 2026-11-02). U79 ([library-gaps](units/U79-library-gaps.md), the embedder gaps of #427) was added later and shipped ahead of U66–U76.
 6. The documentation audit (U32) runs after every feature and inventory unit and before the release candidate.
 7. `STABILITY.md` is published last, once the public surface is final (U33).
 

@@ -51,9 +51,10 @@ func TestOptimize_ComposedOptimizeFreeByteIdentity(t *testing.T) {
 	}
 }
 
-// TestOptimize_BoundWire: a bound is a JSON number or "params.<name>";
-// it round-trips, an absent start is omitted, and any other shape is a
-// decode error.
+// TestOptimize_BoundWire: a bound is a JSON number or an expression
+// string ("params.<name>" the simplest); it round-trips byte for byte,
+// an absent start is omitted, and a blank string or any other shape is
+// a decode error.
 func TestOptimize_BoundWire(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +76,20 @@ func TestOptimize_BoundWire(t *testing.T) {
 	if b, _ = json.Marshal(v); !strings.Contains(string(b), `"start":0`) {
 		t.Fatalf("a zero start is dropped: %s", b)
 	}
-	for _, bad := range []string{`"tv_lo"`, `"params."`, `true`, `[1]`, `{}`} {
+	if err := json.Unmarshal([]byte(`{"name":"tv","lower":"params.cur * params.lo_share","upper":"coef(\"m\", \"tv\") * 2","start":"params.tv_lo"}`), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Lower.IsParam() || v.Lower.Param() != "" || v.Lower.Expr() != "params.cur * params.lo_share" || v.Lower.Value() != 0 ||
+		!v.Upper.IsExpr() || v.Start.Param() != "tv_lo" || !v.Start.IsExpr() || BoundValue(3).IsExpr() {
+		t.Fatalf("decoded expressions %+v", v)
+	}
+	if b, _ = json.Marshal(v); string(b) != `{"name":"tv","lower":"params.cur * params.lo_share","upper":"coef(\"m\", \"tv\") * 2","start":"params.tv_lo"}` {
+		t.Fatalf("re-encoded expressions %s", b)
+	}
+	if BoundParam("a-b").IsParam() || BoundExpr("params.x").Param() != "x" {
+		t.Fatal("IsParam / Param must read exactly params.<identifier>")
+	}
+	for _, bad := range []string{`""`, `"  "`, `true`, `[1]`, `{}`} {
 		var bnd OptimizeBound
 		if err := json.Unmarshal([]byte(bad), &bnd); err == nil {
 			t.Errorf("%s decoded as %+v", bad, bnd)
@@ -149,5 +163,38 @@ func TestOptimize_PinnedOutsideComposeReturn(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("shaped wire lacks %s: %s", want, b)
 		}
+	}
+}
+
+// TestOptimizeSpec_MarkerBlockKeptAsWritten: a block carrying a
+// for_each and a {"$var"} marker where a typed value goes decodes with
+// its for_each and name and marshals back byte for byte; the same
+// marker without a for_each stays a decode error, and a plain block
+// round-trips field by field.
+func TestOptimizeSpec_MarkerBlockKeptAsWritten(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"name":"o_{{v}}","direction":"minimize","variables":[{"name":"x","lower":0,"upper":{"$var":"v"}}],"objective":"x","for_each":{"axes":[{"name":"v","values":[1,2]}]}}`
+	var s OptimizeSpec
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "o_{{v}}" || s.ForEach == nil || len(s.ForEach.Axes) != 1 || s.Variables != nil {
+		t.Fatalf("decoded %+v", s)
+	}
+	if got, err := json.Marshal(s); err != nil || string(got) != raw {
+		t.Fatalf("marshal %s (%v), want %s", got, err, raw)
+	}
+	noFE := strings.Replace(raw, `,"for_each":{"axes":[{"name":"v","values":[1,2]}]}`, "", 1)
+	if err := json.Unmarshal([]byte(noFE), &OptimizeSpec{}); err == nil {
+		t.Fatal("a marker without for_each decoded")
+	}
+	plain := `{"name":"o","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","direction":"minimize"}`
+	var p OptimizeSpec
+	if err := json.Unmarshal([]byte(plain), &p); err != nil || p.Variables[0].Upper.Value() != 1 {
+		t.Fatalf("plain %+v %v", p, err)
+	}
+	if got, _ := json.Marshal(p); string(got) != `{"name":"o","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","direction":"minimize"}` {
+		t.Fatalf("plain marshal %s", got)
 	}
 }

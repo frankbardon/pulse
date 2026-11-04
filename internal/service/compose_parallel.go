@@ -245,9 +245,27 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
-	// The optimize blocks, once the fits are bound and before any slot:
-	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
+	// The result pre-phase: every slot a block's result() reads runs
+	// now, once, on the pool, before the blocks (runComposeResultPhase —
+	// ran marks it for the slot phase below). A failed one stops every
+	// optimize block (its dependents) and the comparisons. FailFast
+	// returns its error at once, naming the slot; otherwise every other
+	// slot still runs, so the SERVICE_INTERNAL aggregate is the whole
+	// batch's, its result_slots naming the failed read slots.
+	ran, phase, err := runComposeResultPhase(composed, n, ran, models, pool)
+	if err != nil {
+		if o.FailFast {
+			return nil, err
+		}
+		if rerr := pool(unranSlots(n, ran), models); rerr != nil {
+			return nil, resultPhaseFailure(rerr, composed, phase)
+		}
+		return nil, err
+	}
+	// The optimize blocks, once the fits are bound and before every slot
+	// the result pre-phase did not run: they read no record
+	// (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded, responses)
 	if err != nil {
 		return nil, err
 	}

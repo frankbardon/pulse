@@ -1,6 +1,9 @@
 package pulse
 
 import (
+	"slices"
+	"sort"
+
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -89,6 +92,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Aggregators = make(map[types.AggregationType]processing.AggregatorFactory, len(ext.Aggregators))
 		for _, reg := range ext.Aggregators {
 			r.Aggregators[reg.Name] = adaptAggregatorFactory(reg)
+			addScalarParams(r, "aggregator", string(reg.Name), reg.Params)
 			r.Streamable[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.Streamable
 			// The merge declaration, recorded false as well as true so
 			// IsMergeable never falls through to the built-in table for
@@ -117,6 +121,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Attributes = make(map[types.AttributeType]processing.AttributeFactory, len(ext.Attributes))
 		for _, reg := range ext.Attributes {
 			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
+			addScalarParams(r, "attribute", string(reg.Name), reg.Params)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
 			r.WeightAware[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.WeightAware
 			// The declared tally fold (extend.MergeableAttribute):
@@ -145,6 +150,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Filterers = make(map[types.FiltererType]processing.FiltererFactory, len(ext.Filterers))
 		for _, reg := range ext.Filterers {
 			r.Filterers[reg.Name] = adaptFiltererFactory(reg)
+			addScalarParams(r, "filterer", string(reg.Name), reg.Params)
 			// Custom filterers are always row-local streamable today.
 			r.Streamable[processing.StreamabilityKey("filterer", string(reg.Name))] = true
 			addFieldInputs("filterer", string(reg.Name), reg.FieldInputs)
@@ -155,6 +161,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Groupers = make(map[types.GroupType]processing.GrouperFactory, len(ext.Groupers))
 		for _, reg := range ext.Groupers {
 			r.Groupers[reg.Name] = adaptGrouperFactory(reg)
+			addScalarParams(r, "grouper", string(reg.Name), reg.Params)
 			r.Streamable[processing.StreamabilityKey("grouper", string(reg.Name))] = reg.Streamable
 			// Recorded false as well as true, as for aggregators, so
 			// IsMergeable never falls through to the built-in table.
@@ -172,6 +179,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Windows = make(map[types.WindowType]window.WindowFactory, len(ext.Windows))
 		for _, reg := range ext.Windows {
 			r.Windows[reg.Name] = adaptWindowFactory(reg)
+			addScalarParams(r, "window", string(reg.Name), reg.Params)
 			// Custom windows run buffered today; the runtime path
 			// reflects the built-in behaviour.
 			r.Streamable[processing.StreamabilityKey("window", string(reg.Name))] = false
@@ -183,6 +191,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.Features = make(map[types.FeatureType]feature.Factory, len(ext.Features))
 		for _, reg := range ext.Features {
 			r.Features[reg.Name] = adaptFeatureFactory(reg)
+			addScalarParams(r, "feature", string(reg.Name), reg.Params)
 			r.Streamable[processing.StreamabilityKey("feature", string(reg.Name))] = reg.Streamable
 			addFieldInputs("feature", string(reg.Name), reg.FieldInputs)
 		}
@@ -191,6 +200,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	if len(ext.Tests) > 0 {
 		for _, reg := range ext.Tests {
 			r.WeightAware[processing.StreamabilityKey("test", string(reg.Name))] = reg.WeightAware
+			addScalarParams(r, "test", string(reg.Name), reg.Params)
 			switch reg.Tier {
 			case TestTierRow:
 				if r.RowTests == nil {
@@ -214,6 +224,27 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	addRuntimeRegressions(r, ext.Regressions)
 
 	return r
+}
+
+// addScalarParams records the expression-capable params keys
+// (ParamMeta.Expression) of extension operator name in category (the
+// paramread category spelling) on r.ScalarParams, sorted; none records
+// nothing.
+func addScalarParams(r *processing.ExtensionRegistry, category, name string, params []ParamMeta) {
+	var keys []string
+	for _, p := range params {
+		if p.Expression {
+			keys = append(keys, p.Name)
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	sort.Strings(keys)
+	if r.ScalarParams == nil {
+		r.ScalarParams = make(map[string][]string)
+	}
+	r.ScalarParams[processing.StreamabilityKey(category, name)] = slices.Compact(keys)
 }
 
 // hasAnyRegistrations reports whether ext carries any

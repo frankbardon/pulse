@@ -123,3 +123,37 @@ func TestStaticRefusal_SweepAxis(t *testing.T) {
 		t.Fatalf("LiteralFits %v", got)
 	}
 }
+
+// TestStaticRefusal_Response: a response() call with a literal fit and
+// channel is judged by model.CheckResponse beside coef() in walk order —
+// whatever its spend — and by SweepAxisRefusal too (response is
+// reserved); a computed fit or channel, or a wrong arity, is left to
+// evaluation. Its fit is a read (NamesFit, LiteralFits).
+func TestStaticRefusal_Response(t *testing.T) {
+	t.Parallel()
+
+	cat := model.FitCatalog{
+		"mmm": {Name: "mmm", Type: types.REG_MMM_HILL, Terms: []string{"tv"}, Adstocks: []string{"tv"}, AdstocksKnown: true},
+		"ols": {Name: "ols", Type: types.REG_OLS, Terms: []string{"x"}, Adstocks: []string{}, AdstocksKnown: true},
+	}
+	src := `response("mmm", "tv", spend * 2) + response(f, "tv", 1) + response("mmm", c, 1) + response("mmm", "tv")`
+	if got := LiteralResponseCalls(src); !reflect.DeepEqual(got, []ResponseCall{{"mmm", "tv"}}) {
+		t.Fatalf("calls %v", got)
+	}
+	if cerr := StaticRefusal(`response("mmm", "tv", x) + coef("mmm", "tv")`, cat); cerr != nil {
+		t.Fatalf("valid: %v", cerr)
+	}
+	cerr := StaticRefusal(`response("ols", "x", 1) + coef("mmm", "nope")`, cat)
+	if cerr == nil || cerr.Details["reason"] != model.ReasonAdstockUnknown || cerr.Details["channel"] != "x" {
+		t.Fatalf("walk order: %v", cerr)
+	}
+	if cerr := SweepAxisRefusal(`response("nope", "tv", 1)`, cat); cerr == nil || cerr.Code != errors.PULSE_MODEL_UNKNOWN {
+		t.Fatalf("SweepAxisRefusal: %v", cerr)
+	}
+	if !NamesFit(`1 + response("mmm", "tv", 3)`, "mmm") || NamesFit(`response(f, "tv", 3)`, "mmm") {
+		t.Fatal("NamesFit")
+	}
+	if got := LiteralFits(`coef("a", "x") + response("b", "tv", 1)`, false); !reflect.DeepEqual(got, []string{"b"}) {
+		t.Fatalf("LiteralFits %v", got)
+	}
+}

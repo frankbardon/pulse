@@ -11,9 +11,10 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// itemFan maps a request's expanded feature, attribute and window lists
-// back to the items as written, and states each for_each fan-out once,
-// as a plain step right before the first item it adds.
+// itemFan maps a request's expanded feature, attribute, window,
+// aggregation and matrix lists back to the items as written, and states
+// each for_each fan-out once, as a plain step right before the first
+// item it adds.
 type itemFan struct {
 	e       *explainer
 	written map[string][]int // list -> expanded index -> written index
@@ -28,7 +29,7 @@ type itemFan struct {
 // does not expand is a caveat, and the items are described as written.
 func (e *explainer) expandItems(prefix string, r *types.Request) (*types.Request, *itemFan) {
 	f := &itemFan{e: e, written: map[string][]int{}, fans: map[string]sweep.FanOut{}, told: map[string]bool{}}
-	x, fan, _, err := descx.ExpandRequestItems(r, limits.Limits{})
+	x, fan, _, err := descx.ExpandRequestItems(r, limits.Limits{}, e.inst.SweepOptions())
 	if err != nil {
 		code := string(errors.PULSE_FOR_EACH_INVALID)
 		var ce *errors.CodedError
@@ -44,6 +45,8 @@ func (e *explainer) expandItems(prefix string, r *types.Request) (*types.Request
 	f.index("features", len(r.Features), func(i int) bool { return r.Features[i] != nil && r.Features[i].ForEach != nil })
 	f.index("attributes", len(r.Attributes), func(i int) bool { return r.Attributes[i] != nil && r.Attributes[i].ForEach != nil })
 	f.index("windows", len(r.Windows), func(i int) bool { return r.Windows[i] != nil && r.Windows[i].ForEach != nil })
+	f.index("aggregations", len(r.Aggregations), func(i int) bool { return r.Aggregations[i] != nil && r.Aggregations[i].ForEach != nil })
+	f.index("matrices", len(r.Matrices), func(i int) bool { return r.Matrices[i].ForEach != nil })
 	return x, f
 }
 
@@ -64,9 +67,10 @@ func (f *itemFan) index(list string, n int, fanned func(int) bool) {
 }
 
 // slot is the written slot path of expanded item i of list, and the
-// phrase naming the column a fanned-out item adds (its label, which tells
-// the combinations apart; "" for a plain item). On the first item a
-// for_each adds, it first states the fan-out.
+// phrase naming the column (or, for an aggregation or matrix, the
+// result) a fanned-out item adds (its label, which tells the
+// combinations apart; "" for a plain item). On the first item a for_each
+// adds, it first states the fan-out.
 func (f *itemFan) slot(prefix, list string, i int, r *role, label string) (string, string) {
 	w := i
 	if idx := f.written[list]; i < len(idx) {
@@ -83,6 +87,9 @@ func (f *itemFan) slot(prefix, list string, i int, r *role, label string) (strin
 	}
 	if label == "" {
 		return prefix + path, ""
+	}
+	if r == roleAgg || r == roleMatrix {
+		return prefix + path, ", adding the " + r.one + " " + tick(label)
 	}
 	return prefix + path, ", adding the column " + tick(label)
 }

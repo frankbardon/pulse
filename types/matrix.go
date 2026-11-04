@@ -331,6 +331,10 @@ type MatrixSpec struct {
 	// by field — but only a spec already under params.inference takes an
 	// inherited correction; nil is byte-identical.
 	Multiplicity *Multiplicity `json:"multiplicity,omitempty"`
+	// ForEach, when set, fans this spec out over parameter axes before
+	// validation (see ForEach); each rendered spec needs its own Name.
+	// Gated by capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // Streamable reports whether this concrete spec folds row by row, so a

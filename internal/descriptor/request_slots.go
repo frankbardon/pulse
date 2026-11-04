@@ -43,6 +43,7 @@ import (
 //     request's own slots are gated like a slot's, details.fit)
 //   - ComposedRequest.Compare  — capability:compose_compare (+ the
 //     ComposedResponse.Comparisons it produces)
+//   - ComposedRequest.Base     — capability:compose_base
 //   - a `fits` entry's `from_sweep` (FitSpec) — capability:compose_sweep_bind
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
@@ -54,7 +55,8 @@ import (
 //     a FacetRequest's overlays —, ComposeOverlaySpec, ComposedRequest,
 //     FitComparisonSpec)
 //     — capability:multiplicity
-//   - every item `for_each` (Window, Feature, Attribute) —
+//   - every `for_each` (Window, Feature, Attribute, Aggregation,
+//     MatrixSpec, OptimizeSpec) —
 //     capability:for_each
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
 //   - every regression `holdout` (+ the RegressionResult block) —
@@ -115,8 +117,9 @@ const multiplicityKey = "multiplicity"
 // multiplicitySlotGate is the one gate every `multiplicity` key shares.
 var multiplicitySlotGate = gatedSlot{key: multiplicityKey, visible: capabilityGate(featMultiplicity)}
 
-// forEachKey is the JSON key of the item fan-out on a window, feature
-// or attribute; every one rides capability:for_each.
+// forEachKey is the JSON key of the item fan-out on a window, feature,
+// attribute, aggregation or matrix spec; every one rides
+// capability:for_each.
 const forEachKey = "for_each"
 
 // forEachSlotGate is the one gate every `for_each` key shares.
@@ -188,7 +191,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		outputSlotGate,
 	},
-	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
+	reflect.TypeOf(types.Aggregation{}): {weightSlotGate, forEachSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
 	// MEASURE-folded payload slots it alone produces.
 	reflect.TypeOf(types.CrosstabSpec{}): {crosstabCellsSlotGate},
@@ -202,7 +205,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate, {key: "from_sweep", visible: capabilityGate(featSweepBind)}},
-	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
+	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
 	reflect.TypeOf(types.Feature{}):            {forEachSlotGate},
@@ -281,6 +284,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 		{key: "compare", visible: capabilityGate(featComposeCompare)},
+		{key: "base", visible: capabilityGate(featComposeBase)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
@@ -297,8 +301,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "comparisons", visible: capabilityGate(featComposeCompare)},
 	},
 	// An optimize block's saved models ride capability:models, like a
-	// slot's `models`.
-	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate},
+	// slot's `models`; its `for_each` rides capability:for_each, like an
+	// item's.
+	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 		paramsSlotGate,
@@ -524,6 +529,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Compare) > 0 {
 			out = append(out, "compare")
+		}
+		if r != nil && r.Base != nil {
+			out = append(out, "base")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -767,8 +775,10 @@ func nestedHoldoutRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 
 // nestedForEachRefusal refuses the first item `for_each` set inside req
 // when inst hides capability:for_each, in expansion order: features,
-// attributes, windows. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
-// item (details.path), valid_keys over its visible keys.
+// attributes, windows, aggregations, matrices, then a crosstab's cell,
+// cells and margin_aggregations. The refusal is
+// PULSE_REQUEST_UNKNOWN_FIELD at that item (details.path), valid_keys
+// over its visible keys.
 func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if req == nil || inst.Enabled(featForEach) {
 		return nil
@@ -789,6 +799,31 @@ func nestedForEachRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 	for i, w := range req.Windows {
 		if w != nil && w.ForEach != nil {
 			return at(fmt.Sprintf("windows[%d]", i), w)
+		}
+	}
+	for i, a := range req.Aggregations {
+		if a != nil && a.ForEach != nil {
+			return at(fmt.Sprintf("aggregations[%d]", i), a)
+		}
+	}
+	for i := range req.Matrices {
+		if req.Matrices[i].ForEach != nil {
+			return at(fmt.Sprintf("matrices[%d]", i), &req.Matrices[i])
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		if ct.Cell != nil && ct.Cell.ForEach != nil {
+			return at("crosstab.cell", ct.Cell)
+		}
+		for _, l := range []struct {
+			name  string
+			items []*types.Aggregation
+		}{{"crosstab.cells", ct.Cells}, {"crosstab.margin_aggregations", ct.MarginAggregations}} {
+			for i, a := range l.items {
+				if a != nil && a.ForEach != nil {
+					return at(fmt.Sprintf("%s[%d]", l.name, i), a)
+				}
+			}
 		}
 	}
 	return nil
@@ -982,10 +1017,16 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 		}
 		// An optimize block's own `models` ride capability:models, as a
-		// slot's do (details.optimize).
+		// slot's do, and its `for_each` capability:for_each, as an item's
+		// does (details.optimize) — refused before the Compose expansion
+		// would fan it out (the pre-expansion gate).
 		for i := range r.Optimize {
 			if len(r.Optimize[i].Models) > 0 && !inst.Enabled(featModels) {
 				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{"models"},
+					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
+			}
+			if r.Optimize[i].ForEach != nil && !inst.Enabled(featForEach) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{forEachKey},
 					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
 			}
 		}

@@ -132,6 +132,7 @@ func addRuntimeRegressions(r *processing.ExtensionRegistry, regs []RegressionReg
 		}
 		r.Streamable[key] = reg.Streamable
 		r.WeightAware[key] = reg.WeightAware
+		addScalarParams(r, string(categoryRegression), string(reg.Name), reg.Params)
 		if reg.FieldInputs != nil {
 			r.FieldInputs[key] = processing.FieldInputsFunc(reg.FieldInputs)
 		}

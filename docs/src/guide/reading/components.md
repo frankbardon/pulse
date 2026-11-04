@@ -141,6 +141,14 @@ Each operator's own keys, beyond the floor and the weighted floor keys.
 | `t_critical` | float64 | always | Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary). |
 | `upper` | float64 | always | Resolved upper bound of the confidence interval. |
 
+<a id="op-agg_constant"></a>
+
+#### `AGG_CONSTANT`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/aggregator.md#op-agg_constant).
+
+Only the floor keys.
+
 <a id="op-agg_count"></a>
 
 #### `AGG_COUNT`

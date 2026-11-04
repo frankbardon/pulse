@@ -352,7 +352,11 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 // once, just before the terminator is delivered, and its scan phase
 // (generation and emission) includes any backpressure wait.
 func (p *Pulse) SynthStream(ctx context.Context, spec *SynthSpec, opts SynthOptions) (StreamResult[Row], error) {
-	return observedStream(p, ctx, opSpec{kind: observe.OpSynthStream, req: synthHasher(spec)}, func(ctx context.Context, end func(error)) (StreamResult[Row], error) {
+	opts, lookupErr := p.synthLookupOptions(spec, opts)
+	return observedStream(p, ctx, opSpec{kind: observe.OpSynthStream, req: synthHasher(spec, opts.LookupTables)}, func(ctx context.Context, end func(error)) (StreamResult[Row], error) {
+		if lookupErr != nil {
+			return StreamResult[Row]{}, lookupErr
+		}
 		return p.synthStream(ctx, spec, opts, end)
 	})
 }
@@ -440,7 +444,7 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 
 	return StreamResult[Row]{
 		Header: StreamHeader{
-			RequestHash:    spec.Hash(),
+			RequestHash:    spec.HashWithLookups(opts.LookupTables),
 			EstimatedTotal: estimated,
 			StartedAt:      started,
 		},

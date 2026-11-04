@@ -106,6 +106,18 @@ func refuse(msg string, details map[string]any) (Spec, *Refusal) {
 // Resolve reads raw params and returns the resolved kernel, or the first
 // rule the params break.
 func Resolve(raw json.RawMessage) (Spec, *Refusal) {
+	return ResolveDeferred(raw, nil)
+}
+
+// ResolveDeferred is Resolve with the values of the deferred keys (a
+// scalar-expression param predict could not compute: decay, shape,
+// scale or max_lag; internal/windowscalar) judged present but not yet
+// known: every rule that reads such a value — its own range, and the
+// kernel's weights, their finiteness and mass — is left to the runtime,
+// which resolves the value and calls Resolve. Every other rule runs as
+// Resolve runs it. With any value deferred the Spec carries no weights.
+// A nil or empty deferred set is Resolve.
+func ResolveDeferred(raw json.RawMessage, deferred map[string]bool) (Spec, *Refusal) {
 	var p Params
 	paramread.Declare(paramread.Window, string(types.WIN_DISTRIBUTED_LAG), (*Params)(nil))
 	if len(raw) > 0 {
@@ -127,7 +139,7 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 		return refuse("params.max_lag is required (an integer >= 1)", nil)
 	}
 	maxLag := *p.MaxLag
-	if maxLag < 1 || maxLag > MaxLagCeiling {
+	if !deferred["max_lag"] && (maxLag < 1 || maxLag > MaxLagCeiling) {
 		return refuse("params.max_lag must be an integer in [1, "+strconv.Itoa(MaxLagCeiling)+"]",
 			map[string]any{"max_lag": maxLag})
 	}
@@ -136,7 +148,13 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 		normalize = *p.Normalize
 	}
 
-	w := make([]float64, maxLag+1)
+	// A deferred value: the presence rules below still run, every rule
+	// reading a value waits for the runtime.
+	pending := deferred["max_lag"] || deferred["decay"] || deferred["shape"] || deferred["scale"]
+	var w []float64
+	if !pending {
+		w = make([]float64, maxLag+1)
+	}
 	switch kernel {
 	case KernelGeometric:
 		if p.Shape != nil || p.Scale != nil {
@@ -147,7 +165,7 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 			return refuse("params.decay is required for the geometric kernel (in [0, 1))", map[string]any{"kernel": kernel})
 		}
 		d := *p.Decay
-		if !(d >= 0 && d < 1) {
+		if !deferred["decay"] && !(d >= 0 && d < 1) {
 			return refuse("params.decay must be in [0, 1)", map[string]any{"decay": d})
 		}
 		for l := range w {
@@ -163,11 +181,14 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 				map[string]any{"kernel": kernel})
 		}
 		k, lambda := *p.Shape, *p.Scale
-		if !(k > 0) || math.IsInf(k, 0) {
+		if !deferred["shape"] && (!(k > 0) || math.IsInf(k, 0)) {
 			return refuse("params.shape must be > 0", map[string]any{"shape": k})
 		}
-		if !(lambda > 0) || math.IsInf(lambda, 0) {
+		if !deferred["scale"] && (!(lambda > 0) || math.IsInf(lambda, 0)) {
 			return refuse("params.scale must be > 0", map[string]any{"scale": lambda})
+		}
+		if pending {
+			break
 		}
 		if kernel == KernelWeibullCDF {
 			for l := range w {
@@ -184,6 +205,9 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 		}
 	}
 
+	if pending {
+		return Spec{Kernel: kernel, Normalize: normalize}, nil
+	}
 	sum := 0.0
 	for _, x := range w {
 		if math.IsNaN(x) || math.IsInf(x, 0) {

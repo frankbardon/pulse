@@ -67,7 +67,9 @@ func (t AggregationType) Streamable() bool {
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
-		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
+		// No state at all: the value is known before the first row.
+		AGG_CONSTANT:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		// A rank-sum over every scored row: needs the full sorted
@@ -111,7 +113,9 @@ func (t AggregationType) Mergeable() bool {
 		// Per-merge-block element sums (and, for AGG_VEC_SD, Chan-
 		// combined Welford moments) folded in a fixed tree: the merged
 		// figure is bit-identical to the serial one.
-		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
+		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
+		// Stateless: a merge of two constants is the constant.
+		AGG_CONSTANT:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
 		AGG_SKEWNESS, AGG_KURTOSIS,
@@ -163,7 +167,10 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// per-value count map is fed record by record into independent
 		// row / column / grand accumulators on both crosstab paths, so
 		// the true margin falls out of one pass and the cell fuses.
-		AGG_MODE_COUNT:
+		AGG_MODE_COUNT,
+		// The same constant in every cell and margin: each independent
+		// row / column / grand accumulator emits it, never a sum.
+		AGG_CONSTANT:
 		// Set-valued state. Summing per-cell distinct counts double-
 		// counts every key present in more than one cell, so the margin
 		// is emphatically NOT a sum of cells — but it is not a re-scan

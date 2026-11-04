@@ -4,8 +4,8 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:b9b36c7f145b6da31635461e4536daef126cbd97cc9805f96efbc994d7576cbe",
-    "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
+    "feature_set_digest": "fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
+    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
     "commands": [
       {
         "name": "process",
@@ -835,6 +835,79 @@
           "intents": [
             "compare_groups",
             "describe"
+          ]
+        },
+        {
+          "name": "AGG_CONSTANT",
+          "category": "aggregator",
+          "description": "Emits one typed constant, the same in every row, group, crosstab cell and margin — instead of a formula that only puts a constant into results. The slot names no field, vector or fields (field_not_accepted) and needs a label (label_missing). Set exactly one of params.value and params.expr. Refusals are PROCESSING_CONFIG details.reason. Takes no weight: a slot weight is refused.",
+          "params": [
+            {
+              "name": "type",
+              "type": "enum",
+              "required": true,
+              "description": "The constant's field type: one of the 22 field-type names. The wire value is what the existing aggregators write for that type.",
+              "enum_values": [
+                "categorical_u16",
+                "categorical_u32",
+                "categorical_u8",
+                "date",
+                "datetime",
+                "decimal128",
+                "f32",
+                "f64",
+                "packed_bool",
+                "set_u128",
+                "set_u16",
+                "set_u256",
+                "set_u32",
+                "set_u64",
+                "set_u8",
+                "u16",
+                "u32",
+                "u4",
+                "u64",
+                "u8",
+                "vec_f32",
+                "vec_f64"
+              ]
+            },
+            {
+              "name": "value",
+              "type": "any",
+              "required": false,
+              "description": "A literal judged against type (value_invalid): an integer in range for u4..u64 (u64 at most 2^53), a finite number for f32 / f64, true / false for packed_bool, \"YYYY-MM-DD\" for date (emits epoch days), an RFC 3339 instant with a zone offset for datetime (emits epoch seconds), an exact decimal string for decimal128 (emitted at its own scale), a label for categorical_*, a list of distinct member labels for set_* (free labels, no dictionary), 2 to 1024 finite numbers for vec_*. null emits null. Never an expression.",
+              "exactly_one_of": "constant"
+            },
+            {
+              "name": "expr",
+              "type": "string",
+              "required": false,
+              "description": "A scalar expression evaluated once before the run — literals, params.\u003cname\u003e, coef() / sweep_axis() / response() over bound models, lookup(), range_label(), the built-ins — for a u4..u64, f32, f64, packed_bool (0 or 1), date (epoch day) or datetime (epoch second) type only (expr_type_unsupported otherwise). Its number must fit the type (expr_out_of_range); an integer type needs an exact integer. Predict lists one calling a model or table function under unresolved_scalars.",
+              "exactly_one_of": "constant"
+            }
+          ],
+          "accepts_types": [],
+          "forbids_field": true,
+          "emits_type_note": "params.type's value: a number (numeric types, packed_bool 0/1, date epoch days, datetime epoch seconds), a decimal string, a label, a label list or a number array; null for value null",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "prepare"
           ]
         },
         {
@@ -6366,25 +6439,29 @@
               "name": "max_lag",
               "type": "int",
               "required": true,
-              "description": "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row)."
+              "description": "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row). A number or a scalar expression yielding an exact integer.",
+              "expression": true
             },
             {
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel."
+              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel. A number or a scalar expression, e.g. sweep_axis(\"fit\", \"decay\").",
+              "expression": true
             },
             {
               "name": "shape",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric."
+              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric. A number or a scalar expression.",
+              "expression": true
             },
             {
               "name": "scale",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric."
+              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric. A number or a scalar expression.",
+              "expression": true
             },
             {
               "name": "normalize",
@@ -6423,15 +6500,17 @@
               "name": "alpha",
               "type": "float",
               "required": false,
-              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay.",
-              "exactly_one_of": "smoothing"
+              "description": "Smoothing factor in (0, 1]; higher values weight recent observations more. Exactly one of alpha or decay; alpha = 1 − decay. A number or a scalar expression.",
+              "exactly_one_of": "smoothing",
+              "expression": true
             },
             {
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal. Exactly one of alpha or decay.",
-              "exactly_one_of": "smoothing"
+              "description": "Carry-over share in [0, 1) (adstock decay); alpha = 1 − decay, taken from the exact decimal (an expression's shortest round-trip decimal). Exactly one of alpha or decay. A number or a scalar expression.",
+              "exactly_one_of": "smoothing",
+              "expression": true
             }
           ],
           "accepts_types": [
@@ -11696,7 +11775,7 @@
         ]
       }
     ],
-    "error_codes_count": 459,
+    "error_codes_count": 461,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11763,6 +11842,7 @@
       "PULSE_COHORT_COMPRESSED",
       "PULSE_COMPARISON_INVALID",
       "PULSE_COMPARISON_ROWS_DIFFER",
+      "PULSE_COMPOSE_BASE_COLLISION",
       "PULSE_COMPOSE_LABEL_COLLISION",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL",
@@ -12013,6 +12093,7 @@
       "PULSE_REGRESSION_WINDOW_UNAVAILABLE",
       "PULSE_REQUEST_PARAM_INVALID",
       "PULSE_REQUEST_UNKNOWN_FIELD",
+      "PULSE_RESULT_INVALID",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
       "PULSE_RETURN_PATH_UNMATCHED",
@@ -13720,7 +13801,7 @@
       },
       {
         "name": "item-fan-out",
-        "description": "for_each on a window, feature or attribute item — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, a derived-column limit and predict parity."
+        "description": "for_each on a window, feature, attribute, aggregation or matrix item, or a compose optimize block — one item fans out in place over parameter axes (grid or zip) into ordinary items, with the sweep placeholders, fan-out limits and predict parity."
       },
       {
         "name": "join-design",
@@ -13781,6 +13862,10 @@
       {
         "name": "op-agg-ci-upper",
         "description": "Upper bound of the confidence interval for the mean."
+      },
+      {
+        "name": "op-agg-constant",
+        "description": "One typed constant in every row, group, crosstab cell and margin; fieldless."
       },
       {
         "name": "op-agg-count",
@@ -15143,7 +15228,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 270,
+    "examples_count": 272,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15407,6 +15492,7 @@
         "AGG_WEIGHTED_MEAN"
       ],
       "independent_aggregators": [
+        "AGG_CONSTANT",
         "AGG_DISTINCT_COUNT",
         "AGG_DISTINCT_SUM",
         "AGG_MODE_COUNT"
@@ -18163,6 +18249,21 @@
               "name": "upper",
               "type": "float64",
               "description": "Resolved upper bound of the confidence interval."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
+        "AGG_CONSTANT": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
             }
           ],
           "mergeability": "mergeable"
@@ -21077,10 +21178,16 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_expanded_items",
+        "value": 1000,
+        "default": 1000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4767da89112daa1147a788c040cbf72d8d405bd46f620100355126ec473f21d8
+// golden-hash: 0716c023e72a40abfa478757e8bcb201d6645ab07889bb790b8ad6021a9fc748

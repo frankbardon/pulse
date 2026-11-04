@@ -19,7 +19,7 @@ import (
 
 // extensions_regression_scorer_test.go pins custom-regressions E2-S2:
 // a registration's Scorer scores its fits through ATTR_REG_PREDICT, a
-// fit saves as a version-3 model file carrying its outputs and reloads
+// fit saves as a model file listing feature outputs and reloads
 // on a fresh instance with identical predictions; without a Scorer
 // scoring is refused (no_scorer) while the fit runs; a saved custom
 // model on an instance that does not register — or hides — its type is
@@ -146,8 +146,8 @@ func centredJSON(t *testing.T, v any) string {
 
 // TestExtensions_RegressionScorerScoresSavesReloads: the registration's
 // scorer scores every row of a Compose fit exactly as the model's own
-// formula over the reported fit; the fit's save writes a version-3
-// model file carrying its outputs; a fresh instance with the same
+// formula over the reported fit; the fit's save writes a model file
+// listing feature outputs and carrying them; a fresh instance with the same
 // registration reloads it and scores identically, and predict accepts
 // the load.
 func TestExtensions_RegressionScorerScoresSavesReloads(t *testing.T) {
@@ -185,8 +185,8 @@ func TestExtensions_RegressionScorerScoresSavesReloads(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc["model_format_version"] != float64(3) || doc["type"] != string(regScoredName) {
-		t.Fatalf("saved file: version %v type %v", doc["model_format_version"], doc["type"])
+	if doc["model_format_version"] != float64(1) || !reflect.DeepEqual(doc["features"], []any{"outputs"}) || doc["type"] != string(regScoredName) {
+		t.Fatalf("saved file: version %v features %v type %v", doc["model_format_version"], doc["features"], doc["type"])
 	}
 	if outs, _ := doc["outputs"].(map[string]any); outs["shift"] != shift || !reflect.DeepEqual(outs["spread"], []any{res.Outputs["spread"].([]float64)[0], nil}) {
 		t.Fatalf("saved outputs %v", doc["outputs"])

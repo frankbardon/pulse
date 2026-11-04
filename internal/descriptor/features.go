@@ -109,6 +109,7 @@ var (
 	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
 	featSweepBind         = FeatureComposeSweepBind
 	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
+	featComposeBase       = FeatureName(FeatureKindCapability, "compose_base")
 	featModelSave         = FeatureModelSave
 	featRegHoldout        = FeatureRegressionHoldout
 	featModels            = FeatureModels
@@ -212,7 +213,8 @@ const FeatureMultiplicity = "capability:multiplicity"
 const FeatureCrosstabCells = "capability:crosstab_cells"
 
 // FeatureForEach is capability:for_each — the item fan-out: the
-// `for_each` key on Window, Feature and Attribute. Exported because the
+// `for_each` key on Window, Feature, Attribute, Aggregation,
+// MatrixSpec and OptimizeSpec. Exported because the
 // MCP binder (nested for_each properties) reads it.
 const FeatureForEach = "capability:for_each"
 
@@ -284,7 +286,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("model_save"),         // RegressionSpec.Save + FitSpec.Save (model + population files)
 	capability("regression_holdout"), // RegressionSpec.Holdout + RegressionResult.Holdout
 	capability("models"),             // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
-	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute
+	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute / Aggregation / MatrixSpec / OptimizeSpec
 	capability("process_chain"),      // ProcessChain
 	capability("facet"),              // Facet, FacetSchema
 	capability("sample"),             // Sample, SampleWithRequest
@@ -330,6 +332,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The nested-model comparisons of two fits: ComposedRequest.Compare
 	// and ComposedResponse.Comparisons.
 	capability("compose_compare"),
+	// The Compose `base`: ComposedRequest.Base, merged into every
+	// explicit slot.
+	capability("compose_base"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -399,6 +404,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_VEC_MEAN"),
 	op("AGG_VEC_SUM"),
 	op("AGG_VEC_SD"),
+	op("AGG_CONSTANT"),
 	// Attributes — types.AllAttributeTypes().
 	op("ATTR_CODE_IN"),
 	op("ATTR_DATE_PART"),
@@ -684,6 +690,8 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeCompare: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
+	// `base` is everyday English; no guidance sentence names the slot.
+	featComposeBase: {},
 	// `save` is everyday English; no guidance sentence names the slot.
 	featModelSave: {},
 	// `holdout` is everyday modelling English (a train / holdout split
@@ -939,6 +947,9 @@ var hardEdges = map[string][]string{
 	// batch to solve it in (its coef() reads the batch's fits, but a
 	// block over params alone needs none).
 	featComposeOpt: {featCompose},
+	// A base is merged into Compose slots: without Compose there are no
+	// slots to merge it into.
+	featComposeBase: {featCompose},
 	// The output slot lays out a materialize run's cohort: without
 	// materialize there is no run to read it.
 	featMaterializeOutput: {featMaterialize},

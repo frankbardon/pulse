@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -649,12 +650,16 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		e.opStep(e.inferredStep(stepIn{slot: prefix + "groups[" + strconv.Itoa(i) + "]", role: roleGroup, n: i + 1,
 			op: string(g.Type), fields: nonEmpty(g.Field), detail: onFields(nonEmpty(g.Field))}, "groups", i, inferred))
 	}
-	for i, a := range r.Aggregations {
+	// Aggregations and matrices are described as they run too: a
+	// for_each item expanded in place (predict's defaults key the
+	// expanded positions).
+	for i, a := range x.Aggregations {
 		if a == nil {
 			continue
 		}
-		e.opStep(e.inferredStep(stepIn{slot: prefix + "aggregations[" + strconv.Itoa(i) + "]", role: roleAgg, n: i + 1,
-			op: string(a.Type), fields: nonEmpty(a.Field), detail: onFields(nonEmpty(a.Field))}, "aggregations", i, inferred))
+		slot, as := fan.slot(prefix, "aggregations", i, roleAgg, types.AggregationLabelOf(a))
+		e.opStep(e.inferredStep(stepIn{slot: slot, role: roleAgg, n: i + 1,
+			op: string(a.Type), fields: nonEmpty(a.Field), detail: onFields(nonEmpty(a.Field)) + as}, "aggregations", i, inferred))
 	}
 	if ct := r.Crosstab; ct != nil {
 		var rows, cols, fields []string
@@ -723,7 +728,7 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		e.opStep(stepIn{slot: prefix + "regressions[" + strconv.Itoa(i) + "]", role: roleRegression, n: i + 1,
 			op: string(g.Type), fields: append(nonEmpty(g.Target), g.Predictors...), detail: detail})
 	}
-	for i, m := range r.Matrices {
+	for i, m := range x.Matrices {
 		detail := ""
 		switch {
 		case len(m.Fields) > 0:
@@ -731,8 +736,9 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		case m.Vector != "":
 			detail = " over the vector " + tick(m.Vector)
 		}
-		e.opStep(stepIn{slot: prefix + "matrices[" + strconv.Itoa(i) + "]", role: roleMatrix, n: i + 1,
-			op: string(m.Type), fields: m.Fields, detail: detail})
+		slot, as := fan.slot(prefix, "matrices", i, roleMatrix, m.Name)
+		e.opStep(stepIn{slot: slot, role: roleMatrix, n: i + 1,
+			op: string(m.Type), fields: m.Fields, detail: detail + as})
 	}
 	for i, o := range r.Overlays {
 		e.opStep(stepIn{slot: prefix + "overlays[" + strconv.Itoa(i) + "]", role: roleOverlay, n: i + 1,
@@ -833,6 +839,13 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		}
 		e.absorbLocated(env, "", true)
 		e.advisories(env)
+	}
+	// Each slot is explained as it runs: the `base` merged in
+	// (banner.MergeBase, the merge every Compose surface shares). A
+	// refused merge is the batch check's to report; the slots are then
+	// explained as written.
+	if merged, ce := banner.MergeBase(c); ce == nil {
+		c = merged
 	}
 	for i, r := range c.Requests {
 		if r == nil {

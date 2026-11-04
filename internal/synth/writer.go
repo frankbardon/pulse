@@ -262,7 +262,13 @@ func buildSchema(s *Spec) (*encoding.Schema, []*writerField, error) {
 // seed is the run seed rng was built from; the rules' uniform() /
 // bernoulli() draws derive their own counter-based streams from it
 // (row_draw.go) and never read rng.
-func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand, seed int64) (rowsGenerated, rowsRejected int, warnings []string, err error) {
+//
+// lookups are the tables lookup() reads (Options.LookupTables); every
+// literal call is judged against them before a row is drawn.
+func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *bytes.Buffer, rng *mrand.Rand, seed int64, lookups map[string]LookupTable) (rowsGenerated, rowsRejected int, warnings []string, err error) {
+	if err := checkLookupCalls(s, lookups); err != nil {
+		return 0, 0, nil, err
+	}
 	maxRej := s.MaxRejectionRate
 	if maxRej == 0 {
 		maxRej = 0.5
@@ -397,6 +403,9 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// resolved (row_time.go); both hosts read the same stage.
 	cons.datetimes = datetimes
 	rules.setDatetimes(datetimes)
+	// lookup()'s tables, checked above: both hosts read the same map.
+	cons.lookups = lookups
+	rules.setLookups(lookups)
 	// attempt counts the constraint-rejected attempts at the current
 	// ordinal: a rule draw hashes it, so a redrawn row reads fresh draws
 	// rather than replaying the rejected ones (row_draw.go).

@@ -1,8 +1,8 @@
 // Package sweep is the one rule set for a Compose parameter sweep
 // (types.SweepSpec, the `sweep` slot of a ComposedRequest) and for the
 // item fan-out that reuses its axes and substitution (types.ForEach,
-// the `for_each` key on a window, feature or attribute — items.go,
-// ExpandItems).
+// the `for_each` key on a window, feature, attribute, aggregation or
+// matrix spec — items.go, ExpandItems).
 //
 // It is NO-EXECUTE and sits below both callers that must agree on it:
 // the runtime (internal/service, Compose / ComposeParallel) and predict

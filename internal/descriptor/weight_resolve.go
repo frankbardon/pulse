@@ -630,6 +630,9 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     `weight` (another field, or `null`) is PROCESSING_CONFIG, and an
 //     AGG_WEIGHTED_MEAN slot nothing resolves a weight for is
 //     PROCESSING_CONFIG;
+//   - AGG_CONSTANT (ClassNone) skips an inherited weight but refuses a
+//     weight on its own slot (PROCESSING_CONFIG reason
+//     weight_not_accepted); `weight: null` there is an opt-out;
 //   - the slot's operator class (internal/weighting) decides what a
 //     resolved weight does: weight-aware ⇒ applied; not weightable ⇒
 //     skipped under the instance default but PROCESSING_CONFIG under
@@ -807,6 +810,13 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			out = append(out, rw)
 			continue
 		case weighting.ClassNone:
+			if s.operator == string(types.AGG_CONSTANT) && rw.Source == descriptor.WeightSourceSlot && !s.hidden {
+				// A constant scales nothing: an inherited weight passes it
+				// by, but a weight written on its own slot is a mistake.
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("%s: AGG_CONSTANT emits a constant and takes no weight; drop the slot weight", s.slot),
+					map[string]any{"slot": s.slot, "operator": s.operator, "field": spec.Field, "reason": "weight_not_accepted"})
+			}
 			rw.Status = descriptor.WeightStatusSkippedNotWeightAware
 			out = append(out, rw)
 			continue

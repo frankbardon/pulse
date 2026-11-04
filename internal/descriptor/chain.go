@@ -216,7 +216,7 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// before the cohort opens); a refusal is located by details.stage.
 	// Every pass below judges the expanded stages; result.Request stays
 	// as written.
-	expanded, xerr := ExpandChainItems(req, opts.instance().Limits())
+	expanded, xerr := ExpandChainItems(req, opts.instance().Limits(), opts.instance().SweepOptions())
 	if xerr != nil {
 		addCodedError(env, xerr)
 		if f, ok := limitRefusalFinding(xerr); ok {

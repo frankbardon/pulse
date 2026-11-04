@@ -786,7 +786,7 @@ func TestRender_ComposedSweepTemplate(t *testing.T) {
 		t.Errorf("sweep label = %q, want the axis placeholders intact", got)
 	}
 
-	exp, err := sweep.Expand(c, func(int) error { return nil })
+	exp, err := sweep.Expand(c, sweep.Options{}, func(int) error { return nil })
 	if err != nil {
 		t.Fatalf("sweep.Expand = %v, want nil", err)
 	}
