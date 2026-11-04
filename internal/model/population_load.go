@@ -33,6 +33,10 @@ func PopulationSource(k int, path string) Source {
 type Refs struct {
 	Models      []types.ModelRef
 	Populations []types.PopulationRef
+	// Params are the request's params (raw, as written): the
+	// params.<name> an inline model's number expressions read. Nil
+	// declares none.
+	Params types.Params
 }
 
 // RequestRefs returns req's loads (the zero Refs for nil).
@@ -40,7 +44,7 @@ func RequestRefs(req *types.Request) Refs {
 	if req == nil {
 		return Refs{}
 	}
-	return Refs{Models: req.Models, Populations: req.Populations}
+	return Refs{Models: req.Models, Populations: req.Populations, Params: req.Params}
 }
 
 // Empty reports whether r loads nothing.
@@ -69,7 +73,7 @@ func CheckRefs(refs Refs, outer Catalog) *errors.CodedError {
 	}
 	seen := make(map[string]Source, len(refs.Models)+len(refs.Populations))
 	for j, r := range refs.Models {
-		seen[r.Name] = ModelSource(j, r.Path)
+		seen[r.Name] = RefSource(j, r)
 	}
 	for k, r := range refs.Populations {
 		if strings.TrimSpace(r.Name) == "" {
@@ -98,12 +102,15 @@ func CheckRefs(refs Refs, outer Catalog) *errors.CodedError {
 // (missing / unreadable), a decode fault DecodePopulationFile's
 // PULSE_MODEL_FILE_INVALID / _VERSION_UNSUPPORTED, each gaining
 // details.population (the entry index) and details.name. The first
-// fault wins. Nothing to load returns nil.
-func LoadFiles(refs Refs, read ReadFunc) (*Loaded, *errors.CodedError) {
+// fault wins. Nothing to load returns nil. An inline `models` entry
+// reads no file: its body's number expressions are resolved through
+// inline over refs.Params (nil: any expression is refused), then judged
+// as a model file (loadInline).
+func LoadFiles(refs Refs, read ReadFunc, inline InlineNumberFunc) (*Loaded, *errors.CodedError) {
 	if refs.Empty() {
 		return nil, nil
 	}
-	models, sems, cerr := loadModelEntries(refs.Models, read)
+	models, sems, cerr := loadModelEntries(refs.Models, read, refs.Params, inline)
 	if cerr != nil {
 		return nil, cerr
 	}

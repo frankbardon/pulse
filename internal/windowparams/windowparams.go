@@ -150,7 +150,16 @@ func First(w *types.Window) *Refusal {
 
 // Check returns every rule w breaks, in judging order; nil for a valid
 // slot. A nil w is valid (the engine skips it).
-func Check(w *types.Window) []*Refusal {
+func Check(w *types.Window) []*Refusal { return CheckDeferred(w, nil) }
+
+// CheckDeferred is Check with the values of the deferred params keys —
+// scalar-expression params predict could not compute
+// (internal/windowscalar; their place holds a stand-in number) — judged
+// present but not yet known: the operator's reading skips every rule
+// that reads such a value (distlagparams.ResolveDeferred,
+// ewmaparams.ResolveDeferred), which the runtime judges once it has
+// resolved them. A nil or empty set is Check.
+func CheckDeferred(w *types.Window, deferred map[string]bool) []*Refusal {
 	if w == nil {
 		return nil
 	}
@@ -198,25 +207,26 @@ func Check(w *types.Window) []*Refusal {
 		}
 	}
 
-	if ref := paramsRefusal(w); ref != nil {
+	if ref := paramsRefusal(w, deferred); ref != nil {
 		out = append(out, ref)
 	}
 	return out
 }
 
-// paramsRefusal is the operator-specific params rule w breaks, or nil.
-func paramsRefusal(w *types.Window) *Refusal {
+// paramsRefusal is the operator-specific params rule w breaks, or nil;
+// deferred as CheckDeferred.
+func paramsRefusal(w *types.Window, deferred map[string]bool) *Refusal {
 	switch w.Type {
 	case types.WIN_SHARE, types.WIN_LIFT:
 		if _, ref := shareparams.Resolve(w); ref != nil {
 			return &Refusal{Op: w.Type, Message: ref.Message, Details: ref.Details}
 		}
 	case types.WIN_EWMA:
-		if _, ref := ewmaparams.Resolve(w.Params); ref != nil {
+		if _, ref := ewmaparams.ResolveDeferred(w.Params, deferred); ref != nil {
 			return &Refusal{Op: w.Type, Message: ref.Message, Details: ref.Details}
 		}
 	case types.WIN_DISTRIBUTED_LAG:
-		if _, ref := distlagparams.Resolve(w.Params); ref != nil {
+		if _, ref := distlagparams.ResolveDeferred(w.Params, deferred); ref != nil {
 			return &Refusal{Op: w.Type, Message: ref.Message, Details: ref.Details}
 		}
 	case types.WIN_LAG, types.WIN_LEAD:

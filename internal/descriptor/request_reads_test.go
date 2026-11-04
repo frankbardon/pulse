@@ -124,7 +124,8 @@ func TestRequestReads_RootKinds(t *testing.T) {
 			doc: `{"params":{"budget":100},
 				"requests":[{"filterers":[{"type":"FILTER_EXPRESSION","expression":"spend < params.budget"}]}],
 				"fits":[{"name":"m","request":{"regressions":[{"type":"REG_OLS","target":"sales","predictors":["tv"]}]}}],
-				"optimize":[{"name":"o","variables":[{"name":"tv","lower":0,"upper":"params.budget"}],
+				"optimize":[{"name":"o","variables":[{"name":"tv","lower":0,"upper":"params.budget"},
+					{"name":"r","lower":"params.budget * params.lo","upper":"coef(\"m\", \"tv\") * params.budget","start":"x + 1"}],
 					"objective":"coef(\"m\", \"tv\") * tv","direction":"maximize",
 					"constraints":[{"expr":"tv <= params.budget","type":"ineq"}]}]}`,
 			root: "",
@@ -134,7 +135,49 @@ func TestRequestReads_RootKinds(t *testing.T) {
 				"optimize[0]|objective| cols= params= vars=tv",
 				"optimize[0].constraints[0]|expr| cols= params=budget vars=tv",
 				"optimize[0].variables[0]|upper| cols= params=budget",
+				"optimize[0].variables[1]|lower| cols= params=budget,lo",
+				"optimize[0].variables[1]|start| cols= params= vars=x",
+				"optimize[0].variables[1]|upper| cols= params=budget",
 				"requests[0].filterers[0]|expression|requests[0] cols=spend params=budget",
+			},
+		},
+		{
+			name: "inline model numbers",
+			doc: `{"params":{"a":120,"b":-4},"models":[{"name":"truth","inline":{"model_format_version":1,"type":"REG_OLS",
+				"target":"units","predictors":["price"],"terms":["price"],
+				"coefficients":{"(intercept)":"params.a + 1","price":"params.b"},"std_errors":{"price":"+Inf"},"n_obs":80}}],
+				"aggregations":[{"type":"AGG_COUNT","field":"id"}]}`,
+			root: descriptor.ReadsRootRequest,
+			want: []string{
+				"aggregations[0]|field| cols=id params=",
+				"models[0]|inline.coefficients.(intercept)| cols= params=a",
+				"models[0]|inline.coefficients.price| cols= params=b",
+			},
+		},
+		{
+			name: "compose optimize inline model",
+			doc: `{"params":{"a":120},"optimize":[{"name":"o","variables":[{"name":"p","lower":1,"upper":30}],
+				"objective":"coef(\"d\", \"price\") * p","direction":"maximize",
+				"models":[{"name":"d","inline":{"model_format_version":1,"type":"REG_OLS","target":"u","predictors":["price"],
+				"terms":["price"],"coefficients":{"(intercept)":"params.a","price":-4}}}]}]}`,
+			root: "",
+			want: []string{
+				"optimize[0]|objective| cols= params= vars=p",
+				"optimize[0].models[0]|inline.coefficients.(intercept)| cols= params=a",
+			},
+		},
+		{
+			name: "window scalar params",
+			doc: `{"params":{"d":0.5},"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","order_by":[{"field":"week"}],
+				"params":{"kernel":"geometric","decay":"params.d","max_lag":4}},
+				{"type":"WIN_LAG","field":"tv","order_by":[{"field":"week"}],"params":{"offset":2}}]}`,
+			root: descriptor.ReadsRootRequest,
+			want: []string{
+				"windows[0]|field| cols=tv params=",
+				"windows[0]|order_by| cols=week params=",
+				"windows[0]|params.decay| cols= params=d",
+				"windows[1]|field| cols=tv params=",
+				"windows[1]|order_by| cols=week params=",
 			},
 		},
 		{
@@ -150,6 +193,20 @@ func TestRequestReads_RootKinds(t *testing.T) {
 				"banner.sections[0].filterers[0]|field|banner.request cols=region params=",
 				"banner.sections[0].rows[0]|field|banner.request cols=age params=",
 				"sweep.request.filterers[0]|expression|sweep.request cols=wave params=",
+			},
+		},
+		{
+			// The base's reads are reported once, at the base, beside
+			// each slot's own.
+			name: "compose base",
+			doc: `{"base":{"windows":[{"type":"WIN_LAG","field":"tv","label":"tv_lag","order_by":[{"field":"week"}]}],"aggregations":[{"type":"AGG_SUM","field":"spend"}]},
+				"requests":[{"label":"a","aggregations":[{"type":"AGG_AVERAGE","field":"tv_lag"}]}]}`,
+			root: descriptor.ReadsRootComposed,
+			want: []string{
+				"base.aggregations[0]|field|base cols=spend params=",
+				"base.windows[0]|field|base cols=tv params=",
+				"base.windows[0]|order_by|base cols=week params=",
+				"requests[0].aggregations[0]|field|requests[0] cols=tv_lag params=",
 			},
 		},
 		{
@@ -208,6 +265,7 @@ func TestRequestReads_DetectsRoot(t *testing.T) {
 		`{"stages":[]}`:          descriptor.ReadsRootChain,
 		`{"fields":["a"]}`:       descriptor.ReadsRootFacet,
 		`{"optimize":[],"x":{}}`: descriptor.ReadsRootComposed,
+		`{"base":{}}`:            descriptor.ReadsRootComposed,
 	} {
 		got, _ := readsLines(t, doc, "", nil)
 		if got != want {

@@ -27,6 +27,17 @@ requires: [capability:synth]
 
 Faults report in a fixed slot order with SORTED map keys, so a rule with two faults refuses the same one every run. A `when` failing at RUN time stays `PROCESSING_RUNTIME` — the remaining causes are generic expr faults (a dynamic `isnull` argument, `int()` of a non-numeric string), not "a malformed rule", and the coded error already carries rule index, slot and expression. `pulse errors lookup CODE` is authoritative.
 
+### `lookup()` tables
+
+`lookup("t", keys…)` reads `Options.LookupTables`; `Pulse.Synth` fills it from the instance (`Extensions.LookupTables`, `LookupTablesDir`, `PULSE_LOOKUP_TABLES_DIR` — so the CLI leaves too) when nil, a non-nil map is used as given. Codes are the query side's:
+
+- At spec parse, a non-literal table name is `_EXPR_INVALID` (`SERVICE_VALIDATION` in a constraint) — its digest must be known before a row exists ([`synth-determinism`](synth-determinism.md)).
+- Before row 0, every literal call is judged, even one no row reaches: an unregistered table `PULSE_LOOKUP_TABLE_UNKNOWN`; a literal null key, a literal key off the declared axes, or more keys than axes `PULSE_LOOKUP_MISS`. Details add rule index, slot, field.
+- At row time a key that READS a null field is a null key (`PULSE_LOOKUP_MISS`, `null_key`), never the drawn value; guard with `isnull`. A missing cell keeps `PULSE_LOOKUP_MISS`, never `PROCESSING_RUNTIME`.
+- A callback-backed instance table has no digest: a spec naming one is `PULSE_SYNTH_EXPR_NONDETERMINISTIC`.
+
+Keys stringify as the query side's (`%v` of the row value: `3`, a `packed_bool` `1`/`0`, a level string) and join with `|`. `--suggest-rules` compiles against the same env and never proposes `lookup()`.
+
 ### Nulling a non-nullable field
 
 A field not declared `"nullable": true` gets the type's zero written as an ordinary value with NO null bit — the rule fires and the file cannot show it. **`set_null` over such a field is REFUSED** (`PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE`); the fix is on the FIELD, and on a profile-derived run a field is nullable only if the source had nulls (`--emit-spec`, add the flag, `from-schema`). A `null_together` MEMBER only warns, because that slot copies the gate's decision — which may be "present" on every row — rather than claiming a null. Do NOT "finish the job" by promoting it: the gated-block idiom names a never-null field first on purpose.

@@ -151,6 +151,11 @@ type OperatorParamMeta struct {
 	// Example is the registration's example value of the param
 	// (pulse.ParamMeta.Example), of its JSONType. Omitted when none.
 	Example any `json:"example,omitempty"`
+	// Expression marks a number param that also takes a scalar-
+	// expression string (pulse.ParamMeta.Expression), mirroring
+	// Param.Expression: evaluated once before the operator runs and
+	// handed to it as a plain number. Omitted when false.
+	Expression bool `json:"expression,omitempty"`
 }
 
 // ExprFunctionMeta is the manifest projection of an embedder-

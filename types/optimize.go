@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // OptimizeSpec is one entry of ComposedRequest.Optimize: a named
@@ -83,6 +84,76 @@ type OptimizeSpec struct {
 	// _FILE_INVALID, _VERSION_UNSUPPORTED) located by details.optimize
 	// and details.field. Gated by capability:models.
 	Models []ModelRef `json:"models,omitempty"`
+
+	// ForEach fans the block out over parameter axes before anything
+	// judges it: one block per axis combination, in place, rendered from
+	// the block's own body (`{{axis}}` inside a string such as `name`,
+	// `{"$var": "axis"}` as a whole value — a bound, a start, `starts`,
+	// a whole objective or constraint expression). Name must carry an
+	// axis placeholder so the expanded blocks stay distinct; an
+	// `{{axis}}` inside an objective, constraint or bound expression is
+	// PULSE_FOR_EACH_EXPR_SPLICE. The blocks it adds count toward
+	// Limits.MaxExpandedItems. Gated by capability:for_each; nil is
+	// absent (`omitempty`).
+	ForEach *ForEach `json:"for_each,omitempty"`
+
+	// raw is the block as written when it carries a for_each and does
+	// not decode as a plain block — a `{"$var": "axis"}` value standing
+	// where a typed one goes (a bound, `starts`, a constraint's `expr`).
+	// Set only by UnmarshalJSON; while set, MarshalJSON writes it back
+	// verbatim and the typed fields other than Name and ForEach are
+	// zero, so the block is only ever read through its fan-out, which
+	// renders each combination from it and decodes it strictly.
+	raw json.RawMessage
+}
+
+// UnmarshalJSON decodes a block. A block that decodes as written is
+// typed field by field, refusing an unknown key itself (as a slot
+// weight's object form does), so a strict outer decoder stays strict
+// inside it. One that does not but carries a `for_each` — a
+// `{"$var": "axis"}` marker in a typed field — is kept as written (raw)
+// for its fan-out to render, with ForEach (and Name, when a string)
+// decoded; an unknown key or any other fault is the decode error.
+func (s *OptimizeSpec) UnmarshalJSON(data []byte) error {
+	type plain OptimizeSpec
+	var p plain
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	err := dec.Decode(&p)
+	if err == nil {
+		*s = OptimizeSpec(p)
+		return nil
+	}
+	// An unknown key is the decode error — except `$var`, a list entry
+	// written as a whole `{"$var"}` marker, which a for_each block keeps
+	// for its fan-out to refuse with the position named.
+	if strings.HasPrefix(err.Error(), "json: unknown field ") && err.Error() != `json: unknown field "$var"` {
+		return err
+	}
+	var probe struct {
+		Name    json.RawMessage `json:"name"`
+		ForEach *ForEach        `json:"for_each"`
+	}
+	if json.Unmarshal(data, &probe) != nil || probe.ForEach == nil {
+		return err
+	}
+	*s = OptimizeSpec{ForEach: probe.ForEach, raw: append(json.RawMessage(nil), data...)}
+	var name string
+	if json.Unmarshal(probe.Name, &name) == nil {
+		s.Name = name
+	}
+	return nil
+}
+
+// MarshalJSON writes the block: as written when it was decoded with a
+// `{"$var"}` marker its typed fields cannot hold (raw), else field by
+// field.
+func (s OptimizeSpec) MarshalJSON() ([]byte, error) {
+	if s.raw != nil {
+		return s.raw, nil
+	}
+	type plain OptimizeSpec
+	return json.Marshal(plain(s))
 }
 
 // OptimizeDefaultStarts is the starting-point count of a block that sets
@@ -110,8 +181,8 @@ type OptimizeVariable struct {
 	Name string `json:"name"`
 
 	// Lower and Upper bound the variable, Lower <= Upper (equal fixes
-	// it). Both are required: a number, or a reference to a numeric
-	// batch param.
+	// it). Both are required: a number, or a scalar expression
+	// (OptimizeBound) such as "params.current_tv * params.lower_share".
 	Lower OptimizeBound `json:"lower"`
 	Upper OptimizeBound `json:"upper"`
 
@@ -121,39 +192,69 @@ type OptimizeVariable struct {
 }
 
 // OptimizeBound is a decision variable's bound or start value: a number
-// (BoundValue), or a reference to a numeric param of the batch
-// (BoundParam) — on the wire a JSON number or the string
-// "params.<name>". The param is resolved before anything is solved, by
-// predict and the runtime alike; it must name a finite number. The zero
-// value is absent.
+// (BoundValue), or a scalar expression string (BoundExpr) read once
+// before anything is solved — over literals, the batch params
+// (params.<name>), coef() / sweep_axis() / response() over the batch's
+// fits and the block's `models`, result(slot, aggregation) over an
+// ungrouped Compose slot (run in a pre-phase before the block),
+// lookup() / range_label() and the expression
+// built-ins; no decision variable and no record field is in reach. The
+// simplest expression, "params.<name>" (BoundParam), reads one numeric
+// param. On the wire it is a JSON number or the expression string. The
+// value must be finite. An expression over literals and params only is
+// resolved by predict and the runtime alike; one that calls a
+// request-bound function (coef(), sweep_axis(), response(), result(),
+// lookup(), an embedder function) is resolved at runtime, and predict lists it as not
+// statically resolved. The zero value is absent.
 type OptimizeBound struct {
 	value float64
-	param string
+	expr  string
 	set   bool
 }
 
 // BoundValue returns the literal bound v.
 func BoundValue(v float64) OptimizeBound { return OptimizeBound{value: v, set: true} }
 
-// BoundParam returns the bound read from the batch param name (the wire
-// form "params.<name>").
-func BoundParam(name string) OptimizeBound { return OptimizeBound{param: name, set: true} }
+// BoundParam returns the bound read from the batch param name: the
+// expression "params.<name>".
+func BoundParam(name string) OptimizeBound {
+	return OptimizeBound{expr: optimizeBoundParamPrefix + name, set: true}
+}
+
+// BoundExpr returns the bound the scalar expression src evaluates to.
+func BoundExpr(src string) OptimizeBound { return OptimizeBound{expr: src, set: true} }
 
 // IsZero reports whether the bound is absent. It is what `omitzero`
 // consults.
 func (b OptimizeBound) IsZero() bool { return !b.set }
 
-// IsParam reports whether the bound is a param reference.
-func (b OptimizeBound) IsParam() bool { return b.set && b.param != "" }
+// IsExpr reports whether the bound is an expression (a params
+// reference included).
+func (b OptimizeBound) IsExpr() bool { return b.set && b.expr != "" }
 
-// Param returns the referenced param's name ("" for a literal or an
-// absent bound).
-func (b OptimizeBound) Param() string { return b.param }
+// Expr returns the bound's expression ("" for a literal or an absent
+// bound).
+func (b OptimizeBound) Expr() string { return b.expr }
 
-// Value returns the literal bound (0 for a param reference or an absent
+// IsParam reports whether the bound is exactly one param reference,
+// "params.<name>" with name an identifier.
+func (b OptimizeBound) IsParam() bool { return b.Param() != "" }
+
+// Param returns the referenced param's name when the bound is exactly
+// "params.<name>" ("" for a literal, an absent bound or any other
+// expression).
+func (b OptimizeBound) Param() string {
+	name, ok := strings.CutPrefix(b.expr, optimizeBoundParamPrefix)
+	if !ok || !isIdentifier(name) {
+		return ""
+	}
+	return name
+}
+
+// Value returns the literal bound (0 for an expression or an absent
 // bound).
 func (b OptimizeBound) Value() float64 {
-	if b.param != "" {
+	if b.expr != "" {
 		return 0
 	}
 	return b.value
@@ -162,14 +263,30 @@ func (b OptimizeBound) Value() float64 {
 // optimizeBoundParamPrefix prefixes a param-reference bound on the wire.
 const optimizeBoundParamPrefix = "params."
 
-// MarshalJSON writes the number, the "params.<name>" string, or null
-// for an absent bound.
+// isIdentifier reports whether s is [A-Za-z_][A-Za-z0-9_]*.
+func isIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		switch {
+		case r == '_', r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
+		case i > 0 && r >= '0' && r <= '9':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// MarshalJSON writes the number, the expression string, or null for an
+// absent bound.
 func (b OptimizeBound) MarshalJSON() ([]byte, error) {
 	switch {
 	case !b.set:
 		return []byte("null"), nil
-	case b.param != "":
-		return json.Marshal(optimizeBoundParamPrefix + b.param)
+	case b.expr != "":
+		return json.Marshal(b.expr)
 	}
 	if math.IsNaN(b.value) || math.IsInf(b.value, 0) {
 		return []byte("null"), nil
@@ -177,9 +294,10 @@ func (b OptimizeBound) MarshalJSON() ([]byte, error) {
 	return json.Marshal(b.value)
 }
 
-// UnmarshalJSON accepts a number or a "params.<name>" string; null
-// leaves the bound absent. A string that is not a params reference, or
-// any other JSON shape, is an error.
+// UnmarshalJSON accepts a number or a non-blank expression string; null
+// leaves the bound absent. A blank string, or any other JSON shape, is
+// an error. The expression itself is judged by the optimize block's
+// rules (PULSE_OPTIMIZE_VARIABLE_INVALID), never here.
 func (b *OptimizeBound) UnmarshalJSON(raw []byte) error {
 	trimmed := bytes.TrimSpace(raw)
 	switch {
@@ -191,16 +309,15 @@ func (b *OptimizeBound) UnmarshalJSON(raw []byte) error {
 		if err := json.Unmarshal(trimmed, &s); err != nil {
 			return err
 		}
-		name, ok := bytes.CutPrefix([]byte(s), []byte(optimizeBoundParamPrefix))
-		if !ok || len(name) == 0 {
-			return fmt.Errorf("optimize bound %q: want a number or \"params.<name>\"", s)
+		if strings.TrimSpace(s) == "" {
+			return fmt.Errorf("optimize bound %q: want a number or an expression", s)
 		}
-		*b = BoundParam(string(name))
+		*b = BoundExpr(s)
 		return nil
 	default:
 		var v float64
 		if err := json.Unmarshal(trimmed, &v); err != nil {
-			return fmt.Errorf("optimize bound: want a number or \"params.<name>\": %w", err)
+			return fmt.Errorf("optimize bound: want a number or an expression string: %w", err)
 		}
 		*b = BoundValue(v)
 		return nil

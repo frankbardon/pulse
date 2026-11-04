@@ -39,6 +39,9 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprreads"
 	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/sweep"
 )
 
 // Component categories: the manifest section an operator's Param list
@@ -165,6 +168,9 @@ var namesColumnKeyword = map[string]string{"control": "all"}
 // templated `{{token}}` is not rendered here: the caller renders the
 // template first (an unrendered token in an expression slot is that
 // slot's PULSE_FORMULA_COMPILE_ERROR; elsewhere it reads as written).
+// A `for_each` item or optimize block IS rendered, once per axis
+// combination (eachItem), and its slots report every combination's
+// names merged at the written path.
 func RequestReads(doc []byte, root descriptor.ReadsRoot, inst *InstanceSnapshot) (descriptor.RequestReads, *errors.CodedError) {
 	dec := json.NewDecoder(bytes.NewReader(doc))
 	dec.UseNumber()
@@ -200,6 +206,7 @@ func RequestReads(doc []byte, root descriptor.ReadsRoot, inst *InstanceSnapshot)
 			"request reads: unknown root "+strconv.Quote(string(root))+"; want request, composed, chain or facet",
 			map[string]any{"reason": "root", "root": string(root), "valid": []string{"request", "composed", "chain", "facet"}})
 	}
+	w.out = mergeFanned(w.out)
 	sort.SliceStable(w.out, func(i, j int) bool { return w.out[i].less(&w.out[j]) })
 	out := descriptor.RequestReads{Root: root, Slots: make([]descriptor.SlotReads, len(w.out))}
 	for i := range w.out {
@@ -216,7 +223,7 @@ func detectReadsRoot(top map[string]any) descriptor.ReadsRoot {
 	switch {
 	case has("stages"):
 		return descriptor.ReadsRootChain
-	case has("requests"), has("sweep"), has("banner"), has("fits"), has("optimize"):
+	case has("requests"), has("sweep"), has("banner"), has("fits"), has("optimize"), has("base"):
 		return descriptor.ReadsRootComposed
 	case has("fields"):
 		return descriptor.ReadsRootFacet
@@ -279,6 +286,9 @@ func (p readsPath) split(scope readsPath) (readsPath, string) {
 type slotEntry struct {
 	descriptor.SlotReads
 	at readsPath
+	// fanned marks an entry read off one combination of a `for_each`
+	// item (eachItem): entries sharing its Path and Key merge into one.
+	fanned bool
 }
 
 func (a *slotEntry) less(b *slotEntry) bool {
@@ -305,6 +315,127 @@ type readsWalker struct {
 	idx readsIndex
 	ext *ExtensionsSnapshot
 	out []slotEntry
+	// scalars are the extension operators' expression-capable params
+	// (snapshotScalarKeys), built on first use.
+	scalars      map[paramread.Key][]string
+	scalarsBuilt bool
+	// fanned is set while one combination of a `for_each` item is
+	// walked (eachItem).
+	fanned bool
+}
+
+// readsFanOutCap is the most combinations eachItem renders for one
+// `for_each` item — Limits.MaxExpandedItems' default; a larger fan-out
+// is read as written.
+const readsFanOutCap = 1000
+
+// fanOutLists are the request item lists whose items take a `for_each`
+// (sweep.ExpandItems), with their component category.
+var fanOutLists = []struct{ key, cat string }{
+	{"features", catFeature}, {"attributes", catAttribute}, {"windows", catWindow},
+	{"aggregations", catAggregator}, {"matrices", catMatrix},
+}
+
+// eachItem walks every item of the list v (at at) through visit. An
+// item carrying a `for_each` is visited once per axis combination,
+// rendered with the expansion's own substitution
+// (sweep.RenderItemCombinations), every combination at the item's
+// written path — the slots it reads are reported once, merged across
+// the combinations (mergeFanned), so an `{{axis}}` field reads each
+// value's column and a `{"$var": "axis"}` expression each value's
+// names. An item that does not render (malformed, or over
+// readsFanOutCap combinations) is visited as written.
+func (w *readsWalker) eachItem(v any, at readsPath, visit func(obj map[string]any, at readsPath)) {
+	list, ok := v.([]any)
+	if !ok {
+		return
+	}
+	for i, c := range list {
+		obj, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		if combos, ok := sweep.RenderItemCombinations(obj, readsFanOutCap); ok {
+			prev := w.fanned
+			w.fanned = true
+			for _, combo := range combos {
+				visit(combo, at.at(i))
+			}
+			w.fanned = prev
+			continue
+		}
+		visit(obj, at.at(i))
+	}
+}
+
+// mergeFanned merges the entries read off a for_each item's
+// combinations that share a Path and Key: names unioned in first-read
+// order, UsesEnv or-ed, the first Error kept. Every other entry stays
+// as emitted.
+func mergeFanned(in []slotEntry) []slotEntry {
+	out := in[:0:0]
+	at := map[[2]string]int{}
+	union := func(a, b []string) []string {
+		for _, n := range b {
+			if !slices.Contains(a, n) {
+				a = append(a, n)
+			}
+		}
+		return a
+	}
+	for _, e := range in {
+		if !e.fanned {
+			out = append(out, e)
+			continue
+		}
+		k := [2]string{e.Path, e.Key}
+		j, seen := at[k]
+		if !seen {
+			at[k] = len(out)
+			out = append(out, e)
+			continue
+		}
+		m := &out[j]
+		m.Columns = union(m.Columns, e.Columns)
+		m.Params = union(m.Params, e.Params)
+		if len(e.Variables) > 0 {
+			m.Variables = union(m.Variables, e.Variables)
+		}
+		if len(e.Funcs) > 0 {
+			m.Funcs = union(m.Funcs, e.Funcs)
+		}
+		m.UsesEnv = m.UsesEnv || e.UsesEnv
+		if m.Error == nil {
+			m.Error = e.Error
+		}
+	}
+	return out
+}
+
+// slotExtensionParam names an expression-capable extension param
+// (pulse.ParamMeta.Expression) to expression: a scalar slot whose
+// identifiers are variables, never columns. The noun is shared with the
+// template splice refusal's details.slot.
+const slotExtensionParam = exprslots.SlotExtensionParam
+
+// extensionScalars reads the expression-capable params of extension
+// operator typ (category cat) written as expression strings — the
+// params the pre-resolution pass (internal/extscalar) evaluates.
+func (w *readsWalker) extensionScalars(params map[string]any, at readsPath, prefix string, req readsPath, cat, typ string) {
+	if w.ext == nil || params == nil {
+		return
+	}
+	if !w.scalarsBuilt {
+		w.scalars, w.scalarsBuilt = snapshotScalarKeys(w.ext), true
+	}
+	if cat == catPostTest {
+		cat = catTest
+	}
+	for _, k := range w.scalars[paramread.Key{Category: paramread.Category(cat), Op: typ}] {
+		if src, ok := params[k].(string); ok {
+			w.expression(src, at, prefix+k, req, slotExtensionParam)
+		}
+	}
 }
 
 func (w *readsWalker) emit(at readsPath, key string, req readsPath, columns, params []string) *slotEntry {
@@ -316,7 +447,7 @@ func (w *readsWalker) emit(at readsPath, key string, req readsPath, columns, par
 	}
 	w.out = append(w.out, slotEntry{SlotReads: descriptor.SlotReads{
 		Path: at.String(), Key: key, Request: req.String(), Columns: columns, Params: params,
-	}, at: at})
+	}, at: at, fanned: w.fanned})
 	return &w.out[len(w.out)-1]
 }
 
@@ -342,11 +473,20 @@ func (w *readsWalker) request(v any, at readsPath) {
 		return
 	}
 	req := at
-	w.scanExpr(obj, at, req, "params", "cohort", "return", "outputs")
+	// The for_each-capable item lists are walked item by item
+	// (eachItem: a fanned-out item once per combination); every other
+	// key's expression slots in one scan.
+	w.scanExpr(obj, at, req, "params", "cohort", "return", "outputs",
+		"features", "attributes", "windows", "aggregations", "matrices")
+	for _, l := range fanOutLists {
+		w.eachItem(obj[l.key], at.key(l.key), func(item map[string]any, itemAt readsPath) {
+			w.scanValue(item, itemAt, at, req)
+			w.component(item, itemAt, req, l.cat)
+		})
+	}
 	sections := []struct{ key, cat string }{
-		{"filterers", catFilterer}, {"attributes", catAttribute}, {"aggregations", catAggregator},
-		{"groups", catGrouper}, {"windows", catWindow}, {"features", catFeature}, {"tests", catTest},
-		{"post_tests", catPostTest}, {"regressions", catRegression}, {"matrices", catMatrix},
+		{"filterers", catFilterer}, {"groups", catGrouper}, {"tests", catTest},
+		{"post_tests", catPostTest}, {"regressions", catRegression},
 		{"vectors", catVector}, {"sort", catSortKey}, {"labels", catLabel}, {"joins", catJoin},
 	}
 	for _, s := range sections {
@@ -372,7 +512,12 @@ func (w *readsWalker) cells(obj map[string]any, at, req readsPath) {
 
 func (w *readsWalker) compose(top map[string]any) {
 	var root readsPath
-	w.scanExpr(top, root, root, "requests", "fits", "sweep", "banner", "params", "optimize")
+	w.scanExpr(top, root, root, "requests", "fits", "sweep", "banner", "params", "optimize", "base")
+	// The base is a request partial merged into every explicit slot:
+	// its reads are reported once, at the base.
+	if b, ok := top["base"]; ok {
+		w.request(b, root.key("base"))
+	}
 	if list, ok := top["requests"].([]any); ok {
 		for i, r := range list {
 			w.request(r, root.key("requests").at(i))
@@ -413,21 +558,20 @@ func (w *readsWalker) compose(top map[string]any) {
 			}
 		}
 	}
-	if list, ok := top["optimize"].([]any); ok {
-		for i, o := range list {
-			oo, ok := o.(map[string]any)
-			if !ok {
-				continue
-			}
-			at := root.key("optimize").at(i)
-			w.scanExpr(oo, at, root, "variables", "models")
-			w.optimizeBounds(oo, at, root)
-		}
-	}
+	// A block carrying a `for_each` is read once per combination
+	// (eachItem), as an item's is.
+	w.eachItem(top["optimize"], root.key("optimize"), func(oo map[string]any, at readsPath) {
+		// The block's `models` hold no expression but an inline
+		// model's numbers (exprslots.SlotInlineModelNumber).
+		w.scanExpr(oo, at, root, "variables")
+		w.optimizeBounds(oo, at, root)
+	})
 }
 
-// optimizeBounds reads each decision variable's `"params.<name>"`
-// lower / upper / start.
+// optimizeBounds reads each decision variable's lower / upper / start
+// written as a scalar expression (a number reads nothing): the params,
+// functions and identifiers it reads, exprreads over the source like
+// every expression slot (exprslots.SlotOptimizeBound).
 func (w *readsWalker) optimizeBounds(o map[string]any, at, req readsPath) {
 	vars, ok := o["variables"].([]any)
 	if !ok {
@@ -440,16 +584,9 @@ func (w *readsWalker) optimizeBounds(o map[string]any, at, req readsPath) {
 		}
 		vat := at.key("variables").at(j)
 		for _, k := range []string{"lower", "upper", "start"} {
-			s, ok := vo[k].(string)
-			if !ok {
-				continue
+			if s, ok := vo[k].(string); ok {
+				w.expression(s, vat, k, req, exprslots.SlotOptimizeBound)
 			}
-			name, ok := strings.CutPrefix(s, "params.")
-			if !ok || name == "" {
-				w.fail(vat, k, req, "want a number or \"params.<name>\"")
-				continue
-			}
-			w.emit(vat, k, req, nil, []string{name})
 		}
 	}
 }
@@ -521,6 +658,7 @@ func (w *readsWalker) component(obj map[string]any, at, req readsPath, cat strin
 		w.value(v, at, "params."+p.Name, req, shapeAuto)
 	}
 	w.fieldInputs(obj, at, req, cat, typ)
+	w.extensionScalars(params, at, "params.", req, cat, typ)
 	if params == nil {
 		return
 	}
@@ -536,6 +674,8 @@ func (w *readsWalker) component(obj map[string]any, at, req readsPath, cat strin
 			w.typed(obj, at, req, sub, nil)
 			if bt, _ := b["type"].(string); bt != "" {
 				w.fieldInputsAt(b, at, "params.between.params", req, catGrouper, bt)
+				bp, _ := b["params"].(map[string]any)
+				w.extensionScalars(bp, at, "params.between.params.", req, catGrouper, bt)
 			}
 		}
 	}
@@ -736,6 +876,10 @@ func (w *readsWalker) scanValue(v any, at, scope, req readsPath) {
 		if !ok {
 			return
 		}
+		if slot.Name == exprslots.SlotInlineModelNumber && model.IsInfinityToken(x) {
+			// The model file's infinity spelling is a literal.
+			return
+		}
 		comp, key := at.split(scope)
 		w.expression(x, comp, key, req, slot.Name)
 	}
@@ -753,7 +897,7 @@ func (w *readsWalker) expression(src string, at readsPath, key string, req reads
 	if len(reads.Funcs) > 0 {
 		e.Funcs = reads.Funcs
 	}
-	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint {
+	if slot == exprslots.SlotOptimizeObjective || slot == exprslots.SlotOptimizeConstraint || slot == exprslots.SlotOptimizeBound || slot == exprslots.SlotWindowParam || slot == exprslots.SlotConstantExpr || slot == exprslots.SlotInlineModelNumber || slot == slotExtensionParam {
 		e.Variables = reads.Vars
 		return
 	}

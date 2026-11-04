@@ -142,6 +142,15 @@ type Signature struct {
 	SweepAxes      []string
 	SweepAxesKnown bool
 
+	// Adstocks are the channels (sorted) a regression fit carries an
+	// adstock record for — the channels response() reads — when known
+	// (AdstocksKnown): the runtime's Set and a loaded model file always
+	// know them, a static FitCatalog of a `fits` entry from its request
+	// (StaticAdstockChannels) unless the entry binds from a sweep, whose
+	// winner's request only the run knows.
+	Adstocks      []string
+	AdstocksKnown bool
+
 	// Influence is a regression fit's influence face (fit_design.go):
 	// what a design-reading params.fit slot (ATTR_REG_LEVERAGE,
 	// ATTR_REG_INFLUENCE, a standardized / studentized ATTR_REG_RESIDUAL)
@@ -204,6 +213,7 @@ func (b *Bound) Signature() Signature {
 	if b.SweepBound {
 		sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedAxisNames(b.SweepAxes), true
 	}
+	sig.Adstocks, sig.AdstocksKnown = sortedKeys(b.Adstocks), true
 	return sig
 }
 
@@ -271,6 +281,11 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 			// sweep slot) reads its winning axes through sweep_axis();
 			// their names are the batch's sweep's (WithSweepAxes).
 			sig.SweepBound = f.FromSweep != nil
+			// The channels its adstock lineage will record (response());
+			// a from_sweep fit's are its winner's, unknown statically.
+			if f.FromSweep == nil {
+				sig.Adstocks, sig.AdstocksKnown = StaticAdstockChannels(f.Request, reg), true
+			}
 			out[f.Name] = sig
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
@@ -327,7 +342,7 @@ type ScorableFunc func(t types.RegressionType) bool
 // regressions, ModelRegression). Any other bound type names its own
 // coefficients: an extension regression's, or a model regression's,
 // which is authored on the extension contract and so is shaped like
-// one (model file version 3, coef() on its own names, a scorer that
+// one (model file feature outputs, coef() on its own names, a scorer that
 // scores the whole model).
 func BuiltinRegression(t types.RegressionType) bool {
 	return slices.Contains(types.AllRegressionTypes(), t) && !ModelRegression(t)
@@ -380,6 +395,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	}
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
+	}
+	if sig.Source.Inline {
+		return p, sig, inlineNotScorable(types.ATTR_REG_PREDICT, p.Fit)
 	}
 	extension := !BuiltinRegression(sig.Type)
 	if !scorable(sig.Type) {
@@ -467,6 +485,15 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 
 func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedError {
 	return scoreInvalidFor(types.ATTR_REG_PREDICT, fit, reason, what, extra)
+}
+
+// inlineNotScorable is the PULSE_MODEL_SCORE_INVALID refusal (reason
+// inline_not_scorable) of a scoring slot of type attr naming an inline
+// model: it carries coefficients only.
+func inlineNotScorable(attr types.AttributeType, fit string) *errors.CodedError {
+	return scoreInvalidFor(attr, fit, ReasonInlineNotScorable,
+		fmt.Sprintf("cannot score %q, an inline model: it declares coefficients only, for coef() and sweep_axis(); load a saved model file, or bind a fit, to score", fit),
+		map[string]any{"inline": true})
 }
 
 // scoreInvalidFor is scoreInvalid for the scoring slot of type attr

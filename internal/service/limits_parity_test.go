@@ -418,6 +418,21 @@ func parityCases(f *limitsFixture) []parityCase {
 			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "weight", Label: "w{{k}}", Expression: "weight * 2",
 				ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}}
 	}
+	// The same fan-out on an aggregation: MaxExpandedItems, not
+	// MaxDerivedColumns.
+	fanOutAggs := func() *types.Request {
+		return &types.Request{Cohort: wideCohort(f), Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "weight", Label: "s{{k}}",
+			ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}}
+	}
+	// The same fan-out on a Compose optimize block: MaxExpandedItems,
+	// counted once per call, before the block renders.
+	fanOutOpt := func() *types.ComposedRequest {
+		c := composed(func() []*types.Request { return []*types.Request{{Cohort: wideCohort(f), Aggregations: paritySum}} })
+		c.Optimize = []types.OptimizeSpec{{Name: "o{{k}}", Direction: types.OptimizeMinimize, Objective: "(x - 1) * (x - 1)",
+			Variables: []types.OptimizeVariable{{Name: "x", Lower: types.BoundValue(0), Upper: types.BoundValue(2)}},
+			ForEach:   &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}
+		return c
+	}
 	// A sorted materialize: the pre-flight predict reports is the one
 	// it trips, before the sink opens anything.
 	materializeSorted := func() *types.Request {
@@ -593,6 +608,16 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "derived columns", site: "derived columns", setup: serialArm,
 			requests: one(fanOut), run: processRun(fanOut),
 			limits: func(l *limits.Limits) { l.MaxDerivedColumns = 2 }, wantTrip: limits.MaxDerivedColumns},
+		{name: "expanded items", site: "expanded items", setup: serialArm,
+			requests: one(fanOutAggs), run: processRun(fanOutAggs),
+			limits: func(l *limits.Limits) { l.MaxExpandedItems = 2 }, wantTrip: limits.MaxExpandedItems},
+		{name: "compose optimize expanded items", host: hostCompose, site: "compose (optimize fan-out)", setup: serialArm,
+			compose: fanOutOpt,
+			run: func(ctx context.Context, svc *Service) error {
+				_, err := svc.Compose(ctx, fanOutOpt())
+				return err
+			},
+			limits: func(l *limits.Limits) { l.MaxExpandedItems = 2 }, wantTrip: limits.MaxExpandedItems},
 		{name: "facet groups", host: hostFacet, site: "facet", setup: serialArm, facet: facet,
 			run: func(ctx context.Context, svc *Service) error {
 				_, err := svc.FacetSchema(ctx, facet())

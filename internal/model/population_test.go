@@ -305,14 +305,14 @@ func TestLoadFiles_Populations(t *testing.T) {
 		"junk" + PopulationSuffix: []byte(`[`),
 	}
 	read := memRead(files)
-	loaded, cerr := LoadFiles(Refs{Models: refs("m", "m"+FileSuffix), Populations: pops("a", ok, "b", ok)}, read)
+	loaded, cerr := LoadFiles(Refs{Models: refs("m", "m"+FileSuffix), Populations: pops("a", ok, "b", ok)}, read, nil)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}
 	if len(loaded.Models) != 1 || len(loaded.Populations) != 2 || loaded.Populations[1].Labels[1] != "b" {
 		t.Fatalf("loaded = %+v", loaded)
 	}
-	if l, cerr := LoadFiles(Refs{}, read); l != nil || cerr != nil {
+	if l, cerr := LoadFiles(Refs{}, read, nil); l != nil || cerr != nil {
 		t.Fatalf("empty refs loaded %v %v", l, cerr)
 	}
 	cases := []struct {
@@ -327,7 +327,7 @@ func TestLoadFiles_Populations(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, cerr := LoadFiles(Refs{Populations: pops("a", ok, "z", tc.path)}, read)
+			_, cerr := LoadFiles(Refs{Populations: pops("a", ok, "z", tc.path)}, read, nil)
 			if cerr == nil || cerr.Code != tc.code || cerr.Details["population"] != 1 || cerr.Details["name"] != "z" || cerr.Details["path"] != tc.path {
 				t.Fatalf("got %v %+v", cerr, cerr)
 			}
@@ -340,7 +340,7 @@ func TestLoadFiles_Populations(t *testing.T) {
 		})
 	}
 	// No reader is unreadable, never a panic.
-	if _, cerr := LoadFiles(Refs{Populations: pops("a", ok)}, nil); cerr == nil || cerr.Code != errors.PULSE_MODEL_FILE_UNREADABLE {
+	if _, cerr := LoadFiles(Refs{Populations: pops("a", ok)}, nil, nil); cerr == nil || cerr.Code != errors.PULSE_MODEL_FILE_UNREADABLE {
 		t.Fatalf("nil reader: %v", cerr)
 	}
 }
@@ -362,7 +362,7 @@ func TestSetWithLoaded(t *testing.T) {
 	if cerr := CheckRefs(rs, outer); cerr != nil {
 		t.Fatal(cerr)
 	}
-	loaded, cerr := LoadFiles(rs, read)
+	loaded, cerr := LoadFiles(rs, read, nil)
 	if cerr != nil {
 		t.Fatal(cerr)
 	}

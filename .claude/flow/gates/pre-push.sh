@@ -21,7 +21,7 @@ fi
 # (go list / build / vet across the repo, e.g. TestPublicAPIGolden, the FMA
 # report, import-boundary gates), so a cached pass can hide a stale golden.
 # Re-run every package whose code spawns the go tool, uncached.
-gopkgs="$(grep -rlE --include='*.go' --exclude-dir=.claude \
+gopkgs="$(grep -rlE --include='*.go' --exclude-dir=.claude --exclude-dir=.planning \
   'exec\.Command(Context)?\((ctx, )?"go"|exec\.Command(Context)?\((ctx, )?goBin|"go", "(list|build|vet|run|test|doc)"' . \
   | xargs -r -n1 dirname | sort -u)"
 [ -z "$gopkgs" ] || go test -count=1 -tags heavy -timeout=30m $gopkgs

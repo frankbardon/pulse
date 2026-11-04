@@ -26,6 +26,16 @@ const CoefFunc = "coef"
 // embedder function may take the name.
 const SweepAxisFunc = "sweep_axis"
 
+// ResponseFunc is the media-mix steady-state response reader,
+// response(fit, channel, spend) (internal/model.ResponseFunc; internal/
+// processing pins the two equal). Like sweep_axis it is reserved.
+const ResponseFunc = "response"
+
+// ResultFunc is the Compose slot-value reader, result(slot,
+// aggregation) (internal/resultcall.Func): declared only in a Compose
+// optimize block's compile, and reserved like sweep_axis.
+const ResultFunc = "result"
+
 // LookupFunc is the lookup-table reader's name, lookup(table, keys...),
 // declared only when the instance registers a LookupTable.
 const LookupFunc = "lookup"
@@ -51,6 +61,15 @@ type Bound struct {
 	// undeclared. Declared as (string, string) → any: an axis value is
 	// a number (float64) or a string / bool `values` entry.
 	SweepAxis func(args ...any) (any, error)
+	// Response is response()'s implementation; nil leaves it
+	// undeclared. Declared typed — (string, string, float64) → float64,
+	// an integer spend admitted as is — so a non-string fit or channel,
+	// or a string spend, fails compile.
+	Response func(args ...any) (any, error)
+	// Result is result()'s implementation (internal/resultcall.Reader);
+	// nil leaves it undeclared — every compile but a Compose optimize
+	// block's. Declared typed — (string, string) → float64.
+	Result func(args ...any) (any, error)
 	// Extensions are the embedder's ExprFunctions ([ExtensionFunctions]).
 	Extensions []NamedFunc
 	// Lookup is lookup()'s implementation; nil when no LookupTable is
@@ -95,6 +114,12 @@ func (b Bound) Options() []expr.Option {
 	}
 	if b.SweepAxis != nil {
 		out = append(out, expr.Function(SweepAxisFunc, b.SweepAxis, new(func(string, string) any)))
+	}
+	if b.Response != nil {
+		out = append(out, expr.Function(ResponseFunc, b.Response, new(func(string, string, float64) float64)))
+	}
+	if b.Result != nil {
+		out = append(out, expr.Function(ResultFunc, b.Result, new(func(string, string) float64)))
 	}
 	out = append(out, ExtensionFunctions(b.Extensions)...)
 	if b.Lookup != nil {

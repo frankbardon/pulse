@@ -14,9 +14,19 @@ func TestClassify_Complete(t *testing.T) {
 	t.Parallel()
 
 	for _, at := range types.AllAggregationTypes() {
-		if ClassOf(string(at)) == ClassNone {
+		if _, ok := aggregatorClasses[at]; !ok {
+			t.Errorf("%s has no weight class", at)
+			continue
+		}
+		// AGG_CONSTANT is declared ClassNone: nothing to weight, an
+		// inherited weight is skipped (its own slot weight is the
+		// resolver's refusal). Every other aggregator is governed.
+		if ClassOf(string(at)) == ClassNone && at != types.AGG_CONSTANT {
 			t.Errorf("%s has no weight class", at)
 		}
+	}
+	if ClassOf(string(types.AGG_CONSTANT)) != ClassNone {
+		t.Error("AGG_CONSTANT must be ClassNone")
 	}
 	if ClassOf("AGG_EXT_FOO_BAR") != ClassNone || ClassOf("TEST_EXT_FOO_BAR") != ClassNone {
 		t.Fatal("extension names must be ClassNone (their class is the registration's)")

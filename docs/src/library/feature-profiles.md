@@ -86,7 +86,8 @@ unknown preset or a precision outside 1–17 is refused with
 names the root `--limit` flag and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
-`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`.
+`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`,
+`max_expanded_items`.
 
 ```json
 {
@@ -113,7 +114,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -185,6 +186,7 @@ one name in every group must be enabled:
 | `capability:sem_defined` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `name := expr` defined-parameter model lines) |
 | `capability:compose_sweep_sampling` | `capability:compose_sweep` (the sweep's seeded `random` / `lhs` modes, `samples`, `rng_seed`, axis `range` and the `sweep_seed` echo; hidden, a sweep offers `grid` / `zip` only and refuses `lhs` as an unknown mode) |
 | `capability:compose_optimize` | `capability:compose` (the batch `optimize` blocks and the `optimizations` they produce; hidden, a set `optimize` is an unknown field) |
+| `capability:compose_base` | `capability:compose` (the batch `base` merged into every explicit slot; hidden, a set `base` is an unknown field) |
 | `capability:materialize_output` | `capability:materialize` (the materialize-only request `output` slot, which lays out the written cohort; hidden, a set `output` is an unknown field) |
 | `capability:compose_sweep_bind` | `capability:compose_sweep` and `capability:compose_fits` (a `fits` entry's `from_sweep`, binding the ranked sweep winner as a named fit; hidden, a set `from_sweep` is an unknown field) |
 | `capability:compose_compare` | `capability:compose_fits`, and `REG_GLM` or `REG_OLS` (the batch `compare` nested-model comparisons of two fits and the `comparisons` they produce; hidden, a set `compare` is an unknown field while `fits` stay) |
@@ -362,8 +364,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   then refused `PULSE_PARAMS_UNDECLARED`, as on any request declaring no
   such name.
 - **Item fan-out.** Without `capability:for_each` a `for_each` on a
-  window, feature or attribute item (inside Compose requests and chain
-  stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under
+  window, feature, attribute, aggregation or matrix item (inside Compose
+  requests and chain stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under
   `details.path` (`windows[1].for_each`); the payload schema and the MCP tool
   input schemas drop the key and the `ForEach` definition. A
   hand-expanded request runs unchanged.

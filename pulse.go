@@ -737,12 +737,6 @@ func New(opts Options) (*Pulse, error) {
 	if err := loadPopulationsFromDir(&opts); err != nil {
 		return nil, err
 	}
-	// Built eagerly: a malformed template must fail startup with its path
-	// named, not the first render that reaches it.
-	templates, err := loadTemplateStore(&opts)
-	if err != nil {
-		return nil, err
-	}
 	universe, err := validateExtensionUniverse(opts.Extensions)
 	if err != nil {
 		return nil, err
@@ -827,7 +821,16 @@ func New(opts Options) (*Pulse, error) {
 	// The engine's worker-pool recovers honour the knob per instance.
 	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
-	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
+	runtimeExt := buildRuntimeExtensions(visibleExt)
+	svc.SetExtensions(runtimeExt)
+	// Built eagerly: a malformed template must fail startup with its path
+	// named, not the first render that reaches it. After the extensions:
+	// a `{{token}}` in a visible extension's expression-capable param is
+	// refused like one in a built-in expression slot.
+	templates, err := loadTemplateStore(&opts, runtimeExt.ScalarParamsByOperator())
+	if err != nil {
+		return nil, err
+	}
 	extSnap := buildExtensionsSnapshot(visibleExt)
 	popSet, popMetas, err := registeredPopulations(visibleExt.Populations, decodedPopulations)
 	if err != nil {
@@ -2180,8 +2183,16 @@ func (p *Pulse) filterToFileWithOptions(ctx context.Context, src, dst string, op
 // warning) beside the pairwise deltas they qualify, across all three
 // pair kinds. Ignored when SourceCohort is empty — the plain synthesis
 // path has no _synthetic partition to compare against.
+//
+// opts.LookupTables nil reads the instance's lookup tables for the
+// spec's lookup() calls (synthLookupOptions); the operation's request
+// hash is Spec.HashWithLookups over them.
 func (p *Pulse) Synth(ctx context.Context, spec *SynthSpec, output string, opts SynthOptions) (*SynthResult, error) {
-	return observed(p, ctx, opSpec{kind: observe.OpSynth, req: synthHasher(spec)}, func(ctx context.Context) (*SynthResult, error) {
+	opts, lookupErr := p.synthLookupOptions(spec, opts)
+	return observed(p, ctx, opSpec{kind: observe.OpSynth, req: synthHasher(spec, opts.LookupTables)}, func(ctx context.Context) (*SynthResult, error) {
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
 		return p.synthFile(ctx, spec, output, opts)
 	})
 }

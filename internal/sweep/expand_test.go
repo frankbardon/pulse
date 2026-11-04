@@ -29,7 +29,7 @@ func decodeComposed(t *testing.T, raw string) *types.ComposedRequest {
 
 func mustExpand(t *testing.T, c *types.ComposedRequest) *Expansion {
 	t.Helper()
-	exp, err := Expand(c, nil)
+	exp, err := Expand(c, Options{}, nil)
 	if err != nil {
 		t.Fatalf("Expand: %v", err)
 	}
@@ -210,14 +210,14 @@ func TestExpand_SweepFree(t *testing.T) {
 
 	c := &types.ComposedRequest{Requests: []*types.Request{{}, {}}}
 	var seen []int
-	exp, err := Expand(c, func(n int) error { seen = append(seen, n); return nil })
+	exp, err := Expand(c, Options{}, func(n int) error { seen = append(seen, n); return nil })
 	if err != nil || exp.Composed != c || exp.Explicit != 2 || exp.Labels != nil {
 		t.Fatalf("exp=%+v err=%v", exp, err)
 	}
 	if !reflect.DeepEqual(seen, []int{2}) {
 		t.Fatalf("preflight saw %v", seen)
 	}
-	if exp, err := Expand(nil, nil); err != nil || exp.Composed != nil {
+	if exp, err := Expand(nil, Options{}, nil); err != nil || exp.Composed != nil {
 		t.Fatalf("nil: %+v %v", exp, err)
 	}
 }
@@ -237,7 +237,7 @@ func TestExpand_PreflightBeforeRender(t *testing.T) {
 	}
 	l := limits.Limits{MaxComposeSlots: 6}
 	var seen int
-	_, err := Expand(c, func(n int) error {
+	_, err := Expand(c, Options{}, func(n int) error {
 		seen = n
 		if ce := limits.CheckComposeSlots(l, n); ce != nil {
 			return ce
@@ -252,7 +252,7 @@ func TestExpand_PreflightBeforeRender(t *testing.T) {
 		t.Fatalf("want PULSE_LIMIT_EXCEEDED, got %v", err)
 	}
 	// Under the limit the same body reaches the strict decode.
-	_, err = Expand(c, func(int) error { return nil })
+	_, err = Expand(c, Options{}, func(int) error { return nil })
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD {
 		t.Fatalf("under the limit: want the strict decode's PULSE_REQUEST_UNKNOWN_FIELD, got %v", err)
 	}
@@ -276,7 +276,7 @@ func TestExpand_448UnderDefaultLimit(t *testing.T) {
 		Request: json.RawMessage(`{"cohort":{"filename":"m.pulse"},"aggregations":[{"type":"AGG_SUM","field":"tv_ad{{tv}}","label":"a"},{"type":"AGG_SUM","field":"se{{search}}_so{{social}}_di{{display}}","label":"b"}]}`),
 	}}
 	def := limits.Defaults()
-	exp, err := Expand(c, func(n int) error {
+	exp, err := Expand(c, Options{}, func(n int) error {
 		if ce := limits.CheckComposeSlots(def, n); ce != nil {
 			return ce
 		}
@@ -350,7 +350,7 @@ func TestExpand_References(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := decodeComposed(t, `{"requests":[],"sweep":`+tc.sweep+`}`)
-			_, err := Expand(c, nil)
+			_, err := Expand(c, Options{}, nil)
 			if tc.reason == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)
@@ -388,7 +388,7 @@ func TestExpand_StrictDecode(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"a","values":[1,2]}],"request":`+tc.body+`}}`)
-			_, err := Expand(c, nil)
+			_, err := Expand(c, Options{}, nil)
 			var ce *errors.CodedError
 			if tc.unknown == "" {
 				ce = requireSweepInvalid(t, err, ReasonRequestDecode)
@@ -423,11 +423,11 @@ func TestExpand_LabelFaults(t *testing.T) {
 	t.Parallel()
 
 	c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"a","values":[1]}],"request":{"label":"x","return":{"precision":{"$var":"a"}}}}}`)
-	_, err := Expand(c, nil)
+	_, err := Expand(c, Options{}, nil)
 	requireSweepInvalid(t, err, ReasonRequestLabelSet)
 
 	c = decodeComposed(t, `{"requests":[],"sweep":{"axes":[{"name":"a","values":["", "y"]}],"label":"{{a}}","request":{"cohort":{"filename":"{{a}}"}}}}`)
-	_, err = Expand(c, nil)
+	_, err = Expand(c, Options{}, nil)
 	requireSweepInvalid(t, err, ReasonLabelEmpty)
 }
 
@@ -438,7 +438,7 @@ func TestExpand_ValidateFirst(t *testing.T) {
 
 	c := decodeComposed(t, `{"requests":[],"sweep":{"axes":[],"request":{"x":"{{zz}}"}}}`)
 	called := false
-	_, err := Expand(c, func(int) error { called = true; return nil })
+	_, err := Expand(c, Options{}, func(int) error { called = true; return nil })
 	requireSweepInvalid(t, err, ReasonAxesEmpty)
 	if called {
 		t.Fatal("preflight ran on an invalid sweep")
@@ -504,7 +504,7 @@ func TestExpand_AxesPerSlot(t *testing.T) {
 	for _, mode := range []types.SweepMode{types.SweepModeRandom, types.SweepModeLHS} {
 		spec := sampledSpec(mode, 5)
 		spec.RNGSeed = 42
-		exp, err := Expand(sampledComposed(spec), nil)
+		exp, err := Expand(sampledComposed(spec), Options{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

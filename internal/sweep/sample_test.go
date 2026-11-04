@@ -116,7 +116,7 @@ func TestSweepRandom_Refusals(t *testing.T) {
 			if ce.Details["field"] != tc.field {
 				t.Fatalf("field %v, want %s", ce.Details["field"], tc.field)
 			}
-			_, err := Expand(sampledComposed(spec), nil)
+			_, err := Expand(sampledComposed(spec), Options{}, nil)
 			if xce := requireCode(t, err, tc.code, tc.reason); xce.Message != ce.Message {
 				t.Fatalf("Expand message %q differs from Validate %q", xce.Message, ce.Message)
 			}
@@ -151,7 +151,7 @@ func TestSweepRandom_ForEachRefusesSampling(t *testing.T) {
 // slot order.
 func drawn(t *testing.T, spec *types.SweepSpec) ([]map[string]float64, *Expansion) {
 	t.Helper()
-	exp, err := Expand(sampledComposed(spec), nil)
+	exp, err := Expand(sampledComposed(spec), Options{}, nil)
 	if err != nil {
 		t.Fatalf("Expand: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestSweepRandom_FrozenDraws(t *testing.T) {
 	} {
 		spec := sampledSpec(tc.mode, 3)
 		spec.RNGSeed = 42
-		exp, err := Expand(sampledComposed(spec), nil)
+		exp, err := Expand(sampledComposed(spec), Options{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -396,7 +396,7 @@ func TestSweepRandom_CountAndPreflight(t *testing.T) {
 	c.Requests = []*types.Request{{}, {}}
 	var seen int
 	boom := stderrors.New("over")
-	_, err := Expand(c, func(slots int) error { seen = slots; return boom })
+	_, err := Expand(c, Options{}, func(slots int) error { seen = slots; return boom })
 	if err != boom || seen != 9 {
 		t.Fatalf("preflight saw %d (err %v), want 9 and its error", seen, err)
 	}
@@ -483,11 +483,11 @@ func TestSweepRandom_DerivedSeedIgnoresKeyOrder(t *testing.T) {
 		if EffectiveSeed(a) != EffectiveSeed(b) {
 			t.Fatalf("%s: key order moved the derived seed: %d vs %d", mode, EffectiveSeed(a), EffectiveSeed(b))
 		}
-		ea, err := Expand(sampledComposed(a), nil)
+		ea, err := Expand(sampledComposed(a), Options{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		eb, err := Expand(sampledComposed(b), nil)
+		eb, err := Expand(sampledComposed(b), Options{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

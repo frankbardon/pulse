@@ -25,7 +25,7 @@ func TestManifest_WeightAware(t *testing.T) {
 	seen := map[string]bool{}
 	for _, op := range m.Components.Aggregators {
 		seen[op.Name] = true
-		if weighting.ClassOf(op.Name) == weighting.ClassNone {
+		if weighting.ClassOf(op.Name) == weighting.ClassNone && op.Name != string(types.AGG_CONSTANT) {
 			t.Errorf("%s has no weight class", op.Name)
 		}
 		if weighting.ClassOf(op.Name) == weighting.ClassAware && !reflect.DeepEqual(op.WeightKinds, both) {

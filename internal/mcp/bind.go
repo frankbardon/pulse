@@ -733,7 +733,8 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 // (`{{ch}}_spend`) matches.
 const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
 
-// relaxForEachItems lets a features / attributes / windows item that
+// relaxForEachItems lets a features / attributes / windows /
+// aggregations / matrices item that
 // carries a `for_each` spell any cohort-bound string — the operator type,
 // a field, partition_by / order_by entries, a regression target or
 // predictor, a weight field — as an axis placeholder, while an item
@@ -747,7 +748,7 @@ const forEachPlaceholderPattern = `\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}`
 // the key was never added) is left untouched, so the placeholder branch
 // disappears with the capability.
 func relaxForEachItems(props map[string]any) {
-	for _, slot := range []string{"features", "attributes", "windows"} {
+	for _, slot := range forEachSlots {
 		arr, _ := props[slot].(map[string]any)
 		item, _ := arr["items"].(map[string]any)
 		ip, _ := item["properties"].(map[string]any)
@@ -922,8 +923,10 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["order_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the date or datetime field ordering each subject's records by instant.")
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {
-		for _, slot := range []string{"features", "attributes", "windows"} {
-			itemProps(slot)["for_each"] = forEachSchema()
+		for _, slot := range forEachSlots {
+			if ip := itemProps(slot); ip != nil {
+				ip["for_each"] = forEachSchema()
+			}
 		}
 	}
 
@@ -1204,10 +1207,11 @@ func modelsSchema(desc string) map[string]any {
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
-				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit)."},
+				"name":   map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
+				"path":   map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit). Set exactly one of path and inline."},
+				"inline": map[string]any{"type": "object", "description": "An inline coefficient-only model instead of a file: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients); any number may be a scalar expression over params.<name>. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES. coef(), sweep_axis() and response() read it; scoring it is refused."},
 			},
-			"required":             []string{"name", "path"},
+			"required":             []string{"name"},
 			"additionalProperties": false,
 		},
 	}
@@ -1894,6 +1898,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
 			"compare":  compareSchema(),
+			"base":     baseSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1901,6 +1906,22 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	dropHiddenSlots(outer, &types.ComposedRequest{}, inst)
 	dropHiddenMultiplicity(outer, inst)
 	return json.Marshal(outer)
+}
+
+// baseSchema describes the ComposedRequest `base` (a types.Request
+// partial): the bound request schema with nothing required. `label`
+// stays typed, as the payload schema keeps it, and is refused at run
+// time (PULSE_COMPOSE_BASE_COLLISION base_label). Dropped with the slot when capability:compose_base is
+// hidden (dropHiddenSlots).
+func baseSchema(reqSchema map[string]any) map[string]any {
+	out := make(map[string]any, len(reqSchema))
+	for k, v := range reqSchema {
+		if k != "required" {
+			out[k] = v
+		}
+	}
+	out["description"] = "Shared slot parts merged into every `requests` entry (never the sweep body, banner slots or fit requests): a key the slot leaves unset takes the base's, `params` merge key-wise (the slot's key wins), and every list carries the base items first, then the slot's own. A base item sharing a label or name with one of the slot's own in the same list is PULSE_COMPOSE_BASE_COLLISION. Set no `label`."
+	return out
 }
 
 // fitsSchema describes the ComposedRequest `fits` list (types.FitSpec):
@@ -1982,9 +2003,37 @@ func compareSchema() map[string]any {
 // `models` key drops when capability:models is.
 func optimizeSchema(inst *descx.InstanceSnapshot) map[string]any {
 	out := optimizeSchemaBase()
-	// A block's own `models` ride capability:models.
-	dropHiddenSlots(out["items"].(map[string]any), &types.OptimizeSpec{}, inst)
+	// A block's own `models` ride capability:models, its `for_each`
+	// capability:for_each.
+	items := out["items"].(map[string]any)
+	dropHiddenSlots(items, &types.OptimizeSpec{}, inst)
+	if props, _ := items["properties"].(map[string]any); props["for_each"] != nil {
+		allowVarMarkers(props)
+	}
 	return out
+}
+
+// allowVarMarkers lets every scalar of an optimize block — its own
+// (name, objective, starts, …) and its variables' and constraints' — be
+// a `{"$var": "axis"}` marker, the form a fanned-out block's typed
+// field takes (types.OptimizeSpec keeps such a block as written; a
+// marker without a for_each is refused at decode). Bound only with
+// the block's `for_each`.
+func allowVarMarkers(props map[string]any) {
+	for _, k := range slices.Sorted(maps.Keys(props)) {
+		p, _ := props[k].(map[string]any)
+		switch {
+		case k == "for_each" || p == nil:
+		case p["type"] == "array":
+			if it, _ := p["items"].(map[string]any); it != nil {
+				if ip, _ := it["properties"].(map[string]any); ip != nil {
+					allowVarMarkers(ip)
+				}
+			}
+		default:
+			props[k] = map[string]any{"anyOf": []any{p, descx.VarMarkerSchema()}}
+		}
+	}
 }
 
 // optimizeSchemaBase is optimizeSchema before the hidden-slot drop.
@@ -1994,7 +2043,7 @@ func optimizeSchemaBase() map[string]any {
 			"description": d,
 			"oneOf": []any{
 				map[string]any{"type": "number"},
-				map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+				map[string]any{"type": "string", "minLength": 1, "description": "A scalar expression over literals, params.<name>, coef() / sweep_axis() / response(), result(slot, aggregation) over an ungrouped Compose slot and the built-ins, e.g. \"params.current_tv * params.lower_share\"."},
 			},
 		}
 	}
@@ -2013,8 +2062,8 @@ func optimizeSchemaBase() map[string]any {
 						"type": "object",
 						"properties": map[string]any{
 							"name":  map[string]any{"type": "string", "description": "Identifier the expressions read; unique, not `params` or a function name."},
-							"lower": bound("Lower bound: a number or \"params.<name>\"."),
-							"upper": bound("Upper bound (>= lower): a number or \"params.<name>\"."),
+							"lower": bound("Lower bound: a number or a scalar expression."),
+							"upper": bound("Upper bound (>= lower): a number or a scalar expression."),
 							"start": bound("First starting value, within the bounds; omit for the midpoint."),
 						},
 						"required": []string{"name", "lower", "upper"},
@@ -2039,11 +2088,16 @@ func optimizeSchemaBase() map[string]any {
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
 				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
+				"for_each":       forEachSchema(),
 			},
 			"required": []string{"name", "variables", "objective", "direction"},
 		},
 	}
 }
+
+// forEachSlots are the request item lists whose items take a `for_each`,
+// in expansion order.
+var forEachSlots = []string{"features", "attributes", "windows", "aggregations", "matrices"}
 
 // forEachSchema describes an item `for_each` (types.ForEach): the item
 // fanned out over parameter axes before validation. Bound only when
@@ -2051,7 +2105,7 @@ func optimizeSchemaBase() map[string]any {
 func forEachSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
-		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. Counts toward Limits.MaxDerivedColumns. Not allowed inside a pulse_compose sweep body.",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward Limits.MaxDerivedColumns; the aggregations, matrices and optimize blocks it adds count toward Limits.MaxExpandedItems (each rendered matrix needs its own name; an optimize block's name must carry an {{axis}}, and an objective, constraint or bound varies only as a whole {\"$var\": \"axis\"} value). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
 		"properties": map[string]any{
 			"axes": map[string]any{
 				"type":        "array",

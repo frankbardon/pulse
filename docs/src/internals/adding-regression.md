@@ -227,7 +227,7 @@ func (s slopeScorer) Score(r extend.ScoreRow) (float64, bool) {
 ```
 
 The scorer scores the whole model: `params.terms` and a `lower` / `upper`
-bound are refused. A saved fit is a `model_format_version` 3 file; loading
+bound are refused. A saved fit is a model file listing feature `outputs`; loading
 it on an instance that does not register (or a profile hides) the type is
 `PULSE_MODEL_REGRESSION_UNREGISTERED`.
 

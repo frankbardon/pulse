@@ -236,7 +236,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 		fail(err)
 		return nil
 	}
-	expanded, _, _, xerr := ExpandRequestItems(req, inst.Limits())
+	expanded, _, _, xerr := ExpandRequestItems(req, inst.Limits(), inst.SweepOptions())
 	if xerr != nil {
 		fail(xerr)
 		return nil

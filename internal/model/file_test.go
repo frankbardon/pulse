@@ -173,9 +173,10 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 	sameFloatMap(t, "ci_lower", r.CILower, res.CILower)
 	sameFloatMap(t, "ci_upper", r.CIUpper, res.CIUpper)
 	sameFloats(t, "scalars", []float64{r.DF, r.ConfLevel, r.SumWeights, r.NEff}, []float64{res.DF, res.ConfLevel, res.SumWeights, res.NEff})
-	if r.NObs != res.NObs || got.Provenance != prov || got.ModelFormatVersion != 1 || r.Covariance != nil {
-		t.Errorf("n_obs / provenance / version: %d %+v %d", r.NObs, got.Provenance, got.ModelFormatVersion)
+	if r.NObs != res.NObs || got.Provenance != prov || r.Covariance != nil {
+		t.Errorf("n_obs / provenance: %d %+v", r.NObs, got.Provenance)
 	}
+	wantFeatures(t, got, data)
 	for i := range res.Vcov.Values {
 		sameFloats(t, "vcov", r.Vcov.Values[i], res.Vcov.Values[i])
 	}
@@ -213,9 +214,10 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 // TestModelFile_RobustCovarianceRoundTrip: a fit whose standard errors
 // came from a robust covariance (RegressionSpec.Covariance) saves the
 // estimator that produced them — type, cluster field and level count,
-// order_by field and resolved lag — as model_format_version 2, and
-// reads it back on the Result and the Bound with every figure
-// bit-identical; a classical fit stays version 1 with no covariance key.
+// order_by field and resolved lag — listing feature robust_covariance,
+// and reads it back on the Result and the Bound with every figure
+// bit-identical; a classical fit lists no feature and has no covariance
+// key.
 func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -236,9 +238,7 @@ func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 					t.Fatal(err)
 				}
 				got, data := roundTrip(t, f)
-				if got.ModelFormatVersion != 2 || !strings.Contains(string(data), `"model_format_version": 2`) {
-					t.Fatalf("version %d, want 2:\n%s", got.ModelFormatVersion, data)
-				}
+				wantFeatures(t, got, data, FeatureRobustCovariance)
 				r := got.Result()
 				if !reflect.DeepEqual(r.Covariance, echo) {
 					t.Fatalf("covariance read back %+v, want %+v", r.Covariance, echo)
@@ -268,13 +268,13 @@ func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 	spec, res := fullFit()
 	f, _ := NewFile("m", spec, res, Provenance{})
 	data, _ := f.Encode()
-	if !strings.Contains(string(data), `"model_format_version": 1`) || strings.Contains(string(data), `"covariance":`) {
-		t.Fatalf("a classical fit must stay version 1 without a covariance key:\n%s", data)
+	if !strings.Contains(string(data), `"model_format_version": 1`) || strings.Contains(string(data), `"covariance":`) || strings.Contains(string(data), `"features"`) {
+		t.Fatalf("a classical fit must stay version 1 without a covariance key or a features list:\n%s", data)
 	}
 }
 
 // TestModelFile_ThetaRoundTrip: a REG_GLM negative_binomial fit saves
-// as model_format_version 5 carrying its θ (the variance its residual
+// listing feature theta, carrying its θ (the variance its residual
 // kinds and influence figures read), with a robust fit's covariance echo
 // beside it, and reads every figure back bit-exactly; the loaded fit's
 // result carries the same θ and its influence face equals the
@@ -293,8 +293,10 @@ func TestModelFile_ThetaRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, data := roundTrip(t, f)
-		if got.ModelFormatVersion != 5 || !strings.Contains(string(data), `"theta": `) {
-			t.Fatalf("version %d, want 5 with its theta:\n%s", got.ModelFormatVersion, data)
+		if cov == nil {
+			wantFeatures(t, got, data, FeatureTheta)
+		} else {
+			wantFeatures(t, got, data, FeatureRobustCovariance, FeatureTheta)
 		}
 		if (cov != nil) != strings.Contains(string(data), `"covariance":`) {
 			t.Fatalf("covariance echo kept = %v, want %v:\n%s", !(cov != nil), cov != nil, data)
@@ -315,7 +317,8 @@ func TestModelFile_ThetaRoundTrip(t *testing.T) {
 
 // TestModelFile_NegBinDispersionRoundTrip: a fixed-θ negative binomial
 // fit whose dispersion is estimated (RegressionSpec.Dispersion
-// "estimated") saves as model_format_version 6 carrying θ and φ̂ beside
+// "estimated") saves listing features dispersion and theta, carrying θ
+// and φ̂ beside
 // its classical vcov, reads both back bit-exactly, and the loaded fit's
 // influence face equals the in-request fit's.
 func TestModelFile_NegBinDispersionRoundTrip(t *testing.T) {
@@ -330,9 +333,7 @@ func TestModelFile_NegBinDispersionRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, data := roundTrip(t, f)
-	if got.ModelFormatVersion != 6 || !strings.Contains(string(data), `"theta": `) || !strings.Contains(string(data), `"dispersion": `) {
-		t.Fatalf("version %d, want 6 with its theta and dispersion:\n%s", got.ModelFormatVersion, data)
-	}
+	wantFeatures(t, got, data, FeatureDispersion, FeatureTheta)
 	r := got.Result()
 	if !sameBits(r.Theta, res.Theta) || !sameBits(r.Dispersion, res.Dispersion) {
 		t.Fatalf("read back θ %v φ %v, want %v %v", r.Theta, r.Dispersion, res.Theta, res.Dispersion)
@@ -349,11 +350,11 @@ func TestModelFile_NegBinDispersionRoundTrip(t *testing.T) {
 
 // TestModelFile_DispersionRoundTrip: a classical vcov fit carrying its
 // estimated dispersion (RegressionResult.Dispersion — REG_OLS σ̂², a
-// gamma GLM's Pearson χ²/df; NaN when undefined) saves as
-// model_format_version 4 and reads it back bit-exactly, so the loaded
-// fit's influence face carries it as the in-request fit's does; a fit
-// without one stays version 1, and its loaded OLS face has no
-// dispersion (an earlier build's file: CheckFitDesign refuses it).
+// gamma GLM's Pearson χ²/df; NaN when undefined) saves listing feature
+// dispersion and reads it back bit-exactly, so the loaded fit's
+// influence face carries it as the in-request fit's does; a fit without
+// one lists no feature, and its loaded OLS face has no dispersion (an
+// earlier build's file: CheckFitDesign refuses it).
 func TestModelFile_DispersionRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -365,9 +366,7 @@ func TestModelFile_DispersionRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, data := roundTrip(t, f)
-		if got.ModelFormatVersion != 4 || !strings.Contains(string(data), `"dispersion": `) {
-			t.Fatalf("version %d, want 4 with a dispersion key:\n%s", got.ModelFormatVersion, data)
-		}
+		wantFeatures(t, got, data, FeatureDispersion)
 		if r := got.Result(); !sameBits(r.Dispersion, phi) {
 			t.Fatalf("dispersion read back %v, want %v", r.Dispersion, phi)
 		}
@@ -386,8 +385,8 @@ func TestModelFile_DispersionRoundTrip(t *testing.T) {
 	}
 	spec, res := fullFit()
 	f, _ := NewFile("m", spec, res, Provenance{})
-	if f.ModelFormatVersion != 1 {
-		t.Fatalf("a fit without a dispersion writes version %d, want 1", f.ModelFormatVersion)
+	if f.ModelFormatVersion != 1 || len(f.Features) != 0 {
+		t.Fatalf("a fit without a dispersion writes version %d features %v, want 1 and none", f.ModelFormatVersion, f.Features)
 	}
 	b, _ := f.Bind("m")
 	if spec.Type == types.REG_OLS && b.Design.Dispersion {
@@ -505,58 +504,61 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		{"null version", edit(func(m map[string]any) { m["model_format_version"] = nil }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"string version", edit(func(m map[string]any) { m["model_format_version"] = "1" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 7 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
-		{"v6 without dispersion", edit(func(m map[string]any) {
-			m["model_format_version"], m["type"], m["family"], m["theta"] = 6, "REG_GLM", "negative_binomial", 2.5
+		{"zero version", edit(func(m map[string]any) { m["model_format_version"] = 0 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"features not a list", edit(func(m map[string]any) { m["features"] = "theta" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"feature not a string", edit(func(m map[string]any) { m["features"] = []any{1} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"feature listed twice", edit(func(m map[string]any) {
+			m["features"], m["dispersion"] = []string{"dispersion", "dispersion"}, 1.5
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v5 with dispersion", edit(func(m map[string]any) {
-			m["model_format_version"], m["type"], m["family"], m["theta"], m["dispersion"] = 5, "REG_GLM", "negative_binomial", 2.5, 1.3
-		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v6 not negative binomial", edit(func(m map[string]any) { m["model_format_version"], m["theta"], m["dispersion"] = 6, 2.5, 1.3 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v5 without theta", edit(func(m map[string]any) { m["model_format_version"] = 5; m["family"] = "negative_binomial" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v1 with theta", edit(func(m map[string]any) { m["theta"] = 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v5 not negative binomial", edit(func(m map[string]any) { m["model_format_version"] = 5; m["theta"] = 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"negative binomial below v5", edit(func(m map[string]any) { m["type"] = "REG_GLM"; m["family"] = "negative_binomial" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v5 null theta", edit(func(m map[string]any) {
-			m["model_format_version"], m["family"], m["theta"] = 5, "negative_binomial", nil
-		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v5 negative theta", edit(func(m map[string]any) {
-			m["model_format_version"], m["family"], m["theta"] = 5, "negative_binomial", -1
-		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v4 without dispersion", edit(func(m map[string]any) { m["model_format_version"] = 4 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v1 with dispersion", edit(func(m map[string]any) { m["dispersion"] = 1.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v4 without vcov", edit(func(m map[string]any) {
-			m["model_format_version"] = 4
-			m["dispersion"] = 1.5
+		{"dispersion listed without its section", edit(func(m map[string]any) { m["features"] = []string{"dispersion"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"dispersion unlisted", edit(func(m map[string]any) { m["dispersion"] = 1.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"dispersion without vcov", edit(func(m map[string]any) {
+			m["features"], m["dispersion"] = []string{"dispersion"}, 1.5
 			delete(m, "vcov")
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v4 with covariance", edit(func(m map[string]any) {
-			m["model_format_version"] = 4
-			m["dispersion"] = 1.5
+		{"dispersion with covariance", edit(func(m map[string]any) {
+			m["features"], m["dispersion"] = []string{"robust_covariance", "dispersion"}, 1.5
 			m["covariance"] = map[string]any{"type": "hc3"}
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v3 with a built-in type", edit(func(m map[string]any) { m["model_format_version"] = 3 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v1 with an extension type", edit(func(m map[string]any) { m["type"] = "REG_X_CUSTOM" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v1 with outputs", edit(func(m map[string]any) { m["outputs"] = map[string]any{"k": 1} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v3 with no coefficient", edit(func(m map[string]any) {
-			m["model_format_version"] = 3
+		{"theta listed without its section", edit(func(m map[string]any) {
+			m["features"], m["type"], m["family"] = []string{"theta"}, "REG_GLM", "negative_binomial"
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"theta unlisted", edit(func(m map[string]any) { m["theta"] = 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"theta not negative binomial", edit(func(m map[string]any) { m["features"], m["theta"] = []string{"theta"}, 2.5 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"negative binomial without theta", edit(func(m map[string]any) { m["type"], m["family"] = "REG_GLM", "negative_binomial" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"null theta", edit(func(m map[string]any) {
+			m["features"], m["type"], m["family"], m["theta"] = []string{"theta"}, "REG_GLM", "negative_binomial", nil
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"negative theta", edit(func(m map[string]any) {
+			m["features"], m["type"], m["family"], m["theta"] = []string{"theta"}, "REG_GLM", "negative_binomial", -1
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"outputs unlisted", edit(func(m map[string]any) {
+			m["type"], m["outputs"] = "REG_X_CUSTOM", map[string]any{"k": 1}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"outputs listed without its section", edit(func(m map[string]any) {
+			m["features"], m["type"] = []string{"outputs"}, "REG_X_CUSTOM"
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"outputs on a built-in type", edit(func(m map[string]any) {
+			m["features"], m["outputs"] = []string{"outputs"}, map[string]any{"k": 1}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"extension with no coefficient", edit(func(m map[string]any) {
 			m["type"] = "REG_X_CUSTOM"
 			m["coefficients"] = map[string]any{}
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v2 without covariance", edit(func(m map[string]any) { m["model_format_version"] = 2 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"v1 with covariance", edit(func(m map[string]any) { m["covariance"] = map[string]any{"type": "hc3"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"robust_covariance listed without its section", edit(func(m map[string]any) { m["features"] = []string{"robust_covariance"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"covariance unlisted", edit(func(m map[string]any) { m["covariance"] = map[string]any{"type": "hc3"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"classical covariance", edit(func(m map[string]any) {
-			m["model_format_version"] = 2
+			m["features"] = []string{"robust_covariance"}
 			m["covariance"] = map[string]any{"type": "classical"}
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"unknown covariance type", edit(func(m map[string]any) {
-			m["model_format_version"] = 2
+			m["features"] = []string{"robust_covariance"}
 			m["covariance"] = map[string]any{"type": "hc9"}
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"unknown covariance key", edit(func(m map[string]any) {
-			m["model_format_version"] = 2
+			m["features"] = []string{"robust_covariance"}
 			m["covariance"] = map[string]any{"type": "hc3", "kernel": "bartlett"}
 		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"zero version", edit(func(m map[string]any) { m["model_format_version"] = 0 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
 		{"unknown key", edit(func(m map[string]any) { m["coefficient"] = 1 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"bad float string", edit(func(m map[string]any) { m["df"] = "NaN" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"no type", edit(func(m map[string]any) { delete(m, "type") }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -587,7 +589,7 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		t.Fatalf("the unedited file must decode: %v", err)
 	}
 	_, err := DecodeFile("p", []byte(edit(func(m map[string]any) { m["model_format_version"] = 7 })))
-	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3, 4, 5, 6}) || ce.Details["version"] != 7 {
+	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1}) || ce.Details["version"] != 7 {
 		t.Fatalf("version details = %v", ce.Details)
 	}
 }

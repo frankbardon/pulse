@@ -33,6 +33,7 @@ const (
 	DefaultMaxChainStages     int64         = limits.DefaultMaxChainStages
 	DefaultMaxJoinBuildRows   int64         = limits.DefaultMaxJoinBuildRows
 	DefaultMaxDerivedColumns  int64         = limits.DefaultMaxDerivedColumns
+	DefaultMaxExpandedItems   int64         = limits.DefaultMaxExpandedItems
 )
 
 // Limits returns a copy of the instance's effective resource limits:

@@ -85,13 +85,22 @@ func withReturnDefault[In any](cfg Config, decode decodeFunc[In], fill func(*In,
 
 func fillRequestReturn(in *types.Request, def *types.Return) { fillReturn(in, def) }
 
-// fillComposeReturn fills each slot; the Compose-level `return` shapes
+// fillComposeReturn fills each slot (or, with a `base`, the base every
+// slot merges); the Compose-level `return` shapes
 // only the top-level overlays and is left to the caller. A sweep's body
 // (and a banner's base request) is a slot too: it receives the same default, so an expanded slot is
 // shaped exactly as an explicit one sent without a `return`.
 func fillComposeReturn(in *types.ComposedRequest, def *types.Return) {
-	for _, slot := range in.Requests {
-		fillReturn(slot, def)
+	// A `base` return reaches every slot that sets none of its own, so
+	// with a base the default goes on the base alone: a slot's own
+	// `return` still wins, and one without takes the base's (explicit or
+	// this default).
+	if in.Base != nil {
+		fillReturn(in.Base, def)
+	} else {
+		for _, slot := range in.Requests {
+			fillReturn(slot, def)
+		}
 	}
 	if in.Sweep != nil {
 		in.Sweep.Request = fillRawReturn(in.Sweep.Request, def)

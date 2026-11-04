@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Per-arm revenue beside a fixed revenue target and the date the figures were cut on, via AGG_CONSTANT: the target comes from the request params (expr \"params.target\", typed f64) and the cut date is a literal date constant (emitted as epoch days, as AGG_MIN on a date field writes it). The same values sit in every group row; the slots read no field and need a label.",
+    "intents": [
+      "benchmark",
+      "prepare"
+    ],
+    "name": "constant_target_per_arm",
+    "operators": [
+      "AGG_CONSTANT",
+      "AGG_SUM",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "comparison",
+      "financial",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "revenue"
+    },
+    {
+      "type": "AGG_CONSTANT",
+      "label": "revenue_target",
+      "params": {
+        "type": "f64",
+        "expr": "params.target"
+      }
+    },
+    {
+      "type": "AGG_CONSTANT",
+      "label": "cut_date",
+      "params": {
+        "type": "date",
+        "value": "2024-06-30"
+      }
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "treatment"
+    }
+  ],
+  "params": {
+    "target": 1500
+  },
+  "sort": [
+    {
+      "field": "treatment"
+    }
+  ]
+}

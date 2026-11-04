@@ -40,7 +40,10 @@ type RequestReads struct {
 // the value inside it (`expression`, `field`, `params.group`,
 // `weight.field`, `covariance.cluster`). A list-valued slot (`fields`,
 // `predictors`, `partition_by`, a window's or test's `order_by`, a
-// join's `on`) is one entry under the list's key.
+// join's `on`) is one entry under the list's key. An item or optimize
+// block carrying a `for_each` is one entry per slot at its written path,
+// reading the names of every axis combination (an `{{axis}}` field, a
+// `{"$var": "axis"}` expression).
 //
 // Columns are names the slot resolves against the request's column
 // namespace, in first-read order without repeats: a cohort field, a

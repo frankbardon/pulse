@@ -46,7 +46,9 @@ import (
 // Required param, then an ExactlyOneOf group. The check is declarative
 // — no operator code runs — so predict and runtime refuse identically.
 // A Default is never filled in here: it stays the factory's to apply.
-// Built-ins keep their own decode path.
+// Built-ins keep their own decode path. A string on a number param the
+// registration declares expression-capable (ParamMeta.Expression, U79
+// E1-S3) is not a wrong type: internal/extscalar evaluates it.
 
 // ParamsDecl is one operator's params allowlist.
 type ParamsDecl struct {
@@ -74,6 +76,12 @@ type ParamsDecl struct {
 	// order each group is first declared: a request supplies exactly
 	// one member of each. Nil for a built-in.
 	OneOf []OneOfGroup
+	// Expr are the extension number params declared expression-capable
+	// (ParamMeta.Expression): a string value is a scalar expression the
+	// pre-resolution pass (internal/extscalar) evaluates, not a wrong
+	// type. Nil for a built-in (its expression params are
+	// internal/windowscalar's).
+	Expr map[string]bool
 }
 
 // OneOfGroup is one declared ExactlyOneOf group: its name and its
@@ -241,7 +249,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 			d := ParamsDecl{Declared: len(m.Params) > 0, Keys: []string{}}
 			for _, p := range m.Params {
 				d.Keys = append(d.Keys, p.Name)
-				d.declareValue(p.Name, p.JSONType, p.Required, p.ExactlyOneOf)
+				d.declareValue(p.Name, p.JSONType, p.Required, p.ExactlyOneOf, p.Expression)
 			}
 			if d.Declared && cat == paramread.Aggregator && m.VectorInput {
 				d.Keys = append(d.Keys, extensionVecAggEngineParams...)
@@ -268,7 +276,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 		// the engine. facts.Params are in the manifest Param
 		// vocabulary, mapped back to the declared JSON type.
 		for _, p := range facts.Params {
-			d.declareValue(p.Name, paramTypeJSON[p.Type], p.Required, p.ExactlyOneOf)
+			d.declareValue(p.Name, paramTypeJSON[p.Type], p.Required, p.ExactlyOneOf, p.Expression)
 		}
 		out[paramread.Key{Category: paramread.Matrix, Op: m.Name}] = d
 	}
@@ -281,9 +289,15 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 // matrixParamSnapshot mapping).
 var paramTypeJSON = map[string]string{"float": "number", "bool": "boolean", "list": "array", "string": "string", "object": "object"}
 
-// declareValue records key's declared JSON type, required flag and
-// ExactlyOneOf group (empty = ungrouped).
-func (d *ParamsDecl) declareValue(key, jsonType string, required bool, group string) {
+// declareValue records key's declared JSON type, required flag,
+// ExactlyOneOf group (empty = ungrouped) and expression capability.
+func (d *ParamsDecl) declareValue(key, jsonType string, required bool, group string, expression bool) {
+	if expression {
+		if d.Expr == nil {
+			d.Expr = map[string]bool{}
+		}
+		d.Expr[key] = true
+	}
 	if group != "" {
 		i := slices.IndexFunc(d.OneOf, func(g OneOfGroup) bool { return g.Name == group })
 		if i < 0 {
@@ -330,7 +344,9 @@ func JSONValueType(raw json.RawMessage) string {
 
 // valueRefusal checks the declared values of an extension operator's
 // params object m (nil when the slot carries none): the first key, in
-// sorted order, whose value is not its declared JSON type, else the
+// sorted order, whose value is not its declared JSON type (a string on
+// an expression-capable number param is an expression, judged by
+// internal/extscalar), else the
 // first Required key m omits, else the first ExactlyOneOf group (in
 // declaration order) of which m carries no member or more than one. A
 // null value is not of any declared type. Nil when every value
@@ -344,7 +360,13 @@ func valueRefusal(path, op string, decl ParamsDecl, m map[string]json.RawMessage
 		if !ok {
 			continue
 		}
-		if got := JSONValueType(m[k]); got != want {
+		got := JSONValueType(m[k])
+		if got == "string" && want == "number" && decl.Expr[k] {
+			// An expression-capable number param: the pre-resolution
+			// pass (internal/extscalar) judges the expression.
+			continue
+		}
+		if got != want {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
 				"operator "+op+" param "+strconv.Quote(k)+" at "+path+".params."+k+" must be a JSON "+want+", got "+got,
 				map[string]any{"path": path + ".params." + k, "operator": op, "param": k,

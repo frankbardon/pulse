@@ -50,9 +50,9 @@ import (
 // the cross-row built-ins U58's later stories add, so their collision
 // rule is pinned before they exist, and the time functions `trend`,
 // `season` and `between` (row_time.go, U52) and the draws `uniform`
-// and `bernoulli` (row_draw.go, U52).
+// and `bernoulli` (row_draw.go, U52), and lookup (row_lookup.go, U79).
 var rowReservedNames = func() map[string]bool {
-	m := map[string]bool{"row": true, "lag": true}
+	m := map[string]bool{"row": true, "lag": true, exprenv.LookupFunc: true}
 	for _, n := range timeFuncNames {
 		m[n] = true
 	}
@@ -160,6 +160,14 @@ func (w *rowExprWalker) Visit(node *ast.Node) {
 			// literals checked here, before a row exists (row_lag.go).
 			if _, _, r := lagCallShape(n, w.declared); r != nil {
 				w.found = r
+			}
+		}
+		if id.Value == exprenv.LookupFunc {
+			// The table must be a literal: its digest folds into the
+			// spec's identity (row_lookup.go).
+			if r := lookupCallShape(n); r != nil {
+				w.found = r
+				return
 			}
 		}
 		if isDrawFuncName(id.Value) {

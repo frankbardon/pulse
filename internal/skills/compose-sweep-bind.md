@@ -34,7 +34,7 @@ A `fits` entry may bind the winner of the batch's ranked `sweep` instead of runn
 - The fit request is the winning slot's rows (cohort, joins, filters, windows, features, attributes less fitted vector batteries, weight, params) plus that one regression. Groups, crosstab, aggregations, tests<!-- feature: capability:matrices -->, matrices<!-- /feature -->, `return` and the regression's own `save` are dropped.
 - The name joins the one fit namespace (`PULSE_MODEL_NAME_COLLISION`); a slot reads it with `coef("best", "<term>")`<!-- feature: ATTR_REG_PREDICT --> or `ATTR_REG_PREDICT` `params: {fit: "best"}`<!-- /feature -->.
 <!-- feature: capability:model_save -->
-- `save` on the entry writes the bound fit as a model file, like any regression fit.
+- `save` on the entry writes the bound fit as a model file plus its winning axes (`sweep_axes`): a request loading it reads them through `sweep_axis()`.
 <!-- /feature -->
 
 ## Static signature
@@ -51,14 +51,15 @@ The regression's `type`, `target` and `predictors` (and a model regression's ter
 - `from_sweep_regression_unknown` — no body regression has that `name` (`details.regression`, `available`).
 - `from_sweep_signature_varies` — type, target or predictors differ in a slot (`details.slot`, the 0-based sweep index).
 - `from_sweep_cycle` — a sweep slot reads the fit (a literal `coef("best", …)`, `sweep_axis("best", …)` or a `params.fit`), but sweep slots run before it exists (`details.slot`).
+- `from_sweep_window_cycle` — a sweep slot's window reads the fit in a scalar param (a `decay` of `sweep_axis("best", …)`; `details.slot`, `window`, `param`): sweep the param as an axis instead.
 
 ## Winning axes
 
-`sweep_axis("best", "<axis>")` reads the winner's value of an axis in an explicit slot's formula or filter and in `optimize`: a number as a float (a string / bool `values` entry as is), e.g. the steady-state multiplier `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`. Refusals mirror `coef()`, predict too: unknown fit `PULSE_MODEL_UNKNOWN`; `PULSE_MODEL_TERM_UNKNOWN` with `details.reason` `not_sweep_bound` (a fit without `from_sweep`) or `axis_unknown` (`details.axes`, sorted). A failed bound fit (no winner) nulls a formula (`PULSE_FIT_UNAVAILABLE`) and refuses a filter. The name is reserved: no embedder function may take it.
+`sweep_axis("best", "<axis>")` reads the winner's value of an axis in an explicit slot's formula, filter or scalar window param (`"decay": "sweep_axis(\"best\", \"tv\")"` — one adstock window instead of a lag fan-out plus a Horner formula) and in `optimize` — or of a saved bound fit loaded by `models` (any request, materialize too): a number as a float (a string / bool `values` entry as is), e.g. the steady-state multiplier `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`. Refusals mirror `coef()`, predict too: unknown fit `PULSE_MODEL_UNKNOWN`; `PULSE_MODEL_TERM_UNKNOWN` with `details.reason` `not_sweep_bound` (a fit, or loaded file, without `from_sweep`) or `axis_unknown` (`details.axes`, sorted). A failed bound fit (no winner) nulls a formula (`PULSE_FIT_UNAVAILABLE`) and refuses a filter. The name is reserved: no embedder function may take it.
 
 ## Run order
 
-A batch with a binding runs sweep-first: authored fits, then the sweep slots (once; their responses are the batch's), then the rank, then the bound fit refitted on the winner — figures and `save` file identical to an authored fit of that body — then `optimize` and the explicit slots. Responses keep index order.<!-- feature: capability:multiplicity --> The rank reads each sweep slot after its own `multiplicity` folds; a `compose`-family `p_adjusted` is not ready then, so ranking by it is refused.<!-- /feature -->
+A batch with a binding runs sweep-first: authored fits, then the sweep slots (once; their responses are the batch's), then the rank, then the bound fit refitted on the winner — figures identical to an authored fit of that body — then `optimize` and the explicit slots. Responses keep index order.<!-- feature: capability:multiplicity --> The rank reads each sweep slot after its own `multiplicity` folds; a `compose`-family `p_adjusted` is not ready then, so ranking by it is refused.<!-- /feature -->
 
 ## No winner
 

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -224,7 +225,7 @@ func TestOptimize_RangeLabelAccepted(t *testing.T) {
 	c := optimizeBatch(func(s *types.OptimizeSpec) {
 		s.Objective = `p * (range_label("bands", p) == "low" ? 1 : 2)`
 	})
-	if _, cerr := OptimizeRefusal(c, nil, nil, nil, nil, nil); cerr != nil {
+	if _, cerr := OptimizeRefusal(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{}); cerr != nil {
 		t.Fatalf("OptimizeRefusal: %v", cerr)
 	}
 }

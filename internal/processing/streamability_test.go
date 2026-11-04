@@ -480,6 +480,10 @@ func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
 		if raw, ok := paramsByType[aggType]; ok {
 			spec.Params = []byte(raw)
 		}
+		if aggType == types.AGG_CONSTANT {
+			// Fieldless; a label and a typed literal.
+			spec.Field, spec.Label, spec.Params = "", "k", []byte(`{"type":"f64","value":1}`)
+		}
 		instance, err := factory(spec, nil)
 		if err != nil {
 			t.Errorf("aggregator %s factory error: %v", aggType, err)

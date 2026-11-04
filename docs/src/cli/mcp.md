@@ -112,7 +112,8 @@ Names are the snake_case limit keys the feature profile `limits`
 section and every `PULSE_LIMIT_*` error's `limit` detail use:
 `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
-`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`. A
+`max_chain_stages`, `max_join_build_rows`, `max_derived_columns`,
+`max_expanded_items`. A
 value is a positive integer
 (underscores allowed, `10_000_000`), a Go duration for `request_timeout`
 (`30s`, `2m`), `unlimited` (or `-1`) for no limit, or `0` for the

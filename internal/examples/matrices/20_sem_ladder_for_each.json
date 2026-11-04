@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "name": "sem-invariance-ladder-for-each",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "comparison"
+    ],
+    "operators": [
+      "MAT_SEM"
+    ],
+    "capabilities": [
+      "capability:for_each",
+      "capability:sem_groups"
+    ],
+    "description": "The measurement-invariance ladder written ONCE in a single request: one multi-group MAT_SEM spec (the three-factor CFA of brand_survey.pulse across its two waves) carries a for_each that zips the step name [configural, metric, scalar] with the parameters held equal [\"\", \"loadings\", \"loadings,intercepts\"], so it expands in place into three matrix results named configural, metric and scalar. Each rendered spec takes its name from the step axis and its group_equal from the eq axis, spliced type-preserving by a $var marker. Compare chi2, dof, cfi and rmsea result to result: dof rises step by step as loadings, then intercepts, are held equal, and a small chi2 rise per degree of freedom gained supports the stricter step. Predict reports the fan-out at matrices[0] and counts the two added results against MaxExpandedItems.",
+    "intents": [
+      "compare_groups",
+      "measure_construct"
+    ]
+  },
+  "cohort": {"filename": "brand_survey.pulse", "data_dir": ".data"},
+  "vectors": [
+    {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
+  ],
+  "matrices": [
+    {
+      "for_each": {
+        "axes": [
+          {"name": "step", "values": ["configural", "metric", "scalar"]},
+          {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}
+        ],
+        "mode": "zip"
+      },
+      "type": "MAT_SEM",
+      "name": "{{step}}",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "group": "wave", "group_equal": {"$var": "eq"}}
+    }
+  ]
+}

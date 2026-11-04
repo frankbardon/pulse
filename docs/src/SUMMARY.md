@@ -95,6 +95,7 @@
     - [op-agg-average](guide/skills/op-agg-average.md)
     - [op-agg-ci-lower](guide/skills/op-agg-ci-lower.md)
     - [op-agg-ci-upper](guide/skills/op-agg-ci-upper.md)
+    - [op-agg-constant](guide/skills/op-agg-constant.md)
     - [op-agg-count](guide/skills/op-agg-count.md)
     - [op-agg-distinct-count](guide/skills/op-agg-distinct-count.md)
     - [op-agg-distinct-sum](guide/skills/op-agg-distinct-sum.md)

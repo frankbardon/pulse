@@ -384,6 +384,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_CHAIN_EMPTY:             own(featProcessChain),
 	errors.PULSE_CHAIN_STAGE_JOIN:        own(featProcessChain),
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
+	errors.PULSE_COMPOSE_BASE_COLLISION:  own(featComposeBase),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
 	errors.PULSE_SWEEP_EXPR_SPLICE:       own(featComposeSweep),
@@ -654,6 +655,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_EXPRESSION_INVALID: own(featComposeOpt),
+	errors.PULSE_RESULT_INVALID:              own(featComposeOpt),
 	errors.PULSE_MATRIX_SHAPE_MISMATCH:       shared,
 
 	// Virtual vectors are capability:matrices: with it hidden the

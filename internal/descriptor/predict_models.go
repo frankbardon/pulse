@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -44,7 +45,7 @@ func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors
 	if o != nil && o.ModelLoader != nil {
 		read = o.ModelLoader.ReadModelFile
 	}
-	loaded, cerr := model.LoadFiles(refs, read)
+	loaded, cerr := model.LoadFiles(refs, read, scalarslot.InlineNumber)
 	if cerr != nil {
 		return nil, cerr
 	}

@@ -101,6 +101,8 @@ var aggregatorBytesTable = map[types.AggregationType]aggregatorBytes{
 	types.AGG_VEC_MEAN: {state: 768, weighted: 960, outputOff: aggOutputOffBytes, cell: cellBytes{1280, 1792, 960}},
 	types.AGG_VEC_SUM:  {state: 768, weighted: 960, outputOff: aggOutputOffBytes, cell: cellBytes{1280, 1792, 960}},
 	types.AGG_VEC_SD:   {state: 768, weighted: 960, outputOff: aggOutputOffBytes, cell: cellBytes{1008, 1456, 400}},
+	// AGG_CONSTANT: the parsed constant, no running state.
+	types.AGG_CONSTANT: {state: 184, weighted: 184, outputOff: aggOutputOffBytes, cell: cellBytes{944, 976, 352}},
 	// Order statistics and AUC run on the buffered arm only.
 	types.AGG_MEDIAN:     {state: aggStateBytes, weighted: weightedAggStateBytes, outputOff: aggOutputBytes, buffered: true, cell: cellBytes{848, 864, 352}},
 	types.AGG_PERCENTILE: {state: aggStateBytes, weighted: weightedAggStateBytes, outputOff: aggOutputBytes, buffered: true, cell: cellBytes{880, 1248, 352}},

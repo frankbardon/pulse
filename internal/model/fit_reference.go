@@ -261,6 +261,9 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
+	if sig.Source.Inline {
+		return p, sig, inlineNotScorable(t, p.Fit)
+	}
 	if !scorable(sig.Type) {
 		if !BuiltinRegression(sig.Type) {
 			return p, sig, noScorerFor(t, p.Fit, sig.Type)

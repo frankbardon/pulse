@@ -11,6 +11,7 @@ Each request runs against the shared `all_types.pulse` cohort, which carries one
 | `22_vector_sd_per_arm.json` | `AGG_VEC_MEAN` beside `AGG_VEC_SD` (per-member sample sd, `params.expand` element columns) per treatment arm on `experiment.pulse` |
 | `23_auc_default_score.json` | `AGG_AUC` (field = a logistic default score, `params.outcome` = the `defaulted` flag; gini and the DeLong interval in components) per plan on `subscribers.pulse` |
 | `24_missing_by_channel.json` | Story: `AGG_COUNT` beside `AGG_NULL_COUNT` on the nullable `income` / `age` fields per intake channel on `intake.pulse` (planted, channel-dependent nulls) |
+| `25_constant_target.json` | `AGG_CONSTANT` (an `f64` target from `params.target`, a literal `date`) beside `AGG_SUM` per treatment arm on `experiment.pulse` |
 
 ```bash
 ./internal/examples/aggregations/run-all.sh

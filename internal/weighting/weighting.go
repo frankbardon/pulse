@@ -110,6 +110,11 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_VEC_MEAN: ClassAware,
 	types.AGG_VEC_SUM:  ClassAware,
 	types.AGG_VEC_SD:   ClassAware,
+
+	// A constant has no weighted meaning and nothing to skip: a request
+	// or default weight passes it by (skipped_not_weight_aware); the
+	// resolver refuses a weight on its own slot (constantSlotWeight).
+	types.AGG_CONSTANT: ClassNone,
 }
 
 // attributeClasses classes the attributes the table governs: the

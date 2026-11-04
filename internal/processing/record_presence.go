@@ -54,11 +54,16 @@ func FieldPresent(r *Record, field string) bool {
 // native vector's element members included), whose row is present when
 // ANY member answered — so n counts the rows
 // that fed at least one element and n_null the rows whose every member
-// is null. Every floor site (buffered, streaming, grouped, the
+// is null — and AGG_CONSTANT (reads no column), whose every row is
+// present. Every floor site (buffered, streaming, grouped, the
 // reducers' SlotFloor) asks it, so the arms cannot disagree.
 func AggregationPresent(r *Record, agg *types.Aggregation) bool {
 	if agg == nil || r == nil {
 		return false
+	}
+	if agg.Type == types.AGG_CONSTANT {
+		// Reads no column: every record reaching the slot counts in n.
+		return true
 	}
 	if agg.Field == "" && len(agg.Fields) > 0 {
 		for _, f := range agg.Fields {
@@ -77,6 +82,9 @@ func AggregationPresent(r *Record, agg *types.Aggregation) bool {
 // member list of a vector aggregator (NUL-joined; no field name holds a
 // NUL).
 func aggregationFloorKey(agg *types.Aggregation) string {
+	if agg.Type == types.AGG_CONSTANT {
+		return "\x00" + string(types.AGG_CONSTANT)
+	}
 	if agg.Field == "" && len(agg.Fields) > 0 {
 		key := "\x00"
 		for _, f := range agg.Fields {

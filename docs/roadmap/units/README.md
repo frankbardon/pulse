@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **80 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **81 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -71,7 +71,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | XL | U25, U28, U29 | 156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425, 426, 449 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103, 250, 251, 252, 269, 377 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78 | 159–167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472–474, 478, 504, 505, 527, 556–558, 560, 666, 667 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79 | 159–167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472–474, 478, 504, 505, 527, 556–558, 560, 666, 667, 706 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168–171, 173–179, 206, 220, 224, 228, 232–234, 311, 464, 469, 497, 506–508, 526, 588–593, 660–665 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | M | U02b | 194, 195, 196, 197, 216, 230, 374, 409, 451, 459 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | XL | U02c (soft) | 198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448, 475, 476 |
@@ -106,18 +106,19 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U64 | [reference-validation](U64-reference-validation.md): Every inferential number is traceable to an external reference, the gaps are closed, and users can see the evidence | Statistical integrity | L | — (U61 soft) | 588–597, 608–612 |
 | U65 | [regression-depth](U65-regression-depth.md): A fit can be diagnosed, interpreted and compared the way an analyst does it in Stata or SPSS | Statistical integrity | L | U64 (U53, U57 soft) | 598–607 |
 | U66 | [overlay-measure-correctness](U66-overlay-measure-correctness.md): Overlay handlers score the measure the analyst named, and a code column or a mixed-type crosstab is refused instead of scored silently | API & release | M | U77, U78 (U67 soft) | 434, 438, 441, 443–447, 454, 476 |
-| U67 | [predict-extension-parity-2](U67-predict-extension-parity-2.md): An extension or an unusual request is judged the same way by predict and by the runtime, with no runtime-only refusal left | API & release | L | U77, U78 | 244, 245, 466, 475, 479, 486, 523, 524, 559, 573, 577, 676 |
+| U67 | [predict-extension-parity-2](U67-predict-extension-parity-2.md): An extension or an unusual request is judged the same way by predict and by the runtime, with no runtime-only refusal left | API & release | L | U77, U78 | 244, 245, 466, 475, 479, 486, 523, 524, 559, 573, 577, 676, 708, 710–712 |
 | U68 | [regression-ordinal-multinomial](U68-regression-ordinal-multinomial.md): Ordinal and multinomial fits can be scored, compared, resampled and read as marginal effects like the other regressions | Statistical integrity | L | U77, U78 (U65 soft) | 650–659 |
 | U69 | [regression-depth-2](U69-regression-depth-2.md): Regression refusals that remain on weighted, penalized, resampled and panel fits are lifted, each against a reference oracle | Statistical integrity | L | U77, U78 (U65 soft) | 401, 487, 638–643, 677, 678 |
 | U70 | [mmm-bayes-depth](U70-mmm-bayes-depth.md): Bayesian marketing-mix models gain hierarchy, richer kernels and curves, lift-test data, posterior-aware optimization, raw draws, scoring and alternative samplers | Vector & matrix | L | U77, U78 | 552, 561–568, 578 |
-| U71 | [mmm-optimize-depth](U71-mmm-optimize-depth.md): Optimizer and transform follow-ups around fitted MMM models are closed: a post-fit slot, response helper, data-driven bounds, analytic constraint gradients, in-model adstock and lag/window widening | Vector & matrix | L | U77, U78 (U70 soft) | 489, 550, 551, 553, 570–572, 576, 581 |
-| U72 | [compose-sweep-2](U72-compose-sweep-2.md): The Compose sweep follow-ups are closed: axis profiles, item fan-out in a sweep body, streamed fits, params axes and the remaining search strategies and test gaps | API & release | L | U77, U78 (U71 soft) | 298, 380, 392, 521, 522, 548, 579, 580 |
+| U71 | [mmm-optimize-depth](U71-mmm-optimize-depth.md): Optimizer and transform follow-ups around fitted MMM models are closed: a post-fit slot, analytic constraint gradients, in-model adstock and lag/window widening | Vector & matrix | L | U77, U78 (U70 soft) | 489, 551, 553, 571, 572, 581, 705 |
+| U72 | [compose-sweep-2](U72-compose-sweep-2.md): The Compose sweep follow-ups are closed: axis profiles, item fan-out in a sweep body, streamed fits, params axes and the remaining search strategies and test gaps | API & release | L | U77, U78 (U71 soft) | 298, 380, 392, 521, 522, 548, 579, 580, 704, 709 |
 | U73 | [archive-storage](U73-archive-storage.md): Shard archives append in place, prune lookup fan-out and carry honest index statistics at scale | Embedder operations | L | U77, U78 | 492, 493, 495, 496, 498, 500 |
-| U74 | [memory-bounds](U74-memory-bounds.md): A 50M-row archive run fits in 16 GB without GOMEMLIMIT, with bounded merge windows, streamed output and a soft memory limit | Embedder operations | M | U77, U78, U73 | 361, 494, 501–503 |
+| U74 | [memory-bounds](U74-memory-bounds.md): A 50M-row archive run fits in 16 GB without GOMEMLIMIT, with bounded merge windows, streamed output and a soft memory limit | Embedder operations | M | U77, U78, U73 | 361, 494, 501–503, 707 |
 | U75 | [zones-labels-2](U75-zones-labels-2.md): Cohort default zone, label binding and attribute edge cases land with their parity proofs | Time zones | M | U77, U78 | 480–485 |
 | U76 | [synth-fidelity-2](U76-synth-fidelity-2.md): Synthetic fidelity gaps close with captured, measured and bounded behaviour | API & release | M | U77, U78 | 433, 525, 594–597 |
 | U77 | [ci-platform](U77-ci-platform.md): CI exercises every shipped platform and untrusted-input surface, and scans for vulnerabilities | API & release | M | — | 668–671 |
 | U78 | [test-hygiene](U78-test-hygiene.md): The test suite measures what it claims, hides no drift and carries no stale references | API & release | M | — | 555, 582–587, 598–600, 672–675 |
+| U79 | [library-gaps](U79-library-gaps.md): Optimize bounds, window parameters and extension parameters take expressions, saved and inline models carry their sweep axes, and `result()`, `response()`, `base`, `for_each` and synth `lookup()` close the eight embedder gaps of #427 | API & release | L | — | 550, 570, 576, 692–703 |
 
 ## Dependency graph
 
@@ -203,6 +204,7 @@ graph TD
   U76["U76 synth-fidelity-2"]
   U77["U77 ci-platform"]
   U78["U78 test-hygiene"]
+  U79["U79 library-gaps"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -313,6 +315,7 @@ graph TD
   U76 --> U32
   U77 --> U32
   U78 --> U32
+  U79 --> U32
   U53 --> U57
   U53 --> U58
   U20 --> U56

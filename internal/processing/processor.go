@@ -263,6 +263,12 @@ func (p *Processor) LastPath() ProcessPath {
 // well-conditioned inputs (variance/stddev/skewness/kurtosis use
 // Welford-Pébaÿ recurrences in the streaming path).
 func (p *Processor) Process(ctx context.Context, req *types.Request, iter RecordIterator) (*types.Response, error) {
+	// The expression-capable extension params first (internal/extscalar):
+	// every extension factory decodes plain numbers.
+	req, err := p.resolveExtensionScalars(req)
+	if err != nil {
+		return nil, err
+	}
 	req = p.prepare(req)
 	if p.canStream(req) {
 		var resp *types.Response

@@ -20,6 +20,7 @@ func wantDefaults() Limits {
 		MaxChainStages:     1_000,
 		MaxJoinBuildRows:   100_000_000,
 		MaxDerivedColumns:  1_000,
+		MaxExpandedItems:   1_000,
 	}
 }
 
@@ -47,6 +48,7 @@ func TestNamesAndOptions(t *testing.T) {
 		MaxChainStages:     "Options.Limits.MaxChainStages",
 		MaxJoinBuildRows:   "Options.Limits.MaxJoinBuildRows",
 		MaxDerivedColumns:  "Options.Limits.MaxDerivedColumns",
+		MaxExpandedItems:   "Options.Limits.MaxExpandedItems",
 	}
 	names := Names()
 	if len(names) != len(want) {

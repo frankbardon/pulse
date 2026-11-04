@@ -16,12 +16,20 @@
 //   - the batch params as params.<name> (exprenv.Bound.Params, folded);
 //   - coef(fit, term[, stat]) over the batch's `fits` — every
 //     all-literal call judged statically by model.CheckCoef;
+//   - result(slot, aggregation) — an ungrouped aggregation of a Compose
+//     slot, run in the result pre-phase before any block (Env.Results;
+//     ResultSlots names the slots);
 //   - the expression built-ins (hill(), exp(), …), range_label(), the
 //     embedder's ExprFunctions and, with a registered LookupTable,
 //     lookup().
 //
-// No record field is in reach. A bound or start is a number or a
-// params reference, resolved here.
+// No record field is in reach. A bound or start is a number or a scalar
+// expression (internal/scalarslot — the one scalar-slot evaluator)
+// resolved here: over literals and params at Check, so predict runs the
+// range checks; one calling a request-bound function (coef(),
+// sweep_axis(), response(), lookup(), an embedder function) is listed
+// Unresolved by
+// Check and resolved, then range-checked, by the runtime's Compile.
 //
 // No-execute leaf: it imports types, errors and the no-execute
 // expression and model leaves only, never the engine
@@ -46,6 +54,8 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/internal/resultcall"
+	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -74,6 +84,7 @@ const (
 	ReasonBoundMissing      = "bound_missing"
 	ReasonBoundInvalid      = "bound_invalid"
 	ReasonBoundNotNumeric   = "bound_not_numeric"
+	ReasonBoundNotFinite    = "bound_not_finite"
 	ReasonBoundsCrossed     = "bounds_crossed"
 	ReasonStartOutOfBounds  = "start_out_of_bounds"
 	ReasonUnknownIdentifier = "unknown_identifier"
@@ -108,6 +119,11 @@ type Env struct {
 	// runtime's loaders run the same rules. Nil refuses any file as
 	// unreadable.
 	Load Loader
+	// Results are the Compose slots result(slot, aggregation) reads
+	// (resultcall.CatalogOf over the batch's effective slots): every
+	// literal call is judged against them; nil puts result() out of
+	// scope (PULSE_RESULT_INVALID out_of_scope).
+	Results *resultcall.Catalog
 	// Loaded, when set, are the files an earlier Check already read,
 	// index-aligned with the blocks (nil where a block loads none):
 	// Compile reuses them instead of reading again, so the runtime
@@ -134,6 +150,22 @@ type Compiled struct {
 	// them above the batch's fits for coef().
 	Refs   model.Refs
 	Loaded *model.Loaded
+	// Unresolved are the bounds and starts a declaration-only Check
+	// could not resolve (NaN in Lower / Upper / Start), in block order;
+	// always nil from Compile, which resolves every one.
+	Unresolved []Unresolved
+}
+
+// Unresolved is one bound or start whose expression calls a
+// request-bound function, so its value — and its bounds_crossed /
+// start_out_of_bounds / finiteness checks — waits for the runtime.
+type Unresolved struct {
+	// Field is the optimize-rooted path (optimize[i].variables[j].upper).
+	Field string
+	// Expression is the bound as written.
+	Expression string
+	// Reads are the request-bound functions it calls, sorted.
+	Reads []string
 }
 
 // Vars is the per-iterate expression env binding each decision variable
@@ -158,32 +190,51 @@ func Check(specs []types.OptimizeSpec, env Env) *errors.CodedError {
 // files, index-aligned with specs (nil where a block loads none; nil
 // throughout on a refusal) — what Env.Loaded hands a later Compile.
 func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.CodedError) {
+	c, cerr := CheckAll(specs, env)
+	if cerr != nil {
+		return nil, cerr
+	}
+	return c.Loaded, nil
+}
+
+// Checked is CheckAll's view of blocks that pass: each block's decoded
+// `models` files (index-aligned, nil where a block loads none) and every
+// bound or start left Unresolved, in block order.
+type Checked struct {
+	Loaded     []*model.Loaded
+	Unresolved []Unresolved
+}
+
+// CheckAll is CheckLoaded that also returns the bounds and starts the
+// declaration-only compile could not resolve — what predict reports as
+// not statically resolved.
+func CheckAll(specs []types.OptimizeSpec, env Env) (*Checked, *errors.CodedError) {
 	if cerr := checkNames(specs); cerr != nil {
 		return nil, cerr
 	}
-	loaded := make([]*model.Loaded, len(specs))
+	out := &Checked{Loaded: make([]*model.Loaded, len(specs))}
 	for i := range specs {
-		c, cerr := Compile(&specs[i], i, env, placeholderBound(env))
+		c, cerr := compile(&specs[i], i, env, placeholderBound(env), false)
 		if cerr != nil {
 			return nil, cerr
 		}
-		loaded[i] = c.Loaded
+		out.Loaded[i] = c.Loaded
+		out.Unresolved = append(out.Unresolved, c.Unresolved...)
 	}
-	return loaded, nil
+	return out, nil
 }
 
 // placeholderBound declares env's request-bound functions with
 // exprenv.Placeholder: the typed declaration a runtime compile binds,
 // never run.
 func placeholderBound(env Env) exprenv.Bound {
-	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
-	for _, n := range env.Extensions {
-		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
-	}
-	if env.Lookup {
-		b.Lookup = exprenv.Placeholder
-	}
-	return b
+	return env.scalar().Declared()
+}
+
+// scalar is env as a scalar slot's environment (its Fits the block's,
+// models included, once Compile has set them).
+func (env Env) scalar() scalarslot.Env {
+	return scalarslot.Env{Params: env.Params, Fits: env.Fits, Tables: env.Tables, Extensions: env.Extensions, Lookup: env.Lookup, Results: env.Results}
 }
 
 // checkNames is the block-name rule across the list: every block named,
@@ -210,10 +261,17 @@ func checkNames(specs []types.OptimizeSpec) *errors.CodedError {
 // constraint (params, identifiers, compile, result type, coef()) — and
 // on success the block ready to solve. i is the block's index (every
 // refusal's details.optimize); bound carries the request-bound
-// implementations (its Params are replaced by env.Params): predict's
-// Check passes placeholders, the runtime its bound models. The block
-// name list rule (missing / duplicate names) is Check's.
+// implementations (its Params are replaced by env.Params): the runtime
+// passes its bound models, and every bound and start is evaluated
+// against them, then range-checked. The block name list rule (missing /
+// duplicate names) and the declaration-only judgement are Check's.
 func Compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound) (*Compiled, *errors.CodedError) {
+	return compile(spec, i, env, bound, true)
+}
+
+// compile is Compile; run false is Check's declaration-only judgement,
+// which leaves a bound calling a request-bound function Unresolved.
+func compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound, run bool) (*Compiled, *errors.CodedError) {
 	at := "optimize[" + strconv.Itoa(i) + "]"
 	if cerr := checkSpec(spec, i, at); cerr != nil {
 		return nil, cerr
@@ -238,25 +296,27 @@ func Compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound) (*Co
 			return nil, cerr
 		}
 		seen[v.Name] = true
-		lo, cerr := resolveBound(spec, i, vat+".lower", v.Name, v.Lower, env.Params, true)
+		r := boundResolver{spec: spec, i: i, variable: v.Name, env: env, bound: bound, run: run, out: out}
+		lo, loOK, cerr := r.resolve(vat+".lower", v.Lower, true)
 		if cerr != nil {
 			return nil, cerr
 		}
-		hi, cerr := resolveBound(spec, i, vat+".upper", v.Name, v.Upper, env.Params, true)
+		hi, hiOK, cerr := r.resolve(vat+".upper", v.Upper, true)
 		if cerr != nil {
 			return nil, cerr
 		}
-		if lo > hi {
+		if loOK && hiOK && lo > hi {
 			return nil, variableInvalid(i, spec.Name, vat, v.Name, ReasonBoundsCrossed,
 				"has lower bound "+fmtFloat(lo)+" above its upper bound "+fmtFloat(hi), map[string]any{"lower": lo, "upper": hi})
 		}
 		start := math.NaN()
 		if !v.Start.IsZero() {
-			start, cerr = resolveBound(spec, i, vat+".start", v.Name, v.Start, env.Params, false)
+			var startOK bool
+			start, startOK, cerr = r.resolve(vat+".start", v.Start, false)
 			if cerr != nil {
 				return nil, cerr
 			}
-			if start < lo || start > hi {
+			if loOK && hiOK && startOK && (start < lo || start > hi) {
 				return nil, variableInvalid(i, spec.Name, vat+".start", v.Name, ReasonStartOutOfBounds,
 					"starts at "+fmtFloat(start)+", outside its bounds ["+fmtFloat(lo)+", "+fmtFloat(hi)+"]",
 					map[string]any{"value": start, "lower": lo, "upper": hi})
@@ -290,7 +350,8 @@ func loadModels(spec *types.OptimizeSpec, i int, at string, env Env, out *Compil
 	if len(spec.Models) == 0 {
 		return env.Fits, nil
 	}
-	refs := model.Refs{Models: spec.Models}
+	// The block's inline models read the batch's params.
+	refs := model.Refs{Models: spec.Models, Params: types.Params(env.Params)}
 	if cerr := model.CheckRefs(refs, env.Outer); cerr != nil {
 		return nil, locate(cerr, i, spec.Name, at+".models")
 	}
@@ -305,7 +366,7 @@ func loadModels(spec *types.OptimizeSpec, i int, at string, env Env, out *Compil
 		}
 	default:
 		var cerr *errors.CodedError
-		if loaded, cerr = model.LoadFiles(refs, nil); cerr != nil {
+		if loaded, cerr = model.LoadFiles(refs, nil, scalarslot.InlineNumber); cerr != nil {
 			return nil, locate(cerr, i, spec.Name, at+".models")
 		}
 	}
@@ -389,11 +450,12 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 
 // reservedNames are the identifiers a decision variable may not take:
 // params, $env, every expression function in reach (the reserved
-// built-ins, coef, lookup, range_label, the set helpers, the embedder's
+// built-ins, coef, sweep_axis, response, result, lookup, range_label, the set
+// helpers, the embedder's
 // functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.ResponseFunc: true, exprenv.LookupFunc: true, exprenv.RangeLabelFunc: true, exprenv.ResultFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}
@@ -420,53 +482,72 @@ func declarable(name string) bool {
 	return t != nil && t.Kind() == reflect.Float64
 }
 
-// resolveBound resolves one bound or start: a literal, or a params
-// reference that must name a finite number. required refuses an absent
-// one (bound_missing).
-func resolveBound(spec *types.OptimizeSpec, i int, field, variable string, b types.OptimizeBound, params exprenv.Params, required bool) (float64, *errors.CodedError) {
-	if b.IsZero() {
-		if required {
-			return 0, variableInvalid(i, spec.Name, field, variable, ReasonBoundMissing,
-				"has no "+lastKey(field)+" bound; set a number or \"params.<name>\"", nil)
-		}
-		return math.NaN(), nil
-	}
-	if !b.IsParam() {
-		v := b.Value()
-		if math.IsNaN(v) || math.IsInf(v, 0) {
-			return 0, variableInvalid(i, spec.Name, field, variable, ReasonBoundNotNumeric,
-				"has a non-finite "+lastKey(field), nil)
-		}
-		return v, nil
-	}
-	name := b.Param()
-	if !identRe.MatchString(name) {
-		return 0, variableInvalid(i, spec.Name, field, variable, ReasonBoundInvalid,
-			"reads param "+strconv.Quote(name)+" for its "+lastKey(field)+", which is not a param name (an identifier)", map[string]any{"param": name})
-	}
-	src := exprenv.ParamsName + "." + name
-	if cerr := exprenv.ParamsRefusal(src, params, false); cerr != nil {
-		return 0, locate(cerr, i, spec.Name, field)
-	}
-	v, ok := paramNumber(params[name])
-	if !ok || math.IsNaN(v) || math.IsInf(v, 0) {
-		return 0, variableInvalid(i, spec.Name, field, variable, ReasonBoundNotNumeric,
-			"reads "+src+" for its "+lastKey(field)+", which does not hold a finite number", map[string]any{"param": name})
-	}
-	return v, nil
+// boundResolver resolves one variable's bounds and start.
+type boundResolver struct {
+	spec     *types.OptimizeSpec
+	i        int
+	variable string
+	env      Env
+	bound    exprenv.Bound
+	run      bool
+	out      *Compiled
 }
 
-// paramNumber is a normalized param value as a float64.
-func paramNumber(v any) (float64, bool) {
-	switch n := v.(type) {
-	case int64:
-		return float64(n), true
-	case uint64:
-		return float64(n), true
-	case float64:
-		return n, true
+// resolve resolves one bound or start: a finite literal, or a scalar
+// expression (scalarslot.Eval over the block's params, fits, models,
+// tables and embedder functions) evaluated to a finite number. ok is
+// false — the value NaN, the field recorded Unresolved — when a
+// declaration-only check meets an expression calling a request-bound
+// function. required refuses an absent bound (bound_missing); an absent
+// start is NaN, ok false.
+func (r *boundResolver) resolve(field string, b types.OptimizeBound, required bool) (float64, bool, *errors.CodedError) {
+	if b.IsZero() {
+		if required {
+			return 0, false, variableInvalid(r.i, r.spec.Name, field, r.variable, ReasonBoundMissing,
+				"has no "+lastKey(field)+" bound; set a number or an expression such as \"params.<name>\"", nil)
+		}
+		return math.NaN(), false, nil
 	}
-	return 0, false
+	if !b.IsExpr() {
+		v := b.Value()
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return 0, false, r.refuse(field, b, scalarslot.NotFinite(v))
+		}
+		return v, true, nil
+	}
+	val, refusal := scalarslot.Eval(b.Expr(), scalarslot.Real, r.env.scalar(), r.bound, r.run)
+	if refusal != nil {
+		return 0, false, r.refuse(field, b, refusal)
+	}
+	if !val.Resolved {
+		r.out.Unresolved = append(r.out.Unresolved, Unresolved{Field: field, Expression: b.Expr(), Reads: val.Reads})
+		return math.NaN(), false, nil
+	}
+	return val.Number, true, nil
+}
+
+// refuse locates a scalar-slot refusal at the bound: a shared code
+// (PULSE_PARAMS_*, PULSE_MODEL_*, a table code, a failed fit's own code)
+// keeps it, located; a slot-neutral reason becomes
+// PULSE_OPTIMIZE_VARIABLE_INVALID reason bound_<reason> with
+// details.expression (and details.param for a bare params reference).
+func (r *boundResolver) refuse(field string, b types.OptimizeBound, refusal *scalarslot.Refusal) *errors.CodedError {
+	if refusal.Coded != nil {
+		return locate(refusal.Coded, r.i, r.spec.Name, field)
+	}
+	extra := make(map[string]any, len(refusal.Details)+2)
+	for k, v := range refusal.Details {
+		extra[k] = v
+	}
+	what := "has a " + lastKey(field) + " that " + refusal.What
+	if b.IsExpr() {
+		extra["expression"] = b.Expr()
+		what = "has " + lastKey(field) + " " + strconv.Quote(b.Expr()) + ", which " + refusal.What
+	}
+	if p := b.Param(); p != "" {
+		extra["param"] = p
+	}
+	return variableInvalid(r.i, r.spec.Name, field, r.variable, "bound_"+refusal.Reason, what, extra)
 }
 
 // compileOptions are the block's compile options: the decision
@@ -500,6 +581,9 @@ func compileExpr(spec *types.OptimizeSpec, i int, field, src string, names []str
 				map[string]any{"identifier": ref, "valid": slices.Clone(names)})
 		}
 	}
+	if cerr := resultcall.Refusal(src, env.Results); cerr != nil {
+		return nil, locate(cerr, i, spec.Name, field)
+	}
 	prog, err := expr.Compile(src, opts...)
 	if err != nil {
 		reason := exprenv.CompileReason(err)
@@ -529,6 +613,29 @@ func numericKind(k reflect.Kind) bool {
 		return true
 	}
 	return false
+}
+
+// ResultSlots are the indices of the Compose slots the blocks' literal
+// result() calls read — in a bound, a start, the objective or a
+// constraint — sorted and unique: the slots the result pre-phase runs
+// before any block (resultcall.Slots). Nil when no block reads one.
+func ResultSlots(specs []types.OptimizeSpec, cat *resultcall.Catalog) []int {
+	var srcs []string
+	for i := range specs {
+		spec := &specs[i]
+		for _, v := range spec.Variables {
+			for _, b := range []types.OptimizeBound{v.Lower, v.Upper, v.Start} {
+				if b.IsExpr() {
+					srcs = append(srcs, b.Expr())
+				}
+			}
+		}
+		srcs = append(srcs, spec.Objective)
+		for _, c := range spec.Constraints {
+			srcs = append(srcs, c.Expr)
+		}
+	}
+	return resultcall.Slots(srcs, cat)
 }
 
 // EffectiveSeed is the seed a block's Latin-hypercube starts are drawn
@@ -631,5 +738,7 @@ func locate(cerr *errors.CodedError, i int, name, field string) *errors.CodedErr
 	}
 	d["optimize"] = i
 	d["field"] = field
-	return errors.NewCodedErrorWithDetails(cerr.Code, blockLabel(i, name)+": "+cerr.Message, d)
+	out := errors.NewCodedErrorWithDetails(cerr.Code, blockLabel(i, name)+": "+cerr.Message, d)
+	out.Cause = cerr.Cause
+	return out
 }

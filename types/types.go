@@ -180,6 +180,19 @@ const (
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
 	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
 	AGG_VEC_SD   AggregationType = "AGG_VEC_SD"
+
+	// AGG_CONSTANT emits one typed constant, the same in every row,
+	// group, crosstab cell and margin — in place of a single-value
+	// formula node that only puts a constant into results. Fieldless:
+	// the slot names no Field, Vector or Fields, and needs a Label.
+	// Params: `type` (one of the 22 field-type names) and exactly one
+	// of `value` (a literal judged against the type; null emits null)
+	// or `expr` (a scalar expression over params.<name>, coef(),
+	// sweep_axis(), response(), lookup(), …, for the numeric, packed_bool, date
+	// and datetime types). The wire value matches what the existing
+	// aggregators write for the type. Streamable + mergeable; it takes
+	// no weight (a slot weight is refused).
+	AGG_CONSTANT AggregationType = "AGG_CONSTANT"
 )
 
 // AllAggregationTypes returns all defined aggregation types.
@@ -201,6 +214,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD,
+		AGG_CONSTANT,
 	}
 }
 
@@ -1159,6 +1173,12 @@ type Aggregation struct {
 	// slot out (it runs unweighted); a field-name string or a
 	// {field, kind} object sets the slot's own weight. See SlotWeight.
 	Weight SlotWeight `json:"weight,omitzero"`
+
+	// ForEach, when set, fans this item out over parameter axes before
+	// validation (see ForEach). Only a Request.Aggregations item fans
+	// out; a crosstab or banner cell carrying one is refused. Gated by
+	// capability:for_each.
+	ForEach *ForEach `json:"for_each,omitempty"`
 }
 
 // Filterer defines a filter to apply to records before processing.
@@ -2124,6 +2144,21 @@ type FileResponse struct {
 type ComposedRequest struct {
 	// Requests is the list of individual requests to execute.
 	Requests []*Request `json:"requests"`
+
+	// Base is a Request-shaped partial (no `label`) merged copy-on-write
+	// into every explicit Requests entry before anything else runs —
+	// before the sweep and banner expansion and the top-level params
+	// inheritance: a scalar slot or pointer the slot leaves unset takes
+	// the base's, `params` merge key-wise (the slot's key wins), every
+	// list slot carries the base's items first, then the slot's own. A
+	// base item whose label or name equals one of the slot's own in the
+	// same list is PULSE_COMPOSE_BASE_COLLISION. Never applied to the
+	// sweep body, banner slots or fit requests; the normalized request
+	// echoes the merged slots and no `base`. Gated by
+	// capability:compose_base. Nil is absent — the slot is `omitempty`,
+	// so a base-free request is byte-identical on the wire and under
+	// Hash.
+	Base *Request `json:"base,omitempty"`
 
 	// Overlays is the optional list of Compose-only overlay layer
 	// specifications. Each spec is a cross-Request overlay that

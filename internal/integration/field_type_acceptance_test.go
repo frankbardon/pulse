@@ -234,6 +234,9 @@ var acceptanceTemplates = map[string]string{
 	"AGG_VEC_MEAN":            `{"aggregations":[{"type":"AGG_VEC_MEAN","fields":["$F","x"]}]}`,
 	"AGG_VEC_SUM":             `{"aggregations":[{"type":"AGG_VEC_SUM","fields":["$F","x"]}]}`,
 	"AGG_VEC_SD":              `{"aggregations":[{"type":"AGG_VEC_SD","fields":["$F","x"]}]}`,
+	// Reads no field (a field is field_not_accepted for every type);
+	// its params.type parity is pinned by TestConstant_RefusalsMatchPredict.
+	"AGG_CONSTANT": ``,
 
 	// Attributes (aggregated afterwards so the label is consumed).
 	"ATTR_ZSCORE":     `{"attributes":[{"type":"ATTR_ZSCORE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,

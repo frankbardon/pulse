@@ -120,6 +120,12 @@ func CheckDerivedColumns(l Limits, derived int) *errors.CodedError {
 	return Check(l, MaxDerivedColumns, int64(derived))
 }
 
+// CheckExpandedItems refuses more than MaxExpandedItems items added by
+// `for_each` fan-outs (sweep.ExpandedCount).
+func CheckExpandedItems(l Limits, expanded int) *errors.CodedError {
+	return Check(l, MaxExpandedItems, int64(expanded))
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {

@@ -42,7 +42,7 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 
 - `{{axis}}` inside a string splices the value as text. `{"$var": "axis"}` as a whole value keeps its JSON type (a number stays a number). A `$when` guard may name an axis. `{{` inside an object key is refused.
 - Every axis must be referenced by the body, an authored `label` pattern or the overlays; a placeholder naming no axis is refused. Both ride `PULSE_SWEEP_INVALID` with `details.reason` (`axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`).
-- NOT expr-lang, not the stored-template surface: substitution happens before decode, and never inside an expression (`expression`, `holdout`, overlay `params.formula`) — a `{{axis}}` there is `PULSE_SWEEP_EXPR_SPLICE`, refused before expansion. A `$var` marker may supply a whole expression.
+- NOT expr-lang, not the stored-template surface: substitution precedes decode, never inside an expression (`expression`, `holdout`, overlay `params.formula`, an extension's expression param) — a `{{axis}}` there is `PULSE_SWEEP_EXPR_SPLICE`. A `$var` marker may supply a whole expression.
 <!-- feature: capability:params -->
 - To vary a value an expression reads, sweep a param: `"params": {"x": {"$var": "x"}}` + `params.x` (`request-params`).
 <!-- /feature -->

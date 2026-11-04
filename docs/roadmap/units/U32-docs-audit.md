@@ -5,10 +5,10 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 504, 505, 527, 556, 557, 558, 560, 666, 667]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 504, 505, 527, 556, 557, 558, 560, 666, 667, 706]
 branch: docs-audit
 ---
 
@@ -197,3 +197,9 @@ Filed from [U31](U31-guidance-guides.md#handed-on); tick in [`TODO.md`](../TODO.
 
 - [ ] **#504** The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages of the two scores → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it. Found in U31 (E3-S2)
 - [ ] **#505** `skills/session-bootstrap.md` does not mention the CLI `pulse examples search --intent` added in U31 (#252); the skill sits at its 6,000-byte topical budget, and the MCP `pulse_examples_search {intent}` argument predates U31. Make room and add the line, or record why the CLI flag needs no bootstrap mention. Found in U31 (E3-S2)
+
+## Handed on from U79
+
+Filed from [U79](U79-library-gaps.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#706** `make sites` covers `types.Request` only, not `ComposedRequest`: a change to a Compose-level slot lists none of `setSlots`, the request-reads walker, Explain, MCP bind / `return_default`, the strict-acceptance families, the example profiles, the limits-parity site lists or `ResultCatalog` (extends #560, which names `sweep` / `optimize`). Found in library-gaps E1-S1 and E6-S1 · [U32](units/U32-docs-audit.md)

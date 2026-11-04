@@ -476,8 +476,9 @@ func StageMatrixRefusal(req *types.Request, stageIndex int, stageName string) er
 // ArrayValued extension aggregator is array-valued too); the zero value
 // is the built-in view.
 //
-// A non-scalar aggregation (AggregationKinds.IsNonScalar — a mergeable
-// set fold's label list or count map, an extension declared NonScalar)
+// A non-scalar aggregation (AggregationKinds.IsNonScalarSlot — a mergeable
+// set fold's label list or count map, an extension declared NonScalar,
+// an AGG_CONSTANT of a non-numeric type)
 // is refused the same way, reason "non_scalar": its column read as
 // null (a sum over it 0) in the next stage, silently (U46 E4-S11). A
 // non-mergeable one never gets here — ChainRefusal refuses it first.
@@ -486,7 +487,7 @@ func StageArrayValuedRefusal(req *types.Request, stageIndex, stageCount int, sta
 		return nil
 	}
 	for _, agg := range req.Aggregations {
-		if agg == nil || !kinds.IsNonScalar(agg.Type) || vectors.AggregationExpands(agg, kinds) {
+		if agg == nil || !kinds.IsNonScalarSlot(agg) || vectors.AggregationExpands(agg, kinds) {
 			continue
 		}
 		label := types.AggregationLabelOf(agg)

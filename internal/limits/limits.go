@@ -41,6 +41,7 @@ const (
 	DefaultMaxChainStages     int64         = 1_000
 	DefaultMaxJoinBuildRows   int64         = 100_000_000
 	DefaultMaxDerivedColumns  int64         = 1_000
+	DefaultMaxExpandedItems   int64         = 1_000
 )
 
 // Limits holds the instance resource limits. On an input layer a zero
@@ -88,6 +89,16 @@ type Limits struct {
 	// expanded (one per plain item, one per combination). Checked before
 	// any for_each item renders. Default 1,000.
 	MaxDerivedColumns int64
+
+	// MaxExpandedItems bounds the number of aggregation and matrix items
+	// a `for_each` adds to one request (the combinations of every
+	// fanned-out aggregation and matrix item; plain items do not count),
+	// and the number of optimize blocks a Compose call's block
+	// `for_each` fan-outs add (counted once per call, apart from its
+	// slots'). Checked before any for_each item or block renders.
+	// Window, feature and attribute items count toward
+	// MaxDerivedColumns instead. Default 1,000.
+	MaxExpandedItems int64
 }
 
 // Name is a limit's snake_case key — the spelling the feature profile
@@ -106,6 +117,7 @@ const (
 	MaxChainStages     Name = "max_chain_stages"
 	MaxJoinBuildRows   Name = "max_join_build_rows"
 	MaxDerivedColumns  Name = "max_derived_columns"
+	MaxExpandedItems   Name = "max_expanded_items"
 )
 
 // field binds a Name to its Go field. Reads go through Limits.value (a
@@ -142,6 +154,8 @@ func (l *Limits) value(n Name) int64 {
 		return l.MaxJoinBuildRows
 	case MaxDerivedColumns:
 		return l.MaxDerivedColumns
+	case MaxExpandedItems:
+		return l.MaxExpandedItems
 	}
 	return 0
 }
@@ -174,6 +188,9 @@ var fields = []field{
 	{MaxDerivedColumns, "MaxDerivedColumns",
 		func(l *Limits, v int64) { l.MaxDerivedColumns = v },
 		DefaultMaxDerivedColumns},
+	{MaxExpandedItems, "MaxExpandedItems",
+		func(l *Limits, v int64) { l.MaxExpandedItems = v },
+		DefaultMaxExpandedItems},
 }
 
 func lookup(n Name) (field, bool) {

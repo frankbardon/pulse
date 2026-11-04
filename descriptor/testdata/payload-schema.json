@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:b9b36c7f145b6da31635461e4536daef126cbd97cc9805f96efbc994d7576cbe",
+  "$comment": "feature_set_digest: fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -35,6 +35,9 @@
             "array",
             "null"
           ]
+        },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
         },
         "label": {
           "type": "string"
@@ -153,6 +156,7 @@
         "AGG_AVERAGE",
         "AGG_CI_LOWER",
         "AGG_CI_UPPER",
+        "AGG_CONSTANT",
         "AGG_COUNT",
         "AGG_DISTINCT_COUNT",
         "AGG_DISTINCT_SUM",
@@ -967,6 +971,9 @@
       "properties": {
         "banner": {
           "$ref": "#/$defs/BannerSpec"
+        },
+        "base": {
+          "$ref": "#/$defs/Request"
         },
         "compare": {
           "items": {
@@ -3553,6 +3560,9 @@
             "null"
           ]
         },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
+        },
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
@@ -3715,6 +3725,10 @@
     "ModelRef": {
       "additionalProperties": false,
       "properties": {
+        "inline": {
+          "description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.\u003cname\u003e. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef(), sweep_axis() and response() read it, scoring it is refused.",
+          "type": "object"
+        },
         "name": {
           "type": "string"
         },
@@ -3723,8 +3737,7 @@
         }
       },
       "required": [
-        "name",
-        "path"
+        "name"
       ],
       "type": "object"
     },
@@ -3822,13 +3835,13 @@
       "type": "string"
     },
     "OptimizeBound": {
-      "description": "A decision variable's bound or start: a number, or \"params.\u003cname\u003e\" naming a batch param that holds a finite number.",
+      "description": "A decision variable's bound or start: a number, or a scalar expression read once before the solve — literals, params.\u003cname\u003e, coef() / sweep_axis() / response() over the batch fits and the block's models, result(slot, aggregation) over an ungrouped Compose slot (run first, once), lookup() and the built-ins, no variable and no record field (e.g. \"params.current_tv * params.lower_share\"). It must yield a finite number. One calling a request-bound function is resolved at runtime and listed by predict under unresolved_scalars.",
       "oneOf": [
         {
           "type": "number"
         },
         {
-          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "minLength": 1,
           "type": "string"
         }
       ]
@@ -3982,10 +3995,44 @@
     },
     "OptimizeSpec": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "for_each"
+          ]
+        }
+      },
       "properties": {
         "constraints": {
           "items": {
-            "$ref": "#/$defs/OptimizeConstraint"
+            "additionalProperties": false,
+            "properties": {
+              "expr": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "type": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeConstraintType"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "expr",
+              "type"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -3993,14 +4040,68 @@
           ]
         },
         "direction": {
-          "$ref": "#/$defs/OptimizeDirection"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizeDirection"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
+        },
+        "for_each": {
+          "$ref": "#/$defs/ForEach"
         },
         "max_iterations": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "models": {
           "items": {
-            "$ref": "#/$defs/ModelRef"
+            "additionalProperties": false,
+            "properties": {
+              "inline": {
+                "anyOf": [
+                  {
+                    "description": "An inline coefficient-only model, set instead of path: the model-file document (model_format_version 1, type, target, predictors, terms, coefficients, …). Any number in it may be a scalar expression string over literals and params.\u003cname\u003e. Types REG_OLS, REG_GLM, REG_BAYES_LINEAR, REG_MMM_HILL, REG_MMM_BAYES; coef(), sweep_axis() and response() read it, scoring it is refused.",
+                    "type": "object"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -4008,23 +4109,106 @@
           ]
         },
         "name": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "objective": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "rng_seed": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "starts": {
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "tolerance": {
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "variables": {
           "items": {
-            "$ref": "#/$defs/OptimizeVariable"
+            "additionalProperties": false,
+            "properties": {
+              "lower": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "start": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              },
+              "upper": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/OptimizeBound"
+                  },
+                  {
+                    "$ref": "#/$defs/VarMarker"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "lower",
+              "name",
+              "upper"
+            ],
+            "type": "object"
           },
           "type": [
             "array",
@@ -4038,6 +4222,61 @@
         "objective",
         "variables"
       ],
+      "then": {
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/$defs/OptimizeConstraint"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "direction": {
+            "$ref": "#/$defs/OptimizeDirection"
+          },
+          "for_each": {
+            "$ref": "#/$defs/ForEach"
+          },
+          "max_iterations": {
+            "type": "integer"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/$defs/ModelRef"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "rng_seed": {
+            "type": "integer"
+          },
+          "starts": {
+            "type": "integer"
+          },
+          "tolerance": {
+            "type": "number"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/$defs/OptimizeVariable"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
       "type": "object"
     },
     "OptimizeVariable": {
@@ -7275,6 +7514,19 @@
       ],
       "type": "object"
     },
+    "VarMarker": {
+      "additionalProperties": false,
+      "description": "With a for_each on the block: the whole value taken from the named axis.",
+      "properties": {
+        "$var": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "$var"
+      ],
+      "type": "object"
+    },
     "VectorCoerce": {
       "enum": [
         "binary"
@@ -7588,4 +7840,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d8b23a841fdc31e0d1e82555310a8156d1f28c8a89c523133d677e2aa6496dfb
+// golden-hash: 1022a4a170a76d6d5b3eea009a1ceccf97959b1208de43d72bef297fbb6c1fec

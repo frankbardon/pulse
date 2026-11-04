@@ -22,7 +22,7 @@ Predict first (`predict: true` / `--predict` / `Pulse.PredictMaterialize`): head
 - A test over a window: a lagged or cumulative series.
 - One derived column feeding several requests: compute once.
 
-A request that only DISPLAYS a derived value needs no materialise step. A chain stage cannot carry windows or features<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->, so a chain is no substitute.
+A request that only DISPLAYS a derived value needs no materialise. A chain stage cannot carry windows or features<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->, so a chain is no substitute.
 
 ## The two-step recipe
 
@@ -48,7 +48,7 @@ Label every output you will reference; unlabelled, a column takes the operator's
 ## What the output holds
 
 - **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order) — or in `sort` order (source fields or derived columns, `pulse_process`'s comparator). `sort` moves rows, never values: each window ran under its own `order_by`. Features see every record; attributes and windows the survivors, as `pulse_process` computes them.
-- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows<!-- feature: ATTR_PREVIOUS_STATE -->; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels)<!-- /feature -->. Each gets a generated description (operator, field, params, partition / order, frame when read, source cohort; a formula by its expression verbatim).
+- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows<!-- feature: ATTR_PREVIOUS_STATE -->; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels)<!-- /feature -->. Each gets a generated description (operator, field, params, partition / order, frame if read, source cohort; a formula by its expression).
 - Integer window outputs (row number, rank) are `f64`; a non-numeric one (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - The source's SPSS sidecar is carried (rewritten for the new columns, so value labels survive a `.sav` export; a stale one warns with its own code and is dropped); no other sidecar is — rebuild an index on the new cohort.
 
@@ -77,12 +77,12 @@ All before anything is written; the write is atomic.
 
 | Code | Cause | Fix |
 |---|---|---|
-| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot outside cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, output, disable_components (`details.slot`) | move that slot to the step-2 request |
-| `PULSE_MATERIALIZE_NO_DERIVED` | no feature, attribute or window | nothing to write: run the request directly |
+| `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` | a slot outside cohort, label, features, filterers, attributes, windows, sort, weight, time_zone, output, disable_components, params, models (read by `coef()`, `sweep_axis()`); `details.slot` | move that slot to the step-2 request |
+| `PULSE_MATERIALIZE_NO_DERIVED` | no feature, attribute or window | nothing to write: run it directly |
 | `PULSE_MATERIALIZE_OUTPUT_UNDECLARED` | an embedder-registered feature, whose outputs cannot be named before it runs | apply it in the step-2 request instead |
-| `SERVICE_VALIDATION` | `out` exists | pick a new path, or `overwrite` (stale sidecars are listed, never rebuilt) |
+| `SERVICE_VALIDATION` | `out` exists | pick a new path, or `overwrite` (stale sidecars listed, not rebuilt) |
 
-A request `pulse_process` refuses is refused here with the same code.
+What `pulse_process` refuses is refused here, same code.
 
 ## Gotchas
 

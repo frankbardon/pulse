@@ -305,6 +305,17 @@ func TestRender_UnknownFieldNamesTheField(t *testing.T) {
 			wantNear:  "field",
 		},
 		{
+			// OptimizeSpec decodes itself (a for_each block may hold a
+			// {"$var"} marker): it refuses an unknown key on its own, so
+			// the strict decode stays strict inside a block.
+			name:      "typo inside a composed optimize block",
+			target:    template.TargetComposed,
+			body:      `{"requests":[],"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","strats":2}]}`,
+			wantField: "strats",
+			wantPath:  "optimize[0].strats",
+			wantNear:  "starts",
+		},
+		{
 			name:      "unknown key on a non-request target",
 			target:    template.TargetFacet,
 			body:      `{"fields":["region"],"top_k":5}`,

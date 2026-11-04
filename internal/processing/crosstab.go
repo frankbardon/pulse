@@ -3,6 +3,7 @@ package processing
 import (
 	"context"
 	"fmt"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"sort"
 	"strings"
 
@@ -510,6 +511,10 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	// the stamped spec, so cells, every margin, the normalization
 	// denominators and the auxiliaries are all weighted from raw rows;
 	// counts stay raw (.claude/reference/weighting.md "Crosstab").
+	req, err := p.resolveExtensionScalars(req)
+	if err != nil {
+		return nil, err
+	}
 	req = p.prepare(req)
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {
@@ -519,11 +524,11 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	// dividing one map by another is undefined. Reject up-front so the
 	// dispatch loop below can treat every scalar/rich routing as safe.
 	for _, cell := range spec.CellAggregations() {
-		if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && cell.Type.MapValued() {
+		if spec.NormalizeOrDefault() != types.CrosstabNormalizeNone && (cell.Type.MapValued() || aggconst.NonNumeric(cell)) {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.PULSE_CROSSTAB_NORMALIZE_MAP_VALUED,
 				"crosstab normalize="+string(spec.NormalizeOrDefault())+
-					" is incompatible with map-valued cell aggregator "+
+					" is incompatible with "+normalizeRefusedWhat(cell)+" cell aggregator "+
 					string(cell.Type),
 				map[string]any{
 					"aggregation": string(cell.Type),

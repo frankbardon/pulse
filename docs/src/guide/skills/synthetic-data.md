@@ -80,12 +80,12 @@ Every field type is reachable. A **vector** (`vec_f32` / `vec_f64`) needs a `vec
 
 ## Determinism contract
 
-Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: [`synth-determinism`](synth-determinism.md).
+Same `(spec, opts.Seed, lookup() tables)` MUST produce a byte-identical `.pulse` file; same `(--input, --seed)` MUST produce a byte-identical profile document. Seed splitting, `Seed == 0`, null-draw order, map-order folds and float fusion: [`synth-determinism`](synth-determinism.md).
 
 ## Gotchas
 
-- `Pulse.Synth` / `Pulse.Profile` use the instance filesystem (`afero.NewMemMapFs()` in hermetic tests).
-- `monotonic_from` counts ACCEPTED rows: no gaps under constraints.
+- `Pulse.Synth` / `Pulse.Profile` use the instance filesystem (`afero.NewMemMapFs()` to test).
+- `monotonic_from` counts ACCEPTED rows: no gaps.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — [`synth-models`](synth-models.md).
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
 

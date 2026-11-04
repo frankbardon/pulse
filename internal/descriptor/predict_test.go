@@ -283,6 +283,10 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// A vector aggregator reads fields, never field.
 			agg.Field, agg.Fields = "", []string{"val"}
 		}
+		if aggType == types.AGG_CONSTANT {
+			// Fieldless: a typed constant from its params.
+			agg.Field, agg.Params = "", json.RawMessage(`{"type":"f64","value":1}`)
+		}
 		req := &types.Request{Aggregations: []*types.Aggregation{agg}}
 		env := predictFromBytes(data, req, nil)
 		if len(env.Errors) != 0 {

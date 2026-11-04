@@ -4,16 +4,16 @@ description: The per-row expression environment shared by the formula attribute 
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef]
+covers: [expression, expr-lang, formula, set-helpers, vector-functions, lookup, range_label, ExprFunctions, coef, response]
 ```
 
 # Expression language
 
-Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps the row). One environment; only null handling differs.
+Two operators evaluate an `expr-lang/expr` string per row: the formula attribute (a new column) and the expression filter (truthy keeps). One environment; nulls differ.
 
 ## Field binding
 
-A field is named bare and binds by schema type:
+Fields bind bare, by schema type:
 
 | Field type | Binds as | Write |
 |---|---|---|
@@ -23,7 +23,7 @@ A field is named bare and binds by schema type:
 | `decimal128` | exact decimal — operators and numeric functions ([`decimal-formulas`](decimal-formulas.md)) | `price / cost > 1.2` |
 | `date` / `datetime` | epoch days / seconds; `weekday` `month_index` `date_trunc` `to_day` ([`calendar-formulas`](calendar-formulas.md)) | `month_index(order_day)` |
 
-Categorical arithmetic errors; branch on the label.
+Categorical arithmetic errors; branch on labels.
 
 ## Operators and functions
 
@@ -50,7 +50,7 @@ A vector is a literal list, `[q1, q2, q3]`; a `nil` element is NaN. A request's 
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
-Maths, `**` included, is machine-independent; a non-finite result is `null` on the wire.
+Maths (`**` too) is machine-independent; non-finite is wire `null`.
 
 ## Null handling
 
@@ -59,7 +59,7 @@ A null field binds `nil`; guard with `x ?? 0` or `x == nil ? a : b`. An unguarde
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is null.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make it UNKNOWN: row dropped.
 
-Compiled once, predict included: bad syntax, unknown name or type error → `PULSE_FORMULA_COMPILE_ERROR` (`details.compile_error`); derived columns are numbers.
+Compiled once, predict included: bad syntax, unknown name or type error → `PULSE_FORMULA_COMPILE_ERROR`; derived columns are numbers.
 
 ## Embedder extensions
 
@@ -67,7 +67,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 
 ## Bound models
 
-`coef(fit, term[, stat])` reads a fit's figure, full precision: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: [`compose-sweep-bind`](compose-sweep-bind.md).
+`coef(fit, term[, stat])` reads a fit's figure: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: [`compose-sweep-bind`](compose-sweep-bind.md); `response(fit, channel, spend)`: [`mmm-workflow`](mmm-workflow.md).
 
 ## Patterns
 
@@ -84,6 +84,7 @@ A formula's result is a scalar (`bool` → `1.0` / `0.0`); a filter's must be `b
 - A formula sees source fields, feature output and EARLIER attribute labels; a filter sees source fields and feature (and previous-state) labels, never another attribute or a window.
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`. Weights, the extra scan, recipes: [`formula-totals`](formula-totals.md).
 - `params.name` reads a request constant (read-only; refusals, Compose / chain inheritance: [`request-params`](request-params.md)).
+- Optimize bounds take scalar expressions, `result(slot, agg)` only there: [`compose-optimize`](compose-optimize.md).
 
 ## See
 

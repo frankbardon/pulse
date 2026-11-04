@@ -343,7 +343,7 @@ func TestComposeSweep_LabelCollisionAllSites(t *testing.T) {
 				t.Fatalf("predict missed the collision: %+v", env.Errors)
 			}
 
-			exp, err := sweep.Expand(c, nil)
+			exp, err := sweep.Expand(c, sweep.Options{}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

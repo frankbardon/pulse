@@ -83,6 +83,7 @@ skills/op-agg-auc.md
 skills/op-agg-average.md
 skills/op-agg-ci-lower.md
 skills/op-agg-ci-upper.md
+skills/op-agg-constant.md
 skills/op-agg-count.md
 skills/op-agg-distinct-count.md
 skills/op-agg-distinct-sum.md

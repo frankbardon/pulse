@@ -31,7 +31,9 @@ func TestOptBlock_ImportBoundary(t *testing.T) {
 		modulePrefix + "/internal/model":          true,
 		modulePrefix + "/internal/model/coefcall": true,
 		modulePrefix + "/internal/regresample":    true,
+		modulePrefix + "/internal/scalarslot":     true,
 		modulePrefix + "/internal/tablecall":      true,
+		modulePrefix + "/internal/resultcall":     true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {

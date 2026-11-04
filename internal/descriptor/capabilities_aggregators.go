@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -841,6 +842,43 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			descriptor.ComponentKey{Name: "element_m2", Type: "[]float64", Description: "AGG_VEC_SD: per member, M2 = sum(w*(x - mean)^2) over contributing rows. Partials combine by Chan's rule per merge block in a fixed tree, bit-identical for any worker count."},
 			descriptor.ComponentKey{Name: "element_sum_weights_sq", Type: "[]float64", Description: "AGG_VEC_SD, weighted slot only: per member, sum(w^2) over contributing rows — Kish n_eff = sum(w)^2 / sum(w^2), the sample size under kind probability.", Optional: true},
 		),
+		constantCapability(),
+	}
+}
+
+// constantCapability declares AGG_CONSTANT: fieldless (no accepted
+// types, the slot names no column), params read by internal/aggconst,
+// the universal floor only (every record reaching the slot is n).
+func constantCapability() descriptor.Operator {
+	return descriptor.Operator{
+		Name:     string(types.AGG_CONSTANT),
+		Category: "aggregator",
+		Description: "Emits one typed constant, the same in every row, group, crosstab cell and margin — instead of a formula that only puts a constant into results. " +
+			"The slot names no field, vector or fields (field_not_accepted) and needs a label (label_missing). " +
+			"Set exactly one of params.value and params.expr. Refusals are PROCESSING_CONFIG details.reason. Takes no weight: a slot weight is refused.",
+		Params: []descriptor.Param{
+			{
+				Name: aggconst.ParamType, Type: "enum", Required: true, EnumValues: allCohortFieldTypes,
+				Description: "The constant's field type: one of the 22 field-type names. The wire value is what the existing aggregators write for that type.",
+			},
+			{
+				Name: aggconst.ParamValue, Type: "any", ExactlyOneOf: "constant",
+				Description: "A literal judged against type (value_invalid): an integer in range for u4..u64 (u64 at most 2^53), a finite number for f32 / f64, true / false for packed_bool, " +
+					"\"YYYY-MM-DD\" for date (emits epoch days), an RFC 3339 instant with a zone offset for datetime (emits epoch seconds), an exact decimal string for decimal128 (emitted at its own scale), " +
+					"a label for categorical_*, a list of distinct member labels for set_* (free labels, no dictionary), 2 to 1024 finite numbers for vec_*. null emits null. Never an expression.",
+			},
+			{
+				Name: aggconst.ParamExpr, Type: "string", ExactlyOneOf: "constant",
+				Description: "A scalar expression evaluated once before the run — literals, params.<name>, coef() / sweep_axis() / response() over bound models, lookup(), range_label(), the built-ins — " +
+					"for a u4..u64, f32, f64, packed_bool (0 or 1), date (epoch day) or datetime (epoch second) type only (expr_type_unsupported otherwise). " +
+					"Its number must fit the type (expr_out_of_range); an integer type needs an exact integer. Predict lists one calling a model or table function under unresolved_scalars.",
+			},
+		},
+		ForbidsField:    true,
+		AcceptsTypes:    []string{},
+		EmitsTypeNote:   "params.type's value: a number (numeric types, packed_bool 0/1, date epoch days, datetime epoch seconds), a decimal string, a label, a label list or a number array; null for value null",
+		Streamable:      true,
+		ComponentSchema: aggSchema(descriptor.Mergeable),
 	}
 }
 

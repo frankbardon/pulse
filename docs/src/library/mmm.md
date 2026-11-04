@@ -89,7 +89,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
     "name": "allocation", "direction": "maximize", "starts": 8,
     "variables": [{"name": "tv", "lower": "params.lo_tv", "upper": "params.hi_tv", "start": "params.mean_tv"},
                   {"...": "one per channel"}],
-    "objective": "coef(\"mmm\", \"tv_ad\") * hill((1 - sweep_axis(\"mmm\", \"tv\") ^ 14) / (1 - sweep_axis(\"mmm\", \"tv\")) * tv, coef(\"mmm\", \"k:tv_ad\"), coef(\"mmm\", \"s:tv_ad\")) + ...",
+    "objective": "response(\"mmm\", \"tv_ad\", tv) + ...",
     "constraints": [{"expr": "tv + search - params.budget", "type": "eq"}]
   }]
 }
@@ -98,7 +98,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
 - **The sweep** is an `lhs` search with one decay axis per channel, each a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep the maximum below 1). Each slot is one `WIN_DISTRIBUTED_LAG` per channel and one `REG_MMM_HILL` with a `holdout`, ranked by holdout RMSE. Use enough samples for the number of channels: the space grows with every axis, so check that the best slots agree on the decays before trusting one winner. The winning decays are `ranking[0].axes`, as typed numbers.
 - **The bound fit** `fits[].from_sweep` refits the winning slot's regression, holdout kept, under the name `mmm`. Explicit slots and `optimize` read it with `coef("mmm", …)` (see the Compose sweeps page).
 - **The contribution slot** cannot set a window's `decay` from the winner, because window params are literals. Instead it rebuilds each adstock: one `WIN_LAG` item fanned out with `for_each` over channel × lag `1..max_lag` (missing history is `0`), then a formula `x + d·(x_l1 + d·(x_l2 + …))` with `d = sweep_axis("mmm", "<channel>")`. That is the same sum `WIN_DISTRIBUTED_LAG` computes, so the result matches it to rounding. A contribution is `coef · hill(adstock, k, s)`.
-- **The optimize block** maximises the summed curves at steady state. The multiplier for a constant weekly spend of 1 is `(1 − d^L) / (1 − d)` with `L = max_lag + 1`, read from `sweep_axis`. It runs under `sum(spend) = budget`, each channel bounded (say 0.5 to 1.5 × current). Current spend, bounds and budget are the caller's figures in `params`.
+- **The optimize block** maximises the summed curves at steady state, each `response("mmm", "<channel>", spend)` (below). It runs under `sum(spend) = budget`, each channel bounded (say 0.5 to 1.5 × current). Budget and shares are the caller's figures in `params`; current spend can come from the data instead: add an ungrouped slot `current` summing each channel's spend, and write the bounds `"result(\"current\", \"tv\") * params.lower_share"`. The slot runs once, before the block, and keeps its place in `responses`.
 - **Slots.** `MaxComposeSlots` counts the sweep's samples plus the explicit slots, so 2,000 samples and the contribution slot need 2,001. Raise `Options.Limits.MaxComposeSlots`, or pass `pulse --limit max_compose_slots=2001 api compose --request mmm.json --json` on the CLI.
 
 The batch runs the sweep slots first, then the rank, the bound fit, `optimize` and the contribution slot. Responses keep index order, so the contribution slot comes first. Serial and parallel runs give the same bytes. A pinned `rng_seed` (or the echoed `sweep_seed`) replays the draws.
@@ -106,6 +106,28 @@ The batch runs the sweep slots first, then the rank, the bound fit, `optimize` a
 At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`.
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
+
+**Adstock lineage.** A fit records how each channel was adstocked, so a later reader never guesses a decay or `max_lag`. A `REG_MMM_HILL` channel that is the output of exactly one `WIN_DISTRIBUTED_LAG` records that window's resolved params (`kernel`, `decay` or `shape` + `scale`, `max_lag`, `normalize`). A decay written as `sweep_axis()` or `params.d` is recorded as the number the window read. A `REG_MMM_BAYES` channel records a geometric kernel at its `decay:<channel>` posterior mean over the fit's `max_lag`, unnormalised. A channel built any other way (`WIN_LAG` items and a formula, a feature) gets no record. The record lives on the bound fit, and a `save` writes it as the model file's `adstock` feature.
+
+**Steady-state response.** `response(fit, channel, spend)` is the channel's contribution once a constant spend has run long enough to fill the adstock window: `beta · hill(m · spend, k, s)`. `beta`, `k` and `s` are the fit's `<channel>`, `k:<channel>` and `s:<channel>` coefficients (a `REG_MMM_BAYES` fit's posterior means). `m` is the sum of the channel's adstock kernel weights over lags `0..max_lag`, the level a constant spend of 1 settles to: `(1 − d^(max_lag+1)) / (1 − d)` for an unnormalised geometric kernel, 1 for any normalised kernel, the plain sum for a Weibull one. It reads the fit's adstock record and never a default, so it replaces the hand-written `coef · hill(m · x, k, s)` algebra and its copied decay. A channel with no record is `PULSE_MODEL_TERM_UNKNOWN` with `details.reason: "adstock_unknown"`, `details.channel` and the channels that have one under `details.channels`. Predict raises it for a call whose fit and channel are literals, except on a `from_sweep` fit: its record comes from the winning slot, so the run judges it. It works on in-request, saved, loaded and inline models, in `optimize` objectives, constraints and bounds and in formulas and filters. `response` is reserved: an embedder function of that name is `PULSE_EXTENSION_NAME_RESERVED`.
+
+## An inline truth model
+
+A synthetic cohort comes with the curve that generated it. Declare that truth as an inline `models` entry, then run the same `optimize` objective over the fit in one block and over the truth in another. No file is needed, and the fit's allocation can be compared with the true optimum:
+
+```json
+"models": [{"name": "truth", "inline": {
+  "model_format_version": 1, "type": "REG_MMM_HILL", "target": "sales",
+  "predictors": ["tv_ad", "price"], "terms": ["tv_ad", "price"],
+  "coefficients": {"(intercept)": 100, "tv_ad": "params.beta_tv",
+                   "k:tv_ad": "params.k_tv", "s:tv_ad": 1.5, "price": -2}}}]
+```
+
+- **The body.** It is the model-file document (`model_format_version` 1 plus `features`, as a `save` writes). A number in it may be a scalar expression over literals and `params.<name>`. It cannot call `coef()`, `sweep_axis()`, `response()`, `lookup()` or an embedder function, so one model never reads another and predict knows every value. `+Inf` / `-Inf` stay literals.
+- **Types and terms.** The type is `REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`, `REG_MMM_HILL` or `REG_MMM_BAYES`. The coefficients name exactly the terms the type reports. That is `(intercept)` and every predictor, plus, for a media-mix model, `k:` / `s:` (Bayes: `decay:` too, and `sigma`) for every channel. A channel is any predictor with a curve coefficient. A stray name is `PULSE_MODEL_REF_INVALID` `inline_term_unknown`, an absent one `inline_term_missing`, another type `inline_type_unsupported`.
+- **What reads it.** `coef()` reads it, and so does `sweep_axis()` when the body carries `sweep_axes` (feature `sweep_axes`): `"features": ["sweep_axes"], "sweep_axes": {"tv": 0.6}`. It takes the one model namespace, so a name a fit or another entry binds is `PULSE_MODEL_NAME_COLLISION`. Nothing scores it. `ATTR_REG_PREDICT` or a `params.fit` attribute naming it is `PULSE_MODEL_SCORE_INVALID` `inline_not_scorable`.
+- **Adstock.** The body may declare its channels' adstock as a model file does: `"features": ["adstock"], "adstock": {"tv_ad": {"kernel": "geometric", "decay": "params.d_tv", "max_lag": 8, "normalize": true}}`. Its `decay`, `shape`, `scale` and `max_lag` are inline numbers too. Each key must be a channel, and each record a kernel `WIN_DISTRIBUTED_LAG` accepts. `response()` reads it, so one objective serves the fit and the truth.
+- **Exactly one** of `path` / `inline` per entry (`path_and_inline`). A bad number is `inline_invalid` / `inline_not_numeric` / `inline_not_finite` / `inline_not_integer` (`n_obs`), with its key path under `details.field`. A params refusal keeps its own code. Predict refuses every one of these with the runtime's code, message and details.
 
 ## Contribution by quarter
 

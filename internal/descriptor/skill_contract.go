@@ -352,7 +352,12 @@ var knownScalarTypes = func() []encoding.FieldType {
 // manifest's own claim, with no refusal code.
 func operatorContractTypes(op descriptor.Operator) []contractTypes {
 	if op.ForbidsField {
-		return []contractTypes{{label: "Types", admit: "reads no field; naming one is `" + string(errors.PULSE_WINDOW_INVALID) + "`"}}
+		code := errors.PULSE_WINDOW_INVALID
+		if op.Category == "aggregator" {
+			// AGG_CONSTANT: internal/aggconst's field_not_accepted.
+			code = errors.PROCESSING_CONFIG
+		}
+		return []contractTypes{{label: "Types", admit: "reads no field; naming one is `" + string(code) + "`"}}
 	}
 	out := tabledContractTypes(op.Name)
 	switch {

@@ -20,6 +20,9 @@ var measureAggregations = []types.AggregationType{
 	types.AGG_SET_INTERSECTION, types.AGG_SET_UNION, types.AGG_SKEWNESS, types.AGG_STDDEV,
 	types.AGG_SUM, types.AGG_VARIANCE, types.AGG_WEIGHTED_MEAN, types.AGG_WELFORD, types.AGG_ZSCORE,
 	types.AGG_VEC_MEAN, types.AGG_VEC_SUM, types.AGG_VEC_SD,
+	// AGG_CONSTANT rounds like the aggregators whose wire value it
+	// matches (AGG_MIN on the same type).
+	types.AGG_CONSTANT,
 }
 
 // wantCountSemantic is the exact count registry: dropping an entry (so

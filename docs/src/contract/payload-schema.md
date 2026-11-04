@@ -125,7 +125,17 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   attributes: [{index, label, depends_on, window_reads}]}` — on Process
   predict and per Compose slot, additive `omitempty`, absent without a
   window): the post-window plan, which attributes run after the windows,
-  by index.
+  by index. So is `unresolved_scalars` (`[{path, expression, reads}]` —
+  on Process predict and Compose predict, additive `omitempty`): every
+  scalar-expression slot predict could not compute because it calls
+  `coef()`, `sweep_axis()`, `lookup()`, `range_label()` or an embedder
+  function — an optimize bound, or a `WIN_DISTRIBUTED_LAG` decay /
+  shape / scale / max_lag or `WIN_EWMA` alpha / decay window param
+  (`windows[0].params.decay`, under `requests[i].` / `fits[i].request.`
+  in a batch), or an embedder extension operator's number param its
+  registration declares expression-capable (`aggregations[0].params.scale`;
+  the manifest marks it `expression`). Those params take a number or an
+  expression string; a slot's `params` object stays open in this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
@@ -1429,6 +1439,22 @@ compared to nothing. Every figure is copied from its slot; undefined
 figures are `null`. `banner` is pinned outside the Compose-level
 `return`: always emitted, never rounded.
 
+### Compose base
+
+`ComposedRequest.base` is an `omitempty` typed `Request` (no `label`)
+merged into every explicit `requests` entry before the sweep and banner
+expansion and the top-level `params` inheritance — never into the sweep
+body, a banner slot or a fit request. A key the slot leaves unset takes
+the base's, `params` merge key-wise with the slot's key winning, and
+every list carries the base items first, then the slot's own; base items
+may carry `for_each`, expanded per slot after the merge. A base item
+whose `label` / `name` / `as` equals one of the slot's own in the same
+list, or a base that sets `label`, is `PULSE_COMPOSE_BASE_COLLISION`
+(`details.reason` `label_collision` / `base_label`). The normalized
+request echoes the merged slots and no `base`. A base-free request is
+byte-identical on the wire, and the slot is gated by
+`capability:compose_base` (hidden: the `base` property is absent).
+
 ### Compose fits
 
 `ComposedRequest.fits` is an `omitempty` array of `FitSpec {name,
@@ -1494,8 +1520,10 @@ and must be the same in every sweep slot. A malformed binding is
 `PULSE_FIT_INVALID` with `details.fit` and `details.reason`
 `from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
 `from_sweep_regression_unknown` (`details.regression`, `available`),
-`from_sweep_signature_varies` or `from_sweep_cycle` (a sweep slot reads
-the fit; both with `details.slot`, the 0-based sweep index), judged
+`from_sweep_signature_varies`, `from_sweep_cycle` (a sweep slot reads
+the fit) or `from_sweep_window_cycle` (a sweep slot's window reads it in
+a scalar param, `details.window` and `details.param`; all three with
+`details.slot`, the 0-based sweep index), judged
 before anything runs, identically by predict and the runtime. The key is
 gated by `capability:compose_sweep_bind` (dependencies
 `capability:compose_sweep` AND `capability:compose_fits`); predict's fit
@@ -1507,9 +1535,18 @@ summary echoes it as `from_sweep`.
 {name, variables, objective, direction, constraints, starts, rng_seed,
 tolerance, max_iterations}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
-upper, start}`, each bound an `OptimizeBound` — a number or
-`"params.<name>"` naming a numeric batch param (`start` optional; the
-midpoint when absent). `objective` and every `constraints[i].expr`
+upper, start}`, each bound an `OptimizeBound` — a number or a
+scalar expression string read once before the solve (literals,
+`params.<name>`, `coef()` / `sweep_axis()` / `response()` over the batch
+fits and the block's `models`, `result(slot, aggregation)` over an
+ungrouped Compose slot, `lookup()` and the built-ins; no variable, no
+record field), `"params.<name>"` the simplest, yielding a finite number
+(`start` optional; the midpoint when absent). A slot `result()` reads
+runs once, after the fits and before the blocks, keeping its place in
+`responses`; a bad reference (incl. an aggregation that writes no
+single number) is `PULSE_RESULT_INVALID`, and a failed read slot fails
+the batch before any block, its error naming the slot
+(`details.result_slot`, or `result_slots` on a non-fail-fast aggregate). `objective` and every `constraints[i].expr`
 (type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
 variables, `params.<name>`, `coef()` over the batch's `fits` and the
 built-ins; `direction` is `maximize` or `minimize` (required); `starts`
@@ -1538,7 +1575,11 @@ equals every free variable's `marginal`), `starts_agreeing` the
 converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots are gated by
 `capability:compose_optimize`. `pulse_predict` with `composed` lists the
 blocks as `optimize [{name, direction, variables, constraints, starts,
-rng_seed}]` on the predict result (not payload-reachable).
+rng_seed}]` on the predict result (not payload-reachable), and every
+bound or start whose expression calls a request-bound function under
+`unresolved_scalars [{path, expression, reads}]` — not statically
+resolved, so its range checks run at runtime; a bound over literals and
+params is range-checked by predict and never listed.
 
 ### Compose comparisons
 
@@ -1583,15 +1624,15 @@ request, result or public type: no fit's bytes move. Long form:
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,
 relative to the instance filesystem root, where the finished fit is
-written as a model file (`model_format_version` 1, or 2 — adding the
-`covariance` echo — when a robust covariance produced the fit's standard
-errors, or 3 — adding the fit's `outputs`, its coefficients named by the
-model — for an extension regression whose registration supplies a
-scorer, or 4 — adding the fit's `dispersion` — for a classical `vcov`
-fit that carries one, or 5 — adding the fit's `theta` — for a `REG_GLM`
-`negative_binomial` fit, or 6 — `theta` and `dispersion` — for a fixed-θ
-`negative_binomial` fit whose dispersion is estimated; `.pulse-model.json`;
-the format is in `.claude/reference/byte-layout.md`, "Model file"). The
+written as a model file (`model_format_version` 1 plus a `features`
+list naming exactly the optional sections it carries: `robust_covariance`
+— the `covariance` echo — when a robust covariance produced the fit's
+standard errors, `outputs` — its coefficients named by the model — for an
+extension regression whose registration supplies a scorer, `dispersion`
+for a classical `vcov` fit that carries one, `theta` for a `REG_GLM`
+`negative_binomial` fit; versions 2 to 6 of earlier builds are refused
+with a re-save message; `.pulse-model.json`; the format is in
+`.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`
 or `details.fit`, refused by predict and the runtime alike before any
@@ -1625,7 +1666,7 @@ under the fit's name with the same overwrite warning (format:
 ### Loading models (`models`)
 
 `Request.models` and `FacetRequest.models` are `omitempty` arrays of
-`ModelRef {name, path}`: each loads a model file a `save` wrote, under
+`ModelRef {name, path, inline}`: each loads a model file a `save` wrote, under
 `name`, into the namespace a Compose `fits` list binds, so
 `ATTR_REG_PREDICT` `fit` and `coef()` resolve a loaded name exactly like
 a fit (bit-for-bit the same scores). The path's suffix picks the kind: a
@@ -1647,6 +1688,24 @@ frame). Provenance is informational: a model fit on one cohort scores any
 cohort holding its predictor columns. A fit request's own `models` are
 all it sees (fits run before the batch binds); each chain stage loads its
 own. Gated by `capability:models`; `format_version` stays `"1.1"`.
+
+An entry sets exactly one of `path` and `inline` (both is
+`PULSE_MODEL_REF_INVALID` `path_and_inline`, neither `path_empty`).
+`inline` declares a coefficient-only model in the request: the
+model-file document itself, judged by the same codec as a file (an
+inline refusal carries `details.inline: true` and no `path`). Any number
+in it (`coefficients`, `std_errors`, `ci_lower`, `ci_upper` values, `df`,
+`conf_level`, `dispersion`, `theta`, `n_obs`, `sum_weights`, `n_eff`,
+`vcov.values`) may be a scalar expression string over literals and
+`params.<name>` — no request-bound function — resolved before anything
+runs, so predict resolves it too (`inline_invalid` /
+`inline_not_numeric` / `inline_not_finite` / `inline_not_integer`,
+`details.field`). Types `REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`,
+`REG_MMM_HILL`, `REG_MMM_BAYES` (`inline_type_unsupported`); the
+coefficients name exactly the terms the type reports
+(`inline_term_unknown` / `inline_term_missing`). `coef()` and
+`sweep_axis()` read it; a scoring reference is `PULSE_MODEL_SCORE_INVALID`
+`inline_not_scorable`.
 
 ### Loading populations (`populations`)
 
@@ -1678,8 +1737,14 @@ and labels.
 
 ### Item fan-out (`for_each`)
 
-`Window`, `Feature` and `Attribute` each carry an optional `for_each`
-(`ForEach {axes, mode}` — the sweep's `SweepAxis` list and `SweepMode`).
+`Window`, `Feature`, `Attribute`, `Aggregation` and `MatrixSpec` each
+carry an optional `for_each` (`ForEach {axes, mode}` — the sweep's
+`SweepAxis` list and `SweepMode`). Aggregations and matrices expand
+after the windows, so an aggregation may read a column a window
+fan-out adds; only a `Request.aggregations` item fans out (on a
+crosstab or banner cell the key is refused, reason
+`position_unsupported`), and each rendered matrix needs its own
+`name`.
 Before any other check the item is replaced IN PLACE by one ordinary
 item per axis combination (grid: first axis slowest; zip: lockstep),
 each rendered from the item's own body with the sweep substitution —
@@ -1688,7 +1753,8 @@ expression slot it is `PULSE_FOR_EACH_EXPR_SPLICE`), `{"$var":
 "axis"}` as a whole value inside `params` (opaque JSON; a typed
 non-string key cannot hold the marker) — and decoded strictly. Plain
 items are untouched, so a list may mix both, and no response shape
-changes: each expanded item produces its own column. The key is
+changes: each expanded item produces its own column (or aggregation,
+or matrix result). The key is
 `omitempty`, so a for_each-free request is byte-identical on the wire
 and under `CanonicalHash`. It is gated by `capability:for_each`: on an
 instance that hides it the `for_each` properties and the `ForEach` def
@@ -1697,10 +1763,34 @@ malformed for_each is `PULSE_FOR_EACH_INVALID` with `details.field` (a
 request-rooted path such as `windows[0].for_each.axes[1]`) and
 `details.reason`; a `for_each` inside a sweep body is refused with
 reason `nested_in_sweep`. `Limits.MaxDerivedColumns` (default 1,000)
-bounds plain plus expanded window, feature and attribute items, checked
-before any item renders. Predict reports each fan-out as `for_each
+bounds plain plus expanded window, feature and attribute items and
+`Limits.MaxExpandedItems` (default 1,000) the aggregations and matrices
+a `for_each` adds (plain ones never count), both checked before any
+item renders. Predict reports each fan-out as `for_each
 [{path, axes, mode, expanded_count}]` on the predict result (not
-payload-reachable, so not in this schema).
+payload-reachable, so not in this schema; a Compose predict lists the
+optimize blocks' `optimize[i]`, then each slot's `requests[i].<path>`,
+then each fit request's `fits[i].request.<path>`).
+
+A Compose `OptimizeSpec` carries the same optional `for_each`: the
+block fans out right after the `base` merge, before the optimize rules
+and `MaxComposeSlots`, its `name` must carry an `{{axis}}` (reason
+`name_without_axis`), and the blocks it adds count toward
+`Limits.MaxExpandedItems` once per call. Any typed scalar of a
+fanned-out block (a bound, `starts`, a constraint `expr`) may be a whole
+`{"$var": "axis"}` value, and this schema admits it there:
+`$defs.OptimizeSpec` lets every scalar of the block — its own and its
+variables', constraints' and models' — be `$defs.VarMarker` (an object
+with the one string key `$var`); `for_each`, the arrays themselves and
+their entries never take one, and the runtime and predict refuse a
+marker there too (`PULSE_FOR_EACH_INVALID` reason `marker_position`),
+so schema and runtime agree. A model's `inline` body is free-form and
+takes one anywhere. The marker is valid only in a block that carries
+`for_each`: an `if` (no `for_each`) / `then` re-applies the strict
+property shapes, as the runtime refuses a marker there at decode. The
+MCP `pulse_compose` input schema admits the marker at the same paths.
+On an instance hiding `capability:for_each` neither the marker nor the
+`VarMarker` def appears.
 
 ## Undefined figures
 

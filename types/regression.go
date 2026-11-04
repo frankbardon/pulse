@@ -382,8 +382,9 @@ type RegressionSpec struct {
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// Save writes the finished fit as a model file (model_format_version
-	// 1, or 2 when a robust Covariance produced its standard errors;
-	// `.pulse-model.json`) at this path on the instance filesystem,
+	// 1 plus a `features` list naming its optional sections, e.g.
+	// robust_covariance when a robust Covariance produced its standard
+	// errors; `.pulse-model.json`) at this path on the instance filesystem,
 	// relative to its root, atomically (temp + fsync + rename; parent
 	// directories are created). Overwriting an existing file succeeds
 	// with the PULSE_MODEL_OVERWRITTEN warning. The path must end in

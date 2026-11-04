@@ -301,7 +301,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	// any item renders); everything below judges the expanded request,
 	// while PredictResult.Request stays as written.
 	written := req
-	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits())
+	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits(), opts.instance().SweepOptions())
 	if xerr != nil {
 		// The items did not expand: the plan indexes the request as
 		// written.
@@ -570,6 +570,9 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// the runtime's operator construction makes). Shared with every
 	// Compose slot and fit request (validateComposeRequest).
 	validateRequestBody(env, req, schema, opts, werr)
+	// The scalar window params the body's static pass left to the
+	// runtime (validateWindows judged the rest).
+	result.UnresolvedScalars = requestUnresolved(req, opts, "")
 
 	// Populate the predict surface from req.Overlays. One descriptor per
 	// spec in matching order; OverlayCost is a per-kind multiplier keyed
@@ -698,6 +701,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	validateOperatorTypes(env, req, schema)
 	validateRegisteredOperators(env, req, opts)
 	validateAggregationParams(env, req, opts.instance())
+	validateConstantSlots(env, req, opts)
 	validateGroupDateParams(env, req, schema, opts.instance())
 	validateRangeOperatorParams(env, req, opts.instance())
 	validateGroupFitParams(env, req, opts.instance())
@@ -726,6 +730,10 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
+
+	// The expression-capable extension params (internal/extscalar —
+	// the pass the engine runs before any extension factory).
+	validateExtensionScalars(env, req, opts)
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.

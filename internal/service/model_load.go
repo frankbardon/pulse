@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/scalarslot"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
 
@@ -104,7 +105,7 @@ func (s *Service) loadModelFiles(refs model.Refs) (*model.Loaded, error) {
 // file's model rebuilds) — predict's loadModelFiles runs the same
 // three.
 func (s *Service) loadFiles(refs model.Refs) (*model.Loaded, error) {
-	loaded, cerr := model.LoadFiles(refs, s.ReadModelFile)
+	loaded, cerr := model.LoadFiles(refs, s.ReadModelFile, scalarslot.InlineNumber)
 	if cerr != nil {
 		return nil, cerr
 	}

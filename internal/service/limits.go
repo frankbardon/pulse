@@ -131,6 +131,18 @@ func (s *Service) CohortCounts(ctx context.Context, path string) (descx.CohortCo
 	return s.cohortCounts(ctx, cohort, path)
 }
 
+// composeOptimizePreflight refuses a Compose call whose optimize-block
+// for_each fan-outs add more than MaxExpandedItems blocks
+// (sweep.OptimizeExpandedCount), before any block renders —
+// banner.ExpandCompose calls it right after the base merge; predict's
+// composeOptimizePreflight is its twin.
+func (s *Service) composeOptimizePreflight(expanded int) error {
+	if err := limits.CheckExpandedItems(s.Limits(), expanded); err != nil {
+		return err
+	}
+	return nil
+}
+
 // composeSlotsPreflight refuses a Compose call carrying more than
 // MaxComposeSlots slots — explicit plus sweep-expanded — the whole call,
 // before any slot runs (FailFast does not apply). sweep.Expand calls it
