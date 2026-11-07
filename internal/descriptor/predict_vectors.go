@@ -19,12 +19,12 @@ import (
 // refused vector is reported by the field-reference pass, so nothing is
 // echoed for it. models is the request's bound-model catalog (the
 // walk's; nil none).
-func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool, models model.Catalog) {
+func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool, cls vectors.Classifier) {
 	if req == nil {
 		return
 	}
 	if len(req.Vectors) > 0 {
-		resolved, err := vectors.ResolveRequest(req, schema, models)
+		resolved, err := vectors.ResolveRequest(req, schema, cls)
 		if err != nil {
 			return
 		}
@@ -65,7 +65,7 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	}
 	// Resolve also yields the schema's native vector fields (nil, nil
 	// when there are no vectors at all).
-	resolved, _ := vectors.ResolveRequest(req, schema, models)
+	resolved, _ := vectors.ResolveRequest(req, schema, classifierOf(snap, models))
 	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
@@ -83,11 +83,11 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 // resolve is judged without them (the field-reference pass reports
 // that); any other argument is unknown and never refused. models is
 // the request's bound-model catalog (nil none).
-func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, models model.Catalog) {
+func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, cls vectors.Classifier) {
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
-	resolved, _ := vectors.ResolveRequest(req, schema, models)
+	resolved, _ := vectors.ResolveRequest(req, schema, cls)
 	for _, ce := range vectors.StaticIssues(req, schema, resolved) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}

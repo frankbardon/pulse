@@ -86,18 +86,18 @@ func (p *Processor) copyWindowMembers(req *types.Request, post vectors.PostWindo
 // groupers and crosstab read (vectors.WindowsFirstReads); nil when none. The first two read vectors.ComputedColumns, the one
 // record-column model of a window label.
 func (p *Processor) windowRecordColumns(req *types.Request, post vectors.PostWindow) []windowRecordColumn {
-	cat := p.catalog()
-	comp := vectors.ComputedColumns(req, p.schema, cat)
+	cls := p.classifier()
+	comp := vectors.ComputedColumns(req, p.schema, cls)
 	var out []windowRecordColumn
 	seen := map[string]bool{}
-	for _, m := range vectors.MatrixComputedMembers(req, p.schema, cat) {
+	for _, m := range vectors.MatrixComputedMembers(req, p.schema, cls) {
 		if comp[m].Slot == "window" && !seen[m] {
 			seen[m] = true
 			out = append(out, windowRecordColumn{label: m, consumer: "matrix"})
 		}
 	}
 	if p.compute.Regressions {
-		for _, l := range vectors.RegressionWindowReads(req, p.schema, cat) {
+		for _, l := range vectors.RegressionWindowReads(req, p.schema, cls) {
 			if !seen[l] {
 				seen[l] = true
 				out = append(out, windowRecordColumn{label: l, consumer: "regression"})
@@ -111,7 +111,7 @@ func (p *Processor) windowRecordColumns(req *types.Request, post vectors.PostWin
 		}
 	}
 	if post.WindowsFirst {
-		for _, l := range vectors.WindowsFirstReads(req, p.schema) {
+		for _, l := range vectors.WindowsFirstReads(req, p.schema, cls) {
 			if !seen[l] {
 				seen[l] = true
 				out = append(out, windowRecordColumn{label: l, consumer: "aggregation"})

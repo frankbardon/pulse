@@ -134,7 +134,7 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 			c.vecNames[v.Name] = true
 		}
 	}
-	vecs, err := vectors.ResolveRequest(req, schema, w.models)
+	vecs, err := vectors.ResolveRequest(req, schema, classifierOf(w.snap, w.models))
 	c.vecs, c.vecsFailed = vecs, err != nil
 	// range_label is declared on every runtime compile (its unknown
 	// table is a run-time refusal), so predict declares it too.

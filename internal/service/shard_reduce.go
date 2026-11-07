@@ -573,7 +573,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
+	vecs := processing.ExprVectors(req, schema, s.extensions.Classifier(catalogOf(model.SetFrom(ctx))))
 	filterFns, err := processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 	if err != nil {
 		return nil, err
@@ -1044,7 +1044,7 @@ func boundAttributes(req *types.Request, schema *encoding.Schema, exts *processi
 	if len(req.Attributes) == 0 {
 		return nil, nil
 	}
-	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema, catalogOf(models)), nil, compute)
+	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema, exts.Classifier(catalogOf(models))), nil, compute)
 }
 
 // mergePartitionAttributes folds src's attribute slots into dst's, slot

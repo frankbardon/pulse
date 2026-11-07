@@ -6,10 +6,12 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/extscalar"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -187,6 +189,43 @@ func (s *ExtensionsSnapshot) DeclaredFieldInputs(category, name string, raw json
 		}
 	}()
 	return fn(raw), true
+}
+
+// ColumnReads is the snapshot's vectors.ExtInputs — predict's twin of
+// the runtime's processing.ExtensionRegistry.ColumnReads: the
+// registration's FieldInputs hook (DeclaredFieldInputs, a panic
+// declaring nothing) over params whose expression-capable entries
+// written as an expression are replaced by the number 0
+// (extscalar.StandIns, the runtime's FieldInputsFor stand-in), so the
+// windows-first classification hands the hook the same params on both
+// sides. Nil when the snapshot carries no hook, so an extension-free
+// predict classifies at no cost. Nil-safe.
+func (s *ExtensionsSnapshot) ColumnReads() vectors.ExtInputs {
+	if s == nil || len(s.FieldInputs) == 0 {
+		return nil
+	}
+	keys := snapshotScalarKeys(s)
+	return func(category, name string, raw json.RawMessage) []string {
+		names, _ := s.DeclaredFieldInputs(category, name, extscalar.StandIns(raw, keys[paramread.Key{Category: paramread.Category(category), Op: name}]))
+		return names
+	}
+}
+
+// classifierOf is the windows-first classifier of a predict site over
+// the bound models (nil: none) and the extension snapshot snap (nil:
+// none): the runtime's processing.ExtensionRegistry.Classifier twin.
+func classifierOf(snap *ExtensionsSnapshot, models model.Catalog) vectors.Classifier {
+	return vectors.Classifier{Cat: models, Ext: snap.ColumnReads()}
+}
+
+// classifier is classifierOf over the options' extension snapshot (the
+// instance's when the options carry none). Nil-receiver-safe.
+func (o *PredictOptions) classifier(models model.Catalog) vectors.Classifier {
+	snap := extensionsFromOpts(o)
+	if snap == nil {
+		snap = o.instance().Extensions()
+	}
+	return classifierOf(snap, models)
 }
 
 // emptyExtensionsManifest returns a fully-populated ExtensionsManifest

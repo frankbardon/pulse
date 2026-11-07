@@ -633,7 +633,7 @@ var (
 // resolution fails (the field-reference pass has refused that
 // request). The caller's request is never mutated.
 func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
-	return vectors.RewriteGroupInputs(req, p.schema, p.catalog(), func(t types.GroupType) types.GroupType {
+	return vectors.RewriteGroupInputs(req, p.schema, p.classifier(), func(t types.GroupType) types.GroupType {
 		if p.exts.isHidden(string(t)) {
 			return ""
 		}

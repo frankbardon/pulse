@@ -122,18 +122,19 @@ func prepareExtensionSpecs(req *types.Request, schema *encoding.Schema, opts *Pr
 		}
 		return func(name string) bool { return snapshotHasName(metas(snap), name) }
 	}
-	r = vectors.RewriteAttributeInputs(r, schema, models, func(t types.AttributeType) types.AttributeType {
+	cls := classifierOf(snap, models)
+	r = vectors.RewriteAttributeInputs(r, schema, cls, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
 	}, named(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }))
-	r = vectors.RewriteGroupInputs(r, schema, models, func(t types.GroupType) types.GroupType {
+	r = vectors.RewriteGroupInputs(r, schema, cls, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, named(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers }))
-	r = vectors.RewriteAggregationInputs(r, schema, models, aggregationKinds(inst, snap))
+	r = vectors.RewriteAggregationInputs(r, schema, cls, aggregationKinds(inst, snap))
 	view.req = r
 
 	// 4. What the per-slot rewrites read.
 	if len(r.Tests) > 0 {
-		if inputs, err := vectors.ResolveTests(r, schema, models, func(t types.TestType) types.TestType {
+		if inputs, err := vectors.ResolveTests(r, schema, cls, func(t types.TestType) types.TestType {
 			return opRoute(inst, t)
 		}, named(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); err == nil {
 			view.tests = inputs

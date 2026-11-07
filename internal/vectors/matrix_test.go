@@ -173,12 +173,12 @@ func TestMatrixMembers_InlineFields(t *testing.T) {
 		{Type: types.MAT_COVARIANCE, Fields: []string{"q_*"}},
 		{Type: types.MAT_COVARIANCE, Vector: "v"},
 	}}
-	got, ok := MatrixMembers(req, testSchema(), nil)
+	got, ok := MatrixMembers(req, testSchema(), Classifier{})
 	if !ok || !slices.Equal(got, []string{"q_3", "q_1", "q_2"}) {
 		t.Errorf("MatrixMembers = %v %v", got, ok)
 	}
 	req.Matrices[0].Fields = []string{"nope"}
-	if _, ok := MatrixMembers(req, testSchema(), nil); ok {
+	if _, ok := MatrixMembers(req, testSchema(), Classifier{}); ok {
 		t.Error("an unresolvable inline spec reports ok")
 	}
 }
@@ -336,11 +336,11 @@ func TestResolveMatrices_PartialControls(t *testing.T) {
 	// Projection reads the outside controls.
 	req := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"q_1", "q_2"},
 		Params: json.RawMessage(`{"control": ["score"]}`)}}}
-	if got, ok := MatrixMembers(req, testSchema(), nil); !ok || !reflect.DeepEqual(got, []string{"score", "q_1", "q_2"}) {
+	if got, ok := MatrixMembers(req, testSchema(), Classifier{}); !ok || !reflect.DeepEqual(got, []string{"score", "q_1", "q_2"}) {
 		t.Errorf("MatrixMembers = %v, %v", got, ok)
 	}
 	req.Matrices[0].Params = json.RawMessage(`{"control": ["nope"]}`)
-	if _, ok := MatrixMembers(req, testSchema(), nil); ok {
+	if _, ok := MatrixMembers(req, testSchema(), Classifier{}); ok {
 		t.Error("MatrixMembers ok with an unknown control")
 	}
 }

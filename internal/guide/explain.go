@@ -598,7 +598,10 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 	}
 	// An attribute reading a window label runs AFTER the windows (the
 	// post-window phase): described in that position, flagged as such.
-	post := vectors.PostWindowAttributes(x, nil, nil, nil)
+	// The instance's extension hooks join the classification, so an
+	// extension aggregator reading a window label is windows-first here
+	// as at predict and the runtime.
+	post := vectors.PostWindowAttributes(x, nil, vectors.Classifier{Ext: e.inst.Extensions().ColumnReads()})
 	attributeStep := func(i int, a *types.Attribute, after bool) {
 		fields, detail := nonEmpty(a.Field), onFields(nonEmpty(a.Field))
 		if a.Target != "" {

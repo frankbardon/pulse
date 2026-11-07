@@ -127,7 +127,7 @@ func TestResolveAttributes_Rules(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Vectors: vecs, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "1"}, c.attr}}
-			got, err := ResolveAttributes(req, testInputSchema(), nil, nil, nil)
+			got, err := ResolveAttributes(req, testInputSchema(), Classifier{}, nil, nil)
 			if c.code != "" {
 				if err == nil {
 					t.Fatalf("want %s, resolved %+v", c.code, got)
@@ -166,10 +166,10 @@ func TestResolveAttributes_RouteHidesType(t *testing.T) {
 	t.Parallel()
 
 	req := &types.Request{Attributes: []*types.Attribute{maha(func(a *types.Attribute) { a.Vector = "nope" })}}
-	if _, err := ResolveAttributes(req, testInputSchema(), nil, nil, nil); err == nil {
+	if _, err := ResolveAttributes(req, testInputSchema(), Classifier{}, nil, nil); err == nil {
 		t.Fatal("vacuous: the unrouted slot is not refused")
 	}
-	if _, err := ResolveAttributes(req, testInputSchema(), nil, func(types.AttributeType) types.AttributeType { return "ATTR_HIDDEN" }, nil); err != nil {
+	if _, err := ResolveAttributes(req, testInputSchema(), Classifier{}, func(types.AttributeType) types.AttributeType { return "ATTR_HIDDEN" }, nil); err != nil {
 		t.Fatalf("a hidden type was judged: %s", err.Message)
 	}
 }

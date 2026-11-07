@@ -495,7 +495,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	predictVectors(env, result, req, schema, opts.Strict, models)
+	predictVectors(env, result, req, schema, opts.Strict, opts.classifier(models))
 	predictReferences(env, req, schema, extensionsFromOpts(opts), models)
 	// The merge-fragment count the matrix state scales with: over the
 	// per-shard counts for an archive (plus the rows non-head fragments
@@ -737,7 +737,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.
-	predictVectorLengths(env, req, schema, opts.boundModels())
+	predictVectorLengths(env, req, schema, opts.classifier(opts.boundModels()))
 
 	// Validate tier-1 and tier-2 statistical tests against the schema +
 	// projected column set. Tier-1 catches missing fields and type
@@ -861,7 +861,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// crosstab gate below. The classification reads the request's bound
 	// models (opts.boundModels — the walk's catalog), so a request
 	// windows-first only through a bound model's terms is named so too.
-	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, opts.boundModels())
+	// An extension aggregator's FieldInputs count as its reads
+	// (PredictOptions.classifier — the runtime's
+	// ExtensionRegistry.Classifier twin).
+	cls := opts.classifier(opts.boundModels())
+	cls.Route = opts.instance().attributeRoute()
+	windowsFirst := vectors.WindowsFirst(req, schema, cls)
 	if windowsFirst {
 		reasons = append(reasons, "windows run first over every filtered record (windows-first: an aggregation, grouper or crosstab axis reads a window output), so the request runs via the buffered path")
 	}

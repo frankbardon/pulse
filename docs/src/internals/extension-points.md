@@ -1929,6 +1929,18 @@ Return-value semantics:
   (nothing judged), not as a crash. The projection extractor itself
   still drops non-schema names, so a declared derived column costs
   nothing there.
+- An **aggregator's** declared names also count as its column reads in
+  the windows-first decision, exactly as a built-in's `field` and column
+  params do: a name that is a window label of the request (or a
+  post-window attribute's label) runs the request windows-first — the
+  windows run over the filtered records before the groups, aggregations
+  and crosstab, and the window value is on every record the aggregator
+  folds (`Record.NumericValue(label)`). Predict and the runtime classify
+  over the same hook (predict's extensions snapshot, the runtime's
+  registry), so predict's `post_window.windows_first` and `streamable`
+  verdict match what runs. An expression-capable param written as an
+  expression reaches the hook as `0` on both sides; a hook that panics
+  declares nothing on both sides.
 - Errors are not part of the signature on purpose — `FieldInputs`
   runs on the hot path and should be allocation-free. Anything that
   needs decoding belongs in the factory.

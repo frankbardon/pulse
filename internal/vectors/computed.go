@@ -9,7 +9,6 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -49,14 +48,14 @@ type Computed map[string]ComputedColumn
 // producer wins: built-in feature outputs (FeatureOutputLabels; an
 // extension feature's outputs are unknown before it runs), attribute
 // labels (the slot's, else DefaultAttributeLabel) and, when
-// WindowsOverRecords(req, schema, cat), window labels (WindowLabel). cat
-// is the bound-model catalog of the site (nil: none) — the one
-// windows-first decision every request-holding site reads with its
-// catalog. A name that is a schema field is left out: the field wins,
+// WindowsOverRecords(req, schema, cls), window labels (WindowLabel).
+// cls is the site's classifier (bound models, extension hooks) — the
+// one windows-first decision every request-holding site reads with
+// what it holds. A name that is a schema field is left out: the field wins,
 // and the walk refuses the shadowing slot. Nil when req computes
 // nothing.
-func ComputedColumns(req *types.Request, schema *encoding.Schema, cat model.Catalog) Computed {
-	return computedColumns(req, schema, WindowsOverRecords(req, schema, cat))
+func ComputedColumns(req *types.Request, schema *encoding.Schema, cls Classifier) Computed {
+	return computedColumns(req, schema, WindowsOverRecords(req, schema, cls))
 }
 
 // computedColumns is ComputedColumns with the windows-first decision
@@ -166,13 +165,13 @@ func holdoutReadsWholeEnv(reg *types.RegressionSpec) bool {
 // read (RegressionReads; every window label when a holdout predicate
 // reads $env) that are computed record columns
 // (ComputedColumns, slot "window": only when WindowsOverRecords over the
-// same catalog), in first-read order without repeats; nil when none. The
+// same classifier), in first-read order without repeats; nil when none. The
 // engine copies exactly these onto the records before the fit.
-func RegressionWindowReads(req *types.Request, schema *encoding.Schema, cat model.Catalog) []string {
-	if !WindowsOverRecords(req, schema, cat) || len(req.Regressions) == 0 {
+func RegressionWindowReads(req *types.Request, schema *encoding.Schema, cls Classifier) []string {
+	if !WindowsOverRecords(req, schema, cls) || len(req.Regressions) == 0 {
 		return nil
 	}
-	comp := ComputedColumns(req, schema, cat)
+	comp := ComputedColumns(req, schema, cls)
 	var out []string
 	seen := map[string]bool{}
 	for _, reg := range req.Regressions {
@@ -195,15 +194,15 @@ func RegressionWindowReads(req *types.Request, schema *encoding.Schema, cat mode
 }
 
 // ResolveRequest is Resolve over req.Vectors with req's computed columns
-// (ComputedColumns over the site's bound-model catalog cat) admitted as
+// (ComputedColumns over the site's classifier cls) admitted as
 // literal members — the resolution every request-holding site reads, so
 // predict, the walk, projection and the engine agree on a computed
 // member.
-func ResolveRequest(req *types.Request, schema *encoding.Schema, cat model.Catalog) ([]Resolved, *errors.CodedError) {
+func ResolveRequest(req *types.Request, schema *encoding.Schema, cls Classifier) ([]Resolved, *errors.CodedError) {
 	if req == nil {
 		return Resolve(nil, schema)
 	}
-	return resolveIn(req.Vectors, schema, ComputedColumns(req, schema, cat))
+	return resolveIn(req.Vectors, schema, ComputedColumns(req, schema, cls))
 }
 
 // resolveListing is ResolveRequest with every window label admitted as
@@ -259,13 +258,13 @@ func ComputedRefusal(req *types.Request, resolved []Resolved) *errors.CodedError
 // columns (ComputedColumns) req's MAT_* slots read: an entry of a
 // matrix's vector or inline fields, a MAT_PARTIAL_CORRELATION
 // params.control or a MAT_SEM params.group — always by its literal name, the only way a member
-// names a computed column. cat is the site's bound-model catalog
+// names a computed column. cls is the site's classifier
 // (ComputedColumns). Nil when none.
-func MatrixComputedMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) []string {
+func MatrixComputedMembers(req *types.Request, schema *encoding.Schema, cls Classifier) []string {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil
 	}
-	comp := ComputedColumns(req, schema, cat)
+	comp := ComputedColumns(req, schema, cls)
 	if len(comp) == 0 {
 		return nil
 	}

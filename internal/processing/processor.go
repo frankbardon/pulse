@@ -143,6 +143,11 @@ func (p *Processor) regressionResolver() regression.Resolver {
 // post-window plan): nil when none is bound.
 func (p *Processor) catalog() model.Catalog { return catalogOf(p.models) }
 
+// classifier is the run's windows-first classifier: the bound models
+// and the registry's extension FieldInputs hooks
+// (ExtensionRegistry.Classifier).
+func (p *Processor) classifier() vectors.Classifier { return p.exts.Classifier(p.catalog()) }
+
 // catalogOf is models as a model.Catalog, nil (not a typed nil) when
 // models is nil.
 func catalogOf(models *model.Set) model.Catalog {

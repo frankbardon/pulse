@@ -50,7 +50,7 @@ func TestWindowPredictor_PostWindowClassification(t *testing.T) {
 			formula("share", "chain / total(chain)"),                                           // 6: total() is not row-local
 		},
 	}
-	pw := PostWindowAttributes(req, postWindowSchema(), nil, cat)
+	pw := PostWindowAttributes(req, postWindowSchema(), Classifier{Cat: cat})
 	if want := []bool{false, true, false, true, false, true, false}; !reflect.DeepEqual(pw.Post, want) {
 		t.Errorf("Post = %v, want %v", pw.Post, want)
 	}
@@ -68,7 +68,7 @@ func TestWindowPredictor_PostWindowClassification(t *testing.T) {
 	}
 
 	// Without the model bound, ATTR_REG_PREDICT reads nothing knowable.
-	if pw := PostWindowAttributes(req, postWindowSchema(), nil, nil); pw.IsPost(5) || pw.DepOf(5) != "" {
+	if pw := PostWindowAttributes(req, postWindowSchema(), Classifier{}); pw.IsPost(5) || pw.DepOf(5) != "" {
 		t.Errorf("unbound model classified: %+v", pw)
 	}
 	// A route hiding ATTR_FORMULA makes it ineligible (still dependent).
@@ -78,7 +78,7 @@ func TestWindowPredictor_PostWindowClassification(t *testing.T) {
 		}
 		return at
 	}
-	if pw := PostWindowAttributes(req, postWindowSchema(), hide, cat); pw.IsPost(1) || pw.DepOf(1) != "lag" {
+	if pw := PostWindowAttributes(req, postWindowSchema(), Classifier{Route: hide, Cat: cat}); pw.IsPost(1) || pw.DepOf(1) != "lag" {
 		t.Errorf("hidden formula moved: %+v", pw)
 	}
 }
@@ -95,19 +95,19 @@ func TestWindowPredictor_PostWindowShapeAndShadow(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}},
 		Attributes:   []*types.Attribute{formula("f", "lag * 2")},
 	}
-	pw := PostWindowAttributes(grouped, postWindowSchema(), nil, nil)
+	pw := PostWindowAttributes(grouped, postWindowSchema(), Classifier{})
 	if pw.Any() || pw.DepOf(0) != "lag" || pw.Refusal(grouped) == nil {
 		t.Errorf("grouped plan %+v, want no move and a dependent slot", pw)
 	}
 	shadow := &types.Request{Windows: []*types.Window{lagOf("x", "x")}, Attributes: []*types.Attribute{formula("f", "x * 2")}}
-	if pw := PostWindowAttributes(shadow, postWindowSchema(), nil, nil); pw.Any() || pw.DepOf(0) != "" {
+	if pw := PostWindowAttributes(shadow, postWindowSchema(), Classifier{}); pw.Any() || pw.DepOf(0) != "" {
 		t.Errorf("schema-field window label classified: %+v", pw)
 	}
 	// A window label equal to a vector name: the expression reads the
 	// vector, and the collision is PULSE_VECTOR_NAME_COLLISION's.
 	vec := &types.Request{Vectors: []types.VectorSpec{{Name: "lag", Fields: []string{"t", "x"}}},
 		Windows: []*types.Window{lagOf("x", "lag")}, Attributes: []*types.Attribute{formula("f", "vmean(lag)")}}
-	if pw := PostWindowAttributes(vec, postWindowSchema(), nil, nil); pw.Any() || pw.DepOf(0) != "" {
+	if pw := PostWindowAttributes(vec, postWindowSchema(), Classifier{}); pw.Any() || pw.DepOf(0) != "" {
 		t.Errorf("vector-named window label classified: %+v", pw)
 	}
 }
@@ -122,10 +122,10 @@ func TestWindowPredictor_PostWindowZeroPlanAllocationFree(t *testing.T) {
 	noWindow := &types.Request{Attributes: []*types.Attribute{formula("f", "x * 2")}}
 	noAttr := &types.Request{Windows: []*types.Window{lagOf("x", "lag")}}
 	for _, req := range []*types.Request{noWindow, noAttr} {
-		if n := testing.AllocsPerRun(100, func() { _ = PostWindowAttributes(req, s, nil, nil) }); n != 0 && !raceEnabled {
+		if n := testing.AllocsPerRun(100, func() { _ = PostWindowAttributes(req, s, Classifier{}) }); n != 0 && !raceEnabled {
 			t.Errorf("%d allocations, want 0", int(n))
 		}
-		if pw := PostWindowAttributes(req, s, nil, nil); !reflect.DeepEqual(pw, PostWindow{}) {
+		if pw := PostWindowAttributes(req, s, Classifier{}); !reflect.DeepEqual(pw, PostWindow{}) {
 			t.Errorf("plan %+v, want zero", pw)
 		}
 	}
@@ -148,7 +148,7 @@ func TestWindowPredictor_PostWindowPerSlotReads(t *testing.T) {
 			formula("c", "lag + b"),
 		},
 	}
-	pw := PostWindowAttributes(req, postWindowSchema(), nil, nil)
+	pw := PostWindowAttributes(req, postWindowSchema(), Classifier{})
 	want := [][]string{{"lag_t", "lag"}, {}, {"lag"}}
 	if !reflect.DeepEqual(pw.PostReads, want) || !reflect.DeepEqual(pw.WindowReads, []string{"lag_t", "lag"}) {
 		t.Fatalf("per-slot reads %v (union %v), want %v", pw.PostReads, pw.WindowReads, want)

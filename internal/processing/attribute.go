@@ -535,13 +535,14 @@ type keysBinder interface {
 // schema for the expression operators, followed by the schema's native
 // vector fields (vectors.Resolve): nil when there are neither, or when
 // one fails to resolve (the field-reference pass refused that request
-// before any build). cat is the run's bound-model catalog (the
-// windows-first decision vectors.ResolveRequest reads; nil none).
-func ExprVectors(req *types.Request, schema *encoding.Schema, cat model.Catalog) []vectors.Resolved {
+// before any build). c is the run's windows-first classifier (its
+// bound-model catalog and extension hooks — the decision
+// vectors.ResolveRequest reads; ExtensionRegistry.Classifier).
+func ExprVectors(req *types.Request, schema *encoding.Schema, c vectors.Classifier) []vectors.Resolved {
 	if req == nil || (len(req.Vectors) == 0 && (schema == nil || !schema.HasVectors())) {
 		return nil
 	}
-	resolved, err := vectors.ResolveRequest(req, schema, cat)
+	resolved, err := vectors.ResolveRequest(req, schema, c)
 	if err != nil {
 		return nil
 	}

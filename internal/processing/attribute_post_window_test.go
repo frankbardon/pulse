@@ -137,7 +137,7 @@ func TestWindowPredictor_PostWindowNonNumericWindowRefused(t *testing.T) {
 		Windows:    []*types.Window{{Type: "WIN_ACME_TEXT", Field: "x", Label: "w", OrderBy: []types.OrderKey{{Field: "t"}}}},
 		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "w + 1"}},
 	}
-	if got := NewProcessor(s).windowRecordColumns(req, vectors.PostWindowAttributes(req, s, nil, nil)); !reflect.DeepEqual(got, []windowRecordColumn{{label: "w", consumer: "attribute"}}) {
+	if got := NewProcessor(s).windowRecordColumns(req, vectors.PostWindowAttributes(req, s, vectors.Classifier{})); !reflect.DeepEqual(got, []windowRecordColumn{{label: "w", consumer: "attribute"}}) {
 		t.Fatalf("window record columns = %v, want w for the attribute", got)
 	}
 	_, err := NewProcessorWithExtensions(s, exts).Process(context.Background(), req, NewSliceIterator(recs))

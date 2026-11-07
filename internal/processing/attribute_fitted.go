@@ -722,7 +722,7 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 // attribute bound to a prebuilt fit). The caller's request is never
 // mutated. cat is the run's bound-model catalog (nil none).
 func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
-	return vectors.RewriteAttributeInputs(req, schema, cat, func(t types.AttributeType) types.AttributeType {
+	return vectors.RewriteAttributeInputs(req, schema, exts.Classifier(cat), func(t types.AttributeType) types.AttributeType {
 		if exts.isHidden(string(t)) {
 			return ""
 		}
@@ -738,7 +738,7 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // and grouper vector inputs. It also resolves the run's named vectors
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
-	p.exprVectors = ExprVectors(req, p.schema, p.catalog())
+	p.exprVectors = ExprVectors(req, p.schema, p.classifier())
 	p.keySchema = nil
 	if req != nil {
 		p.keySchema = prevstate.KeySchema(req.Attributes, p.schema)
@@ -760,5 +760,5 @@ func (p *Processor) prepare(req *types.Request) *types.Request {
 // caller's request is never mutated. cat is the run's bound-model
 // catalog (nil none).
 func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
-	return vectors.RewriteAggregationInputs(req, schema, cat, exts.AggregationKinds())
+	return vectors.RewriteAggregationInputs(req, schema, exts.Classifier(cat), exts.AggregationKinds())
 }

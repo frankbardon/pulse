@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,9 +25,9 @@ import (
 // ext reports a registered extension attribute. req itself is returned
 // when no attribute reads a vector or resolution fails (the
 // field-reference pass has refused that request; the factory refuses
-// an unresolved Vector). The caller's request is never mutated. cat is
-// the run's bound-model catalog (nil none).
-func RewriteAttributeInputs(req *types.Request, schema *encoding.Schema, cat model.Catalog, route func(types.AttributeType) types.AttributeType, ext func(string) bool) *types.Request {
+// an unresolved Vector). The caller's request is never mutated. cls is
+// the run's windows-first classifier (bound models, extension hooks).
+func RewriteAttributeInputs(req *types.Request, schema *encoding.Schema, cls Classifier, route func(types.AttributeType) types.AttributeType, ext func(string) bool) *types.Request {
 	if req == nil {
 		return req
 	}
@@ -45,7 +44,7 @@ func RewriteAttributeInputs(req *types.Request, schema *encoding.Schema, cat mod
 	if route == nil {
 		route = func(t types.AttributeType) types.AttributeType { return t }
 	}
-	inputs, err := ResolveAttributes(req, schema, cat, route, ext)
+	inputs, err := ResolveAttributes(req, schema, cls, route, ext)
 	if err != nil {
 		return req
 	}
@@ -110,7 +109,7 @@ func RewriteAttributeInputs(req *types.Request, schema *encoding.Schema, cat mod
 // (Field set; the rewrite is idempotent) or when resolution fails (the
 // field-reference pass has refused that request). The caller's request
 // is never mutated.
-func RewriteGroupInputs(req *types.Request, schema *encoding.Schema, cat model.Catalog, route func(types.GroupType) types.GroupType, ext func(string) bool) *types.Request {
+func RewriteGroupInputs(req *types.Request, schema *encoding.Schema, cls Classifier, route func(types.GroupType) types.GroupType, ext func(string) bool) *types.Request {
 	has := false
 	for _, s := range GroupSlots(req) {
 		// A built-in slot is rewritten once (its key Field set); an
@@ -124,7 +123,7 @@ func RewriteGroupInputs(req *types.Request, schema *encoding.Schema, cat model.C
 	if !has {
 		return req
 	}
-	inputs, err := ResolveGroups(req, schema, cat, route, ext)
+	inputs, err := ResolveGroups(req, schema, cls, route, ext)
 	if err != nil {
 		return req
 	}
@@ -169,16 +168,16 @@ func RewriteGroupInputs(req *types.Request, schema *encoding.Schema, cat model.C
 // req itself is returned when no slot reads a vector or resolution
 // fails (the field-reference pass has refused that request; the factory
 // refuses an unresolved Vector). The caller's request is never mutated.
-// cat is the run's bound-model catalog (nil none); kinds is the
+// cls is the run's windows-first classifier; kinds is the
 // instance's aggregation routing and extension declarations.
-func RewriteAggregationInputs(req *types.Request, schema *encoding.Schema, cat model.Catalog, kinds AggregationKinds) *types.Request {
+func RewriteAggregationInputs(req *types.Request, schema *encoding.Schema, cls Classifier, kinds AggregationKinds) *types.Request {
 	if req == nil {
 		return req
 	}
 	if !AnyAggregationVectorInput(req) {
 		return req
 	}
-	inputs, err := ResolveAggregations(req, schema, cat, kinds)
+	inputs, err := ResolveAggregations(req, schema, cls, kinds)
 	if err != nil || len(inputs) == 0 {
 		return req
 	}

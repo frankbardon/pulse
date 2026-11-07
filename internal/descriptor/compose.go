@@ -1776,7 +1776,7 @@ func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOpt
 		}
 		return mats[0].FitLabels(), append([]string(nil), mats[0].Columns()...)
 	}
-	inputs, err := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
+	inputs, err := vectors.ResolveAttributes(req, schema, opts.classifier(models), func(t types.AttributeType) types.AttributeType {
 		return opRoute(opts.instance(), t)
 	}, nil)
 	if err != nil {

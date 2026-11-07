@@ -87,7 +87,7 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 			}
 			requests++
 			if teaches[ex.Name] {
-				if pw := vectors.PostWindowAttributes(&req, nil, nil, nil); len(req.Attributes) > 0 {
+				if pw := vectors.PostWindowAttributes(&req, nil, vectors.Classifier{}); len(req.Attributes) > 0 {
 					if !pw.Any() || pw.Refusal(&req) != nil {
 						t.Errorf("%s: the example that teaches the post-window phase classifies %+v", ex.Name, pw)
 					}
@@ -96,20 +96,20 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 				continue
 			}
 			if teachesWindowsFirst[ex.Name] {
-				if !vectors.WindowsFirst(&req, nil, nil, nil) {
+				if !vectors.WindowsFirst(&req, nil, vectors.Classifier{}) {
 					t.Errorf("%s: the example that teaches windows-first does not classify windows-first", ex.Name)
 				}
 				taughtWindowsFirst++
 				continue
 			}
 			inert := func(r *types.Request, how string) {
-				pw := vectors.PostWindowAttributes(r, nil, nil, nil)
+				pw := vectors.PostWindowAttributes(r, nil, vectors.Classifier{})
 				if pw.Any() || pw.Dep != nil || pw.WindowReads != nil || pw.Refusal(r) != nil {
 					t.Errorf("%s (%s): attributes classify post-window (%+v): the example now runs a reordered pipeline", ex.Name, how, pw)
 				}
 				// Windows-first (mmm-followups E4-S1): no shipped
 				// request runs its windows ahead of its aggregations.
-				if pw.WindowsFirst || vectors.WindowsFirst(r, nil, nil, nil) {
+				if pw.WindowsFirst || vectors.WindowsFirst(r, nil, vectors.Classifier{}) {
 					t.Errorf("%s (%s): the request classifies windows-first: the example now runs a reordered pipeline", ex.Name, how)
 				}
 			}
