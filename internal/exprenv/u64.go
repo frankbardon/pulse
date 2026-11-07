@@ -9,6 +9,7 @@ import (
 	"github.com/expr-lang/expr"
 	exprast "github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/checker/nature"
+	exprparser "github.com/expr-lang/expr/parser"
 	exprtypes "github.com/expr-lang/expr/types"
 	exprruntime "github.com/expr-lang/expr/vm/runtime"
 )
@@ -44,9 +45,13 @@ import (
 // comparison over it is exact too; every other use of the name is
 // wrapped like the field.
 //
+// A derived column that IS a bare u64 read (an ATTR_FORMULA alias,
+// [U64Source]) is declared [DerivedU64Type] and binds the field's word
+// in the expressions that read it.
+//
 // A value that is not a U64 at run time (the record holds no decoder
-// word for it — a feature rewrote the column — or the env binds the
-// echo, as one that reads `$env` dynamically does) flows through as the
+// word for it, or the env binds the echo, as one that reads `$env`
+// dynamically does) flows through as the
 // float64 it always was: the wrapper passes it on and the comparison falls back to
 // expr-lang's own operator, so the result is the historical one.
 //
@@ -169,6 +174,15 @@ func (u64WrapPatcher) Visit(node *exprast.Node) {
 		}
 		return
 	}
+	if c, ok := (*node).(*exprast.ChainNode); ok {
+		// An optional chain (`$env?.id`) carries its member's type, so
+		// both are U64: unwrap the member and wrap the chain once, or
+		// the comparison patcher would meet a wrap of a wrap — the
+		// echo, never the word.
+		if inner, ok := u64Unwrap(c.Node); ok {
+			c.Node = inner
+		}
+	}
 	if t := (*node).Type(); t == exprU64Type || t == exprU64AnyType {
 		// Post-order: every U64 below is already wrapped.
 		exprast.Patch(node, &exprast.CallNode{
@@ -265,13 +279,63 @@ func u64Unwrap(n exprast.Node) (exprast.Node, bool) {
 }
 
 // u64Read reports whether n reads a bound value as is: an identifier
-// (a field or a let name) or a member (`$env.id`, `$env["id"]`).
+// (a field or a let name), a member (`$env.id`, `$env["id"]`) or an
+// optional chain over one (`$env?.id`).
 func u64Read(n exprast.Node) bool {
-	switch n.(type) {
+	switch c := n.(type) {
 	case *exprast.IdentifierNode, *exprast.MemberNode:
 		return true
+	case *exprast.ChainNode:
+		return u64Read(c.Node)
 	}
 	return false
+}
+
+// U64Source reports the u64 field src IS a bare read of — `id`,
+// `$env.id`, `$env["id"]`, `$env?.id`, or a let chain ending in one
+// (`let a = id; a`) — where isU64 says which names are u64 fields. Its
+// value on every row is that field's (nil when the field is null), so
+// a column it writes may bind as the field's stored word
+// (internal/prevstate.U64Aliases). A computed value (`id + 0`,
+// `abs(id)`, `id ?? 0`, a conditional), a non-u64 read, a dynamic
+// `$env` read or a source that does not parse names nothing.
+func U64Source(src string, isU64 func(string) bool) (string, bool) {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return "", false
+	}
+	name := u64SourceOf(tree.Node, nil, isU64)
+	return name, name != ""
+}
+
+// u64SourceOf resolves n under the let scope lets (name → the field its
+// initializer reads, "" for any other initializer).
+func u64SourceOf(n exprast.Node, lets map[string]string, isU64 func(string) bool) string {
+	switch x := n.(type) {
+	case *exprast.IdentifierNode:
+		if src, ok := lets[x.Value]; ok {
+			return src
+		}
+		if isU64(x.Value) {
+			return x.Value
+		}
+	case *exprast.MemberNode:
+		id, ok := x.Node.(*exprast.IdentifierNode)
+		prop, isStr := x.Property.(*exprast.StringNode)
+		if ok && isStr && id.Value == "$env" && isU64(prop.Value) {
+			return prop.Value
+		}
+	case *exprast.ChainNode:
+		return u64SourceOf(x.Node, lets, isU64)
+	case *exprast.VariableDeclaratorNode:
+		scope := make(map[string]string, len(lets)+1)
+		for k, v := range lets {
+			scope[k] = v
+		}
+		scope[x.Name] = u64SourceOf(x.Value, lets, isU64)
+		return u64SourceOf(x.Expr, scope, isU64)
+	}
+	return ""
 }
 
 // u64Comparable reports whether t, the other operand of a comparison

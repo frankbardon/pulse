@@ -117,12 +117,17 @@ type exprProgram struct {
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
 	refs []string
-	// u64Refs are the refs naming a u64 schema field, each bound as its
+	// u64Refs are the refs naming a u64 schema field (or a formula alias
+	// of one, u64Src), each bound as its
 	// stored word (exprenv.U64, Record.exprU64) rather than its float64
 	// echo (nil: none — the per-row bind then costs nothing). inputU64
 	// is index-aligned with inputs.
 	u64Refs  []string
 	inputU64 []bool
+	// u64Src maps each u64Refs name that is a formula alias (a derived
+	// column, prevstate.U64Aliases) to the u64 field whose word it binds
+	// (nil: none).
+	u64Src map[string]string
 	// wholeEnv is set when the expression reads $env: it then needs the
 	// record's whole AllValues map, not just the named fields.
 	wholeEnv bool
@@ -148,7 +153,18 @@ type exprProgram struct {
 // newExprProgram is newExprProgramKeyed with no dictionary-inheritance
 // view.
 func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
-	return newExprProgramKeyed(src, what, schema, nil, vecs, refTables, opts)
+	return newExprProgramKeyed(src, what, schema, exprKeys{}, vecs, refTables, opts)
+}
+
+// exprKeys is the run's derived-column view an expression compiles in
+// (the zero value: none): view the dictionary-inheritance view
+// (prevstate.KeySchema, Processor.keySchema; nil or the schema itself:
+// none) and u64 the formula aliases (prevstate.U64Aliases,
+// Processor.u64Aliases: label → the u64 field the formula IS a bare read
+// of; nil: none). Both are per-run and shared with predict's compile.
+type exprKeys struct {
+	view *encoding.Schema
+	u64  map[string]string
 }
 
 // newExprProgramKeyed builds an expression's program against schema,
@@ -166,14 +182,14 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 // expression calling ref() is judged against them and the named vectors
 // at build (refStaticRefusal — predict's rules) and every compile
 // patches its ref() calls (refPatcher).
-func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
+func newExprProgramKeyed(src, what string, schema *encoding.Schema, keys exprKeys, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema), schema: schema}
-	p.derived = exprenv.DerivedFields(schema, keys)
+	p.derived = exprenv.DerivedFields(schema, keys.view)
 	for name := range p.derived {
-		p.decl[name] = exprenv.DerivedDecl(keys, name)
+		p.decl[name] = exprenv.DerivedDecl(keys.view, name)
 	}
 	if schema != nil {
 		for i := range schema.Fields {
@@ -213,6 +229,16 @@ func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs [
 		for _, name := range refs {
 			if f := schema.Field(name); f != nil && f.Type == encoding.FieldTypeU64 && !p.isVector(name) {
 				p.u64Refs = append(p.u64Refs, name)
+			} else if src, ok := keys.u64[name]; ok && f == nil && p.derived[name] == nil && !p.isVector(name) {
+				// A formula alias of a u64 field (prevstate.U64Aliases):
+				// declared a U64 like the field, and bound as the
+				// field's stored word (exprU64).
+				p.decl[name] = exprenv.DerivedU64Type
+				p.u64Refs = append(p.u64Refs, name)
+				if p.u64Src == nil {
+					p.u64Src = map[string]string{}
+				}
+				p.u64Src[name] = src
 			}
 		}
 	}
@@ -350,7 +376,7 @@ func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 	}
 	for _, name := range p.u64Refs {
 		if v, ok := env[name]; ok {
-			env[name] = r.exprU64(name, v)
+			env[name] = p.exprU64(r, name, v)
 		}
 	}
 	return env
@@ -584,7 +610,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 			if p.inputDecs != nil && p.inputDecs[i] != nil {
 				v = exprenv.Bind(p.inputDecs[i], v)
 			} else if p.inputU64 != nil && p.inputU64[i] {
-				v = r.exprU64(name, v)
+				v = p.exprU64(r, name, v)
 			}
 			env[name] = v
 		} else {
@@ -653,6 +679,16 @@ func runPooled(prog *vm.Program, env map[string]any) (any, error) {
 	out, err := m.Run(prog, env)
 	exprVMPool.Put(m)
 	return out, err
+}
+
+// exprU64 is the env value of u64 ref name bound as v: its stored word
+// (Record.exprU64) — a formula alias's the word of the field it reads
+// (u64Src), the column holding that field's echo.
+func (p *exprProgram) exprU64(r *Record, name string, v any) any {
+	if src, ok := p.u64Src[name]; ok {
+		return r.exprU64(src, v)
+	}
+	return r.exprU64(name, v)
 }
 
 // envReadsStatic reports whether every use of $env in src is a member

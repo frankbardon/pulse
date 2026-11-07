@@ -181,7 +181,7 @@ func newComparisonCore(attr *types.Attribute, schema *encoding.Schema) (comparis
 // bindInputs stores the request's bound fits (a population reference
 // reads one) and compiles a centroid's filter against the request's
 // filter build (buildFilterFuncsWith, as fit_on).
-func (c *comparisonCore) bindInputs(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (c *comparisonCore) bindInputs(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	c.models = models
 	if c.centroid == nil {
 		return nil
@@ -794,7 +794,7 @@ type centroidComparisonAttribute struct {
 func (a *centroidComparisonAttribute) SetExtensions(r *ExtensionRegistry) { a.exts = r }
 
 // bindFitOn satisfies fitOnBinder: compiles the centroid filter.
-func (a *centroidComparisonAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (a *centroidComparisonAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	return a.bindInputs(exts, models, vecs, keys)
 }
 
@@ -856,7 +856,7 @@ func (a *fittedComparisonAttribute) prepare() error { return a.core.bind() }
 
 // bindFitOn satisfies fitOnBinder: the centroid filter and bound fits
 // (a population reference), then the fit's own fit_on / params.fit.
-func (a *fittedComparisonAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (a *fittedComparisonAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	if err := a.core.bindInputs(exts, models, vecs, keys); err != nil {
 		return err
 	}

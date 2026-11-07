@@ -876,8 +876,12 @@ func (r *Record) Uint64Value(name string) (uint64, bool) {
 // exprU64 is the expression env value of u64 field name whose bound
 // value is v: the decoder's stored word as an exprenv.U64 when the
 // record holds it for the value it holds now (planeExact, and the echo
-// v is that word's float64), else v unchanged — a column a feature or
-// attribute rewrote keeps the float64 it always bound as.
+// v is that word's float64), else v unchanged — a record that holds no
+// decoder word for it (one built from a value map, a value written
+// outside the decoders) keeps the float64 it always bound as. No
+// request rewrites a schema column (a shadowing label is refused); a
+// formula alias of the field (prevstate.U64Aliases) reads through
+// name = the field (exprProgram.exprU64).
 func (r *Record) exprU64(name string, v any) any {
 	f, ok := v.(float64)
 	if !ok {

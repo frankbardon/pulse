@@ -222,6 +222,7 @@ func TestParams_U64EnvAndLetExact(t *testing.T) {
 	for _, e := range []string{
 		`$env.id == params.k`, `$env["id"] == 9007199254740993`, `let k = id; k == params.k`,
 		`let k = $env.id; k == 9007199254740993`, `let k = id; let j = k; j in [params.k]`, `id == 9007199254740993`, `$env.id == 9007199254740993`,
+		`$env?.id == params.k`, `$env?.["id"] == 9007199254740993`, `let k = $env?.id; k == params.k`,
 	} {
 		filter := base()
 		filter.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
@@ -255,6 +256,149 @@ func TestParams_U64EnvAndLetExact(t *testing.T) {
 		}
 		if got := paramsFloat(t, resp, "c"); got != 2 {
 			t.Errorf("%s: %v rows, want 2", e, got)
+		}
+	}
+}
+
+// TestParams_U64FormulaAliasExact: an ATTR_FORMULA that IS a bare read
+// of a u64 field (`id`, `$env.id`, `$env?.id`, a let, an earlier such
+// alias) writes a column whose later reads — a formula, a total()
+// argument, a regression holdout, a fitted attribute's params.fit_on —
+// bind the field's stored word, so
+// their comparisons are exact past 2^53 on every arm (the single file
+// at DecodeWorkers 1 and N, a shard archive at ShardWorkers 1 and N —
+// the per-shard reduce and its two-phase totals); predict accepts each.
+// A computed formula (`id + 0`) keeps the float64 echo.
+func TestParams_U64FormulaAliasExact(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	build, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := encoding.Schema{Fields: []encoding.Field{{Name: "id", Type: encoding.FieldTypeU64}, {Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
+	for _, c := range []struct {
+		name string
+		opts pulse.CohortBuilderOptions
+	}{{"a.pulse", pulse.CohortBuilderOptions{}}, {"s.pulse", pulse.CohortBuilderOptions{Shards: &pulse.ShardSplit{MaxRecords: 2}}}} {
+		b, err := build.NewCohortBuilder(ctx, c.name, s, c.opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 8; i++ { // 2^53 + i%4: 2^53 and 2^53+1 share a float64
+			if err := b.Append(pulse.CohortRow{uint64(1<<53 + i%4), float64(i), float64(i * i % 7)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := b.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	alias := func(expr string) []*types.Attribute {
+		return []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "k", Expression: expr}}
+	}
+	type tc struct {
+		name  string
+		attrs []*types.Attribute
+		want  float64
+	}
+	var cases []tc
+	for _, e := range []string{`id`, `$env.id`, `$env["id"]`, `$env?.id`, `let z = id; z`} {
+		cases = append(cases, tc{e, append(alias(e),
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Expression: `k == params.k ? 1 : 0`}), 2})
+	}
+	cases = append(cases,
+		tc{"alias of an alias", append(alias(`id`),
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "j", Expression: `$env?.k`},
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Expression: `let q = j; q != 9007199254740993 ? 0 : 1`}), 2},
+		tc{"in a list", append(alias(`id`),
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Expression: `k in [9007199254740993] ? 1 : 0`}), 2},
+		tc{"total() argument", append(alias(`id`),
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Expression: `total(k == params.k ? 1 : 0) / 4`}), 4},
+		tc{"computed keeps the echo", append(alias(`id + 0`),
+			&types.Attribute{Type: types.ATTR_FORMULA, Label: "f", Expression: `k == params.k ? 1 : 0`}), 4},
+	)
+	for _, arm := range []struct {
+		name, cohort string
+		opts         pulse.Options
+	}{
+		{"single serial", "a.pulse", pulse.Options{FS: fsys, DecodeWorkers: 1}},
+		{"single parallel", "a.pulse", pulse.Options{FS: fsys, DecodeWorkers: 4}},
+		{"archive serial", "s.pulse", pulse.Options{FS: fsys, ShardWorkers: 1}},
+		{"archive parallel", "s.pulse", pulse.Options{FS: fsys, ShardWorkers: 4}},
+	} {
+		workers := arm.name
+		p, err := pulse.New(arm.opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cases {
+			req := &types.Request{
+				Cohort:       &types.Cohort{Filename: arm.cohort},
+				Params:       types.Params{"k": json.Number("9007199254740993")}, // 2^53 + 1
+				Attributes:   c.attrs,
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "c"}},
+			}
+			env, err := p.PredictEnvelope(ctx, req)
+			if err != nil || len(env.Errors) != 0 {
+				t.Fatalf("%s: predict %v %+v", c.name, err, env.Errors)
+			}
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("%s (%s): %v", c.name, workers, err)
+			}
+			if got := paramsFloat(t, resp, "c"); got != c.want {
+				t.Errorf("%s (%s): sum %v, want %v", c.name, workers, got, c.want)
+			}
+		}
+		// A regression holdout reading the alias: exactly the two rows at
+		// 2^53+1 are held out.
+		req := &types.Request{
+			Cohort:     &types.Cohort{Filename: arm.cohort},
+			Params:     types.Params{"k": json.Number("9007199254740993")},
+			Attributes: alias(`id`),
+			Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "x", Predictors: []string{"k"},
+				Holdout: `k == params.k`}},
+		}
+		env, err := p.PredictEnvelope(ctx, req)
+		if err != nil || len(env.Errors) != 0 {
+			t.Fatalf("holdout: predict %v %+v", err, env.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("holdout (%s): %v", workers, err)
+		}
+		if len(resp.Regressions) != 1 || resp.Regressions[0].Holdout == nil || resp.Regressions[0].Holdout.N != 2 {
+			t.Errorf("holdout (%s): %+v, want 2 held-out rows", workers, resp.Regressions)
+		}
+		// A fitted attribute's fit_on over the alias fits on the rows the
+		// same predicate over the field keeps (six), not the four the
+		// echo keeps.
+		fitOn := func(alias, pred string) float64 {
+			t.Helper()
+			var req types.Request
+			src := `{"cohort":{"filename":"` + arm.cohort + `"},"params":{"k":9007199254740993},"attributes":[` +
+				`{"type":"ATTR_FORMULA","label":"k","expression":"` + alias + `"},` +
+				`{"type":"ATTR_MAHALANOBIS","label":"m","fields":["x","y"],"params":{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"` + pred + `"}]}}],` +
+				`"aggregations":[{"type":"AGG_SUM","field":"m","label":"c"}]}`
+			if err := json.Unmarshal([]byte(src), &req); err != nil {
+				t.Fatal(err)
+			}
+			env, err := p.PredictEnvelope(ctx, &req)
+			if err != nil || len(env.Errors) != 0 {
+				t.Fatalf("fit_on %s: predict %v %+v", pred, err, env.Errors)
+			}
+			resp, err := p.Process(ctx, &req)
+			if err != nil {
+				t.Fatalf("fit_on %s (%s): %v", pred, workers, err)
+			}
+			return paramsFloat(t, resp, "c")
+		}
+		exact, viaField, echo := fitOn("id", "k != params.k"), fitOn("id", "id != params.k"), fitOn("id + 0", "k != params.k")
+		if exact != viaField || exact == echo {
+			t.Errorf("fit_on (%s): alias %v, field %v, echo %v; want alias == field != echo", workers, exact, viaField, echo)
 		}
 	}
 }

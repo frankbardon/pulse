@@ -265,9 +265,9 @@ type expressionFilterer struct {
 	// vecs are the request's resolved named vectors the expression may
 	// read (nil: none), injected before Build.
 	vecs []vectors.Resolved
-	// keys is the run's dictionary-inheritance view (nil: none),
+	// keys is the run's derived-column view (zero: none),
 	// injected before Build.
-	keys *encoding.Schema
+	keys exprKeys
 }
 
 // bindVectors satisfies vectorBinder: the expression reads the
@@ -276,7 +276,7 @@ func (f *expressionFilterer) bindVectors(vecs []vectors.Resolved) { f.vecs = vec
 
 // bindKeys satisfies keysBinder: the expression reads a derived
 // categorical column (a previous-state output) by name.
-func (f *expressionFilterer) bindKeys(keys *encoding.Schema) { f.keys = keys }
+func (f *expressionFilterer) bindKeys(keys exprKeys) { f.keys = keys }
 
 // bindModels satisfies modelBinder: coef() reads the request's bound
 // models (injected before Build).

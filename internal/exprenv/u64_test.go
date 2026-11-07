@@ -363,3 +363,68 @@ func TestU64Expr_ValueTypeAndTwin(t *testing.T) {
 		t.Fatalf("ValueType(set_u64) = %v, want uint64 (unchanged)", got)
 	}
 }
+
+// TestU64Expr_OptionalChainExact: an optional-chained `$env?.id` read
+// (and a let bound to one) carries the word like `$env.id`, so its
+// comparisons are exact past 2^53, on the typed program and the twin;
+// its arithmetic still reads the echo.
+func TestU64Expr_OptionalChainExact(t *testing.T) {
+	t.Parallel()
+
+	params := Params{"k": int64(9007199254740993)}
+	cases := []struct {
+		src  string
+		id   uint64
+		want any
+	}{
+		{"$env?.id == params.k", 1 << 53, false},
+		{"$env?.id == params.k", 1<<53 + 1, true},
+		{"$env?.id == 9007199254740993", 1 << 53, false},
+		{"$env?.[\"id\"] != 9007199254740993", 1 << 53, true},
+		{"$env?.id < 9007199254740993", 1 << 53, true},
+		{"$env?.id in [9007199254740993]", 1 << 53, false},
+		{"let a = $env?.id; a == params.k", 1 << 53, false},
+		{"$env?.id + 0 == 9007199254740993", 1 << 53, true}, // arithmetic: the echo, as before
+		{"$env?.id", 1<<53 + 1, float64(1<<53 + 1)},
+	}
+	for _, twin := range []bool{false, true} {
+		decl := u64TestDecl(false)
+		if twin {
+			for k, v := range decl {
+				decl[k] = Untyped(v)
+			}
+		}
+		for _, c := range cases {
+			got, err := u64Run(t, c.src, decl, params, map[string]any{"id": U64(c.id), "id2": U64(1<<53 + 1)})
+			if err != nil || got != c.want {
+				t.Errorf("twin=%v %s @ %d: %#v (%v), want %#v", twin, c.src, c.id, got, err, c.want)
+			}
+		}
+	}
+}
+
+// TestU64Source: the static resolver names the u64 field an expression
+// IS a bare read of — through `$env`, an optional chain and let chains —
+// and nothing for any computed value or non-u64 read.
+func TestU64Source(t *testing.T) {
+	t.Parallel()
+
+	isU64 := func(n string) bool { return n == "id" || n == "k" }
+	cases := []struct {
+		src, want string
+	}{
+		{"id", "id"}, {"(id)", "id"}, {"k", "k"}, {"$env.id", "id"}, {"$env[\"id\"]", "id"},
+		{"$env?.id", "id"}, {"$env?.[\"id\"]", "id"}, {"let a = id; a", "id"},
+		{"let a = $env.k; let b = a; b", "k"}, {"let a = id; let id = 3; a", "id"},
+		{"x", ""}, {"id + 0", ""}, {"abs(id)", ""}, {"id ?? 0", ""}, {"true ? id : k", ""},
+		{"let a = id; a + 1", ""}, {"let id = 3; id", ""}, {"let a = abs(id); a", ""},
+		{"$env[n]", ""}, {"$env.x", ""}, {"params.id", ""}, {"[id][0]", ""}, {"id ==", ""}, {"", ""},
+		{"m.id", ""},
+	}
+	for _, c := range cases {
+		got, ok := U64Source(c.src, isU64)
+		if got != c.want || ok != (c.want != "") {
+			t.Errorf("U64Source(%q) = %q, %v; want %q", c.src, got, ok, c.want)
+		}
+	}
+}

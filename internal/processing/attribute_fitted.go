@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -89,7 +90,7 @@ type prebuiltAttribute interface {
 // filterers compile against the request's registry and bound models
 // before any record is read.
 type fitOnBinder interface {
-	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error
+	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error
 }
 
 // attributeWarner is implemented by an attribute whose Finalize can
@@ -410,7 +411,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 
 // bindFitOn compiles params.fit_on, or resolves and aligns params.fit
 // against the request's bound models (fitOnBinder).
-func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	if model.IsVectorFitAttribute(a.typ) {
 		a.capture = models.Capture()
 	}
@@ -738,9 +739,10 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema, p.classifier())
-	p.keySchema = nil
+	p.keySchema, p.u64Aliases = nil, nil
 	if req != nil {
 		p.keySchema = p.exts.AttributeDictionaryView(req.Attributes, p.schema)
+		p.u64Aliases = prevstate.U64Aliases(req.Attributes, p.schema)
 	}
 	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts, p.catalog())
 }

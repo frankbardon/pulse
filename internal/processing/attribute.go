@@ -272,9 +272,10 @@ type formulaAttribute struct {
 	// vecs are the request's resolved named vectors the formula may
 	// read (nil: none), set by bindVectors before prepare compiles.
 	vecs []vectors.Resolved
-	// keys is the run's dictionary-inheritance view (nil: none), set by
-	// bindKeys before prepare compiles.
-	keys *encoding.Schema
+	// keys is the run's derived-column view (the dictionary-inheritance
+	// view and the u64 formula aliases; zero: none), set by bindKeys
+	// before prepare compiles.
+	keys exprKeys
 	// totals is the cohort-total state of a formula that calls
 	// total(expr) (formula_total.go); nil for a row-local formula.
 	totals *formulaTotals
@@ -367,7 +368,7 @@ func (a *formulaAttribute) bindVectors(vecs []vectors.Resolved) { a.vecs = vecs 
 
 // bindKeys satisfies keysBinder: the formula reads a derived categorical
 // column (a previous-state output) by name.
-func (a *formulaAttribute) bindKeys(keys *encoding.Schema) { a.keys = keys }
+func (a *formulaAttribute) bindKeys(keys exprKeys) { a.keys = keys }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if err := a.prepare(); err != nil {
@@ -528,7 +529,7 @@ type vectorBinder interface {
 // previous-state output — reads in the expression exactly as its source
 // field does (exprenv.DerivedFields): by label, a null absent.
 type keysBinder interface {
-	bindKeys(keys *encoding.Schema)
+	bindKeys(keys exprKeys)
 }
 
 // ExprVectors resolves req's named vectors (Request.Vectors) against
@@ -562,13 +563,22 @@ func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *
 // expression attribute the request's resolved named vectors
 // (ExprVectors; nil: none).
 func BindAttributeWithVectors(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
-	return bindAttributeWith(computer, exts, models, vecs, nil)
+	return bindAttributeWith(computer, exts, models, vecs, exprKeys{})
+}
+
+// BindAttributeWithAliases is BindAttributeWithVectors that also hands
+// the expression operators the run's u64 formula aliases
+// (prevstate.U64Aliases over the request's attributes; nil: none) — the
+// per-shard and parallel-decode reducers' binding, so a formula reading
+// an alias binds the field's word on every arm.
+func BindAttributeWithAliases(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, u64 map[string]string) error {
+	return bindAttributeWith(computer, exts, models, vecs, exprKeys{u64: u64})
 }
 
 // bindAttributeWith is BindAttributeWithVectors that also hands the
 // expression operators (and a params.fit_on filter) the run's
 // dictionary-inheritance view keys (keysBinder; nil: none).
-func bindAttributeWith(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func bindAttributeWith(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	if aware, ok := computer.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
 	}
@@ -598,7 +608,7 @@ func bindAttributeWith(computer AttributeComputer, exts *ExtensionRegistry, mode
 // bound models, the run's named vectors and its dictionary-inheritance
 // view.
 func (p *Processor) bindAttribute(computer AttributeComputer) error {
-	return bindAttributeWith(computer, p.exts, p.models, p.exprVectors, p.keySchema)
+	return bindAttributeWith(computer, p.exts, p.models, p.exprVectors, p.exprKeys())
 }
 
 // percentileAttribute is ATTR_PERCENTILE: rank / n * 100 over the rows

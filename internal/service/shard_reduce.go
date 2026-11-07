@@ -12,6 +12,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/observe"
@@ -998,6 +999,7 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		return nil, nil
 	}
 	out := make([]rowLocalAttrSpec, 0, len(attrs))
+	aliases := prevstate.U64Aliases(attrs, schema)
 	for i, attr := range attrs {
 		factory, ok := exts.LookupAttribute(attr.Type)
 		if !ok {
@@ -1008,7 +1010,7 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		if err != nil {
 			return nil, err
 		}
-		if err := processing.BindAttributeWithVectors(computer, exts, models, vecs); err != nil {
+		if err := processing.BindAttributeWithAliases(computer, exts, models, vecs, aliases); err != nil {
 			return nil, err
 		}
 		if err := totals.Bind(i, computer); err != nil {
