@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/codein"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -98,12 +99,10 @@ func TestAttrCodeIn_Refusals(t *testing.T) {
 		{"null code", codeIn("cat", `{"codes":[null]}`), "JSON string or a JSON integer"},
 		{"fractional JSON number", codeIn("n8", `{"codes":[6.5]}`), "JSON string or a JSON integer"},
 		{"exponent JSON number", codeIn("n8", `{"codes":[1e2]}`), "JSON string or a JSON integer"},
-		{"target set", func() *types.Attribute { a := codeIn("cat", `{"codes":["4"]}`); a.Target = "top2"; return a }(), "label"},
-		{"predictors set", func() *types.Attribute {
-			a := codeIn("cat", `{"codes":["4"]}`)
-			a.Predictors = []string{"x"}
-			return a
-		}(), "label"},
+		// target / predictors are the field-reference walk's general
+		// refusal (model.ForeignRegressionSlotRefusal), judged before
+		// any constructor runs — internal/integration
+		// TestForeignRegressionSlots_RefusedEverywhere.
 		{"unknown field", codeIn("nope", `{"codes":["1"]}`), "unknown field"},
 		{"u8 non-integer string", codeIn("n8", `{"codes":["DK"]}`), "can never match"},
 		{"u8 fractional string", codeIn("n8", `{"codes":["6.5"]}`), "can never match"},
@@ -236,7 +235,7 @@ func TestAttrCodeIn_DuplicatesDeduped(t *testing.T) {
 	t.Parallel()
 
 	schema := codeInSchema(t)
-	codes, err := parseCodeInCodes([]byte(`{"codes":["4", 4, "5", "4", 5]}`))
+	codes, err := codein.ParseCodes([]byte(`{"codes":["4", 4, "5", "4", 5]}`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ Pipeline order: `features → filterers → attributes → groups → aggregatio
 - **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Other window readers (`total()` too): `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`). Beside groups / aggregations / crosstab it moves only when one of them reads a window or post-window label (`windows-first`); else materialize. A lag's first rows are null: guard with `?? 0`.
 <!-- /feature -->
 
-Entry shape: `{type, field?, label, params?, expression?}`. `type` is the attribute constant; `field` is the source for single-source attributes; `label` names the new column.
+Entry shape: `{type, field?, label, params?, expression?}`; `label` is the new column. `target` / `predictors` on any non-refit attribute (extensions included) → `PROCESSING_CONFIG`.
 
 ## Choosing an attribute
 

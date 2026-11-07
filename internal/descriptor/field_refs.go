@@ -448,6 +448,9 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
 			w.out = append(w.out, cerr)
 		}
+		if cerr := model.ForeignRegressionSlotRefusal(attr, attrRoute); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 		switch attrRoute {
 		case types.ATTR_PREVIOUS_STATE:
 			// Source columns only (the schema): the state's levels and
