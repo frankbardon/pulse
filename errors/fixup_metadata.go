@@ -1268,6 +1268,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT: {
+		Message: "An ATTR_FORMULA can evaluate to nil, because a nullable field or a literal nil reaches its result with no guard, so the run writes a null under its label on those rows and a downstream aggregation counts them in n_null; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "No change is needed when a null is the right answer for those rows. To give every row a number, guard each field in details.fields with field ?? 0 or a field == nil ? 0 : field ternary, and replace a literal nil branch with a number.",
+			},
+		},
+	},
 	PULSE_ADVISORY_JACKKNIFE_COST: {
 		Message: "A regression runs the leave-one-out jackknife over a large cohort, so the run refits the model once per row and its cost grows with the square of the row count; this is an advisory, not an error.",
 		Fixups: []Fixup{

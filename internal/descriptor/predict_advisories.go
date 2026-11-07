@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/seriespartition"
@@ -35,6 +36,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	errors.PULSE_ADVISORY_EXTRA_PASS,
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	errors.PULSE_ADVISORY_JACKKNIFE_COST,
@@ -142,6 +144,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 		add(a)
 	}
 	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
+	add(formulaNullableAdvisories(in.req, in.schema, in.prefix, in.inst)...)
 	add(seriesAxisAdvisories(in.req, in.schema, in.prefix, in.inst)...)
 	add(extensionParamsAdvisories(in.req, in.prefix, in.inst)...)
 	if in.recordsKnown {
@@ -561,6 +564,72 @@ func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapsh
 				"label":       label,
 				"totals":      totals,
 				"added_scans": extraPassAddedScans,
+			},
+		})
+	}
+	return out
+}
+
+// formulaNullableAdvisories: one PULSE_ADVISORY_FORMULA_NULLABLE_RESULT
+// per ATTR_FORMULA (the instance offers) whose RESULT can be nil, in
+// declared order — a nullable schema field (schema.Field(name).Nullable,
+// authoritative) or a literal nil reaching the result position with no
+// `??` / `== nil` / `!= nil` ternary guard (exprident.NullableResult).
+// The runtime writes such a row's value as a null under the label
+// (formulaAttribute.Row: a nil result is AttributeNull); a null fed to
+// an operator instead raises an evaluation error, never a null, so it
+// never fires. Names outside the schema (an earlier attribute's label, a
+// feature output) and function results are not judged. details {slot,
+// operator, label, fields, literal_nil}.
+func formulaNullableAdvisories(req *types.Request, schema *encoding.Schema, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	if schema == nil {
+		return nil
+	}
+	nullable := func(name string) bool {
+		f := schema.Field(name)
+		return f != nil && f.Nullable
+	}
+	var out []descriptor.Advisory
+	for i, attr := range req.Attributes {
+		if attr == nil || opRoute(inst, attr.Type) != types.ATTR_FORMULA {
+			continue
+		}
+		fields, literal, parsed := exprident.NullableResult(attr.Expression, nullable)
+		if !parsed || (len(fields) == 0 && !literal) {
+			continue
+		}
+		if fields == nil {
+			fields = []string{}
+		}
+		label := attr.Label
+		if label == "" {
+			label = string(attr.Type) + "_" + attr.Field
+		}
+		slot := prefix + "attributes[" + strconv.Itoa(i) + "]"
+		var reasons, fixes []string
+		if len(fields) == 1 {
+			reasons = append(reasons, "the nullable field "+fields[0])
+		} else if len(fields) > 1 {
+			reasons = append(reasons, "the nullable fields "+strings.Join(fields, ", "))
+		}
+		for _, f := range fields {
+			fixes = append(fixes, f+" ?? 0")
+		}
+		if literal {
+			reasons = append(reasons, "a literal nil")
+			fixes = append(fixes, "a number in place of the nil branch")
+		}
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT),
+			Message: "ATTR_FORMULA at " + slot + " (" + label + ") can evaluate to nil, because " + strings.Join(reasons, " and ") +
+				" reaches its result with no guard, so on those rows the run writes a null under the label and a downstream aggregation counts it in n_null; " +
+				"when every row needs a number, use " + strings.Join(fixes, ", ") + " (or a field == nil ? 0 : field ternary), and keep the formula as it is when a null is the answer.",
+			Details: map[string]any{
+				"slot":        slot,
+				"operator":    string(types.ATTR_FORMULA),
+				"label":       label,
+				"fields":      fields,
+				"literal_nil": literal,
 			},
 		})
 	}

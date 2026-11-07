@@ -774,6 +774,14 @@ const (
 	// formula label, the distinct total() arguments and added_scans.
 	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
 
+	// PULSE_ADVISORY_FORMULA_NULLABLE_RESULT is a predict advisory: an
+	// ATTR_FORMULA's result can be nil — a nullable schema field read
+	// or a literal nil reaches its result position with no `??` or
+	// `== nil` / `!= nil` ternary guard — so the run writes a null under
+	// the label on such rows. One per such formula; details carry the
+	// slot, the formula label, the unguarded fields and literal_nil.
+	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
+
 	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
 	// series overlay that reads its rows in order (prior, rolling,
 	// baseline, sibling) runs over two or more groupers with no
@@ -4829,6 +4837,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
+	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,

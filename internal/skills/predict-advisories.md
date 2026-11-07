@@ -9,10 +9,10 @@ covers: [advisories, PULSE_ADVISORY, analysis fit, suppress advisories]
 
 # Predict advisories
 
-Predict answers "will this run" (errors, warnings). An **advisory** answers a different question: "does this analysis fit the data". `pulse_predict` / `pulse api predict --json` carry them in `data.advisories`, one `{code, message, details}` per finding, omitted when none fires.
+An **advisory** answers "does this analysis fit the data", not "will this run" (errors, warnings). `pulse_predict` / `pulse api predict --json` carry them in `data.advisories`, one `{code, message, details}` per finding, omitted when none fires.
 
 - **Not a warning.** Advisories ride their own slot, never the envelope `warnings`. `--strict` never turns one into an error and `valid` never changes.
-- **Never changes execution.** The request runs exactly as written; acting on an advisory is the caller's choice.
+- **Never changes execution:** the request runs as written; acting on one is your call.
 - **Authoritative metadata only:** the request, the schema and its dictionaries, figures predict already computed — no name or value-shape guessing.
 - **`details.suggested`** is a replacement operator name or a request patch to merge — never a rewritten request — and only ever names something this instance offers. `pulse_errors_lookup CODE` returns the fixup text.
 
@@ -20,7 +20,7 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 
 | Code | Fires when | `details` |
 |---|---|---|
-| `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample t-test's `split_by` is a categorical field whose dictionary holds more than two entries (exactly two never fires) | `slot`, `operator`, `field`, `split_by`, `groups`, `suggested` (the many-group ANOVA; absent when none is offered) |
+| `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample t-test's `split_by` is a categorical field with more than two dictionary entries | `slot`, `operator`, `field`, `split_by`, `groups`, `suggested` (the many-group ANOVA; absent when none is offered) |
 <!-- feature: capability:multiplicity -->
 | `PULSE_ADVISORY_MANY_TESTS` | `p_values.uncorrected` ≥ `threshold` (10) and no `multiplicity` block anywhere — request, slot or instance default | `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": "holm"}}` |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: ≥ 2 slots emit p-values, their corrected ones sit in ≥ 2 separate families other than `compose`, and the slots emit ≥ 10 in total — no correction spans the batch | `slots`, `families` (IDs), `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": M, "family": "compose"}}` |
@@ -34,20 +34,21 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 <!-- /feature -->
 <!-- feature: ATTR_FORMULA -->
 | `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
+| `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT` | an `ATTR_FORMULA` result can be nil (a nullable field or literal `nil` reaches it unguarded by `??` or a `== nil` ternary), so those rows are null | `slot`, `operator`, `label`, `fields`, `literal_nil` |
 <!-- /feature -->
-| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | a series overlay that reads rows in order (prior, rolling, baseline, sibling) runs over ≥ 2 groupers with no `params.partition_by`, and the last grouper (the series axis) is not a date grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last; absent when none) |
+| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay (prior, rolling, baseline, sibling) over ≥ 2 groupers with no `params.partition_by` runs down a last grouper (series axis) that is not a date | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last; absent when none) |
 | `PULSE_ADVISORY_JACKKNIFE_COST` | a leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` fit without `resample`: SEs, p, intervals null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested: {"resample": "bootstrap"}` |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | result only: a least-squares `bounds` bound without `resample`, nulls SEs, p, CIs, `vcov` | `slot`, `operator`, `active`, `suggested` |
-| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an embedder extension operator whose registration declares no params, and carries a non-empty `params` object: its keys pass to the operator unchecked, so a misspelled key is not refused | `slot`, `operator`, `keys` |
+| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an embedder extension operator that declares no params gets a non-empty `params` object, whose keys pass unchecked (a misspelled key is not refused) | `slot`, `operator`, `keys` |
 
 <!-- feature: capability:multiplicity -->
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 <!-- /feature -->
 
-The two-group rule reads the dictionary, not the data, so it fires even when a filter leaves two groups.
+The two-group rule reads the dictionary, so it fires even when a filter leaves two groups.
 
-The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric (imported as categorical) is not a numeric field.
+The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical and never fires.
 
 ## Roots
 
@@ -55,7 +56,7 @@ Request predict runs every rule. <!-- feature: capability:facet -->Facet predict
 
 ## Suppression
 
-Embedders set `Options.SuppressAdvisories` (codes) for questions their product answers itself; it drops a code from predict and a result's `advisories` alike. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.
+`Options.SuppressAdvisories` (codes) drops a code from predict and a result's `advisories` alike. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.
 
 ## See
 

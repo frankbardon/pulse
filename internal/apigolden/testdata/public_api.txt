@@ -2720,6 +2720,7 @@ pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_CONSTRAINT_ACTIVE pulse/errors.Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
+pulse/errors: const PULSE_ADVISORY_FORMULA_NULLABLE_RESULT pulse/errors.Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
@@ -6776,4 +6777,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 27ab39bf96bd64f590782df5cddd1efa893a719653b1481e0173f95ef7a10d51
+// golden-hash: babe1685eba26dfe2197e216d4d72a5fddcd4fb4be93a78dd155cfb59a7a5b90

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -45,5 +47,39 @@ func TestComposePredict_SlotSizesAbsent(t *testing.T) {
 		if strings.Contains(string(raw), `"sizes"`) {
 			t.Errorf("%s: wire entry %s carries sizes", name, raw)
 		}
+	}
+}
+
+// TestComposePredict_SlotSizesAbsentOnForEachRefusal: a slot whose item
+// for_each expansion is refused has no normalized request, so it
+// reports no sizes and carries no `sizes` key — as Process predict of
+// the same request reports none — while the refusal stays on the batch.
+func TestComposePredict_SlotSizesAbsentOnForEachRefusal(t *testing.T) {
+	t.Parallel()
+
+	slot := func() *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: "e.pulse"},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "y", Label: "m", ForEach: &types.ForEach{}}}}
+	}
+	env := ValidateComposeWithOptions(&types.ComposedRequest{Requests: []*types.Request{slot()}}, experimentOpts(t))
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_FOR_EACH_INVALID) {
+		t.Fatalf("vacuous: errors %+v, want the %s refusal", env.Errors, errors.PULSE_FOR_EACH_INVALID)
+	}
+	res := env.Data.(*ComposeValidationResult)
+	if len(res.Slots) != 1 {
+		t.Fatalf("slots %+v, want one", res.Slots)
+	}
+	if res.Slots[0].Sizes != nil {
+		t.Errorf("sizes %+v, want none", res.Slots[0].Sizes)
+	}
+	raw, err := json.Marshal(res.Slots[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"sizes"`) {
+		t.Errorf("wire entry %s carries sizes", raw)
+	}
+	if p := predictFromBytes(experimentCohort(t), slot(), nil).Data.(*descriptor.PredictResult); p.Sizes != nil {
+		t.Errorf("Process predict sizes %+v, want none (parity)", p.Sizes)
 	}
 }
