@@ -16,7 +16,8 @@ import (
 // over the record rows with its non-number record columns typed —
 // applyWindows hands the window factory the schema and the
 // rows-are-records mode on every record-row arm — and over the grouped
-// output rows with every name untyped.
+// output rows with each built-in group key and aggregation label typed
+// as its cell (winformula.OutputColumns).
 
 func formulaTypesSchema(t *testing.T) *encoding.Schema {
 	t.Helper()
@@ -57,9 +58,8 @@ func wantCompileError(t *testing.T, err error) {
 
 // TestWinFormula_RecordRowArmsTypeColumns: arithmetic on a categorical
 // label is refused at compile on the windows-only run, the windows-first
-// pass and Materialize's record rows; over the grouped output rows the
-// same column (a group key there) is untyped, and a label comparison
-// still runs.
+// pass and Materialize's record rows, and over the grouped output rows
+// (a group key there); a label comparison still runs.
 func TestWinFormula_RecordRowArmsTypeColumns(t *testing.T) {
 	t.Parallel()
 	s := formulaTypesSchema(t)
@@ -78,18 +78,15 @@ func TestWinFormula_RecordRowArmsTypeColumns(t *testing.T) {
 		NewSliceIterator(formulaTypesRecords(s)), []DerivedColumn{{Name: "f", Window: true}}, func(int64, []any) error { return nil })
 	wantCompileError(t, err)
 
-	// Grouped output rows: untyped, so the label reaches the row and the
-	// arithmetic fails there, as a grouped cell's type is unknowable
-	// before a row.
+	// Grouped output rows: the same column is a group key there, typed
+	// as its label string (winformula.OutputColumns), so the arithmetic
+	// is refused at compile too.
 	_, err = NewProcessor(s).Process(ctx, &types.Request{
 		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
 		Windows:      formulaTypesWindow("region * 2"),
 	}, NewSliceIterator(formulaTypesRecords(s)))
-	var ce *errors.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_RUNTIME {
-		t.Fatalf("grouped rows: err = %v, want the row's PROCESSING_RUNTIME", err)
-	}
+	wantCompileError(t, err)
 
 	resp, err := NewProcessor(s).Process(ctx, &types.Request{Windows: formulaTypesWindow(`region == "north" ? x : 0`)}, NewSliceIterator(formulaTypesRecords(s)))
 	if err != nil {

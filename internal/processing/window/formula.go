@@ -14,18 +14,19 @@ import (
 // order_by, partition_by or frame (internal/windowparams).
 //
 // The compile is internal/winformula's, the one predict's
-// field-reference walk runs: over the record rows
-// (WindowOptions.OverRecords) every schema field typed as its row cell
-// (winformula.Columns), every other name `any`; the request-bound
+// field-reference walk runs: each column typed as WindowOptions.Columns
+// declares it (a record field, or a built-in group key or aggregation
+// label on the output rows), every other name `any`; the request-bound
 // functions from WindowOptions.ExprBound.
 // Which names exist at this window's point (a forward reference to a
 // later window's label, a record column the output rows do not carry)
 // is the walk's refusal, raised before any window runs.
 //
 // A row where any column the expression reads is null, absent or NaN
-// reads null, without running the expression; a decimal cell reads as
-// its float64 value. A nil or non-finite result reads null; any other
-// non-number fails the run (winformula.Program.Eval).
+// reads null, without running the expression; a decimal cell — a
+// record-row decimal or a decimal aggregate, each a SortValuer — reads
+// as its float64 value (FormulaCell). A nil or non-finite result reads
+// null; any other non-number fails the run (winformula.Program.Eval).
 type formulaComputer struct {
 	prog *winformula.Program
 }
@@ -39,7 +40,7 @@ func newFormula(w *types.Window, opts WindowOptions) (WindowComputer, error) {
 	if ref != nil {
 		return nil, ref.Coded()
 	}
-	prog, ce := winformula.Compile(src, winformula.Columns(opts.Schema, opts.OverRecords), opts.ExprBound, false)
+	prog, ce := winformula.Compile(src, opts.Columns, opts.ExprBound, false)
 	if ce != nil {
 		return nil, ce
 	}
@@ -54,13 +55,10 @@ func (c *formulaComputer) Compute(rows []map[string]any, partitions [][]int, lab
 			row := rows[rowIdx]
 			null := false
 			for _, name := range reads {
-				v, ok := row[name]
-				if !ok || isNullCell(v) {
+				v, ok := FormulaCell(row, name)
+				if !ok {
 					null = true
 					break
-				}
-				if d, ok := v.(ScaledDecimal); ok {
-					v = d.Value.Float64(d.Scale)
 				}
 				env[name] = v
 			}
@@ -80,4 +78,23 @@ func (c *formulaComputer) Compute(rows []map[string]any, partitions [][]int, lab
 		}
 	}
 	return nil
+}
+
+// FormulaCell is the value a WIN_FORMULA reads for column name of row:
+// a cell that orders by its value (SortValuer — a record-row decimal, a
+// decimal aggregate) reads as that value, a decimal as its float64. ok
+// is false for a null cell: absent, nil, NaN, or a nil SortValue.
+func FormulaCell(row map[string]any, name string) (any, bool) {
+	v, ok := row[name]
+	if !ok {
+		return nil, false
+	}
+	v = sortValue(v)
+	if isNullCell(v) {
+		return nil, false
+	}
+	if d, ok := v.(ScaledDecimal); ok {
+		return d.Value.Float64(d.Scale), true
+	}
+	return v, true
 }

@@ -1959,7 +1959,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 && !windowsFirst {
-		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver(), recordRows); err != nil {
+		if err := p.applyWindows(ctx, data, req, keyOrders, rowWords.copyObserver(), recordRows); err != nil {
 			return nil, err
 		}
 		// A window label a matrix reads as a computed member, or a

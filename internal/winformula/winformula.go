@@ -13,9 +13,11 @@
 // refused at compile on both sides; every other name (a derived column,
 // an earlier window's label) is declared `any`. Typing changes no
 // figure: the operators and patchers evaluate a typed float64 operand
-// exactly as an untyped one holding it. The output rows' cells
-// carry no declared type — a group key may hold a label or a number, an
-// aggregation a float or an integer — so every name they read is `any`.
+// exactly as an untyped one holding it. Over the OUTPUT rows each
+// built-in group key and aggregation label is declared as the cell the
+// engine writes (OutputColumns: a key a label string, an aggregation a
+// float64, a label list, a count map, the Welford triple, an array);
+// an extension operator's column, like every other name, is `any`.
 // Which names exist is the field-reference walk's judgement (the row's
 // columns plus every EARLIER window's label); the compile only types
 // what it is given. The request-bound half is the caller's
@@ -38,8 +40,9 @@
 // caller judges the cells). So `x ?? 0` never sees a nil: a null input
 // is a null output.
 //
-// Leaf: expr-lang + internal/exprenv / exprident + the public errors
-// and encoding packages. Never imports the engine.
+// Leaf: expr-lang + internal/exprenv / exprident / exprslots /
+// aggconst / vectors + the public errors, encoding and types packages.
+// Never imports the engine.
 package winformula
 
 import (
@@ -107,6 +110,7 @@ func (p *Program) Reads() []string { return p.reads }
 // without a schema. Predict's walk and the window factory build it from
 // the same two inputs, so both compile the same declarations. A
 // duplicated name keeps its first occurrence, as Schema.Field does.
+// Over the output rows, OutputColumns is the typed half.
 func Columns(schema *encoding.Schema, overRecords bool) exprtypes.Map {
 	if !overRecords || schema == nil {
 		return nil

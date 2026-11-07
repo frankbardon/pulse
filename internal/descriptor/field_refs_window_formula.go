@@ -32,8 +32,10 @@ const WindowFormulaForwardReason = "forward_reference"
 //   - once every name resolves, the expression compiles
 //     (winformula.Compile, the engine factory's compile) — over the
 //     record rows with every schema field typed as its row cell
-//     (winformula.Columns), so arithmetic on a categorical label is
-//     refused here, not at the first row — against the
+//     (winformula.Columns), over the output rows with each built-in
+//     group key and aggregation label typed as its cell
+//     (winformula.OutputColumns), so arithmetic on a categorical label
+//     or a label key is refused here, not at the first row — against the
 //     walk's request-bound declarations less coef / sweep_axis /
 //     response (a window row reads no fitted model), and its literal
 //     lookup() / range_label() calls are judged against the instance's
@@ -76,8 +78,15 @@ func (w *fieldRefWalk) checkWindowFormula(req *types.Request, i int, win *types.
 	bound.Coef, bound.SweepAxis, bound.Response = nil, nil, nil
 	// Over the record rows (no output-row swap at step 5: w.rowCols
 	// nil) every schema field is typed as its row cell
-	// (winformula.Columns), as the engine's applyWindows types it.
-	prog, ce := winformula.Compile(src, winformula.Columns(w.compile.schema, w.rowCols == nil), bound, w.cols[exprenv.ParamsName])
+	// (winformula.Columns); over the output rows each built-in group key
+	// and aggregation label as the cell the engine writes
+	// (winformula.OutputColumns) — as the engine's applyWindows types
+	// them.
+	cols := winformula.Columns(w.compile.schema, w.rowCols == nil)
+	if w.rowCols != nil {
+		cols = winformula.OutputColumns(req, w.inst.Hidden)
+	}
+	prog, ce := winformula.Compile(src, cols, bound, w.cols[exprenv.ParamsName])
 	if ce != nil {
 		w.out = append(w.out, ce)
 		return

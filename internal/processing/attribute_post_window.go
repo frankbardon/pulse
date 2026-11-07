@@ -66,7 +66,7 @@ func (p *Processor) windowsFirstPass(ctx context.Context, req *types.Request, po
 	if err != nil {
 		return err
 	}
-	if err := p.applyWindows(ctx, rows, req.Windows, nil, words.copyObserver(), true); err != nil {
+	if err := p.applyWindows(ctx, rows, req, nil, words.copyObserver(), true); err != nil {
 		return err
 	}
 	if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
