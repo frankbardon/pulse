@@ -64,6 +64,13 @@ type ExtensionRegistry struct {
 	// score (RegressionScorer).
 	RegressionScorers map[types.RegressionType]model.ScorerFactory
 
+	// Overlays are the extension OVERLAY_<NS>_<NAME> kinds
+	// (pulse.OverlayRegistration, overlay_extension.go): each one's
+	// declared contract and its per-host handlers, read through
+	// extensionOverlay on the overlay route (a hidden kind is never
+	// found).
+	Overlays map[types.OverlayKind]*ExtensionOverlay
+
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
 	// fallback path consults the per-type Streamable() method.

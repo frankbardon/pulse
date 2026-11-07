@@ -477,7 +477,7 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 	case "regression":
 		metas = snap.Regressions
 	case "overlay":
-		metas = snap.OverlayKinds
+		metas = snap.Overlays
 	default:
 		return nil
 	}

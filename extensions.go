@@ -98,6 +98,9 @@ type Extensions struct {
 	// Regressions installs embedder REG_* regression models for
 	// Request.Regressions (see RegressionRegistration).
 	Regressions []RegressionRegistration
+	// Overlays installs embedder OVERLAY_* kinds for Request.Overlays
+	// (see OverlayRegistration).
+	Overlays []OverlayRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future

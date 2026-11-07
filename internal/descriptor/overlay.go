@@ -651,6 +651,17 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape — the runtime hooks' rule).
 		judged := overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind))
+		// An extension kind is judged by its declaration alone — the
+		// rule every runtime Process hook raises
+		// (overlayhost.ExtensionRequestRefusal): host shape,
+		// multi-measure host, Ref, Scope, Level / Within, then its
+		// Validate hook.
+		if d := opts.extensionOverlay(spec.Kind); d != nil {
+			if cerr := overlayhost.ExtensionRequestRefusal(d, judged, req.Crosstab.HasMeasures(), spec, i); cerr != nil {
+				addCodedError(env, cerr)
+			}
+			continue
+		}
 		if cerr := overlayhost.ShapeRefusal(judged, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue

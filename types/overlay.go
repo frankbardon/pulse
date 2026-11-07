@@ -459,7 +459,7 @@ const (
 	// merges into the FORMULA env. Functions widen the function
 	// surface only — they do NOT widen the variable identifier surface.
 	// Embedders that need new variables MUST register a custom kind
-	// via `pulse.Options.Extensions.OverlayKinds` per the existing
+	// via `pulse.Options.Extensions.Overlays` per the existing
 	// extension-points policy (CLAUDE.md "Extension Points → Naming
 	// policy"); FORMULA cannot widen its variable namespace from
 	// outside.

@@ -55,6 +55,9 @@ func guidanceEntries(ext Extensions) []guidanceEntry {
 		out = append(out, guidanceEntry{category: categoryRegression, name: string(r.Name), index: i, purpose: r.Purpose,
 			interpretation: r.Interpretation, outputs: regressionInterpretationOutputs(r)})
 	}
+	for i, r := range ext.Overlays {
+		out = append(out, guidanceEntry{category: categoryOverlay, name: string(r.Name), index: i, purpose: r.Purpose, interpretation: r.Interpretation})
+	}
 	return out
 }
 

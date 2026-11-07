@@ -1367,6 +1367,19 @@ const (
 	// adapter.
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 
+	// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH indicates an overlay
+	// registration's handler — run at pulse.New over a synthetic
+	// crosstab host, or on any run — returned a payload its registration
+	// does not declare: a Shape outside its Shapes, an arm other than
+	// the shape's own set, Parts, an engine-owned multiple-comparison
+	// figure (p_adjusted / significant_adjusted) or a warning without a
+	// code or message. Details carry the category, name, a reason
+	// discriminator (undeclared_shape, shape_arm_mismatch,
+	// undeclared_parts, engine_owned, invalid_warning), the returned
+	// shape, the declared shapes and, on a run, the spec index. The
+	// overlay sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH.
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -4875,6 +4888,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_SPEC_REFUSED,
 	PULSE_EXTENSION_PARAM_INVALID,

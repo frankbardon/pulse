@@ -336,6 +336,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
 	errors.PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH:       shared,
 	errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH:   shared,
+	errors.PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH:      shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
 	errors.PULSE_EXTENSION_SPEC_REFUSED:                 shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,

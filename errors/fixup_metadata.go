@@ -2058,6 +2058,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH: {
+		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return OverlayOutput.Payload with a Shape listed in the registration's Shapes and only its matching arm set (Scalar, Series or Matrix); leave Parts and every p_adjusted / significant_adjusted field nil (the engine owns multiple-comparison correction); give every warning a Code and a Message. details.reason names the rule that failed.",
+			},
+		},
+	},
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
 		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code).",
 		Fixups: []Fixup{

@@ -48,11 +48,16 @@ func TestExtensions_OverlayKinds_NamingPolicy(t *testing.T) {
 		}
 	}
 
-	overlayPrefixed := "OVERLAY_ACME_INDEX"
-	if extensionNameRegex.MatchString(overlayPrefixed) {
-		t.Errorf("extensionNameRegex unexpectedly accepts %q; "+
-			"adding OVERLAY_ to the alternation MUST also add the "+
-			"matching extensionCategory entry and a registration slot",
-			overlayPrefixed)
+	// The OVERLAY_ category is a registration slot
+	// (Extensions.Overlays): a namespaced name passes the regex and the
+	// category prefix check; a two-segment one (no namespace) does not.
+	if err := validateExtensionName("OVERLAY_ACME_INDEX", categoryOverlay); err != nil {
+		t.Errorf("validateExtensionName(OVERLAY_ACME_INDEX) = %v, want accepted", err)
+	}
+	if extensionNameRegex.MatchString("OVERLAY_INDEX") {
+		t.Error("extensionNameRegex accepts the namespace-less OVERLAY_INDEX")
+	}
+	if err := validateExtensionName("OVERLAY_ACME_INDEX", categoryAggregator); err == nil {
+		t.Error("an aggregator registration named OVERLAY_ACME_INDEX passed the category-prefix check")
 	}
 }

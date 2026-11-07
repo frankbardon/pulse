@@ -1965,7 +1965,8 @@ type SpecValidator[S any] func(spec *S) error
 ```
 
 `S` is the category's spec type. Today every one of the nine
-categories carries it, the same field and shape on each registration:
+categories carries it, and so does an overlay kind — the same field and
+shape on each registration:
 
 | Registration | `S` | `details.slot` | `details.name` |
 |---|---|---|---|
@@ -1978,12 +1979,16 @@ categories carries it, the same field and shape on each registration:
 | `TestRegistration` | `types.Test` | `tests` (tier 1) / `post_tests` (tier 2) | `label` |
 | `MatrixOpRegistration` | `types.MatrixSpec` | `matrices` | `name` |
 | `RegressionRegistration` | `types.RegressionSpec` | `regressions` (a Compose fit's too) | `name` |
+| `OverlayRegistration` | `types.OverlaySpec` | `overlays` (a Compose slot's own too) | `name` |
 
 The slot key is the category's own, never the slot's path: the runtime
-factory cannot tell a crosstab cell from a top-level aggregation. The
-hook sees the spec alone — no record, no cohort schema, nothing predict
-lacks — and returns nil to accept it. Pulse runs it, under `recover()`,
-in three places:
+factory cannot tell a crosstab cell from a top-level aggregation. An
+overlay kind's hook (`details.category` `overlay`) is judged last,
+after its declarative host / Ref / Scope / Level rules, inside the one
+overlay request rule that predict and runtime share — no factory runs
+for an overlay, so it never runs twice. The hook sees the spec alone —
+no record, no cohort schema, nothing predict lacks — and returns nil to
+accept it. Pulse runs it, under `recover()`, in three places:
 
 | Where | When | A refusal is |
 |---|---|---|

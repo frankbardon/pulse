@@ -313,6 +313,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
+pulse: type Extensions field Overlays []pulse.OverlayRegistration
 pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
@@ -775,6 +776,20 @@ pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
 pulse: type Options field SuppressAdvisories []string
 pulse: type Options field TemplateDirs []string
+pulse: type OverlayRegistration struct
+pulse: type OverlayRegistration field Description string
+pulse: type OverlayRegistration field EmitsPValues bool
+pulse: type OverlayRegistration field Handler pulse/extend.OverlayHandler
+pulse: type OverlayRegistration field Inferential bool
+pulse: type OverlayRegistration field Interpretation []pulse/descriptor.Interpretation
+pulse: type OverlayRegistration field Name pulse/types.OverlayKind
+pulse: type OverlayRegistration field Params []pulse.ParamMeta
+pulse: type OverlayRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type OverlayRegistration field Refs []pulse/extend.OverlayRefKind
+pulse: type OverlayRegistration field Scopes []pulse/types.OverlayScope
+pulse: type OverlayRegistration field Shapes []pulse/types.OverlayShape
+pulse: type OverlayRegistration field Validate pulse/extend.SpecValidator[pulse/types.OverlaySpec]
+pulse: type OverlayRegistration field WeightAware bool
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
@@ -2761,6 +2776,7 @@ pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EX
 pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTENSION_NAME_INVALID"
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_NOT_WEIGHT_AWARE pulse/errors.Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
+pulse/errors: const PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 pulse/errors: const PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
@@ -3183,6 +3199,25 @@ pulse/extend: type MatrixOutput field Primary *pulse/types.MatrixValues
 pulse/extend: type MatrixOutput field Scalars map[string]float64
 pulse/extend: type MatrixOutput field Vectors map[string]any
 pulse/extend: type MatrixOutput field Warnings []*pulse/types.ResponseWarning
+pulse/extend: type MatrixOverlayFunc func(spec *pulse/types.OverlaySpec, host pulse/extend.MatrixOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type MatrixOverlayHost interface
+pulse/extend: type MatrixOverlayHost imethod Cell(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod CellLabel() string
+pulse/extend: type MatrixOverlayHost imethod CellN(r int, c int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod CellNEff(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod CellSumWeights(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod ColumnHeader() pulse/types.AxisHeader
+pulse/extend: type MatrixOverlayHost imethod ColumnKey(c int) pulse/types.AxisKey
+pulse/extend: type MatrixOverlayHost imethod ColumnMargin(c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod ColumnMarginN(c int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod Columns() int
+pulse/extend: type MatrixOverlayHost imethod GrandTotal() (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod RowHeader() pulse/types.AxisHeader
+pulse/extend: type MatrixOverlayHost imethod RowKey(r int) pulse/types.AxisKey
+pulse/extend: type MatrixOverlayHost imethod RowMargin(r int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod RowMarginN(r int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod Rows() int
+pulse/extend: type MatrixOverlayHost imethod WeightKind() pulse/types.WeightKind
 pulse/extend: type MatrixRows interface
 pulse/extend: type MatrixRows imethod Len() int
 pulse/extend: type MatrixRows imethod Row(i int) []float64
@@ -3204,6 +3239,15 @@ pulse/extend: type NullableAttribute imethod EmitsNull() bool
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type OverlayHandler struct
+pulse/extend: type OverlayHandler field Matrix pulse/extend.MatrixOverlayFunc
+pulse/extend: type OverlayOutput struct
+pulse/extend: type OverlayOutput field Payload pulse/types.OverlayPayload
+pulse/extend: type OverlayOutput field Summary *pulse/types.OverlaySummary
+pulse/extend: type OverlayOutput field Warnings []pulse/types.OverlayWarning
+pulse/extend: type OverlayRefKind string
+pulse/extend: const OverlayRefMargin pulse/extend.OverlayRefKind = "margin"
+pulse/extend: const OverlayRefNone pulse/extend.OverlayRefKind = "none"
 pulse/extend: type PostTest interface
 pulse/extend: type PostTest imethod Run(rows []map[string]any) (*pulse/types.TestResult, error)
 pulse/extend: type PostTestFactory func(spec *pulse/types.Test, schema *pulse/encoding.Schema) (pulse/extend.PostTest, error)
@@ -6700,4 +6744,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0b85a3daaf58c361ef94cb57d7775fe7ac1438974c99977b2ded956843f0f5e5
+// golden-hash: 116e5d5da59df206b4fee10cfb308e5ea628919690282cf8395cdbb62bd824eb

@@ -40,6 +40,16 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape).
 		judged := overlayhost.JudgedShape(shape, matrices, route)
+		// An extension kind is judged by its declaration alone
+		// (overlayhost.ExtensionRequestRefusal — predict's rule): host
+		// shape, multi-measure host, Ref, Scope, Level / Within, then its
+		// Validate hook.
+		if x := exts.extensionOverlay(route); x != nil {
+			if cerr := overlayhost.ExtensionRequestRefusal(&x.Decl, judged, req.Crosstab.HasMeasures(), &req.Overlays[i], i); cerr != nil {
+				return cerr
+			}
+			continue
+		}
 		if cerr := overlayhost.ShapeRefusal(judged, req.Overlays[i].Kind, route, i); cerr != nil {
 			return cerr
 		}

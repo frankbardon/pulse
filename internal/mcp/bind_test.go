@@ -333,7 +333,7 @@ func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
 	snap := &descx.ExtensionsSnapshot{
-		OverlayKinds: []descriptor.OperatorMeta{{Name: "OVERLAY_ACME_HEAT"}},
+		Overlays: []descriptor.OperatorMeta{{Name: "OVERLAY_ACME_HEAT"}},
 	}
 
 	// Core enum builder must merge the custom kind onto the Request facade.

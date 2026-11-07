@@ -62,6 +62,9 @@ func probeExtensions(ext Extensions) error {
 	if err := probeRegressions(ext.Regressions); err != nil {
 		return err
 	}
+	if err := probeOverlays(ext.Overlays); err != nil {
+		return err
+	}
 	return nil
 }
 

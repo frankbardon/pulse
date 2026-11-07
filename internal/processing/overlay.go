@@ -446,6 +446,21 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// An extension kind: its declaration's rule (the one
+		// refuseWrongHostOverlays and predict raise), then its crosstab
+		// handler, its output held to the declaration.
+		if x := exts.extensionOverlay(route); x != nil {
+			if cerr := overlayhost.ExtensionRequestRefusal(&x.Decl, types.OverlayShapeMatrix, host.measures != nil, spec, i); cerr != nil {
+				return nil, nil, cerr
+			}
+			layer, ws, err := applyExtensionOverlayMatrix(x, spec, host, i)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			warnings = append(warnings, ws...)
+			continue
+		}
 		// A SERIES-only kind handed to this MATRIX loop: the shared
 		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
 		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeMatrix, spec.Kind, route, i); cerr != nil {

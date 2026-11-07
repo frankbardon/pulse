@@ -267,6 +267,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 	ext(paramread.Feature, snap.Features)
 	ext(paramread.Test, snap.Tests)
 	ext(paramread.Regression, snap.Regressions)
+	ext(paramread.Overlay, snap.Overlays)
 	for _, m := range snap.MatrixOps {
 		facts := snap.MatrixDetails[m.Name]
 		d := paramsDeclOf(extensionMatrixParams(m.Streamable, facts.Params))
