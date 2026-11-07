@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -188,6 +189,9 @@ func safeBuildMatrixOp(reg MatrixOpRegistration, schema *encoding.Schema, weight
 	spec := &types.MatrixSpec{Type: reg.Name, Fields: append([]string(nil), probeMatrixMembers...), Params: probeParams(reg.Params, probeMatrixMembers)}
 	if weighted {
 		spec.Weight = probeWeight
+	}
+	if err := probeValidateRefusal(string(categoryMatrix), string(reg.Name), descx.ExtensionMatrixValidateRefusal(spec, reg.Validate), spec.Params, weighted); err != nil {
+		return nil, err
 	}
 	op, err = reg.Factory(spec, schema)
 	if err != nil {

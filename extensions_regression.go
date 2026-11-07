@@ -368,18 +368,8 @@ func regressionDataRefusal(code errors.Code) bool {
 // PULSE_EXTENSION_FACTORY_PANIC (details.stage validate, the hook's
 // refusal under validate_code / validate_error). A nil Validate passes.
 func safeValidateRegression(reg RegressionRegistration, spec *types.RegressionSpec, weighted bool) error {
-	cerr := descx.ExtensionRegressionValidateRefusal(spec, regressionDeclaration(reg))
-	if cerr == nil {
-		return nil
-	}
-	details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "stage": "validate",
-		"validate_code": string(cerr.Code), "validate_error": cerr.Message}
-	if p, ok := cerr.Details["panic"]; ok && cerr.Code == errors.PULSE_EXTENSION_SPEC_REFUSED {
-		details["panic"] = p
-	}
-	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
-		fmt.Sprintf("regression %q Validate refused the probe spec during probe-validation: %s", reg.Name, cerr.Message),
-		probeDetails(withProbeParams(details, spec.Params), weighted))
+	return probeValidateRefusal(string(categoryRegression), string(reg.Name),
+		descx.ExtensionRegressionValidateRefusal(spec, regressionDeclaration(reg)), spec.Params, weighted)
 }
 
 // safeBuildRegression invokes the factory under a deferred recover with

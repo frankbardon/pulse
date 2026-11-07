@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -499,7 +500,13 @@ func adaptAggregatorShaped(name types.AggregationType, inner extend.Aggregator, 
 // extend.Record.Weight().
 func adaptAggregatorFactory(reg AggregatorRegistration) processing.AggregatorFactory {
 	inner, emit, name, aware, array := reg.Factory, reg.ComponentsFunc, reg.Name, reg.WeightAware, reg.ArrayValued
+	validate := reg.Validate
 	return func(agg *types.Aggregation, schema *encoding.Schema) (processing.Aggregator, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionAggregatorValidateRefusal).
+		if cerr := descx.ExtensionAggregatorValidateRefusal(agg, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(agg, schema)
 		if err != nil {
 			return nil, err
@@ -844,7 +851,13 @@ func adaptGrouper(name types.GroupType, field string, inner extend.Grouper, emit
 // engine factory. A nil instance passes through as nil.
 func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
 	inner, emit, name, mergeable := reg.Factory, reg.ComponentsFunc, reg.Name, reg.Mergeable
+	validate := reg.Validate
 	return func(grp *types.Group, schema *encoding.Schema) (processing.Grouper, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionGrouperValidateRefusal).
+		if cerr := descx.ExtensionGrouperValidateRefusal(grp, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(grp, schema)
 		if err != nil {
 			return nil, err
@@ -865,9 +878,18 @@ func adaptGrouperFactory(reg GrouperRegistration) processing.GrouperFactory {
 // fltCore forwards Build, wrapping the extend FilterFunc onto the
 // engine's *processing.Record signature (the record is passed as its
 // extRecord view).
-type fltCore struct{ inner extend.FiltererBuilder }
+type fltCore struct {
+	inner extend.FiltererBuilder
+	// validate is the registration's spec-only Validate hook, run
+	// before Build (the call that sees the spec); nil accepts.
+	validate func(*types.Filterer) error
+}
 
 func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processing.FilterFunc, error) {
+	// predict's own call (descx.ExtensionFiltererValidateRefusal).
+	if cerr := descx.ExtensionFiltererValidateRefusal(spec, f.validate); cerr != nil {
+		return nil, cerr
+	}
 	fn, err := f.inner.Build(spec, schema)
 	if err != nil || fn == nil {
 		return nil, err
@@ -901,12 +923,18 @@ type (
 // adaptFilterer wraps an extend.FiltererBuilder, adding MetaFilterer
 // when emit is non-nil (or the value carries its own Components()).
 func adaptFilterer(inner extend.FiltererBuilder, emit FiltererComponentsFunc) processing.FiltererBuilder {
+	return adaptFiltererValidated(inner, emit, nil)
+}
+
+// adaptFiltererValidated is adaptFilterer with the registration's
+// Validate hook judged before every Build.
+func adaptFiltererValidated(inner extend.FiltererBuilder, emit FiltererComponentsFunc, validate func(*types.Filterer) error) processing.FiltererBuilder {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.FiltererBuilder) (map[string]any, error) { return self.Components() }
 		}
 	}
-	core := fltCore{inner: inner}
+	core := fltCore{inner: inner, validate: validate}
 	if emit != nil {
 		return &fltAdaptedM{core, fltMeta{inner: inner, emit: emit}}
 	}
@@ -916,13 +944,13 @@ func adaptFilterer(inner extend.FiltererBuilder, emit FiltererComponentsFunc) pr
 // adaptFiltererFactory turns a registration's extend factory into the
 // engine factory. A nil builder passes through as nil.
 func adaptFiltererFactory(reg FiltererRegistration) processing.FiltererFactory {
-	inner, emit := reg.Factory, reg.ComponentsFunc
+	inner, emit, validate := reg.Factory, reg.ComponentsFunc, reg.Validate
 	return func() processing.FiltererBuilder {
 		builder := inner()
 		if builder == nil {
 			return nil
 		}
-		return adaptFilterer(builder, emit)
+		return adaptFiltererValidated(builder, emit, validate)
 	}
 }
 
@@ -1139,8 +1167,13 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit Attr
 // adaptAttributeFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
-	inner, aware, emit := reg.Factory, reg.WeightAware, reg.ComponentsFunc
+	inner, aware, emit, validate := reg.Factory, reg.WeightAware, reg.ComponentsFunc, reg.Validate
 	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionAttributeValidateRefusal).
+		if cerr := descx.ExtensionAttributeValidateRefusal(attr, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(attr, schema)
 		if err != nil {
 			return nil, err
@@ -1183,8 +1216,13 @@ func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.
 // adaptRowTestFactory turns a tier-1 registration's extend factory
 // into the engine factory. A nil instance passes through as nil.
 func adaptRowTestFactory(reg TestRegistration) processing.RowTestFactory {
-	inner, aware := reg.RowFactory, reg.WeightAware
+	inner, aware, validate := reg.RowFactory, reg.WeightAware, reg.Validate
 	return func(spec *types.Test, schema *encoding.Schema) (processing.RowTest, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionTestValidateRefusal, slot "tests").
+		if cerr := descx.ExtensionTestValidateRefusal(spec, false, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(spec, schema)
 		if err != nil {
 			return nil, err
@@ -1207,8 +1245,14 @@ func adaptRowTestFactory(reg TestRegistration) processing.RowTestFactory {
 // exactly (it never sees a Record), so the instance is handed over
 // as-is; only the factory's named return type differs.
 func adaptPostTestFactory(reg TestRegistration) processing.PostTestFactory {
-	inner := reg.PostFactory
+	inner, validate := reg.PostFactory, reg.Validate
 	return func(spec *types.Test, schema *encoding.Schema) (processing.PostTest, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionTestValidateRefusal, slot
+		// "post_tests").
+		if cerr := descx.ExtensionTestValidateRefusal(spec, true, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(spec, schema)
 		if err != nil || instance == nil {
 			return nil, err
@@ -1224,8 +1268,13 @@ func adaptPostTestFactory(reg TestRegistration) processing.PostTestFactory {
 // exactly, so the instance is handed over as-is; the options value is
 // translated (both are empty today).
 func adaptWindowFactory(reg WindowRegistration) window.WindowFactory {
-	inner := reg.Factory
+	inner, validate := reg.Factory, reg.Validate
 	return func(w *types.Window, _ window.WindowOptions) (window.WindowComputer, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionWindowValidateRefusal).
+		if cerr := descx.ExtensionWindowValidateRefusal(w, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(w, extend.WindowOptions{})
 		if err != nil || instance == nil {
 			return nil, err
@@ -1423,8 +1472,13 @@ func adaptFeature(name types.FeatureType, inner extend.FeatureComputer) feature.
 // adaptFeatureFactory turns a registration's extend factory into the
 // engine factory. A nil instance passes through as nil.
 func adaptFeatureFactory(reg FeatureRegistration) feature.Factory {
-	inner, name := reg.Factory, reg.Name
+	inner, name, validate := reg.Factory, reg.Name, reg.Validate
 	return func(feat *types.Feature, schema *encoding.Schema) (feature.Computer, error) {
+		// The spec-only Validate hook, before the factory — predict's
+		// own call (descx.ExtensionFeatureValidateRefusal).
+		if cerr := descx.ExtensionFeatureValidateRefusal(feat, validate); cerr != nil {
+			return nil, cerr
+		}
 		instance, err := inner(feat, schema)
 		if err != nil {
 			return nil, err

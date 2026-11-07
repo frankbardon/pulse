@@ -1606,7 +1606,8 @@ does not carry) and must pass the same checks; a failure of that
 construction reports the same code with `details.weighted: true`.
 Tests are probed only when they declare `WeightAware`. A regression
 model is fitted over eight synthetic rows ("Regression model
-(`Regressions`)" above). A registration's `Validate` hook runs on the
+(`Regressions`)" above). A registration's `Validate` hook — any
+category's, a window's or an unprobed test's included — runs on the
 probe spec first; refusing it, or panicking, fails `pulse.New` with
 `PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `validate`).
 
@@ -1963,16 +1964,31 @@ only at run time. A registration may instead carry an opt-in, spec-only
 type SpecValidator[S any] func(spec *S) error
 ```
 
-`S` is the category's spec type. Today `RegressionRegistration.Validate`
-(`extend.SpecValidator[types.RegressionSpec]`) carries it; the other
-categories adopt the same field and shape. The hook sees the spec
-alone — no record, no cohort schema, nothing predict lacks — and returns
-nil to accept it. Pulse runs it, under `recover()`, in three places:
+`S` is the category's spec type. Today every one of the nine
+categories carries it, the same field and shape on each registration:
+
+| Registration | `S` | `details.slot` | `details.name` |
+|---|---|---|---|
+| `AggregatorRegistration` | `types.Aggregation` | `aggregations` (a crosstab cell or margin aggregation too) | `label` |
+| `AttributeRegistration` | `types.Attribute` | `attributes` | `label` |
+| `FiltererRegistration` | `types.Filterer` | `filterers` (a facet request's too) | — |
+| `GrouperRegistration` | `types.Group` | `groups` (a crosstab axis too) | — |
+| `WindowRegistration` | `types.Window` | `windows` | `label` |
+| `FeatureRegistration` | `types.Feature` | `features` | `label` |
+| `TestRegistration` | `types.Test` | `tests` (tier 1) / `post_tests` (tier 2) | `label` |
+| `MatrixOpRegistration` | `types.MatrixSpec` | `matrices` | `name` |
+| `RegressionRegistration` | `types.RegressionSpec` | `regressions` (a Compose fit's too) | `name` |
+
+The slot key is the category's own, never the slot's path: the runtime
+factory cannot tell a crosstab cell from a top-level aggregation. The
+hook sees the spec alone — no record, no cohort schema, nothing predict
+lacks — and returns nil to accept it. Pulse runs it, under `recover()`,
+in three places:
 
 | Where | When | A refusal is |
 |---|---|---|
-| predict | once per slot whose spec every engine rule accepted (a slot an engine rule refuses reports that rule only) | the slot's error |
-| runtime | once per slot, after the engine's shared spec rules, before the factory and before a `resample` / `selection` refit builds one | a fatal configuration fault (never a per-slot failure) |
+| predict | a regression: once per slot whose spec every engine rule accepted (a slot an engine rule refuses reports that rule only). Every other category: once per slot, only on a request (a Compose slot or fit, a chain stage, a facet request) every other predict rule accepted | the slot's error |
+| runtime | once per slot, after the engine's shared spec rules, before the factory (a filterer: before its builder's `Build`, the call that sees the spec; a regression: before a `resample` / `selection` refit builds one) | a fatal configuration fault (never a per-slot failure) |
 | `pulse.New` probe | on the probe spec, before the factory is probed | `PULSE_EXTENSION_FACTORY_PANIC`, `details.stage` `validate`, the hook's verdict under `validate_code` / `validate_error` (and `panic`) |
 
 At predict and at runtime the verdict is the same error, byte for byte:
@@ -1981,8 +1997,8 @@ At predict and at runtime the verdict is the same error, byte for byte:
   wrapped one counts — keeps its code, message and details;
 - any other error is `PULSE_EXTENSION_SPEC_REFUSED`, message
   `<category> <type> refused its spec: <error>`, details
-  `{category, type, slot}` (`slot` the request slot key, `regressions`)
-  plus `name` when the slot is named;
+  `{category, type, slot}` (`slot` the request slot key in the table
+  above) plus `name` when the slot is named;
 - a panic is `PULSE_EXTENSION_SPEC_REFUSED`, message
   `<category> <type> Validate panicked: <value>`, the same details plus
   `panic`.
@@ -1991,11 +2007,24 @@ The hook gets a shallow copy of the spec: never mutate anything
 reachable from it (slices, maps, `params`) and never keep it. Keep it
 deterministic and cheap — predict runs it on every slot of every
 request. It must accept the probe spec (the one the factory is probed
-with, `params` synthesized from the declared `Params`). A nil `Validate`
+with, `params` synthesized from the declared `Params`) — every
+category's hook is probed, a window's and a tier without a factory
+probe (a test not declaring `WeightAware`) included. A nil `Validate`
 accepts every spec, byte-identically to a registration without the
 field. One rule, `internal/extspec.Refusal`, formats the verdict for
-both sides; the parity gate is
-`TestExtensions_RegressionValidatePredictMatchesRuntime`.
+both sides; the parity gates are
+`TestExtensions_SpecValidatePredictMatchesRuntime` (all nine
+categories) and `TestExtensions_RegressionValidatePredictMatchesRuntime`.
+
+Judge the fields a request writes and the engine never rewrites before
+construction — `type`, `field`, `label`, `name` and literal `params`
+values. Predict sees the slot as written (after `for_each` fan-out);
+the runtime hands the hook the spec its factory receives, which on a
+slot reading a `vector` carries the resolved members (and, for a
+vector aggregator, a default label and `params.labels`), on a
+`WeightAware` slot the weight in force, and on an expression-valued
+param its resolved value. A hook reading those can disagree with
+predict.
 
 ## Vector inputs (`vector` / `fields`)
 

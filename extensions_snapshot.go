@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 )
 
@@ -54,6 +55,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 	for _, r := range ext.Regressions {
 		addInputs("regression", string(r.Name), r.FieldInputs)
 	}
+	snap.SpecValidators = specValidatorsSnapshot(ext)
 	// ComponentSchemas projects per-extension ComponentSchema declarations
 	// so manifest + predict can surface extension operators on the same
 	// shape as built-ins. Empty / floor-only registrations stay absent
@@ -300,4 +302,52 @@ func paramMetaSnapshot(in []ParamMeta) []descriptor.OperatorParamMeta {
 		}
 	}
 	return out
+}
+
+// specValidatorsSnapshot projects every aggregator, attribute,
+// filterer, grouper, window, feature and test registration's Validate
+// hook (the matrix and regression hooks ride their details), keyed by
+// name per category; a registration without one is absent, and a
+// category with none stays a nil map.
+func specValidatorsSnapshot(ext Extensions) descx.ExtensionSpecValidators {
+	var v descx.ExtensionSpecValidators
+	for _, r := range ext.Aggregators {
+		v.Aggregators = putValidator(v.Aggregators, r.Name, r.Validate)
+	}
+	for _, r := range ext.Attributes {
+		v.Attributes = putValidator(v.Attributes, r.Name, r.Validate)
+	}
+	for _, r := range ext.Filterers {
+		v.Filterers = putValidator(v.Filterers, r.Name, r.Validate)
+	}
+	for _, r := range ext.Groupers {
+		v.Groupers = putValidator(v.Groupers, r.Name, r.Validate)
+	}
+	for _, r := range ext.Windows {
+		v.Windows = putValidator(v.Windows, r.Name, r.Validate)
+	}
+	for _, r := range ext.Features {
+		v.Features = putValidator(v.Features, r.Name, r.Validate)
+	}
+	for _, r := range ext.Tests {
+		if r.Tier == TestTierPost {
+			v.PostTests = putValidator(v.PostTests, r.Name, r.Validate)
+		} else {
+			v.RowTests = putValidator(v.RowTests, r.Name, r.Validate)
+		}
+	}
+	return v
+}
+
+// putValidator records fn under name in m (allocating m on first use);
+// a nil fn leaves m as is.
+func putValidator[K comparable, S any](m map[K]func(*S) error, name K, fn extend.SpecValidator[S]) map[K]func(*S) error {
+	if fn == nil {
+		return m
+	}
+	if m == nil {
+		m = map[K]func(*S) error{}
+	}
+	m[name] = fn
+	return m
 }

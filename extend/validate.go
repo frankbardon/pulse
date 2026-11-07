@@ -2,16 +2,19 @@ package extend
 
 // SpecValidator is the optional, spec-only refusal hook a registration
 // may carry in its Validate field: it judges one request slot's spec
-// (S is the category's spec type — types.RegressionSpec for a
-// regression model) and returns nil to accept it or an error to refuse
-// it. It sees the spec alone: no record, no cohort schema, no instance
+// (S is the category's spec type — types.Aggregation, types.Attribute,
+// types.Filterer, types.Group, types.Window, types.Feature, types.Test,
+// types.MatrixSpec or types.RegressionSpec, one per registration kind)
+// and returns nil to accept it or an error to refuse it. It sees the spec alone: no record, no cohort schema, no instance
 // state — exactly what predict has — so predict calls it on the same
 // spec the runtime does, before the factory, and both report the same
 // refusal.
 //
 // Pulse calls it in three places, each under recover():
 //
-//   - predict, once per slot whose spec the engine's own rules accepted;
+//   - predict, once per slot whose spec the engine's own rules accepted
+//     (for every category but regressions: on a request every other
+//     predict rule accepted);
 //   - the runtime, once per slot, after the engine's own spec rules and
 //     before the factory (a refusal fails the run, like any other
 //     configuration fault — it never fails the slot alone);

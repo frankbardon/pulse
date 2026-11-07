@@ -97,6 +97,13 @@ type ExtensionsSnapshot struct {
 	// by name. Never serialised.
 	RegressionDetails map[string]ExtensionRegression `json:"-"`
 
+	// SpecValidators carries each aggregator, attribute, filterer,
+	// grouper, window, feature and test registration's opt-in Validate
+	// hook (an extend.SpecValidator), keyed by name per category; the
+	// matrix and regression hooks ride MatrixDetails / RegressionDetails.
+	// Predict runs them in validateExtensionSpecs. Never serialised.
+	SpecValidators ExtensionSpecValidators `json:"-"`
+
 	// OverlayKinds is the forward-compat reservation slot for
 	// embedder-registered overlay catalog entries. The runtime
 	// pulse.Options.Extensions.OverlayKinds registration surface

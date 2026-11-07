@@ -771,6 +771,15 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	if len(req.Labels) > 0 {
 		ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
 	}
+
+	// Last, the extension slots' own spec-only Validate hooks — only on
+	// a request every rule above (and every entry pass) accepted: the
+	// runtime judges its own rules before any extension factory, so a
+	// spec an engine rule refuses is reported as that rule's refusal
+	// alone (regressions run theirs per slot in validateRegression).
+	if len(env.Errors) == 0 {
+		validateExtensionSpecs(env, req, opts)
+	}
 }
 
 // computeCrosstabFusion answers PredictResult.CrosstabFusable /

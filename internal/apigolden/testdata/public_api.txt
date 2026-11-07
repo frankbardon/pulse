@@ -27,6 +27,7 @@ pulse: type AggregatorRegistration field NonScalar bool
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field Validate pulse/extend.SpecValidator[pulse/types.Aggregation]
 pulse: type AggregatorRegistration field ValueState bool
 pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
@@ -53,6 +54,7 @@ pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
 pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type AttributeRegistration field Validate pulse/extend.SpecValidator[pulse/types.Attribute]
 pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
@@ -463,6 +465,7 @@ pulse: type FeatureRegistration field Name pulse/types.FeatureType
 pulse: type FeatureRegistration field Params []pulse.ParamMeta
 pulse: type FeatureRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type FeatureRegistration field Streamable bool
+pulse: type FeatureRegistration field Validate pulse/extend.SpecValidator[pulse/types.Feature]
 pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
 pulse: type FilterToFileOptions struct
 pulse: type FilterToFileOptions field Expression string
@@ -502,6 +505,7 @@ pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
 pulse: type FiltererRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type FiltererRegistration field Validate pulse/extend.SpecValidator[pulse/types.Filterer]
 pulse: func Glossary() []pulse/descriptor.Term
 pulse: type GroupIndexHeadroom = pulse/internal/encoding.GroupIndexHeadroom
 pulse: type GroupIndexHeadroom underlying struct
@@ -535,6 +539,7 @@ pulse: type GrouperRegistration field Name pulse/types.GroupType
 pulse: type GrouperRegistration field Params []pulse.ParamMeta
 pulse: type GrouperRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type GrouperRegistration field Streamable bool
+pulse: type GrouperRegistration field Validate pulse/extend.SpecValidator[pulse/types.Group]
 pulse: type ImportEntry = pulse/internal/imports.Entry
 pulse: type ImportEntry underlying struct
 pulse: type ImportEntry field Expired bool "json:\"expired\""
@@ -724,6 +729,7 @@ pulse: type MatrixOpRegistration field PValues string
 pulse: type MatrixOpRegistration field Params []pulse.ParamMeta
 pulse: type MatrixOpRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type MatrixOpRegistration field Streamable bool
+pulse: type MatrixOpRegistration field Validate pulse/extend.SpecValidator[pulse/types.MatrixSpec]
 pulse: type MatrixOpRegistration field WeightAware bool
 pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
@@ -1310,6 +1316,7 @@ pulse: type TestRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type TestRegistration field RowFactory pulse/extend.RowTestFactory
 pulse: type TestRegistration field Streamable bool
 pulse: type TestRegistration field Tier pulse.TestTier
+pulse: type TestRegistration field Validate pulse/extend.SpecValidator[pulse/types.Test]
 pulse: type TestRegistration field WeightAware bool
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
@@ -1355,6 +1362,7 @@ pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type WindowRegistration field Validate pulse/extend.SpecValidator[pulse/types.Window]
 pulse/descriptor: package descriptor
 pulse/descriptor: type Advisory = pulse/types.Advisory
 pulse/descriptor: type Advisory underlying struct
@@ -6692,4 +6700,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 181494eb3bdfed496673f1f4a1813556d82a8c84a93c1ce7667ff14709728987
+// golden-hash: 0b85a3daaf58c361ef94cb57d7775fe7ac1438974c99977b2ded956843f0f5e5

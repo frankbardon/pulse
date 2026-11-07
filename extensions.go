@@ -296,8 +296,19 @@ type AggregatorRegistration struct {
 	// registered extension operator — whether or not a profile is set;
 	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
 	// Optional; nil adds no dependency. Extensions carry no Since.
-	DependsOn  []string
-	Factory    extend.AggregatorFactory
+	DependsOn []string
+	Factory   extend.AggregatorFactory
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Aggregation: predict
+	// calls it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "aggregator", type, slot: "aggregations"[, name: the
+	// spec's label][, panic]} — byte-identical at predict and at
+	// runtime. Nil accepts every spec.
+	Validate   extend.SpecValidator[types.Aggregation]
 	Streamable bool
 	// Mergeable declares that partial states fold via
 	// extend.MergeableAggregator.Merge, admitting the operator to the
@@ -478,10 +489,21 @@ type AttributeRegistration struct {
 	// Optional; nil adds no dependency. Extensions carry no Since.
 	DependsOn []string
 	Factory   extend.AttributeFactory
-	Mode      AttributeMode
-	Accepts   []encoding.FieldType
-	Emits     AttributeEmitType
-	Params    []ParamMeta
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Attribute: predict
+	// calls it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "attribute", type, slot: "attributes"[, name: the
+	// spec's label][, panic]} — byte-identical at predict and at
+	// runtime. Nil accepts every spec.
+	Validate extend.SpecValidator[types.Attribute]
+	Mode     AttributeMode
+	Accepts  []encoding.FieldType
+	Emits    AttributeEmitType
+	Params   []ParamMeta
 	// WeightAware declares that the attribute reads the row weight:
 	// on a slot where a weight is in force the factory sees it on
 	// spec.Weight and extend.Record.Weight() reports each row's valid
@@ -549,8 +571,19 @@ type FiltererRegistration struct {
 	// Optional; nil adds no dependency. Extensions carry no Since.
 	DependsOn []string
 	Factory   extend.FiltererFactory
-	Accepts   []encoding.FieldType
-	Params    []ParamMeta
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Filterer: predict
+	// calls it on a request its own rules accepted, the runtime calls it
+	// before the builder's Build (the call that sees the spec), and
+	// pulse.New's probe on the probe spec (a refusal or panic there is
+	// PULSE_EXTENSION_FACTORY_PANIC, details.stage "validate"). A
+	// returned *errors.CodedError keeps its code; any other error, or a
+	// panic, is PULSE_EXTENSION_SPEC_REFUSED {category: "filterer",
+	// type, slot: "filterers"[, panic]} — byte-identical at predict and
+	// at runtime. Nil accepts every spec.
+	Validate extend.SpecValidator[types.Filterer]
+	Accepts  []encoding.FieldType
+	Params   []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Filterers don't carry a Params
 	// block today; the callback receives nil raw bytes and should
@@ -607,8 +640,18 @@ type GrouperRegistration struct {
 	// registered extension operator — whether or not a profile is set;
 	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
 	// Optional; nil adds no dependency. Extensions carry no Since.
-	DependsOn  []string
-	Factory    extend.GrouperFactory
+	DependsOn []string
+	Factory   extend.GrouperFactory
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Group: predict calls
+	// it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "grouper", type, slot: "groups"[, panic]} —
+	// byte-identical at predict and at runtime. Nil accepts every spec.
+	Validate   extend.SpecValidator[types.Group]
 	Streamable bool
 	// FansOut declares that a single record can land in MORE THAN ONE
 	// bucket of this grouper — the embedder-registered sibling of
@@ -688,8 +731,19 @@ type WindowRegistration struct {
 	// Optional; nil adds no dependency. Extensions carry no Since.
 	DependsOn []string
 	Factory   extend.WindowFactory
-	Accepts   []encoding.FieldType
-	Params    []ParamMeta
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Window: predict calls
+	// it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "window", type, slot: "windows"[, name: the spec's
+	// label][, panic]} — byte-identical at predict and at runtime. Nil
+	// accepts every spec.
+	Validate extend.SpecValidator[types.Window]
+	Accepts  []encoding.FieldType
+	Params   []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc.
 	FieldInputs FieldInputsFunc
@@ -719,8 +773,19 @@ type FeatureRegistration struct {
 	// registered extension operator — whether or not a profile is set;
 	// otherwise pulse.New fails with PULSE_FEATURE_PROFILE_UNKNOWN.
 	// Optional; nil adds no dependency. Extensions carry no Since.
-	DependsOn  []string
-	Factory    extend.FeatureFactory
+	DependsOn []string
+	Factory   extend.FeatureFactory
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Feature: predict
+	// calls it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "feature", type, slot: "features"[, name: the spec's
+	// label][, panic]} — byte-identical at predict and at runtime. Nil
+	// accepts every spec.
+	Validate   extend.SpecValidator[types.Feature]
 	Streamable bool
 	Accepts    []encoding.FieldType
 	Params     []ParamMeta
@@ -777,9 +842,21 @@ type TestRegistration struct {
 	Tier        TestTier
 	RowFactory  extend.RowTestFactory
 	PostFactory extend.PostTestFactory
-	Streamable  bool
-	Accepts     []encoding.FieldType
-	Params      []ParamMeta
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.Test: predict calls
+	// it on a request its own rules accepted, the runtime calls it
+	// before RowFactory / PostFactory, and pulse.New's probe on the
+	// probe spec — every test, WeightAware or not (a refusal or panic
+	// there is PULSE_EXTENSION_FACTORY_PANIC, details.stage "validate").
+	// A returned *errors.CodedError keeps its code; any other error, or
+	// a panic, is PULSE_EXTENSION_SPEC_REFUSED {category: "test", type,
+	// slot: "tests" (tier 1) or "post_tests" (tier 2)[, name: the spec's
+	// label][, panic]} — byte-identical at predict and at runtime. Nil
+	// accepts every spec.
+	Validate   extend.SpecValidator[types.Test]
+	Streamable bool
+	Accepts    []encoding.FieldType
+	Params     []ParamMeta
 	// WeightAware declares that the test computes a weighted result:
 	// on a slot where a weight is in force the factory sees it on
 	// spec.Weight and a tier-1 row test reads each row's valid weight
@@ -822,6 +899,17 @@ type MatrixOpRegistration struct {
 	// Factory builds the operator per matrix slot. Required
 	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
 	Factory extend.MatrixFactory
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator) over the slot's types.MatrixSpec: predict
+	// calls it on a request its own rules accepted, the runtime calls it
+	// before Factory, and pulse.New's probe on the probe spec (a refusal
+	// or panic there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "matrix", type, slot: "matrices"[, name: the spec's
+	// name][, panic]} — byte-identical at predict and at runtime. Nil
+	// accepts every spec.
+	Validate extend.SpecValidator[types.MatrixSpec]
 	// Streamable declares the co-moment tier: the operator needs only
 	// extend.MatrixInput.CoMoment, so the request streams and merges
 	// across DecodeWorkers / ShardWorkers through the engine's blocked
