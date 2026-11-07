@@ -108,8 +108,8 @@ func TestPredict_CodeInRefusals(t *testing.T) {
 		{"int_over_width", codeInAttr("q1", `{"codes":[256]}`), "0..255", ""},
 		{"int_negative", codeInAttr("q1", `{"codes":[-1]}`), "can never match", ""},
 		{"int_label", codeInAttr("q1", `{"codes":["6.5"]}`), "can never match", ""},
-		{"target", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Target: "q1", Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors", ""},
-		{"predictors", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Predictors: []string{"score"}, Params: json.RawMessage(`{"codes":[1]}`)}, "target or predictors", ""},
+		{"target", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Target: "q1", Params: json.RawMessage(`{"codes":[1]}`)}, "does not take target, predictors", ""},
+		{"predictors", &types.Attribute{Type: types.ATTR_CODE_IN, Field: "q1", Predictors: []string{"score"}, Params: json.RawMessage(`{"codes":[1]}`)}, "does not take target, predictors", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

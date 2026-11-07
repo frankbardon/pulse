@@ -1369,7 +1369,7 @@ type Attribute struct {
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries
 	// its own RegressionSpec-shaped slice and refits internally during
-	// the prepass). Ignored by every non-regression attribute type.
+	// the prepass). Refused on every other attribute type, PROCESSING_CONFIG.
 
 	// Target is the dependent variable for ATTR_REG_FITTED / RESIDUAL /
 	// LEVERAGE. Required for those types.

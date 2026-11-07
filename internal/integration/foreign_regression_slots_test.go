@@ -37,16 +37,17 @@ var foreignRegressionField = map[types.AttributeType]string{
 
 // foreignRegressionMessage is the general refusal's message for typ.
 func foreignRegressionMessage(typ string) string {
-	return typ + " does not take target or predictors (only the regression refit attributes read them); name the output column with label"
+	return typ + " does not take target, predictors, penalty, alpha or l1_ratio (only the regression refit attributes read them); name the output column with label"
 }
 
-// TestForeignRegressionSlots_RefusedEverywhere: target / predictors on
-// every built-in attribute that does not read them — and on an
-// extension attribute — are refused by Process, ProcessStream and
-// predict with one PROCESSING_CONFIG code, message and details (the
-// field-reference walk's model.ForeignRegressionSlotRefusal); before
-// U67 sixteen built-ins and every extension attribute ignored them
-// silently.
+// TestForeignRegressionSlots_RefusedEverywhere: target / predictors /
+// penalty / alpha / l1_ratio on every built-in attribute that does not
+// read them — and on an extension attribute — are refused by Process,
+// ProcessStream and predict with one PROCESSING_CONFIG code, message
+// and details (the field-reference walk's
+// model.ForeignRegressionSlotRefusal); before U67 sixteen built-ins and
+// every extension attribute ignored them silently (penalty / alpha /
+// l1_ratio even on ATTR_CODE_IN).
 func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 	t.Parallel()
 
@@ -90,9 +91,15 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 			name       string
 			target     string
 			predictors []string
+			penalty    string
+			alpha      float64
+			l1Ratio    float64
 		}{
-			{"target", "x", nil},
-			{"predictors", "", []string{"x", "y"}},
+			{"target", "x", nil, "", 0, 0},
+			{"predictors", "", []string{"x", "y"}, "", 0, 0},
+			{"penalty", "", nil, "l2", 0, 0},
+			{"alpha", "", nil, "", 0.5, 0},
+			{"l1_ratio", "", nil, "", 0, 0.3},
 		} {
 			t.Run(c.name+"/"+slot.name, func(t *testing.T) {
 				t.Parallel()
@@ -102,13 +109,15 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 						t.Fatalf("template: %v", err)
 					}
 					req.Cohort = &types.Cohort{Filename: cohort}
-					req.Attributes[0].Target = slot.target
-					req.Attributes[0].Predictors = slot.predictors
+					a := req.Attributes[0]
+					a.Target, a.Predictors = slot.target, slot.predictors
+					a.Penalty, a.Alpha, a.L1Ratio = slot.penalty, slot.alpha, slot.l1Ratio
 					return &req
 				}
 				// The slot runs without them: the refusal is theirs alone.
 				clean := mk()
-				clean.Attributes[0].Target, clean.Attributes[0].Predictors = "", nil
+				a := clean.Attributes[0]
+				a.Target, a.Predictors, a.Penalty, a.Alpha, a.L1Ratio = "", nil, "", 0, 0
 				if _, err := c.p.Process(t.Context(), clean); err != nil {
 					t.Fatalf("the slot without target / predictors is refused: %v", err)
 				}
@@ -116,7 +125,8 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 				if ce.Code != errors.PROCESSING_CONFIG || ce.Message != foreignRegressionMessage(c.name) {
 					t.Errorf("runtime %s %q, want %s %q", ce.Code, ce.Message, errors.PROCESSING_CONFIG, foreignRegressionMessage(c.name))
 				}
-				if ce.Details["target"] != slot.target || ce.Details["attribute"] != c.name {
+				if ce.Details["target"] != slot.target || ce.Details["attribute"] != c.name ||
+					ce.Details["penalty"] != slot.penalty || ce.Details["alpha"] != slot.alpha || ce.Details["l1_ratio"] != slot.l1Ratio {
 					t.Errorf("details %#v", ce.Details)
 				}
 			})
@@ -125,18 +135,38 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 }
 
 // TestForeignRegressionSlots_TakersUnaffected: the refit attributes
-// still run with target / predictors (no general refusal on predict or
-// the runtime).
+// still run with target / predictors, and ATTR_REG_FITTED /
+// ATTR_REG_RESIDUAL with a penalty (alpha, l1_ratio), with no general
+// refusal on predict or the runtime; a penalty on ATTR_REG_LEVERAGE /
+// ATTR_REG_INFLUENCE / ATTR_REG_PREDICT stays their own refusal, never
+// the general one.
 func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 	t.Parallel()
 
 	p, fs, cohort := acceptanceCohort(t)
+	type takerCase struct {
+		name    string
+		typ     types.AttributeType
+		penalty string
+		alpha   float64
+		l1Ratio float64
+	}
+	cases := []takerCase{}
 	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
-		t.Run(string(typ), func(t *testing.T) {
+		cases = append(cases, takerCase{name: string(typ), typ: typ})
+	}
+	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL} {
+		cases = append(cases,
+			takerCase{string(typ) + "/l2", typ, "l2", 0.5, 0},
+			takerCase{string(typ) + "/elasticnet", typ, "elasticnet", 0.5, 0.3})
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			req := &types.Request{
-				Cohort:       &types.Cohort{Filename: cohort},
-				Attributes:   []*types.Attribute{{Type: typ, Target: "x", Predictors: []string{"y"}, Label: "o"}},
+				Cohort: &types.Cohort{Filename: cohort},
+				Attributes: []*types.Attribute{{Type: c.typ, Target: "x", Predictors: []string{"y"}, Label: "o",
+					Penalty: c.penalty, Alpha: c.alpha, L1Ratio: c.l1Ratio}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "o"}},
 			}
 			if _, err := p.Process(t.Context(), req); err != nil {
@@ -144,6 +174,27 @@ func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 			}
 			if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
 				t.Fatalf("predict refused a refit slot: %+v", env.Errors)
+			}
+		})
+	}
+	for _, typ := range []types.AttributeType{types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE, types.ATTR_REG_PREDICT} {
+		t.Run(string(typ)+"/own-penalty-refusal", func(t *testing.T) {
+			t.Parallel()
+			mk := func() *types.Request {
+				a := &types.Attribute{Type: typ, Target: "x", Predictors: []string{"y"}, Label: "o", Penalty: "l2", Alpha: 0.5}
+				if typ == types.ATTR_REG_PREDICT {
+					a.Target, a.Predictors = "", nil
+					a.Params = json.RawMessage(`{"fit":"m"}`)
+				}
+				return &types.Request{
+					Cohort:       &types.Cohort{Filename: cohort},
+					Attributes:   []*types.Attribute{a},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "o"}},
+				}
+			}
+			ce := assertPredictMatchesRefusal(t, p, fs, cohort, mk)
+			if ce.Message == foreignRegressionMessage(string(typ)) || !strings.Contains(ce.Message, "penal") {
+				t.Errorf("want %s's own penalty refusal, got %s %q", typ, ce.Code, ce.Message)
 			}
 		})
 	}
