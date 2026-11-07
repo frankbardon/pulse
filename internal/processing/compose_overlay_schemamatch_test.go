@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -437,7 +438,7 @@ func TestExtractSchemaShape_Canonical_Matrix(t *testing.T) {
 		[]string{"GROUP_RANGE"},
 		1, 1,
 	)
-	got := extractSchemaShape(resp).canonical()
+	got := responseAxisSchema(extractSchemaShape(resp)).Canonical()
 	want := "GROUP_CATEGORY|GROUP_DATE/GROUP_RANGE"
 	if got != want {
 		t.Errorf("canonical(matrix multi-row) = %q, want %q", got, want)
@@ -454,7 +455,7 @@ func TestExtractSchemaShape_Canonical_Series(t *testing.T) {
 	resp := &types.Response{Data: []map[string]any{
 		{"region": "us", "segment": "north", "sum": 1.0},
 	}}
-	got := extractSchemaShape(resp).canonical()
+	got := responseAxisSchema(extractSchemaShape(resp)).Canonical()
 	// "sum" is the FIRST sorted numeric column (the value),
 	// dropped. "region" + "segment" remain in sorted order.
 	want := "region|segment/"
@@ -468,7 +469,7 @@ func TestExtractSchemaShape_Canonical_Series(t *testing.T) {
 func TestExtractSchemaShape_Canonical_Scalar(t *testing.T) {
 	t.Parallel()
 
-	got := extractSchemaShape(&types.Response{}).canonical()
+	got := responseAxisSchema(extractSchemaShape(&types.Response{})).Canonical()
 	if got != "/" {
 		t.Errorf("canonical(scalar) = %q, want %q", got, "/")
 	}
@@ -494,7 +495,8 @@ func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 	}
 }
 
-// TestAxisKindsEqual_NilEmptyEquivalent locks the gate-side
+// TestAxisKindsEqual_NilEmptyEquivalent locks (over the shared
+// overlayhost.AxisSchema.Equal) the gate-side
 // short-circuit: nil and empty kind slices compare equal. Two
 // slots whose row axis is missing entirely (degenerate SCALAR)
 // must not trip the structural-divergence gate against another
@@ -502,14 +504,17 @@ func TestKindRequiresMatrix_E7S10Registry(t *testing.T) {
 func TestAxisKindsEqual_NilEmptyEquivalent(t *testing.T) {
 	t.Parallel()
 
-	if !axisKindsEqual(nil, []string{}) {
-		t.Error("axisKindsEqual(nil, []) = false, want true")
+	eq := func(a, b []string) bool {
+		return overlayhost.AxisSchema{Rows: a}.Equal(overlayhost.AxisSchema{Rows: b})
 	}
-	if !axisKindsEqual([]string{}, nil) {
-		t.Error("axisKindsEqual([], nil) = false, want true")
+	if !eq(nil, []string{}) {
+		t.Error("Equal(nil, []) = false, want true")
 	}
-	if !axisKindsEqual(nil, nil) {
-		t.Error("axisKindsEqual(nil, nil) = false, want true")
+	if !eq([]string{}, nil) {
+		t.Error("Equal([], nil) = false, want true")
+	}
+	if !eq(nil, nil) {
+		t.Error("Equal(nil, nil) = false, want true")
 	}
 }
 
@@ -523,8 +528,8 @@ func TestAxisKindsEqual_OrderSensitive(t *testing.T) {
 
 	a := []string{"GROUP_CATEGORY", "GROUP_DATE"}
 	b := []string{"GROUP_DATE", "GROUP_CATEGORY"}
-	if axisKindsEqual(a, b) {
-		t.Errorf("axisKindsEqual(%v, %v) = true, want false (order matters)", a, b)
+	if (overlayhost.AxisSchema{Rows: a}).Equal(overlayhost.AxisSchema{Rows: b}) {
+		t.Errorf("Equal(%v, %v) = true, want false (order matters)", a, b)
 	}
 }
 

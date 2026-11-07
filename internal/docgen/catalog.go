@@ -108,7 +108,7 @@ func extensionLists(ext *descx.ExtensionsSnapshot) map[string][]descriptor.Opera
 		"window":     ext.Windows,
 		"feature":    ext.Features,
 		"test":       ext.Tests,
-		"overlay":    ext.OverlayKinds,
+		"overlay":    ext.Overlays,
 	}
 }
 

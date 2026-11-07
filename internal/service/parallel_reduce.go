@@ -171,7 +171,7 @@ func (s *Service) reduceParallelBuffered(
 			out           *shardPartial
 		)
 
-		vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
+		vecs := processing.ExprVectors(req, schema, s.extensions.Classifier(catalogOf(model.SetFrom(ctx))))
 		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
 			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, totals, compute)

@@ -117,12 +117,17 @@ type exprProgram struct {
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
 	refs []string
-	// u64Refs are the refs naming a u64 schema field, each bound as its
+	// u64Refs are the refs naming a u64 schema field (or a formula alias
+	// of one, u64Src), each bound as its
 	// stored word (exprenv.U64, Record.exprU64) rather than its float64
 	// echo (nil: none — the per-row bind then costs nothing). inputU64
 	// is index-aligned with inputs.
 	u64Refs  []string
 	inputU64 []bool
+	// u64Src maps each u64Refs name that is a formula alias (a derived
+	// column, prevstate.U64Aliases) to the u64 field whose word it binds
+	// (nil: none).
+	u64Src map[string]string
 	// wholeEnv is set when the expression reads $env: it then needs the
 	// record's whole AllValues map, not just the named fields.
 	wholeEnv bool
@@ -148,7 +153,18 @@ type exprProgram struct {
 // newExprProgram is newExprProgramKeyed with no dictionary-inheritance
 // view.
 func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
-	return newExprProgramKeyed(src, what, schema, nil, vecs, refTables, opts)
+	return newExprProgramKeyed(src, what, schema, exprKeys{}, vecs, refTables, opts)
+}
+
+// exprKeys is the run's derived-column view an expression compiles in
+// (the zero value: none): view the dictionary-inheritance view
+// (prevstate.KeySchema, Processor.keySchema; nil or the schema itself:
+// none) and u64 the formula aliases (prevstate.U64Aliases,
+// Processor.u64Aliases: label → the u64 field the formula IS a bare read
+// of; nil: none). Both are per-run and shared with predict's compile.
+type exprKeys struct {
+	view *encoding.Schema
+	u64  map[string]string
 }
 
 // newExprProgramKeyed builds an expression's program against schema,
@@ -166,14 +182,14 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 // expression calling ref() is judged against them and the named vectors
 // at build (refStaticRefusal — predict's rules) and every compile
 // patches its ref() calls (refPatcher).
-func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
+func newExprProgramKeyed(src, what string, schema *encoding.Schema, keys exprKeys, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema), schema: schema}
-	p.derived = exprenv.DerivedFields(schema, keys)
+	p.derived = exprenv.DerivedFields(schema, keys.view)
 	for name := range p.derived {
-		p.decl[name] = exprenv.DerivedDecl(keys, name)
+		p.decl[name] = exprenv.DerivedDecl(keys.view, name)
 	}
 	if schema != nil {
 		for i := range schema.Fields {
@@ -205,10 +221,24 @@ func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs [
 	if err := p.bindVectors(vecs); err != nil {
 		return nil, err
 	}
-	if schema != nil {
+	if schema != nil && (!wholeEnv || envReadsStatic(src)) {
+		// A `$env.id` / `$env["id"]` member is among refs, so a static
+		// $env read binds the word like a bare field read. A dynamic
+		// $env use (`$env[name]`, `values($env)`, $env passed whole)
+		// reads values no patcher sees: every u64 then keeps its echo.
 		for _, name := range refs {
 			if f := schema.Field(name); f != nil && f.Type == encoding.FieldTypeU64 && !p.isVector(name) {
 				p.u64Refs = append(p.u64Refs, name)
+			} else if src, ok := keys.u64[name]; ok && f == nil && p.derived[name] == nil && !p.isVector(name) {
+				// A formula alias of a u64 field (prevstate.U64Aliases):
+				// declared a U64 like the field, and bound as the
+				// field's stored word (exprU64).
+				p.decl[name] = exprenv.DerivedU64Type
+				p.u64Refs = append(p.u64Refs, name)
+				if p.u64Src == nil {
+					p.u64Src = map[string]string{}
+				}
+				p.u64Src[name] = src
 			}
 		}
 	}
@@ -330,8 +360,9 @@ func (p *exprProgram) settleInputs() {
 
 // bindEnv copies the record's whole AllValues map into a pooled env,
 // every decimal and derived column lifted (exprenv.Bind) and every u64
-// field the expression names bound as its stored word (unless it reads
-// $env, whose map keeps the float64 echo it always carried): the map is
+// field the expression names — directly, through a let, or as a static
+// `$env.id` member — bound as its stored word (u64Refs; empty when it
+// uses $env dynamically, whose reads keep the float64 echo): the map is
 // the record's shared cache and is never written.
 func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 	env := exprEnvPool.Get().(map[string]any)
@@ -343,11 +374,9 @@ func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 		}
 		env[k] = v
 	}
-	if !p.wholeEnv {
-		for _, name := range p.u64Refs {
-			if v, ok := env[name]; ok {
-				env[name] = r.exprU64(name, v)
-			}
+	for _, name := range p.u64Refs {
+		if v, ok := env[name]; ok {
+			env[name] = p.exprU64(r, name, v)
 		}
 	}
 	return env
@@ -551,7 +580,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 				}
 			}
 		}
-		if len(p.vecs) == 0 && !p.decimals && p.derived == nil && (p.wholeEnv || len(p.u64Refs) == 0) {
+		if len(p.vecs) == 0 && !p.decimals && p.derived == nil && len(p.u64Refs) == 0 {
 			return p.run(all, r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
@@ -581,7 +610,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 			if p.inputDecs != nil && p.inputDecs[i] != nil {
 				v = exprenv.Bind(p.inputDecs[i], v)
 			} else if p.inputU64 != nil && p.inputU64[i] {
-				v = r.exprU64(name, v)
+				v = p.exprU64(r, name, v)
 			}
 			env[name] = v
 		} else {
@@ -650,6 +679,68 @@ func runPooled(prog *vm.Program, env map[string]any) (any, error) {
 	out, err := m.Run(prog, env)
 	exprVMPool.Put(m)
 	return out, err
+}
+
+// exprU64 is the env value of u64 ref name bound as v: its stored word
+// (Record.exprU64) — a formula alias's the word of the field it reads
+// (u64Src), the column holding that field's echo.
+func (p *exprProgram) exprU64(r *Record, name string, v any) any {
+	if src, ok := p.u64Src[name]; ok {
+		return r.exprU64(src, v)
+	}
+	return r.exprU64(name, v)
+}
+
+// envReadsStatic reports whether every use of $env in src is a member
+// read with a constant name (`$env.id`, `$env["id"]`) — the reads the
+// u64 patchers type and wrap, and projection (appendExprIdents) can
+// name. A source that does not parse reports false.
+func envReadsStatic(src string) bool {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return false
+	}
+	v := &envStaticVisitor{claimed: map[*exprast.IdentifierNode]bool{}}
+	exprast.Walk(&tree.Node, v)
+	return v.static()
+}
+
+// envStaticVisitor collects every $env identifier and claims those that
+// are the object of a constant-name member.
+type envStaticVisitor struct {
+	envs    []*exprast.IdentifierNode
+	claimed map[*exprast.IdentifierNode]bool
+}
+
+func (v *envStaticVisitor) Visit(node *exprast.Node) { v.visit(node) }
+
+// visit records node; at a constant-name $env member it returns the
+// member's name.
+func (v *envStaticVisitor) visit(node *exprast.Node) (string, bool) {
+	switch n := (*node).(type) {
+	case *exprast.IdentifierNode:
+		if n.Value == "$env" {
+			v.envs = append(v.envs, n)
+		}
+	case *exprast.MemberNode:
+		if id, ok := n.Node.(*exprast.IdentifierNode); ok && id.Value == "$env" {
+			if s, ok := n.Property.(*exprast.StringNode); ok {
+				v.claimed[id] = true
+				return s.Value, true
+			}
+		}
+	}
+	return "", false
+}
+
+// static reports whether every $env identifier walked was claimed.
+func (v *envStaticVisitor) static() bool {
+	for _, id := range v.envs {
+		if !v.claimed[id] {
+			return false
+		}
+	}
+	return true
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

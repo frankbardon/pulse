@@ -1,16 +1,11 @@
 package processing
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"math"
-	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/fieldaccept"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/codein"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,13 +30,6 @@ import (
 // The attribute reads only Attribute.Field, so the projection is exact
 // and the fused crosstab gate admits it with no special case.
 
-// codeInParams is the ATTR_CODE_IN params blob. Each code is a JSON
-// string or a JSON integer; RawMessage keeps both spellings until the
-// field type says how to resolve them.
-type codeInParams struct {
-	Codes []json.RawMessage `json:"codes"`
-}
-
 // codeInAttribute holds the resolved key set: the float64 keys
 // Record.NumericValue yields for a row holding one of the codes. An
 // empty set (registry probe, or every categorical code absent) matches
@@ -56,35 +44,15 @@ type codeInAttribute struct {
 	exact map[uint64]struct{}
 }
 
-// codeInIntegerMax is the largest value each accepted unsigned-integer
-// field type can hold. A code above it can never match.
-var codeInIntegerMax = map[encoding.FieldType]uint64{
-	encoding.FieldTypeU4:  15,
-	encoding.FieldTypeU8:  math.MaxUint8,
-	encoding.FieldTypeU16: math.MaxUint16,
-	encoding.FieldTypeU32: math.MaxUint32,
-	encoding.FieldTypeU64: math.MaxUint64,
-}
-
 func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if attr.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"ATTR_CODE_IN requires field")
 	}
-	// target / predictors belong to the ATTR_REG_* family and would be
-	// silently ignored here — the usual slip is naming the OUTPUT with
-	// target, which is label's job.
-	if attr.Target != "" || len(attr.Predictors) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"ATTR_CODE_IN does not take target or predictors (those are regression-attribute slots); name the output column with label",
-			map[string]any{
-				"attribute":  string(types.ATTR_CODE_IN),
-				"field":      attr.Field,
-				"target":     attr.Target,
-				"predictors": attr.Predictors,
-			})
-	}
-	codes, err := parseCodeInCodes(attr.Params)
+	// target / predictors are refused before construction by the general
+	// foreign-regression-slot rule (model.ForeignRegressionSlotRefusal,
+	// in the field-reference walk every run takes).
+	codes, err := codein.ParseCodes(attr.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -95,12 +63,12 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 	}
 	f := schema.Field(attr.Field)
 	if f == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_CODE_IN: unknown field "+attr.Field)
+		return nil, codein.UnknownField(attr.Field)
 	}
 	// The accepted-types table's refusal (a categorical, or an unsigned
-	// integer); predict raises the same one.
-	if cerr := fieldaccept.Refusal(string(types.ATTR_CODE_IN), fieldaccept.SlotField, attr.Field, f.Type); cerr != nil {
+	// integer), then the integer range — the shared rule predict runs.
+	ints, cerr := codein.Check(attr.Field, f.Type, codes)
+	if cerr != nil {
 		return nil, cerr
 	}
 	keys := make(map[float64]struct{}, len(codes))
@@ -122,27 +90,13 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		}
 		return &codeInAttribute{keys: keys}, nil
 	}
-	maxV := codeInIntegerMax[f.Type]
 	var exact map[uint64]struct{}
 	if f.Type == encoding.FieldTypeU64 {
 		exact = make(map[uint64]struct{}, len(codes))
 	}
-	for _, c := range codes {
-		n, perr := strconv.ParseUint(c, 10, 64)
-		if perr != nil || n > maxV {
-			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("ATTR_CODE_IN: code %q can never match %s field %q; codes on an integer field must be whole numbers in 0..%d",
-					c, f.Type, attr.Field, maxV),
-				map[string]any{
-					"attribute": string(types.ATTR_CODE_IN),
-					"field":     attr.Field,
-					"type":      f.Type.String(),
-					"code":      c,
-					"max":       maxV,
-				})
-		}
+	for i, c := range codes {
 		if exact != nil {
-			exact[n] = struct{}{}
+			exact[ints[i]] = struct{}{}
 			continue
 		}
 		// The validated integer resolves through the shared rule, so the
@@ -155,72 +109,6 @@ func newCodeInAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		keys[key] = struct{}{}
 	}
 	return &codeInAttribute{keys: keys, exact: exact}, nil
-}
-
-// parseCodeInCodes decodes params.codes into the code strings, deduped
-// in first-seen order. A JSON integer is carried as its literal text
-// (so 3 and "3" are the same code); any other JSON kind — a fractional
-// or exponent number, bool, null, object, array — is refused, as is a
-// missing or empty list.
-func parseCodeInCodes(raw json.RawMessage) ([]string, error) {
-	if len(raw) == 0 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_CODE_IN requires params with a non-empty \"codes\" list")
-	}
-	var p codeInParams
-	if err := paramread.Decode(paramread.Attribute, string(types.ATTR_CODE_IN), raw, &p); err != nil {
-		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing ATTR_CODE_IN params")
-	}
-	if len(p.Codes) == 0 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_CODE_IN requires params with a non-empty \"codes\" list")
-	}
-	seen := make(map[string]bool, len(p.Codes))
-	out := make([]string, 0, len(p.Codes))
-	for _, rc := range p.Codes {
-		c, ok := codeInCodeText(rc)
-		if !ok {
-			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				"ATTR_CODE_IN: each params.codes entry must be a JSON string or a JSON integer, got "+string(bytes.TrimSpace(rc)),
-				map[string]any{"attribute": string(types.ATTR_CODE_IN), "code": string(bytes.TrimSpace(rc))})
-		}
-		if seen[c] {
-			continue
-		}
-		seen[c] = true
-		out = append(out, c)
-	}
-	return out, nil
-}
-
-// codeInCodeText returns a code's text: a JSON string's value, or a
-// JSON integer's literal digits (optionally signed). ok is false for
-// every other JSON kind.
-func codeInCodeText(rc json.RawMessage) (string, bool) {
-	t := bytes.TrimSpace(rc)
-	if len(t) == 0 {
-		return "", false
-	}
-	if t[0] == '"' {
-		var s string
-		if err := json.Unmarshal(t, &s); err != nil {
-			return "", false
-		}
-		return s, true
-	}
-	digits := t
-	if digits[0] == '-' {
-		digits = digits[1:]
-	}
-	if len(digits) == 0 {
-		return "", false
-	}
-	for _, b := range digits {
-		if b < '0' || b > '9' {
-			return "", false
-		}
-	}
-	return string(t), true
 }
 
 func (a *codeInAttribute) Compute(records []*Record, field string) ([]float64, error) {

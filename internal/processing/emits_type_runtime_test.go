@@ -591,6 +591,12 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params:  json.RawMessage(`{"base":"ts","cumulative":true}`),
 		}, emitsWindowRows())
 	},
+	string(types.WIN_FORMULA): func(t *testing.T) emitted {
+		return winEmitted(t, &types.Window{
+			Type: types.WIN_FORMULA, Label: "out",
+			Params: json.RawMessage(`{"expression":"x / ts"}`),
+		}, emitsWindowRows())
+	},
 
 	// --- feature operators ------------------------------------------
 	string(types.FEAT_LOG): func(t *testing.T) emitted {

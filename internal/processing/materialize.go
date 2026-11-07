@@ -106,7 +106,7 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 		if rows, _, err = recordsToRows(filtered, nil); err != nil {
 			return err
 		}
-		if err := p.applyWindows(ctx, rows, req.Windows, nil, nil); err != nil {
+		if err := p.applyWindows(ctx, rows, req, nil, nil, true); err != nil {
 			return err
 		}
 	}

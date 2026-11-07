@@ -44,13 +44,13 @@ func TestCapabilities_ForbidsFieldMatchesWindowRule(t *testing.T) {
 			}
 		}
 	}
-	if forbidding != 4 {
-		t.Errorf("vacuous: %d operators forbid a field, want the 3 order-only windows and AGG_CONSTANT", forbidding)
+	if forbidding != 5 {
+		t.Errorf("vacuous: %d operators forbid a field, want the 3 order-only windows, WIN_FORMULA and AGG_CONSTANT", forbidding)
 	}
 	for _, ct := range BuildManifest().CohortTypes {
 		for _, w := range ct.CompatibleWindows {
 			if windowparams.FieldForbidden(types.WindowType(w)) {
-				t.Errorf("cohort type %s lists order-only window %s as compatible", ct.Name, w)
+				t.Errorf("cohort type %s lists field-forbidding window %s as compatible", ct.Name, w)
 			}
 		}
 	}

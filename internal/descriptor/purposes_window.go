@@ -35,6 +35,7 @@ var windowPurposes = map[string]descriptor.Purpose{
 	"WIN_RUNNING_SUM":     purposeWinRunningSum,
 	"WIN_SHARE":           purposeWinShare,
 	"WIN_LIFT":            purposeWinLift,
+	"WIN_FORMULA":         purposeWinFormula,
 }
 
 // Shared assumption sentences, so sibling windows say the same thing the
@@ -441,5 +442,30 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"baseline", "missing-value"},
+	}
+
+	purposeWinFormula = descriptor.Purpose{
+		Plain:   "Adds a number to every result row computed from that row's columns and earlier windows, such as one share divided by another.",
+		Intents: []string{IntentComposition, IntentBenchmark},
+		Questions: []string{
+			"What is each decile's share of defaults minus its share of loans?",
+			"What is each region's revenue per order, next to its share of the total?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "The gap between a segment's share of complaints and its share of respondents.",
+			descriptor.DomainOps:     "Revenue per order per store, from the summed revenue and the order count.",
+			descriptor.DomainScience: "Cases per thousand at risk per site, from the case and population columns.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one column's share over another's share, the lift of a gains table", Use: "WIN_LIFT"},
+			{When: "you want a value computed per record before grouping", Use: "ATTR_FORMULA"},
+		},
+		Assumptions: []string{
+			winOnResultRows,
+			"It reads only its own row: the group keys, the aggregation labels and the outputs of the windows listed before it, never a later window.",
+			"A missing value in any column it reads makes the row's result missing; a division by zero reads missing too, never infinity.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"missing-value"},
 	}
 )

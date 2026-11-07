@@ -229,19 +229,13 @@ func ApplyChainOverlaysWithSchemas(specs []*types.ChainOverlaySpec, stages []*ty
 		}
 		// A catalog kind that runs on another slot: the shared wrong-slot
 		// refusal predict-chain raises (validateChainOverlays).
-		if cerr := overlayhost.Refusal(overlayhost.Chain, spec.Kind, exts.overlayRoute(spec.Kind), i); cerr != nil {
+		if cerr := exts.extensionSlotRefusal(overlayhost.Chain, spec.Kind, i); cerr != nil {
 			return nil, nil, cerr
 		}
 		handler, ok := chainOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no CHAIN runtime handler: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-					"host":  "chain",
-				})
+			// predict-chain's unknown-kind refusal (validateChainOverlays).
+			return nil, nil, overlayhost.KindUnknownRefusal(spec.Kind, i, "chain")
 		}
 		// Target defaults to latest stage when both slots are unset
 		// per the research doc convention; Ref has no default. Both

@@ -36,14 +36,13 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 ## Outputs (all additive)
 
 - Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` counts the defined p-values corrected.
-- Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value`.
+- Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value`; the layer adds a `multiplicity` echo.
 - Overlay matrix payload: parallel `payload.p_adjusted` / `significant_adjusted` grids; a panel cell maps element for element.
 - Pairwise `params.letters`: `above` follows `significant_adjusted` (an explicit `letters.alpha` compares `p_adjusted` instead).
-- Overlay layer: a `multiplicity` echo.
 - Matrix result: `auxiliary.p_adjusted` / `significant_adjusted` (1 / 0) beside `auxiliary.p`, mirrored, diagonal null, plus a `multiplicity` echo. An inherited block reaches only a spec under `params.inference`.
 - `MAT_SEM`: own block only; every estimates row with a p (`:=` too) joins: [`sem-defined-parameters`](sem-defined-parameters.md).
 - Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. Only its own block opts it in. `margins`: own family (`margins.multiplicity`).
-- An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m`, counted in `excluded` (absent when 0).
+- An undefined p (NaN): `p_adjusted: null`, no `significant_adjusted`, out of `m`, counted in `excluded` (absent when 0).
 
 ## Row and column geometry
 
@@ -52,10 +51,10 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 ## Where it runs
 
 - Process: every arm (streaming, crosstab, join, shard, decode).
-- Compose: after all slots finish, serial = parallel; non-compose families stay per slot, `compose` pools all; `--stream` rows carry no corrections; a failed slot errors the batch first.
-- ProcessChain: each stage folds its own, never across stages; whole-chain overlays take no block.
+- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; `--stream` rows carry no corrections; a failed slot errors the batch first.
+- ProcessChain: per stage, never across stages; whole-chain overlays take no block.
 - Facet: each overlay layer alone.
-- Tests from extensions join families like built-ins.
+- Extension tests, and extension overlays declaring `EmitsPValues`, join like built-ins.
 - An extension matrix operator joins only if it declares the auxiliary key of its p-values; it then joins under any block (no `params.inference`), and its twins are `<key>_adjusted` / `significant_adjusted`.
 
 ## Never corrected

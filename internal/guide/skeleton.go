@@ -123,8 +123,11 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		if !op.ignoresField && !descx.WindowFieldForbidden(types.WindowType(op.name)) {
 			entry["field"] = str("field")
 		}
-		note("order_by")
-		entry["order_by"] = []map[string]any{{"field": placeholder("order_by")}}
+		// A row-local window (WIN_FORMULA) refuses order_by.
+		if !descx.WindowRowLocal(types.WindowType(op.name)) {
+			note("order_by")
+			entry["order_by"] = []map[string]any{{"field": placeholder("order_by")}}
+		}
 	default: // aggregator, attribute, grouper, feature
 		if (op.category == catAttribute && vectors.IsVectorAttribute(types.AttributeType(op.name))) ||
 			(op.category == catGrouper && vectors.IsVectorGroup(types.GroupType(op.name))) || op.vectorInput {

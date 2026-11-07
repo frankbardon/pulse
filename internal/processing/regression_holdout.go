@@ -165,7 +165,7 @@ func (p *Processor) holdoutProgram(src string) (*exprProgram, error) {
 	if err := p.exts.coefFailedRefusal(src, p.models); err != nil {
 		return nil, err
 	}
-	return newExprProgramKeyed(src, exprenv.SiteHoldout, p.schema, p.keySchema, p.exprVectors, p.exts.referenceTables(), p.exts.exprOptionsWithModels(p.models, nil))
+	return newExprProgramKeyed(src, exprenv.SiteHoldout, p.schema, p.exprKeys(), p.exprVectors, p.exts.referenceTables(), p.exts.exprOptionsWithModels(p.models, nil))
 }
 
 // holdoutVerdict evaluates the predicate on rec: (in, true) for a

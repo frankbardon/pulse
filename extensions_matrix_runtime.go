@@ -27,6 +27,11 @@ import (
 // refuses the matrix as is.
 func adaptMatrixFactory(reg MatrixOpRegistration) processing.MatrixOpFactory {
 	return func(spec *types.MatrixSpec, schema *encoding.Schema) (processing.MatrixOpFinalizer, error) {
+		// The registration's spec-only Validate hook, before the
+		// factory — predict's own call, the same refusal.
+		if cerr := descx.ExtensionMatrixValidateRefusal(spec, reg.Validate); cerr != nil {
+			return nil, cerr
+		}
 		op, err := reg.Factory(spec, schema)
 		if err != nil || op == nil {
 			return nil, err
@@ -126,8 +131,9 @@ func addSnapshotMatrixOps(snap *descx.ExtensionsSnapshot, regs []MatrixOpRegistr
 				Vectors:   append([]string(nil), r.OutputKeys.Vectors...),
 				Scalars:   append([]string(nil), r.OutputKeys.Scalars...),
 			},
-			PValues: r.PValues,
-			Params:  matrixParamSnapshot(r.Params),
+			PValues:  r.PValues,
+			Params:   matrixParamSnapshot(r.Params),
+			Validate: r.Validate,
 		}
 		if len(r.ComponentSchema.Keys) > 0 {
 			snap.ComponentSchemas[name] = r.ComponentSchema

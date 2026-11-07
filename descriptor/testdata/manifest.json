@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
+    "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
     "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
     "commands": [
       {
@@ -6535,6 +6535,31 @@
           ]
         },
         {
+          "name": "WIN_FORMULA",
+          "category": "window",
+          "description": "Row-local expression over the row's columns — group keys and aggregation labels on grouped rows, record fields on the record rows — and every EARLIER window's output, e.g. the ratio of two WIN_SHARE columns. Reading this window's own label or a later window's is refused. No order_by, partition_by, field or frame.",
+          "params": [
+            {
+              "name": "expression",
+              "type": "string",
+              "required": true,
+              "description": "Expression returning a number; names columns and earlier window labels, params.\u003cname\u003e reads request params. No coef(), ref() or total()."
+            }
+          ],
+          "accepts_types": [],
+          "forbids_field": true,
+          "emits_type": "f64",
+          "emits_type_note": "one float per row; null when a column the expression reads is null, or the result is nil or not finite",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "composition"
+          ]
+        },
+        {
           "name": "WIN_LAG",
           "category": "window",
           "description": "Return the value of Field from the row N positions before the current row in the ordered partition.",
@@ -11775,7 +11800,7 @@
         ]
       }
     ],
-    "error_codes_count": 461,
+    "error_codes_count": 465,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11820,6 +11845,7 @@
       "PULSE_ADVISORY_CONSTRAINT_ACTIVE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
+      "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
@@ -11871,6 +11897,7 @@
       "PULSE_EXPORT_FIELD_UNKNOWN",
       "PULSE_EXPORT_ROW_ERROR",
       "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH",
+      "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_EXAMPLE_COLLISION",
@@ -11885,11 +11912,13 @@
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
+      "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
+      "PULSE_EXTENSION_SPEC_REFUSED",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FACET_VALUES_TRUNCATED",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
@@ -14684,6 +14713,10 @@
         "description": "Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}."
       },
       {
+        "name": "op-win-formula",
+        "description": "Row-local expression over a result row's columns and earlier windows' outputs — e.g. the ratio or gap of two share columns in a gains table."
+      },
+      {
         "name": "op-win-lag",
         "description": "Per-row value of Field from N rows earlier in the ordered partition."
       },
@@ -15228,7 +15261,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 272,
+    "examples_count": 273,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15326,6 +15359,7 @@
       "tests": [],
       "matrix_ops": [],
       "regressions": [],
+      "overlays": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -21190,4 +21224,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0716c023e72a40abfa478757e8bcb201d6645ab07889bb790b8ad6021a9fc748
+// golden-hash: 5bf6be4808c8ae15abeadc045935fa5e075b4f38ae2b87eebc79c2ffbadf0ad9

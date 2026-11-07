@@ -64,7 +64,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprident"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -334,11 +333,12 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 // slot's `vector` (groups and both crosstab axes), every aggregation
 // slot's `vector` (aggregations, the crosstab cell and its margin
 // aggregations), and every
-// Request.Vectors name an expression reads as a free identifier — an
-// ATTR_FORMULA expression, a FILTER_EXPRESSION filterer's expression
-// (Request.Filterers and a vector attribute's params.fit_on) and so a
-// total() argument inside either (internal/exprident.Free, the walk the
-// expression program binds by). It is the one reference set, so the
+// Request.Vectors name an expression reads as a free identifier — any
+// ExprSlots expression (a FILTER_EXPRESSION filterer, an ATTR_FORMULA,
+// an attribute's params.fit_on / centroid filter, a feature's
+// params.fit_on, a regression holdout) and so a total() argument inside
+// one (internal/exprident.Free, the walk the expression program binds
+// by). It is the one reference set, so the
 // unreferenced-vector warning and every consumer read one answer.
 func Referenced(req *types.Request) map[string]bool {
 	refs := map[string]bool{}
@@ -406,22 +406,8 @@ func exprReferenced(req *types.Request, refs map[string]bool) {
 			}
 		}
 	}
-	filters := func(fs []*types.Filterer) {
-		for _, f := range fs {
-			if f != nil && f.Type == types.FILTER_EXPRESSION {
-				scan(f.Expression)
-			}
-		}
-	}
-	filters(req.Filterers)
-	for _, a := range req.Attributes {
-		if a == nil {
-			continue
-		}
-		if a.Type == types.ATTR_FORMULA {
-			scan(a.Expression)
-		}
-		filters(AttributeFitOn(a.Type, a))
+	for _, slot := range ExprSlots(req) {
+		scan(slot.Src)
 	}
 }
 
@@ -455,14 +441,15 @@ func UnreferencedWarning(name string) *errors.CodedError {
 // resolved. Projection calls it: a vector that fails to resolve is
 // refused before any record is read, so ok == false only tells the
 // caller to decode wide rather than guess.
-// cat is the site's bound-model catalog, read by the windows-first
-// decision (ResolveRequest; nil none).
-func Members(req *types.Request, schema *encoding.Schema, cat model.Catalog) (members []string, ok bool) {
+// cls is the site's windows-first classifier (its bound-model catalog
+// and extension hooks), read by the windows-first decision
+// (ResolveRequest; the zero value: none).
+func Members(req *types.Request, schema *encoding.Schema, cls Classifier) (members []string, ok bool) {
 	if req == nil || len(req.Vectors) == 0 {
 		return nil, true
 	}
 	ok = true
-	computed := ComputedColumns(req, schema, cat)
+	computed := ComputedColumns(req, schema, cls)
 	for i, spec := range req.Vectors {
 		r, err := resolveSpec(slotPath(i), spec, schema, computed)
 		if err != nil {
@@ -483,13 +470,14 @@ func Members(req *types.Request, schema *encoding.Schema, cat model.Catalog) (me
 // resolve (that request is refused anyway). Request.Hash() alone is
 // schema-free and hashes vectors as written; hash the normalized request
 // wherever a schema is in hand and resolved-member identity is wanted.
-// cat is the site's bound-model catalog, read by the windows-first
-// decision (ResolveRequest; nil none).
-func Normalize(req *types.Request, schema *encoding.Schema, cat model.Catalog) *types.Request {
+// cls is the site's windows-first classifier (its bound-model catalog
+// and extension hooks), read by the windows-first decision
+// (ResolveRequest; the zero value: none).
+func Normalize(req *types.Request, schema *encoding.Schema, cls Classifier) *types.Request {
 	if req == nil || len(req.Vectors) == 0 {
 		return req
 	}
-	resolved, err := ResolveRequest(req, schema, cat)
+	resolved, err := ResolveRequest(req, schema, cls)
 	if err != nil {
 		return req
 	}

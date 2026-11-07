@@ -9,6 +9,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/shareparams"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -284,7 +286,12 @@ func appendDateMisuseSuggestions(out []descriptor.Suggestion, req *types.Request
 func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) []descriptor.Suggestion {
 	// Window OrderBy.
 	for i, w := range req.Windows {
-		if len(w.OrderBy) != 0 {
+		// A row-local window (WIN_FORMULA) refuses order_by: proposing
+		// one would draft a refusal. A WIN_SHARE / WIN_LIFT needs one
+		// only when params.cumulative is true (shareparams).
+		route := opRoute(inst, w.Type)
+		if len(w.OrderBy) != 0 || windowparams.RowLocal(route) ||
+			(shareparams.Handles(route) && !shareparams.OrderRequired(w)) {
 			continue
 		}
 		proposed := numericFallbackFields(schema)

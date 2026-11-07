@@ -249,15 +249,16 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 // parallel reducers: the member is two-pass (the cohort total precedes
 // the row), so its matrix folds on the buffered serial path — the one
 // route materialize-then-fit takes. "" when no matrix reads one. The
-// windows-first decision (vectors.WindowsOverRecords) takes no catalog
-// here: mergeRefusal excluded every request with windows above, so no
-// window label is a computed member of a request that reaches this
-// check — with or without a bound model.
+// windows-first decision (vectors.WindowsOverRecords) takes the zero
+// classifier here (no catalog, no extension hooks): mergeRefusal
+// excluded every request with windows above, so no window label is a
+// computed member of a request that reaches this check — with or
+// without a bound model or an extension aggregator's FieldInputs.
 func matrixTotalMemberRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) string {
 	if len(req.Matrices) == 0 || len(req.Attributes) == 0 {
 		return ""
 	}
-	members := vectors.MatrixComputedMembers(req, schema, nil)
+	members := vectors.MatrixComputedMembers(req, schema, vectors.Classifier{})
 	if len(members) == 0 {
 		return ""
 	}
@@ -265,7 +266,7 @@ func matrixTotalMemberRefusal(req *types.Request, schema *encoding.Schema, ext E
 	if tainted == nil {
 		return ""
 	}
-	comp := vectors.ComputedColumns(req, schema, nil)
+	comp := vectors.ComputedColumns(req, schema, vectors.Classifier{})
 	for _, m := range members {
 		if c := comp[m]; c.Slot == "attribute" && tainted[c.Index] {
 			return fmt.Sprintf("a matrix reads computed member %s, which a two-pass attribute computes", m)

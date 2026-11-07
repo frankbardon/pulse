@@ -123,7 +123,7 @@ func TestBuildStreamableAxis_DiscriminatesKeyingShape(t *testing.T) {
 		{Type: types.GROUP_CATEGORY, Field: "brand"},
 		setPerElementGroup(),
 	}
-	built, err := buildStreamableAxis(axis, schema, nil, "rows")
+	built, err := buildStreamableAxis(axis, schema, schema, nil, "rows")
 	if err != nil {
 		t.Fatalf("buildStreamableAxis: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestBuildStreamableAxis_RejectsUnkeyableGrouper(t *testing.T) {
 
 	schema := crosstabFusedGateSchema()
 	axis := []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}}
-	if _, err := buildStreamableAxis(axis, schema, nil, "rows"); err == nil {
+	if _, err := buildStreamableAxis(axis, schema, schema, nil, "rows"); err == nil {
 		t.Fatal("expected error for GROUP_QUANTILE on a fused axis")
 	}
 }

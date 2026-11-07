@@ -123,3 +123,11 @@ under one, an excluded section is 0. A refused block reports no sizes,
 and a section whose size depends
 on the data is omitted rather than guessed. The figures are guidance
 for choosing a preset before running, not a byte-accuracy contract.
+
+`PredictCompose` reports the same figures per slot
+(`ComposeSlotPredict.Sizes`, `slots[*].sizes`): each slot's sections as
+`Predict` gives them for that request, under the batch's resolved
+multiplicity, headed by a `label` section for the slot's label echo
+(basis `exact`, kept by the `standard` and `minimal` presets). A slot
+whose `return` block is refused, or whose cohort schema predict cannot
+read, reports none.

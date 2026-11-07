@@ -14,7 +14,8 @@
 // (TestTemplatePackage_ImportBoundary) admits it. The coverage gates —
 // every exprenv compile site is one of these (TestTemplateExprSplice_
 // CompileSitesShared, internal/exprenv), every engine expression path
-// matches (TestTemplateExprSplice_EngineExprSlotsMatch,
+// matches and every compiled slot is walked by the engine or named out
+// of scope (TestTemplateExprSplice_EngineExprSlotsMatch,
 // internal/vectors), every owner position in the request roots matches
 // (TestTemplateExprSplice_SlotsCoverRequestRoots, here) — keep it from
 // becoming a second hand-kept list.
@@ -28,7 +29,12 @@ const (
 	SiteFilter        = "filter"                   // a FILTER_EXPRESSION expression
 	SiteTotalArgument = "formula total() argument" // one total(expr) argument
 	SiteHoldout       = "regression holdout"       // a RegressionSpec.Holdout predicate
+	SiteWindowFormula = "window formula"           // a WIN_FORMULA params.expression
 )
+
+// WindowFormulaParam is the WIN_FORMULA params key carrying the
+// expression source.
+const WindowFormulaParam = "expression"
 
 // OverlayFormulaParam is the OVERLAY_FORMULA params key carrying the
 // formula source, on a Request overlay and a Compose overlay alike.
@@ -70,6 +76,7 @@ const (
 	SlotOptimizeConstraint = "optimize_constraint"
 	SlotOptimizeBound      = "optimize_bound"
 	SlotWindowParam        = "window_param"
+	SlotWindowFormula      = "window_formula"
 	SlotConstantExpr       = "constant_expr"
 	SlotInlineModelNumber  = "inline_model_number"
 	// SlotExtensionParam names an embedder extension's
@@ -137,6 +144,11 @@ var slots = []Slot{
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "shape"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "scale"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "max_lag"}, Scalar: true},
+	// A WIN_FORMULA window's params.expression: a row expression over
+	// the output row's columns and earlier window labels, compiled under
+	// its own site. Rooted at the `windows` list, so a params.expression
+	// key on any other slot is data, not an expression.
+	{Name: SlotWindowFormula, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, WindowFormulaParam}, Sites: []string{SiteWindowFormula}},
 	// An AGG_CONSTANT slot's params.expr (internal/aggconst): a scalar
 	// expression resolved into the slot's literal value before any
 	// operator is built. Rooted at every aggregation position: the
@@ -192,7 +204,7 @@ func All() []Slot {
 
 // Sites returns every compile site, in declaration order.
 func Sites() []string {
-	return []string{SiteFormula, SiteFilter, SiteTotalArgument, SiteHoldout}
+	return []string{SiteFormula, SiteFilter, SiteTotalArgument, SiteHoldout, SiteWindowFormula}
 }
 
 // ParamsKey is the key of a params object: the request's own

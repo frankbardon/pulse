@@ -17,6 +17,40 @@ import (
 // E1-S2). The weight-kind rule is separate: a design-reading slot is
 // frequency-only per spec (weighting.AttributeClassOf, NeedsRefitDesign).
 
+// ForeignRegressionSlotRefusal refuses the regression-attribute slots —
+// target / predictors / penalty / alpha / l1_ratio — on any attribute
+// route that does not read them: every route but the four refit
+// attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE) and
+// ATTR_REG_PREDICT, which judge them in their own words (the refit
+// penalty rules here and regpenalty; CheckScoreFor). Built-in or
+// extension, any other attribute would ignore them silently — the usual
+// slip is naming the OUTPUT with target, which is label's job. The
+// field-reference walk (internal/descriptor judgeAttr) calls it once
+// per attribute slot, so predict reports it and the runtime returns it
+// before any constructor runs. Nil when none is set. The message names
+// only the authored type, so a hidden type reads exactly as a
+// never-registered one (TestScopedFieldRefRefusals_HiddenIsNeverRegistered).
+func ForeignRegressionSlotRefusal(attr *types.Attribute, route types.AttributeType) *errors.CodedError {
+	if attr == nil || (attr.Target == "" && len(attr.Predictors) == 0 && attr.Penalty == "" && attr.Alpha == 0 && attr.L1Ratio == 0) {
+		return nil
+	}
+	switch route {
+	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE, types.ATTR_REG_PREDICT:
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(attr.Type)+" does not take target, predictors, penalty, alpha or l1_ratio (only the regression refit attributes read them); name the output column with label",
+		map[string]any{
+			"attribute":  string(attr.Type),
+			"field":      attr.Field,
+			"target":     attr.Target,
+			"predictors": attr.Predictors,
+			"penalty":    attr.Penalty,
+			"alpha":      attr.Alpha,
+			"l1_ratio":   attr.L1Ratio,
+		})
+}
+
 // The ATTR_REG_INFLUENCE measures (InfluenceParams.Measure).
 const (
 	// InfluenceCooks is Cook's distance r²·h / (p′·(1 − h)) (R

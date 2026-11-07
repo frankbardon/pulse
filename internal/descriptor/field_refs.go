@@ -408,9 +408,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// an extension feature leaves (no feature output carries a window's
 	// value). Its label still joins the columns, so a later reader is
 	// not refused twice.
-	route := func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }
-	pw := vectors.PostWindowAttributes(req, schema, route, models)
-	w.windowsFirst, w.overRecords = pw.WindowsFirst, vectors.WindowsOverRecords(req, schema, models)
+	cls := classifierOf(snap, models)
+	routed := cls
+	routed.Route = inst.attributeRoute()
+	pw := vectors.PostWindowAttributes(req, schema, routed)
+	w.windowsFirst, w.overRecords = pw.WindowsFirst, vectors.WindowsOverRecords(req, schema, cls)
 	for _, win := range req.Windows {
 		if win == nil {
 			continue
@@ -444,6 +446,9 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		w.beginItem()
 		attrRoute := opRoute(inst, attr.Type)
 		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
+		if cerr := model.ForeignRegressionSlotRefusal(attr, attrRoute); cerr != nil {
 			w.out = append(w.out, cerr)
 		}
 		switch attrRoute {
@@ -546,6 +551,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			}
 		}
 		w.checkInputs("attribute", string(attr.Type), attr.Params, "attribute")
+		w.checkInheritedSource(attr, attrRoute, schema)
 		addAttrLabel(attr)
 	}
 	for i, attr := range req.Attributes {
@@ -696,6 +702,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 							map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
 					})
 				}
+			}
+			// WIN_FORMULA's params.expression reads columns by name:
+			// each must be on the row before this window runs, and the
+			// expression must compile to a number (internal/winformula).
+			if opRoute(inst, win.Type) == types.WIN_FORMULA {
+				w.checkWindowFormula(req, i, win, aggLabels)
 			}
 			w.checkInputs("window", string(win.Type), win.Params, "window")
 			label := windowLabel(win)
@@ -957,7 +969,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// fields (the vector rules), the equal-length pairing and the
 	// listwise-only missing mode. Steps 6-8 contribute one refusal at
 	// most between them.
-	if _, terr := vectors.ResolveTests(req, schema, models, func(t types.TestType) types.TestType {
+	if _, terr := vectors.ResolveTests(req, schema, cls, func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
 		w.out = append(w.out, terr)
@@ -967,7 +979,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// fitted params (fit_on, missing, the operator's own keys) resolved
 	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
 	// one refusal at most between them.
-	ains, aerr := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
+	ains, aerr := vectors.ResolveAttributes(req, schema, cls, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }), inst.Hidden)
 	if aerr != nil {
@@ -977,7 +989,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// 10. Grouper vector inputs — every grouper slot's vector / fields
 	// and params resolved by the same leaf (vectors.ResolveGroups).
 	// Steps 6-10 contribute one refusal at most between them.
-	if _, gerr := vectors.ResolveGroups(req, schema, models, func(t types.GroupType) types.GroupType {
+	if _, gerr := vectors.ResolveGroups(req, schema, cls, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
@@ -988,7 +1000,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// vector / fields and params resolved by the same leaf
 	// (vectors.ResolveAggregations). Steps 6-11 contribute one refusal
 	// at most between them.
-	if _, aerr := vectors.ResolveAggregations(req, schema, models, aggregationKinds(inst, w.snap)); aerr != nil {
+	if _, aerr := vectors.ResolveAggregations(req, schema, cls, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out, pw
 	}
@@ -1151,7 +1163,7 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 	if snap != nil {
 		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
 	}
-	return vectors.ResolveMatricesWith(req, schema, models, vectors.MatrixResolve{
+	return vectors.ResolveMatricesWith(req, schema, classifierOf(snap, models), vectors.MatrixResolve{
 		Known: func(t types.MatrixType) bool {
 			return isBuiltinMatrixType(opRoute(inst, t))
 		},
@@ -1430,6 +1442,25 @@ func (w *fieldRefWalk) checkAgg(agg *types.Aggregation, prefix, slotKey string, 
 		})
 	}
 	w.checkInputs("aggregator", string(agg.Type), agg.Params, slotKey, slotValue)
+}
+
+// checkInheritedSource judges the dictionary source of an extension
+// attribute declaring InheritsDictionary (prevstate.InheritedSource —
+// the rule the runtime adapter re-runs before the factory). A source
+// Field naming no column at all is left to the unknown-field refusal
+// above, so one name is refused once. A hidden route declares nothing.
+func (w *fieldRefWalk) checkInheritedSource(attr *types.Attribute, route types.AttributeType, schema *encoding.Schema) {
+	inh := dictionariesOf(w.snap, w.inst)
+	if route == "" || inh == nil {
+		return
+	}
+	param, declared := inh[attr.Type]
+	if !declared || (param == "" && attr.Field != "" && !w.cols[attr.Field]) {
+		return
+	}
+	if _, cerr := prevstate.InheritedSource(attr, schema, inh); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 }
 
 // checkInputs judges the names an extension operator's FieldInputs hook

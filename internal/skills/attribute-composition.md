@@ -21,7 +21,7 @@ Pipeline order: `features → filterers → attributes → groups → aggregatio
 - **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Other window readers (`total()` too): `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`). Beside groups / aggregations / crosstab it moves only when one of them reads a window or post-window label (`windows-first`); else materialize. A lag's first rows are null: guard with `?? 0`.
 <!-- /feature -->
 
-Entry shape: `{type, field?, label, params?, expression?}`. `type` is the attribute constant; `field` is the source for single-source attributes; `label` names the new column.
+Entry shape: `{type, field?, label, params?, expression?}`; `label` is the new column. `target`, `predictors`, `penalty`, `alpha`, `l1_ratio` on a non-refit attribute (extensions too) → `PROCESSING_CONFIG`.
 
 ## Choosing an attribute
 
@@ -37,7 +37,7 @@ Decide what the new column must say about a row, then pick from the manifest `co
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
 2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one. To stage a value across requests, use Compose / ProcessChain.
-3. **Two-pass attributes** — scoring a row against the column or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row. Transparent; no full buffering.
+3. **Two-pass attributes** — scoring a row against the column or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row; no full buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
 5. **Null inputs propagate.** Null source → null output (`n_null`); a 0/1 membership flag reads `0`. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.
 6. **Output is coerced to a scalar.** Numbers pass through; `bool` → `1.0` / `0.0`; a formula's `nil` → null; anything else errors. Attributes do not emit Rich payloads.
@@ -49,7 +49,6 @@ Both add columns. Split:
 | Aspect | `attributes` (ATTR_*) | `features` (FEAT_*) |
 |---|---|---|
 | Position | After filterers, before groups | Before filterers |
-| Sees post-filter rows | yes | no |
 | Output column | `label` (rebindable) | fixed per FEAT |
 | Use for | per-record scoring, formulas, regression diagnostics | encoding (one-hot, target, frequency), transforms (log, sqrt, bucketize), date features |
 
@@ -75,11 +74,11 @@ As a filter expression, `vsd(battery) > 0` drops flat responders. A vector named
 
 ## Streamability
 
-Two-pass attributes stream via the two-pass orchestrator. Only a window, a buffered grouper or another buffered op forces buffering; predict reports it under `data.streamable_reasons` (`request-envelope`, `streaming-and-watching`).
+Two-pass attributes stream via the two-pass orchestrator. Only a window, a buffered grouper or another buffered op forces buffering; predict reports it under `data.streamable_reasons`.
 
 ## Components
 
-Attributes emit scalars, not `Response.Components`; audit them in `Response.Data` or an aggregation.
+A slot whose operator declares a schema adds a cohort-wide `Response.Components.attributes` entry: `label`, `type`, `n` / `n_null`, `operator` (`response-components`).
 
 ## Gotchas
 

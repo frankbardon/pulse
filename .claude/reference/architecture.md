@@ -8,7 +8,8 @@ CLAUDE.md keeps only the always-load half of the architecture (the public packag
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
-| `architecture/packages.md` | Public vs internal; How the narrowed packages are built; Reading package-qualified names; Root aliases; The `io` import boundary; Surface guards; The `linalg` guards; `linalg` two-backend split; CLI |
+| `architecture/packages.md` | Public vs internal (the package tree) |
+| `architecture/package-build.md` | How the narrowed packages are built; Reading package-qualified names; Root aliases; The `io` import boundary; Surface guards; The `linalg` guards; `linalg` two-backend split; CLI |
 | `architecture/mcp.md` | MCP layer split; Prompts; MCP `return` default (U18 E5-S1) |
 | `architecture/extension-surface.md` | Extension surface |
 | `architecture/extension-models.md` | Extension models (matrix operators, regression models) |

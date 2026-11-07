@@ -310,6 +310,40 @@
         ]
       },
       {
+        "operator": "WIN_FORMULA",
+        "category": "window",
+        "level": "intermediate",
+        "why": "Adds a number to every result row computed from that row's columns and earlier windows, such as one share divided by another. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "params": {
+                "expression": "\u003cexpression\u003e"
+              },
+              "type": "WIN_FORMULA"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "expression"
+        ],
+        "alternatives": [
+          {
+            "when": "you want one column's share over another's share, the lift of a gains table",
+            "use": "WIN_LIFT"
+          },
+          {
+            "when": "you want a value computed per record before grouping",
+            "use": "ATTR_FORMULA"
+          }
+        ]
+      },
+      {
         "operator": "WIN_LIFT",
         "category": "window",
         "level": "intermediate",
@@ -386,44 +420,12 @@
             "use": "FEAT_ONE_HOT"
           }
         ]
-      },
-      {
-        "operator": "GROUP_SET_PER_ELEMENT",
-        "category": "grouper",
-        "level": "intermediate",
-        "why": "Splits a multi-select answer into one group per option, counting each row once in every option it picked. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          },
-          "groups": [
-            {
-              "field": "\u003cfield\u003e",
-              "type": "GROUP_SET_PER_ELEMENT"
-            }
-          ]
-        },
-        "placeholders": [
-          "cohort",
-          "field"
-        ],
-        "alternatives": [
-          {
-            "when": "you want each exact combination of options as one group",
-            "use": "GROUP_SET_VALUE"
-          },
-          {
-            "when": "you only want the count per option, without other figures",
-            "use": "AGG_SET_FREQUENCY"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 11
+    "candidates_considered": 12
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: e3a7d6bcc9b01a53d4a7fb8844bdfcadff3e8d9f2700c417e4b774480de03005
+// golden-hash: 2f95a6b9c993eb7c00b14f35a01ee126de03fe759591b48bae886d7d61029477

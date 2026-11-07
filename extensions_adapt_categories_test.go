@@ -72,7 +72,7 @@ func TestAdaptAttribute_ForwardsExactlyTheImplementedTier(t *testing.T) {
 			if withMeta {
 				e = emit
 			}
-			got := adaptAttribute(c.inner, nil, e)
+			got := adaptAttribute(c.inner, nil, e, nil)
 			meta, isMeta := got.(processing.MetaAttribute)
 			if isMeta != withMeta {
 				t.Errorf("%s: MetaAttribute=%v; want %v", c.name, isMeta, withMeta)

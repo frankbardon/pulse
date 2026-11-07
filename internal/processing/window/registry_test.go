@@ -98,11 +98,15 @@ func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
 		types.WIN_DISTRIBUTED_LAG: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 3}`),
 		types.WIN_SHARE:           json.RawMessage(`{"cumulative": true}`),
 		types.WIN_LIFT:            json.RawMessage(`{"base": "y", "cumulative": true}`),
+		types.WIN_FORMULA:         json.RawMessage(`{"expression": "x / y"}`),
 	}
 	one, zero := 1, 0
 	frame := func() *types.FrameSpec { return &types.FrameSpec{Mode: "rows", Preceding: &one, Following: &zero} }
 	valid := func(typ types.WindowType) *types.Window {
 		w := &types.Window{Type: typ, OrderBy: []types.OrderKey{{Field: "t"}}, Params: params[typ]}
+		if windowparams.RowLocal(typ) {
+			w.OrderBy = nil
+		}
 		if windowparams.FieldRequired(typ) {
 			w.Field = "x"
 		}
@@ -125,8 +129,16 @@ func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
 		}
 		bad := map[string]*types.Window{}
 		w := valid(typ)
-		w.OrderBy = nil
-		bad["no order_by"] = w
+		if windowparams.RowLocal(typ) {
+			w.OrderBy = []types.OrderKey{{Field: "t"}}
+			bad["order_by given"] = w
+			w = valid(typ)
+			w.PartitionBy = []string{"g"}
+			bad["partition_by given"] = w
+		} else {
+			w.OrderBy = nil
+			bad["no order_by"] = w
+		}
 		if windowparams.FieldRequired(typ) {
 			w = valid(typ)
 			w.Field = ""

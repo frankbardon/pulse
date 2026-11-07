@@ -153,6 +153,13 @@ func Placeholder(args ...any) (any, error) {
 // and a derived column null on that record from this type.
 var DerivedType = exprtypes.TypeOf(float64(0))
 
+// DerivedU64Type is the declared type of a derived column that is a u64
+// field's alias — an ATTR_FORMULA whose expression IS a bare read of one
+// (internal/prevstate.U64Aliases): a [U64], so a comparison over it is
+// exact like one over the field; every other use reads the float64 echo
+// it holds. Predict and the runtime declare it from the same aliases.
+var DerivedU64Type = exprtypes.TypeOf(U64(0))
+
 // VectorType is the declared type of a named vector (Request.Vectors) an
 // expression reads: its members as a []float64.
 var VectorType = exprtypes.TypeOf([]float64(nil))

@@ -153,7 +153,7 @@ func TestWindowPredictor_WalkScoresWindowTermModel(t *testing.T) {
 	if got := fieldRefRefusalsWithModels(req, fieldRefSchema(), nil, nil, cat); len(got) != 0 {
 		t.Fatalf("window-term scoring refused: %v", got)
 	}
-	pw := vectors.PostWindowAttributes(req, fieldRefSchema(), nil, cat)
+	pw := vectors.PostWindowAttributes(req, fieldRefSchema(), vectors.Classifier{Cat: cat})
 	if !reflect.DeepEqual(pw.Post, []bool{true, true}) || !reflect.DeepEqual(pw.WindowReads, []string{"lag_n"}) {
 		t.Fatalf("plan %+v, want both slots post-window reading lag_n", pw)
 	}
@@ -187,7 +187,7 @@ func TestWindowPredictor_PostWindowOpenWalk(t *testing.T) {
 	}
 	closed, open := base(), base()
 	open.Features = ext
-	if a, b := vectors.PostWindowAttributes(closed, fieldRefSchema(), nil, nil), vectors.PostWindowAttributes(open, fieldRefSchema(), nil, nil); !reflect.DeepEqual(a, b) {
+	if a, b := vectors.PostWindowAttributes(closed, fieldRefSchema(), vectors.Classifier{}), vectors.PostWindowAttributes(open, fieldRefSchema(), vectors.Classifier{}); !reflect.DeepEqual(a, b) {
 		t.Fatalf("an open walk moved the plan: closed %+v, open %+v", a, b)
 	} else if !reflect.DeepEqual(a.Post, []bool{true, true, false}) {
 		t.Fatalf("plan %+v, want sat and sat2 post-window, other not", a)

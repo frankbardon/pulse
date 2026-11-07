@@ -73,33 +73,24 @@ func Handles(t types.WindowType) bool {
 	return t == types.WIN_SHARE || t == types.WIN_LIFT
 }
 
+// OrderRequired reports whether w — a Handles type — needs an order_by:
+// its params.cumulative is true (the running sum needs an order). A
+// non-cumulative share needs none; malformed params read false (Resolve
+// names the fault).
+func OrderRequired(w *types.Window) bool {
+	spec, ref := decode(w)
+	return ref == nil && spec.Cumulative
+}
+
 // Resolve reads w and returns its Spec, or the first rule it breaks.
 // w.Type must satisfy Handles.
 func Resolve(w *types.Window) (Spec, *Refusal) {
 	refuse := func(msg string, details map[string]any) (Spec, *Refusal) {
 		return Spec{}, &Refusal{Op: w.Type, Message: msg, Details: details}
 	}
-	var spec Spec
-	switch w.Type {
-	case types.WIN_LIFT:
-		var p liftParams
-		paramread.Declare(paramread.Window, string(w.Type), (*liftParams)(nil))
-		if len(w.Params) > 0 {
-			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
-				return refuse("malformed params: "+err.Error(), nil)
-			}
-		}
-		spec.Cumulative = p.Cumulative != nil && *p.Cumulative
-		spec.Base = p.Base
-	default:
-		var p shareParams
-		paramread.Declare(paramread.Window, string(w.Type), (*shareParams)(nil))
-		if len(w.Params) > 0 {
-			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
-				return refuse("malformed params: "+err.Error(), nil)
-			}
-		}
-		spec.Cumulative = p.Cumulative != nil && *p.Cumulative
+	spec, ref := decode(w)
+	if ref != nil {
+		return Spec{}, ref
 	}
 	if w.Field == "" {
 		return refuse("field is required (the column whose share is taken)", nil)
@@ -113,6 +104,37 @@ func Resolve(w *types.Window) (Spec, *Refusal) {
 	if spec.Cumulative && len(w.OrderBy) == 0 {
 		return refuse("order_by is required when params.cumulative is true (the running sum needs an order)",
 			map[string]any{"cumulative": true})
+	}
+	return spec, nil
+}
+
+// decode reads w's params into a Spec (cumulative, base), or the
+// malformed-params refusal.
+func decode(w *types.Window) (Spec, *Refusal) {
+	malformed := func(err error) (Spec, *Refusal) {
+		return Spec{}, &Refusal{Op: w.Type, Message: "malformed params: " + err.Error()}
+	}
+	var spec Spec
+	switch w.Type {
+	case types.WIN_LIFT:
+		var p liftParams
+		paramread.Declare(paramread.Window, string(w.Type), (*liftParams)(nil))
+		if len(w.Params) > 0 {
+			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
+				return malformed(err)
+			}
+		}
+		spec.Cumulative = p.Cumulative != nil && *p.Cumulative
+		spec.Base = p.Base
+	default:
+		var p shareParams
+		paramread.Declare(paramread.Window, string(w.Type), (*shareParams)(nil))
+		if len(w.Params) > 0 {
+			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
+				return malformed(err)
+			}
+		}
+		spec.Cumulative = p.Cumulative != nil && *p.Cumulative
 	}
 	return spec, nil
 }

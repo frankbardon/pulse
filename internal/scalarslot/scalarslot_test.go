@@ -293,3 +293,51 @@ func TestInlineNumber(t *testing.T) {
 		t.Errorf("invalid params: %+v", r)
 	}
 }
+
+// TestEval_FoldsLoadedModels: with Env.Loaded set, a static judgement
+// runs an expression whose only request-bound reads are coef() /
+// sweep_axis() / response() of a loaded fit — resolved to the reader's
+// own value, or refused with its own code — and leaves one reading any
+// other fit (the catalog's `demand`), or calling another request-bound
+// function, unresolved. A run Eval is unchanged.
+func TestEval_FoldsLoadedModels(t *testing.T) {
+	t.Parallel()
+
+	env := testEnv(t)
+	rs := model.Refs{Models: []types.ModelRef{{Name: "truth", Inline: json.RawMessage(`{"model_format_version": 1,
+		"type": "REG_OLS", "target": "units", "predictors": ["price"], "terms": ["price"],
+		"coefficients": {"(intercept)": 120, "price": -4}, "std_errors": {"price": 0.5}, "n_obs": 80}`)}}}
+	loaded, cerr := model.LoadFiles(rs, nil, scalarslot.InlineNumber)
+	if cerr != nil {
+		t.Fatal(cerr)
+	}
+	set, err := (*model.Set)(nil).WithLoaded(rs, loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Loaded = set
+	env.Fits = model.CatalogWithLoaded(env.Fits, rs, loaded)
+
+	v, r := scalarslot.Eval(`coef("truth", "price") * params.share`, scalarslot.Real, env, env.Declared(), false)
+	if want, _ := model.Coef(set, "truth", "price", model.StatPoint); r != nil || !v.Resolved || v.Number != float64(want*0.25) {
+		t.Errorf("loaded read = %+v, %v; want resolved %v", v, r, want*0.25)
+	}
+	_, r = scalarslot.Eval(`coef("tr" + "uth", "price", "lower")`, scalarslot.Real, env, env.Declared(), false)
+	if r == nil || r.Coded == nil || r.Coded.Code != errors.PULSE_MODEL_INTERVALS_UNAVAILABLE {
+		t.Errorf("loaded read without intervals: %v, want PULSE_MODEL_INTERVALS_UNAVAILABLE", r)
+	}
+	for _, src := range []string{
+		`coef("demand", "price")`,
+		`coef("truth", "price") + coef("dem" + "and", "price")`,
+		`boost(1) + coef("truth", "price")`,
+	} {
+		v, r := scalarslot.Eval(src, scalarslot.Real, env, env.Declared(), false)
+		if r != nil || v.Resolved {
+			t.Errorf("%q = %+v, %v; want unresolved", src, v, r)
+		}
+	}
+	bound := exprenv.Bound{Coef: func(...any) (any, error) { return 3.0, nil }}
+	if v, r := scalarslot.Eval(`coef("demand", "price")`, scalarslot.Real, env, bound, true); r != nil || v.Number != 3 {
+		t.Errorf("run Eval = %+v, %v; want the bound value 3", v, r)
+	}
+}

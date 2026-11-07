@@ -249,6 +249,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT: own("ATTR_FORMULA"),
 	// Fires only on a regression that accepts resample jackknife.
 	errors.PULSE_ADVISORY_JACKKNIFE_COST:                own("REG_OLS", "REG_GLM"),
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),
@@ -334,9 +335,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_MERGEABLE_MISMATCH:           shared,
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
 	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
+	errors.PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH:    shared,
 	errors.PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH:       shared,
 	errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH:   shared,
+	errors.PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH:      shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
+	errors.PULSE_EXTENSION_SPEC_REFUSED:                 shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,
 	errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA:     shared,
@@ -419,13 +423,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FORMULA_TOTAL_SITE:    own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:  own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:   own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_COMPILE_ERROR: own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
+	errors.PULSE_FORMULA_COMPILE_ERROR: own("ATTR_FORMULA", "FILTER_EXPRESSION", "WIN_FORMULA", featRegHoldout),
 	// The params block is capability:params; an expression reading
 	// params.<name> can be refused (undeclared, collision) wherever an
 	// expression compiles, the slot hidden or not.
 	errors.PULSE_PARAMS_INVALID:              own(featParams),
-	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams, featComposeOpt),
-	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout, featParams),
+	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA", featRegHoldout, featParams, featComposeOpt),
+	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", "WIN_FORMULA", featRegHoldout, featParams),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are
@@ -463,8 +467,8 @@ var errorOwners = map[errors.Code][]string{
 	// range_label(table, x) raises both from the expression operators
 	// (evaluated, and judged statically for a literal call by predict
 	// and the runtime's entry check, internal/tablecall).
-	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA"),
-	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA"),
+	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA"),
+	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES", featMaterializeOutput, "ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA"),
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so

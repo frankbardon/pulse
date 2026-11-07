@@ -10,9 +10,9 @@ requires: [capability:templates]
 
 # Request templating
 
-Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Execution-free.
+Stored JSON rendering into a **validated typed request** — shape fixed once, caller supplies variables. Execution-free.
 
-**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution ([`expression-language`](expression-language.md)). `{{}}` in an expression string (`expression`, `holdout`, overlay `params.formula`, feature `params.fit_on`, an `expression: true` param) is `_EXPR_SPLICE` at load, axis tokens too; whole `$var`, `{{{{` are legal.
+**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* ([`expression-language`](expression-language.md)). `{{}}` in an expression string (`expression`, `holdout`, overlay `params.formula`, feature `params.fit_on`, window `params.expression`, an `expression: true` param) is `_EXPR_SPLICE` at load, axis tokens too; whole `$var`, `{{{{` are legal.
 Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` ([`request-params`](request-params.md)).
 
 ## File shape

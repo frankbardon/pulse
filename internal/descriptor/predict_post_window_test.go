@@ -65,7 +65,7 @@ func checkPostWindowParity(t *testing.T, name string, req *types.Request, cat mo
 	t.Helper()
 	schema := fieldRefSchema()
 	_, got := fieldRefWalkPlan(req, schema, nil, nil, nil, cat)
-	want := vectors.PostWindowAttributes(req, schema, nil, cat)
+	want := vectors.PostWindowAttributes(req, schema, vectors.Classifier{Cat: cat})
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s: walk plan %+v, classifier %+v", name, got, want)
 	}
@@ -124,7 +124,7 @@ func TestPredictPostWindow_ParityWithClassifier(t *testing.T) {
 	for name, req := range postWindowCorpus() {
 		checkPostWindowParity(t, name, req, postWindowCatalog())
 		checkPostWindowParity(t, name+" (no catalog)", req, nil)
-		if vectors.PostWindowAttributes(req, fieldRefSchema(), nil, postWindowCatalog()).Any() {
+		if vectors.PostWindowAttributes(req, fieldRefSchema(), vectors.Classifier{Cat: postWindowCatalog()}).Any() {
 			moved++
 		}
 	}

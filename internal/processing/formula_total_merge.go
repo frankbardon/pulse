@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -169,6 +170,7 @@ type TotalsPrepass struct {
 func NewTotalsPrepass(attrs []*types.Attribute, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) (*TotalsPrepass, error) {
 	p := &TotalsPrepass{stages: make([]totalsStage, 0, len(attrs))}
 	twoPass := make([]bool, len(attrs))
+	aliases := prevstate.U64Aliases(attrs, schema)
 	for i, attr := range attrs {
 		factory, ok := exts.LookupAttribute(attr.Type)
 		if !ok {
@@ -179,7 +181,7 @@ func NewTotalsPrepass(attrs []*types.Attribute, schema *encoding.Schema, exts *E
 		if err != nil {
 			return nil, err
 		}
-		if err := BindAttributeWithVectors(computer, exts, models, vecs); err != nil {
+		if err := BindAttributeWithAliases(computer, exts, models, vecs, aliases); err != nil {
 			return nil, err
 		}
 		st := totalsStage{attr: attr, label: attributeSlotLabel(attr), nullable: EmitsNull(computer)}

@@ -348,7 +348,7 @@ func withLabels(params json.RawMessage, members Resolved) (json.RawMessage, bool
 // the attribute pass), nor is a later attribute's label. Nil when none.
 func SEMScoreComputed(req *types.Request, schema *encoding.Schema, i int) Computed {
 	var out Computed
-	for name, c := range computedColumns(req, schema, false) {
+	for name, c := range computedColumns(req, schema, false, nil) {
 		if c.Slot == "attribute" && c.Index >= i {
 			continue
 		}

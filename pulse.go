@@ -868,6 +868,9 @@ func New(opts Options) (*Pulse, error) {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
 	snap = snap.WithLimits(effectiveLimits)
+	if opts.DefaultWeight != nil {
+		snap = snap.WithDefaultWeight(opts.DefaultWeight)
+	}
 	if len(opts.SuppressAdvisories) > 0 {
 		snap = snap.WithSuppressedAdvisories(opts.SuppressAdvisories)
 	}
@@ -1871,6 +1874,33 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		DecodeWorkers:         p.svc.DecodeWorkers(),
 		DecodeMappable:        p.predictDecodeMappable(ctx),
 	}), nil
+}
+
+// ClassifyPostWindow reports req's post-window plan — whether its
+// windows run over the records first and which attributes run after
+// them — without a cohort: exactly the PredictResult.PostWindow that
+// Predict would report for req over a cohort whose schema is schema,
+// classified with the instance's operator routes, extension hooks and
+// defaults and the saved files req's `models` / `populations` name
+// (read through the instance's afero.Fs, as Predict reads them; a
+// join's right cohort schema too). req.Cohort is not read.
+//
+// schema may be nil: the plan is then the schema-free classification
+// Predict falls back to when it cannot read a schema — a window label
+// shadowing a schema field or vector then counts as a window output
+// (over the schema the field wins) — and smart defaults are not
+// applied (they need the schema). Nil plan when req carries no window.
+// No validation fault is reported: a request Predict refuses still
+// has a plan; the returned error is a nil req or a cancelled ctx.
+func (p *Pulse) ClassifyPostWindow(ctx context.Context, req *Request, schema *encoding.Schema) (*descriptor.PostWindowPlan, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: classify post-window requires a request")
+	}
+	opts := p.predictOptions(ctx, sidecarFacts{})
+	return descx.ClassifyPostWindow(req, schema, &opts), nil
 }
 
 // predictSchemaLoader reads a cohort's header + schema through the

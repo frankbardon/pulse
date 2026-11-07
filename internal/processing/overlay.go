@@ -446,6 +446,22 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// An extension kind: its declaration's rule (refuseWrongHostOverlays,
+		// the Process hook every production fold runs first, already ran
+		// it with the Validate hook — so the hook runs once per spec),
+		// then its crosstab handler, its output held to the declaration.
+		if x := exts.extensionOverlay(route); x != nil {
+			if cerr := overlayhost.ExtensionDeclRefusal(&x.Decl, types.OverlayShapeMatrix, host.measures != nil, spec, i); cerr != nil {
+				return nil, nil, cerr
+			}
+			layer, ws, err := applyExtensionOverlayMatrix(x, spec, host, i)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			warnings = append(warnings, ws...)
+			continue
+		}
 		// A SERIES-only kind handed to this MATRIX loop: the shared
 		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
 		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeMatrix, spec.Kind, route, i); cerr != nil {
@@ -507,13 +523,8 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		}
 		handler, ok := overlayHandlers[route]
 		if !ok {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no runtime handler: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-				})
+			// predict's catalog-probe refusal (validateOverlaySpec).
+			return nil, nil, overlayhost.KindUnknownRefusal(spec.Kind, i, "")
 		}
 		var (
 			layer types.OverlayLayer

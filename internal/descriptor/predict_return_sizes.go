@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -433,6 +434,60 @@ func responseSizes(plan *returnplan.Plan, in returnSizeInputs) []descriptor.Resp
 		})
 	}
 	return out
+}
+
+// composeSlotSizes is ComposeSlotPredict.Sizes: the section model
+// Process predict reports for the slot's request (predictSingle's
+// sizes pass — the same `return` gates, record count, components gate
+// and matrix plans), under the batch's resolved multiplicity (plan,
+// the slot's ComposeMultiplicityPlan.Requests entry), headed by the
+// slot's `label` echo. slot is the normalized slot (item for_each
+// expanded, defaults resolved; nil when the expansion was refused)
+// and opts carries the slot's bound-model catalog. Nil when predict
+// cannot resolve the schema the slot executes over.
+func composeSlotSizes(slot *types.Request, label string, plan *MultiplicityPlan, opts *PredictOptions) []descriptor.ResponseSectionSize {
+	if slot == nil {
+		return nil
+	}
+	inst := opts.instance()
+	returnPlan, rerr := ResolveReturn(slot, inst)
+	if rerr != nil {
+		return nil
+	}
+	schema, refusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	if schema == nil || len(refusals) > 0 {
+		return nil
+	}
+	req := defaultedForValidation(slot, schema, opts)
+	if returnPlan != nil && ReturnColumnRefusal(req, schema, inst) != nil {
+		return nil
+	}
+	in := returnSizeInputs{req: req, schema: schema, inst: inst, components: !opts.componentsDisabled(req)}
+	if counts := opts.cohortCounts(slot.Cohort); counts.Records >= 0 {
+		in.records, in.recordsKnown = counts.Records, true
+	}
+	if plan != nil {
+		for _, rm := range plan.Matrices {
+			in.matrixMembers = append(in.matrixMembers, rm.Member)
+		}
+		in.regressionMembers = plan.Regressions
+	}
+	// The matrix plans and their bucket estimates (predictMatrices,
+	// over a scratch result: the slot reports no MatrixPredict). The
+	// state-byte terms it also computes feed no size.
+	var scratch descriptor.PredictResult
+	in.matrixPlans = predictMatrices(&scratch, req, schema, extensionsFromOpts(opts), inst, opts.boundModels(), -1, 0, -1)
+	in.matrices = scratch.Matrices
+
+	// The slot's `label` echo: its exact JSON string.
+	quoted, _ := json.Marshal(label)
+	labelNode := leaf("label", int64(len(quoted)))
+	labelShaped := labelNode.full()
+	if returnPlan != nil {
+		labelShaped = labelNode.shaped(returnPlan, nil, nil)
+	}
+	out := []descriptor.ResponseSectionSize{{Section: "label", FullBytes: labelNode.full(), ShapedBytes: labelShaped, Basis: returnSizeExact}}
+	return append(out, responseSizes(returnPlan, in)...)
 }
 
 // unresolvedIncludes is ReturnPlan.UnresolvedIncludes: the plan's Open

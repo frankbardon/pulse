@@ -163,7 +163,7 @@ func TestWindowsFirst_NonNumericWindowRefused(t *testing.T) {
 		Windows:      []*types.Window{{Type: "WIN_ACME_TEXT", Field: "x", Label: "w", OrderBy: []types.OrderKey{{Field: "t"}}}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "w", Label: "s"}},
 	}
-	if got := NewProcessor(s).windowRecordColumns(req, vectors.PostWindowAttributes(req, s, nil, nil)); !reflect.DeepEqual(got, []windowRecordColumn{{label: "w", consumer: "aggregation"}}) {
+	if got := NewProcessor(s).windowRecordColumns(req, vectors.PostWindowAttributes(req, s, vectors.Classifier{})); !reflect.DeepEqual(got, []windowRecordColumn{{label: "w", consumer: "aggregation"}}) {
 		t.Fatalf("window record columns = %v, want w for the aggregation", got)
 	}
 	_, err := NewProcessorWithExtensions(s, exts).Process(context.Background(), req, NewSliceIterator(recs))

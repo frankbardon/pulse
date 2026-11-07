@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 
@@ -9,9 +8,11 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/extscalar"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -63,6 +64,13 @@ type ExtensionRegistry struct {
 	// registration without one has no entry, so its fits run but do not
 	// score (RegressionScorer).
 	RegressionScorers map[types.RegressionType]model.ScorerFactory
+
+	// Overlays are the extension OVERLAY_<NS>_<NAME> kinds
+	// (pulse.OverlayRegistration, overlay_extension.go): each one's
+	// declared contract and its per-host handlers, read through
+	// extensionOverlay on the overlay route (a hidden kind is never
+	// found).
+	Overlays map[types.OverlayKind]*ExtensionOverlay
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
@@ -196,6 +204,15 @@ type ExtensionRegistry struct {
 	// the projection to "every field" so the runtime stays correct
 	// for embedders that haven't opted in.
 	FieldInputs map[string]FieldInputsFunc
+
+	// AttributeDictionaries is each attribute registration's
+	// InheritsDictionary declaration (the source param, "" for the
+	// slot's Field), keyed by operator name — the map predict's
+	// ExtensionsSnapshot.AttributeDictionaries carries, built by the
+	// same root function. Processor.prepare's dictionary-inheritance
+	// view (prevstate.KeySchemaWith) and the reducers' grouper key
+	// schema read it. Nil when none declares one.
+	AttributeDictionaries prevstate.Inherits
 
 	// ScalarParams are the expression-capable params keys
 	// (pulse.ParamMeta.Expression) per extension operator, keyed
@@ -988,35 +1005,62 @@ func (r *ExtensionRegistry) FieldInputsFor(category, name string, raw json.RawMe
 
 // scalarStandIns is raw with every expression-capable param of
 // (category, name) written as an expression string replaced by the
-// number 0: a projection callback runs before the expressions are
-// resolved, and its decode must see the param's declared type. A
-// number param names no column, so the stand-in leaves the field list
-// as the resolved value would. raw itself when there is nothing to
-// replace.
+// number 0 (extscalar.StandIns — the rule predict's
+// ExtensionsSnapshot.ColumnReads applies too): a projection callback
+// runs before the expressions are resolved, and its decode must see the
+// param's declared type. raw itself when there is nothing to replace.
 func (r *ExtensionRegistry) scalarStandIns(category, name string, raw json.RawMessage) json.RawMessage {
-	keys := r.ScalarParams[StreamabilityKey(category, name)]
-	if len(keys) == 0 || len(raw) == 0 {
-		return raw
+	return extscalar.StandIns(raw, r.ScalarParams[StreamabilityKey(category, name)])
+}
+
+// ColumnReads is the registry's vectors.ExtInputs — the extension
+// FieldInputs hooks the windows-first classification reads an
+// extension aggregator's columns from (FieldInputsFor, the stand-in
+// params included); a hook that panics declares nothing, as predict's
+// ExtensionsSnapshot.DeclaredFieldInputs treats it. Nil when the
+// registry carries no hook, so an extension-free run classifies at no
+// cost. Nil-receiver-safe.
+func (r *ExtensionRegistry) ColumnReads() vectors.ExtInputs {
+	if r == nil || len(r.FieldInputs) == 0 {
+		return nil
 	}
-	var m map[string]json.RawMessage
-	if json.Unmarshal(raw, &m) != nil || m == nil {
-		return raw
-	}
-	changed := false
-	for _, k := range keys {
-		if v := bytes.TrimSpace(m[k]); len(v) > 0 && v[0] == '"' {
-			m[k] = json.RawMessage("0")
-			changed = true
+	return r.columnReads
+}
+
+// columnReads is ColumnReads' callback.
+func (r *ExtensionRegistry) columnReads(category, name string, raw json.RawMessage) (names []string) {
+	defer func() {
+		if recover() != nil {
+			names = nil
 		}
+	}()
+	names, _ = r.FieldInputsFor(category, name, raw)
+	return names
+}
+
+// Classifier is the windows-first classifier of a run over the bound
+// models cat (nil: none): cat plus the registry's ColumnReads.
+// Nil-receiver-safe.
+func (r *ExtensionRegistry) Classifier(cat model.Catalog) vectors.Classifier {
+	return vectors.Classifier{Cat: cat, Ext: r.ColumnReads(), Dict: r.Dictionaries()}
+}
+
+// Dictionaries is AttributeDictionaries, nil on a nil registry.
+func (r *ExtensionRegistry) Dictionaries() prevstate.Inherits {
+	if r == nil {
+		return nil
 	}
-	if !changed {
-		return raw
-	}
-	out, err := json.Marshal(m)
-	if err != nil {
-		return raw
-	}
-	return out
+	return r.AttributeDictionaries
+}
+
+// AttributeDictionaryView is the run's dictionary-inheritance view of
+// schema for attrs (prevstate.KeySchemaWith over the registry's
+// AttributeDictionaries): the schema plus one virtual field per
+// ATTR_PREVIOUS_STATE output and per output of an extension attribute
+// declaring InheritsDictionary. Nil-receiver-safe; schema itself when
+// nothing contributes.
+func (r *ExtensionRegistry) AttributeDictionaryView(attrs []*types.Attribute, schema *encoding.Schema) *encoding.Schema {
+	return prevstate.KeySchemaWith(attrs, schema, r.Dictionaries())
 }
 
 // ExtensionScalarParams returns the expression-capable params keys of

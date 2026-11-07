@@ -443,7 +443,10 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 					// own overlays and its label bindings (judged over
 					// the stage's input schema — a later stage's labels
 					// are applied, as stage 0's are), located by stage.
-					validateRequestBodyAt(env, fieldReq, fieldSchema, opts, "stage", i)
+					// Over the stage's own catalog (its loaded `models`), as
+					// the runtime binds them: a scalar slot reading one is
+					// folded, never refused as an unknown fit.
+					validateRequestBodyAt(env, fieldReq, fieldSchema, opts.withModels(stageModels[i]), "stage", i)
 				}
 			}
 		}

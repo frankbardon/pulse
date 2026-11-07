@@ -1192,6 +1192,15 @@ type ComposeSlotPredict struct {
 	// before its field references are judged (or has no schema). Omitted
 	// when the slot carries no window.
 	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
+	// Sizes estimates each top-level section of the slot's Response, as
+	// Process predict reports them for the same request
+	// (PredictResult.Sizes) under the batch's resolved multiplicity,
+	// headed by the slot's `label` echo (basis exact; kept by every
+	// preset). Omitted when the slot's `return` block is refused, when
+	// predict cannot resolve the schema the slot executes over (no
+	// SchemaLoader, an unreadable cohort or join, a refused item
+	// expansion) — guidance only, as PredictResult.Sizes.
+	Sizes []ResponseSectionSize `json:"sizes,omitempty"`
 }
 
 // PostWindowPlan is a request's post-window plan: the engine's ordering

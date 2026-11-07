@@ -290,7 +290,9 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 	// are populated unconditionally here so handlers that consume them
 	// see the same view shape regardless of whether the request carries
 	// overlay specs that introspect kind.
-	return NewSeriesHostViewWithGrouper(keys, resolver, groupFields, grouperKinds)
+	h := NewSeriesHostViewWithGrouper(keys, resolver, groupFields, grouperKinds)
+	h.valueLabel = primaryLabel
+	return h
 }
 
 // promoteYoYFrequencyFromGroupParams walks req.Overlays and promotes
@@ -415,32 +417,11 @@ func mergeYoYFrequencyParams(orig json.RawMessage, freq string) json.RawMessage 
 //
 // exts routes a kind the instance feature set hides as unknown
 // (ExtensionRegistry.overlayRoute), so it downgrades exactly like a
-// never-registered kind.
+// never-registered kind, and an extension kind is buffered-only. The
+// rule is overlayhost.StreamReasons, the one predict's
+// computeStreamable lists its reasons from.
 func canStreamOverlays(req *types.Request, exts *ExtensionRegistry) bool {
-	if req == nil || len(req.Overlays) == 0 {
-		return true
-	}
-	for i := range req.Overlays {
-		route := exts.overlayRoute(req.Overlays[i].Kind)
-		streamable, known := types.OverlayStreamable(route)
-		if !known {
-			return false
-		}
-		// A kind that does not run on a Process host, or not on this
-		// request's Process shape, routes buffered, whose hook raises
-		// the wrong-slot / wrong-shape refusal.
-		judged := overlayhost.JudgedShape(AuthoredHostShape(req), len(req.Matrices) > 0, route)
-		if !overlayhost.Accepts(overlayhost.Request, route) || !overlayhost.AcceptsShape(judged, route) {
-			return false
-		}
-		// A SCALAR host runs no kind: route buffered, whose hook raises
-		// the shared SCALAR host refusal (overlayhost.ScalarSpecRefusal).
-		if judged == types.OverlayShapeScalar && overlayhost.ScalarSpecRefusal(&req.Overlays[i], route, len(req.Groups) > 0, i) != nil {
-			return false
-		}
-		if !streamable {
-			return false
-		}
-	}
-	return true
+	return len(overlayhost.StreamReasons(req, exts.overlayRoute, func(k types.OverlayKind) bool {
+		return exts.extensionOverlay(k) != nil
+	})) == 0
 }

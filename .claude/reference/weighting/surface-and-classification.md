@@ -35,6 +35,8 @@ Slot order (and `slot` spelling): `aggregations[i]`, `crosstab.cell`, `crosstab.
 
 `internal/weighting` is the leaf both halves read: `ClassOf` / `IsAware` (the class table) and `Classify` (the per-row validity rule). `internal/descriptor.IsWeightAware` forwards to it.
 
+**A declaration keyed on the resolved weight (U67 E6-S2).** A WIN_FORMULA over the output rows types an `AGG_SET_FREQUENCY` cell as its integer count map or, when the slot resolves a weight, its Σw float map (`winformula.OutputColumns` stamps with `weighting.Stamp` first). The field-reference walk runs on the AUTHORED request, so it reads `Options.DefaultWeight` from the instance (`InstanceSnapshot.DefaultWeight`, installed by `pulse.New`) and the window factory from the processor's default — one declaration on predict, the runtime pre-flight and the factory (`TestWinFormula_SetFrequencyCellFollowsResolvedWeight`).
+
 ## Validation
 
 | Weight value | Treatment |

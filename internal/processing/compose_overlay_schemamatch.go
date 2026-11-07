@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -88,40 +89,6 @@ type composeOverlaySchemaShape struct {
 	rowAxis   []string
 	colAxis   []string
 	cellShape string
-}
-
-// canonical renders the schema shape as a deterministic string for
-// the Details payload. Format: "<rowKinds>/<colKinds>" where each
-// half is the per-axis kind tuple joined "|". Empty axis halves
-// render as "" so the slash is always present, making the two-axis
-// nature of the canonical form unambiguous regardless of how many
-// axes are populated.
-//
-// Examples:
-//
-//	MATRIX, rows=[GROUP_CATEGORY, GROUP_DATE], cols=[GROUP_RANGE]
-//	  → "GROUP_CATEGORY|GROUP_DATE/GROUP_RANGE"
-//	SERIES, rows=[region, segment], cols=[]
-//	  → "region|segment/"
-//	SCALAR
-//	  → "/"
-//
-// The empty-axis-trailing-slash form is intentional — the slash
-// makes the row/column axis split visually obvious in MCP error
-// payloads and in golden-file diff output.
-func (s composeOverlaySchemaShape) canonical() string {
-	return joinKindTuple(s.rowAxis) + "/" + joinKindTuple(s.colAxis)
-}
-
-func joinKindTuple(parts []string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	out := parts[0]
-	for i := 1; i < len(parts); i++ {
-		out += "|" + parts[i]
-	}
-	return out
 }
 
 // extractSchemaShape builds the per-slot structural schema. The
@@ -262,23 +229,25 @@ func probeMatrixCellShape(m *types.MatrixPayload) string {
 // family depends on triple-aware handlers binding to this token.
 // Unrelated Rich families fall through to type-name branches so
 // the gate stays orthogonal across them without dragging in
-// reflect.
+// reflect. The named tokens are overlayhost's (CellShapeScalar …),
+// which predict-compose derives from the cell aggregation type
+// (overlayhost.CellShapeOf; TestCellShapeOf_MatchesRuntime).
 func canonicalCellShape(v any) string {
 	switch v.(type) {
 	case nil:
 		return ""
 	case float64, float32, int, int64, int32, uint32, uint64, uint, uint8, uint16:
-		return "scalar"
+		return overlayhost.CellShapeScalar
 	case WelfordTriple:
-		return "welford_triple"
+		return overlayhost.CellShapeWelford
 	case map[string]int:
-		return "map[string]int"
+		return overlayhost.CellShapeCounts
 	case map[string]int64:
 		return "map[string]int64"
 	case map[string]float64:
-		return "map[string]float64"
+		return overlayhost.CellShapeWeightCounts
 	case []string:
-		return "[]string"
+		return overlayhost.CellShapeLabels
 	}
 	// Final fallback: a single unknown sentinel. Two slots both
 	// landing here are treated as cell-shape-equivalent (the gate
@@ -387,13 +356,17 @@ func KindRequiresMatrix(kind types.OverlayKind) bool {
 //	    reference)
 //	  - "observed_shape": "series" / "scalar"
 //
-//	SCHEMA_DIVERGENT:
+//	SCHEMA_DIVERGENT (overlayhost.SchemaDivergentRefusal — predict-
+//	compose's wording and details):
 //	  - "index": spec index
+//	  - "kind": spec Kind
 //	  - "reference": reference slot label
 //	  - "target_label": target slot label
 //	  - "reference_schema": canonical kind-tuple string
-//	    ("<rowKinds>/<colKinds>") from extractSchemaShape.canonical
+//	    ("<rowKinds>/<colKinds>", overlayhost.AxisSchema.Canonical)
 //	  - "target_schema": same form for the target slot
+//	  (+ "reference_cell_shape" / "target_cell_shape" on the cell-shape
+//	  arm, overlayhost.CellShapeDivergentRefusal)
 func checkSlotShapeAndSchema(refResp *types.Response, targetResps []*types.Response, spec types.ComposeOverlaySpec, specIdx int) error {
 	return checkSlotShapeAndSchemaRouted(refResp, targetResps, spec, spec.Kind, specIdx)
 }
@@ -445,11 +418,12 @@ func checkSlotShapeAndSchemaShaped(refResp *types.Response, targetResps []*types
 			targetLabel = spec.Targets[i]
 		}
 
-		// Gate 1: SLOT_SHAPE_DIVERGENT.
+		// Gate 1: SLOT_SHAPE_DIVERGENT — predict-compose's wording and
+		// details (descriptor.validateComposeOverlaySpec, Gate 4).
 		if refSchema.shape != tSchema.shape {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
-				"compose overlay slot shape divergent: reference and target produce different host result shapes",
+				"compose overlay reference and target slots produce different host result shapes",
 				map[string]any{
 					"index":           specIdx,
 					"kind":            string(spec.Kind),
@@ -477,26 +451,20 @@ func checkSlotShapeAndSchemaShaped(refResp *types.Response, targetResps []*types
 				})
 		}
 
-		// Gate 3: SCHEMA_DIVERGENT — axis-kind arm. Compare per-axis
-		// kind tuples. Field names allowed to differ —
-		// extractSchemaShape returns kind tuples only for the matrix
-		// arm and column-name tuples for the series arm. The series-
-		// arm comparison is intentionally over column names because
-		// the response side has no grouper-kind annotation for series
-		// rows — the row axis schema "match" is structural over the
-		// same column names a renderer would key off.
-		if !axisKindsEqual(refSchema.rowAxis, tSchema.rowAxis) ||
-			!axisKindsEqual(refSchema.colAxis, tSchema.colAxis) {
-			return errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_SCHEMA_DIVERGENT,
-				"compose overlay schema divergent: reference and target produce structurally different axis schemas",
-				map[string]any{
-					"index":            specIdx,
-					"reference":        spec.Reference,
-					"target_label":     targetLabel,
-					"reference_schema": refSchema.canonical(),
-					"target_schema":    tSchema.canonical(),
-				})
+		// Gate 3: SCHEMA_DIVERGENT — axis-kind arm, the one rule
+		// predict-compose raises (overlayhost.SchemaDivergentRefusal)
+		// over each slot's AUTHORED axis schema when its request is in
+		// reach (shapes.refAxes / targetAxes — what predict reads),
+		// else the kinds its Response's headers echo.
+		refAxes, tAxes := responseAxisSchema(refSchema), responseAxisSchema(tSchema)
+		if shapes.refAxes != nil {
+			refAxes = *shapes.refAxes
+		}
+		if i < len(shapes.targetAxes) && shapes.targetAxes[i] != nil {
+			tAxes = *shapes.targetAxes[i]
+		}
+		if cerr := overlayhost.SchemaDivergentRefusal(specIdx, spec.Kind, spec.Reference, targetLabel, refAxes, tAxes); cerr != nil {
+			return cerr
 		}
 
 		// Gate 3.5: SCHEMA_DIVERGENT — cell-shape arm.
@@ -507,48 +475,20 @@ func checkSlotShapeAndSchemaShaped(refResp *types.Response, targetResps []*types
 		// while the other slot's cells are processing.WelfordTriple).
 		// Empty-token short-circuit (cellShapesEqual) keeps zero-cell
 		// matrix slots from tripping the gate against populated slots
-		// — the gate has no rich/scalar evidence to act on. Surfaces
-		// the canonical cell-shape tokens on dedicated reference_cell_
-		// shape / target_cell_shape Detail entries so the Details
-		// payload visibly distinguishes a cell-shape mismatch from an
-		// axis-kind mismatch; reference_schema / target_schema echo
-		// the axis canonical strings (guaranteed byte-equal here —
-		// the axis-kind arm already accepted).
+		// — the gate has no rich/scalar evidence to act on. Only the
+		// runtime reads cell values, so predict has no twin of this
+		// arm; its wording and details extend the axis arm's
+		// (overlayhost.CellShapeDivergentRefusal) — reference_schema /
+		// target_schema echo the (byte-equal) axis canonical string.
 		if !cellShapesEqual(refSchema.cellShape, tSchema.cellShape) {
-			return errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_SCHEMA_DIVERGENT,
-				"compose overlay schema divergent: reference and target produce structurally different cell shapes",
-				map[string]any{
-					"index":                specIdx,
-					"reference":            spec.Reference,
-					"target_label":         targetLabel,
-					"reference_schema":     refSchema.canonical(),
-					"target_schema":        tSchema.canonical(),
-					"reference_cell_shape": refSchema.cellShape,
-					"target_cell_shape":    tSchema.cellShape,
-				})
+			return overlayhost.CellShapeDivergentRefusal(specIdx, spec.Kind, spec.Reference, targetLabel, refAxes, refSchema.cellShape, tSchema.cellShape)
 		}
 	}
 	return nil
 }
 
-// axisKindsEqual reports whether two per-axis kind tuples are
-// structurally identical. Length must match AND every position
-// must compare equal byte-for-byte. Nil and empty slices compare
-// equal — both are the "no axis" shape and the gate treats them
-// uniformly. The compare is intentionally NOT order-insensitive:
-// nested grouper depth is part of the structural schema, and a
-// (GROUP_CATEGORY, GROUP_DATE) row axis is structurally distinct
-// from a (GROUP_DATE, GROUP_CATEGORY) row axis even though both
-// share the same kind set.
-func axisKindsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+// responseAxisSchema is the axis schema a slot's Response echoes — the
+// gate's fallback when the slot's authored request is out of reach.
+func responseAxisSchema(s composeOverlaySchemaShape) overlayhost.AxisSchema {
+	return overlayhost.AxisSchema{Rows: s.rowAxis, Columns: s.colAxis}
 }

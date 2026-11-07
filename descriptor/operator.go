@@ -51,7 +51,8 @@ type Operator struct {
 	// ForbidsField marks an operator whose request slot must NOT name a
 	// Field: it reads no value column at all — the order-only windows
 	// WIN_ROW_NUMBER / WIN_RANK / WIN_DENSE_RANK compute from their
-	// order_by keys, and a slot naming a field is refused
+	// order_by keys, WIN_FORMULA from the columns its expression names,
+	// and a slot naming a field is refused
 	// PULSE_WINDOW_INVALID on predict and at run time alike; AGG_CONSTANT
 	// emits its params' constant, and a field (vector, fields) on its
 	// slot is PROCESSING_CONFIG reason field_not_accepted. Its

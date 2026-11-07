@@ -2,6 +2,9 @@ package pulse
 
 import (
 	"encoding/json"
+	"fmt"
+
+	"github.com/frankbardon/pulse/errors"
 )
 
 // probeParams synthesizes the params object the registration-time probe
@@ -93,4 +96,26 @@ func withProbeParams(details map[string]any, raw json.RawMessage) map[string]any
 		details["probe_params"] = m
 	}
 	return details
+}
+
+// probeValidateRefusal turns a registration's Validate verdict on its
+// probe spec (cerr, from the category's descx.Extension*ValidateRefusal,
+// panic-recovered there) into the probe failure: nil passes; a refusal
+// — a returned error or a recovered panic — is
+// PULSE_EXTENSION_FACTORY_PANIC {category, name, stage: "validate",
+// validate_code, validate_error[, panic][, probe_params][, weighted]}.
+// The probe spec is one the factory must accept, so the hook must too.
+// Every category's probe calls it before its factory.
+func probeValidateRefusal(category, name string, cerr *errors.CodedError, params json.RawMessage, weighted bool) error {
+	if cerr == nil {
+		return nil
+	}
+	details := map[string]any{"category": category, "name": name, "stage": "validate",
+		"validate_code": string(cerr.Code), "validate_error": cerr.Message}
+	if p, ok := cerr.Details["panic"]; ok && cerr.Code == errors.PULSE_EXTENSION_SPEC_REFUSED {
+		details["panic"] = p
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
+		fmt.Sprintf("%s %q Validate refused the probe spec during probe-validation: %s", category, name, cerr.Message),
+		probeDetails(withProbeParams(details, params), weighted))
 }

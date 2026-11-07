@@ -23,6 +23,10 @@ const (
 	// (dot-separated lowercase snake_case segments, "*" only as the last
 	// segment) and is declared once per operator.
 	InterpretationRuleField InterpretationRule = "field"
+	// InterpretationRuleRequired: a registration that must say how to
+	// read its outputs (an Inferential extension overlay kind) declares
+	// no Interpretation.
+	InterpretationRuleRequired InterpretationRule = "required"
 	// InterpretationRuleFieldUnknown: Field names an output the operator
 	// emits (struct tag, ComponentSchema key, declared overlay shape or
 	// per-regression-type applicability).

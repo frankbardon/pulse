@@ -774,6 +774,14 @@ const (
 	// formula label, the distinct total() arguments and added_scans.
 	PULSE_ADVISORY_EXTRA_PASS Code = "PULSE_ADVISORY_EXTRA_PASS"
 
+	// PULSE_ADVISORY_FORMULA_NULLABLE_RESULT is a predict advisory: an
+	// ATTR_FORMULA's result can be nil — a nullable schema field read
+	// or a literal nil reaches its result position with no `??` or
+	// `== nil` / `!= nil` ternary guard — so the run writes a null under
+	// the label on such rows. One per such formula; details carry the
+	// slot, the formula label, the unguarded fields and literal_nil.
+	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
+
 	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
 	// series overlay that reads its rows in order (prior, rolling,
 	// baseline, sibling) runs over two or more groupers with no
@@ -1341,6 +1349,20 @@ const (
 	// extensions_validate and extensions_probe.probeAggregators.
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
 
+	// PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH indicates an attribute
+	// registration's output contradicts its InheritsDictionary
+	// declaration: the attribute — computed at pulse.New over a
+	// synthetic three-entry categorical source, or on any run — emitted
+	// a value that is no code of the source field's dictionary (not an
+	// integer in [0, entry count); NaN, a null, is never one), or the
+	// registration declares an Emits other than float64 (codes are
+	// numbers). Details carry the category, name, a reason discriminator
+	// (dictionary_code_out_of_range, dictionary_emits_conflict) and, for
+	// a code, the value, the dictionary size and — on a run — the source
+	// field and the slot label. Wired into extensions_validate,
+	// extensions_probe.probeAttributes and the attribute adapter.
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH indicates a matrix
 	// registration's operator, finalized at pulse.New over a synthetic
 	// three-member co-moment, returned a MatrixOutput its OutputKeys do
@@ -1367,9 +1389,32 @@ const (
 	// adapter.
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 
+	// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH indicates an overlay
+	// registration's handler — run at pulse.New over a synthetic
+	// crosstab host, or on any run — returned a payload its registration
+	// does not declare: a Shape outside its Shapes, an arm other than
+	// the shape's own set, Parts, an engine-owned multiple-comparison
+	// figure (p_adjusted / significant_adjusted) or a warning without a
+	// code or message. Details carry the category, name, a reason
+	// discriminator (undeclared_shape, shape_arm_mismatch,
+	// undeclared_parts, engine_owned, invalid_warning), the returned
+	// shape, the declared shapes and, on a run, the spec index. The
+	// overlay sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH.
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
+
+	// PULSE_EXTENSION_SPEC_REFUSED indicates an extension
+	// registration's opt-in, spec-only Validate hook
+	// (extend.SpecValidator) refused a request slot's spec with an
+	// uncoded error, or panicked judging it. Raised identically at
+	// predict and at runtime (before the factory); a coded error the
+	// hook returns keeps its own code instead. Details carry category,
+	// type, slot (the request slot key, e.g. "regressions"), name when
+	// the slot is named, and panic on a recovered panic.
+	PULSE_EXTENSION_SPEC_REFUSED Code = "PULSE_EXTENSION_SPEC_REFUSED"
 
 	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
 	// registration has missing or contradictory fields (empty name,
@@ -4792,6 +4837,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_ORDINAL_PARAMETRIC,
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
+	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,
@@ -4863,9 +4909,12 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
+	PULSE_EXTENSION_SPEC_REFUSED,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,

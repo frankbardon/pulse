@@ -27,10 +27,13 @@ pulse: type AggregatorRegistration field NonScalar bool
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field Validate pulse/extend.SpecValidator[pulse/types.Aggregation]
 pulse: type AggregatorRegistration field ValueState bool
 pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
 pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
+pulse: type AttributeDictionarySource struct
+pulse: type AttributeDictionarySource field Param string
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
 pulse: const AttributeEmitString pulse.AttributeEmitType = "string"
@@ -48,11 +51,13 @@ pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
 pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AttributeRegistration field InheritsDictionary *pulse.AttributeDictionarySource
 pulse: type AttributeRegistration field Mergeable bool
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
 pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type AttributeRegistration field Validate pulse/extend.SpecValidator[pulse/types.Attribute]
 pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
@@ -311,6 +316,7 @@ pulse: type Extensions field Groupers []pulse.GrouperRegistration
 pulse: type Extensions field LabelTables map[string]pulse.LabelTable
 pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
+pulse: type Extensions field Overlays []pulse.OverlayRegistration
 pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
@@ -463,6 +469,7 @@ pulse: type FeatureRegistration field Name pulse/types.FeatureType
 pulse: type FeatureRegistration field Params []pulse.ParamMeta
 pulse: type FeatureRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type FeatureRegistration field Streamable bool
+pulse: type FeatureRegistration field Validate pulse/extend.SpecValidator[pulse/types.Feature]
 pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
 pulse: type FilterToFileOptions struct
 pulse: type FilterToFileOptions field Expression string
@@ -502,6 +509,7 @@ pulse: type FiltererRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type FiltererRegistration field Name pulse/types.FiltererType
 pulse: type FiltererRegistration field Params []pulse.ParamMeta
 pulse: type FiltererRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type FiltererRegistration field Validate pulse/extend.SpecValidator[pulse/types.Filterer]
 pulse: func Glossary() []pulse/descriptor.Term
 pulse: type GroupIndexHeadroom = pulse/internal/encoding.GroupIndexHeadroom
 pulse: type GroupIndexHeadroom underlying struct
@@ -535,6 +543,7 @@ pulse: type GrouperRegistration field Name pulse/types.GroupType
 pulse: type GrouperRegistration field Params []pulse.ParamMeta
 pulse: type GrouperRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type GrouperRegistration field Streamable bool
+pulse: type GrouperRegistration field Validate pulse/extend.SpecValidator[pulse/types.Group]
 pulse: type ImportEntry = pulse/internal/imports.Entry
 pulse: type ImportEntry underlying struct
 pulse: type ImportEntry field Expired bool "json:\"expired\""
@@ -724,6 +733,7 @@ pulse: type MatrixOpRegistration field PValues string
 pulse: type MatrixOpRegistration field Params []pulse.ParamMeta
 pulse: type MatrixOpRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type MatrixOpRegistration field Streamable bool
+pulse: type MatrixOpRegistration field Validate pulse/extend.SpecValidator[pulse/types.MatrixSpec]
 pulse: type MatrixOpRegistration field WeightAware bool
 pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
@@ -769,6 +779,22 @@ pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
 pulse: type Options field SuppressAdvisories []string
 pulse: type Options field TemplateDirs []string
+pulse: type OverlayRegistration struct
+pulse: type OverlayRegistration field DependsOn []string
+pulse: type OverlayRegistration field Description string
+pulse: type OverlayRegistration field EmitsPValues bool
+pulse: type OverlayRegistration field Handler pulse/extend.OverlayHandler
+pulse: type OverlayRegistration field Inferential bool
+pulse: type OverlayRegistration field Interpretation []pulse/descriptor.Interpretation
+pulse: type OverlayRegistration field Name pulse/types.OverlayKind
+pulse: type OverlayRegistration field Params []pulse.ParamMeta
+pulse: type OverlayRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type OverlayRegistration field Refs []pulse/extend.OverlayRefKind
+pulse: type OverlayRegistration field Scopes []pulse/types.OverlayScope
+pulse: type OverlayRegistration field Shapes []pulse/types.OverlayShape
+pulse: type OverlayRegistration field Validate pulse/extend.SpecValidator[pulse/types.OverlaySpec]
+pulse: type OverlayRegistration field ValidateCompose pulse/extend.SpecValidator[pulse/types.ComposeOverlaySpec]
+pulse: type OverlayRegistration field WeightAware bool
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
@@ -814,6 +840,7 @@ pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
+pulse: type Pulse method (*Pulse) ClassifyPostWindow(ctx context.Context, req *pulse.Request, schema *pulse/encoding.Schema) (*pulse/descriptor.PostWindowPlan, error)
 pulse: type Pulse method (*Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, error)
 pulse: type Pulse method (*Pulse) CompactShardArchive(ctx context.Context, archivePath string) error
 pulse: type Pulse method (*Pulse) Compose(ctx context.Context, req *pulse.ComposedRequest) (*pulse.ComposedResponse, error)
@@ -1022,6 +1049,7 @@ pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type RegressionRegistration field Scorer pulse/extend.RegressionScorerFactory
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
+pulse: type RegressionRegistration field Validate pulse/extend.SpecValidator[pulse/types.RegressionSpec]
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
 pulse: type RemoveShardResult = pulse/internal/service.RemoveShardResult
@@ -1309,6 +1337,7 @@ pulse: type TestRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type TestRegistration field RowFactory pulse/extend.RowTestFactory
 pulse: type TestRegistration field Streamable bool
 pulse: type TestRegistration field Tier pulse.TestTier
+pulse: type TestRegistration field Validate pulse/extend.SpecValidator[pulse/types.Test]
 pulse: type TestRegistration field WeightAware bool
 pulse: type TestTier string
 pulse: const TestTierPost pulse.TestTier = "tier2"
@@ -1354,6 +1383,7 @@ pulse: type WindowRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type WindowRegistration field Validate pulse/extend.SpecValidator[pulse/types.Window]
 pulse/descriptor: package descriptor
 pulse/descriptor: type Advisory = pulse/types.Advisory
 pulse/descriptor: type Advisory underlying struct
@@ -1434,6 +1464,7 @@ pulse/descriptor: type ComposeSlotPredict field Label string "json:\"label\""
 pulse/descriptor: type ComposeSlotPredict field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field PostWindow *pulse/descriptor.PostWindowPlan "json:\"post_window,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Request int "json:\"request\""
+pulse/descriptor: type ComposeSlotPredict field Sizes []pulse/descriptor.ResponseSectionSize "json:\"sizes,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type ComposeSlotPredict field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
@@ -1585,6 +1616,7 @@ pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.Oper
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
 pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.MatrixMeta "json:\"matrix_ops\""
+pulse/descriptor: type ExtensionsManifest field Overlays []pulse/descriptor.OverlayCapability "json:\"overlays\""
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
@@ -1956,6 +1988,7 @@ pulse/descriptor: type OperatorMeta field Description string "json:\"description
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field EmitsInputValue bool "json:\"emits_input_value,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
+pulse/descriptor: type OperatorMeta field InheritsDictionary string "json:\"inherits_dictionary,omitempty\""
 pulse/descriptor: type OperatorMeta field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type OperatorMeta field MarginReducibility string "json:\"margin_reducibility,omitempty\""
 pulse/descriptor: type OperatorMeta field Mergeable bool "json:\"mergeable,omitempty\""
@@ -2687,6 +2720,7 @@ pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_CONSTRAINT_ACTIVE pulse/errors.Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
+pulse/errors: const PULSE_ADVISORY_FORMULA_NULLABLE_RESULT pulse/errors.Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
@@ -2738,6 +2772,7 @@ pulse/errors: const PULSE_EXPORT_COLUMN_COLLISION pulse/errors.Code = "PULSE_EXP
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_ARRAY_VALUED_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
+pulse/errors: const PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
 pulse/errors: const PULSE_EXTENSION_EXAMPLE_COLLISION pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
@@ -2752,11 +2787,13 @@ pulse/errors: const PULSE_EXTENSION_NAME_COLLISION pulse/errors.Code = "PULSE_EX
 pulse/errors: const PULSE_EXTENSION_NAME_INVALID pulse/errors.Code = "PULSE_EXTENSION_NAME_INVALID"
 pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXTENSION_NAME_RESERVED"
 pulse/errors: const PULSE_EXTENSION_NOT_WEIGHT_AWARE pulse/errors.Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
+pulse/errors: const PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 pulse/errors: const PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
 pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
+pulse/errors: const PULSE_EXTENSION_SPEC_REFUSED pulse/errors.Code = "PULSE_EXTENSION_SPEC_REFUSED"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 pulse/errors: const PULSE_FACET_VALUES_TRUNCATED pulse/errors.Code = "PULSE_FACET_VALUES_TRUNCATED"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
@@ -3126,6 +3163,18 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type ComposeOverlayFunc func(spec *pulse/types.ComposeOverlaySpec, host pulse/extend.ComposeOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type ComposeOverlayHost interface
+pulse/extend: type ComposeOverlayHost imethod Reference() pulse/extend.ComposeOverlaySlot
+pulse/extend: type ComposeOverlayHost imethod Target(i int) pulse/extend.ComposeOverlaySlot
+pulse/extend: type ComposeOverlayHost imethod Targets() int
+pulse/extend: type ComposeOverlaySlot interface
+pulse/extend: type ComposeOverlaySlot imethod Index() int
+pulse/extend: type ComposeOverlaySlot imethod Label() string
+pulse/extend: type ComposeOverlaySlot imethod Matrix() pulse/extend.MatrixOverlayHost
+pulse/extend: type ComposeOverlaySlot imethod Scalar() (float64, bool)
+pulse/extend: type ComposeOverlaySlot imethod Series() pulse/extend.SeriesOverlayHost
+pulse/extend: type ComposeOverlaySlot imethod Shape() pulse/types.OverlayShape
 pulse/extend: type ContextRegression interface
 pulse/extend: type ContextRegression imethod FitContext(ctx context.Context, rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
 pulse/extend: var ErrGrouperKeyNull error
@@ -3173,6 +3222,25 @@ pulse/extend: type MatrixOutput field Primary *pulse/types.MatrixValues
 pulse/extend: type MatrixOutput field Scalars map[string]float64
 pulse/extend: type MatrixOutput field Vectors map[string]any
 pulse/extend: type MatrixOutput field Warnings []*pulse/types.ResponseWarning
+pulse/extend: type MatrixOverlayFunc func(spec *pulse/types.OverlaySpec, host pulse/extend.MatrixOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type MatrixOverlayHost interface
+pulse/extend: type MatrixOverlayHost imethod Cell(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod CellLabel() string
+pulse/extend: type MatrixOverlayHost imethod CellN(r int, c int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod CellNEff(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod CellSumWeights(r int, c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod ColumnHeader() pulse/types.AxisHeader
+pulse/extend: type MatrixOverlayHost imethod ColumnKey(c int) pulse/types.AxisKey
+pulse/extend: type MatrixOverlayHost imethod ColumnMargin(c int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod ColumnMarginN(c int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod Columns() int
+pulse/extend: type MatrixOverlayHost imethod GrandTotal() (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod RowHeader() pulse/types.AxisHeader
+pulse/extend: type MatrixOverlayHost imethod RowKey(r int) pulse/types.AxisKey
+pulse/extend: type MatrixOverlayHost imethod RowMargin(r int) (float64, bool)
+pulse/extend: type MatrixOverlayHost imethod RowMarginN(r int) (int, bool)
+pulse/extend: type MatrixOverlayHost imethod Rows() int
+pulse/extend: type MatrixOverlayHost imethod WeightKind() pulse/types.WeightKind
 pulse/extend: type MatrixRows interface
 pulse/extend: type MatrixRows imethod Len() int
 pulse/extend: type MatrixRows imethod Row(i int) []float64
@@ -3194,6 +3262,17 @@ pulse/extend: type NullableAttribute imethod EmitsNull() bool
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type OverlayHandler struct
+pulse/extend: type OverlayHandler field Compose pulse/extend.ComposeOverlayFunc
+pulse/extend: type OverlayHandler field Matrix pulse/extend.MatrixOverlayFunc
+pulse/extend: type OverlayHandler field Series pulse/extend.SeriesOverlayFunc
+pulse/extend: type OverlayOutput struct
+pulse/extend: type OverlayOutput field Payload pulse/types.OverlayPayload
+pulse/extend: type OverlayOutput field Summary *pulse/types.OverlaySummary
+pulse/extend: type OverlayOutput field Warnings []pulse/types.OverlayWarning
+pulse/extend: type OverlayRefKind string
+pulse/extend: const OverlayRefMargin pulse/extend.OverlayRefKind = "margin"
+pulse/extend: const OverlayRefNone pulse/extend.OverlayRefKind = "none"
 pulse/extend: type PostTest interface
 pulse/extend: type PostTest imethod Run(rows []map[string]any) (*pulse/types.TestResult, error)
 pulse/extend: type PostTestFactory func(spec *pulse/types.Test, schema *pulse/encoding.Schema) (pulse/extend.PostTest, error)
@@ -3249,6 +3328,15 @@ pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
 pulse/extend: type ScoreRow interface
 pulse/extend: type ScoreRow imethod NumericValue(name string) (float64, bool)
+pulse/extend: type SeriesOverlayFunc func(spec *pulse/types.OverlaySpec, host pulse/extend.SeriesOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type SeriesOverlayHost interface
+pulse/extend: type SeriesOverlayHost imethod GroupFields() []string
+pulse/extend: type SeriesOverlayHost imethod GroupKey(i int) pulse/types.AxisKey
+pulse/extend: type SeriesOverlayHost imethod GrouperKinds() []pulse/types.GroupType
+pulse/extend: type SeriesOverlayHost imethod Groups() int
+pulse/extend: type SeriesOverlayHost imethod Value(i int) (float64, bool)
+pulse/extend: type SeriesOverlayHost imethod ValueLabel() string
+pulse/extend: type SpecValidator[S any] func(spec *S) error
 pulse/extend: type StreamingFeatureComputer interface
 pulse/extend: type StreamingFeatureComputer imethod EmitRow(rec pulse/extend.Record, field string) (map[string]pulse/extend.FeatureOutput, error)
 pulse/extend: type StreamingFeatureComputer imethod Finalize() error
@@ -6660,6 +6748,7 @@ pulse/types: const WIN_DELTA pulse/types.WindowType = "WIN_DELTA"
 pulse/types: const WIN_DENSE_RANK pulse/types.WindowType = "WIN_DENSE_RANK"
 pulse/types: const WIN_DISTRIBUTED_LAG pulse/types.WindowType = "WIN_DISTRIBUTED_LAG"
 pulse/types: const WIN_EWMA pulse/types.WindowType = "WIN_EWMA"
+pulse/types: const WIN_FORMULA pulse/types.WindowType = "WIN_FORMULA"
 pulse/types: const WIN_LAG pulse/types.WindowType = "WIN_LAG"
 pulse/types: const WIN_LEAD pulse/types.WindowType = "WIN_LEAD"
 pulse/types: const WIN_LIFT pulse/types.WindowType = "WIN_LIFT"
@@ -6689,4 +6778,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e6b234a9e14773fe9aca05cf9f6088e6b7acc57644a45710e8d5c95008f9422e
+// golden-hash: 357bd71f0d23d28b97e0331fefb38620e6b8ca3549701d67fdc556235b70cc38

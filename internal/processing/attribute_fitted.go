@@ -90,7 +90,7 @@ type prebuiltAttribute interface {
 // filterers compile against the request's registry and bound models
 // before any record is read.
 type fitOnBinder interface {
-	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error
+	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error
 }
 
 // attributeWarner is implemented by an attribute whose Finalize can
@@ -411,7 +411,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 
 // bindFitOn compiles params.fit_on, or resolves and aligns params.fit
 // against the request's bound models (fitOnBinder).
-func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	if model.IsVectorFitAttribute(a.typ) {
 		a.capture = models.Capture()
 	}
@@ -722,20 +722,7 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 // attribute bound to a prebuilt fit). The caller's request is never
 // mutated. cat is the run's bound-model catalog (nil none).
 func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
-	if req == nil {
-		return req
-	}
-	has := false
-	for _, a := range req.Attributes {
-		if vectors.HasAttributeVectorInput(a) {
-			has = true
-			break
-		}
-	}
-	if !has {
-		return req
-	}
-	inputs, err := vectors.ResolveAttributes(req, schema, cat, func(t types.AttributeType) types.AttributeType {
+	return vectors.RewriteAttributeInputs(req, schema, exts.Classifier(cat), func(t types.AttributeType) types.AttributeType {
 		if exts.isHidden(string(t)) {
 			return ""
 		}
@@ -744,55 +731,6 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 		_, ok := exts.LookupAttribute(types.AttributeType(name))
 		return ok
 	})
-	if err != nil {
-		return req
-	}
-	c := *req
-	c.Attributes = make([]*types.Attribute, len(req.Attributes))
-	for i, a := range req.Attributes {
-		c.Attributes[i] = a
-		if a == nil || i >= len(inputs) || !inputs[i].Has() {
-			continue
-		}
-		cp := *a
-		if cp.Label == "" {
-			cp.Label = defaultAttributeLabel(a)
-		}
-		if cp.Type == types.ATTR_SCALE_SCORE && !exts.isHidden(string(cp.Type)) {
-			// The literal members lose the vector's labels and kind
-			// bounds: hand the factory canonical params (reverse by
-			// member name, the declared range explicit).
-			if params, ok := vectors.ScaleScoreSlotParams(a, inputs[i].Members); ok {
-				cp.Params = params
-			}
-		}
-		if vectors.IsFittedAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
-			// A bound fit aligns to the named vector's labels, which the
-			// literal-member rewrite would lose: write them out.
-			if params, ok := vectors.FittedSlotParams(a, inputs[i].Members); ok {
-				cp.Params = params
-			}
-		}
-		if cp.Type == types.ATTR_SEM_SCORE && !exts.isHidden(string(cp.Type)) {
-			// The model names its members by label, which the
-			// literal-member rewrite would lose: write them out.
-			if params, ok := vectors.SEMScoreSlotParams(a, inputs[i].Members); ok {
-				cp.Params = params
-			}
-		}
-		if vectors.IsComparisonAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
-			// The literal members lose the vector's labels and kind:
-			// hand the factory canonical params (the metric written out,
-			// the reference in member order, the labels it aligns to).
-			if params, ok := vectors.ComparisonSlotParams(a, inputs[i].Members, schema); ok {
-				cp.Params = params
-			}
-		}
-		cp.Vector = ""
-		cp.Fields = append([]string(nil), inputs[i].Members.Members...)
-		c.Attributes[i] = &cp
-	}
-	return &c
 }
 
 // prepare is the per-run request rewrite every engine entry applies:
@@ -800,10 +738,11 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // and grouper vector inputs. It also resolves the run's named vectors
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
-	p.exprVectors = ExprVectors(req, p.schema, p.catalog())
-	p.keySchema = nil
+	p.exprVectors = ExprVectors(req, p.schema, p.classifier())
+	p.keySchema, p.u64Aliases = nil, nil
 	if req != nil {
-		p.keySchema = prevstate.KeySchema(req.Attributes, p.schema)
+		p.keySchema = p.exts.AttributeDictionaryView(req.Attributes, p.schema)
+		p.u64Aliases = prevstate.U64Aliases(req.Attributes, p.schema)
 	}
 	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts, p.catalog())
 }
@@ -822,53 +761,5 @@ func (p *Processor) prepare(req *types.Request) *types.Request {
 // caller's request is never mutated. cat is the run's bound-model
 // catalog (nil none).
 func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
-	if req == nil {
-		return req
-	}
-	if !vectors.AnyAggregationVectorInput(req) {
-		return req
-	}
-	inputs, err := vectors.ResolveAggregations(req, schema, cat, exts.AggregationKinds())
-	if err != nil || len(inputs) == 0 {
-		return req
-	}
-	rewrite := func(a *types.Aggregation) *types.Aggregation {
-		if in, ok := inputs[a]; ok && in.Has() {
-			return vectors.AggregationSlotRewrite(a, in)
-		}
-		return a
-	}
-	c := *req
-	if len(req.Aggregations) > 0 {
-		c.Aggregations = make([]*types.Aggregation, len(req.Aggregations))
-		for i, a := range req.Aggregations {
-			c.Aggregations[i] = rewrite(a)
-		}
-	}
-	if ct := req.Crosstab; ct != nil {
-		cc := *ct
-		if ct.Cell != nil {
-			cc.Cell = rewrite(ct.Cell)
-		}
-		if ct.Cells != nil {
-			cc.Cells = make([]*types.Aggregation, len(ct.Cells))
-			for i, a := range ct.Cells {
-				cc.Cells[i] = a
-				if a != nil {
-					cc.Cells[i] = rewrite(a)
-				}
-			}
-		}
-		if len(ct.MarginAggregations) > 0 {
-			cc.MarginAggregations = make([]*types.Aggregation, len(ct.MarginAggregations))
-			for i, a := range ct.MarginAggregations {
-				cc.MarginAggregations[i] = a
-				if a != nil {
-					cc.MarginAggregations[i] = rewrite(a)
-				}
-			}
-		}
-		c.Crosstab = &cc
-	}
-	return &c
+	return vectors.RewriteAggregationInputs(req, schema, exts.Classifier(cat), exts.AggregationKinds())
 }

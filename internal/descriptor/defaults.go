@@ -6,7 +6,6 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -124,7 +123,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 	// crosstab-cell slots only; a request without the attribute gets the
 	// cohort schema itself.
 	cohort := schema
-	schema = prevstate.KeySchema(req.Attributes, schema)
+	schema = keySchemaOf(req.Attributes, schema, nil, inst)
 
 	for i, agg := range req.Aggregations {
 		if agg == nil || agg.Type != "" || agg.Field == "" {

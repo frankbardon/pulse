@@ -599,6 +599,11 @@ func mgRequireStreamable(t *testing.T, f *mgFixture, req *types.Request) {
 			return
 		}
 	}
+	for _, o := range req.Overlays {
+		if streamable, _ := types.OverlayStreamable(o.Kind); !streamable {
+			return // a buffered-only overlay routes the request buffered by design (overlayhost.StreamReasons)
+		}
+	}
 	pr, err := f.p.Predict(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Predict: %v", err)

@@ -443,3 +443,39 @@ func exprAt(m map[string]json.RawMessage, key string) (string, bool) {
 	}
 	return s, true
 }
+
+// StandIns is raw with every expression-capable param in keys written
+// as an expression string replaced by the number 0 — the params a
+// FieldInputs hook sees before the expressions are resolved: its decode
+// must see the param's declared type, and a number param names no
+// column, so the stand-in leaves the field list as the resolved value
+// would. raw itself when there is nothing to replace (no key, no
+// params, params that are no JSON object, or no key written as a
+// string). The runtime's projection and windows-first classification
+// (processing.ExtensionRegistry.FieldInputsFor) and predict's
+// (descriptor.ExtensionsSnapshot.ColumnReads) both read it, so the hook
+// sees the same params on both sides.
+func StandIns(raw json.RawMessage, keys []string) json.RawMessage {
+	if len(keys) == 0 || len(raw) == 0 {
+		return raw
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil || m == nil {
+		return raw
+	}
+	changed := false
+	for _, k := range keys {
+		if v := bytes.TrimSpace(m[k]); len(v) > 0 && v[0] == '"' {
+			m[k] = json.RawMessage("0")
+			changed = true
+		}
+	}
+	if !changed {
+		return raw
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
+}

@@ -633,20 +633,7 @@ var (
 // resolution fails (the field-reference pass has refused that
 // request). The caller's request is never mutated.
 func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
-	has := false
-	for _, s := range vectors.GroupSlots(req) {
-		// A built-in slot is rewritten once (its key Field set); an
-		// extension slot keeps its Field, and re-resolving its literal
-		// members is a no-op.
-		if vectors.HasGroupVectorInput(s.Group) && (s.Group.Field == "" || !vectors.IsVectorGroup(s.Group.Type)) {
-			has = true
-			break
-		}
-	}
-	if !has {
-		return req
-	}
-	inputs, err := vectors.ResolveGroups(req, p.schema, p.catalog(), func(t types.GroupType) types.GroupType {
+	return vectors.RewriteGroupInputs(req, p.schema, p.classifier(), func(t types.GroupType) types.GroupType {
 		if p.exts.isHidden(string(t)) {
 			return ""
 		}
@@ -655,39 +642,6 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 		_, ok := p.exts.LookupGrouper(types.GroupType(name))
 		return ok
 	})
-	if err != nil {
-		return req
-	}
-	rewrite := func(gs []*types.Group) []*types.Group {
-		if len(gs) == 0 {
-			return gs
-		}
-		out := make([]*types.Group, len(gs))
-		for i, g := range gs {
-			out[i] = g
-			in, ok := inputs[g]
-			if !ok {
-				continue
-			}
-			cp := *g
-			if !in.Extension {
-				cp.Field = vectors.GroupKeyField(types.GROUP_KMEANS, g)
-			}
-			cp.Vector = ""
-			cp.Fields = append([]string(nil), in.Members.Members...)
-			out[i] = &cp
-		}
-		return out
-	}
-	c := *req
-	c.Groups = rewrite(req.Groups)
-	if req.Crosstab != nil {
-		ct := *req.Crosstab
-		ct.Rows = rewrite(req.Crosstab.Rows)
-		ct.Columns = rewrite(req.Crosstab.Columns)
-		c.Crosstab = &ct
-	}
-	return &c
 }
 
 // wholeSetAxis is one buffered-crosstab axis position whose grouper

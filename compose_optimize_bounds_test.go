@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"reflect"
 	"testing"
@@ -16,9 +17,11 @@ import (
 // compose_optimize_bounds_test.go pins the scalar-expression optimize
 // bound (library-gaps E1-S1, G11) at the facade: a bound or start is a
 // literal, a params expression, a coef() expression or a sweep_axis()
-// expression; predict resolves and range-checks the first two and lists
-// the others under unresolved_scalars; both orchestrators evaluate every
-// one and range-check it at runtime.
+// expression; predict resolves and range-checks the first two — and a
+// coef() read of the block's own loaded `models` (folded, U67 E5-S2,
+// by the runtime's pre-fit check too) — and lists the others under
+// unresolved_scalars; both orchestrators evaluate every one and
+// range-check it at runtime.
 
 // predictUnresolved is PredictCompose's verdict on c: no error, and the
 // unresolved scalar slots it lists.
@@ -50,8 +53,8 @@ func priceUpper(t *testing.T, params map[string]any, upper types.OptimizeBound) 
 // TestOptimize_ExpressionBounds: a literal, a params expression and a
 // coef() expression upper bound each bind the solve on both
 // orchestrators — a cap below the optimum leaves the price on it — and
-// predict resolves the first two (nothing unresolved) while listing the
-// coef() one with its reads.
+// predict resolves all three (nothing unresolved): the coef() one reads
+// the block's loaded model, whose figures predict folds.
 func TestOptimize_ExpressionBounds(t *testing.T) {
 	t.Parallel()
 
@@ -68,8 +71,7 @@ func TestOptimize_ExpressionBounds(t *testing.T) {
 		{"literal", nil, types.BoundValue(30), optfixture.ModelOptimum, "", nil},
 		{"literal cap", nil, types.BoundValue(12), 12, types.OptimizeActiveUpper, nil},
 		{"params", map[string]any{"cap_share": json.Number("2")}, types.BoundExpr("params.cost * params.cap_share"), 10, types.OptimizeActiveUpper, nil},
-		{"coef", nil, types.BoundExpr(coefCap), 3.75, types.OptimizeActiveUpper,
-			[]descriptor.UnresolvedScalar{{Path: "optimize[0].variables[0].upper", Expression: coefCap, Reads: []string{"coef"}}}},
+		{"coef", nil, types.BoundExpr(coefCap), 3.75, types.OptimizeActiveUpper, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -93,9 +95,10 @@ func TestOptimize_ExpressionBounds(t *testing.T) {
 
 // TestOptimize_ExpressionBoundRefusalParity: a bound over literals and
 // params is range-checked by predict exactly as by both orchestrators
-// (code, message, details); a coef() bound's range check is deferred —
-// predict accepts it and lists it unresolved — and the runtime refuses
-// it with the same code once the model's value is known.
+// (code, message, details); so is a coef() bound reading the block's
+// loaded model, which predict and the runtime's own pre-fit check
+// (descx.OptimizeRefusal) both fold to the value the runtime's Compile
+// evaluates.
 func TestOptimize_ExpressionBoundRefusalParity(t *testing.T) {
 	t.Parallel()
 
@@ -137,19 +140,42 @@ func TestOptimize_ExpressionBoundRefusalParity(t *testing.T) {
 	}
 
 	// coef("demand", "(intercept)") = 120 as the LOWER bound crosses the
-	// literal upper 30 — known only once the model is bound.
-	c := decodeOpt(t, optfixture.PriceModel, func(c *ComposedRequest) {
-		c.Optimize[0].Variables[0].Lower = types.BoundExpr(`coef("demand", "(intercept)")`)
-	})
-	if got := predictUnresolved(t, p, c); len(got) != 1 || got[0].Path != "optimize[0].variables[0].lower" {
-		t.Fatalf("predict unresolved_scalars = %+v", got)
+	// literal upper 30: predict folds the loaded model's figure and
+	// refuses it exactly as both orchestrators' Compile does; a start
+	// folded outside its bounds likewise.
+	folded := []struct {
+		name   string
+		edit   func(c *ComposedRequest)
+		reason string
+	}{
+		{"folded lower crosses upper", func(c *ComposedRequest) {
+			c.Optimize[0].Variables[0].Lower = types.BoundExpr(`coef("demand", "(intercept)")`)
+		}, "bounds_crossed"},
+		{"folded start out of bounds", func(c *ComposedRequest) {
+			c.Optimize[0].Variables[0].Start = types.BoundExpr(`-coef("demand", "price") * 10`)
+		}, "start_out_of_bounds"},
 	}
-	for name, run := range composeRuns(p) {
-		resp, err := run(c)
-		ce := requireCoded(t, err, perr.PULSE_OPTIMIZE_VARIABLE_INVALID)
-		if resp != nil || ce.Details["reason"] != "bounds_crossed" || ce.Details["lower"] != 120.0 || ce.Details["field"] != "optimize[0].variables[0]" {
-			t.Fatalf("%s: runtime %v %+v", name, ce, ce.Details)
-		}
+	for _, tc := range folded {
+		t.Run(tc.name, func(t *testing.T) {
+			c := decodeOpt(t, optfixture.PriceModel, tc.edit)
+			env, err := p.PredictCompose(context.Background(), c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(perr.PULSE_OPTIMIZE_VARIABLE_INVALID) || env.Errors[0].Details["reason"] != tc.reason {
+				t.Fatalf("predict errors %+v, want %s", env.Errors, tc.reason)
+			}
+			if got := env.Data.(*ComposePredictResult).UnresolvedScalars; got != nil {
+				t.Fatalf("predict left the folded bound unresolved: %+v", got)
+			}
+			for name, run := range composeRuns(p) {
+				resp, rerr := run(c)
+				ce := requireCoded(t, rerr, perr.PULSE_OPTIMIZE_VARIABLE_INVALID)
+				if resp != nil || env.Errors[0].Message != ce.Message || !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
+					t.Fatalf("%s: predict %+v differs from runtime %s %v", name, env.Errors[0], ce.Message, ce.Details)
+				}
+			}
+		})
 	}
 }
 
@@ -207,6 +233,45 @@ func TestOptimize_SweepAxisBound(t *testing.T) {
 		v := oneOptimum(t, name, out).Variables[0]
 		if math.Abs(v.Value-hi/10) > 1e-12 || v.Active != types.OptimizeActiveUpper {
 			t.Errorf("%s: v %+v, want %v at its upper bound", name, v, hi/10)
+		}
+	}
+}
+
+// TestOptimize_FoldedRefusalPrecedesFitFaults: a batch carrying both a
+// fit the runtime faults on only once its fit pass runs (its cohort is
+// missing) and a block whose lower bound, folded off the block's own
+// loaded model (coef("demand", "(intercept)") = 120), crosses its upper
+// 30 is refused FIRST with the folded bounds_crossed by predict, Compose
+// and ComposeParallel alike — the runtime's pre-fit check
+// (descx.OptimizeRefusal) folds as predict does, so no fit runs.
+func TestOptimize_FoldedRefusalPrecedesFitFaults(t *testing.T) {
+	t.Parallel()
+
+	p := optPulse(t, Options{})
+	c := decodeOpt(t, optfixture.PriceModel, func(c *ComposedRequest) {
+		var fit types.FitSpec
+		if err := json.Unmarshal([]byte(`{"name": "spare", "request": {"cohort": {"filename": "missing.pulse"},
+			"regressions": [{"type": "REG_OLS", "target": "units", "predictors": ["price"]}]}}`), &fit); err != nil {
+			t.Fatal(err)
+		}
+		c.Fits = []types.FitSpec{fit}
+		c.Optimize[0].Variables[0].Lower = types.BoundExpr(`coef("demand", "(intercept)")`)
+	})
+	env, err := p.PredictCompose(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OPTIMIZE_VARIABLE_INVALID) || env.Errors[0].Details["reason"] != "bounds_crossed" {
+		t.Fatalf("predict errors %+v, want the folded bounds_crossed first", env.Errors)
+	}
+	for name, run := range composeRuns(p) {
+		resp, rerr := run(c)
+		var ce *perr.CodedError
+		if !stderrors.As(rerr, &ce) || resp != nil {
+			t.Fatalf("%s: want a coded refusal, got %v", name, rerr)
+		}
+		if env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message || !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
+			t.Fatalf("%s: predict's first error %+v differs from the runtime's %s %q %v", name, env.Errors[0], ce.Code, ce.Message, ce.Details)
 		}
 	}
 }

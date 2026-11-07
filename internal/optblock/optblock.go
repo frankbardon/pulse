@@ -28,8 +28,9 @@
 // resolved here: over literals and params at Check, so predict runs the
 // range checks; one calling a request-bound function (coef(),
 // sweep_axis(), response(), lookup(), an embedder function) is listed
-// Unresolved by
-// Check and resolved, then range-checked, by the runtime's Compile.
+// Unresolved by Check and resolved, then range-checked, by the
+// runtime's Compile — unless Env.Fold is set and it reads only the
+// block's own loaded `models` (folded at Check).
 //
 // No-execute leaf: it imports types, errors and the no-execute
 // expression and model leaves only, never the engine
@@ -129,6 +130,20 @@ type Env struct {
 	// Compile reuses them instead of reading again, so the runtime
 	// solves exactly what it validated.
 	Loaded []*model.Loaded
+	// Fold, on a declaration-only Check (CheckAll), folds a bound or
+	// start whose only request-bound reads are coef() / sweep_axis() /
+	// response() of the block's own `models` entries: their figures are
+	// known before anything runs, so the value is the runtime's and its
+	// range checks run here (scalarslot.Env.Loaded over the Set the
+	// runtime binds for the block, the bound its Declared()). A read of
+	// a batch fit stays Unresolved. Predict and the runtime's pre-fit
+	// check both set it, so a folded refusal fires before any fit on
+	// both sides. Compile ignores it.
+	Fold bool
+
+	// loaded is the block's loaded-model Set a folding Check reads
+	// (nil: fold none).
+	loaded *model.Set
 }
 
 // Loader reads and decodes one block's `models` (refs passed
@@ -234,7 +249,7 @@ func placeholderBound(env Env) exprenv.Bound {
 // scalar is env as a scalar slot's environment (its Fits the block's,
 // models included, once Compile has set them).
 func (env Env) scalar() scalarslot.Env {
-	return scalarslot.Env{Params: env.Params, Fits: env.Fits, Tables: env.Tables, Extensions: env.Extensions, Lookup: env.Lookup, Results: env.Results}
+	return scalarslot.Env{Params: env.Params, Fits: env.Fits, Tables: env.Tables, Extensions: env.Extensions, Lookup: env.Lookup, Results: env.Results, Loaded: env.loaded}
 }
 
 // checkNames is the block-name rule across the list: every block named,
@@ -287,6 +302,18 @@ func compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound, run 
 		return nil, cerr
 	}
 	env.Fits = fits
+	if !run && env.Fold && out.Loaded != nil {
+		// The Set the runtime binds the block's files into
+		// (Service.runComposeOptimize: WithLoaded over the block's
+		// models), without the batch's fits — a loaded name's figures do
+		// not depend on them. A bind fault folds nothing (the runtime
+		// refuses it as it binds). The bound must be the folding
+		// Declared() over it: a placeholder would run on a foldable read.
+		if set, err := (*model.Set)(nil).WithLoaded(model.Refs{Models: spec.Models}, out.Loaded); err == nil {
+			env.loaded = set
+			bound = env.scalar().Declared()
+		}
+	}
 	reserved := reservedNames(env)
 	seen := map[string]bool{}
 	for j := range spec.Variables {

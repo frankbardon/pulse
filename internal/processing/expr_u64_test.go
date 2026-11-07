@@ -83,11 +83,21 @@ func TestU64Expr_ProgramMatchesFloatBinding(t *testing.T) {
 		"sqrt(id)", "abs(id - 10)", "max(id, y)", "round(id / 7)", "string(id)", "toJSON(id)", "id ?? 0",
 		"id > 5 ? id : 0", "id == params.k ? 1 : 0", "id + y", "y ?? id", "id < y ? 1 : 2", "$env.id + 1",
 		"$env[\"id\"] * 2", "(y ?? 0) + id", "id + y * 2", "id in params.ids ? 1 : 0",
+		// let bindings and $env reads, static and dynamic (a dynamic
+		// $env read keeps the echo for every u64 field).
+		"let k = id; k", "let k = id; k + 1", "let k = id; let j = k; j * 2", "let k = $env.id; k / 3",
+		"let k = id; k == params.k ? 1 : 0", "$env.id == params.k ? $env.id : 0", "let n = \"id\"; $env[n] + 1",
+		"len(values($env))", "get($env, \"id\") + 1", "$env.id + id", "let k = abs(id); k + 1",
+		"$env?.id + 1", "$env?.id == 7 ? 1 : 0", "len(filter([1, 7, 9], # < $env.id))", "let k = id; [k][0] + 1",
+		"let n = \"id\"; $env.id + $env[n]", "let n = \"id\"; id == 7 ? $env[n] * 2 : 1",
 	}
 	filters := []string{
 		"id == 7", "id != 7", "id < 7", "id <= 7", "id > 7", "id >= 7", "id == params.k", "id in params.ids",
 		"id in [1, 7]", "id % 2 == 0", "id > y", "id == nil", "id != nil", "id > 3 && y > 1", "id == 7 || y == nil",
 		"id < y", "$env.id == 7", "id + 1 > 8",
+		"let k = id; k == 7", "let k = id; k in params.ids", "$env[\"id\"] == params.k", "$env.id > y",
+		"let n = \"id\"; $env[n] == 7", "let k = $env.id; k >= 7 && $env.y == nil", "get($env, \"id\") == 7",
+		"let n = \"id\"; id >= 0 && $env[n] + 1 > 3",
 	}
 	values := []uint64{0, 1, 7, 8, 3 << 31, 1<<53 - 1, 1 << 53}
 	check := func(site string, srcs []string) {
@@ -138,6 +148,18 @@ func TestU64Expr_ProgramExactPast2p53(t *testing.T) {
 		{"id >= params.top", math.MaxUint64 - 1, true},
 		{"id > 9223372036854775807", 1 << 63, true},
 		{"id in [9007199254740993]", 1 << 53, false},
+		// $env reads and let bindings carry the word too (#523).
+		{"$env.id == params.k", 1<<53 + 1, true},
+		{"$env.id == params.k", 1 << 53, false},
+		{"$env[\"id\"] == 9007199254740993", 1 << 53, false},
+		{"$env[\"id\"] != 9007199254740993", 1 << 53, true},
+		{"$env.id < params.top", math.MaxUint64, false},
+		{"let k = id; k == params.k", 1 << 53, false},
+		{"let k = id; k == params.k", 1<<53 + 1, true},
+		{"let k = id; k == 9007199254740993", 1 << 53, false},
+		{"let k = id; let j = k; j in [9007199254740993]", 1 << 53, false},
+		{"let k = $env.id; k == params.k", 1 << 53, false},
+		{"let k = id; k > 9223372036854775807", 1 << 63, true},
 	}
 	for _, c := range cases {
 		for _, nullY := range []bool{false, true} {

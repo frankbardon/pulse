@@ -477,7 +477,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		var members int64
 		if vectors.IsVectorAggregation(a.Type) {
 			if vecInputs == nil {
-				vecInputs, _ = vectors.ResolveAggregations(req, schema, in.Models, aggregationKinds(inst, nil))
+				vecInputs, _ = vectors.ResolveAggregations(req, schema, classifierOf(inst.Extensions(), in.Models), aggregationKinds(inst, nil))
 			}
 			members = vectorAggregationMembers(a, vecInputs, schema)
 			if elementOf(a) {
@@ -731,7 +731,7 @@ func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *Instanc
 	}
 	// No extension predicate: an extension grouper's store is its own,
 	// so only the built-in GROUP_KMEANS slots resolve here.
-	inputs, err := vectors.ResolveGroups(req, schema, models, func(t types.GroupType) types.GroupType {
+	inputs, err := vectors.ResolveGroups(req, schema, classifierOf(inst.Extensions(), models), func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, nil)
 	if err != nil || len(inputs) == 0 {
@@ -1157,7 +1157,7 @@ func testMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnaps
 		return 0, 0, 0
 	}
 	admitted := mulSaturating(records, max(fanOut, 1))
-	inputs, _ := vectors.ResolveTests(req, schema, models, func(t types.TestType) types.TestType {
+	inputs, _ := vectors.ResolveTests(req, schema, classifierOf(inst.Extensions(), models), func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
 	}, nil)
 	for i, t := range req.Tests {

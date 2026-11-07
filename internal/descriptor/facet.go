@@ -319,6 +319,14 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// byte-identical to the legacy Facet path.
 	ValidateFacetOverlaysWithOptions(env, req, schema, opts)
 
+	// The extension filterers' own spec-only Validate hooks — only on a
+	// request every rule above accepted, as on the Request root
+	// (validateExtensionSpecs): FacetSchema builds its filterers past
+	// its own rules.
+	if len(env.Errors) == 0 {
+		validateFacetExtensionSpecs(env, req, models, opts)
+	}
+
 	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)
 	// per kind-catalog-v1 PRD §I-FR-I3. The four FACET-host kinds route
 	// onto the FacetValidationResult — sibling to the Request-host

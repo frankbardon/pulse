@@ -12,6 +12,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/observe"
@@ -573,7 +574,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
+	vecs := processing.ExprVectors(req, schema, s.extensions.Classifier(catalogOf(model.SetFrom(ctx))))
 	filterFns, err := processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 	if err != nil {
 		return nil, err
@@ -714,7 +715,7 @@ func newPartitionPartial(req *types.Request, schema *encoding.Schema, exts *proc
 	var groupers []processing.Grouper
 	if grouped {
 		var err error
-		if groupers, err = newPartitionGroupers(req.Groups, grouperFactories, schema, exts); err != nil {
+		if groupers, err = newPartitionGroupers(req.Groups, grouperFactories, schema, exts.AttributeDictionaryView(req.Attributes, schema), exts); err != nil {
 			return nil, err
 		}
 	}
@@ -803,11 +804,14 @@ func lookupGrouperFactories(req *types.Request, exts *processing.ExtensionRegist
 
 // newPartitionGroupers builds one fresh grouper instance per slot for
 // one partition (shard or decode worker), extension hooks applied —
-// every grouper of the request, not only Groups[0]'s.
-func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperFactory, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]processing.Grouper, error) {
+// every grouper of the request, not only Groups[0]'s. keys is the run's
+// dictionary-inheritance view (ExtensionRegistry.AttributeDictionaryView):
+// a GROUP_CATEGORY slot builds against it (processing.GrouperKeySchema),
+// as the serial run does.
+func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperFactory, schema, keys *encoding.Schema, exts *processing.ExtensionRegistry) ([]processing.Grouper, error) {
 	out := make([]processing.Grouper, len(groups))
 	for i, grp := range groups {
-		g, err := factories[i](grp, schema)
+		g, err := factories[i](grp, processing.GrouperKeySchema(grp, schema, keys))
 		if err != nil {
 			return nil, err
 		}
@@ -995,6 +999,7 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		return nil, nil
 	}
 	out := make([]rowLocalAttrSpec, 0, len(attrs))
+	aliases := prevstate.U64Aliases(attrs, schema)
 	for i, attr := range attrs {
 		factory, ok := exts.LookupAttribute(attr.Type)
 		if !ok {
@@ -1005,7 +1010,7 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		if err != nil {
 			return nil, err
 		}
-		if err := processing.BindAttributeWithVectors(computer, exts, models, vecs); err != nil {
+		if err := processing.BindAttributeWithAliases(computer, exts, models, vecs, aliases); err != nil {
 			return nil, err
 		}
 		if err := totals.Bind(i, computer); err != nil {
@@ -1044,7 +1049,7 @@ func boundAttributes(req *types.Request, schema *encoding.Schema, exts *processi
 	if len(req.Attributes) == 0 {
 		return nil, nil
 	}
-	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema, catalogOf(models)), nil, compute)
+	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema, exts.Classifier(catalogOf(models))), nil, compute)
 }
 
 // mergePartitionAttributes folds src's attribute slots into dst's, slot

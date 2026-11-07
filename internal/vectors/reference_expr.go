@@ -11,6 +11,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/exprslots"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -310,7 +312,36 @@ func mentionsRef(req *types.Request) bool {
 			return true
 		}
 	}
+	for _, f := range req.Features {
+		if f != nil && bytes.Contains(f.Params, []byte(exprenv.RefFunc)) && strings.Contains(FeatureFitOn(f), exprenv.RefFunc) {
+			return true
+		}
+	}
+	for _, r := range req.Regressions {
+		if r != nil && strings.Contains(r.Holdout, exprenv.RefFunc) {
+			return true
+		}
+	}
 	return false
+}
+
+// FeatureFitOn returns feature f's params.fit_on row expression — the
+// predicate a FEAT_TARGET_ENCODE compiles as an expression filter over
+// the schema plus earlier features' columns — or "" when f is not a
+// FEAT_TARGET_ENCODE, carries none, a blank one, or one that is not a
+// string (each refused, where refused, by the feature's own params
+// read).
+func FeatureFitOn(f *types.Feature) string {
+	if f == nil || f.Type != types.FEAT_TARGET_ENCODE || len(f.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		FitOn string `json:"fit_on"`
+	}
+	if paramread.Probe(f.Params, &p) != nil || strings.TrimSpace(p.FitOn) == "" {
+		return ""
+	}
+	return p.FitOn
 }
 
 // ExprSlot is one request expression the reference / kind checks read.
@@ -325,7 +356,11 @@ type ExprSlot struct {
 // or reference can appear in, in request order: each FILTER_EXPRESSION
 // filterer, then per attribute its ATTR_FORMULA expression and its
 // params.fit_on (and centroid reference filter) FILTER_EXPRESSION
-// filterers.
+// filterers, then each FEAT_TARGET_ENCODE's params.fit_on
+// (FeatureFitOn), then each regression's holdout predicate
+// (regressions[i].holdout) — the runtime compiles it with the same
+// reference, static and length checks and binds the request's vectors
+// in it, so predict reads it here too.
 func ExprSlots(req *types.Request) []ExprSlot {
 	if req == nil {
 		return nil
@@ -351,6 +386,16 @@ func ExprSlots(req *types.Request) []ExprSlot {
 		fs, cf := AttributeFitOn(a.Type, a), ComparisonCentroidFilter(a.Type, a)
 		filters(at+".params.fit_on", fs[:len(fs)-len(cf)])
 		filters(at+".params.reference.centroid.filter", cf)
+	}
+	for i, f := range req.Features {
+		if src := FeatureFitOn(f); src != "" {
+			out = append(out, ExprSlot{Path: "features[" + strconv.Itoa(i) + "].params." + exprslots.FeatureFitOnParam, Src: src})
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Holdout != "" {
+			out = append(out, ExprSlot{Path: "regressions[" + strconv.Itoa(i) + "].holdout", Src: r.Holdout})
+		}
 	}
 	return out
 }

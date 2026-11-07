@@ -113,6 +113,28 @@ func TestNeededFields_WindowLiftBase(t *testing.T) {
 	}
 }
 
+// WIN_FORMULA's params.expression names the columns it reads: beside an
+// aggregation reading its label (windows-first, over the records) those
+// record fields decode; a field the request never names does not.
+func TestNeededFields_WindowFormulaExpression(t *testing.T) {
+	t.Parallel()
+
+	schema := mkSchema("a", "v", "b", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "sum_f"}},
+		Windows: []*types.Window{{
+			Type:   types.WIN_FORMULA,
+			Label:  "f",
+			Params: json.RawMessage(`{"expression": "v / b + params.k"}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"b", "v"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 // Windows-only requests emit the filtered records as rows, and a record
 // row carries every schema field, so the set widens (#201d); a window
 // beside an aggregation, a group or a crosstab rides aggregated rows
@@ -185,6 +207,47 @@ func TestNeededFields_FilterExpressionExtractsIdents(t *testing.T) {
 	want := []string{"name", "price", "qty"}
 	if g := sortedFields(got); !equalStrings(g, want) {
 		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+// TestNeededFields_EnvMembersProjected: a constant-name `$env` member
+// (`$env.a`, `$env["b"]`) projects its field like a bare identifier —
+// unprojected, the read was nil on every row; a dynamic $env use
+// (`$env[name]`, `values($env)`) reads any field and widens.
+func TestNeededFields_EnvMembersProjected(t *testing.T) {
+	t.Parallel()
+
+	schema := mkSchema("a", "b", "c", "unused")
+	for _, c := range []struct {
+		expr string
+		want []string // nil: wide
+	}{
+		{`$env.a > 1 && $env["b"] < 2`, []string{"a", "b"}},
+		{`let k = $env.a; k > c`, []string{"a", "c"}},
+		{`$env?.b == nil`, []string{"b"}},
+		{`$env.nope == nil && a > 0`, []string{"a"}},
+		{`let n = "a"; $env[n] > 1`, nil},
+		{`len(values($env)) > 0`, nil},
+		{`get($env, "a") > 1`, nil},
+	} {
+		for _, slot := range []string{"filter", "formula"} {
+			req := &types.Request{}
+			if slot == "filter" {
+				req.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: c.expr}}
+			} else {
+				req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: c.expr}}
+			}
+			got := NeededFields(req, schema, nil)
+			if c.want == nil {
+				if !got.IsWide() {
+					t.Errorf("%s %q: %v, want wide", slot, c.expr, sortedFields(got))
+				}
+				continue
+			}
+			if got.IsWide() || !equalStrings(sortedFields(got), c.want) {
+				t.Errorf("%s %q: %v (wide=%v), want %v", slot, c.expr, sortedFields(got), got.IsWide(), c.want)
+			}
+		}
 	}
 }
 

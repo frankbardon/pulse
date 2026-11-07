@@ -6,7 +6,8 @@ operators or expression-runtime extensions. If you are adding a new
 built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
 To register your own regression model, follow [Adding a Regression
-Model (Embedders)](adding-regression.md).
+Model (Embedders)](adding-regression.md); for an overlay kind, [Adding an
+Overlay Kind (Embedders)](adding-overlay.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -109,6 +110,17 @@ refusal is opted out of with `"weight": null` on the slot. Predict,
 manifest and runtime read the same declaration, so they always agree.
 A WeightAware extension test is applied, not refused — unlike a
 built-in `TEST_*`, the registration has declared its weighted form.
+
+An `OverlayRegistration` reads no record, so its `WeightAware` declares
+that the handler reads the host's weighted figures
+(`MatrixOverlayHost.WeightKind`, `CellSumWeights`, `CellNEff`) and is
+correct under either kind. A kind that does not declare it is refused
+like an extension attribute or test: `PULSE_EXTENSION_NOT_WEIGHT_AWARE`
+`{slot, operator, field}` under ANY weight resolved on its spec — the
+spec's own `weight`, the request's, or `Options.DefaultWeight` — and,
+on `ComposedRequest.Overlays`, under a request or default weight on a
+slot it reads (`details.host`). `"weight": null` on the spec opts it out
+(a slot-only host weight does not refuse it, as for a built-in kind).
 
 ```go
 func (a *wsum) UpdateRow(rec extend.Record, field string) error {
@@ -348,7 +360,11 @@ place. A bad expression is refused `PULSE_REQUEST_PARAM_INVALID`
 shared code (`PULSE_PARAMS_UNDECLARED`, `PULSE_MODEL_*`, a table code)
 keeps its code, located at the param — by predict and every runtime
 arm alike. An expression over literals and params is computed at
-predict; one calling `coef()`, `sweep_axis()`, `lookup()` or an
+predict, and so is one whose only bound reads are `coef()`,
+`sweep_axis()` or `response()` of the request's own loaded `models` /
+`populations` entry (folded to the value the runtime hands your
+factory, and refused at predict exactly as the runtime refuses it);
+one calling any other `coef()` (a Compose batch fit), `lookup()` or an
 embedder function is listed under predict's `unresolved_scalars`
 (`{path, expression, reads}`; a facet's filterers on
 `FacetPredictResult` too) and judged at run time. The manifest
@@ -550,6 +566,58 @@ learns which earlier labels it reads from `Field` plus its
 `FieldInputs` hook. Without the hook it assumes the attribute reads
 every earlier attribute — still correct, but each earlier `two_pass`
 attribute then costs an extra scan.
+
+**Inherited output dictionary (`InheritsDictionary`).** An attribute
+whose value per row is a CODE of a coded source field — a categorical
+index, or `0` / `1` of a `packed_bool` — declares
+`InheritsDictionary: &pulse.AttributeDictionarySource{}` (the source is
+the slot's `field`) or `{Param: "src"}` (the source is the field the
+string param `src` names; it must be a declared, non-`Expression`
+`string` `ParamMeta`, else `PULSE_EXTENSION_PARAM_INVALID` reason
+`dictionary_param_undeclared`). Its output column then reads as the
+source field everywhere an `ATTR_PREVIOUS_STATE` output does, at
+predict and at runtime alike: `GROUP_CATEGORY` keys it by the source
+dictionary's labels (buffered, streaming, fused crosstab axis and the
+parallel reducers), `Group.Include`, `req.labels` bindings and an
+`Options.AutoLabels` default on the source resolve through the
+labels, an expression compares it to a label (`tier == "pro"`), a
+`type`-less group or cell over it takes the source type's smart
+default, predict bounds a crosstab axis over it by the dictionary
+(`p_values` on the dictionary basis), and `Materialize` writes it as
+the source's type on its dictionary. Read the code off the source with
+`Record.NumericValue(field)`; return `NaN` from an
+`extend.NullableAttribute` for no value. Leave `Emits` empty or
+`float64` (else `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` reason
+`dictionary_emits_conflict`).
+
+```go
+{
+    Name:               "ATTR_ACME_PLAN_AT_SIGNUP",
+    Factory:            newPlanAtSignup,     // returns plan codes
+    Mode:               pulse.AttributeModeRowLocal,
+    InheritsDictionary: &pulse.AttributeDictionarySource{}, // source: the slot's field
+}
+```
+
+The source must be a `categorical_*` or `packed_bool` COHORT field —
+never another slot's output. The field-reference walk (predict and the
+runtime entry check) and the adapter (before the factory) refuse the
+slot with the same code, message and details: `PROCESSING_CONFIG`
+`details.reason` `source_unset` (no field, or the param is absent /
+not a string) or `source_not_cohort_field`, and
+`PULSE_FIELD_TYPE_UNSUPPORTED` `source_not_coded`; details carry
+`attribute`, `source` (`field` / `params.<name>`), `field` and
+`field_type`. A value that is no code — not an integer in `[0, entry
+count)`, or `NaN` from a value that is not nullable — fails the run
+with `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` reason
+`dictionary_code_out_of_range` (`details.value` as text,
+`dictionary_size`, `field`, `label`), on every arm, never a silently
+minted group. `pulse.New`'s probe computes the attribute over a
+synthetic three-entry categorical source carrying each code once and
+refuses a non-code the same way (`details.stage` `probe`); a factory or
+`Compute` that refuses the synthetic rows skips that check. The
+manifest entry names the source as `inherits_dictionary` (`field` /
+`params.<name>`).
 
 ### Filterer, Grouper, Window, Feature
 
@@ -1100,6 +1168,11 @@ pulse.RegressionRegistration{
 }
 ```
 
+A refusal the factory would raise from the spec alone (a `params` value
+out of range, say) belongs in the registration's optional `Validate`
+hook, so predict reports it too — see
+[Validate hook](#validate-hook-spec-only-refusals-at-predict).
+
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -1601,7 +1674,10 @@ does not carry) and must pass the same checks; a failure of that
 construction reports the same code with `details.weighted: true`.
 Tests are probed only when they declare `WeightAware`. A regression
 model is fitted over eight synthetic rows ("Regression model
-(`Regressions`)" above).
+(`Regressions`)" above). A registration's `Validate` hook — any
+category's, a window's or an unprobed test's included — runs on the
+probe spec first; refusing it, or panicking, fails `pulse.New` with
+`PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `validate`).
 
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
@@ -1731,7 +1807,8 @@ arm, whose overlay hook has no schema in reach.
 ## DependsOn (feature-profile dependencies)
 
 Every operator registration (aggregator, attribute, filterer, grouper,
-window, feature, test) accepts an optional `DependsOn []string`: the
+window, feature, test, matrix, regression, overlay) accepts an optional
+`DependsOn []string`: the
 features the operator needs. Each entry is an AND edge — a
 [feature profile](../library/feature-profiles.md) that enables the
 operator must enable every named feature too, or `pulse.New` fails with
@@ -1755,6 +1832,17 @@ without a profile, so a typo fails at construction with
 `PULSE_FEATURE_PROFILE_UNKNOWN` (each entry carries `extension` and
 `category`). Extension operators carry no `Since` and are listed in a
 profile by their registered name.
+
+An `OverlayRegistration` takes `DependsOn` too, and its kind is a feature
+like any extension operator. Instead of a request host it needs a host
+its handlers run on: `capability:crosstab` for `Handler.Matrix`,
+`capability:compose` for `Handler.Series` or `Handler.Compose`. A
+registered kind is listed in the manifest's `extensions.overlays` (the
+built-in `overlays` entry shape), the instance payload schema's
+`OverlayKind` enum and the MCP `overlay_kind` enum of each slot it runs
+on, and `Pulse.ApplySeriesOverlays` runs its `Series` handler. A profile
+omitting it hides it from all of them, and a spec naming it is refused
+`PULSE_OVERLAY_KIND_UNKNOWN`, as a never-registered kind is.
 
 ## Purpose and Interpretation (guidance metadata)
 
@@ -1921,6 +2009,20 @@ Return-value semantics:
   (nothing judged), not as a crash. The projection extractor itself
   still drops non-schema names, so a declared derived column costs
   nothing there.
+- An **aggregator's** or **grouper's** declared names also count as its
+  column reads in the windows-first decision, exactly as a built-in's
+  `field` and column params do: a name that is a window label of the
+  request (or a post-window attribute's label) runs the request
+  windows-first — the windows run over the filtered records before the
+  groups, aggregations and crosstab, and the window value is on every
+  record the aggregator folds or the grouper keys
+  (`Record.NumericValue(label)`), a request grouper and a crosstab axis
+  alike. Predict and the runtime classify
+  over the same hook (predict's extensions snapshot, the runtime's
+  registry), so predict's `post_window.windows_first` and `streamable`
+  verdict match what runs. An expression-capable param written as an
+  expression reaches the hook as `0` on both sides; a hook that panics
+  declares nothing on both sides.
 - Errors are not part of the signature on purpose — `FieldInputs`
   runs on the hot path and should be allocation-free. Anything that
   needs decoding belongs in the factory.
@@ -1944,6 +2046,103 @@ A registration **without** `FieldInputs` widens the retained set to
 `*`, producing a full-coverage plan with no `SkipBytes` segments.
 Both shapes are correct; only the plan-driven one elides byte
 ranges.
+
+## Validate hook (spec-only refusals at predict)
+
+Predict never calls a factory — that would execute embedder code — so a
+refusal raised inside one (`params.k` must be positive) used to surface
+only at run time. A registration may instead carry an opt-in, spec-only
+**`Validate`** hook, `extend.SpecValidator[S]`:
+
+```go
+type SpecValidator[S any] func(spec *S) error
+```
+
+`S` is the category's spec type. Today every one of the nine
+categories carries it, and so does an overlay kind — the same field and
+shape on each registration:
+
+| Registration | `S` | `details.slot` | `details.name` |
+|---|---|---|---|
+| `AggregatorRegistration` | `types.Aggregation` | `aggregations` (a crosstab cell or margin aggregation too) | `label` |
+| `AttributeRegistration` | `types.Attribute` | `attributes` | `label` |
+| `FiltererRegistration` | `types.Filterer` | `filterers` (a facet request's too) | — |
+| `GrouperRegistration` | `types.Group` | `groups` (a crosstab axis too) | — |
+| `WindowRegistration` | `types.Window` | `windows` | `label` |
+| `FeatureRegistration` | `types.Feature` | `features` | `label` |
+| `TestRegistration` | `types.Test` | `tests` (tier 1) / `post_tests` (tier 2) | `label` |
+| `MatrixOpRegistration` | `types.MatrixSpec` | `matrices` | `name` |
+| `RegressionRegistration` | `types.RegressionSpec` | `regressions` (a Compose fit's too) | `name` |
+| `OverlayRegistration` | `types.OverlaySpec` | `overlays` (a Compose slot's own too) | `name` |
+| `OverlayRegistration.ValidateCompose` | `types.ComposeOverlaySpec` | `overlays` (`ComposedRequest.Overlays`) | `name` |
+
+The slot key is the category's own, never the slot's path: the runtime
+factory cannot tell a crosstab cell from a top-level aggregation. An
+overlay kind's hook (`details.category` `overlay`) is judged last,
+after its declarative host / Ref / Scope / Level rules, inside the one
+overlay request rule that predict and runtime share — no factory runs
+for an overlay, and the crosstab and series dispatchers re-judge the
+declaration without the hook, so it runs once per spec. A Compose spec
+(`ComposedRequest.Overlays`) meets `ValidateCompose` instead, after the
+Compose handler / Scope / Level rules and before its Reference /
+Targets resolve. The hook sees the spec alone —
+no record, no cohort schema, nothing predict lacks — and returns nil to
+accept it. Pulse runs it, under `recover()`, in three places:
+
+| Where | When | A refusal is |
+|---|---|---|
+| predict | a regression: once per slot whose spec every engine rule accepted (a slot an engine rule refuses reports that rule only). Every other category: once per slot, only on a request (a Compose slot or fit, a chain stage, a facet request) every other predict rule accepted | the slot's error |
+| runtime | once per slot, after the engine's shared spec rules, before the factory (a filterer: before its builder's `Build`, the call that sees the spec; a regression: before a `resample` / `selection` refit builds one) | a fatal configuration fault (never a per-slot failure) |
+| `pulse.New` probe | on the probe spec, before the factory is probed | `PULSE_EXTENSION_FACTORY_PANIC`, `details.stage` `validate`, the hook's verdict under `validate_code` / `validate_error` (and `panic`) |
+
+At predict and at runtime the verdict is the same error, byte for byte:
+
+- a returned `*errors.CodedError` — found with `errors.As`, so a
+  wrapped one counts — keeps its code, message and details;
+- any other error is `PULSE_EXTENSION_SPEC_REFUSED`, message
+  `<category> <type> refused its spec: <error>`, details
+  `{category, type, slot}` (`slot` the request slot key in the table
+  above) plus `name` when the slot is named;
+- a panic is `PULSE_EXTENSION_SPEC_REFUSED`, message
+  `<category> <type> Validate panicked: <value>`, the same details plus
+  `panic`.
+
+The hook gets a shallow copy of the spec: never mutate anything
+reachable from it (slices, maps, `params`) and never keep it. Keep it
+deterministic and cheap — predict runs it on every slot of every
+request. It must accept the probe spec (the one the factory is probed
+with, `params` synthesized from the declared `Params`) — every
+category's hook is probed, a window's and a tier without a factory
+probe (a test not declaring `WeightAware`) included. A nil `Validate`
+accepts every spec, byte-identically to a registration without the
+field. One rule, `internal/extspec.Refusal`, formats the verdict for
+both sides; the parity gates are
+`TestExtensions_SpecValidatePredictMatchesRuntime` (all nine
+categories) and `TestExtensions_RegressionValidatePredictMatchesRuntime`.
+
+Predict and the runtime hand the hook the SAME spec — the one the
+factory receives, after the engine's rewrites (predict replays them on
+a copy, through the runtime's own functions, and its other output
+never reads the result):
+
+- an expression-valued param (`ParamMeta.Expression`) arrives as the
+  number it resolves to;
+- a `WeightAware` slot carries the weight in force (its own `weight`,
+  else the request's, else `Options.DefaultWeight`) with its kind
+  spelled out; a slot no weight reaches carries `null`;
+- a slot reading a `vector` / `fields` carries the resolved literal
+  members, `vector` cleared (a vector aggregator also its default
+  label and `params.labels`; a tier-1 test both member sets);
+- a tier-2 test's `params.partition_by` and a matrix operator's
+  engine-owned `missing` / `max_drop_share` / `fit` are stripped.
+
+The one exception is an expression param predict cannot compute
+statically (it calls a request-bound function, reported in
+`unresolved_scalars`): the hook of that slot is judged by the runtime
+alone. Parity gates: `TestExtensions_SpecValidateSeesRewrittenVectors`,
+`TestExtensions_SpecValidateSeesStampedWeights`,
+`TestExtensions_SpecValidateSeesResolvedExpressions`,
+`TestExtensions_SpecValidateFacetSeesResolvedExpressions`.
 
 ## Vector inputs (`vector` / `fields`)
 
@@ -2119,7 +2318,46 @@ whether the value implements `extend.StreamingFeatureComputer`.
 | Test (tier-1) | folds with online aggregators | `extend.RowTest` |
 
 Filterers are always row-local streamable; windows always run
-buffered.
+buffered, and so does every extension overlay kind: a request carrying
+one never takes the streaming path, and `PredictResult.StreamableReasons`
+names it (`overlay <KIND> (overlays[i]) is an extension overlay kind,
+which runs buffered only`) — the reason list comes from the one rule the
+runtime routes on, which also names every buffered-only built-in kind.
+
+### Inferential overlay kinds and p-values
+
+> Step-by-step recipe for a MATRIX kind with p-values:
+> [Adding an Overlay Kind (Embedders)](adding-overlay.md).
+
+An `OverlayRegistration` declaring `Inferential` carries a test statistic
+or p-value; it must declare an `Interpretation` (`pulse.New` refuses it
+`PULSE_EXTENSION_PURPOSE_INVALID`, `part` interpretation, `rule`
+required). `EmitsPValues` (which requires `Inferential` —
+`PULSE_EXTENSION_PARAM_INVALID`, reason `p_values_not_inferential`)
+declares that the layer carries RAW p-values at its payload shape's
+site:
+
+| Payload shape | p-values |
+|---|---|
+| `matrix` | every present cell's `Value` — a float64 p grid, NaN for an untestable cell |
+| `series` | every entry's `Summary.PValue` |
+| `scalar` | the layer's `Summary.PValue` |
+
+Under a `multiplicity` block they join the slot's family exactly like a
+built-in inferential kind's — `layer` by default, `row` / `column` when
+every declared shape is `matrix`, `request` / `compose` pooled with the
+tests and other layers — and predict's `p_values` counts them (one per
+cell of a matrix-only kind over a crosstab, else one, a lower bound).
+The engine writes the twins (`OverlayPayload.PAdjusted` /
+`SignificantAdjusted`, or each summary's `PAdjusted` /
+`SignificantAdjusted`) and the `OverlayLayer.Multiplicity` echo; the
+raw p never moves, and a handler never writes the twins itself
+(`engine_owned`). Every run and the probe hold the output to the
+declaration (`PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH`): a p-value on a
+registration without `EmitsPValues` is `undeclared_p_values`, one off
+its shape's site (a matrix or series layer's own `Summary.PValue`)
+`misplaced_p_values`, one outside [0, 1] `invalid_p_value`, and a probe
+run that returns no p-value at all `missing_p_values`.
 
 ## Built-in accepted types: the one table (contributor flow)
 
@@ -2159,7 +2397,7 @@ registration and judges its own fields.
 
 ## When an extension panics
 
-Two different moments. At `pulse.New`, the factory probe runs your factory once and a panic, error or nil return is `PULSE_EXTENSION_FACTORY_PANIC` (see the table above). At run time, a panic raised while an operation executes your operator is recovered at the facade (or in the engine's worker pool or stream producer that ran it) and returned as a `PROCESSING_PANIC` coded error: `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames); the panic value is never kept, because it can carry row data. The instance stays usable and, with observability on, the operation ends with that code. A panicking registered expression function is recovered by the expression engine and returns `PROCESSING_RUNTIME`. An embedder who would rather crash sets `Options.DisablePanicRecovery`. Do not rely on a panic as a control-flow signal: return an error instead. See [Observability](../library/observability.md#panics-inside-an-operation).
+Two different moments. At `pulse.New`, the factory probe runs your factory once and a panic, error or nil return is `PULSE_EXTENSION_FACTORY_PANIC` (see the table above). At run time, a panic raised while an operation executes your operator is recovered at the facade (or in the engine's worker pool or stream producer that ran it) and returned as a `PROCESSING_PANIC` coded error: `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames); the panic value is never kept, because it can carry row data. The instance stays usable and, with observability on, the operation ends with that code. A panicking registered expression function is recovered by the expression engine and returns `PROCESSING_RUNTIME`. A panicking `Validate` hook is recovered where it runs and is `PULSE_EXTENSION_SPEC_REFUSED` (`details.panic`) at predict and at run time alike. An embedder who would rather crash sets `Options.DisablePanicRecovery`. Do not rely on a panic as a control-flow signal: return an error instead. See [Observability](../library/observability.md#panics-inside-an-operation).
 
 ## Limits of extension operators
 
@@ -2500,8 +2738,10 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
+| `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | an attribute declaring `InheritsDictionary` emitted a value that is no code of its source's dictionary (on a run, or over the probe's three-entry source), or declares a non-`float64` `Emits` |
 | `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
-| `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
+| `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe, or a `Validate` hook refused or panicked on the probe spec (`details.stage` `validate`) |
+| `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
@@ -2527,6 +2767,9 @@ CLAUDE.md Update Demand table in the same PR.
 - [Adding a Regression Model (Embedders)](adding-regression.md) — the
   embedder recipe: streaming and buffered forms, declared params and
   outputs, the declare-or-refuse table, the scorer and the probe.
+- [Adding an Overlay Kind (Embedders)](adding-overlay.md) — the
+  embedder recipe: hosts and handlers, registration declarations, the
+  probe, p-values and `multiplicity`, weights.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.

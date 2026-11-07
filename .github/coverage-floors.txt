@@ -32,3 +32,4 @@ linalg/detmath        95
 linalg                90
 linalg/metric         95
 cmd/pulse             75
+internal/codein       95

@@ -109,13 +109,29 @@ type Env struct {
 	// result() out of scope — every other scalar slot refuses a call
 	// with PULSE_RESULT_INVALID reason out_of_scope.
 	Results *resultcall.Catalog
+	// Loaded are the models a static judgement FOLDS: the request's
+	// loaded `models` / `populations` entries, whose figures are known
+	// before anything executes (never a Compose `fits` entry, which has
+	// none until it runs). Declared() binds coef(), sweep_axis() and
+	// response() over them (model.Folding), and Eval runs a static
+	// judgement whose request-bound reads are only those three: a read
+	// of a loaded fit yields the runtime's own value or refusal, a read
+	// of any other fit leaves the expression unresolved. Nil folds none.
+	Loaded *model.Set
 }
 
 // Declared is the declaration-only bound over env — every request-bound
 // function an exprenv.Placeholder, never run — that a static judgement
-// (predict, a runtime pre-check) compiles against.
+// (predict, a runtime pre-check) compiles against. With env.Loaded set,
+// coef(), sweep_axis() and response() are instead the folding readers
+// over it (model.Folding), which Eval runs.
 func (env Env) Declared() exprenv.Bound {
 	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder, Response: exprenv.Placeholder, RangeLabel: exprenv.Placeholder}
+	if env.Loaded != nil {
+		b.Coef = model.Folding(env.Loaded, model.CoefBuiltin(env.Loaded))
+		b.SweepAxis = model.Folding(env.Loaded, model.SweepAxisBuiltin(env.Loaded))
+		b.Response = model.Folding(env.Loaded, model.ResponseBuiltin(env.Loaded))
+	}
 	for _, n := range env.Extensions {
 		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
 	}
@@ -141,6 +157,26 @@ func (env Env) boundFuncs() map[string]bool {
 	return out
 }
 
+// foldable reports whether a static judgement over env may run a
+// program reading reads: env.Loaded is set and every read is a
+// bound-model reader the embedder does not shadow.
+func (env Env) foldable(reads []string) bool {
+	if env.Loaded == nil {
+		return false
+	}
+	for _, r := range reads {
+		switch r {
+		case exprenv.CoefFunc, exprenv.SweepAxisFunc, exprenv.ResponseFunc:
+			if slices.Contains(env.Extensions, r) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // Refusal is a scalar slot's refusal before the caller locates it: one
 // of the Reason* reasons with its message clause and details, or a
 // shared coded error (Coded) — a params refusal (PULSE_PARAMS_*), a
@@ -158,6 +194,9 @@ type Refusal struct {
 	Details map[string]any
 	// Coded is the shared refusal; nil for a Reason refusal.
 	Coded *errors.CodedError
+	// notFolded marks a static run that read a fit env.Loaded does not
+	// bind (model.ErrNotFolded): Eval reports the slot unresolved.
+	notFolded bool
 }
 
 // Error renders the refusal for logs; a caller locates it instead.
@@ -261,6 +300,9 @@ func reads(src string, env Env) []string {
 func (p *Program) Run() (float64, *Refusal) {
 	out, err := expr.Run(p.prog, nil)
 	if err != nil {
+		if stderrors.Is(err, model.ErrNotFolded) {
+			return 0, &Refusal{Coded: errors.NewCodedError(errors.PROCESSING_INTERNAL, "scalar expression "+strconv.Quote(p.src)+": "+err.Error()), notFolded: true}
+		}
 		var ce *errors.CodedError
 		if stderrors.As(err, &ce) {
 			return 0, &Refusal{Coded: ce}
@@ -356,18 +398,26 @@ type Value struct {
 // the request's implementations) or the program is Static, one Run. On
 // a static judgement (run false, bound env.Declared()) an expression
 // that calls a request-bound function compiles and is checked but not
-// run: Value.Resolved false, its range checks deferred to the runtime.
+// run: Value.Resolved false, its range checks deferred to the runtime —
+// unless its only request-bound reads are coef() / sweep_axis() /
+// response() and env.Loaded is set: it then runs over the folding
+// readers, resolving to the runtime's value (or refused with the
+// runtime's refusal) when every read names a loaded fit, and left
+// unresolved when one names any other.
 func Eval(src string, kind Kind, env Env, bound exprenv.Bound, run bool) (Value, *Refusal) {
 	p, r := Compile(src, kind, env, bound)
 	if r != nil {
 		return Value{}, r
 	}
 	out := Value{Reads: p.Reads()}
-	if !run && !p.Static() {
+	if !run && !p.Static() && !env.foldable(p.reads) {
 		return out, nil
 	}
 	v, r := p.Run()
 	if r != nil {
+		if r.notFolded && !run {
+			return out, nil
+		}
 		return Value{}, r
 	}
 	out.Number, out.Resolved = v, true

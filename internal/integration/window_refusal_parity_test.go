@@ -99,6 +99,9 @@ var windowParityRows = map[types.WindowType]windowParityRow{
 		}},
 	types.WIN_LIFT: {`{"type": "WIN_LIFT", "field": "x", "order_by": [{"field": "t"}], "params": {"base": "y", "cumulative": true}}`,
 		[]string{`{"cumulative": true}`, `{"base": "y", "cumulative": 1}`}},
+	// Row-local: no order_by (it refuses one), no field.
+	types.WIN_FORMULA: {`{"type": "WIN_FORMULA", "label": "f", "params": {"expression": "x / y"}}`,
+		[]string{`{}`, `{"expression": ""}`, `{"expression": 3}`}},
 }
 
 // windowParityCase is one slot to judge, with what predict must say.
@@ -134,12 +137,22 @@ func windowParityCases(t *testing.T, typ types.WindowType, row windowParityRow) 
 	m := parse()
 	delete(m, "order_by")
 	// A share / lift's order_by is required only by its cumulative form
-	// (every share fixture is cumulative).
-	cases = append(cases, windowParityCase{name: "no order_by", slot: m, refuse: true})
+	// (every share fixture is cumulative); a row-local operator takes
+	// none, and refuses order_by and partition_by alike.
+	cases = append(cases, windowParityCase{name: "no order_by", slot: m, refuse: !windowparams.RowLocal(typ)})
 
 	m = parse()
 	m["order_by"] = []any{map[string]any{"field": ""}}
 	cases = append(cases, windowParityCase{name: "order_by key without field", slot: m, refuse: true})
+
+	if windowparams.RowLocal(typ) {
+		m = parse()
+		m["order_by"] = []any{map[string]any{"field": "t"}}
+		cases = append(cases, windowParityCase{name: "order_by given", slot: m, refuse: true})
+		m = parse()
+		m["partition_by"] = []any{"g"}
+		cases = append(cases, windowParityCase{name: "partition_by given", slot: m, refuse: true})
+	}
 
 	if _, ok := parse()["field"]; ok {
 		m = parse()

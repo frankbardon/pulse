@@ -24,7 +24,7 @@ examples_tags: [feature-engineering, streaming-friendly]
 
 ## Output
 
-One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`). Arithmetic on a null field → `PROCESSING_RUNTIME` at runtime only (predict reads no record): guard every nullable field, `x ?? 0`.
+One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`; predict: `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT`). Arithmetic on a null field → `PROCESSING_RUNTIME` at run time only: guard it, `x ?? 0`.
 
 <!-- generated: contract -->
 

@@ -5,10 +5,15 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/extscalar"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -97,27 +102,32 @@ type ExtensionsSnapshot struct {
 	// by name. Never serialised.
 	RegressionDetails map[string]ExtensionRegression `json:"-"`
 
-	// OverlayKinds is the forward-compat reservation slot for
-	// embedder-registered overlay catalog entries. The runtime
-	// pulse.Options.Extensions.OverlayKinds registration surface
-	// (referenced in types/overlay.go) is not yet implemented; this
-	// snapshot slot exists so the MCP per-facade schema binders
-	// (mcp/gosdk/bind.go) can merge custom kind names
-	// into the per-facade overlay_kind enum the moment the
-	// registration surface lands — no churn on the binder when the
-	// runtime catches up. Today the slot is populated by tests
-	// only; production code paths leave it nil and the per-facade
-	// enums fall back to the built-in catalog drawn from
-	// types.AllOverlayKinds() via descriptor.OverlayCapabilities().
-	// Each entry carries Name (SCREAMING_SNAKE OVERLAY_* constant)
-	// alongside the standard OperatorMeta knobs so the per-facade
-	// classifier can route an extension kind onto the right tool's
-	// enum once the registration surface declares which facade(s)
-	// the custom kind targets. v1 lacks the per-kind facade tag —
-	// the binder treats every snapshot entry as Request-facade
-	// only (the lowest-risk fallback) until the registration
-	// surface lands the tag.
-	OverlayKinds []descriptor.OperatorMeta
+	// SpecValidators carries each aggregator, attribute, filterer,
+	// grouper, window, feature and test registration's opt-in Validate
+	// hook (an extend.SpecValidator), keyed by name per category; the
+	// matrix and regression hooks ride MatrixDetails / RegressionDetails.
+	// Predict runs them in validateExtensionSpecs. Never serialised.
+	SpecValidators ExtensionSpecValidators `json:"-"`
+
+	// Overlays are the extension OVERLAY_<NS>_<NAME> kinds
+	// (pulse.OverlayRegistration): Name, Namespace, Description and
+	// Params, so every per-category walk (the MCP Request-facade
+	// overlay_kind enum, the ontology, docgen, the params allowlist)
+	// reads them like any other category. OverlayDetails carries the
+	// declared contract predict judges a spec by.
+	Overlays []descriptor.OperatorMeta
+
+	// OverlayDetails carries each extension overlay kind's declared
+	// contract (host shapes, payload shapes, scopes, refs, Validate),
+	// keyed by name — the same overlayhost.ExtensionDecl the runtime
+	// registry holds, built by the same root function. Never serialised.
+	OverlayDetails map[string]overlayhost.ExtensionDecl `json:"-"`
+
+	// OverlayParams carries each extension overlay kind's declared
+	// params in the manifest Param vocabulary (the built-in overlay
+	// entries' Params), keyed by name; a kind declaring none is absent.
+	// Never serialised.
+	OverlayParams map[string][]descriptor.Param `json:"-"`
 
 	// FieldInputs carries each registration's optional FieldInputs hook
 	// (pulse.FieldInputsFunc — the callback the runtime's buffered
@@ -129,6 +139,15 @@ type ExtensionsSnapshot struct {
 	// exactly as the runtime does; a registration without the hook is
 	// absent and its params are not judged. Never serialised.
 	FieldInputs map[string]func(raw json.RawMessage) []string `json:"-"`
+
+	// AttributeDictionaries carries each attribute registration's
+	// InheritsDictionary declaration (the source param, "" for the
+	// slot's Field), keyed by operator name — the same map the runtime
+	// registry's ExtensionRegistry.AttributeDictionaries holds, built by
+	// the same root function, so predict's dictionary-inheritance view
+	// (prevstate.KeySchemaWith) is the runtime's. Nil when none
+	// declares one. Never serialised.
+	AttributeDictionaries prevstate.Inherits `json:"-"`
 
 	// Purposes carries each registration's optional Purpose, keyed by
 	// registered operator name, already validated at pulse.New. The
@@ -189,6 +208,68 @@ func (s *ExtensionsSnapshot) DeclaredFieldInputs(category, name string, raw json
 	return fn(raw), true
 }
 
+// ColumnReads is the snapshot's vectors.ExtInputs — predict's twin of
+// the runtime's processing.ExtensionRegistry.ColumnReads: the
+// registration's FieldInputs hook (DeclaredFieldInputs, a panic
+// declaring nothing) over params whose expression-capable entries
+// written as an expression are replaced by the number 0
+// (extscalar.StandIns, the runtime's FieldInputsFor stand-in), so the
+// windows-first classification hands the hook the same params on both
+// sides. Nil when the snapshot carries no hook, so an extension-free
+// predict classifies at no cost. Nil-safe.
+func (s *ExtensionsSnapshot) ColumnReads() vectors.ExtInputs {
+	if s == nil || len(s.FieldInputs) == 0 {
+		return nil
+	}
+	keys := snapshotScalarKeys(s)
+	return func(category, name string, raw json.RawMessage) []string {
+		names, _ := s.DeclaredFieldInputs(category, name, extscalar.StandIns(raw, keys[paramread.Key{Category: paramread.Category(category), Op: name}]))
+		return names
+	}
+}
+
+// Dictionaries is AttributeDictionaries, nil on a nil snapshot.
+func (s *ExtensionsSnapshot) Dictionaries() prevstate.Inherits {
+	if s == nil {
+		return nil
+	}
+	return s.AttributeDictionaries
+}
+
+// dictionariesOf is the InheritsDictionary declarations a predict site
+// reads: snap's, else the instance's extensions' (inst nil: none) — the
+// runtime's ExtensionRegistry.AttributeDictionaries twin.
+func dictionariesOf(snap *ExtensionsSnapshot, inst *InstanceSnapshot) prevstate.Inherits {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	return snap.Dictionaries()
+}
+
+// keySchemaOf is the dictionary-inheritance view of schema for attrs at
+// a predict site (prevstate.KeySchemaWith over dictionariesOf) — the
+// runtime's ExtensionRegistry.AttributeDictionaryView.
+func keySchemaOf(attrs []*types.Attribute, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) *encoding.Schema {
+	return prevstate.KeySchemaWith(attrs, schema, dictionariesOf(snap, inst))
+}
+
+// classifierOf is the windows-first classifier of a predict site over
+// the bound models (nil: none) and the extension snapshot snap (nil:
+// none): the runtime's processing.ExtensionRegistry.Classifier twin.
+func classifierOf(snap *ExtensionsSnapshot, models model.Catalog) vectors.Classifier {
+	return vectors.Classifier{Cat: models, Ext: snap.ColumnReads(), Dict: snap.Dictionaries()}
+}
+
+// classifier is classifierOf over the options' extension snapshot (the
+// instance's when the options carry none). Nil-receiver-safe.
+func (o *PredictOptions) classifier(models model.Catalog) vectors.Classifier {
+	snap := extensionsFromOpts(o)
+	if snap == nil {
+		snap = o.instance().Extensions()
+	}
+	return classifierOf(snap, models)
+}
+
 // emptyExtensionsManifest returns a fully-populated ExtensionsManifest
 // with empty slices. Used when an ExtensionsSnapshot is nil so the
 // JSON shape stays stable.
@@ -203,6 +284,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Tests:            []descriptor.OperatorMeta{},
 		MatrixOps:        []descriptor.MatrixMeta{},
 		Regressions:      []descriptor.RegressionMeta{},
+		Overlays:         []descriptor.OverlayCapability{},
 		ExprFunctions:    []descriptor.ExprFunctionMeta{},
 		LookupTables:     []descriptor.LookupTableMeta{},
 		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
@@ -265,6 +347,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	// The weighting-aware projection is stamped by assembleManifest,
 	// which knows whether the instance offers capability:weighting.
 	out.MatrixOps = extensionMatrixMetas(snap, true)
+	out.Overlays = extensionOverlayCapabilities(snap, true)
 	out.Regressions = extensionRegressionMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
@@ -455,11 +538,12 @@ const (
 	extCategoryAttribute  = "attribute"
 	extCategoryTest       = "test"
 	extCategoryMatrix     = "matrix"
+	extCategoryOverlay    = "overlay"
 )
 
 // WeightAwareness reports whether name is an embedder-registered
 // operator of category ("aggregator", "attribute", "test" — tier-1
-// and tier-2 tests alike — "matrix" or "regression") and, if so, whether its registration declared
+// and tier-2 tests alike — "matrix", "regression" or "overlay") and, if so, whether its registration declared
 // WeightAware. Nil-safe: a nil snapshot registers nothing.
 func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
 	if s == nil {
@@ -477,6 +561,8 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		metas = s.MatrixOps
 	case extCategoryRegression:
 		metas = s.Regressions
+	case extCategoryOverlay:
+		metas = s.Overlays
 	}
 	for _, m := range metas {
 		if m.Name == name {

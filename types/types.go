@@ -583,6 +583,9 @@ const (
 	WIN_SHARE           WindowType = "WIN_SHARE"
 	WIN_LIFT            WindowType = "WIN_LIFT"
 	WIN_DISTRIBUTED_LAG WindowType = "WIN_DISTRIBUTED_LAG"
+	// WIN_FORMULA evaluates params.expression on each row over the
+	// row's columns and every earlier window's output.
+	WIN_FORMULA WindowType = "WIN_FORMULA"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
@@ -592,6 +595,7 @@ func AllWindowTypes() []WindowType {
 		WIN_DENSE_RANK,
 		WIN_DISTRIBUTED_LAG,
 		WIN_EWMA,
+		WIN_FORMULA,
 		WIN_LAG,
 		WIN_LEAD,
 		WIN_LIFT,
@@ -1365,7 +1369,7 @@ type Attribute struct {
 
 	// --- Regression-attribute fields (Option A: each ATTR_REG_* carries
 	// its own RegressionSpec-shaped slice and refits internally during
-	// the prepass). Ignored by every non-regression attribute type.
+	// the prepass). Refused on every other attribute type, PROCESSING_CONFIG.
 
 	// Target is the dependent variable for ATTR_REG_FITTED / RESIDUAL /
 	// LEVERAGE. Required for those types.

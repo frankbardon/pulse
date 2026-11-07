@@ -258,7 +258,7 @@ func TestNoOrbitPrefix(t *testing.T) {
 		string(types.WIN_ROW_NUMBER), string(types.WIN_RANK),
 		string(types.WIN_DENSE_RANK), string(types.WIN_RUNNING_SUM),
 		string(types.WIN_RUNNING_AVG), string(types.WIN_MOVING_AVG),
-		string(types.WIN_EWMA), string(types.WIN_PCT_CHANGE),
+		string(types.WIN_EWMA), string(types.WIN_PCT_CHANGE), string(types.WIN_FORMULA),
 		string(types.FEAT_LOG), string(types.FEAT_SQRT),
 		string(types.FEAT_BUCKETIZE), string(types.FEAT_ONE_HOT),
 		string(types.FEAT_DATE_FEATURES), string(types.FEAT_FREQUENCY_ENCODE),
@@ -676,8 +676,8 @@ func TestAllWindowTypesAlphabetical(t *testing.T) {
 	t.Parallel()
 
 	all := types.AllWindowTypes()
-	if len(all) != 14 {
-		t.Fatalf("AllWindowTypes returned %d entries, want 14", len(all))
+	if len(all) != 15 {
+		t.Fatalf("AllWindowTypes returned %d entries, want 15", len(all))
 	}
 	for i := 1; i < len(all); i++ {
 		if string(all[i]) < string(all[i-1]) {

@@ -134,8 +134,15 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   (`windows[0].params.decay`, under `requests[i].` / `fits[i].request.`
   in a batch), or an embedder extension operator's number param its
   registration declares expression-capable (`aggregations[0].params.scale`;
-  the manifest marks it `expression`). Those params take a number or an
-  expression string; a slot's `params` object stays open in this schema.
+  the manifest marks it `expression`). A window param, `AGG_CONSTANT`
+  `expr` or expression-capable extension param whose only such reads
+  are `coef()` / `sweep_axis()` / `response()` of the request's (or
+  facet's) own loaded `models` / `populations` entry — and an optimize
+  bound or start reading only its block's own `models` — is not
+  listed: predict folds it to the runtime's value and range-checks it
+  (a Compose `fits` entry stays listed). Those params
+  take a number or an expression string; a slot's `params` object stays
+  open in this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
@@ -1258,7 +1265,10 @@ resolve without data. On every request, `return` block or not, predict
 also reports `data.sizes`: each top-level section as `{section,
 full_bytes, shaped_bytes, basis}` (`shaped_bytes` equals `full_bytes`
 with no `return`, 0 when excluded; a section whose size depends on the
-data is omitted) — guidance only.
+data is omitted) — guidance only. Compose predict reports the same per
+slot as `slots[*].sizes` (additive `omitempty`), headed by a `label`
+section for the slot's label echo; like `sizes`, a predict result
+field, not part of this schema.
 
 At runtime the plan is applied to the finished `Response`: an excluded
 slot is **absent** on the wire — never `null`, required keys such as

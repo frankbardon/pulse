@@ -104,6 +104,14 @@ type InstanceSnapshot struct {
 	// Nil: the built-in defaults. Not covered by the feature-set digest.
 	limits *limits.Limits
 
+	// defaultWeight is Options.DefaultWeight (validated by pulse.New):
+	// the weight a slot resolves to when neither it nor the request
+	// names one. The field-reference walk reads it where a slot's
+	// resolved weight decides a declaration (a WIN_FORMULA's typed
+	// AGG_SET_FREQUENCY cell), as the engine's stamp does. Nil: none.
+	// Not covered by the feature-set digest.
+	defaultWeight *types.WeightSpec
+
 	// suppressedAdvisories is Options.SuppressAdvisories (validated by
 	// pulse.New): the PULSE_ADVISORY_* codes predict never reports on
 	// this instance. Nil: none. Not covered by the feature-set digest.
@@ -125,6 +133,11 @@ type InstanceSnapshot struct {
 	// it — both built eagerly by the constructors (ontology_instance.go).
 	ontology  *OntologyGraph
 	discovery *Discovery
+
+	// attrRoute is opRoute over attribute types, installed by
+	// buildOntology only when the instance hides a name (nil: the
+	// identity) — attributeRoute.
+	attrRoute func(types.AttributeType) types.AttributeType
 }
 
 // NewInstanceSnapshot builds the scoped snapshot pulse.New installs.
@@ -157,6 +170,9 @@ func NewInstanceSnapshot(ext *ExtensionsSnapshot, set FeatureSet) *InstanceSnaps
 // buildOntology installs the instance graph and the discovery view
 // walking it. Called once, by the constructors.
 func (s *InstanceSnapshot) buildOntology() {
+	if s.Scoped() && len(s.hidden) > 0 {
+		s.attrRoute = func(t types.AttributeType) types.AttributeType { return opRoute(s, t) }
+	}
 	s.returnPlans = newReturnPlanCache()
 	s.reads = sync.OnceValue(func() readsIndex { return buildReadsIndex(s) })
 	s.ontology = instanceOntology(s.ext, s)
@@ -164,6 +180,22 @@ func (s *InstanceSnapshot) buildOntology() {
 	if s.Scoped() && len(s.hidden) > 0 || s.ext != nil && len(s.ext.Skills)+len(s.ext.Examples) > 0 {
 		s.discovery = buildDiscovery(s, s.ontology)
 	}
+}
+
+// attributeRoute is the windows-first classifier's Route
+// (vectors.Classifier.Route): opRoute over attribute types, nil — the
+// identity — when the instance hides nothing. Built once by the
+// constructors, never per call: the classifier is one escape-analysis
+// location, so a closure built at the call site would reach the heap
+// with its model catalog (TestObservabilityOffNoAllocs). Nil-safe.
+func (s *InstanceSnapshot) attributeRoute() func(types.AttributeType) types.AttributeType {
+	if s == nil || !s.Scoped() || len(s.hidden) == 0 {
+		return nil
+	}
+	if s.attrRoute != nil {
+		return s.attrRoute
+	}
+	return func(t types.AttributeType) types.AttributeType { return opRoute(s, t) }
 }
 
 // Ontology returns the instance's pruned ontology graph (read-only; the
@@ -301,6 +333,30 @@ func (s *InstanceSnapshot) WithLimits(l limits.Limits) *InstanceSnapshot {
 	}
 	out.limits = &l
 	return &out
+}
+
+// WithDefaultWeight returns a copy of the snapshot carrying w as the
+// instance's Options.DefaultWeight, so predict's field-reference walk
+// and the runtime's resolve a slot's weight alike. Nil-safe like
+// WithLimits.
+func (s *InstanceSnapshot) WithDefaultWeight(w *types.WeightSpec) *InstanceSnapshot {
+	var out InstanceSnapshot
+	if s != nil {
+		out = *s
+	} else {
+		out.buildOntology()
+	}
+	out.defaultWeight = w
+	return &out
+}
+
+// DefaultWeight is the instance's Options.DefaultWeight; nil when none
+// (or on a nil snapshot).
+func (s *InstanceSnapshot) DefaultWeight() *types.WeightSpec {
+	if s == nil {
+		return nil
+	}
+	return s.defaultWeight
 }
 
 // WithSuppressedAdvisories returns a copy of s whose predict omits

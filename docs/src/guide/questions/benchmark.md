@@ -53,6 +53,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`WIN_PCT_CHANGE`](../catalog/window.md#op-win_pct_change) | Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. | basic |
 | [`WIN_RANK`](../catalog/window.md#op-win_rank) | Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. | basic |
 | [`WIN_SHARE`](../catalog/window.md#op-win_share) | Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. | basic |
+| [`WIN_FORMULA`](../catalog/window.md#op-win_formula) | Adds a number to every result row computed from that row's columns and earlier windows, such as one share divided by another. | intermediate |
 | [`WIN_LIFT`](../catalog/window.md#op-win_lift) | Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. | intermediate |
 
 ### Statistical tests

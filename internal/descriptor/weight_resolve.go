@@ -74,7 +74,8 @@ type weightSlot struct {
 	// refusal prose says so.
 	noSlotWeight bool
 	// extCategory is the weight-bearing extension category
-	// ("aggregator", "attribute", "test", "matrix", "regression") when operator is an
+	// ("aggregator", "attribute", "test", "matrix", "regression",
+	// "overlay") when operator is an
 	// embedder-registered operator of the slot's family, "" otherwise;
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
@@ -514,6 +515,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	for i, o := range req.Overlays {
 		add(fmt.Sprintf("overlays[%d]", i), string(o.Kind), o.Weight)
 		slots[len(slots)-1].overlay = true
+		ext(extCategoryOverlay)
 	}
 	addGroups := func(prefix string, groups []*types.Group) {
 		for i, g := range groups {
@@ -656,7 +658,13 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     default included (it may read the whole population, like the
 //     built-in tests and reference attributes). A hidden extension is
 //     never-registered (skipped);
-//   - an overlay is classed by overlayWeightClass (the per-kind
+//   - an extension overlay kind is classed by its registration's
+//     WeightAware like an extension attribute or test: aware ⇒ applied
+//     under either kind; not aware ⇒ PULSE_EXTENSION_NOT_WEIGHT_AWARE
+//     under ANY weight resolved on its own slot (slot → request →
+//     default), the instance default included — the host it reads is
+//     weighted whatever the overlay declares; `weight: null` opts out;
+//   - a built-in overlay is classed by overlayWeightClass (the per-kind
 //     overlayWeightClasses table, else its manifest Inferential flag):
 //     a refused kind is PULSE_WEIGHT_UNSUPPORTED (a frequency-only one
 //     only under kind probability) under a weight resolved on its OWN slot
@@ -742,7 +750,7 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 		class := weighting.ClassNone
 		switch {
 		case s.hidden:
-		case s.overlay:
+		case s.overlay && s.extCategory == "":
 			class = overlayWeightClass(s.operator)
 		case s.extCategory != "" && s.extAware:
 			class = weighting.ClassAware
@@ -923,7 +931,10 @@ func CrosstabCellWeightBasis(req *types.Request, defaultWeight *types.WeightSpec
 // they refuse identically. Details: {slot: overlays[i], operator,
 // field, host: requests[j].<slot>}, plus `reason` (and `alternative`)
 // for a permanent refusal and `kind` / `supported_kinds` for a
-// frequency-only one.
+// frequency-only one. An extension overlay kind is classed by its
+// registration: WeightAware ⇒ never refused; not ⇒
+// PULSE_EXTENSION_NOT_WEIGHT_AWARE {slot, operator, field, host} under
+// any kind.
 func ComposeOverlayWeightRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot) error {
 	for i := range overlays {
 		if err := composeOverlayWeightRefusal(i, &overlays[i], requests, labels, defaultWeight, inst); err != nil {
@@ -938,11 +949,18 @@ func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests
 	if inst.Hidden(kind) {
 		return nil
 	}
+	registered, aware := inst.Extensions().WeightAwareness(extCategoryOverlay, kind)
 	var refuses func(string) bool
-	switch overlayWeightClass(kind) {
-	case weighting.ClassRefuse:
+	switch {
+	case registered && aware:
+		return nil
+	case registered:
+		// A non-WeightAware extension kind is refused under any weight
+		// kind, as on a Request slot.
 		refuses = func(string) bool { return true }
-	case weighting.ClassFrequencyOnly:
+	case overlayWeightClass(kind) == weighting.ClassRefuse:
+		refuses = func(string) bool { return true }
+	case overlayWeightClass(kind) == weighting.ClassFrequencyOnly:
 		refuses = func(k string) bool { return k != string(types.WeightKindFrequency) }
 	default:
 		return nil
@@ -973,6 +991,11 @@ func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests
 			msg     string
 			details map[string]any
 		)
+		if registered {
+			msg = fmt.Sprintf("%s: extension operator %s does not declare WeightAware; %s; an extension overlay is refused under any weight in force, the instance default included; set \"weight\": null on that slot to compare unweighted figures", s.slot, kind, hostProse)
+			details = map[string]any{"slot": s.slot, "operator": kind, "field": field, "host": host}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_NOT_WEIGHT_AWARE, msg, details)
+		}
 		if overlayWeightClass(kind) == weighting.ClassFrequencyOnly {
 			head, d := kindOnlyHead(s, field, types.WeightKind(wkind))
 			msg, details = head+"; "+hostProse+"; use a frequency weight on that slot or set \"weight\": null on it to compare unweighted figures", d

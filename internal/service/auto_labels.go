@@ -40,17 +40,18 @@ func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encodin
 	// derivedFrom maps a previous-state output label to its state
 	// field: restrictTo is judged on the state field.
 	var derivedFrom map[string]string
-	if derived := prevStateAutoLabels(s.autoLabels, attrs); len(derived) > 0 {
+	inh := s.extensions.Dictionaries()
+	if derived := prevStateAutoLabels(s.autoLabels, attrs, schema, inh); len(derived) > 0 {
 		derivedFrom = map[string]string{}
 		for _, attr := range attrs {
-			if attr != nil && attr.Type == types.ATTR_PREVIOUS_STATE {
+			if src := prevstate.SourceOf(attr, schema, inh); src != "" {
 				if _, real := schemaFieldByName(schema, prevstate.Label(attr)); !real {
-					derivedFrom[prevstate.Label(attr)] = attr.Field
+					derivedFrom[prevstate.Label(attr)] = src
 				}
 			}
 		}
 		defaults = append(append([]*types.LabelBinding(nil), s.autoLabels...), derived...)
-		schema = prevstate.KeySchema(attrs, schema)
+		schema = prevstate.KeySchemaWith(attrs, schema, inh)
 	}
 
 	bound := make(map[string]bool, len(*labels))
@@ -102,12 +103,13 @@ func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encodin
 }
 
 // autoLabelDefaults is the instance's default bindings plus, for each
-// ATTR_PREVIOUS_STATE slot of attrs, a copy of every default on its
+// ATTR_PREVIOUS_STATE slot of attrs (or extension attribute declaring
+// InheritsDictionary), a copy of every default on its
 // state field rebound to the slot's output label — the set
 // applyAutoLabels injects from, and the set whose bindings never raise
 // PULSE_LABEL_NOT_APPLIED.
 func (s *Service) autoLabelDefaults(attrs []*types.Attribute) []*types.LabelBinding {
-	derived := prevStateAutoLabels(s.autoLabels, attrs)
+	derived := prevStateAutoLabels(s.autoLabels, attrs, nil, s.extensions.Dictionaries())
 	if len(derived) == 0 {
 		return s.autoLabels
 	}
@@ -115,17 +117,20 @@ func (s *Service) autoLabelDefaults(attrs []*types.Attribute) []*types.LabelBind
 }
 
 // prevStateAutoLabels copies each default bound to an
-// ATTR_PREVIOUS_STATE slot's state field onto the slot's output label,
-// in slot order; nil when no slot's state field has a default.
-func prevStateAutoLabels(defaults []*types.LabelBinding, attrs []*types.Attribute) []*types.LabelBinding {
+// ATTR_PREVIOUS_STATE slot's state field — or to the source field of an
+// extension attribute declaring InheritsDictionary (inh,
+// prevstate.SourceOf) — onto the slot's output label, in slot order;
+// nil when no slot's source field has a default.
+func prevStateAutoLabels(defaults []*types.LabelBinding, attrs []*types.Attribute, schema *encoding.Schema, inh prevstate.Inherits) []*types.LabelBinding {
 	var out []*types.LabelBinding
 	for _, attr := range attrs {
-		if attr == nil || attr.Type != types.ATTR_PREVIOUS_STATE || attr.Field == "" {
+		src := prevstate.SourceOf(attr, schema, inh)
+		if src == "" {
 			continue
 		}
 		label := prevstate.Label(attr)
 		for _, def := range defaults {
-			if def != nil && def.Field == attr.Field && label != attr.Field {
+			if def != nil && def.Field == src && label != src {
 				cp := *def
 				cp.Field = label
 				out = append(out, &cp)

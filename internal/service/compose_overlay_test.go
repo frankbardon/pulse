@@ -6,17 +6,39 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/fs"
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
 
 // testComposeStubKind / testComposeStubKind2 are kinds outside the
-// catalog, the only kinds that still reach the Compose chassis stub:
-// every catalog kind has a Compose handler or is refused by the shared
-// wrong-slot gate.
+// catalog. A never-registered Compose kind is refused
+// (PULSE_OVERLAY_KIND_UNKNOWN, as predict-compose refuses it), so the
+// barrier tests register both as extension kinds (stubComposeService)
+// whose Compose handler returns a zero scalar layer — the barrier is
+// under test, not a kind.
 const (
 	testComposeStubKind  types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB"
 	testComposeStubKind2 types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB_2"
 )
+
+// stubComposeService is New(cfg) with the two stub kinds registered.
+func stubComposeService(cfg *fs.Config) *Service {
+	svc := New(cfg)
+	stub := func(*types.ComposeOverlaySpec, *processing.ExtensionComposeHost) (processing.ExtensionOverlayOutput, error) {
+		zero := 0.0
+		return processing.ExtensionOverlayOutput{Payload: types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &zero}}, nil
+	}
+	reg := &processing.ExtensionRegistry{Overlays: map[types.OverlayKind]*processing.ExtensionOverlay{}}
+	for _, k := range []types.OverlayKind{testComposeStubKind, testComposeStubKind2} {
+		reg.Overlays[k] = &processing.ExtensionOverlay{Decl: overlayhost.ExtensionDecl{Kind: k, Compose: true,
+			Shapes: []types.OverlayShape{types.OverlayShapeScalar}, Scopes: []types.OverlayScope{types.OverlayScopeTotal},
+			Refs: []string{overlayhost.RefNone}}, Compose: stub}
+	}
+	svc.SetExtensions(reg)
+	return svc
+}
 
 // composeOverlayBaseRequest builds a 2-slot ComposedRequest of simple
 // AGG_COUNT-on-score requests, each carrying a caller-supplied label.
@@ -81,7 +103,7 @@ func TestCompose_StubOverlayRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
-	svc := New(cfg)
+	svc := stubComposeService(cfg)
 
 	composed := composeOverlayBaseRequest()
 	composed.Overlays = []types.ComposeOverlaySpec{
@@ -108,7 +130,7 @@ func TestCompose_StubOverlayOrderPreserved(t *testing.T) {
 	t.Parallel()
 
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
-	svc := New(cfg)
+	svc := stubComposeService(cfg)
 
 	composed := composeOverlayBaseRequest()
 	composed.Overlays = []types.ComposeOverlaySpec{
@@ -206,7 +228,7 @@ func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
-	svc := New(cfg)
+	svc := stubComposeService(cfg)
 
 	composed := composeOverlayBaseRequest()
 	composed.Overlays = []types.ComposeOverlaySpec{
@@ -273,7 +295,7 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 	t.Parallel()
 
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
-	svc := New(cfg)
+	svc := stubComposeService(cfg)
 
 	// Mix one bad cohort with one valid one. Slot 0 fires a coded
 	// error → FailFast=true → the orchestrator returns immediately.
@@ -329,7 +351,7 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 	t.Parallel()
 
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
-	svc := New(cfg)
+	svc := stubComposeService(cfg)
 
 	// Both slots SUCCEED in this test — the assertion is that
 	// FailFast=false with all-succeed runs the overlay hook

@@ -102,6 +102,10 @@ func wpWindow(wt types.WindowType) *types.Window {
 		w.Params = json.RawMessage(`{"cumulative":true}`)
 	case types.WIN_LIFT:
 		w.Params = json.RawMessage(`{"base":"score","cumulative":true}`)
+	case types.WIN_FORMULA:
+		// Row-local: no field, no order_by.
+		w.Field, w.OrderBy = "", nil
+		w.Params = json.RawMessage(`{"expression":"x * 2 + score"}`)
 	}
 	return w
 }

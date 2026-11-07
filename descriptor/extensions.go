@@ -28,9 +28,16 @@ type ExtensionsManifest struct {
 	// (marked slot) then the model's own params-object keys, the
 	// declared form, and the OutputSchema its outputs object follows. A
 	// request names one in Request.Regressions like a built-in.
-	Regressions   []RegressionMeta   `json:"regressions"`
-	ExprFunctions []ExprFunctionMeta `json:"expr_functions"`
-	LookupTables  []LookupTableMeta  `json:"lookup_tables"`
+	Regressions []RegressionMeta `json:"regressions"`
+	// Overlays lists the embedder-registered OVERLAY_* kinds in the
+	// built-in Manifest.Overlays shape (OverlayCapability): the payload
+	// shapes the handler may return, the scopes and Ref arms a spec may
+	// set, the declared params, Inferential, and Buffered (always true —
+	// an extension kind runs buffered only). A request names one in an
+	// Overlays slot its handlers run on, like a built-in kind.
+	Overlays      []OverlayCapability `json:"overlays"`
+	ExprFunctions []ExprFunctionMeta  `json:"expr_functions"`
+	LookupTables  []LookupTableMeta   `json:"lookup_tables"`
 	// ReferenceVectors lists the registered reference-vector tables
 	// (Options.Extensions.ReferenceVectors) an expression reads with
 	// ref("table", key).
@@ -132,6 +139,13 @@ type OperatorMeta struct {
 	Mode        string              `json:"mode,omitempty"`
 	Tier        string              `json:"tier,omitempty"`
 	Params      []OperatorParamMeta `json:"params,omitempty"`
+	// InheritsDictionary is the attribute-only projection of
+	// pulse.AttributeRegistration.InheritsDictionary: the input whose
+	// dictionary the output inherits — "field" (the slot's field) or
+	// "params.<name>". The output values are that field's codes, so the
+	// column reads as the source field (labels, GROUP_CATEGORY keys,
+	// smart defaults). Omitted when the attribute declares none.
+	InheritsDictionary string `json:"inherits_dictionary,omitempty"`
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// registration's purpose declares, sorted. Omitted when the
 	// registration declares none.

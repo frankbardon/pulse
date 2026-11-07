@@ -314,7 +314,7 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 
 // bindFitOn compiles params.fit_on against the request's registry and
 // bound models, or binds and closes params.fit (fitOnBinder).
-func (a *semScoreAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+func (a *semScoreAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) error {
 	if a.fitName != "" {
 		return a.bindFit(models)
 	}

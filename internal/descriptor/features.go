@@ -458,6 +458,7 @@ var builtinFeatures = withDependencies([]Feature{
 	// Renamed from WIN_ADSTOCK before v1.0.0 (no alias); Since unchanged.
 	op("WIN_DISTRIBUTED_LAG"),
 	op("WIN_EWMA"),
+	op("WIN_FORMULA"),
 	op("WIN_LAG"),
 	op("WIN_LEAD"),
 	op("WIN_LIFT"),
@@ -889,9 +890,9 @@ var overlayHostKinds = map[string][]string{
 //   - capability:regression_holdout holds rows out of a regression
 //     slot's fit and scores them: it needs any-of the REG_* operators.
 //   - capability:params declares constants only an expression reads:
-//     it needs any-of ATTR_FORMULA, FILTER_EXPRESSION, OVERLAY_FORMULA
-//     and capability:regression_holdout (a total() argument rides
-//     ATTR_FORMULA).
+//     it needs any-of ATTR_FORMULA, FILTER_EXPRESSION, OVERLAY_FORMULA,
+//     WIN_FORMULA and capability:regression_holdout (a total() argument
+//     rides ATTR_FORMULA).
 //   - capability:models loads a model only a scoring reference reads
 //     (ATTR_REG_PREDICT, an ATTR_REG_FITTED / RESIDUAL params.fit, or
 //     coef() in ATTR_FORMULA / FILTER_EXPRESSION)
@@ -966,7 +967,7 @@ var hardEdges = map[string][]string{
 	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS)},
 	// Parameters are read only by an expression (an optimize block's
 	// included): without one there is nothing to read them.
-	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featComposeOpt},
+	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA", featRegHoldout, featComposeOpt},
 	// A loaded model, population or SEM fit file is read only by a
 	// reference: a scoring reference (ATTR_REG_PREDICT, coef()) or a
 	// params.fit (a fitted vector attribute, ATTR_REG_FITTED / RESIDUAL,

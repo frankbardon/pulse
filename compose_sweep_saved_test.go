@@ -131,8 +131,8 @@ func TestSweepSaved_LoadedReadsWinningAxes(t *testing.T) {
 
 // TestSweepSaved_WindowDecayReadsLoadedAxis: a WIN_DISTRIBUTED_LAG decay
 // of sweep_axis("best", "tv") over the loaded model runs exactly as the
-// literal winning decay; predict lists it unresolved (the value is the
-// model's), never an error.
+// literal winning decay; predict folds the loaded model's winning axis
+// (nothing under unresolved_scalars), never an error.
 func TestSweepSaved_WindowDecayReadsLoadedAxis(t *testing.T) {
 	t.Parallel()
 
@@ -144,8 +144,8 @@ func TestSweepSaved_WindowDecayReadsLoadedAxis(t *testing.T) {
 	if err != nil || len(pr.Errors) > 0 {
 		t.Fatalf("predict: %v %+v", err, pr)
 	}
-	if len(pr.UnresolvedScalars) != 1 || pr.UnresolvedScalars[0].Path != "windows[0].params.decay" {
-		t.Fatalf("unresolved_scalars %+v", pr.UnresolvedScalars)
+	if pr.UnresolvedScalars != nil {
+		t.Fatalf("a loaded model's axis left unresolved: %+v", pr.UnresolvedScalars)
 	}
 	got, err := p.Process(ctx, req)
 	if err != nil {

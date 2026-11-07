@@ -70,8 +70,10 @@ import (
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
 // AND that host lists at least one enabled overlay kind
-// (overlayHostKinds). A host with no runnable kind offers nothing to put
-// in the slot, so the slot is hidden with it. Nil / unscoped instances
+// (overlayHostKinds, plus the instance's extension kinds by their
+// declared hosts — ExtensionOverlayHostCapabilities). A host with no
+// runnable kind offers nothing to put in the slot, so the slot is
+// hidden with it. Nil / unscoped instances
 // hide nothing.
 
 // gatedSlot is one capability-gated top-level JSON slot.
@@ -97,6 +99,9 @@ func overlayGate(hosts ...string) func(*InstanceSnapshot) bool {
 				if inst.Enabled(k) {
 					return true
 				}
+			}
+			if extensionOverlayRunsOn(inst, h) {
+				return true
 			}
 		}
 		return false

@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Gains table on grouped rows with WIN_FORMULA: subscribers bucketed into revenue quartiles, WIN_SHARE takes each quartile's share of revenue and its share of subscribers, then WIN_FORMULA divides one share by the other (the quartile's lift, equal to WIN_LIFT) and subtracts them (the concentration gap). A formula reads the row's group keys and aggregation labels and only the windows listed before it; a null input reads null.",
+    "intents": [
+      "composition",
+      "benchmark"
+    ],
+    "name": "win_formula_gains",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_QUANTILE",
+      "WIN_FORMULA",
+      "WIN_SHARE"
+    ],
+    "tags": [
+      "proportion-analysis",
+      "financial",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_QUANTILE",
+      "field": "revenue",
+      "interval": 4
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "subscribers"},
+    {"type": "AGG_SUM", "field": "revenue", "label": "revenue_total"}
+  ],
+  "windows": [
+    {
+      "type": "WIN_SHARE",
+      "field": "revenue_total",
+      "label": "revenue_share"
+    },
+    {
+      "type": "WIN_SHARE",
+      "field": "subscribers",
+      "label": "subscriber_share"
+    },
+    {
+      "type": "WIN_FORMULA",
+      "label": "lift",
+      "params": {"expression": "revenue_share / subscriber_share"}
+    },
+    {
+      "type": "WIN_FORMULA",
+      "label": "concentration_gap",
+      "params": {"expression": "revenue_share - subscriber_share"}
+    }
+  ],
+  "sort": [
+    {"field": "revenue_total", "desc": true}
+  ]
+}

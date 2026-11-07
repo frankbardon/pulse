@@ -152,3 +152,37 @@ object, or an unknown `root`, returns an error for the whole call
 Render request templates (`$var`, `{{token}}`, `$when`) first. An
 unrendered `{{token}}` in an expression slot is that slot's
 `PULSE_FORMULA_COMPILE_ERROR`; anywhere else it reads as a literal name.
+
+## Post-window plans
+
+`(*pulse.Pulse).ClassifyPostWindow(ctx, req, schema)` tells an editor or
+an agent how the engine will order a draft's windows and attributes,
+without a cohort. It returns the `descriptor.PostWindowPlan` that
+`Predict` reports as `post_window` for the same request over a cohort
+with that schema: whether the windows run over the records before the
+groups, aggregations and crosstab (`WindowsFirst`), the window output
+labels, and the attributes that run after the windows, addressed by
+their index in the request (item `for_each` expanded).
+
+```go
+c, _ := p.Open(ctx, "weekly.pulse")
+plan, err := p.ClassifyPostWindow(ctx, draft, c.Schema())
+// plan == nil: the draft has no window
+// plan.Attributes[i].Index: an attribute that reads a window output
+```
+
+The plan uses the instance's operator routes, extension hooks and
+defaults. The saved files the draft's `models` and `populations` name are
+read through the instance's filesystem, as `Predict` reads them, so a
+score of a model fitted on a window label moves after the windows. A
+join's right cohort schema is read too. `req.Cohort` is ignored.
+
+Pass a nil schema when none is at hand. The plan is then the one
+`Predict` reports when it cannot read a schema: a window whose label is
+also a field or vector name counts as a window output (over the schema
+the field wins), and smart defaults are not applied.
+
+A draft that `Predict` would refuse still gets its plan; the call reports
+no validation fault. It returns an error only for a nil request
+(`SERVICE_VALIDATION`) or a cancelled context. It is not an observed
+operation: no hook or metric fires.

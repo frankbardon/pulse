@@ -7,10 +7,12 @@
 // both sides before any operator is built) calls FieldRefs and
 // ForeignSlotRefusal. KeySchema is the internal dictionary-inheritance
 // view both sides read, so the output column resolves through its state
-// field's dictionary on every label-resolving consumer.
+// field's dictionary on every label-resolving consumer; KeySchemaWith
+// adds the extension attributes declaring an inherited dictionary
+// (Inherits, inherit.go).
 //
 // It is a leaf: it imports only the public errors / encoding / types
-// packages and internal/fieldaccept, never internal/processing or
+// packages, internal/fieldaccept and internal/paramread, never internal/processing or
 // internal/service, so internal/descriptor may import it without
 // breaking TestPredictNoExecutionImports.
 package prevstate
@@ -212,19 +214,40 @@ func BeforeFiltersLabels(attrs []*types.Attribute, route func(types.AttributeTyp
 // another type — Check refuses it), or whose label already names a
 // schema field, contributes nothing. schema itself is returned — the
 // same pointer — when no slot contributes, so a request without the
-// attribute is byte-identical. Internal: only this attribute declares
-// an inherited dictionary (an extension attribute cannot).
+// attribute is byte-identical. KeySchema is the built-in view; an
+// extension attribute declaring an inherited dictionary contributes
+// through KeySchemaWith.
 func KeySchema(attrs []*types.Attribute, schema *encoding.Schema) *encoding.Schema {
+	return KeySchemaWith(attrs, schema, nil)
+}
+
+// KeySchemaWith is KeySchema plus one virtual field per output column
+// of an extension attribute whose type inh declares an inherited
+// dictionary (U67 E3-S2): typed as its source field (InheritedSource —
+// its Field or the declared string param) and on its dictionary, by
+// the same rules. A slot whose source InheritedSource refuses
+// contributes nothing. Nil inh is KeySchema.
+func KeySchemaWith(attrs []*types.Attribute, schema *encoding.Schema, inh Inherits) *encoding.Schema {
 	if schema == nil {
 		return schema
 	}
 	var extra []encoding.Field
 	for _, attr := range attrs {
-		if attr == nil || attr.Type != types.ATTR_PREVIOUS_STATE || attr.Field == "" {
+		if attr == nil {
 			continue
 		}
-		src := schema.Field(attr.Field)
-		if src == nil || !(src.Type.IsCategorical() || src.Type == encoding.FieldTypePackedBool) {
+		name := attr.Field
+		if attr.Type != types.ATTR_PREVIOUS_STATE {
+			var declared bool
+			if name, _, declared = sourceField(attr, inh); !declared {
+				continue
+			}
+		}
+		if name == "" {
+			continue
+		}
+		src := schema.Field(name)
+		if src == nil || !coded(src.Type) {
 			continue
 		}
 		label := Label(attr)

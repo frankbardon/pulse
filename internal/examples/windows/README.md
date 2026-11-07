@@ -5,7 +5,8 @@ after aggregation (or instead of it, when no groups + aggs are set) and
 emit one output column per window. When a group, aggregation or crosstab
 reads a window label, the windows run first over the records instead
 (windows-first, examples 15 and 16; `pulse skills show windows-first`). Every window requires `order_by`,
-except a non-cumulative `WIN_SHARE` / `WIN_LIFT`.
+except a non-cumulative `WIN_SHARE` / `WIN_LIFT` and `WIN_FORMULA`, which
+reads only its own row and refuses one.
 
 Setup is documented in [`../README.md`](../README.md). Run all:
 
@@ -33,12 +34,13 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `14_distributed_lag.json` | `WIN_DISTRIBUTED_LAG` | Distributed lag (media adstock): geometric (`decay`) and Weibull PDF (`shape`, `scale`) lag kernels over `max_lag` rows, normalised |
 | `15_window_column_aggregate.json` | `WIN_DELTA`, `AGG_AVERAGE`, `AGG_COUNT` | Windows-first, ungrouped: aggregate a window column (the mean order-to-order revenue change; the first order's null change is skipped) |
 | `16_window_column_by_quarter.json` | `WIN_RUNNING_SUM`, `GROUP_DATE`, `AGG_SUM`, `AGG_MAX` | Windows-first, grouped: the running revenue total reached by each quarter's end beside the quarter's own sum |
+| `17_formula.json` | `WIN_FORMULA`, `WIN_SHARE` | Gains table: a row-local formula over two earlier `WIN_SHARE` columns — their ratio (the lift) and their difference; no `order_by` |
 
 ## Frame requirements
 
 | Operator | Frame |
 |---|---|
-| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `SHARE`, `LIFT`, `DISTRIBUTED_LAG` | forbidden (`DISTRIBUTED_LAG` reaches `params.max_lag` rows) |
+| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `SHARE`, `LIFT`, `DISTRIBUTED_LAG`, `FORMULA` | forbidden (`DISTRIBUTED_LAG` reaches `params.max_lag` rows) |
 | `RUNNING_SUM`, `RUNNING_AVG` | required (`preceding: null` = unbounded) |
 | `MOVING_AVG` | required, both bounds set |
 | `EWMA` | required (typically unbounded preceding to current) |

@@ -26,6 +26,11 @@ func WindowFrameRequired(t types.WindowType) bool { return windowparams.FrameReq
 // and skeletons omit the slot for them.
 func WindowFieldForbidden(t types.WindowType) bool { return windowparams.FieldForbidden(t) }
 
+// WindowRowLocal reports whether predict refuses a window of type t that
+// carries order_by or partition_by (the row-local WIN_FORMULA reads only
+// its own row) — Recommend's drafts and skeletons omit order_by for it.
+func WindowRowLocal(t types.WindowType) bool { return windowparams.RowLocal(t) }
+
 // IsOrderableType is the ONE window ORDER BY orderability rule, applied
 // on both sides by the shared FieldRefRefusals walk (predict reports it,
 // every runtime execution mode refuses with it). It admits exactly the

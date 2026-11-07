@@ -352,6 +352,11 @@ var uninstrumentedMethods = map[string]bool{
 	// RequestReads is a parse of a caller-held document against the
 	// in-memory manifest: no cohort, no engine, nothing to time.
 	"RequestReads": true,
+	// ClassifyPostWindow classifies a caller-held request with no
+	// cohort: in-memory, reading at most the saved files its `models` /
+	// `populations` name and a join's right schema, as Recommend's
+	// in-process predicts do — firing no predict operation.
+	"ClassifyPostWindow": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

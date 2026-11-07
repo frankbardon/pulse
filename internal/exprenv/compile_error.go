@@ -23,6 +23,7 @@ const (
 	SiteFilter        = exprslots.SiteFilter        // a FILTER_EXPRESSION expression
 	SiteTotalArgument = exprslots.SiteTotalArgument // one total(expr) argument
 	SiteHoldout       = exprslots.SiteHoldout       // a RegressionSpec.Holdout predicate
+	SiteWindowFormula = exprslots.SiteWindowFormula // a WIN_FORMULA params.expression
 )
 
 // ResultRefusal is the compile-time result-type check of site: nil, or

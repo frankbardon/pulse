@@ -19,7 +19,8 @@ import (
 // statically over the request's params and the catalog its references
 // resolve against — the twin of the runtime's
 // processing.ResolveExtensionScalars, over the same environment as the
-// built-in window params (windowScalarEnv).
+// built-in window params (windowScalarEnv: a read of the request's own
+// loaded `models` folds to the runtime's value).
 
 // extensionScalarKeys are the instance's visible extension operators'
 // expression-capable params keys, sorted per operator; nil when none
@@ -185,7 +186,7 @@ func validateFacetExtensionScalars(env *descriptor.Envelope, req *types.FacetReq
 	if flagged == nil || req == nil {
 		return nil
 	}
-	_, unresolved, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(scalarEnvFor(req.Params, o)), false)
+	_, unresolved, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(foldingScalarEnv(req.Params, o)), false)
 	for _, ce := range refs {
 		addCodedError(env, ce)
 	}

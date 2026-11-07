@@ -311,7 +311,7 @@ func TestSEMScore_BoundMergeTally(t *testing.T) {
 			t.Fatal(err)
 		}
 		a := comp.(*semScoreAttribute)
-		if err := a.bindFitOn(nil, set, nil, nil); err != nil {
+		if err := a.bindFitOn(nil, set, nil, exprKeys{}); err != nil {
 			t.Fatal(err)
 		}
 		if !a.prebuiltFit() {

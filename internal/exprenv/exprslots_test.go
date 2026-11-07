@@ -60,7 +60,7 @@ func TestTemplateExprSplice_CompileSitesShared(t *testing.T) {
 			}
 		}
 	}
-	got := []string{SiteFormula, SiteFilter, SiteTotalArgument, SiteHoldout}
+	got := []string{SiteFormula, SiteFilter, SiteTotalArgument, SiteHoldout, SiteWindowFormula}
 	if len(declared) != len(got) {
 		t.Errorf("exprenv declares compile sites %v; this gate checks %d — add the new one to it", declared, len(got))
 	}

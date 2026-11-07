@@ -147,7 +147,7 @@ func TestResponseBuiltin_SpendForms(t *testing.T) {
 	t.Parallel()
 
 	set := responseModels(t)
-	fn := responseBuiltin(set)
+	fn := model.ResponseBuiltin(set)
 	want, _ := model.Response(set, "mmm", "x1", 4)
 	for _, spend := range []any{4, int64(4), int32(4), uint8(4), float32(4), 4.0} {
 		got, err := fn("mmm", "x1", spend)

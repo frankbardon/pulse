@@ -4,7 +4,7 @@ Pulse is a self-describing tabular data processing engine. Ships as a Go library
 
 **Design principles**
 
-- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `Predict{Compose,Facet,Chain,Materialize}`, `Recommend`, `Explain`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `Materialize`, `Rake`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfile(s)`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
+- **Library-first.** `pulse.go` is the public API — `New`, `Open` (+ `Cohort.Reader`), `NewCohortBuilder`, `Process`, `Compose`, `ComposeParallel`, `ProcessStream`, `ProcessChain`, `Import`, `Export`, `Convert`, `Inspect`, `InspectEnvelope`, `InspectBytes`, `Predict`, `PredictBytes`, `Predict{Compose,Facet,Chain,Materialize}`, `ClassifyPostWindow`, `Recommend`, `Explain`, `Sample`, `Facet`, `Synth`, `Profile`, `CountRecords`, `Lookup`, `BuildIndex`, `VerifyIndex`, `ListIndexes`, `DropIndex`, `CohortArtifacts`, `WidenSetField`, `Dedup`, `Materialize`, `Rake`, `ListTemplates`, `GetTemplate`, `RenderTemplate`, `RenderTemplateRequest`, `ReloadTemplates`, `InitFeatureProfile`, `CheckFeatureProfile`, `DiffFeatureProfile`, `DescribeFeatureProfile`, `ExampleFeatureProfile(s)`, `Glossary`, `Intents`, `Ontology`, `Skills`, `Skill`, `ExportReference`, `Version`. **The CLI never contains business logic.**
 - **Self-describing.** Every `.pulse` file carries its schema in the header. `internal/descriptor/` provides `manifest`, `predict`, `inspect` — no-execute operations.
 - **Skill-augmented.** `internal/skills/` embeds an atomic-per-surface pack (`op-*` / `tool-*` / `type-*`) plus ~20 topical design skills via `//go:embed *.md`; the filesystem walk + frontmatter parse is the source of truth.
 - **Embedder-extensible.** `pulse.Options.Extensions` registers custom operators, expr functions, named tables, skills and examples. Predict, manifest, MCP and runtime treat them identically to built-ins.
@@ -88,7 +88,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 ### Smart defaults
 
-A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`); a metric slot on a `kind` vector gets its kind's metric. Defaults never override `Type`/`metric` or cross categories; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`; predict always computes `DefaultsApplied`. Table: `execution-modes.md` (Smart defaults).
+A slot naming a field but omitting `Type` gets an operator inferred from the schema type (`internal/descriptor/defaults.go`, `defaultRules`). Defaults never override `Type`/`metric` or cross categories; disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`. Table, metric defaults, `DefaultsApplied`: `execution-modes.md` (Smart defaults).
 
 **Date-family field types.** `GROUP_DATE`, `GROUP_DATE_RANGES` and `FILTER_DATE_RANGES` accept both `date` and `datetime`; zone math lives only in `internal/temporal`. Long form: `execution-modes.md` (Date-family field types, Time zones); `skills/time-zones.md`.
 
@@ -194,13 +194,13 @@ Other load-bearing gates (`TestManifest*Complete`, `TestStreamability_*`, `TestE
 
 Table file formats; sidecar skip; hard-fail on other bad `*.json`: `.claude/reference/byte-layout.md` (Table-directory sidecar exclusion).
 
-**Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only via `observe/otel` / `observe/prom`; `pulse mcp` reads standard `OTEL_*`; no `PULSE_*` var): `.claude/reference/observability.md`.
+**Knobs.** Concurrency `ShardWorkers` / `DecodeWorkers` (`0` => `NumCPU`, negatives rejected at `pulse.New()`) and overlay knobs: `.claude/reference/execution-modes.md`. Limits: `Options.Limits` (`0` default, `-1` `pulse.Unlimited`), `docs/src/library/tuning-limits.md`. Observability: `Options.Logger` / `Hooks` / `Metrics` (nil = zero cost; OTel/Prometheus only via `observe/otel` / `observe/prom`; no `PULSE_*` var): `.claude/reference/observability.md`.
 
 Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
 ## Extension Points
 
-`pulse.Options.Extensions` registers embedder operators (nine categories incl. `MAT` / `REG`, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipes: `docs/src/internals/extension-points.md`, `adding-regression.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
+`pulse.Options.Extensions` registers embedder operators (ten categories incl. `MAT` / `REG`, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipes: `docs/src/internals/extension-points.md`, `adding-regression.md`, `adding-overlay.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
 
 ## Feature profiles
 

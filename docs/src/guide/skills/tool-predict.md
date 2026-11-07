@@ -15,7 +15,7 @@ Cheap. Returns the shape errors execution would emit, plus normalization metadat
 
 A bare `types.Request` at the root, as execution takes it; or ONE alternative root alone (any key beside it is `SERVICE_VALIDATION`):
 
-- `composed` — a Compose batch: each slot over its cohort, then the batch overlays. The verdict adds `slots[]` (each slot's `streamable`, `p_values`, correction `families`).
+- `composed` — a Compose batch: each slot over its cohort, then the batch overlays. The verdict adds `slots[]` (per slot `streamable`, `p_values`, `families`, `sizes`).
 - `facet` — a rich facet request.
 - `chain` — a chain: each stage over the schema the one before produces.
 
