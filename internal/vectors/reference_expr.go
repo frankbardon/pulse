@@ -317,6 +317,11 @@ func mentionsRef(req *types.Request) bool {
 			return true
 		}
 	}
+	for _, r := range req.Regressions {
+		if r != nil && strings.Contains(r.Holdout, exprenv.RefFunc) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -352,8 +357,10 @@ type ExprSlot struct {
 // filterer, then per attribute its ATTR_FORMULA expression and its
 // params.fit_on (and centroid reference filter) FILTER_EXPRESSION
 // filterers, then each FEAT_TARGET_ENCODE's params.fit_on
-// (FeatureFitOn). A regression holdout is not one: its owners read it
-// directly.
+// (FeatureFitOn), then each regression's holdout predicate
+// (regressions[i].holdout) — the runtime compiles it with the same
+// reference, static and length checks and binds the request's vectors
+// in it, so predict reads it here too.
 func ExprSlots(req *types.Request) []ExprSlot {
 	if req == nil {
 		return nil
@@ -383,6 +390,11 @@ func ExprSlots(req *types.Request) []ExprSlot {
 	for i, f := range req.Features {
 		if src := FeatureFitOn(f); src != "" {
 			out = append(out, ExprSlot{Path: "features[" + strconv.Itoa(i) + "].params." + exprslots.FeatureFitOnParam, Src: src})
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Holdout != "" {
+			out = append(out, ExprSlot{Path: "regressions[" + strconv.Itoa(i) + "].holdout", Src: r.Holdout})
 		}
 	}
 	return out

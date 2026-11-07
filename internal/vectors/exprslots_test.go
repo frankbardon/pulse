@@ -2,6 +2,7 @@ package vectors
 
 import (
 	"encoding/json"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -20,10 +21,6 @@ var indexRe = regexp.MustCompile(`\[[0-9]+\]`)
 // expression slot is either read by the reference / kind / length /
 // static checks and the sweep-fit scan, or named here on purpose.
 var exprSlotsOutOfScope = map[string]string{
-	// A regression holdout compiles under its own site and is read by
-	// its owners directly (SweepSlotReadsFit walks Regressions[].Holdout
-	// beside ExprSlots); it binds no request vector or reference table.
-	exprslots.SlotHoldout: "regression holdout: read beside ExprSlots by its owners",
 	// A WIN_FORMULA expression reads output-row columns only: it binds
 	// no request vector, refuses ref() at compile (internal/winformula)
 	// and declares no coef(), so no reference / kind / length check or
@@ -35,7 +32,7 @@ var exprSlotsOutOfScope = map[string]string{
 // request expression the engine's reference / kind / length checks read
 // (ExprSlots) — a filterer, a formula, a fitted attribute's
 // params.fit_on filterers, a comparison centroid's filter, a feature's
-// params.fit_on row expression — sits at a key path the shared
+// params.fit_on row expression, a regression holdout — sits at a key path the shared
 // expression-slot list (internal/exprslots) matches, so the template
 // renderer refuses a `{{token}}` splice into each of them; and every
 // exprslots slot the engine compiles (Sites non-empty) is walked by
@@ -57,8 +54,8 @@ func TestTemplateExprSplice_EngineExprSlotsMatch(t *testing.T) {
 		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Holdout: "a1 > 0"}},
 	}
 	slots := ExprSlots(req)
-	if len(slots) < 6 {
-		t.Fatalf("ExprSlots = %+v, want the filterer, the formula, both fit_on lists, the centroid filter and the feature fit_on", slots)
+	if len(slots) < 7 {
+		t.Fatalf("ExprSlots = %+v, want the filterer, the formula, both fit_on lists, the centroid filter, the feature fit_on and the holdout", slots)
 	}
 	walked := map[string]bool{}
 	for _, s := range slots {
@@ -133,5 +130,37 @@ func TestExprSlots_FeatureFitOn(t *testing.T) {
 	}
 	if mentionsRef(req) {
 		t.Error("mentionsRef reported a ref() in a request holding none")
+	}
+}
+
+// TestExprSlots_RegressionHoldout: each regression's holdout predicate
+// is an expression slot at regressions[i].holdout, after the features;
+// a blank holdout and a nil regression are not; mentionsRef sees a
+// ref() in it, and a vector it reads counts as referenced.
+func TestExprSlots_RegressionHoldout(t *testing.T) {
+	t.Parallel()
+
+	req := &types.Request{
+		Vectors:    []types.VectorSpec{{Name: "v", Fields: []string{"a1", "a2"}}, {Name: "u", Fields: []string{"a1", "a2"}}},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "a1 + 1"}},
+		Regressions: []*types.RegressionSpec{
+			nil,
+			{Type: types.REG_OLS, Holdout: ""},
+			{Type: types.REG_OLS, Holdout: "vmean(v) > 0"},
+		},
+	}
+	got := ExprSlots(req)
+	want := []ExprSlot{
+		{Path: "attributes[0].expression", Src: "a1 + 1"},
+		{Path: "regressions[2].holdout", Src: "vmean(v) > 0"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ExprSlots = %+v, want %+v", got, want)
+	}
+	if un := Unreferenced(req); !reflect.DeepEqual(un, []string{"u"}) {
+		t.Errorf("Unreferenced = %v, want [u] (the holdout reads v)", un)
+	}
+	if !mentionsRef(&types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Holdout: `dot(v, ref("w", "k")) > 0`}}}) {
+		t.Error("mentionsRef missed a ref() in a holdout")
 	}
 }

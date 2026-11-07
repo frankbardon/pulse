@@ -333,11 +333,12 @@ func Find(resolved []Resolved, name string) (Resolved, bool) {
 // slot's `vector` (groups and both crosstab axes), every aggregation
 // slot's `vector` (aggregations, the crosstab cell and its margin
 // aggregations), and every
-// Request.Vectors name an expression reads as a free identifier — an
-// ATTR_FORMULA expression, a FILTER_EXPRESSION filterer's expression
-// (Request.Filterers and a vector attribute's params.fit_on) and so a
-// total() argument inside either (internal/exprident.Free, the walk the
-// expression program binds by). It is the one reference set, so the
+// Request.Vectors name an expression reads as a free identifier — any
+// ExprSlots expression (a FILTER_EXPRESSION filterer, an ATTR_FORMULA,
+// an attribute's params.fit_on / centroid filter, a feature's
+// params.fit_on, a regression holdout) and so a total() argument inside
+// one (internal/exprident.Free, the walk the expression program binds
+// by). It is the one reference set, so the
 // unreferenced-vector warning and every consumer read one answer.
 func Referenced(req *types.Request) map[string]bool {
 	refs := map[string]bool{}
@@ -405,22 +406,8 @@ func exprReferenced(req *types.Request, refs map[string]bool) {
 			}
 		}
 	}
-	filters := func(fs []*types.Filterer) {
-		for _, f := range fs {
-			if f != nil && f.Type == types.FILTER_EXPRESSION {
-				scan(f.Expression)
-			}
-		}
-	}
-	filters(req.Filterers)
-	for _, a := range req.Attributes {
-		if a == nil {
-			continue
-		}
-		if a.Type == types.ATTR_FORMULA {
-			scan(a.Expression)
-		}
-		filters(AttributeFitOn(a.Type, a))
+	for _, slot := range ExprSlots(req) {
+		scan(slot.Src)
 	}
 }
 

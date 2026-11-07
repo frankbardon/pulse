@@ -35,20 +35,15 @@ func SweepFitScope(written, effective *types.ComposedRequest, explicit, count in
 
 // SweepSlotReadsFit reports whether slot reads the bound-model name fit
 // — the from_sweep cycle: a literal coef() / sweep_axis() call naming
-// it in any slot expression (vectors.ExprSlots, plus every regression's
-// holdout predicate), or a params.fit naming it on an attribute or a
-// matrix.
+// it in any slot expression (vectors.ExprSlots, every regression's
+// holdout predicate included), or a params.fit naming it on an
+// attribute or a matrix.
 func SweepSlotReadsFit(slot *types.Request, fit string) bool {
 	if slot == nil || fit == "" {
 		return false
 	}
 	for _, e := range vectors.ExprSlots(slot) {
 		if coefcall.NamesFit(e.Src, fit) {
-			return true
-		}
-	}
-	for _, r := range slot.Regressions {
-		if r != nil && r.Holdout != "" && coefcall.NamesFit(r.Holdout, fit) {
 			return true
 		}
 	}

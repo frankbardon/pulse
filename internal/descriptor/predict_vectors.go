@@ -60,7 +60,7 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // resolve is judged without them (the field-reference pass reports
 // that). models is the request's bound-model catalog (nil none).
 func predictReferences(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, models model.Catalog) {
-	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0 && len(req.Features) == 0) {
+	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0 && len(req.Features) == 0 && len(req.Regressions) == 0) {
 		return
 	}
 	// Resolve also yields the schema's native vector fields (nil, nil
@@ -84,7 +84,7 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 // that); any other argument is unknown and never refused. models is
 // the request's bound-model catalog (nil none).
 func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, cls vectors.Classifier) {
-	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0 && len(req.Features) == 0) {
+	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0 && len(req.Features) == 0 && len(req.Regressions) == 0) {
 		return
 	}
 	resolved, _ := vectors.ResolveRequest(req, schema, cls)
