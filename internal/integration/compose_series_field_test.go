@@ -43,6 +43,14 @@ func csOverlay(kind types.OverlayKind, field string) types.ComposeOverlaySpec {
 	if field != "" {
 		spec.Params = map[string]any{"field": field}
 	}
+	if kind == types.OverlayKindFormula {
+		// value, ref_value and slot.<label>.value all read the scored
+		// aggregation, so each must follow params.field.
+		if spec.Params == nil {
+			spec.Params = map[string]any{}
+		}
+		spec.Params["formula"] = "value + ref_value * 1000 + slot.F.value * 1000000"
+	}
 	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
 		// A scalar side needs explicit variance / sample size (U46 E4-S16).
 		if spec.Params == nil {
@@ -114,8 +122,8 @@ func csPredict(t *testing.T, p *pulse.Pulse, req *types.ComposedRequest) *descri
 func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 	t.Parallel()
 
-	if got := len(seriesfield.ComposeKinds()); got != 5 {
-		t.Fatalf("seriesfield.ComposeKinds() = %d kinds, want 5", got)
+	if got := len(seriesfield.ComposeKinds()); got != 6 {
+		t.Fatalf("seriesfield.ComposeKinds() = %d kinds, want 6", got)
 	}
 	f := newMGFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ComposeKinds() {

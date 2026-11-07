@@ -208,8 +208,9 @@ var (
 
 // processShapes maps every kind that runs on Request.Overlays to the
 // Process host shapes it runs on, MATRIX first. OVERLAY_SHARE_OF_TOTAL
-// and OVERLAY_FORMULA run on both (FORMULA's SCALAR namespace executes
-// on a Compose host only).
+// and OVERLAY_FORMULA run on both. FORMULA also runs on a Compose host
+// (hosts), over MATRIX, SERIES and SCALAR slots; only its
+// SCALAR namespace (value / ref over ungrouped slots) is Compose-only.
 var processShapes = map[types.OverlayKind][]types.OverlayShape{
 	types.OverlayKindChiSqCol:                  matrixOnly,
 	types.OverlayKindChiSqMatrix:               matrixOnly,

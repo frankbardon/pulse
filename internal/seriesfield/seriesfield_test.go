@@ -117,7 +117,7 @@ func TestResolveComposeSlot(t *testing.T) {
 	if !reflect.DeepEqual(ce.Details, want) {
 		t.Errorf("details %#v, want %#v", ce.Details, want)
 	}
-	if !AppliesCompose(types.OverlayKindPanelIndexVsRef) || AppliesCompose(types.OverlayKindRank) || Applies(types.OverlayKindIndexVsRef) {
+	if !AppliesCompose(types.OverlayKindPanelIndexVsRef) || !AppliesCompose(types.OverlayKindFormula) || AppliesCompose(types.OverlayKindRank) || Applies(types.OverlayKindIndexVsRef) {
 		t.Error("compose kind set wrong, or a compose kind leaked into the process-host set")
 	}
 }

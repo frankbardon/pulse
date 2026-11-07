@@ -219,12 +219,15 @@ func resolve(aggs []*types.Aggregation, kind types.OverlayKind, params map[strin
 // composeKinds is the set of Compose-host kinds whose SERIES arm scores
 // one aggregation of each slot: the value of a slot's Data row is the
 // aggregation Param names, its key the slot's group columns only.
+// OVERLAY_FORMULA's value, ref_value and slot.<label>.value each read
+// it (and its SCALAR value / ref, the one aggregate row's).
 var composeKinds = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsRef:      true,
 	types.OverlayKindDeltaVsRef:      true,
 	types.OverlayKindTVsRef:          true,
 	types.OverlayKindZVsRef:          true,
 	types.OverlayKindPanelIndexVsRef: true,
+	types.OverlayKindFormula:         true,
 }
 
 // AppliesCompose reports whether kind is a Compose-host kind whose

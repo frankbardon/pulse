@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -371,6 +372,21 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		if err != nil {
 			return nil, nil, err
 		}
+		// A per-partition SERIES kind (OVERLAY_FORMULA) reads its host
+		// slot's params.partition_by right after the field rule — the
+		// shared seriespartition.ComposeHostDepth predict-compose raises
+		// at the same point (U66 #438).
+		var part composeSeriesPartition
+		if seriespartition.AppliesCompose(route) && len(targetIdxs) > 0 {
+			host := requestAt(requests, targetIdxs[0])
+			depth, perr := seriespartition.ComposeHostDepth(host, spec, i)
+			if perr != nil {
+				return nil, nil, perr
+			}
+			if depth > 0 {
+				part = composeSeriesPartition{cols: seriespartition.KeyColumns(host.Groups), depth: depth}
+			}
+		}
 		// Both this gate and the key-set alignment below judge each
 		// slot's host SHAPE by its authored Request (authoredSlotShapes)
 		// — the shape predict-compose reads — so an ungrouped slot,
@@ -441,7 +457,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// handler-signature path). Its identifier gate is the one
 		// predict-compose raises (formulaident.ComposeRefusal).
 		if route == types.OverlayKindFormula {
-			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts)
+			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts, part)
 			if err != nil {
 				return nil, nil, err
 			}

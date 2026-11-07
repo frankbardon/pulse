@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -954,6 +955,21 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
 				break
+			}
+		}
+	}
+	// Gate 4a', the SERIES partition rule (U66 #438): a per-partition
+	// kind (OVERLAY_FORMULA) splits its host slot — the first target —
+	// by params.partition_by, else every key but the last. Not a
+	// leading prefix of the host's group key columns is
+	// PULSE_OVERLAY_PARTITION_INVALID, the shared
+	// seriespartition.ComposeHostDepth the runtime raises right after
+	// its field rule.
+	if seriespartition.AppliesCompose(opts.overlayRoute(spec.Kind)) && len(spec.Targets) > 0 {
+		if hReq, ok := byLabel[spec.Targets[0]]; ok && hReq != nil {
+			if _, perr := seriespartition.ComposeHostDepth(composeSlotAsExecuted(hReq, opts), spec, specIdx); perr != nil {
+				addCodedError(env, perr)
+				appendComposeSlotPair(result, spec.Reference, spec.Targets[0], "partition-invalid")
 			}
 		}
 	}

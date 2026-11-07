@@ -27,7 +27,7 @@ var overlayFieldParam = descriptor.Param{
 	Name:        "field",
 	Type:        "string",
 	Required:    false,
-	Description: "On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
+	Description: "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
 }
 
 // overlayPartitionByParam is params.partition_by: the leading group key
@@ -36,7 +36,7 @@ var overlayPartitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
 	Required:    false,
-	Description: "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). Anything else is PULSE_OVERLAY_PARTITION_INVALID.",
+	Description: "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). A Compose OVERLAY_FORMULA reads its first target slot's groups. Anything else is PULSE_OVERLAY_PARTITION_INVALID.",
 }
 
 // facetOverlayKind reports whether kind runs on the facet host, which

@@ -333,3 +333,55 @@ func TestYoY_Refused(t *testing.T) {
 		}
 	}
 }
+
+// ComposeHostDepth is the Depth rule over a Compose OVERLAY_FORMULA's
+// host slot (its first target): every key but the last by default, an
+// explicit leading prefix, [] for none. A crosstab, ungrouped or absent
+// host, and a kind outside AppliesCompose, partition nothing. A
+// refusal is Depth's, located by Details.slot.
+func TestComposeHostDepth(t *testing.T) {
+	t.Parallel()
+
+	if !AppliesCompose(types.OverlayKindFormula) || AppliesCompose(types.OverlayKindIndexVsRef) {
+		t.Fatal("compose partition kind set wrong")
+	}
+	if got := ComposeKinds(); !reflect.DeepEqual(got, []types.OverlayKind{types.OverlayKindFormula}) {
+		t.Fatalf("ComposeKinds = %v", got)
+	}
+	formula := func(params map[string]any) *types.ComposeOverlaySpec {
+		return &types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Reference: "a", Targets: []string{"b"}, Params: params}
+	}
+	host := func(n int) *types.Request { return &types.Request{Groups: groups(n)} }
+	for _, c := range []struct {
+		name string
+		req  *types.Request
+		spec *types.ComposeOverlaySpec
+		want int
+	}{
+		{"implicit 3", host(3), formula(map[string]any{"formula": "value"}), 2},
+		{"implicit 2", host(2), formula(nil), 1},
+		{"one grouper", host(1), formula(nil), 0},
+		{"explicit prefix", host(3), formula(map[string]any{"partition_by": []any{"region"}}), 1},
+		{"explicit none", host(3), formula(map[string]any{"partition_by": []any{}}), 0},
+		{"null", host(2), formula(map[string]any{"partition_by": nil}), 1},
+		{"ungrouped", host(0), formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"crosstab", &types.Request{Groups: groups(3), Crosstab: &types.CrosstabSpec{}}, formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"nil host", nil, formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"other kind", host(3), &types.ComposeOverlaySpec{Kind: types.OverlayKindIndexVsRef, Targets: []string{"b"}, Params: map[string]any{"partition_by": []any{"x"}}}, 0},
+	} {
+		got, err := ComposeHostDepth(c.req, c.spec, 0)
+		if err != nil || got != c.want {
+			t.Errorf("%s: ComposeHostDepth = (%d, %v), want %d", c.name, got, err, c.want)
+		}
+	}
+	_, err := ComposeHostDepth(host(2), formula(map[string]any{"partition_by": []any{"store"}}), 4)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_PARTITION_INVALID {
+		t.Fatalf("err = %v, want PULSE_OVERLAY_PARTITION_INVALID", err)
+	}
+	want := map[string]any{"index": 4, "kind": string(types.OverlayKindFormula), "partition_by": []string{"store"},
+		"groups": []string{"region", "store"}, "reason": "not_prefix", "field": "store", "slot": "b"}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Errorf("details %#v, want %#v", ce.Details, want)
+	}
+}

@@ -98,6 +98,8 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 // "".
 func seriesFieldNoteFor(k types.OverlayKind) string {
 	switch {
+	case seriespartition.Ordered(k) && seriespartition.AppliesCompose(k):
+		return seriesFieldNote + seriesPartitionNote + seriesAxisNote + composePartitionNote
 	case seriespartition.Ordered(k):
 		return seriesFieldNote + seriesPartitionNote + seriesAxisNote
 	case seriespartition.Applies(k):
@@ -152,6 +154,13 @@ const seriesTotalNote = " Each row is scored against its partition's total (and,
 const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
 	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on every slot it reads; " +
 	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
+
+// composePartitionNote closes the Description of a kind that also runs
+// per partition on a Compose host (seriespartition.AppliesCompose;
+// seriesfield.AppliesCompose holds it too): the same two rules, per slot.
+const composePartitionNote = " On a Compose host Params[\"field\"] names the aggregation each slot it reads is scored on " +
+	"(PULSE_OVERLAY_FIELD_UNKNOWN carries Details.slot), and the partition rule splits the first target slot's rows " +
+	"(Details.slot on a refusal)."
 
 // chainSeriesFieldNote closes the Description of every whole-chain
 // kind whose SERIES arm scores one stage aggregation

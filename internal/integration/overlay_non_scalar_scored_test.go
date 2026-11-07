@@ -91,8 +91,12 @@ func nsJSON(t *testing.T, v any) string {
 }
 
 // nsTwoSampleParams are the per-side stat params OVERLAY_T_VS_REF /
-// OVERLAY_Z_VS_REF need over a scalar slot.
+// OVERLAY_Z_VS_REF need over a scalar slot (and OVERLAY_FORMULA's
+// required formula).
 func nsTwoSampleParams(kind types.OverlayKind, m map[string]any) map[string]any {
+	if kind == types.OverlayKindFormula {
+		m["formula"] = "value" // FORMULA's one required param
+	}
 	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
 		for _, k := range []string{"variance_target", "variance_ref", "sample_size_target", "sample_size_ref"} {
 			m[k] = 4.0
