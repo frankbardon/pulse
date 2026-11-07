@@ -321,11 +321,6 @@
           },
           "windows": [
             {
-              "order_by": [
-                {
-                  "field": "\u003corder_by\u003e"
-                }
-              ],
               "params": {
                 "expression": "\u003cexpression\u003e"
               },
@@ -335,8 +330,7 @@
         },
         "placeholders": [
           "cohort",
-          "expression",
-          "order_by"
+          "expression"
         ],
         "alternatives": [
           {
@@ -434,4 +428,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6b6ee09686765eb20150d22353e121393c292868ec16da00f5e50da6ce6acf37
+// golden-hash: 2f95a6b9c993eb7c00b14f35a01ee126de03fe759591b48bae886d7d61029477

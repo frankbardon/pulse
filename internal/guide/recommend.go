@@ -235,7 +235,7 @@ func boundRecommendations(op opInfo, in descriptor.Intent, base descriptor.Recom
 		}
 		for _, n := range needs {
 			rec.Placeholders = append(rec.Placeholders, n.key)
-			rec.Needs = append(rec.Needs, descriptor.RecommendNeed{Param: n.key, Why: whyNeed(n)})
+			rec.Needs = append(rec.Needs, descriptor.RecommendNeed{Param: n.key, Why: whyNeed(op.name, n)})
 		}
 		if len(rec.Placeholders) > 0 {
 			rec.Placeholders = sortedUnique(rec.Placeholders)

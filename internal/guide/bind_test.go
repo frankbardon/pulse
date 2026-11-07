@@ -206,6 +206,9 @@ func TestRecommendBound_NeedsOperators(t *testing.T) {
 		{descx.IntentSegment, "FEAT_BUCKETIZE", []string{"boundaries"}},
 		// No weight anywhere: the weighted mean asks for one.
 		{descx.IntentDescribe, "AGG_WEIGHTED_MEAN", []string{"weight_field"}},
+		// Row-local: no field slot, no order_by, only the expression.
+		{descx.IntentBenchmark, "WIN_FORMULA", []string{"expression"}},
+		{descx.IntentComposition, "WIN_FORMULA", []string{"expression"}},
 	}
 	for _, w := range want {
 		res := boundAll(t, nil, w.intent)
@@ -507,6 +510,9 @@ func TestRecommend_NeedsWhyLint(t *testing.T) {
 	}
 	for k, w := range needWhy {
 		lint("need "+k, w)
+	}
+	for k, w := range opNeedWhy {
+		lint("need "+k[0]+" "+k[1], w)
 	}
 	lint("need default", needWhyDefault)
 	for _, in := range descx.Intents() {
@@ -826,5 +832,49 @@ func TestRecommendBound_PreviousStateSubjectPrefersAnID(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no ATTR_PREVIOUS_STATE draft for the flows intent")
+	}
+}
+
+// TestRecommend_RowLocalWindowDraftsNoOrderBy: a row-local window
+// (WIN_FORMULA) refuses order_by, so neither its unbound skeleton nor
+// its bound draft carries one, and filling the expression need makes
+// the bound draft valid under predict over the fixture.
+func TestRecommend_RowLocalWindowDraftsNoOrderBy(t *testing.T) {
+	t.Parallel()
+
+	data := cohortBytes(t, boundFixture(t))
+	unbound, err := Recommend(nil, descriptor.RecommendRequest{Intent: descx.IntentComposition, Limit: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, res := range []*descriptor.RecommendResult{unbound, boundAll(t, nil, descx.IntentComposition)} {
+		for _, r := range res.Recommendations {
+			if r.Operator != string(types.WIN_FORMULA) {
+				continue
+			}
+			seen++
+			if strings.Contains(string(r.Request), "order_by") || slices.Contains(r.Placeholders, "order_by") {
+				t.Errorf("bound=%v: row-local draft carries order_by: %s", res.Bound, r.Request)
+			}
+			if !res.Bound {
+				continue
+			}
+			if len(r.Needs) != 1 || r.Needs[0].Why != opNeedWhy[[2]string{r.Operator, "expression"}] {
+				t.Errorf("needs %+v, want the WIN_FORMULA expression why", r.Needs)
+			}
+			filled := strings.Replace(string(r.Request), `"<expression>"`, `"1 + 1"`, 1)
+			var req types.Request
+			if err := json.Unmarshal([]byte(filled), &req); err != nil {
+				t.Fatalf("filled draft does not decode: %v: %s", err, filled)
+			}
+			env := descx.Predict(bytes.NewReader(data), &req, &descx.PredictOptions{})
+			if pr := env.Data.(*descriptor.PredictResult); !pr.Valid || len(env.Errors) != 0 {
+				t.Errorf("filled draft fails predict: %s %+v", filled, env.Errors)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("WIN_FORMULA drafted %d times, want one unbound and one bound", seen)
 	}
 }

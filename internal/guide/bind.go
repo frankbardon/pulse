@@ -182,12 +182,23 @@ var needWhy = map[string]string{
 	"weight_field": "Name the field that holds each row's weight.",
 }
 
+// opNeedWhy overrides needWhy for one operator's param, where the
+// shared sentence misreads it: a filter's expression picks rows, a
+// WIN_FORMULA's computes a number on each one. Each sentence passes
+// LintGuidanceText (TestRecommend_NeedsWhyLint).
+var opNeedWhy = map[[2]string]string{
+	{string(types.WIN_FORMULA), "expression"}: "Write the expression that computes each row's number from its columns and earlier windows.",
+}
+
 // needWhyDefault covers a required param with no needWhy entry, such as
 // an extension operator's.
 const needWhyDefault = "Choose this value yourself; the schema cannot supply it."
 
-func whyNeed(n bneed) string {
-	w, ok := needWhy[n.key]
+func whyNeed(op string, n bneed) string {
+	w, ok := opNeedWhy[[2]string{op, n.key}]
+	if !ok {
+		w, ok = needWhy[n.key]
+	}
 	if !ok {
 		w = needWhyDefault
 	}
@@ -414,7 +425,11 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		if !op.ignoresField && !descx.WindowFieldForbidden(types.WindowType(op.name)) {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
 		}
-		slots = append(slots, bslot{key: "order_by", loc: locOrderBy, accept: kindIs(descriptor.FieldKindDate, descriptor.FieldKindNumeric), prefer: preferDate})
+		// A row-local window (WIN_FORMULA) refuses order_by: it binds no
+		// field at all, and its expression is the caller's need.
+		if !descx.WindowRowLocal(types.WindowType(op.name)) {
+			slots = append(slots, bslot{key: "order_by", loc: locOrderBy, accept: kindIs(descriptor.FieldKindDate, descriptor.FieldKindNumeric), prefer: preferDate})
+		}
 		if descx.WindowFrameRequired(types.WindowType(op.name)) {
 			needs = append(needs, bneed{key: "frame", loc: locTop})
 		}
