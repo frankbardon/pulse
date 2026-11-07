@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"strconv"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -49,18 +51,33 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // for the shared slots (ExtensionRegressionSlotRefusal, the runtime
 // adapter's own call: an undeclared slot is PROCESSING_CONFIG {regression,
 // slot}; a declared covariance is shape-checked by regcov.CheckDeclared).
-func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
+func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, opts *PredictOptions) {
+	inst := opts.instance()
 	// Every `save` path and their uniqueness — the runtime's
 	// model.CheckRequestSaves, the one rule (first fault,
 	// details.regression; a duplicate names both sites).
 	if cerr := model.CheckRequestSaves(req); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
+	// The spec an extension model's Validate hook is handed — the slot
+	// as the runtime adapter receives it (prepareExtensionSpecs:
+	// expression params resolved, the weight in force stamped), built
+	// once, only when a hook is registered.
+	var view *extensionSpecView
+	hooked := func(i int) *types.RegressionSpec {
+		if view == nil {
+			view = prepareExtensionSpecs(req, schema, opts)
+		}
+		if !view.judged("regressions[" + strconv.Itoa(i) + "]") {
+			return nil
+		}
+		return view.req.Regressions[i]
+	}
 	for i, reg := range req.Regressions {
 		if reg == nil {
 			continue
 		}
-		validateRegression(env, i, reg, schema, inst)
+		validateRegression(env, i, reg, schema, inst, hooked)
 	}
 }
 
@@ -68,13 +85,15 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 // loop body), then — for an extension model whose spec every rule
 // above accepted — the registration's own spec-only Validate hook
 // (ExtensionRegressionValidateRefusal), the runtime adapter's last call
-// before the factory.
-func validateRegression(env *descriptor.Envelope, i int, reg *types.RegressionSpec, schema *encoding.Schema, inst *InstanceSnapshot) {
+// before the factory. The hook judges hooked(i) — the slot as the
+// adapter receives it — and is skipped when that is nil (an expression
+// param left to the runtime).
+func validateRegression(env *descriptor.Envelope, i int, reg *types.RegressionSpec, schema *encoding.Schema, inst *InstanceSnapshot, hooked func(int) *types.RegressionSpec) {
 	before := len(env.Errors)
 	_, decl, extension := regressionExtensionFor(inst, nil, reg.Type)
 	checkRegressionSpec(env, i, reg, schema, inst)
-	if extension && len(env.Errors) == before {
-		if cerr := ExtensionRegressionValidateRefusal(reg, decl); cerr != nil {
+	if extension && decl.Validate != nil && len(env.Errors) == before {
+		if cerr := ExtensionRegressionValidateRefusal(hooked(i), decl); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}

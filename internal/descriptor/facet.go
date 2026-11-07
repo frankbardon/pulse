@@ -324,7 +324,7 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// (validateExtensionSpecs): FacetSchema builds its filterers past
 	// its own rules.
 	if len(env.Errors) == 0 {
-		validateExtensionSpecs(env, &types.Request{Filterers: req.Filterers}, opts)
+		validateFacetExtensionSpecs(env, req, models, opts)
 	}
 
 	// Populate the FACET-host predict surface (OverlaysApplied + OverlayCost)

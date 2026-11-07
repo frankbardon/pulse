@@ -222,8 +222,10 @@ before the factory (and before any `resample` / `selection` refit), and
 both report the same error: your `*errors.CodedError` as is, any other
 error (or a panic) as `PULSE_EXTENSION_SPEC_REFUSED` with details
 `{category: "regression", type, slot: "regressions"}` plus the slot's
-`name`. It sees a copy of the spec, never a record or the schema; it
-must accept the probe spec (section 7). Full contract:
+`name`. It sees a copy of the spec as the adapter receives it — the
+weight in force stamped, an expression-valued param resolved — on both
+sides, never a record or the schema; it must accept the probe spec
+(section 7). Full contract:
 [Extension Points](extension-points.md#validate-hook-spec-only-refusals-at-predict).
 
 ## 5. The scorer

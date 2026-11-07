@@ -2021,15 +2021,29 @@ both sides; the parity gates are
 `TestExtensions_SpecValidatePredictMatchesRuntime` (all nine
 categories) and `TestExtensions_RegressionValidatePredictMatchesRuntime`.
 
-Judge the fields a request writes and the engine never rewrites before
-construction — `type`, `field`, `label`, `name` and literal `params`
-values. Predict sees the slot as written (after `for_each` fan-out);
-the runtime hands the hook the spec its factory receives, which on a
-slot reading a `vector` carries the resolved members (and, for a
-vector aggregator, a default label and `params.labels`), on a
-`WeightAware` slot the weight in force, and on an expression-valued
-param its resolved value. A hook reading those can disagree with
-predict.
+Predict and the runtime hand the hook the SAME spec — the one the
+factory receives, after the engine's rewrites (predict replays them on
+a copy, through the runtime's own functions, and its other output
+never reads the result):
+
+- an expression-valued param (`ParamMeta.Expression`) arrives as the
+  number it resolves to;
+- a `WeightAware` slot carries the weight in force (its own `weight`,
+  else the request's, else `Options.DefaultWeight`) with its kind
+  spelled out; a slot no weight reaches carries `null`;
+- a slot reading a `vector` / `fields` carries the resolved literal
+  members, `vector` cleared (a vector aggregator also its default
+  label and `params.labels`; a tier-1 test both member sets);
+- a tier-2 test's `params.partition_by` and a matrix operator's
+  engine-owned `missing` / `max_drop_share` / `fit` are stripped.
+
+The one exception is an expression param predict cannot compute
+statically (it calls a request-bound function, reported in
+`unresolved_scalars`): the hook of that slot is judged by the runtime
+alone. Parity gates: `TestExtensions_SpecValidateSeesRewrittenVectors`,
+`TestExtensions_SpecValidateSeesStampedWeights`,
+`TestExtensions_SpecValidateSeesResolvedExpressions`,
+`TestExtensions_SpecValidateFacetSeesResolvedExpressions`.
 
 ## Vector inputs (`vector` / `fields`)
 

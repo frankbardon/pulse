@@ -255,8 +255,8 @@ func (p *Processor) planRowTests(req *types.Request) ([]rowTestPlan, error) {
 				map[string]any{"type": string(t.Type), "tier": "tests"})
 		}
 		spec := t
-		if i < len(inputs) && inputs[i].Has() {
-			spec = withResolvedMembers(t, inputs[i])
+		if i < len(inputs) {
+			spec = vectors.TestSlotRewrite(t, inputs[i])
 		}
 		probe, err := factory(spec, p.schema)
 		if err != nil {
@@ -265,18 +265,6 @@ func (p *Processor) planRowTests(req *types.Request) ([]rowTestPlan, error) {
 		out = append(out, rowTestPlan{spec: t, resolved: spec, factory: factory, label: testLabel(t), idx: i, probe: probe})
 	}
 	return out, nil
-}
-
-// withResolvedMembers returns a copy of t whose Fields / Fields2 are
-// the resolved member lists of in (Vector / Vector2 cleared).
-func withResolvedMembers(t *types.Test, in vectors.TestInput) *types.Test {
-	cp := *t
-	cp.Vector, cp.Fields = "", append([]string(nil), in.Members.Members...)
-	cp.Vector2, cp.Fields2 = "", nil
-	if in.HasSecond {
-		cp.Fields2 = append([]string(nil), in.Members2.Members...)
-	}
-	return &cp
 }
 
 // buildPostTests constructs PostTest instances for the tier-2 tests

@@ -778,7 +778,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// spec an engine rule refuses is reported as that rule's refusal
 	// alone (regressions run theirs per slot in validateRegression).
 	if len(env.Errors) == 0 {
-		validateExtensionSpecs(env, req, opts)
+		validateExtensionSpecs(env, req, schema, opts)
 	}
 }
 
@@ -1142,7 +1142,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// Check regression slots: structural shape and every spec rule the
 	// engines share with predict (validateRegressions); data-dependent
 	// checks (n ≥ p + 1, separation, convergence) stay with the fit.
-	validateRegressions(env, req, schema, projected, opts.Instance)
+	validateRegressions(env, req, schema, projected, opts)
 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
 	// the schema, and the absent-categorical-code warning.
