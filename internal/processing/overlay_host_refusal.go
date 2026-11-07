@@ -21,7 +21,8 @@ import (
 // grouped applyOverlaysSeriesToResponse) call it before any payload
 // guard, so the refusal is a property of the request: an empty result,
 // a long-shape crosstab or an ungrouped run refuses it the way predict
-// does. keep is the ComputePlan's overlay mask (nil: every spec); a
+// does. An unknown kind is refused here too
+// (overlayhost.RequestKindUnknownRefusal), after the slot refusal. keep is the ComputePlan's overlay mask (nil: every spec); a
 // skipped spec raises nothing.
 func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep func(int) bool) error {
 	if req == nil {
@@ -49,6 +50,13 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 				return cerr
 			}
 			continue
+		}
+		// A kind no catalog or extension knows (never registered, or
+		// hidden by the feature set) — predict's refusal. Raised here on
+		// every shape, so an ungrouped or matrix-only request, where no
+		// dispatcher runs, refuses it as a grouped one does.
+		if cerr := overlayhost.RequestKindUnknownRefusal(req, req.Overlays[i].Kind, route, false, i); cerr != nil {
+			return cerr
 		}
 		if cerr := overlayhost.ShapeRefusal(judged, req.Overlays[i].Kind, route, i); cerr != nil {
 			return cerr

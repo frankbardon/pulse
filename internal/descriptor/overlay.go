@@ -1375,13 +1375,11 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	// "is this kind in the catalog?" probe; AllOverlayKinds() and the
 	// streamability table are co-maintained per TestStreamability_OverlaysKnown.
 	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
-		// The runtime dispatcher's refusal: a grouped request's SERIES
-		// fold names its host, a crosstab's MATRIX fold none.
-		host := ""
-		if req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
-			host = "series"
+		// The runtime host pre-pass's refusal (refuseWrongHostOverlays):
+		// a grouped request's SERIES host named, any other none.
+		if cerr := overlayhost.RequestKindUnknownRefusal(req, spec.Kind, opts.overlayRoute(spec.Kind), false, index); cerr != nil {
+			addCodedError(env, cerr)
 		}
-		addCodedError(env, overlayhost.KindUnknownRefusal(spec.Kind, index, host))
 		return
 	}
 

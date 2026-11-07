@@ -53,3 +53,24 @@ func KindUnknownRefusal(kind types.OverlayKind, index int, host string) *errors.
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_KIND_UNKNOWN,
 		"overlay kind is not in the catalog: "+string(kind), details)
 }
+
+// RequestKindUnknownRefusal is KindUnknownRefusal for the
+// Request.Overlays spec at index, judged up front on every Process
+// shape: nil when route is a built-in catalog kind or extension (the
+// instance registers route as one); otherwise the refusal with the host
+// of the dispatcher that would have run it — "series" on a grouped
+// request with no crosstab, none on a crosstab, a matrix-only or an
+// ungrouped request. Predict (validateOverlaySpec) and the runtime's
+// host pre-pass (refuseWrongHostOverlays) both call it, so an ungrouped
+// request — where no dispatcher runs — refuses an unknown kind as a
+// grouped one does instead of ignoring it.
+func RequestKindUnknownRefusal(req *types.Request, kind, route types.OverlayKind, extension bool, index int) *errors.CodedError {
+	if extension || catalogKind(route) {
+		return nil
+	}
+	host := ""
+	if req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+		host = "series"
+	}
+	return KindUnknownRefusal(kind, index, host)
+}
