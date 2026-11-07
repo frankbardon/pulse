@@ -6,19 +6,24 @@
 // program predict type-checked.
 //
 // The env. A WIN_FORMULA runs on the output rows (grouped rows, the
-// single aggregated row, or the record rows when nothing aggregates),
-// whose cells carry no declared type: a group key column may hold a
-// label or a number, an aggregation a float or an integer. So every
-// name the expression reads (Reads) is declared `any` on both sides —
-// predict has no row to type it from, and the engine compiles before
-// the first row. Which names exist is the field-reference walk's
-// judgement (the row's columns plus every EARLIER window's label); the
-// compile only types what it is given. The request-bound half is the
-// caller's exprenv.Bound: the request's params, the embedder's
-// ExprFunctions, lookup() and range_label(). coef(), sweep_axis(),
-// response() and total() are never declared (an unknown function on
-// both sides), and ref() — always registered as a built-in — is
-// refused here: a window row is no record, it carries no reference key.
+// single aggregated row) or on the record rows (nothing aggregates, or
+// the windows run first). Over the RECORD rows every schema field is
+// declared as the Go type its row cell carries (Columns, RowType) — a
+// categorical label is a string — so arithmetic on a non-number is
+// refused at compile on both sides; every other name (a derived column,
+// an earlier window's label) is declared `any`. Typing changes no
+// figure: the operators and patchers evaluate a typed float64 operand
+// exactly as an untyped one holding it. The output rows' cells
+// carry no declared type — a group key may hold a label or a number, an
+// aggregation a float or an integer — so every name they read is `any`.
+// Which names exist is the field-reference walk's judgement (the row's
+// columns plus every EARLIER window's label); the compile only types
+// what it is given. The request-bound half is the caller's
+// exprenv.Bound: the request's params, the embedder's ExprFunctions,
+// lookup() and range_label(). coef(), sweep_axis(), response() and
+// total() are never declared (an unknown function on both sides), and
+// ref() — always registered as a built-in — is refused here: a window
+// row is no record, it carries no reference key.
 //
 // The result. The checker's result type must be a number, or
 // unknowable before a row (`any`); a bool, a string, a list or a map is
@@ -34,7 +39,7 @@
 // is a null output.
 //
 // Leaf: expr-lang + internal/exprenv / exprident + the public errors
-// package. Never imports the engine.
+// and encoding packages. Never imports the engine.
 package winformula
 
 import (
@@ -47,6 +52,7 @@ import (
 	exprtypes "github.com/expr-lang/expr/types"
 	"github.com/expr-lang/expr/vm"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
@@ -94,8 +100,47 @@ func (p *Program) Source() string { return p.src }
 // Reads returns the column names the program reads (Reads).
 func (p *Program) Reads() []string { return p.reads }
 
-// Compile compiles src: every name it reads declared `any`, bound's
-// declarations layered on top (exprenv.Bound.Options). A compile
+// Columns is the typed half of a WIN_FORMULA's declarations: over the
+// record rows (overRecords — the walk's rows-are-records verdict, the
+// engine's applyWindows mode), every field of schema declared as the Go
+// type its row cell carries (RowType); nil over the output rows or
+// without a schema. Predict's walk and the window factory build it from
+// the same two inputs, so both compile the same declarations. A
+// duplicated name keeps its first occurrence, as Schema.Field does.
+func Columns(schema *encoding.Schema, overRecords bool) exprtypes.Map {
+	if !overRecords || schema == nil {
+		return nil
+	}
+	decl := make(exprtypes.Map, len(schema.Fields))
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if _, dup := decl[f.Name]; dup {
+			continue
+		}
+		decl[f.Name] = exprtypes.TypeOf(reflect.Zero(RowType(f)).Interface())
+	}
+	return decl
+}
+
+// RowType is the Go type field f's non-null cell has on a record row as
+// a WIN_FORMULA reads it: the expression env's type (exprenv.ValueType —
+// a dictionary categorical's label string, a dictionary set's label
+// slice, a wide set's mask, a narrow dictionary-less set's uint64, a
+// vector's []float64), except that a decimal reads as its float64 value
+// (the window engine converts the cell before the run) and a u64 as its
+// float64 echo (a record row carries the echo, never the word).
+func RowType(f *encoding.Field) reflect.Type {
+	switch t := exprenv.ValueType(f); t {
+	case reflect.TypeOf(exprenv.Decimal{}), reflect.TypeOf(exprenv.U64(0)):
+		return reflect.TypeOf(float64(0))
+	default:
+		return t
+	}
+}
+
+// Compile compiles src: each name it reads declared as cols declares it
+// (Columns), else `any`; bound's declarations layered on top
+// (exprenv.Bound.Options). A compile
 // failure, a ref() call or a result type that is no number is
 // PULSE_FORMULA_COMPILE_ERROR at Site (exprenv.CompileError), so
 // predict and the engine word it alike. paramsColumn reports that
@@ -103,7 +148,7 @@ func (p *Program) Reads() []string { return p.reads }
 // walk knows; the engine's factory, which the walk already judged,
 // passes false): a params read is then PULSE_PARAMS_FIELD_COLLISION,
 // an undeclared one PULSE_PARAMS_UNDECLARED (exprenv.ParamsRefusal).
-func Compile(src string, bound exprenv.Bound, paramsColumn bool) (*Program, *errors.CodedError) {
+func Compile(src string, cols exprtypes.Map, bound exprenv.Bound, paramsColumn bool) (*Program, *errors.CodedError) {
 	if ce := exprenv.ParamsRefusal(src, bound.Params, paramsColumn); ce != nil {
 		return nil, ce
 	}
@@ -111,6 +156,10 @@ func Compile(src string, bound exprenv.Bound, paramsColumn bool) (*Program, *err
 	decl := exprtypes.Map{}
 	if parsed {
 		for _, n := range reads {
+			if t, typed := cols[n]; typed {
+				decl[n] = t
+				continue
+			}
 			decl[n] = exprtypes.Any
 		}
 		if callee := exprident.FirstCallee(src, func(n string) bool { return n == exprenv.RefFunc }); callee != "" {

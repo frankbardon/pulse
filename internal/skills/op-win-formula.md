@@ -23,19 +23,19 @@ Slots: `label` (default `WIN_FORMULA`). `field`, `order_by`, `partition_by` and 
 
 ## Inputs
 
-Names in `expression` are the row's columns at this window's turn: group keys and aggregation labels on grouped rows, record fields on the record rows, plus the label of every window listed BEFORE it. `params.<name>` reads request params; embedder functions, `lookup()` and `range_label()` are available.
+Names in `expression` are the row's columns at this window's turn (group keys and aggregation labels on grouped rows, record fields on record rows) plus every EARLIER window's label. `params.<name>` reads request params; embedder functions, `lookup()` and `range_label()` work.
 
 ## Output
 
-One `float64` per row on `Label`: `s_events / s_n` over two earlier share-window labels is the decile's lift.
+One `float64` per row on `Label`: `s_events / s_n` over two earlier share labels is the decile's lift.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- A null in any column it reads makes the row `null` — `x ?? 0` never sees the nil. A nil or non-finite result (`1/0`) reads `null`.
-- Refused on predict AND runtime alike, before any row: its own or a LATER window's label (`PULSE_WINDOW_INVALID` reason `forward_reference`), an unknown name (`SERVICE_VALIDATION`), a bool / string result, `ref()`, `coef()`, `total()` or bad syntax (`PULSE_FORMULA_COMPILE_ERROR`).
-- Columns are untyped until a row runs: arithmetic on a label fails the run (`PROCESSING_RUNTIME`).
+- A null input makes the row `null` (`x ?? 0` never sees the nil); so does a nil or non-finite result (`1/0`).
+- Refused at predict and runtime alike, before any row: its own or a LATER window's label (`PULSE_WINDOW_INVALID` reason `forward_reference`), an unknown name (`SERVICE_VALIDATION`), a bool / string result, `ref()`, `coef()`, `total()` or bad syntax (`PULSE_FORMULA_COMPILE_ERROR`).
+- Record fields are typed (a categorical is a string): `region * 2` is refused before any row; on grouped rows it fails the run (`PROCESSING_RUNTIME`).
 - Not weightable (request `weight` → `PROCESSING_CONFIG`); buffered.
 
 ## See

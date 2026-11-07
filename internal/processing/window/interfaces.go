@@ -1,6 +1,7 @@
 package window
 
 import (
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/types"
 )
@@ -27,4 +28,12 @@ type WindowOptions struct {
 	// placeholders. coef(), sweep_axis() and response() are never set
 	// on it: a window row reads no fitted model.
 	ExprBound exprenv.Bound
+	// Schema and OverRecords type a WIN_FORMULA's record columns
+	// (winformula.Columns): OverRecords is set when the rows are the
+	// record rows (nothing groups or aggregates, or the windows run
+	// first) — the mode predict's field-reference walk reads off its
+	// own pipeline point — and Schema is the cohort schema those rows
+	// decode from. Zero: every name untyped.
+	Schema      *encoding.Schema
+	OverRecords bool
 }

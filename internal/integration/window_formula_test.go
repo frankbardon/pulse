@@ -352,15 +352,22 @@ func TestWinFormula_WeightNeutral(t *testing.T) {
 
 // TestWinFormula_WindowsFirstColumnAggregates: an aggregation reading a
 // WIN_FORMULA label runs the windows first over the records, and sums
-// the formula's per-record values.
+// the formula's per-record values — under the projected decode, which
+// keeps the record columns the expression reads.
 func TestWinFormula_WindowsFirstColumnAggregates(t *testing.T) {
 	t.Parallel()
 	p, fsys := winFormulaCohort(t, pulse.Options{}, 0)
 	req := func() *types.Request {
 		return &types.Request{
-			Cohort:       &types.Cohort{Filename: "gains.pulse"},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x2", Label: "sum_x2"}},
-			Windows:      winFormulaWindows(`[{"type": "WIN_FORMULA", "label": "x2", "params": {"expression": "x * 2"}}]`),
+			Cohort: &types.Cohort{Filename: "gains.pulse"},
+			// The count names d, so the needed set is not empty (an
+			// empty one decodes every field): without the formula's own
+			// projection entry x would decode null and sum_x2 read 0.
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "x2", Label: "sum_x2"},
+				{Type: types.AGG_COUNT, Field: "d", Label: "n"},
+			},
+			Windows: winFormulaWindows(`[{"type": "WIN_FORMULA", "label": "x2", "params": {"expression": "x * 2"}}]`),
 		}
 	}
 	if env := predictEnvelope(t, p, fsys, "gains.pulse", req()); len(env.Errors) != 0 {

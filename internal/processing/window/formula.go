@@ -14,8 +14,10 @@ import (
 // order_by, partition_by or frame (internal/windowparams).
 //
 // The compile is internal/winformula's, the one predict's
-// field-reference walk runs: every name the expression reads declared
-// `any`, the request-bound functions from WindowOptions.ExprBound.
+// field-reference walk runs: over the record rows
+// (WindowOptions.OverRecords) every schema field typed as its row cell
+// (winformula.Columns), every other name `any`; the request-bound
+// functions from WindowOptions.ExprBound.
 // Which names exist at this window's point (a forward reference to a
 // later window's label, a record column the output rows do not carry)
 // is the walk's refusal, raised before any window runs.
@@ -37,7 +39,7 @@ func newFormula(w *types.Window, opts WindowOptions) (WindowComputer, error) {
 	if ref != nil {
 		return nil, ref.Coded()
 	}
-	prog, ce := winformula.Compile(src, opts.ExprBound, false)
+	prog, ce := winformula.Compile(src, winformula.Columns(opts.Schema, opts.OverRecords), opts.ExprBound, false)
 	if ce != nil {
 		return nil, ce
 	}

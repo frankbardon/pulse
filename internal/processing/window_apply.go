@@ -30,12 +30,15 @@ import (
 // record-row run (no grouper key column), byte-identically. copies,
 // when set, hears every built-in copy window's (WIN_LAG / WIN_LEAD)
 // copied cell (window.ApplyObserved) — the record-row run's
-// u64RowWords.copyObserver; nil observes nothing.
+// u64RowWords.copyObserver; nil observes nothing. overRecords reports
+// that rows are the record rows (a windows-only run, the windows-first
+// pass, Materialize), not the grouped or aggregated output rows: a
+// WIN_FORMULA then types its record columns (winformula.Columns).
 //
 // A window's scalar-expression params (internal/windowscalar) are
 // resolved first, against the request's params and bound models, and
 // the slot the reading and the factory see carries the numbers.
-func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders, copies window.CopyObserver) error {
+func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders, copies window.CopyObserver, overRecords bool) error {
 	windows, err := p.resolveWindowScalars(windows)
 	if err != nil {
 		return err
@@ -70,8 +73,11 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 	}
 	// A WIN_FORMULA compiles against the registry's request-bound
 	// declarations (params, ExprFunctions, lookup, range_label) — the
-	// set predict's field-reference walk declares with placeholders.
-	return window.ApplyWith(ctx, rows, windows, p.exts.LookupWindow, orders, copies, window.WindowOptions{ExprBound: p.exts.exprBound()})
+	// set predict's field-reference walk declares with placeholders —
+	// and, over the record rows (overRecords), types each schema field
+	// as predict's walk does (winformula.Columns).
+	return window.ApplyWith(ctx, rows, windows, p.exts.LookupWindow, orders, copies,
+		window.WindowOptions{ExprBound: p.exts.exprBound(), Schema: p.schema, OverRecords: overRecords})
 }
 
 // resolveWindowScalars is the runtime's windowscalar pass over windows:

@@ -226,6 +226,36 @@ func TestPredict_Suggestions_WindowMissingOrderBy(t *testing.T) {
 	}
 }
 
+// TestPredict_Suggestions_ShareOrderByOnlyWhenCumulative: a WIN_SHARE /
+// WIN_LIFT needs an order_by only under params.cumulative true — a
+// non-cumulative one draws no OrderBy suggestion (it would propose a
+// key the operator ignores), a cumulative one without keys does.
+func TestPredict_Suggestions_ShareOrderByOnlyWhenCumulative(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "ts", Type: encoding.FieldTypeDate, Description: "Event timestamp as epoch days"},
+			{Name: "qty", Type: encoding.FieldTypeF64, Description: "Quantity sold per event"},
+		},
+	}
+	for _, tc := range []struct {
+		win  *types.Window
+		want bool
+	}{
+		{&types.Window{Type: types.WIN_SHARE, Field: "qty", Label: "s"}, false},
+		{&types.Window{Type: types.WIN_LIFT, Field: "qty", Label: "l", Params: json.RawMessage(`{"base": "ts"}`)}, false},
+		{&types.Window{Type: types.WIN_SHARE, Field: "qty", Label: "s", Params: json.RawMessage(`{"cumulative": false}`)}, false},
+		{&types.Window{Type: types.WIN_SHARE, Field: "qty", Label: "s", Params: json.RawMessage(`{"cumulative": true}`)}, true},
+		{&types.Window{Type: types.WIN_LIFT, Field: "qty", Label: "l", Params: json.RawMessage(`{"base": "ts", "cumulative": true}`)}, true},
+	} {
+		ss := runPredictForSuggestions(t, schema, &types.Request{Windows: []*types.Window{tc.win}})
+		if got := findSuggestionByPath(t, ss, "Windows.0.OrderBy") != nil; got != tc.want {
+			t.Errorf("%s params %s: OrderBy suggestion %v, want %v (%+v)", tc.win.Type, tc.win.Params, got, tc.want, ss)
+		}
+	}
+}
+
 func TestPredict_Suggestions_PercentileMissingP(t *testing.T) {
 	t.Parallel()
 

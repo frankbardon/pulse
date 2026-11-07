@@ -30,7 +30,10 @@ const WindowFormulaForwardReason = "forward_reference"
 //     reason forward_reference; any other unknown name is the
 //     SERVICE_VALIDATION a window's field reports (windowMissing);
 //   - once every name resolves, the expression compiles
-//     (winformula.Compile, the engine factory's compile) against the
+//     (winformula.Compile, the engine factory's compile) — over the
+//     record rows with every schema field typed as its row cell
+//     (winformula.Columns), so arithmetic on a categorical label is
+//     refused here, not at the first row — against the
 //     walk's request-bound declarations less coef / sweep_axis /
 //     response (a window row reads no fitted model), and its literal
 //     lookup() / range_label() calls are judged against the instance's
@@ -71,7 +74,10 @@ func (w *fieldRefWalk) checkWindowFormula(req *types.Request, i int, win *types.
 	}
 	bound := w.compile.bound
 	bound.Coef, bound.SweepAxis, bound.Response = nil, nil, nil
-	prog, ce := winformula.Compile(src, bound, w.cols[exprenv.ParamsName])
+	// Over the record rows (no output-row swap at step 5: w.rowCols
+	// nil) every schema field is typed as its row cell
+	// (winformula.Columns), as the engine's applyWindows types it.
+	prog, ce := winformula.Compile(src, winformula.Columns(w.compile.schema, w.rowCols == nil), bound, w.cols[exprenv.ParamsName])
 	if ce != nil {
 		w.out = append(w.out, ce)
 		return
