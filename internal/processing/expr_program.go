@@ -205,7 +205,11 @@ func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs [
 	if err := p.bindVectors(vecs); err != nil {
 		return nil, err
 	}
-	if schema != nil {
+	if schema != nil && (!wholeEnv || envReadsStatic(src)) {
+		// A `$env.id` / `$env["id"]` member is among refs, so a static
+		// $env read binds the word like a bare field read. A dynamic
+		// $env use (`$env[name]`, `values($env)`, $env passed whole)
+		// reads values no patcher sees: every u64 then keeps its echo.
 		for _, name := range refs {
 			if f := schema.Field(name); f != nil && f.Type == encoding.FieldTypeU64 && !p.isVector(name) {
 				p.u64Refs = append(p.u64Refs, name)
@@ -330,8 +334,9 @@ func (p *exprProgram) settleInputs() {
 
 // bindEnv copies the record's whole AllValues map into a pooled env,
 // every decimal and derived column lifted (exprenv.Bind) and every u64
-// field the expression names bound as its stored word (unless it reads
-// $env, whose map keeps the float64 echo it always carried): the map is
+// field the expression names — directly, through a let, or as a static
+// `$env.id` member — bound as its stored word (u64Refs; empty when it
+// uses $env dynamically, whose reads keep the float64 echo): the map is
 // the record's shared cache and is never written.
 func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 	env := exprEnvPool.Get().(map[string]any)
@@ -343,11 +348,9 @@ func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 		}
 		env[k] = v
 	}
-	if !p.wholeEnv {
-		for _, name := range p.u64Refs {
-			if v, ok := env[name]; ok {
-				env[name] = r.exprU64(name, v)
-			}
+	for _, name := range p.u64Refs {
+		if v, ok := env[name]; ok {
+			env[name] = r.exprU64(name, v)
 		}
 	}
 	return env
@@ -551,7 +554,7 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 				}
 			}
 		}
-		if len(p.vecs) == 0 && !p.decimals && p.derived == nil && (p.wholeEnv || len(p.u64Refs) == 0) {
+		if len(p.vecs) == 0 && !p.decimals && p.derived == nil && len(p.u64Refs) == 0 {
 			return p.run(all, r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
@@ -650,6 +653,58 @@ func runPooled(prog *vm.Program, env map[string]any) (any, error) {
 	out, err := m.Run(prog, env)
 	exprVMPool.Put(m)
 	return out, err
+}
+
+// envReadsStatic reports whether every use of $env in src is a member
+// read with a constant name (`$env.id`, `$env["id"]`) — the reads the
+// u64 patchers type and wrap, and projection (appendExprIdents) can
+// name. A source that does not parse reports false.
+func envReadsStatic(src string) bool {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return false
+	}
+	v := &envStaticVisitor{claimed: map[*exprast.IdentifierNode]bool{}}
+	exprast.Walk(&tree.Node, v)
+	return v.static()
+}
+
+// envStaticVisitor collects every $env identifier and claims those that
+// are the object of a constant-name member.
+type envStaticVisitor struct {
+	envs    []*exprast.IdentifierNode
+	claimed map[*exprast.IdentifierNode]bool
+}
+
+func (v *envStaticVisitor) Visit(node *exprast.Node) { v.visit(node) }
+
+// visit records node; at a constant-name $env member it returns the
+// member's name.
+func (v *envStaticVisitor) visit(node *exprast.Node) (string, bool) {
+	switch n := (*node).(type) {
+	case *exprast.IdentifierNode:
+		if n.Value == "$env" {
+			v.envs = append(v.envs, n)
+		}
+	case *exprast.MemberNode:
+		if id, ok := n.Node.(*exprast.IdentifierNode); ok && id.Value == "$env" {
+			if s, ok := n.Property.(*exprast.StringNode); ok {
+				v.claimed[id] = true
+				return s.Value, true
+			}
+		}
+	}
+	return "", false
+}
+
+// static reports whether every $env identifier walked was claimed.
+func (v *envStaticVisitor) static() bool {
+	for _, id := range v.envs {
+		if !v.claimed[id] {
+			return false
+		}
+	}
+	return true
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

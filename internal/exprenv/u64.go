@@ -39,10 +39,15 @@ import (
 //   - u64Retype, the last repeatable patcher, keeps the final check
 //     honest about the calls the other two write.
 //
+// A let bound straight to a u64 read (`let k = id`, `let k = $env.id`)
+// binds the read itself, not its wrap, so the name holds the word and a
+// comparison over it is exact too; every other use of the name is
+// wrapped like the field.
+//
 // A value that is not a U64 at run time (the record holds no decoder
 // word for it — a feature rewrote the column — or the env binds the
-// echo, as an `$env` read does) flows through as the float64 it always
-// was: the wrapper passes it on and the comparison falls back to
+// echo, as one that reads `$env` dynamically does) flows through as the
+// float64 it always was: the wrapper passes it on and the comparison falls back to
 // expr-lang's own operator, so the result is the historical one.
 //
 // The untyped null-row twin declares a u64 name as u64Operand (like a
@@ -152,6 +157,18 @@ func u64BoolValidate(args []reflect.Type) (reflect.Type, error) {
 type u64WrapPatcher struct{}
 
 func (u64WrapPatcher) Visit(node *exprast.Node) {
+	if d, ok := (*node).(*exprast.VariableDeclaratorNode); ok {
+		// Post-order: the initializer and every use of the name are
+		// already wrapped. A let bound straight to a u64 read (a field,
+		// `$env.id`, another such let) binds the read itself, so the name
+		// holds the word and the wrapped uses still see the echo — but a
+		// comparison over the name is exact. Any other initializer
+		// (abs(id), …) keeps its wrap.
+		if inner, ok := u64Unwrap(d.Value); ok && u64Read(inner) {
+			d.Value = inner
+		}
+		return
+	}
 	if t := (*node).Type(); t == exprU64Type || t == exprU64AnyType {
 		// Post-order: every U64 below is already wrapped.
 		exprast.Patch(node, &exprast.CallNode{
@@ -245,6 +262,16 @@ func u64Unwrap(n exprast.Node) (exprast.Node, bool) {
 		return n, false
 	}
 	return c.Arguments[0], true
+}
+
+// u64Read reports whether n reads a bound value as is: an identifier
+// (a field or a let name) or a member (`$env.id`, `$env["id"]`).
+func u64Read(n exprast.Node) bool {
+	switch n.(type) {
+	case *exprast.IdentifierNode, *exprast.MemberNode:
+		return true
+	}
+	return false
 }
 
 // u64Comparable reports whether t, the other operand of a comparison

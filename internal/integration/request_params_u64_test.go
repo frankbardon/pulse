@@ -188,6 +188,77 @@ func TestParams_U64FieldPredictMatchesRuntime(t *testing.T) {
 	}
 }
 
+// TestParams_U64EnvAndLetExact: a `$env.id` / `$env["id"]` read and a
+// let bound to the field carry the stored word end to end (#523): a
+// filter and a formula over adjacent values that collide as float64
+// keep exactly one row; predict accepts each.
+func TestParams_U64EnvAndLetExact(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := encoding.Schema{Fields: []encoding.Field{{Name: "id", Type: encoding.FieldTypeU64}, {Name: "x", Type: encoding.FieldTypeF64}}}
+	b, err := p.NewCohortBuilder(ctx, "u.pulse", s, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ { // 2^53 .. 2^53+3: 2^53 and 2^53+1 share a float64
+		if err := b.Append(pulse.CohortRow{uint64(1<<53 + i), float64(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	base := func() *types.Request {
+		return &types.Request{
+			Cohort: &types.Cohort{Filename: "u.pulse"},
+			Params: types.Params{"k": json.Number("9007199254740993")}, // 2^53 + 1
+		}
+	}
+	for _, e := range []string{
+		`$env.id == params.k`, `$env["id"] == 9007199254740993`, `let k = id; k == params.k`,
+		`let k = $env.id; k == 9007199254740993`, `let k = id; let j = k; j in [params.k]`, `id == 9007199254740993`, `$env.id == 9007199254740993`,
+	} {
+		filter := base()
+		filter.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
+		filter.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "c"}}
+		formula := base()
+		formula.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: "(" + e + ") ? 1 : 0"}}
+		formula.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "c"}}
+		for _, req := range []*types.Request{filter, formula} {
+			env, err := p.PredictEnvelope(ctx, req)
+			if err != nil || len(env.Errors) != 0 {
+				t.Fatalf("%s: predict %v %+v", e, err, env.Errors)
+			}
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("%s: %v", e, err)
+			}
+			if got := paramsFloat(t, resp, "c"); got != 1 {
+				t.Errorf("%s (attribute=%v): %v rows, want exactly 1", e, len(req.Attributes) > 0, got)
+			}
+		}
+	}
+	// A `$env` member of a field no other slot names is decoded (the
+	// projection counts it); it read nil on every row before.
+	for _, e := range []string{`$env.x >= 2`, `$env["x"] >= 2`, `let n = "x"; $env[n] >= 2`} {
+		req := base()
+		req.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
+		req.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "id", Label: "c"}}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("%s: %v", e, err)
+		}
+		if got := paramsFloat(t, resp, "c"); got != 2 {
+			t.Errorf("%s: %v rows, want 2", e, got)
+		}
+	}
+}
+
 // TestParams_U64GroupMemberPrecompute: a filter over a u64 parent-group
 // member is exact through the grouped filter precompute, per-row and on
 // the ungrouped twin alike.

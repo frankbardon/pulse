@@ -220,6 +220,45 @@ var u64EchoExprs = []string{
 	"filter([1, 7, 9], # < id)", "count([id, id2], # > 3)", "id == x ? 1 : 0", "$env.id + 1", "$env[\"id\"] == 7",
 	"$env.id == params.k", "(id ?? 0) == 7", "id == id2 - 1", "id == id2 + \"a\"", "id < x * 2 && id2 >= 3",
 	"not (id in [7])", "id != 7 || x == nil",
+	"let a = id; a", "let a = id; let b = a; b == 7", "let a = abs(id); a + 1", "let a = id; [a]",
+	"let a = $env.id; a * 2", "let a = id; a < x", "let a = id; a + \"a\"", "let a = id; a in [1, 7]",
+	"let a = id; a ?? 0", "let a = id; a == nil", "let a = id2; let b = id; a > b ? a : b",
+}
+
+// TestU64Expr_LetExact: a let bound to a u64 read holds the word, so a
+// comparison over the name is exact, on the typed program and the twin.
+func TestU64Expr_LetExact(t *testing.T) {
+	t.Parallel()
+
+	params := Params{"k": int64(9007199254740993)}
+	cases := []struct {
+		src  string
+		id   uint64
+		want bool
+	}{
+		{"let a = id; a == params.k", 1 << 53, false},
+		{"let a = id; a == params.k", 1<<53 + 1, true},
+		{"let a = id; a != 9007199254740993", 1 << 53, true},
+		{"let a = id; let b = a; b < 9007199254740993", 1 << 53, true},
+		{"let a = id; a in [9007199254740993]", 1 << 53, false},
+		{"let a = $env.id; a == params.k", 1 << 53, false},
+		{"let a = id; let b = id2; a == b", 1 << 53, false},
+		{"let a = id; a + 0 == 9007199254740993", 1 << 53, true}, // arithmetic: the echo, as before
+	}
+	for _, twin := range []bool{false, true} {
+		decl := u64TestDecl(false)
+		if twin {
+			for k, v := range decl {
+				decl[k] = Untyped(v)
+			}
+		}
+		for _, c := range cases {
+			got, err := u64Run(t, c.src, decl, params, map[string]any{"id": U64(c.id), "id2": U64(1<<53 + 1)})
+			if err != nil || got != c.want {
+				t.Errorf("twin=%v %s @ %d: %v (%v), want %v", twin, c.src, c.id, got, err, c.want)
+			}
+		}
+	}
 }
 
 // TestU64Expr_EchoEverywhereElse: for every value up to 2^53 (and, for

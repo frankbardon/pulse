@@ -745,15 +745,18 @@ func exprVectorMembers(req *types.Request, schema *encoding.Schema, c vectors.Cl
 // appendExprIdents parses src as an expr-lang expression and adds every
 // identifier that matches a schema field name to out, and every member
 // of an identifier that names a request vector (vecs: name -> members;
-// nil: none). Returns false when the expression fails to parse — caller
-// must widen the set.
+// nil: none). A constant-name `$env` member (`$env.a`, `$env["a"]`)
+// is a read of its field like a bare identifier. Returns false when the
+// expression fails to parse or uses $env dynamically (`$env[name]`,
+// `values($env)` — it may read any field) — caller must widen the set.
 func appendExprIdents(out FieldSet, src string, known map[string]struct{}, vecs map[string][]string) bool {
 	tree, err := exprparser.Parse(src)
 	if err != nil {
 		return false
 	}
-	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known, vecs: vecs})
-	return true
+	env := &envStaticVisitor{claimed: map[*exprast.IdentifierNode]bool{}}
+	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known, vecs: vecs, env: env})
+	return env.static()
 }
 
 // exprIdentVisitor collects IdentifierNode values that match schema
@@ -764,9 +767,16 @@ type exprIdentVisitor struct {
 	out   FieldSet
 	known map[string]struct{}
 	vecs  map[string][]string
+	env   *envStaticVisitor
 }
 
 func (v *exprIdentVisitor) Visit(node *exprast.Node) {
+	if name, ok := v.env.visit(node); ok {
+		if _, ok := v.known[name]; ok {
+			v.out.Add(name)
+		}
+		return
+	}
 	id, ok := (*node).(*exprast.IdentifierNode)
 	if !ok {
 		return
