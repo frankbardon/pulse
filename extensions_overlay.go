@@ -96,13 +96,40 @@ type OverlayRegistration struct {
 	// at runtime alike; undeclared (nil), params pass through unchecked.
 	Params []ParamMeta
 	// WeightAware declares that the handler reads the host's weighted
-	// figures (MatrixOverlayHost.WeightKind, CellSumWeights, CellNEff).
+	// figures (MatrixOverlayHost.WeightKind, CellSumWeights, CellNEff)
+	// and computes a correct layer under either weight kind. Without
+	// it, a spec of the kind under ANY weight resolved on its slot
+	// (slot → request → Options.DefaultWeight; on a Compose spec, a
+	// request or default weight on a slot it reads) is
+	// PULSE_EXTENSION_NOT_WEIGHT_AWARE at predict and at runtime alike;
+	// `weight: null` on the spec opts it out.
 	WeightAware bool
 	// Inferential declares that the layer carries a test statistic /
-	// p-value (OverlaySummary.Statistic / PValue), so its Interpretation
-	// should read them.
+	// p-value (OverlaySummary.Statistic / PValue). An Inferential
+	// registration must declare an Interpretation
+	// (PULSE_EXTENSION_PURPOSE_INVALID, part interpretation, rule
+	// required).
 	Inferential bool
-	// EmitsPValues declares that the layer carries p-values.
+	// EmitsPValues declares that the layer carries RAW p-values at its
+	// payload shape's site — every present cell of a MATRIX layer (a
+	// float64 p grid, NaN for an untestable cell), every SERIES entry's
+	// Summary.PValue, a SCALAR layer's Summary.PValue — and requires
+	// Inferential (PULSE_EXTENSION_PARAM_INVALID, reason
+	// p_values_not_inferential). Under a `multiplicity` block they join
+	// the request's correction family like a built-in inferential
+	// kind's: the engine writes OverlayPayload.PAdjusted /
+	// SignificantAdjusted (MATRIX) or the summaries' PAdjusted /
+	// SignificantAdjusted beside the raw p, which never moves, and the
+	// OverlayLayer.Multiplicity echo. A p-value off the site, outside
+	// [0, 1], or on a registration not declaring EmitsPValues is
+	// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH (reasons
+	// misplaced_p_values, invalid_p_value, undeclared_p_values); the
+	// probe also requires one p-value over its synthetic host
+	// (missing_p_values).
+	//
+	// Every extension kind runs buffered only: a request carrying one
+	// never takes the streaming path (PredictResult.Streamable is false
+	// with the reason named).
 	EmitsPValues bool
 	// Validate is the optional spec-only refusal hook
 	// (extend.SpecValidator): it judges a spec the declarative rules
@@ -147,8 +174,10 @@ func builtinOverlayNames() map[string]struct{} {
 
 // validateOverlayRegistrations enforces the OverlayRegistration shape:
 // the shared naming / duplicate / params pass, then at least one
-// handler (reason missing_handler) and well-formed Shapes / Scopes / Refs
-// (reasons invalid_shape / invalid_scope / invalid_ref), each
+// handler (reason missing_handler), well-formed Shapes / Scopes / Refs
+// (reasons invalid_shape / invalid_scope / invalid_ref) and
+// EmitsPValues only with Inferential (reason p_values_not_inferential),
+// each
 // PULSE_EXTENSION_PARAM_INVALID {category: overlay, name, index,
 // reason[, value]}.
 func validateOverlayRegistrations(regs []OverlayRegistration) error {
@@ -180,6 +209,9 @@ func validateOverlayRegistrations(regs []OverlayRegistration) error {
 				return invalid("invalid_ref", "Refs must list none or margin, each once", v)
 			}
 		}
+		if r.EmitsPValues && !r.Inferential {
+			return invalid("p_values_not_inferential", "declares EmitsPValues without Inferential (a layer carrying p-values is inferential)", "")
+		}
 	}
 	return nil
 }
@@ -205,10 +237,13 @@ func badEnumList[T ~string](list, known []T) (string, bool) {
 // runtime registry and the snapshot both carry.
 func overlayDeclaration(r OverlayRegistration) overlayhost.ExtensionDecl {
 	d := overlayhost.ExtensionDecl{
-		Kind:   r.Name,
-		Shapes: slices.Clone(r.Shapes),
-		Scopes: slices.Clone(r.Scopes),
-		Refs:   []string{overlayhost.RefNone},
+		Kind:         r.Name,
+		Shapes:       slices.Clone(r.Shapes),
+		Scopes:       slices.Clone(r.Scopes),
+		Refs:         []string{overlayhost.RefNone},
+		WeightAware:  r.WeightAware,
+		Inferential:  r.Inferential,
+		EmitsPValues: r.EmitsPValues,
 	}
 	if r.Handler.Matrix != nil {
 		d.HostShapes = append(d.HostShapes, types.OverlayShapeMatrix)

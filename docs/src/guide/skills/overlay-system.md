@@ -31,7 +31,7 @@ Additive, read-only decorations for a figure DERIVED from a result. Specs ride `
 
 `kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
 
-Predict and runtime refuse a misshapen spec, or a kind off its hosts, with the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_LEVEL_OUT_OF_RANGE`, `_SCOPE_UNSUPPORTED`, …).
+Predict and runtime refuse a misshapen spec, or a kind off its hosts, with the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_SCOPE_UNSUPPORTED`, …).
 
 ## Reference families
 
@@ -51,7 +51,7 @@ Implicit-margin kinds (χ² / Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre point (100 for an index, 0 for a delta / z), absent for inferential kinds.
+`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre (100 for an index, 0 for a delta / z), absent for inferential kinds.
 
 ## Parts (multi-output kinds)
 
@@ -69,9 +69,11 @@ The carrying request decides the host, the host the legal kinds (an ungrouped or
 - **FORMULA** — an expression over host figures (crosstab or grouped Process; any shape on Compose).
 - **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on keys, schema and dictionaries. Layers on `ComposedResponse.Overlays[i]` (top-level `return` prunes post-fold), buffered only ([`compose-requests`](compose-requests.md)).
 
+Extension kinds: buffered; weighted only if `weight_aware`.
+
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-Lowercase `warnings: [{code, message, details}]` per layer, `omitempty`. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings` (banner: each slot's own layers, never `banner`); a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request.
+`warnings: [{code, message, details}]` per layer, `omitempty`. Canonical: `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings` (banner: each slot's own layers, never `banner`); a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail the request.
 
 ## Multiplicity
 

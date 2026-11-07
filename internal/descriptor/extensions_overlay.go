@@ -35,3 +35,22 @@ func (o *PredictOptions) extensionSlotRefusal(host overlayhost.Host, kind types.
 	}
 	return nil
 }
+
+// extensionOverlayDecl is the declared contract of the extension
+// overlay kind on inst, nil for a built-in, unknown or hidden kind —
+// extensionOverlay over a bare instance snapshot (the multiplicity
+// resolver and the p-value count hold no PredictOptions).
+func extensionOverlayDecl(inst *InstanceSnapshot, kind types.OverlayKind) *overlayhost.ExtensionDecl {
+	if inst.Hidden(string(kind)) {
+		return nil
+	}
+	snap := inst.Extensions()
+	if snap == nil {
+		return nil
+	}
+	d, ok := snap.OverlayDetails[string(kind)]
+	if !ok {
+		return nil
+	}
+	return &d
+}

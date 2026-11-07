@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -970,6 +971,13 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 
 	reasons = append(reasons, streamableTestReasons(req, schema, opts)...)
+
+	// Request.Overlays: the runtime's streaming gate routes a request
+	// buffered on the same rule (overlayhost.StreamReasons) — a
+	// buffered-only or extension kind, or one its host refuses.
+	reasons = append(reasons, overlayhost.StreamReasons(req, opts.overlayRoute, func(k types.OverlayKind) bool {
+		return opts.extensionOverlay(k) != nil
+	})...)
 
 	return len(reasons) == 0, reasons
 }

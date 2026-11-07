@@ -1,6 +1,7 @@
 package overlayhost
 
 import (
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +42,35 @@ type ExtensionDecl struct {
 	// ValidateCompose is the same hook for a ComposedRequest.Overlays
 	// spec; nil accepts every spec.
 	ValidateCompose func(*types.ComposeOverlaySpec) error
+	// WeightAware declares that the handler reads the host's weighted
+	// figures: a spec of the kind runs under a weight in force on its
+	// slot. Not WeightAware, the weight resolver refuses it under ANY
+	// weight in force (PULSE_EXTENSION_NOT_WEIGHT_AWARE), like an
+	// extension attribute or test.
+	WeightAware bool
+	// Inferential declares that the layer carries a test statistic /
+	// p-value (its registration must then declare an Interpretation).
+	Inferential bool
+	// EmitsPValues declares that the layer carries RAW p-values at its
+	// payload shape's p-site (ExtensionPSite); requires Inferential. A
+	// member slot's p-values join the request's multiple-comparison
+	// family like a built-in inferential kind's.
+	EmitsPValues bool
+}
+
+// MatrixOnly reports whether every payload shape the kind may return
+// is MATRIX — the shape rule the `row` / `column` multiplicity
+// families need.
+func (d *ExtensionDecl) MatrixOnly() bool {
+	if d == nil || len(d.Shapes) == 0 {
+		return false
+	}
+	for _, s := range d.Shapes {
+		if s != types.OverlayShapeMatrix {
+			return false
+		}
+	}
+	return true
 }
 
 // Slots returns the overlay slots the kind runs on, in slot order:
@@ -278,8 +308,12 @@ func extensionRefRefusal(d *ExtensionDecl, spec *types.OverlaySpec, index int) *
 //   - exactly that shape's arm is set (reason shape_arm_mismatch);
 //   - no Parts (reason undeclared_parts);
 //   - none of the engine's multiple-comparison figures — PAdjusted /
-//     SignificantAdjusted on the payload or the summary (reason
-//     engine_owned);
+//     SignificantAdjusted on the payload, the summary or a series
+//     entry's summary (reason engine_owned);
+//   - p-values only as EmitsPValues declares them, at the shape's
+//     p-site (extensionPValueRefusal: reasons undeclared_p_values,
+//     misplaced_p_values, invalid_p_value, and missing_p_values at the
+//     probe);
 //   - every warning carries a Code and a Message (reason
 //     invalid_warning).
 //
@@ -317,9 +351,11 @@ func ExtensionOutputRefusal(d *ExtensionDecl, payload *types.OverlayPayload, sum
 	if len(payload.Parts) > 0 {
 		return fail("undeclared_parts", "an extension overlay returns no Parts")
 	}
-	if payload.PAdjusted != nil || payload.SignificantAdjusted != nil ||
-		(summary != nil && (summary.PAdjusted != nil || summary.SignificantAdjusted != nil)) {
+	if payload.PAdjusted != nil || payload.SignificantAdjusted != nil || adjustedSummary(summary) || seriesAdjusted(payload.Series) {
 		return fail("engine_owned", "p_adjusted / significant_adjusted are the engine's multiple-comparison figures")
+	}
+	if reason, why := extensionPValueRefusal(d, payload, summary, index < 0); reason != "" {
+		return fail(reason, why)
 	}
 	for _, w := range warnings {
 		if w.Code == "" || w.Message == "" {
@@ -327,4 +363,115 @@ func ExtensionOutputRefusal(d *ExtensionDecl, payload *types.OverlayPayload, sum
 		}
 	}
 	return nil
+}
+
+// ExtensionPSite is where an extension layer of payload shape carries
+// its p-values when its registration declares EmitsPValues — the
+// multiple-comparison fold reads them there, and nowhere else:
+//
+//   - MATRIX: every present cell's Value (a float64 p, NaN for an
+//     untestable cell) — the layer IS the raw p grid;
+//   - SERIES: every entry's Summary.PValue;
+//   - SCALAR: the layer's Summary.PValue.
+func ExtensionPSite(shape types.OverlayShape) string {
+	switch shape {
+	case types.OverlayShapeMatrix:
+		return "matrix cells"
+	case types.OverlayShapeSeries:
+		return "series entries' Summary.PValue"
+	case types.OverlayShapeScalar:
+		return "Summary.PValue"
+	}
+	return ""
+}
+
+// extensionPValueRefusal is the output rule's p-value half: the reason
+// and prose of the first breach, "" when the output holds.
+//
+//   - not EmitsPValues: no PValue anywhere (the layer Summary, any
+//     series entry) — reason undeclared_p_values;
+//   - EmitsPValues: no PValue off the shape's site (ExtensionPSite: a
+//     MATRIX or SERIES layer's own Summary.PValue would ride uncorrected
+//     beside its corrected family) — reason misplaced_p_values; every p
+//     at the site a float64 in [0, 1] or NaN (a MATRIX layer's present
+//     cells included) — reason invalid_p_value; and, at pulse.New's
+//     probe only (probe), at least one p at the site — reason
+//     missing_p_values (a run over real data may test nothing).
+func extensionPValueRefusal(d *ExtensionDecl, payload *types.OverlayPayload, summary *types.OverlaySummary, probe bool) (string, string) {
+	summaryP := summary != nil && summary.PValue != nil
+	seriesP := false
+	if payload.Series != nil {
+		for i := range payload.Series.Entries {
+			if payload.Series.Entries[i].Summary.PValue != nil {
+				seriesP = true
+				break
+			}
+		}
+	}
+	if !d.EmitsPValues {
+		if summaryP || seriesP {
+			return "undeclared_p_values", "a p-value needs EmitsPValues (and Inferential) on the registration, so the engine can correct it"
+		}
+		return "", ""
+	}
+	site := ExtensionPSite(payload.Shape)
+	if summaryP && payload.Shape != types.OverlayShapeScalar {
+		return "misplaced_p_values", "a " + string(payload.Shape) + " layer carries its p-values in its " + site + ", not in its Summary.PValue"
+	}
+	found := false
+	check := func(p float64) bool {
+		found = true
+		return math.IsNaN(p) || (p >= 0 && p <= 1)
+	}
+	invalid := func() (string, string) {
+		return "invalid_p_value", "every p-value in the " + site + " is a float64 in [0, 1] or NaN"
+	}
+	switch payload.Shape {
+	case types.OverlayShapeMatrix:
+		for _, row := range payload.Matrix.Cells {
+			for _, cell := range row {
+				if !cell.Present {
+					continue
+				}
+				p, ok := cell.Value.(float64)
+				if !ok || !check(p) {
+					return invalid()
+				}
+			}
+		}
+	case types.OverlayShapeSeries:
+		for i := range payload.Series.Entries {
+			if p := payload.Series.Entries[i].Summary.PValue; p != nil && !check(*p) {
+				return invalid()
+			}
+		}
+	case types.OverlayShapeScalar:
+		if summaryP && !check(*summary.PValue) {
+			return invalid()
+		}
+	}
+	if probe && !found {
+		return "missing_p_values", "a registration declaring EmitsPValues returns at least one p-value in the " + site + " over the probe host"
+	}
+	return "", ""
+}
+
+// adjustedSummary reports whether s carries an engine-owned adjusted
+// figure.
+func adjustedSummary(s *types.OverlaySummary) bool {
+	return s != nil && (s.PAdjusted != nil || s.SignificantAdjusted != nil)
+}
+
+// seriesAdjusted reports whether any series entry carries an
+// engine-owned adjusted figure.
+func seriesAdjusted(s *types.SeriesPayload) bool {
+	if s == nil {
+		return false
+	}
+	for i := range s.Entries {
+		if adjustedSummary(&s.Entries[i].Summary) {
+			return true
+		}
+	}
+	return false
 }

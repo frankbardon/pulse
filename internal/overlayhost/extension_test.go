@@ -2,6 +2,7 @@ package overlayhost
 
 import (
 	stderrors "errors"
+	"math"
 	"reflect"
 	"testing"
 
@@ -147,5 +148,84 @@ func TestExtensionComposeRefusal_Order(t *testing.T) {
 	if got := ExtensionDeclRefusal(compose, types.OverlayShapeMatrix, false, &req, 4); got == nil || got.Details["host"] != string(Request) ||
 		!reflect.DeepEqual(got.Details["hosts"], []string{string(Compose)}) {
 		t.Errorf("Compose-only kind on Request.Overlays = %v, want the slot refusal naming compose", got)
+	}
+}
+
+// TestExtensionOutputRefusal_PValues pins the p-value half of the
+// output rule: p-values only under EmitsPValues, only at the shape's
+// p-site, each in [0, 1] or NaN, and — at the probe only — at least
+// one.
+func TestExtensionOutputRefusal_PValues(t *testing.T) {
+	t.Parallel()
+
+	p := func(v float64) *float64 { return &v }
+	grid := func(vals ...any) *types.MatrixPayload {
+		row := make([]types.MatrixCell, len(vals))
+		for i, v := range vals {
+			row[i] = types.MatrixCell{Value: v, Present: v != nil}
+		}
+		return &types.MatrixPayload{Cells: [][]types.MatrixCell{row}}
+	}
+	series := func(ps ...*float64) *types.SeriesPayload {
+		s := &types.SeriesPayload{}
+		for _, v := range ps {
+			s.Entries = append(s.Entries, types.SeriesEntry{Summary: types.OverlaySummary{PValue: v}})
+		}
+		return s
+	}
+	scalar := 1.0
+	mx := func(m *types.MatrixPayload) types.OverlayPayload {
+		return types.OverlayPayload{Shape: types.OverlayShapeMatrix, Matrix: m}
+	}
+	sr := func(s *types.SeriesPayload) types.OverlayPayload {
+		return types.OverlayPayload{Shape: types.OverlayShapeSeries, Series: s}
+	}
+	sc := types.OverlayPayload{Shape: types.OverlayShapeScalar, Scalar: &scalar}
+	cases := []struct {
+		name    string
+		emits   bool
+		payload types.OverlayPayload
+		summary *types.OverlaySummary
+		probe   bool
+		reason  string
+	}{
+		{name: "descriptive_grid", payload: mx(grid(4.0, 7.0))},
+		{name: "descriptive_summary_p", payload: mx(grid(4.0)), summary: &types.OverlaySummary{PValue: p(0.2)}, reason: "undeclared_p_values"},
+		{name: "descriptive_series_p", payload: sr(series(nil, p(0.2))), reason: "undeclared_p_values"},
+		{name: "grid_ok", emits: true, payload: mx(grid(0.01, math.NaN(), nil, 1.0))},
+		{name: "grid_out_of_range", emits: true, payload: mx(grid(0.01, 1.5)), reason: "invalid_p_value"},
+		{name: "grid_not_float", emits: true, payload: mx(grid(0.01, 1)), reason: "invalid_p_value"},
+		{name: "grid_summary_p", emits: true, payload: mx(grid(0.01)), summary: &types.OverlaySummary{PValue: p(0.01)}, reason: "misplaced_p_values"},
+		{name: "series_ok", emits: true, payload: sr(series(nil, p(0.3)))},
+		{name: "series_negative", emits: true, payload: sr(series(p(-0.1))), reason: "invalid_p_value"},
+		{name: "series_summary_p", emits: true, payload: sr(series(p(0.3))), summary: &types.OverlaySummary{PValue: p(0.3)}, reason: "misplaced_p_values"},
+		{name: "scalar_ok", emits: true, payload: sc, summary: &types.OverlaySummary{PValue: p(0.04)}},
+		{name: "scalar_bad", emits: true, payload: sc, summary: &types.OverlaySummary{PValue: p(2)}, reason: "invalid_p_value"},
+		{name: "run_untested_ok", emits: true, payload: sr(series(nil, nil))},
+		{name: "probe_untested", emits: true, payload: sr(series(nil, nil)), probe: true, reason: "missing_p_values"},
+		{name: "probe_empty_grid", emits: true, payload: mx(grid(nil)), probe: true, reason: "missing_p_values"},
+		{name: "probe_scalar_ok", emits: true, payload: sc, summary: &types.OverlaySummary{PValue: p(0.5)}, probe: true},
+		{name: "series_entry_adjusted", payload: sr(&types.SeriesPayload{Entries: []types.SeriesEntry{{Summary: types.OverlaySummary{PAdjusted: p(0.1)}}}}), reason: "engine_owned"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := &ExtensionDecl{Kind: "OVERLAY_ACME_P", Shapes: []types.OverlayShape{types.OverlayShapeMatrix, types.OverlayShapeSeries, types.OverlayShapeScalar},
+				Inferential: tc.emits, EmitsPValues: tc.emits}
+			index := 2
+			if tc.probe {
+				index = -1
+			}
+			got := ExtensionOutputRefusal(d, &tc.payload, tc.summary, nil, index)
+			if tc.reason == "" {
+				if got != nil {
+					t.Fatalf("refusal = %v, want nil", got)
+				}
+				return
+			}
+			if got == nil || got.Code != errors.PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH || got.Details["reason"] != tc.reason {
+				t.Fatalf("refusal = %v, want reason %s", got, tc.reason)
+			}
+		})
 	}
 }

@@ -122,6 +122,19 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	}
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
+		if d := extensionOverlayDecl(inst, spec.Kind); d != nil {
+			// An extension kind declaring EmitsPValues: one p per cell
+			// of a MATRIX-only layer over a crosstab host, else one (a
+			// lower bound — its extent is the handler's).
+			if d.EmitsPValues {
+				n, basis := 1, descriptor.PValueBasisLowerBound
+				if d.MatrixOnly() && rows > 0 && cols > 0 {
+					n, basis = rows*cols, descriptor.PValueBasisDictionary
+				}
+				addAt(n, basis, overlays, i)
+			}
+			continue
+		}
 		routed := opRoute(inst, spec.Kind)
 		if routed == "" || !overlayCapabilityFor(routed).Inferential {
 			continue

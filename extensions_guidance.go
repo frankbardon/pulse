@@ -21,6 +21,9 @@ type guidanceEntry struct {
 	// registration declares; nil is structure-only (a test, whose
 	// outputs are not declared).
 	outputs descx.OutputResolver
+	// needsInterpretation marks a registration that must declare an
+	// Interpretation (an Inferential overlay kind).
+	needsInterpretation bool
 }
 
 // guidanceEntries lists every registration in validation order:
@@ -56,7 +59,8 @@ func guidanceEntries(ext Extensions) []guidanceEntry {
 			interpretation: r.Interpretation, outputs: regressionInterpretationOutputs(r)})
 	}
 	for i, r := range ext.Overlays {
-		out = append(out, guidanceEntry{category: categoryOverlay, name: string(r.Name), index: i, purpose: r.Purpose, interpretation: r.Interpretation})
+		out = append(out, guidanceEntry{category: categoryOverlay, name: string(r.Name), index: i, purpose: r.Purpose, interpretation: r.Interpretation,
+			needsInterpretation: r.Inferential})
 	}
 	return out
 }
@@ -83,7 +87,8 @@ func extensionPurposeResolver(ext Extensions) descx.PurposeResolver {
 // Interpretation for structure only (descx.ValidateInterpretations
 // with a nil resolver: output keys are not probed) and a regression
 // registration's against the figures a model can report plus its
-// declared OutputSchema keys (regressionInterpretationOutputs). The first registration with a violation — validation
+// declared OutputSchema keys (regressionInterpretationOutputs); an
+// Inferential overlay registration must declare one (rule required). The first registration with a violation — validation
 // order, Purpose before Interpretation — fails with
 // PULSE_EXTENSION_PURPOSE_INVALID naming it, the first failing rule and
 // every violation. It runs at every pulse.New, after DependsOn.
@@ -103,6 +108,10 @@ func validateExtensionGuidance(ext Extensions) error {
 				}
 				return guidanceError(e, "purpose", rules, lines)
 			}
+		}
+		if e.needsInterpretation && len(e.interpretation) == 0 {
+			line := e.name + ": an Inferential registration declares an Interpretation (how to read its statistic and p-value)"
+			return guidanceError(e, "interpretation", []string{string(descx.InterpretationRuleRequired)}, []string{line})
 		}
 		if len(e.interpretation) > 0 {
 			if vs := descx.ValidateInterpretations(e.name, e.interpretation, e.outputs); len(vs) > 0 {

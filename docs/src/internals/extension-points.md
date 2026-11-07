@@ -110,6 +110,17 @@ manifest and runtime read the same declaration, so they always agree.
 A WeightAware extension test is applied, not refused — unlike a
 built-in `TEST_*`, the registration has declared its weighted form.
 
+An `OverlayRegistration` reads no record, so its `WeightAware` declares
+that the handler reads the host's weighted figures
+(`MatrixOverlayHost.WeightKind`, `CellSumWeights`, `CellNEff`) and is
+correct under either kind. A kind that does not declare it is refused
+like an extension attribute or test: `PULSE_EXTENSION_NOT_WEIGHT_AWARE`
+`{slot, operator, field}` under ANY weight resolved on its spec — the
+spec's own `weight`, the request's, or `Options.DefaultWeight` — and,
+on `ComposedRequest.Overlays`, under a request or default weight on a
+slot it reads (`details.host`). `"weight": null` on the spec opts it out
+(a slot-only host weight does not refuse it, as for a built-in kind).
+
 ```go
 func (a *wsum) UpdateRow(rec extend.Record, field string) error {
 	x, ok := rec.NumericValue(field)
@@ -2290,7 +2301,43 @@ whether the value implements `extend.StreamingFeatureComputer`.
 | Test (tier-1) | folds with online aggregators | `extend.RowTest` |
 
 Filterers are always row-local streamable; windows always run
-buffered.
+buffered, and so does every extension overlay kind: a request carrying
+one never takes the streaming path, and `PredictResult.StreamableReasons`
+names it (`overlay <KIND> (overlays[i]) is an extension overlay kind,
+which runs buffered only`) — the reason list comes from the one rule the
+runtime routes on, which also names every buffered-only built-in kind.
+
+### Inferential overlay kinds and p-values
+
+An `OverlayRegistration` declaring `Inferential` carries a test statistic
+or p-value; it must declare an `Interpretation` (`pulse.New` refuses it
+`PULSE_EXTENSION_PURPOSE_INVALID`, `part` interpretation, `rule`
+required). `EmitsPValues` (which requires `Inferential` —
+`PULSE_EXTENSION_PARAM_INVALID`, reason `p_values_not_inferential`)
+declares that the layer carries RAW p-values at its payload shape's
+site:
+
+| Payload shape | p-values |
+|---|---|
+| `matrix` | every present cell's `Value` — a float64 p grid, NaN for an untestable cell |
+| `series` | every entry's `Summary.PValue` |
+| `scalar` | the layer's `Summary.PValue` |
+
+Under a `multiplicity` block they join the slot's family exactly like a
+built-in inferential kind's — `layer` by default, `row` / `column` when
+every declared shape is `matrix`, `request` / `compose` pooled with the
+tests and other layers — and predict's `p_values` counts them (one per
+cell of a matrix-only kind over a crosstab, else one, a lower bound).
+The engine writes the twins (`OverlayPayload.PAdjusted` /
+`SignificantAdjusted`, or each summary's `PAdjusted` /
+`SignificantAdjusted`) and the `OverlayLayer.Multiplicity` echo; the
+raw p never moves, and a handler never writes the twins itself
+(`engine_owned`). Every run and the probe hold the output to the
+declaration (`PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH`): a p-value on a
+registration without `EmitsPValues` is `undeclared_p_values`, one off
+its shape's site (a matrix or series layer's own `Summary.PValue`)
+`misplaced_p_values`, one outside [0, 1] `invalid_p_value`, and a probe
+run that returns no p-value at all `missing_p_values`.
 
 ## Built-in accepted types: the one table (contributor flow)
 

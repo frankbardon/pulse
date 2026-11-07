@@ -530,11 +530,12 @@ const (
 	extCategoryAttribute  = "attribute"
 	extCategoryTest       = "test"
 	extCategoryMatrix     = "matrix"
+	extCategoryOverlay    = "overlay"
 )
 
 // WeightAwareness reports whether name is an embedder-registered
 // operator of category ("aggregator", "attribute", "test" — tier-1
-// and tier-2 tests alike — "matrix" or "regression") and, if so, whether its registration declared
+// and tier-2 tests alike — "matrix", "regression" or "overlay") and, if so, whether its registration declared
 // WeightAware. Nil-safe: a nil snapshot registers nothing.
 func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
 	if s == nil {
@@ -552,6 +553,8 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		metas = s.MatrixOps
 	case extCategoryRegression:
 		metas = s.Regressions
+	case extCategoryOverlay:
+		metas = s.Overlays
 	}
 	for _, m := range metas {
 		if m.Name == name {
