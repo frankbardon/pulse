@@ -1464,6 +1464,7 @@ pulse/descriptor: type ComposeSlotPredict field Label string "json:\"label\""
 pulse/descriptor: type ComposeSlotPredict field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field PostWindow *pulse/descriptor.PostWindowPlan "json:\"post_window,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Request int "json:\"request\""
+pulse/descriptor: type ComposeSlotPredict field Sizes []pulse/descriptor.ResponseSectionSize "json:\"sizes,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type ComposeSlotPredict field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
 pulse/descriptor: type CrosstabCapability struct
@@ -6775,4 +6776,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a34707cf555560354a53ec99cb00db0e5b1a128949f8b0c6d9f1fc6413ad4150
+// golden-hash: 27ab39bf96bd64f590782df5cddd1efa893a719653b1481e0173f95ef7a10d51

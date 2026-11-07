@@ -459,8 +459,22 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts, slotModels)
 	for k := range result.Slots {
-		if i := result.Slots[k].Request; i < len(postWindows) {
+		i := result.Slots[k].Request
+		if i < len(postWindows) {
 			result.Slots[k].PostWindow = postWindows[i]
+		}
+		// The slot's response size estimates — Process predict's over
+		// the normalized slot, its catalog and the batch's multiplicity.
+		if i < len(*slots) {
+			slotOpts := opts
+			if i < len(slotModels) && slotModels[i] != nil {
+				slotOpts = opts.withModels(slotModels[i])
+			}
+			var slotPlan *MultiplicityPlan
+			if multPlan != nil && i < len(multPlan.Requests) {
+				slotPlan = multPlan.Requests[i]
+			}
+			result.Slots[k].Sizes = composeSlotSizes((*slots)[i], result.Slots[k].Label, slotPlan, slotOpts)
 		}
 	}
 
