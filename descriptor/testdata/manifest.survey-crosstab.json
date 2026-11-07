@@ -837,7 +837,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 204,
+    "error_codes_count": 205,
     "error_domains": [
       "CLI",
       "DATA",
@@ -916,6 +916,7 @@
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
+      "PULSE_EXTENSION_SPEC_REFUSED",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FACET_VALUES_TRUNCATED",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
@@ -2513,4 +2514,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3fd435c53c85f9d1acb1cb705852f3fd6583f3d9894b4299bdf3403190621da5
+// golden-hash: 38715c0a37ff2253c4982a63e83b408fc81f3fbdd9bdcb795e231382968bd199

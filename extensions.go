@@ -944,6 +944,20 @@ type RegressionRegistration struct {
 	// Factory builds the model per regression slot. Required
 	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
 	Factory extend.RegressionFactory
+	// Validate is the optional spec-only refusal hook
+	// (extend.SpecValidator): it judges a slot's RegressionSpec alone —
+	// its params, say — so a refusal the factory would raise shows up
+	// at predict too. Predict calls it on a slot its other rules
+	// accepted; the runtime calls it after the shared slot rules,
+	// before Factory (and before any resample / selection refit);
+	// pulse.New's probe calls it on the probe spec (a refusal or panic
+	// there is PULSE_EXTENSION_FACTORY_PANIC, details.stage
+	// "validate"). A returned *errors.CodedError keeps its code; any
+	// other error, or a panic, is PULSE_EXTENSION_SPEC_REFUSED
+	// {category: "regression", type, slot: "regressions"[, name]
+	// [, panic]} — byte-identical at predict and at runtime. Nil
+	// accepts every spec.
+	Validate extend.SpecValidator[types.RegressionSpec]
 	// Streamable declares the form: true for an
 	// extend.StreamingRegression, which streams wherever a built-in
 	// regression would (no grouper, feature or two-pass attribute on the

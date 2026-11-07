@@ -1440,6 +1440,14 @@ Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pu
 | a `{"$var"}` marker standing for a whole list of a fanned-out optimize block (`"variables": {"$var": "v"}`, `constraints`, `models`) decoded and failed only at render (`value_not_scalar` / `item_decode`), and one standing for a list entry (`"variables": [{"$var": "v"}]`) was the decode error `json: unknown field "$var"`; the payload and MCP `pulse_compose` schemas admitted neither | both are refused before render with `PULSE_FOR_EACH_INVALID` reason `marker_position` (`details.field` the list or entry path), predict, Compose and ComposeParallel alike — exactly the positions both schemas reject; a marker inside a model's free-form `inline` body stays admitted by all three | behaviour | write the list and its entries out and put the marker on a value inside an entry (a bound, an `expr`) | U79 (E9-S2) |
 | — | `FacetPredictResult.UnresolvedScalars` (`unresolved_scalars,omitempty`): a facet's extension filterer whose `Expression` param calls a request-bound function, at `filterers[i].params.<key>`, as Process and Compose predict list it | added | none | U79 (E9-S2) |
 
+## Changes from predict-extension-parity-2 (U67)
+
+Not yet released (rides the next alpha). `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a regression factory's refusal of its spec (a `params` value out of range) surfaced only at run time; predict accepted the request | new `extend.SpecValidator[S any] func(spec *S) error` and `pulse.RegressionRegistration.Validate` (`extend.SpecValidator[types.RegressionSpec]`): an opt-in, spec-only hook predict calls on a slot its other rules accepted and the runtime calls before the factory (and before any `resample` / `selection` refit), each under `recover()`. A returned `*errors.CodedError` keeps its code; any other error, or a panic, is the new `PULSE_EXTENSION_SPEC_REFUSED` (details `{category, type, slot: "regressions"}` + `name` when the slot is named, + `panic`), byte-identical at predict and runtime. `pulse.New`'s probe runs it on the probe spec: refusing it or panicking is `PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `validate`). Nil = unchanged | added | move a factory's spec-only checks into `Validate` so predict reports them; make it accept the probe spec | U67 (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

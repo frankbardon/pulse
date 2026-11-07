@@ -50,6 +50,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		OutputKeys:        keys,
 		Params:            matrixParamSnapshot(reg.Params),
 		OutputSchema:      slices.Clone(reg.OutputSchema),
+		Validate:          reg.Validate,
 	}
 }
 
@@ -274,6 +275,9 @@ func probeRegression(reg RegressionRegistration, schema *encoding.Schema, recs [
 	if weighted {
 		spec.Weight = probeWeight
 	}
+	if err := safeValidateRegression(reg, spec, weighted); err != nil {
+		return err
+	}
 	model, err := safeBuildRegression(reg, spec, schema, weighted)
 	if err != nil {
 		return err
@@ -355,6 +359,27 @@ func regressionDataRefusal(code errors.Code) bool {
 		return true
 	}
 	return false
+}
+
+// safeValidateRegression runs the registration's Validate hook over the
+// probe spec (descx.ExtensionRegressionValidateRefusal, panic-recovered
+// there): the probe spec is the one the factory must accept, so a
+// refusal — a returned error or a recovered panic — is
+// PULSE_EXTENSION_FACTORY_PANIC (details.stage validate, the hook's
+// refusal under validate_code / validate_error). A nil Validate passes.
+func safeValidateRegression(reg RegressionRegistration, spec *types.RegressionSpec, weighted bool) error {
+	cerr := descx.ExtensionRegressionValidateRefusal(spec, regressionDeclaration(reg))
+	if cerr == nil {
+		return nil
+	}
+	details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "stage": "validate",
+		"validate_code": string(cerr.Code), "validate_error": cerr.Message}
+	if p, ok := cerr.Details["panic"]; ok && cerr.Code == errors.PULSE_EXTENSION_SPEC_REFUSED {
+		details["panic"] = p
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
+		fmt.Sprintf("regression %q Validate refused the probe spec during probe-validation: %s", reg.Name, cerr.Message),
+		probeDetails(withProbeParams(details, spec.Params), weighted))
 }
 
 // safeBuildRegression invokes the factory under a deferred recover with

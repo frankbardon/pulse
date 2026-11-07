@@ -1100,6 +1100,11 @@ pulse.RegressionRegistration{
 }
 ```
 
+A refusal the factory would raise from the spec alone (a `params` value
+out of range, say) belongs in the registration's optional `Validate`
+hook, so predict reports it too — see
+[Validate hook](#validate-hook-spec-only-refusals-at-predict).
+
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -1601,7 +1606,9 @@ does not carry) and must pass the same checks; a failure of that
 construction reports the same code with `details.weighted: true`.
 Tests are probed only when they declare `WeightAware`. A regression
 model is fitted over eight synthetic rows ("Regression model
-(`Regressions`)" above).
+(`Regressions`)" above). A registration's `Validate` hook runs on the
+probe spec first; refusing it, or panicking, fails `pulse.New` with
+`PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `validate`).
 
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
@@ -1945,6 +1952,51 @@ A registration **without** `FieldInputs` widens the retained set to
 Both shapes are correct; only the plan-driven one elides byte
 ranges.
 
+## Validate hook (spec-only refusals at predict)
+
+Predict never calls a factory — that would execute embedder code — so a
+refusal raised inside one (`params.k` must be positive) used to surface
+only at run time. A registration may instead carry an opt-in, spec-only
+**`Validate`** hook, `extend.SpecValidator[S]`:
+
+```go
+type SpecValidator[S any] func(spec *S) error
+```
+
+`S` is the category's spec type. Today `RegressionRegistration.Validate`
+(`extend.SpecValidator[types.RegressionSpec]`) carries it; the other
+categories adopt the same field and shape. The hook sees the spec
+alone — no record, no cohort schema, nothing predict lacks — and returns
+nil to accept it. Pulse runs it, under `recover()`, in three places:
+
+| Where | When | A refusal is |
+|---|---|---|
+| predict | once per slot whose spec every engine rule accepted (a slot an engine rule refuses reports that rule only) | the slot's error |
+| runtime | once per slot, after the engine's shared spec rules, before the factory and before a `resample` / `selection` refit builds one | a fatal configuration fault (never a per-slot failure) |
+| `pulse.New` probe | on the probe spec, before the factory is probed | `PULSE_EXTENSION_FACTORY_PANIC`, `details.stage` `validate`, the hook's verdict under `validate_code` / `validate_error` (and `panic`) |
+
+At predict and at runtime the verdict is the same error, byte for byte:
+
+- a returned `*errors.CodedError` — found with `errors.As`, so a
+  wrapped one counts — keeps its code, message and details;
+- any other error is `PULSE_EXTENSION_SPEC_REFUSED`, message
+  `<category> <type> refused its spec: <error>`, details
+  `{category, type, slot}` (`slot` the request slot key, `regressions`)
+  plus `name` when the slot is named;
+- a panic is `PULSE_EXTENSION_SPEC_REFUSED`, message
+  `<category> <type> Validate panicked: <value>`, the same details plus
+  `panic`.
+
+The hook gets a shallow copy of the spec: never mutate anything
+reachable from it (slices, maps, `params`) and never keep it. Keep it
+deterministic and cheap — predict runs it on every slot of every
+request. It must accept the probe spec (the one the factory is probed
+with, `params` synthesized from the declared `Params`). A nil `Validate`
+accepts every spec, byte-identically to a registration without the
+field. One rule, `internal/extspec.Refusal`, formats the verdict for
+both sides; the parity gate is
+`TestExtensions_RegressionValidatePredictMatchesRuntime`.
+
 ## Vector inputs (`vector` / `fields`)
 
 An extension test, attribute or grouper — and an aggregator declared
@@ -2159,7 +2211,7 @@ registration and judges its own fields.
 
 ## When an extension panics
 
-Two different moments. At `pulse.New`, the factory probe runs your factory once and a panic, error or nil return is `PULSE_EXTENSION_FACTORY_PANIC` (see the table above). At run time, a panic raised while an operation executes your operator is recovered at the facade (or in the engine's worker pool or stream producer that ran it) and returned as a `PROCESSING_PANIC` coded error: `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames); the panic value is never kept, because it can carry row data. The instance stays usable and, with observability on, the operation ends with that code. A panicking registered expression function is recovered by the expression engine and returns `PROCESSING_RUNTIME`. An embedder who would rather crash sets `Options.DisablePanicRecovery`. Do not rely on a panic as a control-flow signal: return an error instead. See [Observability](../library/observability.md#panics-inside-an-operation).
+Two different moments. At `pulse.New`, the factory probe runs your factory once and a panic, error or nil return is `PULSE_EXTENSION_FACTORY_PANIC` (see the table above). At run time, a panic raised while an operation executes your operator is recovered at the facade (or in the engine's worker pool or stream producer that ran it) and returned as a `PROCESSING_PANIC` coded error: `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames); the panic value is never kept, because it can carry row data. The instance stays usable and, with observability on, the operation ends with that code. A panicking registered expression function is recovered by the expression engine and returns `PROCESSING_RUNTIME`. A panicking `Validate` hook is recovered where it runs and is `PULSE_EXTENSION_SPEC_REFUSED` (`details.panic`) at predict and at run time alike. An embedder who would rather crash sets `Options.DisablePanicRecovery`. Do not rely on a panic as a control-flow signal: return an error instead. See [Observability](../library/observability.md#panics-inside-an-operation).
 
 ## Limits of extension operators
 
@@ -2501,7 +2553,8 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
-| `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
+| `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe, or a `Validate` hook refused or panicked on the probe spec (`details.stage` `validate`) |
+| `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |

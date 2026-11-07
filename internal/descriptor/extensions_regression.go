@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/extspec"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -54,6 +55,31 @@ type ExtensionRegression struct {
 	Params []descriptor.Param
 	// OutputSchema is the declared OutputSchema, in order.
 	OutputSchema []descriptor.RegressionOutputMeta
+	// Validate is the registration's opt-in, spec-only refusal hook
+	// (RegressionRegistration.Validate, an extend.SpecValidator); nil
+	// accepts every spec. Predict and the runtime adapter both run it
+	// through ExtensionRegressionValidateRefusal.
+	Validate func(*types.RegressionSpec) error
+}
+
+// extensionRegressionSlotKey is the request slot key a regression spec
+// rides, as a Validate refusal's details.slot names it.
+const extensionRegressionSlotKey = "regressions"
+
+// ExtensionRegressionValidateRefusal is decl's Validate verdict on spec
+// (extspec.Refusal: a coded error kept, an uncoded one or a panic
+// PULSE_EXTENSION_SPEC_REFUSED {category: "regression", type, slot:
+// "regressions"[, name]}), nil when the model declares no Validate or
+// accepts spec. Predict calls it on a slot its other rules accepted;
+// the runtime adapter calls it after its own spec rules, before the
+// factory — the same error on both sides.
+func ExtensionRegressionValidateRefusal(spec *types.RegressionSpec, decl ExtensionRegression) *errors.CodedError {
+	if spec == nil || decl.Validate == nil {
+		return nil
+	}
+	return extspec.Refusal(decl.Validate, spec, extspec.Site{
+		Category: extCategoryRegression, Type: string(spec.Type), Slot: extensionRegressionSlotKey, Name: spec.Name,
+	})
 }
 
 // extCategoryRegression is the regression extension category, as

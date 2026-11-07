@@ -1371,6 +1371,16 @@ const (
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
 
+	// PULSE_EXTENSION_SPEC_REFUSED indicates an extension
+	// registration's opt-in, spec-only Validate hook
+	// (extend.SpecValidator) refused a request slot's spec with an
+	// uncoded error, or panicked judging it. Raised identically at
+	// predict and at runtime (before the factory); a coded error the
+	// hook returns keeps its own code instead. Details carry category,
+	// type, slot (the request slot key, e.g. "regressions"), name when
+	// the slot is named, and panic on a recovered panic.
+	PULSE_EXTENSION_SPEC_REFUSED Code = "PULSE_EXTENSION_SPEC_REFUSED"
+
 	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
 	// registration has missing or contradictory fields (empty name,
 	// unknown JSONType, Required=true with a non-nil Default, an
@@ -4866,6 +4876,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
+	PULSE_EXTENSION_SPEC_REFUSED,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,

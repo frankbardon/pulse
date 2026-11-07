@@ -1022,6 +1022,7 @@ pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type RegressionRegistration field Scorer pulse/extend.RegressionScorerFactory
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
+pulse: type RegressionRegistration field Validate pulse/extend.SpecValidator[pulse/types.RegressionSpec]
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
 pulse: type RemoveShardResult = pulse/internal/service.RemoveShardResult
@@ -2757,6 +2758,7 @@ pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_E
 pulse/errors: const PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
 pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
+pulse/errors: const PULSE_EXTENSION_SPEC_REFUSED pulse/errors.Code = "PULSE_EXTENSION_SPEC_REFUSED"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
 pulse/errors: const PULSE_FACET_VALUES_TRUNCATED pulse/errors.Code = "PULSE_FACET_VALUES_TRUNCATED"
 pulse/errors: const PULSE_FEATURE_PROFILE_DEPENDENCY pulse/errors.Code = "PULSE_FEATURE_PROFILE_DEPENDENCY"
@@ -3249,6 +3251,7 @@ pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
 pulse/extend: type ScoreRow interface
 pulse/extend: type ScoreRow imethod NumericValue(name string) (float64, bool)
+pulse/extend: type SpecValidator[S any] func(spec *S) error
 pulse/extend: type StreamingFeatureComputer interface
 pulse/extend: type StreamingFeatureComputer imethod EmitRow(rec pulse/extend.Record, field string) (map[string]pulse/extend.FeatureOutput, error)
 pulse/extend: type StreamingFeatureComputer imethod Finalize() error
@@ -6689,4 +6692,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e6b234a9e14773fe9aca05cf9f6088e6b7acc57644a45710e8d5c95008f9422e
+// golden-hash: 181494eb3bdfed496673f1f4a1813556d82a8c84a93c1ce7667ff14709728987

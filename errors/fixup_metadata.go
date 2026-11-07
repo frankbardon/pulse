@@ -2076,6 +2076,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_SPEC_REFUSED: {
+		Message: "An extension registration's spec-only Validate hook refused a request slot's spec (its error text is in the message) or panicked judging it (details.panic); predict and the runtime raise the same refusal. Details name the category, the operator type, the request slot key and the slot's name when it has one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Change the slot named in details.slot / details.name so the operator in details.type accepts it — the message carries the operator's own reason. An embedder whose Validate panicked (details.panic) should make it total over every spec and return an error instead; one that wants a specific code should return an *errors.CodedError, which keeps its code.",
+			},
+		},
+	},
 	PULSE_EXTENSION_PARAM_INVALID: {
 		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{

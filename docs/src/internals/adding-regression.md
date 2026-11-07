@@ -186,6 +186,7 @@ way).
 | `SupportsSelection` | a refit over a predictor subset is meaningful; every fit reports `Fit.Deviance` | `PROCESSING_CONFIG` `{slot: "selection"}`; a fit without a deviance is `_OUTPUT_MISMATCH` `missing_deviance` |
 | `Scorer` | scores rows from the fit, enabling `ATTR_REG_PREDICT`, `save` and `holdout` | `PULSE_MODEL_SCORE_INVALID` `no_scorer` (`ATTR_REG_PREDICT`, `holdout`); `save` refused |
 | `FieldInputs` | fields the model reads beyond target, predictors and weight | a buffered request decodes every field |
+| `Validate` | an `extend.SpecValidator[types.RegressionSpec]`: refuse a spec from the spec alone (a `params` value out of range), so predict reports it too | nothing is refused: a refusal raised in the factory surfaces only at run time |
 | `NoResample` | opt OUT of `resample`: a row-subset refit would break the model (it reads row order) or cost too much | set, `resample` and its knobs are `PROCESSING_CONFIG` `{slot: "resample"}` (predict ≡ runtime); `rng_seed` still reaches the factory |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either honoured
@@ -202,6 +203,28 @@ Student-t quantile on the reported df (REG_OLS's rule) or the standard
 normal when no df is reported (REG_GLM's Wald rule); a coefficient
 without a standard error gets a `null` interval. The complete slot table is in
 [Extension Points](extension-points.md#regression-model-regressions).
+
+**Refuse at predict with `Validate`.** A check your factory makes on the
+spec alone belongs in `Validate` instead, so `pulse predict` reports it:
+
+```go
+Validate: func(spec *types.RegressionSpec) error {
+    var p struct{ Scale float64 `json:"scale"` }
+    if err := json.Unmarshal(spec.Params, &p); err == nil && p.Scale < 0 {
+        return fmt.Errorf("params.scale must be non-negative, got %g", p.Scale)
+    }
+    return nil
+},
+```
+
+Predict runs it on a slot every engine rule accepted, the run calls it
+before the factory (and before any `resample` / `selection` refit), and
+both report the same error: your `*errors.CodedError` as is, any other
+error (or a panic) as `PULSE_EXTENSION_SPEC_REFUSED` with details
+`{category: "regression", type, slot: "regressions"}` plus the slot's
+`name`. It sees a copy of the spec, never a record or the schema; it
+must accept the probe spec (section 7). Full contract:
+[Extension Points](extension-points.md#validate-hook-spec-only-refusals-at-predict).
 
 ## 5. The scorer
 
@@ -259,6 +282,8 @@ the value it was handed fails `pulse.New` with
 `PULSE_EXTENSION_FACTORY_PANIC` and `details.probe_params` — declare an
 `Example` it accepts (an `Example` not of its `JSONType` is
 `PULSE_EXTENSION_PARAM_INVALID`, reason `example_type_mismatch`).
+A `Validate` hook runs on the probe spec first: refusing it or panicking
+is `PULSE_EXTENSION_FACTORY_PANIC` with `details.stage` `validate`.
 A data-dependent refusal (`PROCESSING_REGRESSION_*`) on the eight rows is
 tolerated. Output with no coefficients, an empty or repeated name, a
 missing / misshapen `Vcov` or a finite `PValue` without `PValues` is
@@ -297,6 +322,9 @@ Mirror the in-repo suites, which import only public packages:
 - `internal/integration/extensions_regression_nls_test.go` — a nonlinear fit recovering its
   generating curve, a scorer through `ATTR_REG_PREDICT`, save and reload,
   bootstrap, manifest and profile hiding.
+- `internal/integration/extensions_regression_validate_test.go` — a
+  `Validate` hook's refusals (uncoded, coded, panic) equal at predict and
+  at run time, and the probe's `stage: validate` refusal.
 - `TestExtensions_*` — the parity suites: predict equals runtime for every
   refusal, and the manifest, schema and MCP enum list the model.
 
