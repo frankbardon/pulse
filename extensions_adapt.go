@@ -3,11 +3,14 @@ package pulse
 import (
 	stderrors "errors"
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -963,6 +966,7 @@ func adaptFiltererFactory(reg FiltererRegistration) processing.FiltererFactory {
 type attrCore struct {
 	inner extend.AttributeComputer
 	wt    *slotWeighting
+	codes *attrCodes
 }
 
 func (a attrCore) Compute(records []*processing.Record, field string) ([]float64, error) {
@@ -976,7 +980,57 @@ func (a attrCore) Compute(records []*processing.Record, field string) ([]float64
 	if err = readFaultRows(records, err); err != nil {
 		return nil, err
 	}
+	if a.codes != nil {
+		for _, v := range out {
+			if err := a.codes.fault(v); err != nil {
+				return nil, err
+			}
+		}
+	}
 	return out, nil
+}
+
+// attrCodes is the per-slot code check of an attribute declaring
+// InheritsDictionary (U67 E3-S2): every value it emits must be a code of
+// its source field's n-entry dictionary (prevstate.CodeFault), NaN only
+// when the value is an extend.NullableAttribute reporting true (a null).
+type attrCodes struct {
+	name         types.AttributeType
+	label, field string
+	n            int
+	nullable     bool
+}
+
+// fault is v's PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH (reason
+// dictionary_code_out_of_range), nil for a code (or a null).
+func (c *attrCodes) fault(v float64) error {
+	if math.IsNaN(v) && c.nullable {
+		return nil
+	}
+	if !math.IsNaN(v) && !prevstate.CodeFault(v, c.n) {
+		return nil
+	}
+	return dictionaryCodeFault(c.name, v, c.n, map[string]any{"field": c.field, "label": c.label})
+}
+
+// dictionaryCodeFault is the one dictionary_code_out_of_range refusal,
+// raised on a run (extra: the source field and slot label) and by the
+// pulse.New probe (extra: stage "probe"). details.value is the emitted
+// value as text (it may be non-finite).
+func dictionaryCodeFault(name types.AttributeType, v float64, n int, extra map[string]any) error {
+	details := map[string]any{
+		"category":        "attribute",
+		"name":            string(name),
+		"value":           strconv.FormatFloat(v, 'g', -1, 64),
+		"dictionary_size": n,
+		"reason":          "dictionary_code_out_of_range",
+	}
+	for k, x := range extra {
+		details[k] = x
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH,
+		fmt.Sprintf("extension attribute %q emitted %s, which is no code of its source's %d-entry dictionary (InheritsDictionary): return the source field's dictionary index, or NaN from an extend.NullableAttribute for no value", name, details["value"], n),
+		details)
 }
 
 // EmitsNull satisfies processing.NullEmitter on every adapted tier:
@@ -1012,14 +1066,20 @@ func attrView(view *rowView, rec *processing.Record) extend.Record {
 // attrRow forwards extend.RowLocalAttribute as
 // processing.RowLocalAttribute.
 type attrRow struct {
-	row  extend.RowLocalAttribute
-	view *rowView
+	row   extend.RowLocalAttribute
+	view  *rowView
+	codes *attrCodes
 }
 
 func (a attrRow) Row(rec *processing.Record, field string) (float64, error) {
 	v, err := a.row.Row(attrView(a.view, rec), field)
 	if err = readFault(rec, err); err != nil {
 		return 0, err
+	}
+	if a.codes != nil {
+		if err := a.codes.fault(v); err != nil {
+			return 0, err
+		}
 	}
 	return v, nil
 }
@@ -1127,13 +1187,16 @@ type (
 // exactly as adaptAggregator / adaptGrouper / adaptFilterer adopt it
 // (pulse.New probe-validates it against the declared ComponentSchema).
 // ExtensionAware is engine-only and never forwarded.
-func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc) processing.AttributeComputer {
+func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc, codes *attrCodes) processing.AttributeComputer {
 	if emit == nil {
 		if self, ok := inner.(componentsEmitter); ok {
 			emit = func(extend.AttributeComputer) (map[string]any, error) { return self.Components() }
 		}
 	}
-	core := attrCore{inner: inner, wt: wt}
+	core := attrCore{inner: inner, wt: wt, codes: codes}
+	if codes != nil {
+		codes.nullable = core.EmitsNull()
+	}
 	var view *rowView
 	if wt != nil {
 		view = &rowView{s: wt}
@@ -1141,12 +1204,12 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit Attr
 	meta := attrMeta{inner: inner, emit: emit}
 	if two, ok := inner.(extend.TwoPassAttribute); ok {
 		if emit != nil {
-			return &attrAdaptedTM{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}, meta}
+			return &attrAdaptedTM{core, attrRow{row: two, view: view, codes: codes}, attrTwoPass{two: two, view: view}, meta}
 		}
-		return &attrAdaptedT{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}}
+		return &attrAdaptedT{core, attrRow{row: two, view: view, codes: codes}, attrTwoPass{two: two, view: view}}
 	}
 	if row, ok := inner.(extend.RowLocalAttribute); ok {
-		r := attrRow{row: row, view: view}
+		r := attrRow{row: row, view: view, codes: codes}
 		if merge, isMerge := inner.(extend.MergeableAttribute); isMerge {
 			if emit != nil {
 				return &attrAdaptedRMG{core, r, meta, attrMerge{merge: merge}}
@@ -1168,11 +1231,25 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit Attr
 // engine factory. A nil instance passes through as nil.
 func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactory {
 	inner, aware, emit, validate := reg.Factory, reg.WeightAware, reg.ComponentsFunc, reg.Validate
+	inherits := attributeDictionaries([]AttributeRegistration{reg})
 	return func(attr *types.Attribute, schema *encoding.Schema) (processing.AttributeComputer, error) {
 		// The spec-only Validate hook, before the factory — predict's
 		// own call (descx.ExtensionAttributeValidateRefusal).
 		if cerr := descx.ExtensionAttributeValidateRefusal(attr, validate); cerr != nil {
 			return nil, cerr
+		}
+		// An InheritsDictionary source — the field-reference walk's
+		// rule (prevstate.InheritedSource), re-run before the factory —
+		// and the per-value code check over its dictionary.
+		var codes *attrCodes
+		if inherits != nil && attr != nil {
+			src, cerr := prevstate.InheritedSource(attr, schema, inherits)
+			if cerr != nil {
+				return nil, cerr
+			}
+			if src != nil {
+				codes = &attrCodes{name: reg.Name, label: prevstate.Label(attr), field: src.Name, n: prevstate.CodeCount(src)}
+			}
 		}
 		instance, err := inner(attr, schema)
 		if err != nil {
@@ -1185,7 +1262,7 @@ func adaptAttributeFactory(reg AttributeRegistration) processing.AttributeFactor
 		if attr != nil {
 			wt = newSlotWeighting(aware, attr.Weight)
 		}
-		return adaptAttribute(instance, wt, emit), nil
+		return adaptAttribute(instance, wt, emit, codes), nil
 	}
 }
 

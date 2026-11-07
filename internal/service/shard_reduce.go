@@ -714,7 +714,7 @@ func newPartitionPartial(req *types.Request, schema *encoding.Schema, exts *proc
 	var groupers []processing.Grouper
 	if grouped {
 		var err error
-		if groupers, err = newPartitionGroupers(req.Groups, grouperFactories, schema, exts); err != nil {
+		if groupers, err = newPartitionGroupers(req.Groups, grouperFactories, schema, exts.AttributeDictionaryView(req.Attributes, schema), exts); err != nil {
 			return nil, err
 		}
 	}
@@ -803,11 +803,14 @@ func lookupGrouperFactories(req *types.Request, exts *processing.ExtensionRegist
 
 // newPartitionGroupers builds one fresh grouper instance per slot for
 // one partition (shard or decode worker), extension hooks applied —
-// every grouper of the request, not only Groups[0]'s.
-func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperFactory, schema *encoding.Schema, exts *processing.ExtensionRegistry) ([]processing.Grouper, error) {
+// every grouper of the request, not only Groups[0]'s. keys is the run's
+// dictionary-inheritance view (ExtensionRegistry.AttributeDictionaryView):
+// a GROUP_CATEGORY slot builds against it (processing.GrouperKeySchema),
+// as the serial run does.
+func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperFactory, schema, keys *encoding.Schema, exts *processing.ExtensionRegistry) ([]processing.Grouper, error) {
 	out := make([]processing.Grouper, len(groups))
 	for i, grp := range groups {
-		g, err := factories[i](grp, schema)
+		g, err := factories[i](grp, processing.GrouperKeySchema(grp, schema, keys))
 		if err != nil {
 			return nil, err
 		}

@@ -551,6 +551,58 @@ learns which earlier labels it reads from `Field` plus its
 every earlier attribute — still correct, but each earlier `two_pass`
 attribute then costs an extra scan.
 
+**Inherited output dictionary (`InheritsDictionary`).** An attribute
+whose value per row is a CODE of a coded source field — a categorical
+index, or `0` / `1` of a `packed_bool` — declares
+`InheritsDictionary: &pulse.AttributeDictionarySource{}` (the source is
+the slot's `field`) or `{Param: "src"}` (the source is the field the
+string param `src` names; it must be a declared, non-`Expression`
+`string` `ParamMeta`, else `PULSE_EXTENSION_PARAM_INVALID` reason
+`dictionary_param_undeclared`). Its output column then reads as the
+source field everywhere an `ATTR_PREVIOUS_STATE` output does, at
+predict and at runtime alike: `GROUP_CATEGORY` keys it by the source
+dictionary's labels (buffered, streaming, fused crosstab axis and the
+parallel reducers), `Group.Include`, `req.labels` bindings and an
+`Options.AutoLabels` default on the source resolve through the
+labels, an expression compares it to a label (`tier == "pro"`), a
+`type`-less group or cell over it takes the source type's smart
+default, predict bounds a crosstab axis over it by the dictionary
+(`p_values` on the dictionary basis), and `Materialize` writes it as
+the source's type on its dictionary. Read the code off the source with
+`Record.NumericValue(field)`; return `NaN` from an
+`extend.NullableAttribute` for no value. Leave `Emits` empty or
+`float64` (else `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` reason
+`dictionary_emits_conflict`).
+
+```go
+{
+    Name:               "ATTR_ACME_PLAN_AT_SIGNUP",
+    Factory:            newPlanAtSignup,     // returns plan codes
+    Mode:               pulse.AttributeModeRowLocal,
+    InheritsDictionary: &pulse.AttributeDictionarySource{}, // source: the slot's field
+}
+```
+
+The source must be a `categorical_*` or `packed_bool` COHORT field —
+never another slot's output. The field-reference walk (predict and the
+runtime entry check) and the adapter (before the factory) refuse the
+slot with the same code, message and details: `PROCESSING_CONFIG`
+`details.reason` `source_unset` (no field, or the param is absent /
+not a string) or `source_not_cohort_field`, and
+`PULSE_FIELD_TYPE_UNSUPPORTED` `source_not_coded`; details carry
+`attribute`, `source` (`field` / `params.<name>`), `field` and
+`field_type`. A value that is no code — not an integer in `[0, entry
+count)`, or `NaN` from a value that is not nullable — fails the run
+with `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` reason
+`dictionary_code_out_of_range` (`details.value` as text,
+`dictionary_size`, `field`, `label`), on every arm, never a silently
+minted group. `pulse.New`'s probe computes the attribute over a
+synthetic three-entry categorical source carrying each code once and
+refuses a non-code the same way (`details.stage` `probe`); a factory or
+`Compute` that refuses the synthetic rows skips that check. The
+manifest entry names the source as `inherits_dictionary` (`field` /
+`params.<name>`).
+
 ### Filterer, Grouper, Window, Feature
 
 All four follow the same envelope: name, description, factory, accepted
@@ -2614,6 +2666,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
+| `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | an attribute declaring `InheritsDictionary` emitted a value that is no code of its source's dictionary (on a run, or over the probe's three-entry source), or declares a non-`float64` `Emits` |
 | `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe, or a `Validate` hook refused or panicked on the probe spec (`details.stage` `validate`) |
 | `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |

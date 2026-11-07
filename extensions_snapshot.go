@@ -8,7 +8,18 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/prevstate"
 )
+
+// inheritsDictionaryName is the manifest spelling of an
+// InheritsDictionary declaration ("field" / "params.<name>"); "" when
+// d is nil.
+func inheritsDictionaryName(d *AttributeDictionarySource) string {
+	if d == nil {
+		return ""
+	}
+	return prevstate.SourceName(d.Param)
+}
 
 // buildExtensionsSnapshot translates the public Extensions struct
 // into the read-only descriptor projection consumed by manifest +
@@ -20,6 +31,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		return nil
 	}
 	snap := &descx.ExtensionsSnapshot{}
+	// The InheritsDictionary declarations — the projection the runtime
+	// registry holds (attributeDictionaries).
+	snap.AttributeDictionaries = attributeDictionaries(ext.Attributes)
 	// FieldInputs: the same hooks extensions_runtime.go hands the
 	// projection extractor, keyed identically, so the shared
 	// field-reference rule judges what each extension declares it reads.
@@ -97,6 +111,8 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Emits:       string(r.Emits),
 			Mode:        string(r.Mode),
 			Params:      paramMetaSnapshot(r.Params),
+			// The declared dictionary source; empty stays omitted.
+			InheritsDictionary: inheritsDictionaryName(r.InheritsDictionary),
 		})
 		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
 			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema

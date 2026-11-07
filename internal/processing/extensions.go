@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -203,6 +204,15 @@ type ExtensionRegistry struct {
 	// the projection to "every field" so the runtime stays correct
 	// for embedders that haven't opted in.
 	FieldInputs map[string]FieldInputsFunc
+
+	// AttributeDictionaries is each attribute registration's
+	// InheritsDictionary declaration (the source param, "" for the
+	// slot's Field), keyed by operator name — the map predict's
+	// ExtensionsSnapshot.AttributeDictionaries carries, built by the
+	// same root function. Processor.prepare's dictionary-inheritance
+	// view (prevstate.KeySchemaWith) and the reducers' grouper key
+	// schema read it. Nil when none declares one.
+	AttributeDictionaries prevstate.Inherits
 
 	// ScalarParams are the expression-capable params keys
 	// (pulse.ParamMeta.Expression) per extension operator, keyed
@@ -1032,7 +1042,25 @@ func (r *ExtensionRegistry) columnReads(category, name string, raw json.RawMessa
 // models cat (nil: none): cat plus the registry's ColumnReads.
 // Nil-receiver-safe.
 func (r *ExtensionRegistry) Classifier(cat model.Catalog) vectors.Classifier {
-	return vectors.Classifier{Cat: cat, Ext: r.ColumnReads()}
+	return vectors.Classifier{Cat: cat, Ext: r.ColumnReads(), Dict: r.Dictionaries()}
+}
+
+// Dictionaries is AttributeDictionaries, nil on a nil registry.
+func (r *ExtensionRegistry) Dictionaries() prevstate.Inherits {
+	if r == nil {
+		return nil
+	}
+	return r.AttributeDictionaries
+}
+
+// AttributeDictionaryView is the run's dictionary-inheritance view of
+// schema for attrs (prevstate.KeySchemaWith over the registry's
+// AttributeDictionaries): the schema plus one virtual field per
+// ATTR_PREVIOUS_STATE output and per output of an extension attribute
+// declaring InheritsDictionary. Nil-receiver-safe; schema itself when
+// nothing contributes.
+func (r *ExtensionRegistry) AttributeDictionaryView(attrs []*types.Attribute, schema *encoding.Schema) *encoding.Schema {
+	return prevstate.KeySchemaWith(attrs, schema, r.Dictionaries())
 }
 
 // ExtensionScalarParams returns the expression-capable params keys of

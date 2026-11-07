@@ -8,7 +8,6 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
-	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/tablecall"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -127,7 +126,7 @@ type exprCompileScope struct {
 func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) {
 	c := &w.compile
 	c.schema = schema
-	c.keys = prevstate.KeySchema(req.Attributes, schema)
+	c.keys = keySchemaOf(req.Attributes, schema, w.snap, w.inst)
 	if len(req.Vectors) > 0 {
 		c.vecNames = make(map[string]bool, len(req.Vectors))
 		for _, v := range req.Vectors {

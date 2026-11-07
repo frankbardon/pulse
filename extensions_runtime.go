@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -144,6 +145,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			}
 			addFieldInputs("attribute", string(reg.Name), reg.FieldInputs)
 		}
+		r.AttributeDictionaries = attributeDictionaries(ext.Attributes)
 	}
 
 	if len(ext.Filterers) > 0 {
@@ -251,6 +253,24 @@ func addScalarParams(r *processing.ExtensionRegistry, category, name string, par
 // hasAnyRegistrations reports whether ext carries any
 // extension-API entry (operator or expression-side). Used to short-
 // circuit buildRuntimeExtensions when nothing is registered.
+// attributeDictionaries is THE projection of the attributes'
+// InheritsDictionary declarations (source param per operator name, ""
+// for the slot's Field) — the runtime registry's and the snapshot's
+// AttributeDictionaries both come from it. Nil when none declares one.
+func attributeDictionaries(regs []AttributeRegistration) prevstate.Inherits {
+	var out prevstate.Inherits
+	for _, reg := range regs {
+		if reg.InheritsDictionary == nil {
+			continue
+		}
+		if out == nil {
+			out = prevstate.Inherits{}
+		}
+		out[reg.Name] = reg.InheritsDictionary.Param
+	}
+	return out
+}
+
 // attributeEmitsComponents is THE rule for whether an extension
 // attribute emits a Response.Components.Attributes entry — the fact the
 // merge gate reads on both sides (the runtime registry's

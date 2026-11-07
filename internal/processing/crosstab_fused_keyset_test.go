@@ -757,7 +757,7 @@ func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			entries, err := buildStreamableAxis(tc.axis, schema, nil, "rows")
+			entries, err := buildStreamableAxis(tc.axis, schema, schema, nil, "rows")
 			if err != nil {
 				t.Fatalf("buildStreamableAxis: %v", err)
 			}
@@ -801,7 +801,7 @@ func TestFusedAxisKeyer_SetPerElementComponentsCountOncePerLabel(t *testing.T) {
 	entries, err := buildStreamableAxis([]*types.Group{
 		setPerElementGroup(),
 		{Type: types.GROUP_CATEGORY, Field: "region"},
-	}, schema, nil, "rows")
+	}, schema, schema, nil, "rows")
 	if err != nil {
 		t.Fatalf("buildStreamableAxis: %v", err)
 	}

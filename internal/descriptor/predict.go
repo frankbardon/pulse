@@ -769,7 +769,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// runtime's too: a binding on an ATTR_PREVIOUS_STATE output column
 	// validates as one on its state field.
 	if len(req.Labels) > 0 {
-		ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+		ValidateLabels(env, req.Labels, keySchemaOf(req.Attributes, schema, extensionsFromOpts(opts), opts.instance()), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
 	}
 
 	// Last, the extension slots' own spec-only Validate hooks — only on

@@ -1341,6 +1341,20 @@ const (
 	// extensions_validate and extensions_probe.probeAggregators.
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
 
+	// PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH indicates an attribute
+	// registration's output contradicts its InheritsDictionary
+	// declaration: the attribute — computed at pulse.New over a
+	// synthetic three-entry categorical source, or on any run — emitted
+	// a value that is no code of the source field's dictionary (not an
+	// integer in [0, entry count); NaN, a null, is never one), or the
+	// registration declares an Emits other than float64 (codes are
+	// numbers). Details carry the category, name, a reason discriminator
+	// (dictionary_code_out_of_range, dictionary_emits_conflict) and, for
+	// a code, the value, the dictionary size and — on a run — the source
+	// field and the slot label. Wired into extensions_validate,
+	// extensions_probe.probeAttributes and the attribute adapter.
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH indicates a matrix
 	// registration's operator, finalized at pulse.New over a synthetic
 	// three-member co-moment, returned a MatrixOutput its OutputKeys do
@@ -4886,6 +4900,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MERGEABLE_MISMATCH,
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH,

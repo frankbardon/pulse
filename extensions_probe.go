@@ -424,6 +424,9 @@ func probeAttributes(regs []AttributeRegistration) error {
 					return err
 				}
 			}
+			if err := probeAttributeCodes(reg); err != nil {
+				return err
+			}
 			var viaFunc func() (map[string]any, error)
 			if reg.ComponentsFunc != nil {
 				viaFunc = func() (map[string]any, error) { return safeInvokeAttributeComponents(reg, instance) }

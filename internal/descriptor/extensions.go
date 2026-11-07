@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/extscalar"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -12,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -132,6 +134,15 @@ type ExtensionsSnapshot struct {
 	// absent and its params are not judged. Never serialised.
 	FieldInputs map[string]func(raw json.RawMessage) []string `json:"-"`
 
+	// AttributeDictionaries carries each attribute registration's
+	// InheritsDictionary declaration (the source param, "" for the
+	// slot's Field), keyed by operator name — the same map the runtime
+	// registry's ExtensionRegistry.AttributeDictionaries holds, built by
+	// the same root function, so predict's dictionary-inheritance view
+	// (prevstate.KeySchemaWith) is the runtime's. Nil when none
+	// declares one. Never serialised.
+	AttributeDictionaries prevstate.Inherits `json:"-"`
+
 	// Purposes carries each registration's optional Purpose, keyed by
 	// registered operator name, already validated at pulse.New. The
 	// manifest projects only its intent IDs (OperatorMeta.Intents); the
@@ -211,11 +222,36 @@ func (s *ExtensionsSnapshot) ColumnReads() vectors.ExtInputs {
 	}
 }
 
+// Dictionaries is AttributeDictionaries, nil on a nil snapshot.
+func (s *ExtensionsSnapshot) Dictionaries() prevstate.Inherits {
+	if s == nil {
+		return nil
+	}
+	return s.AttributeDictionaries
+}
+
+// dictionariesOf is the InheritsDictionary declarations a predict site
+// reads: snap's, else the instance's extensions' (inst nil: none) — the
+// runtime's ExtensionRegistry.AttributeDictionaries twin.
+func dictionariesOf(snap *ExtensionsSnapshot, inst *InstanceSnapshot) prevstate.Inherits {
+	if snap == nil {
+		snap = inst.Extensions()
+	}
+	return snap.Dictionaries()
+}
+
+// keySchemaOf is the dictionary-inheritance view of schema for attrs at
+// a predict site (prevstate.KeySchemaWith over dictionariesOf) — the
+// runtime's ExtensionRegistry.AttributeDictionaryView.
+func keySchemaOf(attrs []*types.Attribute, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) *encoding.Schema {
+	return prevstate.KeySchemaWith(attrs, schema, dictionariesOf(snap, inst))
+}
+
 // classifierOf is the windows-first classifier of a predict site over
 // the bound models (nil: none) and the extension snapshot snap (nil:
 // none): the runtime's processing.ExtensionRegistry.Classifier twin.
 func classifierOf(snap *ExtensionsSnapshot, models model.Catalog) vectors.Classifier {
-	return vectors.Classifier{Cat: models, Ext: snap.ColumnReads()}
+	return vectors.Classifier{Cat: models, Ext: snap.ColumnReads(), Dict: snap.Dictionaries()}
 }
 
 // classifier is classifierOf over the options' extension snapshot (the

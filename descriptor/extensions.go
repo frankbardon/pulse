@@ -132,6 +132,13 @@ type OperatorMeta struct {
 	Mode        string              `json:"mode,omitempty"`
 	Tier        string              `json:"tier,omitempty"`
 	Params      []OperatorParamMeta `json:"params,omitempty"`
+	// InheritsDictionary is the attribute-only projection of
+	// pulse.AttributeRegistration.InheritsDictionary: the input whose
+	// dictionary the output inherits — "field" (the slot's field) or
+	// "params.<name>". The output values are that field's codes, so the
+	// column reads as the source field (labels, GROUP_CATEGORY keys,
+	// smart defaults). Omitted when the attribute declares none.
+	InheritsDictionary string `json:"inherits_dictionary,omitempty"`
 	// Intents lists the intent-taxonomy IDs (Manifest.Intents) the
 	// registration's purpose declares, sorted. Omitted when the
 	// registration declares none.

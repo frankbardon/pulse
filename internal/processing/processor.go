@@ -110,10 +110,21 @@ type Processor struct {
 // field itself), the cohort schema for every other grouper — whose
 // construction and keys stay exactly what they were.
 func (p *Processor) grouperSchema(grp *types.Group) *encoding.Schema {
-	if grp != nil && grp.Type == types.GROUP_CATEGORY && p.keySchema != nil {
-		return p.keySchema
+	return GrouperKeySchema(grp, p.schema, p.keySchema)
+}
+
+// GrouperKeySchema is the schema grp's grouper is built against over
+// the cohort schema and the run's dictionary-inheritance view keys
+// (prevstate.KeySchemaWith; nil: none): keys for a GROUP_CATEGORY
+// slot, schema for every other. The buffered paths (grouperSchema),
+// the fused crosstab axes and the parallel reducers' partition
+// groupers all build through it, so an inherited-dictionary output
+// keys alike in every arm.
+func GrouperKeySchema(grp *types.Group, schema, keys *encoding.Schema) *encoding.Schema {
+	if grp != nil && grp.Type == types.GROUP_CATEGORY && keys != nil {
+		return keys
 	}
-	return p.schema
+	return schema
 }
 
 // SetModels installs the request's bound models (nil: none). The

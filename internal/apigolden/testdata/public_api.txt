@@ -32,6 +32,8 @@ pulse: type AggregatorRegistration field ValueState bool
 pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
 pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
+pulse: type AttributeDictionarySource struct
+pulse: type AttributeDictionarySource field Param string
 pulse: const AttributeEmitBool pulse.AttributeEmitType = "bool"
 pulse: const AttributeEmitFloat64 pulse.AttributeEmitType = "float64"
 pulse: const AttributeEmitString pulse.AttributeEmitType = "string"
@@ -49,6 +51,7 @@ pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
 pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AttributeRegistration field InheritsDictionary *pulse.AttributeDictionarySource
 pulse: type AttributeRegistration field Mergeable bool
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
@@ -1980,6 +1983,7 @@ pulse/descriptor: type OperatorMeta field Description string "json:\"description
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field EmitsInputValue bool "json:\"emits_input_value,omitempty\""
 pulse/descriptor: type OperatorMeta field FansOut bool "json:\"fans_out,omitempty\""
+pulse/descriptor: type OperatorMeta field InheritsDictionary string "json:\"inherits_dictionary,omitempty\""
 pulse/descriptor: type OperatorMeta field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type OperatorMeta field MarginReducibility string "json:\"margin_reducibility,omitempty\""
 pulse/descriptor: type OperatorMeta field Mergeable bool "json:\"mergeable,omitempty\""
@@ -2762,6 +2766,7 @@ pulse/errors: const PULSE_EXPORT_COLUMN_COLLISION pulse/errors.Code = "PULSE_EXP
 pulse/errors: const PULSE_EXPORT_FIELD_UNKNOWN pulse/errors.Code = "PULSE_EXPORT_FIELD_UNKNOWN"
 pulse/errors: const PULSE_EXPORT_ROW_ERROR pulse/errors.Code = "PULSE_EXPORT_ROW_ERROR"
 pulse/errors: const PULSE_EXTENSION_ARRAY_VALUED_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH"
+pulse/errors: const PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_DUPLICATE pulse/errors.Code = "PULSE_EXTENSION_DUPLICATE"
 pulse/errors: const PULSE_EXTENSION_EXAMPLE_COLLISION pulse/errors.Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
@@ -6744,4 +6749,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 116e5d5da59df206b4fee10cfb308e5ea628919690282cf8395cdbb62bd824eb
+// golden-hash: 36f7ca58e7cfb93e2f917cc35a54f473b92f48c06b99aa277bb43f0d9a33d70b

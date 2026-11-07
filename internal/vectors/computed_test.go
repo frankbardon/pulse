@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -227,5 +228,26 @@ func TestFeatureOutputLabels(t *testing.T) {
 	}
 	if got := WindowLabel(&types.Window{Type: types.WIN_ROW_NUMBER}); got != "WIN_ROW_NUMBER" {
 		t.Errorf("window label %q", got)
+	}
+}
+
+// TestComputedColumns_InheritedDictionary (U67 E3-S2): an extension
+// attribute declaring an inherited dictionary (Classifier.Dict) is a
+// computed column of its source's type, as an ATTR_PREVIOUS_STATE
+// output is; the zero classifier types it f64.
+func TestComputedColumns_InheritedDictionary(t *testing.T) {
+	t.Parallel()
+
+	dict := encoding.NewDictionary()
+	if _, err := dict.Add("a"); err != nil {
+		t.Fatal(err)
+	}
+	s := &encoding.Schema{Fields: []encoding.Field{{Name: "c", Type: encoding.FieldTypeCategoricalU16, Dictionary: dict}}}
+	req := &types.Request{Attributes: []*types.Attribute{{Type: "ATTR_T_COPY", Field: "c", Label: "k"}}}
+	if got := ComputedColumns(req, s, Classifier{Dict: prevstate.Inherits{"ATTR_T_COPY": ""}})["k"].Type; got != encoding.FieldTypeCategoricalU16 {
+		t.Fatalf("declared output typed %s, want categorical_u16", got)
+	}
+	if got := ComputedColumns(req, s, Classifier{})["k"].Type; got != encoding.FieldTypeF64 {
+		t.Fatalf("undeclared output typed %s, want f64", got)
 	}
 }

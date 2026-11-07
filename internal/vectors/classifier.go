@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,7 +36,12 @@ type Classifier struct {
 	// attribute reads its terms from (nil: none).
 	Cat model.Catalog
 	// Ext is the extension FieldInputs hooks (nil: none): an extension
-	// aggregator naming a window label through one reads that label
-	// exactly as a built-in's field or column param does.
+	// aggregator or grouper naming a window label through one reads
+	// that label exactly as a built-in's field or column param does.
 	Ext ExtInputs
+	// Dict is the extension attributes' InheritsDictionary declarations
+	// (nil: none; prevstate.Inherits): an output column inheriting a
+	// source dictionary is typed as its source field among the computed
+	// columns, as an ATTR_PREVIOUS_STATE output is.
+	Dict prevstate.Inherits
 }

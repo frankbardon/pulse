@@ -548,6 +548,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			}
 		}
 		w.checkInputs("attribute", string(attr.Type), attr.Params, "attribute")
+		w.checkInheritedSource(attr, attrRoute, schema)
 		addAttrLabel(attr)
 	}
 	for i, attr := range req.Attributes {
@@ -1432,6 +1433,25 @@ func (w *fieldRefWalk) checkAgg(agg *types.Aggregation, prefix, slotKey string, 
 		})
 	}
 	w.checkInputs("aggregator", string(agg.Type), agg.Params, slotKey, slotValue)
+}
+
+// checkInheritedSource judges the dictionary source of an extension
+// attribute declaring InheritsDictionary (prevstate.InheritedSource —
+// the rule the runtime adapter re-runs before the factory). A source
+// Field naming no column at all is left to the unknown-field refusal
+// above, so one name is refused once. A hidden route declares nothing.
+func (w *fieldRefWalk) checkInheritedSource(attr *types.Attribute, route types.AttributeType, schema *encoding.Schema) {
+	inh := dictionariesOf(w.snap, w.inst)
+	if route == "" || inh == nil {
+		return
+	}
+	param, declared := inh[attr.Type]
+	if !declared || (param == "" && attr.Field != "" && !w.cols[attr.Field]) {
+		return
+	}
+	if _, cerr := prevstate.InheritedSource(attr, schema, inh); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 }
 
 // checkInputs judges the names an extension operator's FieldInputs hook

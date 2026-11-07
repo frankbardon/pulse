@@ -2049,6 +2049,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH: {
+		Message: "An attribute registration declaring InheritsDictionary emitted a value that is no code of its source field's dictionary (an integer from 0 to the entry count minus 1; NaN is a null) — computed at pulse.New over a synthetic three-entry categorical source, or on any run — or declares an Emits other than float64.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return, per row, the source field's own dictionary index (Record.NumericValue of a categorical field is that index; 0 / 1 for a packed_bool) or NaN for no value; never mint a code past the dictionary — details.value and details.dictionary_size name the fault. Leave Emits empty or float64. If the output is not a code of the source, drop InheritsDictionary.",
+			},
+		},
+	},
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH: {
 		Message: "A matrix registration's operator — finalized at pulse.New over a synthetic three-member co-moment, or on any run — returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
 		Fixups: []Fixup{

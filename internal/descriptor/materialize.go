@@ -111,7 +111,8 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 	from := path.Base(source)
 	// The previous-state outputs' inherited shapes (the same pointer as
 	// schema when the request has none).
-	view := prevstate.KeySchema(req.Attributes, schema)
+	inherits := dictionariesOf(nil, inst)
+	view := prevstate.KeySchemaWith(req.Attributes, schema, inherits)
 	var out []MaterializeColumn
 	for i, feat := range req.Features {
 		if feat == nil {
@@ -168,9 +169,12 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 		}
 		col := MaterializeColumn{Name: label,
 			Description: derivedDescription(operatorPhrase(op, field, attr.Params, extra), from)}
-		if attr.Type == types.ATTR_PREVIOUS_STATE && view != schema && schema.Field(label) == nil {
-			if vf := view.Field(label); vf != nil {
-				col.Inherits, col.Type, col.Dictionary = attr.Field, vf.Type, vf.Dictionary
+		if view != schema && schema.Field(label) == nil {
+			// An ATTR_PREVIOUS_STATE output, or an extension attribute
+			// declaring InheritsDictionary (its Field or param source).
+			src := prevstate.SourceOf(attr, schema, inherits)
+			if vf := view.Field(label); vf != nil && src != "" {
+				col.Inherits, col.Type, col.Dictionary = src, vf.Type, vf.Dictionary
 			}
 		}
 		out = append(out, col)

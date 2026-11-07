@@ -55,12 +55,13 @@ type Computed map[string]ComputedColumn
 // and the walk refuses the shadowing slot. Nil when req computes
 // nothing.
 func ComputedColumns(req *types.Request, schema *encoding.Schema, cls Classifier) Computed {
-	return computedColumns(req, schema, WindowsOverRecords(req, schema, cls))
+	return computedColumns(req, schema, WindowsOverRecords(req, schema, cls), cls.Dict)
 }
 
 // computedColumns is ComputedColumns with the windows-first decision
-// given: windows admits every window label.
-func computedColumns(req *types.Request, schema *encoding.Schema, windows bool) Computed {
+// given: windows admits every window label. dict types an extension
+// attribute's inherited-dictionary output (nil: none).
+func computedColumns(req *types.Request, schema *encoding.Schema, windows bool, dict prevstate.Inherits) Computed {
 	if req == nil || (len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0) {
 		return nil
 	}
@@ -84,7 +85,7 @@ func computedColumns(req *types.Request, schema *encoding.Schema, windows bool) 
 			add(l, ComputedColumn{Slot: "feature", Index: i, Type: encoding.FieldTypeF64})
 		}
 	}
-	view := prevstate.KeySchema(req.Attributes, schema)
+	view := prevstate.KeySchemaWith(req.Attributes, schema, dict)
 	for i, a := range req.Attributes {
 		if a == nil {
 			continue
@@ -94,7 +95,7 @@ func computedColumns(req *types.Request, schema *encoding.Schema, windows bool) 
 			label = DefaultAttributeLabel(a)
 		}
 		c := ComputedColumn{Slot: "attribute", Index: i, Type: encoding.FieldTypeF64}
-		if a.Type == types.ATTR_PREVIOUS_STATE && view != nil && view != schema {
+		if _, inherits := dict[a.Type]; (inherits || a.Type == types.ATTR_PREVIOUS_STATE) && view != nil && view != schema {
 			if vf := view.Field(label); vf != nil {
 				c.Type = vf.Type
 			}
@@ -215,7 +216,7 @@ func resolveListing(req *types.Request, schema *encoding.Schema) ([]Resolved, *e
 	if req == nil {
 		return Resolve(nil, schema)
 	}
-	return resolveIn(req.Vectors, schema, computedColumns(req, schema, len(req.Windows) > 0))
+	return resolveIn(req.Vectors, schema, computedColumns(req, schema, len(req.Windows) > 0, nil))
 }
 
 // ComputedRefusal returns the first slot of req, other than a MAT_*

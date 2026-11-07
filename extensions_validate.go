@@ -124,6 +124,9 @@ func validateExtensions(ext Extensions) error {
 	if err := validateAttributeModes(ext.Attributes); err != nil {
 		return err
 	}
+	if err := validateAttributeDictionaries(ext.Attributes); err != nil {
+		return err
+	}
 	if err := validateOperatorSlice(ext.Filterers, categoryFilterer, builtinFiltererNames(), func(r FiltererRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
 	}, func(r FiltererRegistration) bool { return r.Factory != nil }); err != nil {
@@ -814,6 +817,46 @@ func validateAttributeModes(regs []AttributeRegistration) error {
 					"valid":    []string{string(AttributeModeRowLocal), string(AttributeModeTwoPass), string(AttributeModeBuffered)},
 				},
 			)
+		}
+	}
+	return nil
+}
+
+// validateAttributeDictionaries checks each InheritsDictionary
+// declaration (U67 E3-S2):
+//
+//   - PULSE_EXTENSION_PARAM_INVALID, reason dictionary_param_undeclared
+//     — a Param that names no declared ParamMeta, one whose JSONType is
+//     not "string", or an Expression one (an expression is a number,
+//     never a field name);
+//   - PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH, reason
+//     dictionary_emits_conflict — an Emits other than empty / float64
+//     (a dictionary code is a number).
+func validateAttributeDictionaries(regs []AttributeRegistration) error {
+	for i, r := range regs {
+		d := r.InheritsDictionary
+		if d == nil {
+			continue
+		}
+		if r.Emits != "" && r.Emits != AttributeEmitFloat64 {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH,
+				fmt.Sprintf("extension attribute %q declares InheritsDictionary and Emits %q; a dictionary code is a number — leave Emits empty or %q", r.Name, r.Emits, AttributeEmitFloat64),
+				map[string]any{"category": "attribute", "name": string(r.Name), "index": i, "emits": string(r.Emits), "reason": "dictionary_emits_conflict"})
+		}
+		if d.Param == "" {
+			continue
+		}
+		ok := false
+		for _, p := range r.Params {
+			if p.Name == d.Param {
+				ok = p.JSONType == "string" && !p.Expression
+				break
+			}
+		}
+		if !ok {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension attribute %q inherits its output dictionary from params.%s, which is no declared non-expression string param; declare it in Params (JSONType \"string\") or leave Param empty to read the slot's Field", r.Name, d.Param),
+				map[string]any{"category": "attribute", "name": string(r.Name), "index": i, "param": d.Param, "reason": "dictionary_param_undeclared"})
 		}
 	}
 	return nil

@@ -467,6 +467,15 @@ const (
 	AttributeEmitString  AttributeEmitType = "string"
 )
 
+// AttributeDictionarySource names the input whose dictionary an
+// extension attribute's output inherits
+// (AttributeRegistration.InheritsDictionary).
+type AttributeDictionarySource struct {
+	// Param is the declared string param whose value names the source
+	// field; empty means the slot's Field.
+	Param string
+}
+
 // AttributeRegistration installs a custom ATTR_* operator. The factory
 // is an extend.AttributeFactory; Mode declares which extend sibling the
 // returned value implements, and probe-validation at pulse.New refuses
@@ -507,6 +516,31 @@ type AttributeRegistration struct {
 	Accepts  []encoding.FieldType
 	Emits    AttributeEmitType
 	Params   []ParamMeta
+	// InheritsDictionary declares that the attribute emits, per row, a
+	// CODE of a source field's dictionary — the categorical index the
+	// source's Record.NumericValue reads (0 / 1 for a packed_bool
+	// source), or NaN for no value — so its output column inherits the
+	// source's type and dictionary: GROUP_CATEGORY keys it by the
+	// dictionary's labels, Group.Include / label bindings / expression
+	// comparisons resolve through them, and a Type-less group or cell
+	// over it takes the source type's smart default, at predict and at
+	// runtime alike, exactly as an ATTR_PREVIOUS_STATE output does. The
+	// source is the slot's Field, or the string param Param names; it
+	// must be a categorical_* or packed_bool cohort field, else the slot
+	// is refused (PROCESSING_CONFIG / PULSE_FIELD_TYPE_UNSUPPORTED,
+	// details.reason source_unset / source_not_cohort_field /
+	// source_not_coded) at predict and at runtime. A value that is no
+	// code — not an integer in [0, entry count) — is
+	// PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH (reason
+	// dictionary_code_out_of_range) on the run and at pulse.New's probe
+	// (the attribute computed over a three-entry categorical source).
+	// Param must name a declared, non-Expression string ParamMeta
+	// (PULSE_EXTENSION_PARAM_INVALID reason dictionary_param_undeclared)
+	// and Emits must be empty or float64 (reason
+	// dictionary_emits_conflict). Nil declares none: the output is a
+	// plain number. The manifest entry's inherits_dictionary names the
+	// source ("field" or "params.<name>").
+	InheritsDictionary *AttributeDictionarySource
 	// WeightAware declares that the attribute reads the row weight:
 	// on a slot where a weight is in force the factory sees it on
 	// spec.Weight and extend.Record.Weight() reports each row's valid
