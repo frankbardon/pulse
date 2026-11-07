@@ -123,6 +123,12 @@ type ExtensionsSnapshot struct {
 	// registry holds, built by the same root function. Never serialised.
 	OverlayDetails map[string]overlayhost.ExtensionDecl `json:"-"`
 
+	// OverlayParams carries each extension overlay kind's declared
+	// params in the manifest Param vocabulary (the built-in overlay
+	// entries' Params), keyed by name; a kind declaring none is absent.
+	// Never serialised.
+	OverlayParams map[string][]descriptor.Param `json:"-"`
+
 	// FieldInputs carries each registration's optional FieldInputs hook
 	// (pulse.FieldInputsFunc — the callback the runtime's buffered
 	// projection already consults), keyed "<category>|<name>" with the
@@ -278,6 +284,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Tests:            []descriptor.OperatorMeta{},
 		MatrixOps:        []descriptor.MatrixMeta{},
 		Regressions:      []descriptor.RegressionMeta{},
+		Overlays:         []descriptor.OverlayCapability{},
 		ExprFunctions:    []descriptor.ExprFunctionMeta{},
 		LookupTables:     []descriptor.LookupTableMeta{},
 		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
@@ -340,6 +347,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	// The weighting-aware projection is stamped by assembleManifest,
 	// which knows whether the instance offers capability:weighting.
 	out.MatrixOps = extensionMatrixMetas(snap, true)
+	out.Overlays = extensionOverlayCapabilities(snap, true)
 	out.Regressions = extensionRegressionMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}

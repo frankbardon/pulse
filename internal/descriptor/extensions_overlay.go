@@ -1,6 +1,10 @@
 package descriptor
 
 import (
+	"slices"
+	"sort"
+
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
@@ -53,4 +57,88 @@ func extensionOverlayDecl(inst *InstanceSnapshot, kind types.OverlayKind) *overl
 		return nil
 	}
 	return &d
+}
+
+// ExtensionOverlayHostCapabilities returns the host capabilities the
+// extension overlay kind d declares runs under, sorted:
+// capability:crosstab for a Matrix handler, capability:compose for a
+// Series or Compose handler (the SERIES host rides compose, as every
+// built-in SERIES kind's does — overlayHostKinds). It is the any-of
+// group the kind depends on as a feature, and the hosts whose overlay
+// slots it keeps visible (overlayGate) — the extension twin of
+// OverlayHostCapabilities.
+func ExtensionOverlayHostCapabilities(d overlayhost.ExtensionDecl) []string {
+	var out []string
+	for _, s := range d.HostShapes {
+		switch s {
+		case types.OverlayShapeMatrix:
+			out = append(out, featCrosstab)
+		case types.OverlayShapeSeries:
+			out = append(out, featCompose)
+		}
+	}
+	if d.Compose {
+		out = append(out, featCompose)
+	}
+	sort.Strings(out)
+	return slices.Compact(out)
+}
+
+// extensionOverlayRunsOn reports whether inst carries an enabled
+// extension overlay kind running under host (a host capability).
+func extensionOverlayRunsOn(inst *InstanceSnapshot, host string) bool {
+	snap := inst.Extensions()
+	if snap == nil {
+		return false
+	}
+	for name, d := range snap.OverlayDetails {
+		if inst.Enabled(name) && slices.Contains(ExtensionOverlayHostCapabilities(d), host) {
+			return true
+		}
+	}
+	return false
+}
+
+// extensionOverlayCapabilities projects the snapshot's extension
+// overlay kinds onto the built-in Manifest.Overlays entry shape, sorted
+// by kind: shapes, scopes and Ref arms from the declared contract
+// (OverlayDetails; a margin Ref is the OverlayRef field "Margin", none
+// lists no field), Buffered always (an extension kind runs buffered
+// only — overlayhost.StreamReasons), the declared params and
+// Inferential, the Purpose's intents, and — where weighting is offered
+// — both weight kinds for a WeightAware kind. Never nil.
+func extensionOverlayCapabilities(s *ExtensionsSnapshot, weighting bool) []descriptor.OverlayCapability {
+	if s == nil || len(s.Overlays) == 0 {
+		return []descriptor.OverlayCapability{}
+	}
+	out := make([]descriptor.OverlayCapability, 0, len(s.Overlays))
+	for _, m := range sortOperatorMeta(s.Overlays) {
+		d := s.OverlayDetails[m.Name]
+		c := descriptor.OverlayCapability{
+			Kind:        types.OverlayKind(m.Name),
+			Shapes:      slices.Clone(d.Shapes),
+			Scopes:      slices.Clone(d.Scopes),
+			RefKinds:    []string{},
+			Buffered:    true,
+			Description: m.Description,
+			Inferential: d.Inferential,
+			Params:      slices.Clone(s.OverlayParams[m.Name]),
+		}
+		for _, r := range d.Refs {
+			if r == overlayhost.RefMargin {
+				c.RefKinds = append(c.RefKinds, "Margin")
+			}
+		}
+		slices.Sort(c.Shapes)
+		slices.Sort(c.Scopes)
+		if p, ok := s.PurposeOf(m.Name); ok && len(p.Intents) > 0 {
+			c.Intents = append([]string(nil), p.Intents...)
+			sort.Strings(c.Intents)
+		}
+		if weighting && d.WeightAware {
+			c.WeightKinds = []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+		}
+		out = append(out, c)
+	}
+	return out
 }

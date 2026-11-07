@@ -1121,6 +1121,7 @@
       "tests": [],
       "matrix_ops": [],
       "regressions": [],
+      "overlays": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -1434,4 +1435,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6e0364d29e8bd156096c365d044c91159bfbad077ed7dcb913f470e69536b1cd
+// golden-hash: dd7ee2a657eb100195e3f9f71dc0f891c78b31bde9ce4cc283e431584efafecc

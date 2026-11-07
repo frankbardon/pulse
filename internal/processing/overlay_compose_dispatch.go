@@ -271,9 +271,17 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 	for i := range specs {
 		spec := &specs[i]
 		// Every kind-keyed decision below takes the route: a kind the
-		// instance feature set hides routes as never registered
-		// (falling through to the stub, as an unknown kind does).
+		// instance feature set hides routes as never registered.
 		route := exts.overlayRoute(spec.Kind)
+		// A route naming no catalog, Compose-table or extension kind —
+		// a never-registered kind, or one the instance feature set
+		// hides — is refused first with the unknown-kind refusal
+		// predict-compose raises at its Gate 0. It once fell through to
+		// the stub and answered an empty layer.
+		ext := exts.extensionOverlay(route)
+		if cerr := overlayhost.ComposeKindUnknownRefusal(spec.Kind, route, ext != nil || composeTableKind(route), i); cerr != nil {
+			return nil, nil, cerr
+		}
 		// A catalog kind that does not run on ComposedRequest.Overlays
 		// (a Process, whole-chain or FACET kind) is refused first — the
 		// shared wrong-slot refusal predict-compose raises right after
@@ -287,7 +295,6 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// (overlayhost.ExtensionComposeRefusal): a Compose handler,
 		// Scope, Level / Within, then its ValidateCompose hook. Every
 		// slot gate below then holds it like any Compose kind.
-		ext := exts.extensionOverlay(route)
 		if ext != nil {
 			if cerr := overlayhost.ExtensionComposeRefusal(&ext.Decl, spec, i); cerr != nil {
 				return nil, nil, cerr
@@ -364,33 +371,33 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		if err != nil {
 			return nil, nil, err
 		}
-		// Strict cross-Request key-set alignment. Runs AFTER reference
-		// + targets have resolved to concrete *Response objects but
-		// BEFORE the per-kind handler dispatches — key-set divergence
-		// is the cheapest signal to fail on so we surface it before any
-		// per-kind handler walks the matrix / series payload a second
-		// time. Schema-match and dict-drift gates fire AFTER this one.
-		//
-		// Both this gate and the schema match below judge each slot's
-		// host SHAPE by its authored Request (authoredSlotShapes) — the
-		// shape predict-compose reads — so an ungrouped slot, whose one
-		// aggregate row still sits in Data, is SCALAR and a grouped
-		// slot paired with it is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT, not
-		// a key-set divergence.
+		// Both this gate and the key-set alignment below judge each
+		// slot's host SHAPE by its authored Request (authoredSlotShapes)
+		// — the shape predict-compose reads — so an ungrouped slot,
+		// whose one aggregate row still sits in Data, is SCALAR and a
+		// grouped slot paired with it is
+		// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT, not a key-set divergence.
 		shapes := authoredSlotShapes(refResp, targetResps, refIdx, targetIdxs, requests)
-		if err := checkKeySetAlignmentShaped(refResp, targetResps, shapes, *spec, i); err != nil {
+		// Strict structural schema match across slots. Runs AFTER label
+		// resolution and BEFORE the key-set alignment and the per-kind
+		// handler — the order predict-compose's Gate 4 judges in. Three
+		// orthogonal gates fire from the same entry point:
+		// PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT (reference vs target host
+		// shape disagrees), PULSE_OVERLAY_SLOT_NOT_CROSSTAB (spec.Kind
+		// requires MATRIX but a slot is non-MATRIX — gated by
+		// `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
+		// (per-axis grouper-kind tuples, or cell shapes, disagree across
+		// slots).
+		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
 			return nil, nil, err
 		}
-		// Strict structural schema match across slots. Runs AFTER
-		// key-set alignment and BEFORE the per-kind handler
-		// dispatches. Three orthogonal gates fire from the same entry
-		// point: PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT (reference vs
-		// target host shape disagrees), PULSE_OVERLAY_SLOT_NOT_CROSSTAB
-		// (spec.Kind requires MATRIX but a slot is non-MATRIX — gated
-		// by `kindRequiresMatrix`), and PULSE_OVERLAY_SCHEMA_DIVERGENT
-		// (per-axis grouper-kind tuples disagree across slots).
-		// Dict-drift fires AFTER this one.
-		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
+		// Strict cross-Request key-set alignment. Runs AFTER the
+		// structural schema match (two slots whose grouper kinds differ
+		// are PULSE_OVERLAY_SCHEMA_DIVERGENT, the refusal predict-compose
+		// raises from the requests alone, even when their keys differ
+		// too) and BEFORE the per-kind handler dispatches. Dict-drift
+		// fires AFTER this one.
+		if err := checkKeySetAlignmentShaped(refResp, targetResps, shapes, *spec, i); err != nil {
 			return nil, nil, err
 		}
 		// Categorical dictionary-prefix drift probe. Runs ONLY when
@@ -483,10 +490,9 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 			}, true
 		}
 		if !ok {
-			// Chassis fallback: an unknown kind reaching this branch
-			// is a genuine kind-unknown error (predict catches
-			// genuinely unknown kinds upstream) and the stub fallback
-			// is the runtime defense in depth.
+			// Chassis fallback: only a test stub kind
+			// (composeStubKinds) reaches here — every unknown kind was
+			// refused above.
 			handler = applyComposeStub
 		}
 		layer, ws, err := handler(spec, refResp, targetResps, refIdx, targetIdxs)
@@ -511,6 +517,28 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		}
 	}
 	return layers, warnings, nil
+}
+
+// composeStubKinds are kinds outside every table the dispatcher still
+// folds to the stub layer: nil in production; the chassis tests name
+// their synthetic stub kinds here (overlay_compose_dispatch_test.go) so
+// the generic gates stay drivable without a real handler.
+var composeStubKinds map[types.OverlayKind]bool
+
+// composeTableKind reports whether route has a Compose handler table
+// entry (single-layer, multi-layer or cell-typed) or is a test stub
+// kind.
+func composeTableKind(route types.OverlayKind) bool {
+	if _, ok := composeOverlayHandlers[route]; ok {
+		return true
+	}
+	if _, ok := composeOverlayMultiLayerHandlers[route]; ok {
+		return true
+	}
+	if _, ok := composeCellTypedHandlers[route]; ok {
+		return true
+	}
+	return composeStubKinds[route]
 }
 
 // requestAt is requests[i], nil out of range.

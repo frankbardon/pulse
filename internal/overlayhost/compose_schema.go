@@ -105,3 +105,56 @@ func CellShapeDivergentRefusal(index int, kind types.OverlayKind, reference, tar
 			"target_cell_shape":    tgtCell,
 		})
 }
+
+// Cell-shape tokens: the canonical spelling of a crosstab cell's payload
+// structure the Compose cell-shape arm compares (processing's
+// canonicalCellShape renders a cell VALUE into one of them).
+const (
+	CellShapeScalar       = "scalar"
+	CellShapeWelford      = "welford_triple"
+	CellShapeLabels       = "[]string"
+	CellShapeCounts       = "map[string]int"
+	CellShapeWeightCounts = "map[string]float64"
+)
+
+// CellShapeOf is the cell-shape token a crosstab whose cell aggregation
+// has (routed) type t writes into every present cell, from the request
+// alone — predict-compose's twin of the runtime's per-cell probe:
+// AGG_SET_UNION / AGG_SET_INTERSECTION a label list, AGG_SET_FREQUENCY
+// a per-label count map (Σw under a weight: weighted), every other
+// built-in one number (AGG_WELFORD's cell is its mean; the moment
+// triple rides the cell components). "" when the type
+// alone does not decide it — AGG_CONSTANT (the constant's own type
+// does), an array-valued AGG_VEC_* (params.element does), an extension
+// or unknown type (builtin false) — and the arm then never refuses.
+// processing's TestCellShapeOf_MatchesRuntime holds the table to what
+// each built-in writes.
+func CellShapeOf(t types.AggregationType, builtin, weighted bool) string {
+	if !builtin {
+		return ""
+	}
+	switch {
+	case t == types.AGG_SET_UNION || t == types.AGG_SET_INTERSECTION:
+		return CellShapeLabels
+	case t == types.AGG_SET_FREQUENCY && weighted:
+		return CellShapeWeightCounts
+	case t == types.AGG_SET_FREQUENCY:
+		return CellShapeCounts
+	case t == types.AGG_CONSTANT || t.ArrayValued():
+		return ""
+	}
+	return CellShapeScalar
+}
+
+// RequestCellShape is CellShapeOf for a Compose slot's request: its
+// crosstab's single cell aggregation (route resolves the authored type
+// — a hidden one is unknown; weighted reports whether the cell resolves
+// an applied weight). "" for a slot with no crosstab, a multi-measure
+// crosstab, or an untyped cell.
+func RequestCellShape(req *types.Request, route func(types.AggregationType) (types.AggregationType, bool), weighted bool) string {
+	if req == nil || req.Crosstab == nil || req.Crosstab.HasMeasures() || req.Crosstab.Cell == nil || req.Crosstab.Cell.Type == "" {
+		return ""
+	}
+	t, builtin := route(req.Crosstab.Cell.Type)
+	return CellShapeOf(t, builtin, weighted)
+}

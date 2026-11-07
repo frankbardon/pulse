@@ -1802,7 +1802,8 @@ arm, whose overlay hook has no schema in reach.
 ## DependsOn (feature-profile dependencies)
 
 Every operator registration (aggregator, attribute, filterer, grouper,
-window, feature, test) accepts an optional `DependsOn []string`: the
+window, feature, test, matrix, regression, overlay) accepts an optional
+`DependsOn []string`: the
 features the operator needs. Each entry is an AND edge — a
 [feature profile](../library/feature-profiles.md) that enables the
 operator must enable every named feature too, or `pulse.New` fails with
@@ -1826,6 +1827,17 @@ without a profile, so a typo fails at construction with
 `PULSE_FEATURE_PROFILE_UNKNOWN` (each entry carries `extension` and
 `category`). Extension operators carry no `Since` and are listed in a
 profile by their registered name.
+
+An `OverlayRegistration` takes `DependsOn` too, and its kind is a feature
+like any extension operator. Instead of a request host it needs a host
+its handlers run on: `capability:crosstab` for `Handler.Matrix`,
+`capability:compose` for `Handler.Series` or `Handler.Compose`. A
+registered kind is listed in the manifest's `extensions.overlays` (the
+built-in `overlays` entry shape), the instance payload schema's
+`OverlayKind` enum and the MCP `overlay_kind` enum of each slot it runs
+on, and `Pulse.ApplySeriesOverlays` runs its `Series` handler. A profile
+omitting it hides it from all of them, and a spec naming it is refused
+`PULSE_OVERLAY_KIND_UNKNOWN`, as a never-registered kind is.
 
 ## Purpose and Interpretation (guidance metadata)
 

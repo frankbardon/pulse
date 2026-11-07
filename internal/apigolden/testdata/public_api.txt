@@ -780,6 +780,7 @@ pulse: type Options field Strict bool
 pulse: type Options field SuppressAdvisories []string
 pulse: type Options field TemplateDirs []string
 pulse: type OverlayRegistration struct
+pulse: type OverlayRegistration field DependsOn []string
 pulse: type OverlayRegistration field Description string
 pulse: type OverlayRegistration field EmitsPValues bool
 pulse: type OverlayRegistration field Handler pulse/extend.OverlayHandler
@@ -1613,6 +1614,7 @@ pulse/descriptor: type ExtensionsManifest field Groupers []pulse/descriptor.Oper
 pulse/descriptor: type ExtensionsManifest field LabelTables []pulse/descriptor.LabelTableMeta "json:\"label_tables\""
 pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.LookupTableMeta "json:\"lookup_tables\""
 pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.MatrixMeta "json:\"matrix_ops\""
+pulse/descriptor: type ExtensionsManifest field Overlays []pulse/descriptor.OverlayCapability "json:\"overlays\""
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
@@ -6772,4 +6774,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 36bcf3d5addbcae100bde2a91e16cc627209299c15ae8026b2070cc9a35e6b0f
+// golden-hash: 620f5ed96e5e4155b60256b921d0d640da216b335a2a3659729583377c603d2f

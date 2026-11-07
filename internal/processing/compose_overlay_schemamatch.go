@@ -229,23 +229,25 @@ func probeMatrixCellShape(m *types.MatrixPayload) string {
 // family depends on triple-aware handlers binding to this token.
 // Unrelated Rich families fall through to type-name branches so
 // the gate stays orthogonal across them without dragging in
-// reflect.
+// reflect. The named tokens are overlayhost's (CellShapeScalar …),
+// which predict-compose derives from the cell aggregation type
+// (overlayhost.CellShapeOf; TestCellShapeOf_MatchesRuntime).
 func canonicalCellShape(v any) string {
 	switch v.(type) {
 	case nil:
 		return ""
 	case float64, float32, int, int64, int32, uint32, uint64, uint, uint8, uint16:
-		return "scalar"
+		return overlayhost.CellShapeScalar
 	case WelfordTriple:
-		return "welford_triple"
+		return overlayhost.CellShapeWelford
 	case map[string]int:
-		return "map[string]int"
+		return overlayhost.CellShapeCounts
 	case map[string]int64:
 		return "map[string]int64"
 	case map[string]float64:
-		return "map[string]float64"
+		return overlayhost.CellShapeWeightCounts
 	case []string:
-		return "[]string"
+		return overlayhost.CellShapeLabels
 	}
 	// Final fallback: a single unknown sentinel. Two slots both
 	// landing here are treated as cell-shape-equivalent (the gate

@@ -139,12 +139,7 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 			continue
 		}
 		if !chainOverlayKindAllowed(opts.overlayRoute(spec.Kind)) {
-			env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-				"chain overlay kind not supported on ChainRequest.Overlays: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-				})
+			addCodedError(env, overlayhost.KindUnknownRefusal(spec.Kind, i, "chain"))
 			continue
 		}
 		// Resolve Target (defaults to latest stage) and Ref (no default).

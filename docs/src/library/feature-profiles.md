@@ -214,6 +214,12 @@ Every `DependsOn` entry must name a feature this build knows: a built-in,
 or another registered extension operator. This is checked at every
 `pulse.New`, with or without a profile, so a typo fails at construction.
 An enabled extension operator also needs a request host, like a built-in.
+An extension overlay kind needs a host its handlers run on instead: a
+crosstab kind (`Handler.Matrix`) needs `capability:crosstab`, a series or
+Compose kind (`Handler.Series` / `Handler.Compose`) `capability:compose`.
+A profile that omits it hides it from the manifest, the payload schema,
+MCP and the generated reference, and a spec naming it is refused as an
+unknown kind.
 
 An enabled extension regression also counts as a regression for the
 built-in features that need one. `ATTR_REG_PREDICT`,

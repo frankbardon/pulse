@@ -106,12 +106,7 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	// cannot reasonably validate Scope / Ref against an unknown catalog
 	// entry. Mirrors the Request-host validator's policy.
 	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
-		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-			"overlay kind is not in the catalog: "+string(spec.Kind),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addCodedError(env, overlayhost.KindUnknownRefusal(spec.Kind, index, "facet"))
 		return
 	}
 	// A catalog kind that runs on another slot gets the shared

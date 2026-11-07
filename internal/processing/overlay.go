@@ -523,13 +523,8 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		}
 		handler, ok := overlayHandlers[route]
 		if !ok {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no runtime handler: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-				})
+			// predict's catalog-probe refusal (validateOverlaySpec).
+			return nil, nil, overlayhost.KindUnknownRefusal(spec.Kind, i, "")
 		}
 		var (
 			layer types.OverlayLayer

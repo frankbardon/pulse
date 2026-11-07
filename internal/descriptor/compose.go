@@ -678,13 +678,12 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			appendComposeSlotPair(result, spec.Reference, "", "host-incompatible")
 			return
 		}
-	} else if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
-		// Gate 0: unknown kind. The catalog lookup runs against
-		// types.AllOverlayKinds() so a new kind shows up here
-		// automatically once it's appended to the catalog.
-		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-			"compose overlay spec carries unknown kind: "+string(spec.Kind),
-			map[string]any{"index": specIdx, "kind": string(spec.Kind)})
+	} else if cerr := overlayhost.ComposeKindUnknownRefusal(spec.Kind, opts.overlayRoute(spec.Kind), false, specIdx); cerr != nil {
+		// Gate 0: unknown kind — a never-registered or hidden one. The
+		// catalog lookup runs against types.AllOverlayKinds() so a new
+		// kind shows up here automatically once it's appended to the
+		// catalog; the runtime dispatcher raises the same refusal first.
+		addCodedError(env, cerr)
 		appendComposeSlotPair(result, spec.Reference, "", "kind-unknown")
 		return
 	}
@@ -905,15 +904,14 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// processing.kindRequiresMatrix (see compose_test.go for the
 	// lock-step sync test).
 	//
-	// Gate 4a, the SERIES value + key rule (U46): a non-crosstab slot is
+	// Gate 4a, the SERIES value rule (U46): a non-crosstab slot is
 	// scored on the aggregation params.field names (else
 	// Aggregations[0]) and keyed on its GROUP columns alone — the
 	// runtime's processing.projectComposeSeriesSlots. An unknown label
 	// is PULSE_OVERLAY_FIELD_UNKNOWN on the first slot naming none
-	// (reference first, then targets — one error, as the runtime),
-	// and two SERIES slots whose group key columns differ by name can
-	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
-	// runtime key-set gate raises.
+	// (reference first, then targets — one error, as the runtime). The
+	// key rule (differently named group columns) runs per target after
+	// the schema match below, the runtime's gate order.
 	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
 		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
 		for _, s := range slots {
@@ -946,26 +944,6 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		}
 	}
 	refShape := inferComposeSlotShape(refReq)
-	if refShape == types.OverlayShapeSeries {
-		refKeys := composeSeriesKeyFields(refReq)
-		for _, target := range resolved {
-			if inferComposeSlotShape(target.req) != types.OverlayShapeSeries {
-				continue
-			}
-			if tKeys := composeSeriesKeyFields(target.req); !composeStringTuplesEqual(refKeys, tKeys) {
-				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
-					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
-					map[string]any{
-						"index":            specIdx,
-						"reference":        spec.Reference,
-						"target":           target.label,
-						"reference_fields": refKeys,
-						"target_fields":    tKeys,
-					})
-				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
-			}
-		}
-	}
 	if kindRequiresMatrixCompose(spec.Kind) && refShape != types.OverlayShapeMatrix {
 		env.AddError(string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
@@ -1022,10 +1000,48 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		// to read; the per-Request inference reads the same per-
 		// grouper Kind tuples the matrix RowHeader / ColumnHeader
 		// types would have echoed.
+		refAxes := overlayhost.RequestAxisSchema(refReq)
 		if cerr := overlayhost.SchemaDivergentRefusal(specIdx, spec.Kind, spec.Reference, target.label,
-			overlayhost.RequestAxisSchema(refReq), overlayhost.RequestAxisSchema(target.req)); cerr != nil {
+			refAxes, overlayhost.RequestAxisSchema(target.req)); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+			continue
+		}
+		// The cell-shape arm of the same refusal: two MATRIX slots whose
+		// cell aggregations write structurally different payloads (one
+		// number vs a label list or a count map) — the
+		// runtime's per-cell probe (CellShapeDivergentRefusal), read here
+		// off each cell aggregation's type (overlayhost.RequestCellShape;
+		// a type that does not decide it never refuses). The runtime
+		// excuses a slot with no present cell, which the request alone
+		// cannot see.
+		if refShape == types.OverlayShapeMatrix {
+			refCell, tCell := composeSlotCellShape(refReq, opts), composeSlotCellShape(target.req, opts)
+			if refCell != "" && tCell != "" && refCell != tCell {
+				addCodedError(env, overlayhost.CellShapeDivergentRefusal(specIdx, spec.Kind, spec.Reference, target.label, refAxes, refCell, tCell))
+				appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+				continue
+			}
+		}
+		// Two SERIES slots whose group key columns differ by name can
+		// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
+		// runtime key-set gate raises after the schema match — so a pair
+		// whose grouper kinds differ too is SCHEMA_DIVERGENT on both
+		// sides.
+		if refShape == types.OverlayShapeSeries {
+			refKeys, tKeys := composeSeriesKeyFields(refReq), composeSeriesKeyFields(target.req)
+			if !composeStringTuplesEqual(refKeys, tKeys) {
+				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
+					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
+					map[string]any{
+						"index":            specIdx,
+						"reference":        spec.Reference,
+						"target":           target.label,
+						"reference_fields": refKeys,
+						"target_fields":    tKeys,
+					})
+				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
+			}
 		}
 	}
 
@@ -1048,6 +1064,18 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			addCodedError(env, cerr)
 		}
 	}
+}
+
+// composeSlotCellShape is the cell-shape token a Compose slot's
+// crosstab cell writes (overlayhost.RequestCellShape): its cell type
+// routed through the instance (a hidden type is unknown), built-in iff
+// a catalog type, weighted iff the cell resolves an applied weight.
+func composeSlotCellShape(req *types.Request, opts *PredictOptions) string {
+	route := func(t types.AggregationType) (types.AggregationType, bool) {
+		r := opRoute(opts.instance(), t)
+		return r, r != "" && isBuiltinAggregationType(r)
+	}
+	return overlayhost.RequestCellShape(req, route, crosstabCellWeightBasis(req, opts).Weighted())
 }
 
 // composeSlotRowAxis returns one Compose slot's crosstab ROW axis, or

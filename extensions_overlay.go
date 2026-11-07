@@ -69,6 +69,14 @@ type OverlayRegistration struct {
 	// Interpretation optionally says how to read the layer's outputs,
 	// structure-checked at pulse.New (PULSE_EXTENSION_PURPOSE_INVALID).
 	Interpretation []descriptor.Interpretation
+	// DependsOn names the features this kind needs, each an AND edge;
+	// see AggregatorRegistration.DependsOn. The kind is a feature like
+	// any extension operator: its host group is the any-of set of the
+	// hosts its handlers run on (Matrix → capability:crosstab; Series
+	// and Compose → capability:compose), and a feature profile that
+	// omits it hides it on every surface. Optional; extensions carry no
+	// Since.
+	DependsOn []string
 	// Handler runs the kind, one function per host; at least one is
 	// required (PULSE_EXTENSION_PARAM_INVALID, reason missing_handler).
 	Handler extend.OverlayHandler
@@ -296,6 +304,7 @@ func addSnapshotOverlays(snap *descx.ExtensionsSnapshot, regs []OverlayRegistrat
 		return
 	}
 	snap.OverlayDetails = make(map[string]overlayhost.ExtensionDecl, len(regs))
+	snap.OverlayParams = map[string][]descriptor.Param{}
 	for _, r := range regs {
 		name := string(r.Name)
 		snap.Overlays = append(snap.Overlays, descriptor.OperatorMeta{
@@ -306,6 +315,9 @@ func addSnapshotOverlays(snap *descx.ExtensionsSnapshot, regs []OverlayRegistrat
 			Params:      paramMetaSnapshot(r.Params),
 		})
 		snap.OverlayDetails[name] = overlayDeclaration(r)
+		if ps := matrixParamSnapshot(r.Params); ps != nil {
+			snap.OverlayParams[name] = ps
+		}
 	}
 }
 

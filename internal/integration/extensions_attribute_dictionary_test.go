@@ -693,3 +693,72 @@ func TestExtensions_InheritedDictionaryVectorMemberParity(t *testing.T) {
 		t.Fatalf("verdict over the output %s, over the source %s", got, want)
 	}
 }
+
+// TestExtensions_InheritedDictionaryOverlayBoundsMatchRuntime: the
+// overlay rules predict bounds by a categorical axis's dictionary read
+// an extension attribute's inherited dictionary as they read the
+// source's (4 plans) — a correspondence dimensions past the cap, a
+// FORMULA baseline_position and an INDEX_VS_BASELINE / DELTA_VS_BASELINE
+// baseline index past the end are refused by predict exactly as the
+// runtime refuses them (code, message, details), over the extension
+// column and over the source column alike.
+func TestExtensions_InheritedDictionaryOverlayBoundsMatchRuntime(t *testing.T) {
+	t.Parallel()
+
+	p, _ := dictPulse(t)
+	ctx := context.Background()
+	baselineRef := types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{Position: len(dictLabels)}}
+	series := func(host string, spec types.OverlaySpec) *pulse.Request {
+		return &pulse.Request{Cohort: &types.Cohort{Filename: "dict.pulse"}, Attributes: []*types.Attribute{dictAttr(attrDictCopy, "plan")},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: host}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+			Overlays:     []types.OverlaySpec{spec}}
+	}
+	correspondence := func(host string) *pulse.Request {
+		return &pulse.Request{Cohort: &types.Cohort{Filename: "dict.pulse"}, Attributes: []*types.Attribute{dictAttr(attrDictCopy, "plan")},
+			Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: host}}, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "plan"}},
+				Cell: &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+			Overlays: []types.OverlaySpec{{Kind: types.OverlayKindCorrespondence, Scope: types.OverlayScopeMatrix,
+				Params: json.RawMessage(fmt.Sprintf(`{"dimensions":%d}`, len(dictLabels)))}}}
+	}
+	cases := []struct {
+		name string
+		req  func(host string) *pulse.Request
+		code errors.Code
+	}{
+		{"correspondence", correspondence, errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"formula", func(h string) *pulse.Request {
+			return series(h, types.OverlaySpec{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
+				Params: json.RawMessage(fmt.Sprintf(`{"formula": "value / baseline", "baseline_position": %d}`, len(dictLabels)))})
+		}, errors.PULSE_OVERLAY_REF_UNKNOWN},
+		{"index_vs_baseline", func(h string) *pulse.Request {
+			return series(h, types.OverlaySpec{Kind: types.OverlayKindIndexVsBaseline, Scope: types.OverlayScopeGroup, Ref: baselineRef})
+		}, errors.PULSE_OVERLAY_REF_UNKNOWN},
+		{"delta_vs_baseline", func(h string) *pulse.Request {
+			return series(h, types.OverlaySpec{Kind: types.OverlayKindDeltaVsBaseline, Scope: types.OverlayScopeGroup, Ref: baselineRef})
+		}, errors.PULSE_OVERLAY_REF_UNKNOWN},
+	}
+	for _, c := range cases {
+		for _, host := range []string{"tier", "plan"} {
+			t.Run(c.name+"/"+host, func(t *testing.T) {
+				req := c.req(host)
+				res, err := p.Predict(ctx, req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if res.Valid || len(res.Errors) == 0 {
+					t.Fatal("predict admitted the overlay")
+				}
+				_, err = p.Process(ctx, req)
+				var ce *errors.CodedError
+				if !stderrors.As(err, &ce) || ce.Code != c.code {
+					t.Fatalf("Process err %v, want %s", err, c.code)
+				}
+				got, want := dictEntry(res.Errors[0].Code, res.Errors[0].Message, res.Errors[0].Details), dictEntry(string(ce.Code), ce.Message, ce.Details)
+				if got != want {
+					t.Fatalf("predict %s\nruntime %s", got, want)
+				}
+			})
+		}
+	}
+}

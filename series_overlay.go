@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -116,19 +115,6 @@ func (p *Pulse) ApplySeriesOverlays(ctx context.Context, req *SeriesOverlayReque
 		return &SeriesOverlayResult{}, nil
 	}
 
-	// Ref / Scope check. The Request-shaped predict-time validators cannot
-	// run here (see this file's header), but a spec's Ref and scope are
-	// properties of the spec alone: the shared SERIES rule
-	// (overlayhost.SeriesSpecRefusal) every grouped-Process arm raises
-	// refuses them here too — the scope group, the kind's own Ref arm and
-	// no other. A kind with no SERIES rule is left to the dispatch's
-	// wrong-shape refusal.
-	for i := range req.Overlays {
-		if cerr := overlayhost.SeriesSpecRefusal(&req.Overlays[i], req.Overlays[i].Kind, i); cerr != nil {
-			return nil, cerr
-		}
-	}
-
 	keys := make([]types.AxisKey, len(req.Points))
 	for i := range req.Points {
 		keys[i] = req.Points[i].Key
@@ -147,10 +133,18 @@ func (p *Pulse) ApplySeriesOverlays(ctx context.Context, req *SeriesOverlayReque
 		return points[i].Value, true
 	})
 
-	// An unknown or MATRIX-only kind short-circuits inside the dispatch with
-	// a coded PULSE_OVERLAY_KIND_UNKNOWN, which is the same answer this path
+	// The instance's registry: an extension kind runs its Series handler
+	// and a kind the feature set hides is unknown, as on a grouped
+	// Process. Ref / Scope check first — the Request-shaped predict-time
+	// validators cannot run here (see this file's header), but a spec's
+	// Ref and scope are properties of the spec alone: the shared SERIES
+	// rule every grouped-Process arm raises (an extension kind: its
+	// declaration's rule judged series, Validate hook included) refuses
+	// them here too. A kind with no SERIES rule is left to the dispatch:
+	// an unknown, hidden or MATRIX-only kind short-circuits there with
+	// a coded PULSE_OVERLAY_KIND_UNKNOWN, the same answer this path
 	// should give — so kind membership is not re-checked here.
-	layers, warnings, err := processing.ApplyOverlaysSeries(req.Overlays, host)
+	layers, warnings, err := processing.ApplyOverlaysSeriesWithExtensions(req.Overlays, host, p.svc.Extensions())
 	if err != nil {
 		return nil, err
 	}
