@@ -86,7 +86,7 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, req
 		if overRecords {
 			opts.Columns = winformula.Columns(p.schema, true)
 		} else {
-			opts.Columns = winformula.OutputColumns(req, p.exts.isHidden)
+			opts.Columns = winformula.OutputColumns(req, p.exts.isHidden, p.defaultWeight)
 		}
 	}
 	return window.ApplyWith(ctx, rows, windows, p.exts.LookupWindow, orders, copies, opts)

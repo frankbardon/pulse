@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -35,7 +36,8 @@ var (
 	typeFloat    = reflect.TypeOf(float64(0))
 	typeLabels   = reflect.TypeOf([]string(nil))
 	typeVector   = reflect.TypeOf([]float64(nil))
-	typeCountMap = reflect.TypeOf(map[string]any(nil))
+	typeCountMap = reflect.TypeOf(map[string]int(nil))
+	typeSumWMap  = reflect.TypeOf(map[string]float64(nil))
 	typeWelford  = reflect.TypeOf(WelfordCell{})
 )
 
@@ -56,8 +58,11 @@ func GroupKeyType(t types.GroupType) reflect.Type {
 // AGG_CONSTANT) reads as its float64 value:
 //
 //   - AGG_SET_UNION / AGG_SET_INTERSECTION the label list ([]string);
-//   - AGG_SET_FREQUENCY the per-label map (map[string]any: integer
-//     counts, Σw floats under a weight);
+//   - AGG_SET_FREQUENCY the per-label map: integer counts
+//     (map[string]int), or Σw floats (map[string]float64) when the slot
+//     carries a weight — agg.Weight as weighting.Stamp resolves it
+//     (OutputColumns stamps first, so a request or default weight
+//     counts);
 //   - AGG_WELFORD the moment triple (WelfordCell);
 //   - an array-valued AGG_VEC_* the per-member figures ([]float64);
 //   - AGG_CONSTANT by its params.type: a label (string), a label list
@@ -76,6 +81,9 @@ func AggregationCellType(agg *types.Aggregation) reflect.Type {
 	case agg.Type == types.AGG_SET_UNION || agg.Type == types.AGG_SET_INTERSECTION:
 		return typeLabels
 	case agg.Type == types.AGG_SET_FREQUENCY:
+		if agg.Weight.Spec() != nil {
+			return typeSumWMap
+		}
 		return typeCountMap
 	case agg.Type == types.AGG_WELFORD:
 		return typeWelford
@@ -100,16 +108,22 @@ func AggregationCellType(agg *types.Aggregation) reflect.Type {
 // OutputColumns is the typed half of a WIN_FORMULA's declarations over
 // req's grouped or aggregated output rows: each grouper's key column
 // (vectors.GroupKeyField) declared as GroupKeyType, each aggregation's
-// label (types.AggregationLabelOf) as AggregationCellType.
+// label (types.AggregationLabelOf) as AggregationCellType of the slot
+// carrying its resolved weight (weighting.Stamp over def, the
+// instance's Options.DefaultWeight — the stamp the engine applies), so
+// a weighted AGG_SET_FREQUENCY is its Σw map on both sides.
 // hidden reports a type the instance hides (nil hides nothing): its
 // column stays `any`, as an extension's does — the instance refuses the
 // slot before any window runs. A duplicated name keeps its first
 // declaration (the field-reference walk refuses the collision). nil
 // when req groups and aggregates nothing.
-func OutputColumns(req *types.Request, hidden func(string) bool) exprtypes.Map {
+func OutputColumns(req *types.Request, hidden func(string) bool, def *types.WeightSpec) exprtypes.Map {
 	if req == nil || len(req.Groups)+len(req.Aggregations) == 0 {
 		return nil
 	}
+	// Built-in weight awareness only: an extension aggregation's column
+	// stays `any` whatever its weight.
+	req = weighting.Stamp(req, def, nil)
 	shown := func(t string) bool { return hidden == nil || !hidden(t) }
 	decl := make(exprtypes.Map, len(req.Groups)+len(req.Aggregations))
 	add := func(name string, t reflect.Type) {

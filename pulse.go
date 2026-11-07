@@ -868,6 +868,9 @@ func New(opts Options) (*Pulse, error) {
 		snap = snap.WithDefaultReturn(defaultReturn)
 	}
 	snap = snap.WithLimits(effectiveLimits)
+	if opts.DefaultWeight != nil {
+		snap = snap.WithDefaultWeight(opts.DefaultWeight)
+	}
 	if len(opts.SuppressAdvisories) > 0 {
 		snap = snap.WithSuppressedAdvisories(opts.SuppressAdvisories)
 	}

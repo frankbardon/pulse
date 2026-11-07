@@ -50,7 +50,7 @@ One `float64` per row on `Label`: `s_events / s_n` over two earlier share labels
 
 - A null input makes the row `null` (`x ?? 0` never sees the nil); so does a nil or non-finite result (`1/0`).
 - Refused at predict and runtime alike, before any row: its own or a LATER window's label (`PULSE_WINDOW_INVALID` reason `forward_reference`), an unknown name (`SERVICE_VALIDATION`), a bool / string result, `ref()`, `coef()`, `total()` or bad syntax (`PULSE_FORMULA_COMPILE_ERROR`).
-- Cells are typed (a categorical or group key a string, a set union a label list, a Welford triple read as `w.Mean`; a decimal a number): `region * 2` is refused before any row. An extension grouper's or aggregator's cell is untyped: it fails the run (`PROCESSING_RUNTIME`).
+- Cells are typed (a categorical or group key a string, a set union a label list, a set frequency a label→count map, Σw floats when its slot is weighted; a Welford triple read as `w.Mean`; a decimal a number): `region * 2` is refused before any row. An extension grouper's or aggregator's cell is untyped: it fails the run (`PROCESSING_RUNTIME`).
 - Not weightable (request `weight` → `PROCESSING_CONFIG`); buffered.
 
 ## See

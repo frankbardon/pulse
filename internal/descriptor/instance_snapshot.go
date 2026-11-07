@@ -104,6 +104,14 @@ type InstanceSnapshot struct {
 	// Nil: the built-in defaults. Not covered by the feature-set digest.
 	limits *limits.Limits
 
+	// defaultWeight is Options.DefaultWeight (validated by pulse.New):
+	// the weight a slot resolves to when neither it nor the request
+	// names one. The field-reference walk reads it where a slot's
+	// resolved weight decides a declaration (a WIN_FORMULA's typed
+	// AGG_SET_FREQUENCY cell), as the engine's stamp does. Nil: none.
+	// Not covered by the feature-set digest.
+	defaultWeight *types.WeightSpec
+
 	// suppressedAdvisories is Options.SuppressAdvisories (validated by
 	// pulse.New): the PULSE_ADVISORY_* codes predict never reports on
 	// this instance. Nil: none. Not covered by the feature-set digest.
@@ -325,6 +333,30 @@ func (s *InstanceSnapshot) WithLimits(l limits.Limits) *InstanceSnapshot {
 	}
 	out.limits = &l
 	return &out
+}
+
+// WithDefaultWeight returns a copy of the snapshot carrying w as the
+// instance's Options.DefaultWeight, so predict's field-reference walk
+// and the runtime's resolve a slot's weight alike. Nil-safe like
+// WithLimits.
+func (s *InstanceSnapshot) WithDefaultWeight(w *types.WeightSpec) *InstanceSnapshot {
+	var out InstanceSnapshot
+	if s != nil {
+		out = *s
+	} else {
+		out.buildOntology()
+	}
+	out.defaultWeight = w
+	return &out
+}
+
+// DefaultWeight is the instance's Options.DefaultWeight; nil when none
+// (or on a nil snapshot).
+func (s *InstanceSnapshot) DefaultWeight() *types.WeightSpec {
+	if s == nil {
+		return nil
+	}
+	return s.defaultWeight
 }
 
 // WithSuppressedAdvisories returns a copy of s whose predict omits

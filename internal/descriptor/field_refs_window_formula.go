@@ -80,11 +80,12 @@ func (w *fieldRefWalk) checkWindowFormula(req *types.Request, i int, win *types.
 	// nil) every schema field is typed as its row cell
 	// (winformula.Columns); over the output rows each built-in group key
 	// and aggregation label as the cell the engine writes
-	// (winformula.OutputColumns) — as the engine's applyWindows types
-	// them.
+	// (winformula.OutputColumns, each slot under its resolved weight —
+	// the instance default included) — as the engine's applyWindows
+	// types them.
 	cols := winformula.Columns(w.compile.schema, w.rowCols == nil)
 	if w.rowCols != nil {
-		cols = winformula.OutputColumns(req, w.inst.Hidden)
+		cols = winformula.OutputColumns(req, w.inst.Hidden, w.inst.DefaultWeight())
 	}
 	prog, ce := winformula.Compile(src, cols, bound, w.cols[exprenv.ParamsName])
 	if ce != nil {

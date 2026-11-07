@@ -23,10 +23,10 @@ import (
 
 // cellConforms reports whether v, a non-null output cell, is a value of
 // declared type decl as the formula compile treats it: the same Go
-// type; a map with decl's key type when decl is a map of `any` (the
-// per-label counts: integers unweighted, Σw floats weighted); or a
-// struct of decl's exact layout (AGG_WELFORD's triple, declared by its
-// winformula mirror — a member read compiles to a field index).
+// type (AGG_SET_FREQUENCY's map included — integer counts unweighted,
+// Σw floats weighted, by the slot's weight), or a struct of decl's
+// exact layout (AGG_WELFORD's triple, declared by its winformula mirror
+// — a member read compiles to a field index).
 func cellConforms(decl reflect.Type, v any) bool {
 	vt := reflect.TypeOf(v)
 	switch {
@@ -34,8 +34,6 @@ func cellConforms(decl reflect.Type, v any) bool {
 		return false
 	case vt == decl:
 		return true
-	case decl.Kind() == reflect.Map && decl.Elem().Kind() == reflect.Interface:
-		return vt.Kind() == reflect.Map && vt.Key() == decl.Key()
 	case decl.Kind() == reflect.Struct:
 		return vt.Kind() == reflect.Struct && vt.ConvertibleTo(decl)
 	}
