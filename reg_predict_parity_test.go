@@ -51,6 +51,12 @@ func scoreRef(params string) *types.Attribute {
 	return &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(params)}
 }
 
+// withScoreSlot sets a slot field the scoring rule refuses.
+func withScoreSlot(a *types.Attribute, set func(*types.Attribute)) *types.Attribute {
+	set(a)
+	return a
+}
+
 func TestRegPredict_PredictRuntimeParity(t *testing.T) {
 	t.Parallel()
 
@@ -68,6 +74,8 @@ func TestRegPredict_PredictRuntimeParity(t *testing.T) {
 		{"unknown fit", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, scoreRef(`{"fit":"nope"}`)), perr.PULSE_MODEL_UNKNOWN},
 		{"scale on OLS", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, scoreRef(`{"fit":"m","scale":"link"}`)), perr.PULSE_MODEL_SCORE_INVALID},
 		{"no fit param", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, scoreRef(`{}`)), perr.PULSE_MODEL_SCORE_INVALID},
+		{"alpha on the slot", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, withScoreSlot(scoreRef(`{"fit":"m"}`), func(a *types.Attribute) { a.Alpha = 0.5 })), perr.PULSE_MODEL_SCORE_INVALID},
+		{"l1_ratio on the slot", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, withScoreSlot(scoreRef(`{"fit":"m"}`), func(a *types.Attribute) { a.L1Ratio = 0.3 })), perr.PULSE_MODEL_SCORE_INVALID},
 		{"term not a predictor", facadeFitRequest("0", "90"), scoringSlot(fitsFacadeCohort, scoreRef(`{"fit":"m","terms":["week"]}`)), perr.PULSE_MODEL_TERM_UNKNOWN},
 		{"predictor missing from the scoring frame", logFit, scoringSlot(fitsFacadeCohort, scoreRef(`{"fit":"m"}`)), perr.PULSE_MODEL_PREDICTOR_MISSING},
 		{"predictor non-numeric on the scoring frame", facadeFitRequest("0", "90"), scoringSlot(fitsCategoricalCohort, scoreRef(`{"fit":"m"}`)), perr.PULSE_MODEL_PREDICTOR_NOT_NUMERIC},

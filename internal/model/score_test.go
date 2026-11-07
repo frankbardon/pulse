@@ -50,6 +50,8 @@ func TestCheckScore(t *testing.T) {
 		{"no params", &types.Attribute{Type: types.ATTR_REG_PREDICT}, errors.PULSE_MODEL_SCORE_INVALID, ReasonFitMissing},
 		{"field on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, Field: "x1", Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
 		{"predictors on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, Predictors: []string{"x1"}, Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
+		{"alpha on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, Alpha: 0.5, Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
+		{"l1_ratio on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, L1Ratio: 0.3, Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
 		{"unknown fit", scoreAttr(`{"fit":"nope"}`), errors.PULSE_MODEL_UNKNOWN, ""},
 		{"extension type without a scorer", scoreAttr(`{"fit":"ext"}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonNoScorer},
 		{"empty terms", scoreAttr(`{"fit":"ols","terms":[]}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonTermsEmpty},

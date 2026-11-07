@@ -138,7 +138,8 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 // still run with target / predictors, and ATTR_REG_FITTED /
 // ATTR_REG_RESIDUAL with a penalty (alpha, l1_ratio), with no general
 // refusal on predict or the runtime; a penalty on ATTR_REG_LEVERAGE /
-// ATTR_REG_INFLUENCE / ATTR_REG_PREDICT stays their own refusal, never
+// ATTR_REG_INFLUENCE / ATTR_REG_PREDICT (and alpha or l1_ratio alone on
+// ATTR_REG_PREDICT) stays their own refusal, never
 // the general one.
 func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 	t.Parallel()
@@ -195,6 +196,29 @@ func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 			ce := assertPredictMatchesRefusal(t, p, fs, cohort, mk)
 			if ce.Message == foreignRegressionMessage(string(typ)) || !strings.Contains(ce.Message, "penal") {
 				t.Errorf("want %s's own penalty refusal, got %s %q", typ, ce.Code, ce.Message)
+			}
+		})
+	}
+	// alpha or l1_ratio alone (no penalty) on ATTR_REG_PREDICT is its
+	// own slot_fields refusal too, never ignored.
+	for name, set := range map[string]func(*types.Attribute){
+		"alpha":    func(a *types.Attribute) { a.Alpha = 0.5 },
+		"l1_ratio": func(a *types.Attribute) { a.L1Ratio = 0.3 },
+	} {
+		t.Run(string(types.ATTR_REG_PREDICT)+"/own-"+name+"-refusal", func(t *testing.T) {
+			t.Parallel()
+			mk := func() *types.Request {
+				a := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "o", Params: json.RawMessage(`{"fit":"m"}`)}
+				set(a)
+				return &types.Request{
+					Cohort:       &types.Cohort{Filename: cohort},
+					Attributes:   []*types.Attribute{a},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "o"}},
+				}
+			}
+			ce := assertPredictMatchesRefusal(t, p, fs, cohort, mk)
+			if ce.Code != errors.PULSE_MODEL_SCORE_INVALID || ce.Message == foreignRegressionMessage(string(types.ATTR_REG_PREDICT)) || !strings.Contains(ce.Message, name) {
+				t.Errorf("want ATTR_REG_PREDICT's own %s refusal, got %s %q", name, ce.Code, ce.Message)
 			}
 		})
 	}

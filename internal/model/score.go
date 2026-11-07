@@ -378,9 +378,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	if err != nil {
 		return p, Signature{}, err
 	}
-	if attr.Field != "" || attr.Target != "" || len(attr.Predictors) > 0 || attr.Penalty != "" {
+	if attr.Field != "" || attr.Target != "" || len(attr.Predictors) > 0 || attr.Penalty != "" || attr.Alpha != 0 || attr.L1Ratio != 0 {
 		return p, Signature{}, scoreInvalid(p.Fit, ReasonSlotFields,
-			"takes no field, target, predictors or penalty — the fitted model supplies them; name the fit under params.fit and the output under label", nil)
+			"takes no field, target, predictors, penalty, alpha or l1_ratio — the fitted model supplies them; name the fit under params.fit and the output under label", nil)
 	}
 	if p.Fit == "" {
 		return p, Signature{}, scoreInvalid("", ReasonFitMissing, "requires params.fit, the name of a bound model", nil)
