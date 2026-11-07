@@ -35,11 +35,13 @@ import (
 // the instance's view, so a non-numeric one is refused statically on
 // both sides). It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
-// batch declares no block. It never folds a block's loaded `models`
-// into a bound (optblock.Env.Fold false): the runtime's Compile
-// evaluates every bound once the fits ran.
+// batch declares no block. It folds a bound or start reading only the
+// block's own loaded `models` (optblock.Env.Fold), as OptimizeCheck
+// does, so the runtime refuses a folded value out of range before any
+// fit or slot runs — the same first error predict reports; the
+// runtime's Compile still evaluates every bound once the fits ran.
 func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) ([]*model.Loaded, *errors.CodedError) {
-	checked, cerr := optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, false)
+	checked, cerr := optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, true)
 	if cerr != nil || checked == nil {
 		return nil, cerr
 	}

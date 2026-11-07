@@ -136,9 +136,9 @@ type Env struct {
 	// known before anything runs, so the value is the runtime's and its
 	// range checks run here (scalarslot.Env.Loaded over the Set the
 	// runtime binds for the block, the bound its Declared()). A read of
-	// a batch fit stays Unresolved. Predict sets it; the runtime's own
-	// pre-fit check leaves it false (its Compile folds every value).
-	// Compile ignores it.
+	// a batch fit stays Unresolved. Predict and the runtime's pre-fit
+	// check both set it, so a folded refusal fires before any fit on
+	// both sides. Compile ignores it.
 	Fold bool
 
 	// loaded is the block's loaded-model Set a folding Check reads

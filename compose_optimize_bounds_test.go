@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"reflect"
 	"testing"
@@ -17,9 +18,10 @@ import (
 // bound (library-gaps E1-S1, G11) at the facade: a bound or start is a
 // literal, a params expression, a coef() expression or a sweep_axis()
 // expression; predict resolves and range-checks the first two — and a
-// coef() read of the block's own loaded `models` (folded, U67 E5-S2) —
-// and lists the others under unresolved_scalars; both orchestrators
-// evaluate every one and range-check it at runtime.
+// coef() read of the block's own loaded `models` (folded, U67 E5-S2,
+// by the runtime's pre-fit check too) — and lists the others under
+// unresolved_scalars; both orchestrators evaluate every one and
+// range-check it at runtime.
 
 // predictUnresolved is PredictCompose's verdict on c: no error, and the
 // unresolved scalar slots it lists.
@@ -94,9 +96,9 @@ func TestOptimize_ExpressionBounds(t *testing.T) {
 // TestOptimize_ExpressionBoundRefusalParity: a bound over literals and
 // params is range-checked by predict exactly as by both orchestrators
 // (code, message, details); so is a coef() bound reading the block's
-// loaded model, which predict folds to the value the runtime's Compile
-// evaluates — while the runtime's own pre-fit check
-// (descx.OptimizeRefusal) leaves it to that Compile.
+// loaded model, which predict and the runtime's own pre-fit check
+// (descx.OptimizeRefusal) both fold to the value the runtime's Compile
+// evaluates.
 func TestOptimize_ExpressionBoundRefusalParity(t *testing.T) {
 	t.Parallel()
 
@@ -231,6 +233,45 @@ func TestOptimize_SweepAxisBound(t *testing.T) {
 		v := oneOptimum(t, name, out).Variables[0]
 		if math.Abs(v.Value-hi/10) > 1e-12 || v.Active != types.OptimizeActiveUpper {
 			t.Errorf("%s: v %+v, want %v at its upper bound", name, v, hi/10)
+		}
+	}
+}
+
+// TestOptimize_FoldedRefusalPrecedesFitFaults: a batch carrying both a
+// fit the runtime faults on only once its fit pass runs (its cohort is
+// missing) and a block whose lower bound, folded off the block's own
+// loaded model (coef("demand", "(intercept)") = 120), crosses its upper
+// 30 is refused FIRST with the folded bounds_crossed by predict, Compose
+// and ComposeParallel alike — the runtime's pre-fit check
+// (descx.OptimizeRefusal) folds as predict does, so no fit runs.
+func TestOptimize_FoldedRefusalPrecedesFitFaults(t *testing.T) {
+	t.Parallel()
+
+	p := optPulse(t, Options{})
+	c := decodeOpt(t, optfixture.PriceModel, func(c *ComposedRequest) {
+		var fit types.FitSpec
+		if err := json.Unmarshal([]byte(`{"name": "spare", "request": {"cohort": {"filename": "missing.pulse"},
+			"regressions": [{"type": "REG_OLS", "target": "units", "predictors": ["price"]}]}}`), &fit); err != nil {
+			t.Fatal(err)
+		}
+		c.Fits = []types.FitSpec{fit}
+		c.Optimize[0].Variables[0].Lower = types.BoundExpr(`coef("demand", "(intercept)")`)
+	})
+	env, err := p.PredictCompose(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OPTIMIZE_VARIABLE_INVALID) || env.Errors[0].Details["reason"] != "bounds_crossed" {
+		t.Fatalf("predict errors %+v, want the folded bounds_crossed first", env.Errors)
+	}
+	for name, run := range composeRuns(p) {
+		resp, rerr := run(c)
+		var ce *perr.CodedError
+		if !stderrors.As(rerr, &ce) || resp != nil {
+			t.Fatalf("%s: want a coded refusal, got %v", name, rerr)
+		}
+		if env.Errors[0].Code != string(ce.Code) || env.Errors[0].Message != ce.Message || !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
+			t.Fatalf("%s: predict's first error %+v differs from the runtime's %s %q %v", name, env.Errors[0], ce.Code, ce.Message, ce.Details)
 		}
 	}
 }

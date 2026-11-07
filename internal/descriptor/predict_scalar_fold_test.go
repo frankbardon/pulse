@@ -344,9 +344,27 @@ func TestScalarFold_OptimizeBoundsMatchRuntime(t *testing.T) {
 			if tc.refused != (pcerr != nil) {
 				t.Fatalf("predict refusal %v, want refused=%v", pcerr, tc.refused)
 			}
-			// The runtime's own pre-fit check never folds: it passes the
-			// block and hands its files to the Compile that solves.
+			// The runtime's own pre-fit check folds too: it refuses a
+			// folded value exactly as predict does, before any fit runs,
+			// and never runs a placeholder on a foldable read.
 			loaded, rcerr := OptimizeRefusal(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{})
+			if rcerr != nil && rcerr.Code == errors.PROCESSING_INTERNAL {
+				t.Fatalf("the runtime's pre-fit check ran a placeholder: %v", rcerr)
+			}
+			if pcerr != nil {
+				if rcerr == nil {
+					t.Fatalf("the runtime's pre-fit check accepted what predict refused: %v", pcerr)
+				}
+				sameCoded(t, pcerr, rcerr)
+				// And it is the refusal the post-fit Compile gives: the
+				// non-folding check hands Compile the block's files.
+				unfolded, ucerr := optimizeCheck(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{}, false)
+				if ucerr != nil {
+					t.Fatalf("the non-folding check refused %v", ucerr)
+				}
+				sameCoded(t, pcerr, foldOptimizeRuntime(t, c, unfolded.Loaded))
+				return
+			}
 			if rcerr != nil {
 				t.Fatalf("the runtime's pre-fit check refused %v", rcerr)
 			}
@@ -356,12 +374,7 @@ func TestScalarFold_OptimizeBoundsMatchRuntime(t *testing.T) {
 				}
 				return
 			}
-			rerr := foldOptimizeRuntime(t, c, loaded)
-			if pcerr != nil {
-				sameCoded(t, pcerr, rerr)
-				return
-			}
-			if rerr != nil {
+			if rerr := foldOptimizeRuntime(t, c, loaded); rerr != nil {
 				t.Fatalf("predict accepted what the runtime refused: %v", rerr)
 			}
 			if len(checked.Unresolved) != 0 {
