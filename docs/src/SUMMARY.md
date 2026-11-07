@@ -541,6 +541,7 @@
 - [Adding a Statistical Test](internals/adding-test.md)
 - [Adding a Synth Distribution](internals/adding-synth-distribution.md)
 - [Adding a Regression Model (Embedders)](internals/adding-regression.md)
+- [Adding an Overlay Kind (Embedders)](internals/adding-overlay.md)
 - [Adding an I/O Format](internals/adding-io-format.md)
 - [Adding a Field Type](internals/adding-field-type.md)
 - [Adding an Error Code](internals/adding-error-code.md)

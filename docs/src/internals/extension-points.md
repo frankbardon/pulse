@@ -6,7 +6,8 @@ operators or expression-runtime extensions. If you are adding a new
 built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
 To register your own regression model, follow [Adding a Regression
-Model (Embedders)](adding-regression.md).
+Model (Embedders)](adding-regression.md); for an overlay kind, [Adding an
+Overlay Kind (Embedders)](adding-overlay.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -2321,6 +2322,9 @@ runtime routes on, which also names every buffered-only built-in kind.
 
 ### Inferential overlay kinds and p-values
 
+> Step-by-step recipe for a MATRIX kind with p-values:
+> [Adding an Overlay Kind (Embedders)](adding-overlay.md).
+
 An `OverlayRegistration` declaring `Inferential` carries a test statistic
 or p-value; it must declare an `Interpretation` (`pulse.New` refuses it
 `PULSE_EXTENSION_PURPOSE_INVALID`, `part` interpretation, `rule`
@@ -2759,6 +2763,9 @@ CLAUDE.md Update Demand table in the same PR.
 - [Adding a Regression Model (Embedders)](adding-regression.md) — the
   embedder recipe: streaming and buffered forms, declared params and
   outputs, the declare-or-refuse table, the scorer and the probe.
+- [Adding an Overlay Kind (Embedders)](adding-overlay.md) — the
+  embedder recipe: hosts and handlers, registration declarations, the
+  probe, p-values and `multiplicity`, weights.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.
