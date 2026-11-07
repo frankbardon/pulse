@@ -9,7 +9,7 @@ import (
 
 // TestSweepSlotReadsFit: every reference a sweep slot can make to a
 // bound fit is a read — a literal coef() / sweep_axis() in a filter, a
-// formula or a holdout, and a params.fit on an attribute or a matrix —
+// formula, a feature's params.fit_on or a holdout, and a params.fit on an attribute or a matrix —
 // while another fit's name, a computed name or no reference is not.
 func TestSweepSlotReadsFit(t *testing.T) {
 	t.Parallel()
@@ -21,6 +21,7 @@ func TestSweepSlotReadsFit(t *testing.T) {
 	}{
 		{"filter coef", &types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `coef("best", "x") > 0`}}}, true},
 		{"formula sweep_axis", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "d", Expression: `sweep_axis("best", "decay")`}}}, true},
+		{"feature fit_on coef", &types.Request{Features: []*types.Feature{{Type: types.FEAT_TARGET_ENCODE, Field: "g", Params: json.RawMessage(`{"target":"y","fit_on":"coef(\"best\", \"x\") > 0"}`)}}}, true},
 		{"holdout coef", &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Holdout: `coef("best", "x") > 1`}}}, true},
 		{"predict params.fit", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Params: json.RawMessage(`{"fit":"best"}`)}}}, true},
 		{"matrix params.fit", &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Params: json.RawMessage(`{"fit": "best"}`)}}}, true},

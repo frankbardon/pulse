@@ -52,6 +52,20 @@ func sweepBindBatch(t *testing.T, fits []types.FitSpec, body json.RawMessage, ed
 	return &ComposedRequest{Fits: fits, Sweep: sw, Requests: []*Request{facadeFitSlot("s")}}
 }
 
+// featureFitOnBody is sweepBindBody plus a FEAT_TARGET_ENCODE whose
+// params.fit_on is fitOn (JSON-escaped).
+func featureFitOnBody(t *testing.T, fitOn string) json.RawMessage {
+	t.Helper()
+	body := `{"cohort":{"filename":"` + fitsFacadeCohort + `"},` +
+		`"filterers":[{"type":"FILTER_RANGE","field":"week","values":["0","{{hi}}"]}],` +
+		`"features":[{"type":"FEAT_TARGET_ENCODE","field":"region","label":"te","params":{"target":"y","fit_on":"` + fitOn + `"}}],` +
+		`"regressions":[{"type":"REG_OLS","name":"m","target":"y","predictors":["x"]}]}`
+	if !json.Valid([]byte(body)) {
+		t.Fatalf("sweep body: %s", body)
+	}
+	return json.RawMessage(body)
+}
+
 func sweepBound(name, regression string) types.FitSpec {
 	return types.FitSpec{Name: name, FromSweep: &types.FitFromSweep{Regression: regression}}
 }
@@ -84,6 +98,9 @@ func TestComposeSweepBind_RefusalsMatchPredict(t *testing.T) {
 		})},
 		{"from_sweep_cycle", sweepBindBatch(t, []types.FitSpec{sweepBound("best", "m")},
 			sweepBindBody(t, `["x"]`, `,{"type":"FILTER_EXPRESSION","expression":"coef(\"best\", \"x\") > 0"}`), nil)},
+		// A feature's params.fit_on reading the bound fit is the same
+		// cycle (vectors.ExprSlots walks it, U67 E4-S3).
+		{"from_sweep_cycle", sweepBindBatch(t, []types.FitSpec{sweepBound("best", "m")}, featureFitOnBody(t, `coef(\"best\", \"x\") > 0`), nil)},
 	}
 	ctx := context.Background()
 	for _, tc := range cases {
