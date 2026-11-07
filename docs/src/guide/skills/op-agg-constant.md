@@ -31,7 +31,7 @@ Use something else:
 | `value` | any | — | Literal judged against `type`; `null` emits null. |
 | `expr` | string | — | Scalar expression, evaluated once before the run. |
 
-Give EXACTLY ONE of `value` / `expr` (`exactly_one_of: constant`). `value` is always a literal: integer in range (`u64` ≤ 2^53), finite number (`f32` rounds through float32), `true`/`false`, `"YYYY-MM-DD"`, RFC 3339 with offset (whole seconds), exact decimal string, a label, distinct member labels (`set_*`), 2–1024 numbers (`vec_*`). `expr` (`params.x`, `coef()`, `sweep_axis()`, `lookup()`, …) only for `u*`, `f*`, `packed_bool`, `date`, `datetime`; an unresolved one is listed in predict's `unresolved_scalars`.
+Give EXACTLY ONE of `value` / `expr` (`exactly_one_of: constant`). `value` is always a literal: integer in range (`u64` ≤ 2^53), finite number (`f32` rounds through float32), `true`/`false`, `"YYYY-MM-DD"`, RFC 3339 with offset (whole seconds), exact decimal string, a label, distinct member labels (`set_*`), 2–1024 numbers (`vec_*`). `expr` (`params.x`, `coef()`, `sweep_axis()`, `lookup()`, …) only for `u*`, `f*`, `packed_bool`, `date`, `datetime`; predict folds a read of a loaded `models` entry (range-checked), lists any other bound read in `unresolved_scalars`.
 
 ## Inputs
 

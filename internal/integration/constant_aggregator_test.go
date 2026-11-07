@@ -573,11 +573,13 @@ func TestConstant_CrosstabCellsAndMargins(t *testing.T) {
 	}
 }
 
-// TestConstant_UnresolvedUntilRuntime: an expr calling a model function
-// is checked but not run by predict — listed under unresolved_scalars
-// with its path and reads, never an error — and Process evaluates it on
-// the loaded model.
-func TestConstant_UnresolvedUntilRuntime(t *testing.T) {
+// TestConstant_LoadedModelFoldsAtPredict: an expr reading a loaded
+// model is folded by predict — nothing under unresolved_scalars, never
+// an error — and Process evaluates it on the loaded model to the same
+// value; one whose folded value is out of the type's range is refused
+// by predict exactly as Process refuses it. A read of a Compose `fits`
+// entry stays unresolved (it has no figures before it runs).
+func TestConstant_LoadedModelFoldsAtPredict(t *testing.T) {
 	t.Parallel()
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
@@ -589,23 +591,100 @@ func TestConstant_UnresolvedUntilRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	coef := fit.Regressions[0].Coefficients["x"]
+	req := func(typ, src string) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: "series.pulse"},
+			Models:       []types.ModelRef{{Name: "m", Path: "models/m.pulse-model.json"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}, constantSlot("c", `{"type":"`+typ+`","expr":`+strconv.Quote(src)+`}`)}}
+	}
 	const src = `coef("m", "x") * 2`
-	req := &types.Request{Cohort: &types.Cohort{Filename: "series.pulse"},
-		Models:       []types.ModelRef{{Name: "m", Path: "models/m.pulse-model.json"}},
-		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}, constantSlot("c", `{"type":"f64","expr":`+strconv.Quote(src)+`}`)}}
-	env := predictEnvelope(t, p, fsys, "series.pulse", req)
+	env := predictEnvelope(t, p, fsys, "series.pulse", req("f64", src))
 	if len(env.Errors) != 0 || len(env.Warnings) != 0 {
 		t.Fatalf("predict: errors %+v warnings %+v", env.Errors, env.Warnings)
 	}
-	want := []descriptor.UnresolvedScalar{{Path: "aggregations[1].params.expr", Expression: src, Reads: []string{"coef"}}}
-	if got := env.Data.(*descriptor.PredictResult).UnresolvedScalars; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unresolved_scalars %+v, want %+v", got, want)
+	if got := env.Data.(*descriptor.PredictResult).UnresolvedScalars; got != nil {
+		t.Fatalf("a loaded model's read left unresolved: %+v", got)
 	}
-	resp, err := p.Process(ctx, req)
+	resp, err := p.Process(ctx, req("f64", src))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v, ok := resp.Data[0]["c"].(float64); !ok || v != float64(coef*2) || math.IsNaN(v) {
 		t.Errorf("c = %v, want coef * 2 = %v", resp.Data[0]["c"], coef*2)
+	}
+
+	// Out of the type's range once folded: predict's refusal is the
+	// runtime's, located at its slot (message prefix, details.slot).
+	big := `round(abs(coef("m", "x")) * 1000) + 300`
+	env = predictEnvelope(t, p, fsys, "series.pulse", req("u8", big))
+	if len(env.Errors) != 1 || env.Errors[0].Details["reason"] != "expr_out_of_range" {
+		t.Fatalf("predict did not refuse the folded range: %+v", env.Errors)
+	}
+	pe := env.Errors[0]
+	located := map[string]any{"slot": "aggregations[1]"}
+	var ce *errors.CodedError
+	if _, err := p.Process(ctx, req("u8", big)); !stderrors.As(err, &ce) {
+		t.Fatalf("Process accepted what predict refused: %v", err)
+	}
+	for k, v := range ce.Details {
+		located[k] = v
+	}
+	if string(ce.Code) != pe.Code || "aggregations[1]: "+ce.Message != pe.Message || !reflect.DeepEqual(located, pe.Details) {
+		t.Errorf("Process: %s %q %v, want predict's %+v", ce.Code, ce.Message, ce.Details, pe)
+	}
+
+	// A Compose slot reading a batch fit: unresolved, its own loaded
+	// model folded.
+	slot := req("f64", `coef("m", "x") + coef("batch", "x")`)
+	own := constantSlot("own", `{"type":"f64","expr":`+strconv.Quote(src)+`}`)
+	slot.Aggregations = append(slot.Aggregations, own)
+	creq := &types.ComposedRequest{
+		Fits: []types.FitSpec{{Name: "batch", Request: &types.Request{Cohort: &types.Cohort{Filename: "series.pulse"},
+			Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}}}}},
+		Requests: []*types.Request{slot},
+	}
+	cenv, err := p.PredictCompose(ctx, creq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cenv.Errors) != 0 {
+		t.Fatalf("predict compose: %+v", cenv.Errors)
+	}
+	want := []descriptor.UnresolvedScalar{{Path: "requests[0].aggregations[1].params.expr", Expression: `coef("m", "x") + coef("batch", "x")`, Reads: []string{"coef"}}}
+	if got := cenv.Data.(*pulse.ComposePredictResult).UnresolvedScalars; !reflect.DeepEqual(got, want) {
+		t.Errorf("compose unresolved_scalars %+v, want %+v", got, want)
+	}
+}
+
+// TestConstant_ChainStageModelFolds: a chain stage's AGG_CONSTANT expr
+// reading the stage's own loaded model is judged over the stage's
+// catalog, as the runtime binds it — folded and accepted in range
+// (never PULSE_MODEL_UNKNOWN), and out of range refused by
+// PredictChain with ProcessChain's refusal.
+func TestConstant_ChainStageModelFolds(t *testing.T) {
+	t.Parallel()
+	p, _ := windowParityCohort(t, pulse.Extensions{})
+	ctx := context.Background()
+	inline := json.RawMessage(`{"model_format_version": 1, "type": "REG_OLS", "target": "y",
+		"predictors": ["x"], "terms": ["x"], "coefficients": {"(intercept)": 0.1, "x": 300}}`)
+	chain := func(typ, src string) *pulse.ChainRequest {
+		st := &types.Request{Models: []types.ModelRef{{Name: "m", Inline: inline}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}, constantSlot("c", `{"type":"`+typ+`","expr":`+strconv.Quote(src)+`}`)}}
+		return &pulse.ChainRequest{Cohort: &types.Cohort{Filename: "series.pulse"}, Stages: []*types.ChainStage{{Name: "s0", Request: st}}}
+	}
+	env, err := p.PredictChain(ctx, chain("f64", `coef("m", "x") * 2`))
+	if err != nil || len(env.Errors) != 0 {
+		t.Fatalf("predict chain: %v %+v", err, env)
+	}
+	if _, err := p.ProcessChain(ctx, chain("f64", `coef("m", "x") * 2`)); err != nil {
+		t.Fatalf("ProcessChain: %v", err)
+	}
+	env, err = p.PredictChain(ctx, chain("u8", `coef("m", "x")`))
+	if err != nil || len(env.Errors) != 1 || env.Errors[0].Details["reason"] != "expr_out_of_range" {
+		t.Fatalf("predict chain did not refuse the folded range: %v %+v", err, env)
+	}
+	var ce *errors.CodedError
+	if _, err := p.ProcessChain(ctx, chain("u8", `coef("m", "x")`)); !stderrors.As(err, &ce) ||
+		string(ce.Code) != env.Errors[0].Code || "aggregations[1]: "+ce.Message != env.Errors[0].Message {
+		t.Errorf("ProcessChain: %v, want predict's %+v", err, env.Errors[0])
 	}
 }

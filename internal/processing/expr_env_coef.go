@@ -2,8 +2,6 @@ package processing
 
 import (
 	stderrors "errors"
-	"fmt"
-	"math"
 	"slices"
 	"strings"
 
@@ -27,6 +25,10 @@ import (
 // codes predict raises for an all-literal call (coefcall.StaticRefusal,
 // which the build also runs). An absent figure is NaN, never 0.
 //
+// The implementations (and sweep_axis(), response()) are internal/
+// model's CoefBuiltin / SweepAxisBuiltin / ResponseBuiltin, which
+// predict's scalar slots fold a loaded model through (model.Folding).
+//
 // It is registered with the request's set after the built-in set helpers
 // and before the embedder's ExprFunctions, so an embedder function named
 // "coef" shadows it exactly as one named has_any shadows that helper —
@@ -37,9 +39,9 @@ import (
 // to_day, coef, then the embedder's functions and lookup.
 func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *temporal.Zone) []expr.Option {
 	b := r.exprBound()
-	b.Coef = coefBuiltin(models)
-	b.SweepAxis = sweepAxisBuiltin(models)
-	b.Response = responseBuiltin(models)
+	b.Coef = model.CoefBuiltin(models)
+	b.SweepAxis = model.SweepAxisBuiltin(models)
+	b.Response = model.ResponseBuiltin(models)
 	b.Zone = zone
 	return b.Options()
 }
@@ -51,134 +53,10 @@ func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *tempo
 // rule set (internal/optblock) sets the params.
 func (r *ExtensionRegistry) ExprBoundWithModels(models *model.Set) exprenv.Bound {
 	b := r.exprBound()
-	b.Coef = coefBuiltin(models)
-	b.SweepAxis = sweepAxisBuiltin(models)
-	b.Response = responseBuiltin(models)
+	b.Coef = model.CoefBuiltin(models)
+	b.SweepAxis = model.SweepAxisBuiltin(models)
+	b.Response = model.ResponseBuiltin(models)
 	return b
-}
-
-// responseBuiltin is response(fit, channel, spend) bound to one
-// request's models (nil: none) — internal/model.Response: the channel's
-// steady-state response beta · hill(m · spend, k, s), refused like
-// coef() (PULSE_MODEL_UNKNOWN / _KIND_MISMATCH / _TERM_UNKNOWN reason
-// adstock_unknown, a failed fit's own code). A null spend (nil) is a
-// null result (NaN); an integer spend reads as its float64.
-func responseBuiltin(models *model.Set) func(args ...any) (any, error) {
-	return func(args ...any) (any, error) {
-		if len(args) != 3 {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("response() takes 3 arguments (fit, channel, spend), got %d", len(args)))
-		}
-		strs := make([]string, 2)
-		for i, a := range args[:2] {
-			s, ok := a.(string)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-					fmt.Sprintf("response() argument %d must be a string, got %T", i+1, a))
-			}
-			strs[i] = s
-		}
-		spend, ok := responseSpend(args[2])
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("response() argument 3 must be a number, got %T", args[2]))
-		}
-		v, cerr := model.Response(models, strs[0], strs[1], spend)
-		if cerr != nil {
-			return nil, cerr
-		}
-		return v, nil
-	}
-}
-
-// responseSpend is response()'s spend argument as a float64: a nil
-// (null) spend is NaN; a non-numeric one is not ok.
-func responseSpend(a any) (float64, bool) {
-	switch v := a.(type) {
-	case nil:
-		return math.NaN(), true
-	case float64:
-		return v, true
-	case float32:
-		return float64(v), true
-	case int:
-		return float64(v), true
-	case int8:
-		return float64(v), true
-	case int16:
-		return float64(v), true
-	case int32:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	case uint:
-		return float64(v), true
-	case uint8:
-		return float64(v), true
-	case uint16:
-		return float64(v), true
-	case uint32:
-		return float64(v), true
-	case uint64:
-		return float64(v), true
-	}
-	return 0, false
-}
-
-// sweepAxisBuiltin is sweep_axis(fit, axis) bound to one request's
-// models (nil: none) — internal/model.SweepAxis: the sweep-bound fit's
-// winning axis value, refused like coef() (PULSE_MODEL_UNKNOWN /
-// _TERM_UNKNOWN reasons not_sweep_bound / axis_unknown, a failed fit's
-// own code).
-func sweepAxisBuiltin(models *model.Set) func(args ...any) (any, error) {
-	return func(args ...any) (any, error) {
-		if len(args) != 2 {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("sweep_axis() takes 2 arguments (fit, axis), got %d", len(args)))
-		}
-		strs := make([]string, 2)
-		for i, a := range args {
-			s, ok := a.(string)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-					fmt.Sprintf("sweep_axis() argument %d must be a string, got %T", i+1, a))
-			}
-			strs[i] = s
-		}
-		v, cerr := model.SweepAxis(models, strs[0], strs[1])
-		if cerr != nil {
-			return nil, cerr
-		}
-		return v, nil
-	}
-}
-
-// coefBuiltin is coef() bound to one request's models (nil: none).
-func coefBuiltin(models *model.Set) func(args ...any) (any, error) {
-	return func(args ...any) (any, error) {
-		if len(args) < 2 || len(args) > 3 {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("coef() takes 2 or 3 arguments (fit, term[, stat]), got %d", len(args)))
-		}
-		strs := make([]string, len(args))
-		for i, a := range args {
-			s, ok := a.(string)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-					fmt.Sprintf("coef() argument %d must be a string, got %T", i+1, a))
-			}
-			strs[i] = s
-		}
-		stat := model.StatPoint
-		if len(strs) == 3 {
-			stat = strs[2]
-		}
-		v, cerr := model.Coef(models, strs[0], strs[1], stat)
-		if cerr != nil {
-			return nil, cerr
-		}
-		return v, nil
-	}
 }
 
 // coefShadowed reports whether the embedder registered its own "coef",

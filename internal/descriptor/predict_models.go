@@ -92,7 +92,7 @@ func predictModels(refs model.Refs, outer model.Catalog, opts *PredictOptions) (
 	if cerr = model.CheckRefs(refs, outer); cerr == nil {
 		var loaded *model.Loaded
 		if loaded, cerr = opts.loadModelFiles(refs); cerr == nil {
-			return model.CatalogWithLoaded(outer, refs, loaded), nil, nil
+			return loadedCatalog(outer, refs, loaded), nil, nil
 		}
 	}
 	unloaded = make(map[string]bool, len(refs.Models)+len(refs.Populations))
@@ -106,12 +106,44 @@ func predictModels(refs model.Refs, outer model.Catalog, opts *PredictOptions) (
 }
 
 // loadedCatalog is predict's catalog for refs whose static rule already
-// passed (a Compose or chain pre-pass): outer plus the loaded files.
+// passed (predictModels, a Compose or chain pre-pass): outer plus the
+// loaded files, carrying the Set those files bind (loadedFitCatalog) —
+// the figures a scalar slot folds.
 func loadedCatalog(outer model.Catalog, refs model.Refs, loaded *model.Loaded) model.Catalog {
 	if refs.Empty() {
 		return outer
 	}
-	return model.CatalogWithLoaded(outer, refs, loaded)
+	cat := loadedFitCatalog{FitCatalog: model.CatalogWithLoaded(outer, refs, loaded)}
+	// The runtime binds the same files over its outer set
+	// (model.Set.WithLoaded); a loaded name's figures do not depend on
+	// the outer bindings, so the Set binds the loaded entries alone.
+	// refs passed CheckRefs, so no name collides; a bind fault leaves
+	// nothing folded (the runtime refuses it as it binds).
+	if set, err := (*model.Set)(nil).WithLoaded(refs, loaded); err == nil {
+		cat.loaded = set
+	}
+	return cat
+}
+
+// loadedFitCatalog is a request's catalog (the signatures every
+// reference is judged against) plus the Set its own loaded `models` /
+// `populations` entries bind: the one source of figures predict has
+// before anything executes. A Compose `fits` entry or a registered
+// population is in the signatures but never in the Set, so a scalar
+// slot reading it stays unresolved.
+type loadedFitCatalog struct {
+	model.FitCatalog
+	loaded *model.Set
+}
+
+// loadedModels is the Set of cat's loaded entries (nil when cat carries
+// none: no `models` / `populations`, or the catalog was rebuilt over an
+// outer scope).
+func loadedModels(cat model.Catalog) *model.Set {
+	if c, ok := cat.(loadedFitCatalog); ok {
+		return c.loaded
+	}
+	return nil
 }
 
 // dropUnloadedUnknowns drops every PULSE_MODEL_UNKNOWN refusal naming a

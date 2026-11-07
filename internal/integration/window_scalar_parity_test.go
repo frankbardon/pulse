@@ -176,13 +176,15 @@ func TestWindowScalar_RefusalsPredictMatchesRuntime(t *testing.T) {
 	}
 }
 
-// TestWindowScalar_ModelsResolveAtRuntime: a request carrying `models`
-// binds coef() for a window param — predict checks the call against
-// the loaded model and lists the param under unresolved_scalars (never
-// an error or a warning); Process and Materialize evaluate it on the
-// model's coefficient and run exactly as the literal it yields; a
-// runtime value out of range is the reading's own refusal.
-func TestWindowScalar_ModelsResolveAtRuntime(t *testing.T) {
+// TestWindowScalar_LoadedModelsFoldAtPredict: a request carrying
+// `models` binds coef() for a window param — predict folds the read of
+// the loaded model to the runtime's value (nothing under
+// unresolved_scalars, never an error or a warning); Process and
+// Materialize evaluate it on the model's coefficient and run exactly as
+// the literal it yields; a value out of range is refused by predict
+// with the very refusal (code, rule, details — the folded value
+// included) every runtime surface raises.
+func TestWindowScalar_LoadedModelsFoldAtPredict(t *testing.T) {
 	t.Parallel()
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
@@ -210,9 +212,8 @@ func TestWindowScalar_ModelsResolveAtRuntime(t *testing.T) {
 	if len(env.Errors) != 0 || len(env.Warnings) != 0 {
 		t.Fatalf("predict: errors %+v warnings %+v", env.Errors, env.Warnings)
 	}
-	want := []descriptor.UnresolvedScalar{{Path: "windows[0].params.decay", Expression: decaySrc, Reads: []string{"coef"}}}
-	if pr := env.Data.(*descriptor.PredictResult); !reflect.DeepEqual(pr.UnresolvedScalars, want) {
-		t.Fatalf("unresolved_scalars %+v, want %+v", pr.UnresolvedScalars, want)
+	if pr := env.Data.(*descriptor.PredictResult); pr.UnresolvedScalars != nil {
+		t.Fatalf("a loaded model's read left unresolved: %+v", pr.UnresolvedScalars)
 	}
 	lit := scalarWindowReq(types.WIN_DISTRIBUTED_LAG, `{"kernel": "geometric", "decay": `+strconv.FormatFloat(decay, 'g', -1, 64)+`, "max_lag": 4}`, nil)
 	if got, want := windowColumn(t, p, req(decaySrc)), windowColumn(t, p, lit); !reflect.DeepEqual(got, want) {
@@ -222,22 +223,33 @@ func TestWindowScalar_ModelsResolveAtRuntime(t *testing.T) {
 		t.Errorf("Materialize: %v", err)
 	}
 
-	// The same read out of range: predict cannot see it (the value is
-	// the model's), the runtime's reading refuses it.
+	// The same read out of range: predict folds it and refuses it with
+	// the reading's own rule and details (the folded decay), which every
+	// runtime surface raises.
 	out := `1 + abs(coef("m", "x"))`
-	if env := predictEnvelope(t, p, fsys, "series.pulse", req(out)); len(env.Errors) != 0 {
-		t.Fatalf("predict judged a model-dependent range: %+v", env.Errors)
+	env = predictEnvelope(t, p, fsys, "series.pulse", req(out))
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_WINDOW_INVALID) {
+		t.Fatalf("predict did not refuse the folded range: %+v", env.Errors)
+	}
+	pe := env.Errors[0]
+	rule, ok := strings.CutPrefix(pe.Message, "window[0] (WIN_DISTRIBUTED_LAG): ")
+	if !ok || !strings.Contains(rule, "params.decay must be in [0, 1)") {
+		t.Fatalf("predict refused %q, want the decay range rule", pe.Message)
+	}
+	if got, want := pe.Details["decay"], 1+math.Abs(coef); got != want {
+		t.Errorf("predict folded decay %v, want %v", got, want)
 	}
 	for name, run := range map[string]func() error{
-		"Process": func() error { _, err := p.Process(ctx, req(out)); return err },
+		"Process":       func() error { _, err := p.Process(ctx, req(out)); return err },
+		"ProcessStream": func() error { _, err := p.ProcessStream(ctx, req(out)); return err },
 		"Materialize": func() error {
 			_, err := p.Materialize(ctx, req(out), "scalar_models_bad.pulse", pulse.MaterializeOptions{})
 			return err
 		},
 	} {
 		var ce *errors.CodedError
-		if err := run(); !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID || !strings.Contains(ce.Message, "params.decay must be in [0, 1)") {
-			t.Errorf("%s: %v, want the reading's decay range refusal", name, err)
+		if err := run(); !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != "WIN_DISTRIBUTED_LAG: "+rule || ce.Details["decay"] != pe.Details["decay"] {
+			t.Errorf("%s: %v, want predict's refusal %q (decay %v)", name, err, pe.Message, pe.Details["decay"])
 		}
 	}
 }

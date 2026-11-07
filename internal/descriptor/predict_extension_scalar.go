@@ -128,7 +128,7 @@ func resolveExtensionScalarsStatic(req *types.Request, opts *PredictOptions) ext
 	}
 	// Built here, not in the closure: capturing opts would move every
 	// caller's options to the heap (the off-path allocation gate).
-	env := windowScalarEnv(req, opts)
+	env := scalarEnvFor(req.Params, opts)
 	return extscalar.Resolve(req, flagged, staticEnv(env), false)
 }
 

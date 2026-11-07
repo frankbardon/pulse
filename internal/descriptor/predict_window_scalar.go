@@ -18,12 +18,18 @@ import (
 // loaded `models`), the twin of the runtime's
 // processing.Processor.resolveWindowScalars.
 
-// windowScalarEnv is the static scalar-slot environment of req: its
-// params (an invalid block binds none — its refusal is reported
-// elsewhere, and the runtime folds none either), the catalog opts
-// carries, the instance's tables and the embedder's functions.
+// windowScalarEnv is the static scalar-slot environment of req's window
+// params and AGG_CONSTANT expressions: its params (an invalid block
+// binds none — its refusal is reported elsewhere, and the runtime folds
+// none either), the catalog opts carries, the instance's tables and the
+// embedder's functions — and the catalog's loaded models
+// (loadedModels), so a coef() / sweep_axis() / response() read of a
+// loaded `models` entry folds to the runtime's value and is
+// range-checked here.
 func windowScalarEnv(req *types.Request, opts *PredictOptions) scalarslot.Env {
-	return scalarEnvFor(req.Params, opts)
+	env := scalarEnvFor(req.Params, opts)
+	env.Loaded = loadedModels(opts.boundModels())
+	return env
 }
 
 // scalarEnvFor is the static scalar-slot environment of a request host
