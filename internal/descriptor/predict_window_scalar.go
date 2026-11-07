@@ -19,15 +19,23 @@ import (
 // processing.Processor.resolveWindowScalars.
 
 // windowScalarEnv is the static scalar-slot environment of req's window
-// params and AGG_CONSTANT expressions: its params (an invalid block
-// binds none — its refusal is reported elsewhere, and the runtime folds
-// none either), the catalog opts carries, the instance's tables and the
-// embedder's functions — and the catalog's loaded models
-// (loadedModels), so a coef() / sweep_axis() / response() read of a
-// loaded `models` entry folds to the runtime's value and is
-// range-checked here.
+// params, AGG_CONSTANT expressions and expression-capable extension
+// params: foldingScalarEnv over req's params.
 func windowScalarEnv(req *types.Request, opts *PredictOptions) scalarslot.Env {
-	env := scalarEnvFor(req.Params, opts)
+	return foldingScalarEnv(req.Params, opts)
+}
+
+// foldingScalarEnv is the static scalar-slot environment of a request
+// host carrying params (an invalid block binds none — its refusal is
+// reported elsewhere, and the runtime folds none either): the catalog
+// opts carries, the instance's tables and the embedder's functions —
+// and the catalog's loaded models (loadedModels), so a coef() /
+// sweep_axis() / response() read of a loaded `models` entry folds to
+// the runtime's value and is range-checked here. Its bound must be its
+// own Declared() (staticEnv): a placeholder would run on a foldable
+// read.
+func foldingScalarEnv(p types.Params, opts *PredictOptions) scalarslot.Env {
+	env := scalarEnvFor(p, opts)
 	env.Loaded = loadedModels(opts.boundModels())
 	return env
 }

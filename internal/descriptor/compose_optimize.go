@@ -35,20 +35,31 @@ import (
 // the instance's view, so a non-numeric one is refused statically on
 // both sides). It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
-// batch declares no block.
+// batch declares no block. It never folds a block's loaded `models`
+// into a bound (optblock.Env.Fold false): the runtime's Compile
+// evaluates every bound once the fits ran.
 func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) ([]*model.Loaded, *errors.CodedError) {
-	checked, cerr := OptimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds)
+	checked, cerr := optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, false)
 	if cerr != nil || checked == nil {
 		return nil, cerr
 	}
 	return checked.Loaded, nil
 }
 
-// OptimizeCheck is OptimizeRefusal that also returns the bounds and
-// starts the declaration-only check left unresolved (optblock.CheckAll)
-// — predict's ComposeValidationResult.UnresolvedScalars. Nil, nil when
-// the batch declares no block.
+// OptimizeCheck is predict's OptimizeRefusal: it also returns the
+// bounds and starts the declaration-only check left unresolved
+// (optblock.CheckAll) — ComposeValidationResult.UnresolvedScalars — and
+// folds a bound or start reading only the block's own loaded `models`
+// (optblock.Env.Fold) to the value the runtime's Compile evaluates,
+// range-checking it with the runtime's very refusal. Nil, nil when the
+// batch declares no block.
 func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) (*optblock.Checked, *errors.CodedError) {
+	return optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, true)
+}
+
+// optimizeCheck is OptimizeRefusal / OptimizeCheck; fold sets
+// optblock.Env.Fold.
+func optimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds, fold bool) (*optblock.Checked, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
@@ -63,6 +74,7 @@ func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions
 		Outer:      model.WithinCatalog(outer, fits),
 		Load:       load,
 		Results:    ResultCatalog(req.Requests, kinds),
+		Fold:       fold,
 	})
 }
 

@@ -11,8 +11,10 @@ import (
 	"github.com/frankbardon/pulse/internal/aggconst"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/optblock"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/scalarslot"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
@@ -273,6 +275,97 @@ func TestScalarFold_UnloadedReadsStayUnresolved(t *testing.T) {
 			}
 			if len(res.Unresolved) != 1 || !res.Deferred["alpha"] {
 				t.Errorf("unresolved %+v deferred %v, want alpha left to the runtime", res.Unresolved, res.Deferred)
+			}
+		})
+	}
+}
+
+// foldOptimize is optimizeBatch whose block loads foldTruth (as "truth",
+// the batch's params binding b) and reads it through bound — the
+// variable's upper bound — and start.
+func foldOptimize(upper, start string) *types.ComposedRequest {
+	c := optimizeBatch(func(s *types.OptimizeSpec) {
+		s.Models = []types.ModelRef{{Name: "truth", Inline: json.RawMessage(foldTruth)}}
+		s.Variables[0].Upper = types.BoundExpr(upper)
+		if start != "" {
+			s.Variables[0].Start = types.BoundExpr(start)
+		}
+	})
+	c.Params["b"] = json.Number("0.25")
+	return c
+}
+
+// foldOptimizeRuntime is the runtime's Compile of c's block: over the
+// Set Service.runComposeOptimize binds (the block's loaded files) and
+// the engine's bound readers.
+func foldOptimizeRuntime(t *testing.T, c *types.ComposedRequest, loaded []*model.Loaded) *errors.CodedError {
+	t.Helper()
+	spec := &c.Optimize[0]
+	set, err := (*model.Set)(nil).WithLoaded(model.Refs{Models: spec.Models}, loaded[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, _ := exprenv.NormalizeParams(c.Params)
+	fits := model.CatalogFromFits(c.Fits)
+	env := optblock.Env{Params: params, Fits: fits, Outer: model.WithinCatalog(nil, fits), Loaded: loaded,
+		Results: ResultCatalog(c.Requests, vectors.AggregationKinds{})}
+	_, cerr := optblock.Compile(spec, 0, env, (*processing.ExtensionRegistry)(nil).ExprBoundWithModels(set))
+	return cerr
+}
+
+// TestScalarFold_OptimizeBoundsMatchRuntime: predict's OptimizeCheck
+// folds a bound or start reading the block's own loaded model — nothing
+// left unresolved, never the placeholder's PROCESSING_INTERNAL — and
+// refuses a folded value out of range (or a reader refusal) with the
+// runtime Compile's very code, message and details. A read of a batch
+// fit stays unresolved.
+func TestScalarFold_OptimizeBoundsMatchRuntime(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, upper, start string
+		refused            bool
+		unresolved         int
+	}{
+		{"coef upper", `coef("truth", "x") * 200`, "", false, 0},
+		{"coef upper and start", `coef("truth", "x") * 200`, `coef("truth", "(intercept)") * 20`, false, 0},
+		{"folded bounds crossed", `coef("truth", "x") * 2`, "", true, 0},
+		{"folded start out of bounds", `coef("truth", "x") * 200`, `coef("truth", "x") * 400`, true, 0},
+		{"intervals unavailable", `coef("truth", "x", "up" + "per")`, "", true, 0},
+		{"a batch fit", `coef("demand", "price") * 200`, "", false, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := foldOptimize(tc.upper, tc.start)
+			checked, pcerr := OptimizeCheck(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{})
+			if pcerr != nil && pcerr.Code == errors.PROCESSING_INTERNAL {
+				t.Fatalf("a foldable read ran a placeholder: %v", pcerr)
+			}
+			if tc.refused != (pcerr != nil) {
+				t.Fatalf("predict refusal %v, want refused=%v", pcerr, tc.refused)
+			}
+			// The runtime's own pre-fit check never folds: it passes the
+			// block and hands its files to the Compile that solves.
+			loaded, rcerr := OptimizeRefusal(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{})
+			if rcerr != nil {
+				t.Fatalf("the runtime's pre-fit check refused %v", rcerr)
+			}
+			if tc.unresolved > 0 {
+				if len(checked.Unresolved) != tc.unresolved {
+					t.Errorf("unresolved %+v, want %d", checked.Unresolved, tc.unresolved)
+				}
+				return
+			}
+			rerr := foldOptimizeRuntime(t, c, loaded)
+			if pcerr != nil {
+				sameCoded(t, pcerr, rerr)
+				return
+			}
+			if rerr != nil {
+				t.Fatalf("predict accepted what the runtime refused: %v", rerr)
+			}
+			if len(checked.Unresolved) != 0 {
+				t.Errorf("a loaded-model read left unresolved: %+v", checked.Unresolved)
 			}
 		})
 	}

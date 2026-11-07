@@ -360,7 +360,11 @@ place. A bad expression is refused `PULSE_REQUEST_PARAM_INVALID`
 shared code (`PULSE_PARAMS_UNDECLARED`, `PULSE_MODEL_*`, a table code)
 keeps its code, located at the param — by predict and every runtime
 arm alike. An expression over literals and params is computed at
-predict; one calling `coef()`, `sweep_axis()`, `lookup()` or an
+predict, and so is one whose only bound reads are `coef()`,
+`sweep_axis()` or `response()` of the request's own loaded `models` /
+`populations` entry (folded to the value the runtime hands your
+factory, and refused at predict exactly as the runtime refuses it);
+one calling any other `coef()` (a Compose batch fit), `lookup()` or an
 embedder function is listed under predict's `unresolved_scalars`
 (`{path, expression, reads}`; a facet's filterers on
 `FacetPredictResult` too) and judged at run time. The manifest

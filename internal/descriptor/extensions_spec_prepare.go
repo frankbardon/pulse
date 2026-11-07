@@ -163,7 +163,7 @@ func facetExtensionSpecs(req *types.FacetRequest, models model.Catalog, opts *Pr
 	if flagged == nil {
 		return view
 	}
-	fs, unresolved, refs := extscalar.ResolveFilterers(extSpecSlotFilterers, req.Filterers, flagged, staticEnv(scalarEnvFor(req.Params, o)), false)
+	fs, unresolved, refs := extscalar.ResolveFilterers(extSpecSlotFilterers, req.Filterers, flagged, staticEnv(foldingScalarEnv(req.Params, o)), false)
 	view.req.Filterers = fs
 	for _, u := range unresolved {
 		view.defer_(u.Path)

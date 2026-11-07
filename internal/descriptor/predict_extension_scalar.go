@@ -19,7 +19,8 @@ import (
 // statically over the request's params and the catalog its references
 // resolve against — the twin of the runtime's
 // processing.ResolveExtensionScalars, over the same environment as the
-// built-in window params (windowScalarEnv).
+// built-in window params (windowScalarEnv: a read of the request's own
+// loaded `models` folds to the runtime's value).
 
 // extensionScalarKeys are the instance's visible extension operators'
 // expression-capable params keys, sorted per operator; nil when none
@@ -128,7 +129,7 @@ func resolveExtensionScalarsStatic(req *types.Request, opts *PredictOptions) ext
 	}
 	// Built here, not in the closure: capturing opts would move every
 	// caller's options to the heap (the off-path allocation gate).
-	env := scalarEnvFor(req.Params, opts)
+	env := windowScalarEnv(req, opts)
 	return extscalar.Resolve(req, flagged, staticEnv(env), false)
 }
 
@@ -185,7 +186,7 @@ func validateFacetExtensionScalars(env *descriptor.Envelope, req *types.FacetReq
 	if flagged == nil || req == nil {
 		return nil
 	}
-	_, unresolved, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(scalarEnvFor(req.Params, o)), false)
+	_, unresolved, refs := extscalar.ResolveFilterers("filterers", req.Filterers, flagged, staticEnv(foldingScalarEnv(req.Params, o)), false)
 	for _, ce := range refs {
 		addCodedError(env, ce)
 	}

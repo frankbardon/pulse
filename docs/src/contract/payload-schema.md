@@ -134,11 +134,13 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   (`windows[0].params.decay`, under `requests[i].` / `fits[i].request.`
   in a batch), or an embedder extension operator's number param its
   registration declares expression-capable (`aggregations[0].params.scale`;
-  the manifest marks it `expression`). A window param or `AGG_CONSTANT`
-  `expr` whose only such reads are `coef()` / `sweep_axis()` /
-  `response()` of the request's own loaded `models` / `populations`
-  entry is not listed: predict folds it to the runtime's value and
-  range-checks it (a Compose `fits` entry stays listed). Those params
+  the manifest marks it `expression`). A window param, `AGG_CONSTANT`
+  `expr` or expression-capable extension param whose only such reads
+  are `coef()` / `sweep_axis()` / `response()` of the request's (or
+  facet's) own loaded `models` / `populations` entry — and an optimize
+  bound or start reading only its block's own `models` — is not
+  listed: predict folds it to the runtime's value and range-checks it
+  (a Compose `fits` entry stays listed). Those params
   take a number or an expression string; a slot's `params` object stays
   open in this schema.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
