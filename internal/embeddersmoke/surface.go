@@ -334,6 +334,14 @@ var (
 	_ = []descriptor.ReadsRoot{descriptor.ReadsRootRequest, descriptor.ReadsRootChain, descriptor.ReadsRootFacet}
 )
 
+// Post-window plan of a draft, with no cohort (the schema optional).
+var (
+	_ func(*pulse.Pulse, context.Context, *pulse.Request, *encoding.Schema) (*descriptor.PostWindowPlan, error) = (*pulse.Pulse).ClassifyPostWindow
+	_                                                                                                           = descriptor.PostWindowPlan{WindowsFirst: true, WindowLabels: []string{}, Attributes: []descriptor.PostWindowAttribute{{
+		Index: 0, Label: "", DependsOn: "", WindowReads: []string{},
+	}}}
+)
+
 // Instance discovery: the pruned skill ontology and the skill pack as
 // this instance serves them (what an embedder's discovery UI reads).
 var (

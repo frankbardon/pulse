@@ -840,6 +840,7 @@ pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
+pulse: type Pulse method (*Pulse) ClassifyPostWindow(ctx context.Context, req *pulse.Request, schema *pulse/encoding.Schema) (*pulse/descriptor.PostWindowPlan, error)
 pulse: type Pulse method (*Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, error)
 pulse: type Pulse method (*Pulse) CompactShardArchive(ctx context.Context, archivePath string) error
 pulse: type Pulse method (*Pulse) Compose(ctx context.Context, req *pulse.ComposedRequest) (*pulse.ComposedResponse, error)
@@ -6774,4 +6775,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 620f5ed96e5e4155b60256b921d0d640da216b335a2a3659729583377c603d2f
+// golden-hash: a34707cf555560354a53ec99cb00db0e5b1a128949f8b0c6d9f1fc6413ad4150
