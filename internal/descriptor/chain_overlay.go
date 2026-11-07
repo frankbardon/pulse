@@ -131,6 +131,13 @@ func validateChainOverlays(env *descriptor.Envelope, result *ChainValidationResu
 			addCodedError(env, cerr)
 			continue
 		}
+		// An extension kind never runs here: its own wrong-slot refusal
+		// (overlayhost.ExtensionSlotRefusal), the runtime chain
+		// dispatcher's.
+		if cerr := opts.extensionSlotRefusal(overlayhost.Chain, spec.Kind, i); cerr != nil {
+			addCodedError(env, cerr)
+			continue
+		}
 		if !chainOverlayKindAllowed(opts.overlayRoute(spec.Kind)) {
 			env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 				"chain overlay kind not supported on ChainRequest.Overlays: "+string(spec.Kind),

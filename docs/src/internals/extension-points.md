@@ -2046,13 +2046,18 @@ shape on each registration:
 | `MatrixOpRegistration` | `types.MatrixSpec` | `matrices` | `name` |
 | `RegressionRegistration` | `types.RegressionSpec` | `regressions` (a Compose fit's too) | `name` |
 | `OverlayRegistration` | `types.OverlaySpec` | `overlays` (a Compose slot's own too) | `name` |
+| `OverlayRegistration.ValidateCompose` | `types.ComposeOverlaySpec` | `overlays` (`ComposedRequest.Overlays`) | `name` |
 
 The slot key is the category's own, never the slot's path: the runtime
 factory cannot tell a crosstab cell from a top-level aggregation. An
 overlay kind's hook (`details.category` `overlay`) is judged last,
 after its declarative host / Ref / Scope / Level rules, inside the one
 overlay request rule that predict and runtime share — no factory runs
-for an overlay, so it never runs twice. The hook sees the spec alone —
+for an overlay, and the crosstab and series dispatchers re-judge the
+declaration without the hook, so it runs once per spec. A Compose spec
+(`ComposedRequest.Overlays`) meets `ValidateCompose` instead, after the
+Compose handler / Scope / Level rules and before its Reference /
+Targets resolve. The hook sees the spec alone —
 no record, no cohort schema, nothing predict lacks — and returns nil to
 accept it. Pulse runs it, under `recover()`, in three places:
 

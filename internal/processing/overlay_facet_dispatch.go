@@ -181,7 +181,7 @@ func ApplyOverlaysFacetWithExtensions(specs []types.OverlaySpec, host *types.Fac
 		spec := &specs[i]
 		// A catalog kind that runs on another slot: the shared wrong-slot
 		// refusal predict raises (validateFacetOverlaySpec).
-		if cerr := overlayhost.Refusal(overlayhost.Facet, spec.Kind, exts.overlayRoute(spec.Kind), i); cerr != nil {
+		if cerr := exts.extensionSlotRefusal(overlayhost.Facet, spec.Kind, i); cerr != nil {
 			return nil, nil, cerr
 		}
 		handler, ok := facetOverlayHandlers[exts.overlayRoute(spec.Kind)]

@@ -100,15 +100,16 @@ func refuseWrongHostOverlays(req *types.Request, exts *ExtensionRegistry, keep f
 	return nil
 }
 
-// WrongHostRefusal is the shared wrong-slot refusal (overlayhost.Refusal)
-// for the spec of kind at index on host, judged on the route exts gives
+// WrongHostRefusal is the shared wrong-slot refusal (overlayhost.Refusal,
+// and an extension kind's overlayhost.ExtensionSlotRefusal) for the spec
+// of kind at index on host, judged on the route exts gives
 // the kind: a kind the instance hides is never refused here (its slot's
 // unknown-kind branch owns it). nil when the slot runs the kind. For a
 // caller outside this package that dispatches one spec at a time — the
 // FACET overlay loop in internal/service — and so must raise it with the
 // spec's own index before its per-spec work.
 func WrongHostRefusal(host overlayhost.Host, kind types.OverlayKind, exts *ExtensionRegistry, index int) error {
-	if cerr := overlayhost.Refusal(host, kind, exts.overlayRoute(kind), index); cerr != nil {
+	if cerr := exts.extensionSlotRefusal(host, kind, index); cerr != nil {
 		return cerr
 	}
 	return nil

@@ -1,7 +1,9 @@
 package pulse
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -21,17 +23,22 @@ import (
 // overlayDeclaration builds (overlayhost.ExtensionRequestRefusal), so
 // predict and runtime refuse it identically.
 
-// OverlayRegistration installs a custom OVERLAY_* kind for
-// Request.Overlays, authored against extend.OverlayHandler: a read-only
+// OverlayRegistration installs a custom OVERLAY_* kind, authored
+// against extend.OverlayHandler: a read-only
 // fold over an already-materialised host that returns one layer —
 // exactly like a built-in kind, it never re-reads a record and never
 // mutates the host result. The name follows the extension policy
 // (OVERLAY_<NAMESPACE>_<NAME>; a built-in such as OVERLAY_SHARE_OF_ROW
 // collides).
 //
-// Today a kind runs on the crosstab host (Handler.Matrix): a
-// Request.Crosstab request's Request.Overlays, and a Compose slot's own.
-// On a Compose, chain or facet overlay slot it is an unknown kind.
+// A kind runs on the hosts whose handler it sets: Handler.Matrix on a
+// crosstab request's Request.Overlays (and a Compose slot's own),
+// Handler.Series on a grouped request's Request.Overlays (scored on its
+// first aggregation), Handler.Compose on ComposedRequest.Overlays. A
+// spec over a host the kind does not declare — and any spec on
+// ChainRequest.Overlays or FacetRequest.Overlays — is refused at predict
+// and at runtime alike (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, the
+// wrong-shape / wrong-slot refusal a built-in gets).
 //
 // Every spec of the kind is judged declaratively, at predict and at
 // runtime alike, before the handler runs: its params against Params
@@ -41,11 +48,14 @@ import (
 // output is held to Shapes on every run (and at the probe):
 // PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH.
 //
-// pulse.New probes the kind once over a synthetic two-by-two crosstab
-// host with components: a Validate refusal or panic on the probe spec,
-// or a handler panic, is PULSE_EXTENSION_FACTORY_PANIC (details.stage
-// validate / handler); an output its Shapes do not declare is
-// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH. A handler error on the
+// pulse.New probes every handler once over a synthetic host — a
+// two-by-two crosstab with components (Matrix), a three-group series
+// (Series), a reference and a target slot of each of those shapes
+// (Compose): a Validate / ValidateCompose refusal or panic on the probe
+// spec, or a handler panic, is PULSE_EXTENSION_FACTORY_PANIC
+// (details.stage validate / handler, details.host for a Series or
+// Compose handler); an output its Shapes do not declare is
+// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH. A handler error on a
 // synthetic host is tolerated (it may be data-dependent).
 type OverlayRegistration struct {
 	Name        types.OverlayKind
@@ -58,9 +68,8 @@ type OverlayRegistration struct {
 	// Interpretation optionally says how to read the layer's outputs,
 	// structure-checked at pulse.New (PULSE_EXTENSION_PURPOSE_INVALID).
 	Interpretation []descriptor.Interpretation
-	// Handler runs the kind, one function per host. Handler.Matrix is
-	// required today (PULSE_EXTENSION_PARAM_INVALID, reason
-	// missing_handler).
+	// Handler runs the kind, one function per host; at least one is
+	// required (PULSE_EXTENSION_PARAM_INVALID, reason missing_handler).
 	Handler extend.OverlayHandler
 	// Shapes are the payload shapes the handler may return
 	// (types.OverlayShapeScalar / Series / Matrix), each listed once;
@@ -68,7 +77,8 @@ type OverlayRegistration struct {
 	// invalid_shape).
 	Shapes []types.OverlayShape
 	// Scopes are the scopes a spec may author (cell, row, column,
-	// matrix, total), each listed once; at least one
+	// matrix, total, group — a built-in SERIES kind's scope), each
+	// listed once; at least one
 	// (PULSE_EXTENSION_PARAM_INVALID, reason invalid_scope). A spec with
 	// another scope is PULSE_OVERLAY_SCOPE_UNSUPPORTED.
 	Scopes []types.OverlayScope
@@ -103,13 +113,18 @@ type OverlayRegistration struct {
 	// panic, is PULSE_EXTENSION_SPEC_REFUSED {category: "overlay", type,
 	// slot: "overlays"[, name][, panic]}. Nil accepts every spec.
 	Validate extend.SpecValidator[types.OverlaySpec]
+	// ValidateCompose is Validate for a ComposedRequest.Overlays spec
+	// (types.ComposeOverlaySpec), judged after the declarative rules
+	// (the Compose handler, Scope, Level / Within) and before the
+	// Reference / Targets gates, at predict and at runtime alike; the
+	// probe calls it on the Compose probe spec. Nil accepts every spec.
+	ValidateCompose extend.SpecValidator[types.ComposeOverlaySpec]
 }
 
-// knownExtensionOverlayScopes are the scopes a registration may declare
-// (OverlayScopeGroup is reserved).
+// knownExtensionOverlayScopes are the scopes a registration may declare.
 var knownExtensionOverlayScopes = []types.OverlayScope{
 	types.OverlayScopeCell, types.OverlayScopeRow, types.OverlayScopeColumn,
-	types.OverlayScopeMatrix, types.OverlayScopeTotal,
+	types.OverlayScopeMatrix, types.OverlayScopeTotal, types.OverlayScopeGroup,
 }
 
 // knownExtensionOverlayShapes are the payload shapes a registration may
@@ -131,8 +146,8 @@ func builtinOverlayNames() map[string]struct{} {
 }
 
 // validateOverlayRegistrations enforces the OverlayRegistration shape:
-// the shared naming / duplicate / params pass, then a crosstab handler
-// (reason missing_handler) and well-formed Shapes / Scopes / Refs
+// the shared naming / duplicate / params pass, then at least one
+// handler (reason missing_handler) and well-formed Shapes / Scopes / Refs
 // (reasons invalid_shape / invalid_scope / invalid_ref), each
 // PULSE_EXTENSION_PARAM_INVALID {category: overlay, name, index,
 // reason[, value]}.
@@ -151,14 +166,14 @@ func validateOverlayRegistrations(regs []OverlayRegistration) error {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
 				fmt.Sprintf("extension overlay %q %s", r.Name, what), details)
 		}
-		if r.Handler.Matrix == nil {
-			return invalid("missing_handler", "sets no handler (Handler.Matrix is required)", "")
+		if r.Handler.Matrix == nil && r.Handler.Series == nil && r.Handler.Compose == nil {
+			return invalid("missing_handler", "sets no handler (set Handler.Matrix, Handler.Series or Handler.Compose)", "")
 		}
 		if v, ok := badEnumList(r.Shapes, knownExtensionOverlayShapes); !ok {
 			return invalid("invalid_shape", "Shapes must list scalar, series or matrix, each once, at least one", v)
 		}
 		if v, ok := badEnumList(r.Scopes, knownExtensionOverlayScopes); !ok {
-			return invalid("invalid_scope", "Scopes must list cell, row, column, matrix or total, each once, at least one", v)
+			return invalid("invalid_scope", "Scopes must list cell, row, column, matrix, total or group, each once, at least one", v)
 		}
 		if len(r.Refs) > 0 {
 			if v, ok := badEnumList(r.Refs, knownExtensionOverlayRefs); !ok {
@@ -198,6 +213,10 @@ func overlayDeclaration(r OverlayRegistration) overlayhost.ExtensionDecl {
 	if r.Handler.Matrix != nil {
 		d.HostShapes = append(d.HostShapes, types.OverlayShapeMatrix)
 	}
+	if r.Handler.Series != nil {
+		d.HostShapes = append(d.HostShapes, types.OverlayShapeSeries)
+	}
+	d.Compose = r.Handler.Compose != nil
 	if len(r.Refs) > 0 {
 		d.Refs = make([]string, len(r.Refs))
 		for i, ref := range r.Refs {
@@ -206,6 +225,9 @@ func overlayDeclaration(r OverlayRegistration) overlayhost.ExtensionDecl {
 	}
 	if r.Validate != nil {
 		d.Validate = r.Validate
+	}
+	if r.ValidateCompose != nil {
+		d.ValidateCompose = r.ValidateCompose
 	}
 	return d
 }
@@ -220,6 +242,12 @@ func addRuntimeOverlays(r *processing.ExtensionRegistry, regs []OverlayRegistrat
 		x := &processing.ExtensionOverlay{Decl: overlayDeclaration(reg)}
 		if reg.Handler.Matrix != nil {
 			x.Matrix = adaptMatrixOverlay(reg.Handler.Matrix)
+		}
+		if reg.Handler.Series != nil {
+			x.Series = adaptSeriesOverlay(reg.Handler.Series)
+		}
+		if reg.Handler.Compose != nil {
+			x.Compose = adaptComposeOverlay(reg.Handler.Compose)
 		}
 		r.Overlays[reg.Name] = x
 	}
@@ -256,6 +284,90 @@ func adaptMatrixOverlay(fn extend.MatrixOverlayFunc) processing.ExtensionMatrixO
 		}
 		return processing.ExtensionOverlayOutput{Payload: out.Payload, Summary: out.Summary, Warnings: out.Warnings}, nil
 	}
+}
+
+// adaptSeriesOverlay lifts the public SERIES handler onto the engine.
+func adaptSeriesOverlay(fn extend.SeriesOverlayFunc) processing.ExtensionSeriesOverlayFunc {
+	return func(spec *types.OverlaySpec, host *processing.SeriesHostView) (processing.ExtensionOverlayOutput, error) {
+		out, err := fn(spec, seriesOverlayHost{h: host})
+		if err != nil {
+			return processing.ExtensionOverlayOutput{}, err
+		}
+		return processing.ExtensionOverlayOutput{Payload: out.Payload, Summary: out.Summary, Warnings: out.Warnings}, nil
+	}
+}
+
+// adaptComposeOverlay lifts the public Compose handler onto the engine.
+func adaptComposeOverlay(fn extend.ComposeOverlayFunc) processing.ExtensionComposeOverlayFunc {
+	return func(spec *types.ComposeOverlaySpec, host *processing.ExtensionComposeHost) (processing.ExtensionOverlayOutput, error) {
+		out, err := fn(spec, composeOverlayHost{h: host})
+		if err != nil {
+			return processing.ExtensionOverlayOutput{}, err
+		}
+		return processing.ExtensionOverlayOutput{Payload: out.Payload, Summary: out.Summary, Warnings: out.Warnings}, nil
+	}
+}
+
+// seriesOverlayHost is the extend.SeriesOverlayHost over the engine's
+// read-only series view. Every accessor returns a copy or a scalar.
+type seriesOverlayHost struct{ h *processing.SeriesHostView }
+
+func (s seriesOverlayHost) Groups() int                     { return s.h.GroupCount() }
+func (s seriesOverlayHost) GroupFields() []string           { return slices.Clone(s.h.GroupFields()) }
+func (s seriesOverlayHost) GrouperKinds() []types.GroupType { return slices.Clone(s.h.GrouperKinds()) }
+func (s seriesOverlayHost) ValueLabel() string              { return s.h.ValueLabel() }
+func (s seriesOverlayHost) Value(i int) (float64, bool)     { return s.h.ValueAt(i) }
+
+func (s seriesOverlayHost) GroupKey(i int) types.AxisKey {
+	k, ok := s.h.GroupKey(i)
+	if !ok {
+		return nil
+	}
+	return slices.Clone(k)
+}
+
+// composeOverlayHost is the extend.ComposeOverlayHost over the engine's
+// resolved slots.
+type composeOverlayHost struct {
+	h *processing.ExtensionComposeHost
+}
+
+func (c composeOverlayHost) Reference() extend.ComposeOverlaySlot {
+	return composeOverlaySlot{s: c.h.Reference}
+}
+
+func (c composeOverlayHost) Targets() int { return len(c.h.Targets) }
+
+func (c composeOverlayHost) Target(i int) extend.ComposeOverlaySlot {
+	if i < 0 || i >= len(c.h.Targets) {
+		return nil
+	}
+	return composeOverlaySlot{s: c.h.Targets[i]}
+}
+
+// composeOverlaySlot is the extend.ComposeOverlaySlot over one resolved
+// slot: the view its shape offers, nil for the others.
+type composeOverlaySlot struct {
+	s *processing.ExtensionComposeSlot
+}
+
+func (c composeOverlaySlot) Label() string             { return c.s.Label }
+func (c composeOverlaySlot) Index() int                { return c.s.Index }
+func (c composeOverlaySlot) Shape() types.OverlayShape { return c.s.Shape }
+func (c composeOverlaySlot) Scalar() (float64, bool)   { return c.s.Scalar, c.s.ScalarOK }
+
+func (c composeOverlaySlot) Matrix() extend.MatrixOverlayHost {
+	if c.s.Matrix == nil {
+		return nil
+	}
+	return matrixOverlayHost{h: c.s.Matrix}
+}
+
+func (c composeOverlaySlot) Series() extend.SeriesOverlayHost {
+	if c.s.Series == nil {
+		return nil
+	}
+	return seriesOverlayHost{h: c.s.Series}
 }
 
 // matrixOverlayHost is the extend.MatrixOverlayHost over the engine's
@@ -331,33 +443,47 @@ func (m matrixOverlayHost) CellNEff(r, c int) (float64, bool) {
 	return m.h.CellComponentFloat(r, c, "n_eff")
 }
 
-// probeOverlays runs every overlay kind once over the synthetic probe
-// host: its Validate hook on the probe spec, then its crosstab handler,
+// probeOverlays runs every overlay kind once per handler over the
+// synthetic probe hosts: its Validate hook on the Request probe spec and
+// its ValidateCompose hook on the Compose probe spec, then each handler,
 // then the output rule.
 func probeOverlays(regs []OverlayRegistration) error {
 	for _, reg := range regs {
-		spec := probeOverlaySpec(reg)
 		decl := overlayDeclaration(reg)
-		if err := safeValidateOverlay(reg, &decl, spec); err != nil {
-			return err
+		spec := probeOverlaySpec(reg)
+		if len(decl.HostShapes) > 0 {
+			cerr := overlayhost.ExtensionRequestRefusal(&decl, decl.HostShapes[0], false, spec, 0)
+			if err := probeValidateRefusal(string(categoryOverlay), string(reg.Name), cerr, spec.Params, false); err != nil {
+				return err
+			}
 		}
-		out, ok, err := safeRunMatrixOverlay(reg, spec)
-		if err != nil {
-			return err
+		var cspec *types.ComposeOverlaySpec
+		if decl.Compose {
+			cspec = probeComposeOverlaySpec(reg, spec)
+			cerr := overlayhost.ExtensionComposeRefusal(&decl, cspec, 0)
+			if err := probeValidateRefusal(string(categoryOverlay), string(reg.Name), cerr, spec.Params, false); err != nil {
+				return err
+			}
 		}
-		if !ok {
-			continue // a handler error on the synthetic host is tolerated
-		}
-		if cerr := overlayhost.ExtensionOutputRefusal(&decl, &out.Payload, out.Summary, out.Warnings, -1); cerr != nil {
-			return cerr
+		for _, run := range probeOverlayRuns(reg, spec, cspec) {
+			out, ok, err := safeRunOverlay(reg, run.host, spec.Params, run.call)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				continue // a handler error on the synthetic host is tolerated
+			}
+			if cerr := overlayhost.ExtensionOutputRefusal(&decl, &out.Payload, out.Summary, out.Warnings, -1); cerr != nil {
+				return cerr
+			}
 		}
 	}
 	return nil
 }
 
-// probeOverlaySpec is the probe spec: the kind, its first declared
-// scope, its first declared Ref arm (a row margin for margin) and the
-// probe params (probeParams).
+// probeOverlaySpec is the Request probe spec: the kind, its first
+// declared scope, its first declared Ref arm (a row margin for margin)
+// and the probe params (probeParams).
 func probeOverlaySpec(reg OverlayRegistration) *types.OverlaySpec {
 	spec := &types.OverlaySpec{Kind: reg.Name, Scope: reg.Scopes[0], Params: probeParams(reg.Params, nil)}
 	if len(reg.Refs) > 0 && reg.Refs[0] == extend.OverlayRefMargin {
@@ -366,35 +492,118 @@ func probeOverlaySpec(reg OverlayRegistration) *types.OverlaySpec {
 	return spec
 }
 
-// safeValidateOverlay runs the kind's request rule — its Validate hook
-// last — on the probe spec. A refusal or panic is the shared
-// probeValidateRefusal shape (PULSE_EXTENSION_FACTORY_PANIC,
-// details.stage validate), the bytes every other category's probe emits.
-func safeValidateOverlay(reg OverlayRegistration, decl *overlayhost.ExtensionDecl, spec *types.OverlaySpec) error {
-	cerr := overlayhost.ExtensionRequestRefusal(decl, types.OverlayShapeMatrix, false, spec, 0)
-	return probeValidateRefusal(string(categoryOverlay), string(reg.Name), cerr, spec.Params, false)
+// probeComposeOverlaySpec is the Compose probe spec: the kind, its
+// first declared scope, a "reference" and a "target" slot and the probe
+// params as a params map.
+func probeComposeOverlaySpec(reg OverlayRegistration, spec *types.OverlaySpec) *types.ComposeOverlaySpec {
+	c := &types.ComposeOverlaySpec{Kind: reg.Name, Scope: reg.Scopes[0], Reference: "reference", Targets: []string{"target"}}
+	if len(spec.Params) > 0 {
+		_ = json.Unmarshal(spec.Params, &c.Params) // probeParams marshals an object
+	}
+	return c
 }
 
-// safeRunMatrixOverlay runs the crosstab handler over the probe host
-// under recover(): a panic is PULSE_EXTENSION_FACTORY_PANIC, details
-// stage handler; an error is tolerated (ok false).
-func safeRunMatrixOverlay(reg OverlayRegistration, spec *types.OverlaySpec) (out extend.OverlayOutput, ok bool, err error) {
+// probeOverlayRun is one handler call over one synthetic host; host
+// names it in a panic's details ("" for the crosstab handler, whose
+// details predate the others).
+type probeOverlayRun struct {
+	host string
+	call func() (extend.OverlayOutput, error)
+}
+
+// probeOverlayRuns lists every handler call the probe makes: the
+// crosstab handler over the probe crosstab, the SERIES handler over the
+// probe series, the Compose handler over a reference and a target slot
+// of the crosstab, then of the series.
+func probeOverlayRuns(reg OverlayRegistration, spec *types.OverlaySpec, cspec *types.ComposeOverlaySpec) []probeOverlayRun {
+	var runs []probeOverlayRun
+	if fn := reg.Handler.Matrix; fn != nil {
+		runs = append(runs, probeOverlayRun{call: func() (extend.OverlayOutput, error) {
+			return fn(cloneProbeSpec(spec), matrixOverlayHost{h: probeMatrixView()})
+		}})
+	}
+	if fn := reg.Handler.Series; fn != nil {
+		runs = append(runs, probeOverlayRun{host: "series", call: func() (extend.OverlayOutput, error) {
+			return fn(cloneProbeSpec(spec), seriesOverlayHost{h: probeSeriesView()})
+		}})
+	}
+	if fn := reg.Handler.Compose; fn != nil {
+		for _, shape := range []types.OverlayShape{types.OverlayShapeMatrix, types.OverlayShapeSeries} {
+			runs = append(runs, probeOverlayRun{host: "compose", call: func() (extend.OverlayOutput, error) {
+				return fn(cloneProbeComposeSpec(cspec), composeOverlayHost{h: probeComposeHost(shape)})
+			}})
+		}
+	}
+	return runs
+}
+
+func cloneProbeSpec(spec *types.OverlaySpec) *types.OverlaySpec {
+	c := *spec
+	c.Params = slices.Clone(spec.Params)
+	return &c
+}
+
+func cloneProbeComposeSpec(spec *types.ComposeOverlaySpec) *types.ComposeOverlaySpec {
+	c := *spec
+	c.Targets = slices.Clone(spec.Targets)
+	if spec.Params != nil {
+		c.Params = maps.Clone(spec.Params)
+	}
+	return &c
+}
+
+// safeRunOverlay runs one probe handler call under recover(): a panic
+// is PULSE_EXTENSION_FACTORY_PANIC, details stage handler (and host for
+// a SERIES or Compose handler); an error is tolerated (ok false).
+func safeRunOverlay(reg OverlayRegistration, host string, params json.RawMessage, call func() (extend.OverlayOutput, error)) (out extend.OverlayOutput, ok bool, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			out, ok = extend.OverlayOutput{}, false
+			details := map[string]any{"category": string(categoryOverlay), "name": string(reg.Name),
+				"stage": "handler", "panic": fmt.Sprintf("%v", r)}
+			if host != "" {
+				details["host"] = host
+			}
 			err = errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
 				fmt.Sprintf("overlay %q handler panicked during probe-validation: %v", reg.Name, r),
-				withProbeParams(map[string]any{"category": string(categoryOverlay), "name": string(reg.Name),
-					"stage": "handler", "panic": fmt.Sprintf("%v", r)}, spec.Params))
+				withProbeParams(details, params))
 		}
 	}()
-	payload, comps := probeOverlayHost()
-	host := matrixOverlayHost{h: processing.NewCrosstabHostViewWithComponents(payload, comps)}
-	o, herr := reg.Handler.Matrix(spec, host)
+	o, herr := call()
 	if herr != nil {
 		return extend.OverlayOutput{}, false, nil
 	}
 	return o, true, nil
+}
+
+// probeMatrixView is the probe crosstab as a host view.
+func probeMatrixView() *processing.CrosstabHostView {
+	payload, comps := probeOverlayHost()
+	return processing.NewCrosstabHostViewWithComponents(payload, comps)
+}
+
+// probeSeriesView is the synthetic probe series: three groups (a, b, c)
+// of one GROUP_CATEGORY grouper on "group", scored 1, 2, 3 on "n".
+func probeSeriesView() *processing.SeriesHostView {
+	values := []float64{1, 2, 3}
+	return processing.NewExtensionSeriesHostView([]types.AxisKey{{"a"}, {"b"}, {"c"}},
+		func(i int) (float64, bool) { return values[i], true },
+		[]string{"group"}, []types.GroupType{types.GROUP_CATEGORY}, "n")
+}
+
+// probeComposeHost is a reference and a target slot of the probe host
+// of shape (matrix or series).
+func probeComposeHost(shape types.OverlayShape) *processing.ExtensionComposeHost {
+	slot := func(label string, index int) *processing.ExtensionComposeSlot {
+		s := &processing.ExtensionComposeSlot{Label: label, Index: index, Shape: shape}
+		if shape == types.OverlayShapeMatrix {
+			s.Matrix = probeMatrixView()
+		} else {
+			s.Series = probeSeriesView()
+		}
+		return s
+	}
+	return &processing.ExtensionComposeHost{Reference: slot("reference", 0), Targets: []*processing.ExtensionComposeSlot{slot("target", 1)}}
 }
 
 // probeOverlayHost is the synthetic probe crosstab: two rows (a, b) by

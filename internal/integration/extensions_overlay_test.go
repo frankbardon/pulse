@@ -370,7 +370,7 @@ func TestExtensions_OverlayRegistrationRefused(t *testing.T) {
 		{name: "duplicate", regs: append(reg(func(*pulse.OverlayRegistration) {}), reg(func(*pulse.OverlayRegistration) {})...), code: perr.PULSE_EXTENSION_DUPLICATE},
 		{name: "missing_handler", regs: reg(func(r *pulse.OverlayRegistration) { r.Handler = extend.OverlayHandler{} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "missing_handler"},
 		{name: "no_shapes", regs: reg(func(r *pulse.OverlayRegistration) { r.Shapes = nil }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_shape"},
-		{name: "bad_scope", regs: reg(func(r *pulse.OverlayRegistration) { r.Scopes = []types.OverlayScope{types.OverlayScopeGroup} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_scope"},
+		{name: "bad_scope", regs: reg(func(r *pulse.OverlayRegistration) { r.Scopes = []types.OverlayScope{"diagonal"} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_scope"},
 		{name: "bad_ref", regs: reg(func(r *pulse.OverlayRegistration) { r.Refs = []extend.OverlayRefKind{"prior"} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_ref"},
 	}
 	for _, tc := range cases {

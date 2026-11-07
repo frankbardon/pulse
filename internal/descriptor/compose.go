@@ -667,10 +667,21 @@ func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
 // per-spec coverage can grow kind-by-kind without expanding the
 // outer-loop signature.
 func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidationResult, spec *types.ComposeOverlaySpec, specIdx int, byLabel map[string]*types.Request, byIndex map[string]int, req *types.ComposedRequest, opts *PredictOptions) {
-	// Gate 0: unknown kind. The catalog lookup runs against
-	// types.AllOverlayKinds() so a new kind shows up here automatically
-	// once it's appended to the catalog.
-	if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
+	// Gate 0 for an extension kind: its declaration (a Compose handler,
+	// Scope, Level / Within, then its ValidateCompose hook) — the rule
+	// the runtime dispatcher raises right after the wrong-slot refusal
+	// (overlayhost.ExtensionComposeRefusal). Every gate below then holds
+	// it like any Compose kind.
+	if d := opts.extensionOverlay(spec.Kind); d != nil {
+		if cerr := overlayhost.ExtensionComposeRefusal(d, spec, specIdx); cerr != nil {
+			addCodedError(env, cerr)
+			appendComposeSlotPair(result, spec.Reference, "", "host-incompatible")
+			return
+		}
+	} else if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
+		// Gate 0: unknown kind. The catalog lookup runs against
+		// types.AllOverlayKinds() so a new kind shows up here
+		// automatically once it's appended to the catalog.
 		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
 			"compose overlay spec carries unknown kind: "+string(spec.Kind),
 			map[string]any{"index": specIdx, "kind": string(spec.Kind)})

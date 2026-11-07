@@ -2,6 +2,7 @@ package overlayhost
 
 import (
 	stderrors "errors"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -97,5 +98,54 @@ func TestExtensionRequestRefusal_Order(t *testing.T) {
 		if got == nil || got.Code != tc.code || called != tc.called {
 			t.Errorf("%s: refusal = %v (hook called %d), want %s (hook called %d)", tc.name, got, called, tc.code, tc.called)
 		}
+	}
+}
+
+// TestExtensionComposeRefusal_Order: the slot first, then Scope, then
+// Level / Within, and the ValidateCompose hook only on a spec every
+// declarative rule accepted; ExtensionDeclRefusal never runs the
+// Request hook.
+func TestExtensionComposeRefusal_Order(t *testing.T) {
+	t.Parallel()
+
+	called := 0
+	d := extensionTestDecl()
+	d.Validate = func(*types.OverlaySpec) error { called++; return stderrors.New("no") }
+	d.ValidateCompose = func(*types.ComposeOverlaySpec) error { called++; return stderrors.New("no") }
+	spec := types.ComposeOverlaySpec{Kind: d.Kind, Scope: types.OverlayScopeCell, Reference: "a", Targets: []string{"b"}}
+	if got := ExtensionComposeRefusal(d, &spec, 2); got == nil || got.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ||
+		got.Details["host"] != string(Compose) || got.Details["index"] != 2 || called != 0 {
+		t.Fatalf("matrix-only kind on Compose = %v (hook called %d), want the slot refusal", got, called)
+	}
+	d.Compose = true
+	cases := []struct {
+		name   string
+		mut    func(*types.ComposeOverlaySpec)
+		code   errors.Code
+		called int
+	}{
+		{name: "scope", mut: func(s *types.ComposeOverlaySpec) { s.Scope = types.OverlayScopeRow; s.Level = 1 }, code: errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
+		{name: "level", mut: func(s *types.ComposeOverlaySpec) { s.Within = 1 }, code: errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
+		{name: "hook_last", mut: func(*types.ComposeOverlaySpec) {}, code: errors.PULSE_EXTENSION_SPEC_REFUSED, called: 1},
+	}
+	for _, tc := range cases {
+		called = 0
+		s := spec
+		tc.mut(&s)
+		got := ExtensionComposeRefusal(d, &s, 0)
+		if got == nil || got.Code != tc.code || called != tc.called {
+			t.Errorf("%s: refusal = %v (hook called %d), want %s (hook called %d)", tc.name, got, called, tc.code, tc.called)
+		}
+	}
+
+	called = 0
+	req := types.OverlaySpec{Kind: d.Kind, Scope: types.OverlayScopeCell, Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}
+	if got := ExtensionDeclRefusal(d, types.OverlayShapeMatrix, false, &req, 0); got != nil || called != 0 {
+		t.Errorf("ExtensionDeclRefusal = %v (hook called %d), want nil without the hook", got, called)
+	}
+	compose := &ExtensionDecl{Kind: d.Kind, Compose: true, Scopes: d.Scopes}
+	if got := ExtensionDeclRefusal(compose, types.OverlayShapeMatrix, false, &req, 4); got == nil || got.Details["host"] != string(Request) ||
+		!reflect.DeepEqual(got.Details["hosts"], []string{string(Compose)}) {
+		t.Errorf("Compose-only kind on Request.Overlays = %v, want the slot refusal naming compose", got)
 	}
 }

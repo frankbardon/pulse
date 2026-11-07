@@ -6,17 +6,26 @@ import "github.com/frankbardon/pulse/types"
 // one handler per host the kind runs on. A nil handler declares that the
 // kind does not run on that host — a spec of the kind authored over it
 // is refused at predict and at runtime alike, with the shared
-// wrong-shape refusal. At least one handler is required.
+// wrong-shape (or wrong-slot) refusal. At least one handler is
+// required.
 //
-// Today the one host is Matrix: a crosstab (Request.Crosstab) host, on
-// Request.Overlays (and a Compose slot's own Request.Overlays). New
-// hosts land as new fields; a registration that does not set one is
-// unaffected.
+// Three hosts: Matrix and Series are the two Process hosts of
+// Request.Overlays (and a Compose slot's own Request.Overlays); Compose
+// is ComposedRequest.Overlays. No extension kind runs on
+// ChainRequest.Overlays or FacetRequest.Overlays. A registration that
+// does not set a handler is unaffected by the hosts it leaves out.
 type OverlayHandler struct {
 	// Matrix runs the kind over a crosstab host: the engine has already
 	// materialised the crosstab, and the handler folds a derived layer
 	// over it without re-reading a record.
 	Matrix MatrixOverlayFunc
+	// Series runs the kind over a SERIES host: a grouped request
+	// (Request.Groups + Request.Aggregations, no Request.Crosstab),
+	// scored on its first aggregation.
+	Series SeriesOverlayFunc
+	// Compose runs the kind over ComposedRequest.Overlays: the
+	// already-finalised slot responses its Reference and Targets name.
+	Compose ComposeOverlayFunc
 }
 
 // MatrixOverlayFunc folds one overlay layer over a crosstab host. spec
@@ -31,6 +40,17 @@ type OverlayHandler struct {
 // engine's operation guard (PROCESSING_PANIC), like any other extension
 // panic at run time.
 type MatrixOverlayFunc func(spec *types.OverlaySpec, host MatrixOverlayHost) (OverlayOutput, error)
+
+// SeriesOverlayFunc folds one overlay layer over a SERIES host, under
+// MatrixOverlayFunc's contract (a spec copy, a read-only host valid for
+// the call, deterministic and pure, errors and panics alike).
+type SeriesOverlayFunc func(spec *types.OverlaySpec, host SeriesOverlayHost) (OverlayOutput, error)
+
+// ComposeOverlayFunc folds one overlay layer over a Compose host —
+// the slot responses spec.Reference and spec.Targets name — under
+// MatrixOverlayFunc's contract. spec is a copy (its Params map and
+// Targets included).
+type ComposeOverlayFunc func(spec *types.ComposeOverlaySpec, host ComposeOverlayHost) (OverlayOutput, error)
 
 // OverlayOutput is what an overlay handler returns: the layer's payload
 // and its optional summary and warnings. The engine stamps the layer's
@@ -117,4 +137,62 @@ type MatrixOverlayHost interface {
 	// CellNEff is cell (r, c)'s Kish effective n (probability-weighted
 	// cells only).
 	CellNEff(r, c int) (float64, bool)
+}
+
+// SeriesOverlayHost is the read-only SERIES an extension overlay folds
+// over: one entry per group row, in the response's row order, scored on
+// one aggregation column. Every accessor returns a copy or a scalar;
+// nothing it returns aliases the response.
+type SeriesOverlayHost interface {
+	// Groups is the number of group rows.
+	Groups() int
+	// GroupFields names the key column of each grouper, in
+	// Request.Groups order; GrouperKinds is each grouper's type.
+	GroupFields() []string
+	GrouperKinds() []types.GroupType
+	// GroupKey is the group tuple at index i (nil out of range),
+	// element-for-element with GroupFields.
+	GroupKey(i int) types.AxisKey
+	// ValueLabel is the scored aggregation's output label (the
+	// request's first aggregation).
+	ValueLabel() string
+	// Value is the scored aggregation at group i; false for an absent,
+	// undefined (NaN) or non-numeric value.
+	Value(i int) (float64, bool)
+}
+
+// ComposeOverlayHost is the read-only Compose host of a
+// ComposedRequest.Overlays spec: its reference slot and, in
+// spec.Targets order, its target slots. The engine has resolved every
+// label (an unknown or failed slot is refused before the handler runs)
+// and held the slots to the shared Compose gates: one host shape for
+// all of them, aligned key sets, matching axis schemas.
+type ComposeOverlayHost interface {
+	// Reference is the slot spec.Reference names.
+	Reference() ComposeOverlaySlot
+	// Targets is len(spec.Targets); Target is the slot at position i
+	// (nil out of range).
+	Targets() int
+	Target(i int) ComposeOverlaySlot
+}
+
+// ComposeOverlaySlot is one Compose slot's result, read through the
+// host view its shape offers.
+type ComposeOverlaySlot interface {
+	// Label is the slot's Request.Label (request_<n> when it had none);
+	// Index its position in ComposedRequest.Requests.
+	Label() string
+	Index() int
+	// Shape is the slot's host shape: types.OverlayShapeMatrix (a
+	// crosstab slot), types.OverlayShapeSeries (a grouped slot) or
+	// types.OverlayShapeScalar (an ungrouped one).
+	Shape() types.OverlayShape
+	// Matrix is the slot's crosstab, nil unless Shape is matrix.
+	Matrix() MatrixOverlayHost
+	// Series is the slot's series, scored on its first aggregation, nil
+	// unless Shape is series.
+	Series() SeriesOverlayHost
+	// Scalar is an ungrouped slot's first aggregation value; false
+	// unless Shape is scalar and the value is a finite number.
+	Scalar() (float64, bool)
 }

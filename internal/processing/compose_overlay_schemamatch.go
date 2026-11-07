@@ -445,11 +445,12 @@ func checkSlotShapeAndSchemaShaped(refResp *types.Response, targetResps []*types
 			targetLabel = spec.Targets[i]
 		}
 
-		// Gate 1: SLOT_SHAPE_DIVERGENT.
+		// Gate 1: SLOT_SHAPE_DIVERGENT — predict-compose's wording and
+		// details (descriptor.validateComposeOverlaySpec, Gate 4).
 		if refSchema.shape != tSchema.shape {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT,
-				"compose overlay slot shape divergent: reference and target produce different host result shapes",
+				"compose overlay reference and target slots produce different host result shapes",
 				map[string]any{
 					"index":           specIdx,
 					"kind":            string(spec.Kind),

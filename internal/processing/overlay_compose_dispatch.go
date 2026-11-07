@@ -282,6 +282,17 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// An extension kind is judged by its declaration at the same
+		// point — the rule predict-compose raises
+		// (overlayhost.ExtensionComposeRefusal): a Compose handler,
+		// Scope, Level / Within, then its ValidateCompose hook. Every
+		// slot gate below then holds it like any Compose kind.
+		ext := exts.extensionOverlay(route)
+		if ext != nil {
+			if cerr := overlayhost.ExtensionComposeRefusal(&ext.Decl, spec, i); cerr != nil {
+				return nil, nil, cerr
+			}
+		}
 		// total() is ATTR_FORMULA's alone: a Compose-host
 		// OVERLAY_FORMULA calling it is PULSE_FORMULA_TOTAL_SITE, refused
 		// before reference resolution — the order predict-compose
@@ -398,6 +409,25 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 				return nil, nil, err
 			}
 		}
+		// An extension kind's handler reads the resolved slots through
+		// read-only views of each one's judged shape; its warnings route
+		// to its own OverlayLayer.Warnings like a built-in's.
+		if ext != nil {
+			host := &ExtensionComposeHost{
+				Reference: extensionComposeSlot(spec.Reference, refIdx, shapes.ref, refResp, requestAt(requests, refIdx)),
+				Targets:   make([]*ExtensionComposeSlot, len(targetResps)),
+			}
+			for t := range targetResps {
+				host.Targets[t] = extensionComposeSlot(spec.Targets[t], targetIdxs[t], shapes.targets[t], targetResps[t], requestAt(requests, targetIdxs[t]))
+			}
+			layer, ws, err := applyExtensionOverlayCompose(ext, spec, host, i)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			warnings = append(warnings, stampOverlayIndex(ws, i)...)
+			continue
+		}
 		// OVERLAY_FORMULA reads each slot's AUTHORED shape and the
 		// instance's ExprFunctions, which the handler signature carries
 		// neither of: dispatch it here (its table entry serves the bare
@@ -481,6 +511,26 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		}
 	}
 	return layers, warnings, nil
+}
+
+// requestAt is requests[i], nil out of range.
+func requestAt(requests []*types.Request, i int) *types.Request {
+	if i < 0 || i >= len(requests) {
+		return nil
+	}
+	return requests[i]
+}
+
+// stampOverlayIndex stamps Details["overlay_index"] = index on every
+// warning (the service routes each to that layer's Warnings).
+func stampOverlayIndex(ws []types.OverlayWarning, index int) []types.OverlayWarning {
+	for j := range ws {
+		if ws[j].Details == nil {
+			ws[j].Details = map[string]any{}
+		}
+		ws[j].Details["overlay_index"] = index
+	}
+	return ws
 }
 
 // resolveComposeSlotsFromLabels is the chassis-side adapter that lifts

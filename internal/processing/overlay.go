@@ -446,11 +446,12 @@ func applyOverlaysPlanned(specs []types.OverlaySpec, host *CrosstabHostView, ext
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
-		// An extension kind: its declaration's rule (the one
-		// refuseWrongHostOverlays and predict raise), then its crosstab
-		// handler, its output held to the declaration.
+		// An extension kind: its declaration's rule (refuseWrongHostOverlays,
+		// the Process hook every production fold runs first, already ran
+		// it with the Validate hook — so the hook runs once per spec),
+		// then its crosstab handler, its output held to the declaration.
 		if x := exts.extensionOverlay(route); x != nil {
-			if cerr := overlayhost.ExtensionRequestRefusal(&x.Decl, types.OverlayShapeMatrix, host.measures != nil, spec, i); cerr != nil {
+			if cerr := overlayhost.ExtensionDeclRefusal(&x.Decl, types.OverlayShapeMatrix, host.measures != nil, spec, i); cerr != nil {
 				return nil, nil, cerr
 			}
 			layer, ws, err := applyExtensionOverlayMatrix(x, spec, host, i)

@@ -20,9 +20,14 @@ type ExtensionDecl struct {
 	// Kind is the registered OVERLAY_<NAMESPACE>_<NAME>.
 	Kind types.OverlayKind
 	// HostShapes are the Request.Overlays host shapes the kind runs on
-	// (types.OverlayShapeMatrix: a crosstab host), one per handler the
-	// registration sets.
+	// (types.OverlayShapeMatrix: a crosstab host; types.OverlayShapeSeries:
+	// a grouped request with aggregations), one per Process handler the
+	// registration sets. Empty: the kind does not run on
+	// Request.Overlays at all.
 	HostShapes []types.OverlayShape
+	// Compose reports that the kind runs on ComposedRequest.Overlays
+	// (the registration sets a Compose handler).
+	Compose bool
 	// Shapes are the payload shapes the handler may return.
 	Shapes []types.OverlayShape
 	// Scopes are the scopes a spec may author.
@@ -30,8 +35,57 @@ type ExtensionDecl struct {
 	// Refs are the Ref arms a spec may set (RefNone: every arm empty).
 	Refs []string
 	// Validate is the registration's optional spec-only hook
-	// (extend.SpecValidator); nil accepts every spec.
+	// (extend.SpecValidator) for a Request.Overlays spec; nil accepts
+	// every spec.
 	Validate func(*types.OverlaySpec) error
+	// ValidateCompose is the same hook for a ComposedRequest.Overlays
+	// spec; nil accepts every spec.
+	ValidateCompose func(*types.ComposeOverlaySpec) error
+}
+
+// Slots returns the overlay slots the kind runs on, in slot order:
+// Request when it runs on a Process host shape, Compose when it runs on
+// ComposedRequest.Overlays. An extension kind never runs on
+// ChainRequest.Overlays or FacetRequest.Overlays.
+func (d *ExtensionDecl) Slots() []Host {
+	var out []Host
+	if len(d.HostShapes) > 0 {
+		out = append(out, Request)
+	}
+	if d.Compose {
+		out = append(out, Compose)
+	}
+	return out
+}
+
+// ExtensionSlotRefusal is the wrong-slot refusal for a spec of an
+// extension kind authored on host, nil when the kind runs there — the
+// shared Refusal wording and details {index, kind, host, hosts}, so an
+// extension kind on a slot it does not declare reads exactly like a
+// built-in on the wrong slot. Predict and every runtime dispatcher
+// (Request, Compose, chain, facet) raise it at the point they raise
+// Refusal.
+func ExtensionSlotRefusal(d *ExtensionDecl, host Host, index int) *errors.CodedError {
+	if d == nil {
+		return nil
+	}
+	hs := d.Slots()
+	if slices.Contains(hs, host) {
+		return nil
+	}
+	names := make([]string, len(hs))
+	slots := ""
+	for i, h := range hs {
+		names[i] = string(h)
+		if i > 0 {
+			slots += " or "
+		}
+		slots += h.Slot()
+	}
+	kind := string(d.Kind)
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		"overlay "+kind+" does not run on "+host.Slot()+"; attach it to "+slots,
+		map[string]any{"index": index, "kind": kind, "host": string(host), "hosts": names})
 }
 
 // RefNone and RefMargin are the ExtensionDecl.Refs spellings
@@ -68,6 +122,8 @@ func ExtensionRefArms(ref types.OverlayRef) []string {
 // every runtime Process hook (processing.refuseWrongHostOverlays) alike,
 // in this order — the first failing rule wins:
 //
+//  0. the slot: the kind runs on a Process host shape at all — else
+//     ExtensionSlotRefusal (a Compose-only kind);
 //  1. host shape: judged (overlayhost.JudgedShape) must be one of
 //     HostShapes — else PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
 //     {index, kind, host, shape, shapes}, ShapeRefusal's wording;
@@ -86,10 +142,28 @@ func ExtensionRefArms(ref types.OverlayRef) []string {
 // (descriptor.ParamsRefusal) every funnel runs first. nil when the spec
 // passes.
 func ExtensionRequestRefusal(d *ExtensionDecl, judged types.OverlayShape, measures bool, spec *types.OverlaySpec, index int) *errors.CodedError {
+	if cerr := ExtensionDeclRefusal(d, judged, measures, spec, index); cerr != nil {
+		return cerr
+	}
+	if d == nil || spec == nil {
+		return nil
+	}
+	return extspec.Refusal(d.Validate, spec, extspec.Site{Category: "overlay", Type: string(spec.Kind), Slot: "overlays", Name: spec.Name})
+}
+
+// ExtensionDeclRefusal is ExtensionRequestRefusal without its Validate
+// hook: rules 0-5, pure functions of the declaration and the spec. A
+// runtime host dispatcher (the MATRIX and SERIES loops) re-judges a
+// spec by it after the Process hook (refuseWrongHostOverlays) already
+// ran the full rule, so the embedder's hook runs once per spec.
+func ExtensionDeclRefusal(d *ExtensionDecl, judged types.OverlayShape, measures bool, spec *types.OverlaySpec, index int) *errors.CodedError {
 	if d == nil || spec == nil {
 		return nil
 	}
 	kind := string(spec.Kind)
+	if cerr := ExtensionSlotRefusal(d, Request, index); cerr != nil {
+		return cerr
+	}
 	if !slices.Contains(d.HostShapes, judged) {
 		names := make([]string, len(d.HostShapes))
 		runs := ""
@@ -112,21 +186,57 @@ func ExtensionRequestRefusal(d *ExtensionDecl, judged types.OverlayShape, measur
 	if cerr := extensionRefRefusal(d, spec, index); cerr != nil {
 		return cerr
 	}
-	if !slices.Contains(d.Scopes, spec.Scope) {
+	return extensionScopeLevelRefusal(d, spec.Kind, spec.Scope, spec.Level, spec.Within, index)
+}
+
+// extensionScopeLevelRefusal is the Scope then Level / Within rule
+// every slot's extension refusal shares.
+func extensionScopeLevelRefusal(d *ExtensionDecl, k types.OverlayKind, scope types.OverlayScope, level, within, index int) *errors.CodedError {
+	kind := string(k)
+	if !slices.Contains(d.Scopes, scope) {
 		names := make([]string, len(d.Scopes))
 		for i, s := range d.Scopes {
 			names[i] = string(s)
 		}
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
-			"overlay "+kind+" does not support scope "+string(spec.Scope)+" (supports: "+strings.Join(names, ", ")+")",
-			map[string]any{"index": index, "kind": kind, "scope": string(spec.Scope)})
+			"overlay "+kind+" does not support scope "+string(scope)+" (supports: "+strings.Join(names, ", ")+")",
+			map[string]any{"index": index, "kind": kind, "scope": string(scope)})
 	}
-	if spec.Level != 0 || spec.Within != 0 {
+	if level != 0 || within != 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+kind+" does not support Level / Within (an extension overlay reads the leaf axes)",
-			map[string]any{"index": index, "kind": kind, "level": spec.Level, "within": spec.Within})
+			map[string]any{"index": index, "kind": kind, "level": level, "within": within})
 	}
-	return extspec.Refusal(d.Validate, spec, extspec.Site{Category: "overlay", Type: kind, Slot: "overlays", Name: spec.Name})
+	return nil
+}
+
+// ExtensionComposeRefusal is the one rule a ComposedRequest.Overlays
+// spec of an extension kind meets, on predict (descriptor
+// validateComposeOverlaySpec) and on the runtime Compose dispatcher
+// (processing.ApplyComposeOverlaysWithSchemas) alike, at the point both
+// raise the wrong-slot Refusal, in this order:
+//
+//  1. the slot: the kind declares a Compose handler — else
+//     ExtensionSlotRefusal;
+//  2. Scope one of Scopes — PULSE_OVERLAY_SCOPE_UNSUPPORTED;
+//  3. Level / Within zero — PULSE_OVERLAY_LEVEL_OUT_OF_RANGE;
+//  4. the ValidateCompose hook (extspec.Refusal, site {overlay, kind,
+//     overlays, spec.Name}).
+//
+// Reference / Targets resolution, the slot gates (key set, shape and
+// schema match) and the params allowlist are the ones every Compose
+// kind meets, after it. nil when the spec passes.
+func ExtensionComposeRefusal(d *ExtensionDecl, spec *types.ComposeOverlaySpec, index int) *errors.CodedError {
+	if d == nil || spec == nil {
+		return nil
+	}
+	if cerr := ExtensionSlotRefusal(d, Compose, index); cerr != nil {
+		return cerr
+	}
+	if cerr := extensionScopeLevelRefusal(d, spec.Kind, spec.Scope, spec.Level, spec.Within, index); cerr != nil {
+		return cerr
+	}
+	return extspec.Refusal(d.ValidateCompose, spec, extspec.Site{Category: "overlay", Type: string(spec.Kind), Slot: "overlays", Name: spec.Name})
 }
 
 // extensionRefRefusal is ExtensionRequestRefusal's Ref rule.

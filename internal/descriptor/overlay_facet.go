@@ -95,6 +95,13 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	if spec == nil {
 		return
 	}
+	// An extension kind never runs on a FACET: its own wrong-slot
+	// refusal (overlayhost.ExtensionSlotRefusal), the runtime FACET
+	// loop's (processing.WrongHostRefusal), not an unknown kind.
+	if cerr := opts.extensionSlotRefusal(overlayhost.Facet, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
 	// Unknown-kind probe first — every other rule is keyed by Kind so we
 	// cannot reasonably validate Scope / Ref against an unknown catalog
 	// entry. Mirrors the Request-host validator's policy.

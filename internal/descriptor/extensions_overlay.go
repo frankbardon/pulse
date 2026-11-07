@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -21,4 +22,16 @@ func (o *PredictOptions) extensionOverlay(kind types.OverlayKind) *overlayhost.E
 		return nil
 	}
 	return &d
+}
+
+// extensionSlotRefusal is the wrong-slot refusal an extension overlay
+// kind authored on host gets (overlayhost.ExtensionSlotRefusal), nil
+// for a built-in, unknown or hidden kind or a slot the kind runs on —
+// the descriptor twin of processing.ExtensionRegistry.extensionSlotRefusal,
+// raised at the point each validator raises overlayhost.Refusal.
+func (o *PredictOptions) extensionSlotRefusal(host overlayhost.Host, kind types.OverlayKind, index int) *errors.CodedError {
+	if d := o.extensionOverlay(kind); d != nil {
+		return overlayhost.ExtensionSlotRefusal(d, host, index)
+	}
+	return nil
 }

@@ -290,7 +290,9 @@ func buildSeriesHostFromGroupedResponse(req *types.Request, resp *types.Response
 	// are populated unconditionally here so handlers that consume them
 	// see the same view shape regardless of whether the request carries
 	// overlay specs that introspect kind.
-	return NewSeriesHostViewWithGrouper(keys, resolver, groupFields, grouperKinds)
+	h := NewSeriesHostViewWithGrouper(keys, resolver, groupFields, grouperKinds)
+	h.valueLabel = primaryLabel
+	return h
 }
 
 // promoteYoYFrequencyFromGroupParams walks req.Overlays and promotes

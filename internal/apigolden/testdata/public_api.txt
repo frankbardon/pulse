@@ -792,6 +792,7 @@ pulse: type OverlayRegistration field Refs []pulse/extend.OverlayRefKind
 pulse: type OverlayRegistration field Scopes []pulse/types.OverlayScope
 pulse: type OverlayRegistration field Shapes []pulse/types.OverlayShape
 pulse: type OverlayRegistration field Validate pulse/extend.SpecValidator[pulse/types.OverlaySpec]
+pulse: type OverlayRegistration field ValidateCompose pulse/extend.SpecValidator[pulse/types.ComposeOverlaySpec]
 pulse: type OverlayRegistration field WeightAware bool
 pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
@@ -3157,6 +3158,18 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type ComposeOverlayFunc func(spec *pulse/types.ComposeOverlaySpec, host pulse/extend.ComposeOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type ComposeOverlayHost interface
+pulse/extend: type ComposeOverlayHost imethod Reference() pulse/extend.ComposeOverlaySlot
+pulse/extend: type ComposeOverlayHost imethod Target(i int) pulse/extend.ComposeOverlaySlot
+pulse/extend: type ComposeOverlayHost imethod Targets() int
+pulse/extend: type ComposeOverlaySlot interface
+pulse/extend: type ComposeOverlaySlot imethod Index() int
+pulse/extend: type ComposeOverlaySlot imethod Label() string
+pulse/extend: type ComposeOverlaySlot imethod Matrix() pulse/extend.MatrixOverlayHost
+pulse/extend: type ComposeOverlaySlot imethod Scalar() (float64, bool)
+pulse/extend: type ComposeOverlaySlot imethod Series() pulse/extend.SeriesOverlayHost
+pulse/extend: type ComposeOverlaySlot imethod Shape() pulse/types.OverlayShape
 pulse/extend: type ContextRegression interface
 pulse/extend: type ContextRegression imethod FitContext(ctx context.Context, rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
 pulse/extend: var ErrGrouperKeyNull error
@@ -3245,7 +3258,9 @@ pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
 pulse/extend: type OverlayHandler struct
+pulse/extend: type OverlayHandler field Compose pulse/extend.ComposeOverlayFunc
 pulse/extend: type OverlayHandler field Matrix pulse/extend.MatrixOverlayFunc
+pulse/extend: type OverlayHandler field Series pulse/extend.SeriesOverlayFunc
 pulse/extend: type OverlayOutput struct
 pulse/extend: type OverlayOutput field Payload pulse/types.OverlayPayload
 pulse/extend: type OverlayOutput field Summary *pulse/types.OverlaySummary
@@ -3308,6 +3323,14 @@ pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
 pulse/extend: type ScoreRow interface
 pulse/extend: type ScoreRow imethod NumericValue(name string) (float64, bool)
+pulse/extend: type SeriesOverlayFunc func(spec *pulse/types.OverlaySpec, host pulse/extend.SeriesOverlayHost) (pulse/extend.OverlayOutput, error)
+pulse/extend: type SeriesOverlayHost interface
+pulse/extend: type SeriesOverlayHost imethod GroupFields() []string
+pulse/extend: type SeriesOverlayHost imethod GroupKey(i int) pulse/types.AxisKey
+pulse/extend: type SeriesOverlayHost imethod GrouperKinds() []pulse/types.GroupType
+pulse/extend: type SeriesOverlayHost imethod Groups() int
+pulse/extend: type SeriesOverlayHost imethod Value(i int) (float64, bool)
+pulse/extend: type SeriesOverlayHost imethod ValueLabel() string
 pulse/extend: type SpecValidator[S any] func(spec *S) error
 pulse/extend: type StreamingFeatureComputer interface
 pulse/extend: type StreamingFeatureComputer imethod EmitRow(rec pulse/extend.Record, field string) (map[string]pulse/extend.FeatureOutput, error)
@@ -6749,4 +6772,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 36f7ca58e7cfb93e2f917cc35a54f473b92f48c06b99aa277bb43f0d9a33d70b
+// golden-hash: 36bcf3d5addbcae100bde2a91e16cc627209299c15ae8026b2070cc9a35e6b0f
