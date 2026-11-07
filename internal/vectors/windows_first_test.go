@@ -350,3 +350,64 @@ func TestWindowsFirst_ExtensionFieldInputs(t *testing.T) {
 		t.Fatalf("AggregationColumnReads without hooks = %v, want [x]", got)
 	}
 }
+
+// extGrouperOf is the test grouper hook: GROUP_EXT_OF reads the column
+// params.of names (Field is the bucket label the request writes).
+func extGrouperOf(category, name string, raw json.RawMessage) []string {
+	if category == "grouper" && name == "GROUP_EXT_OF" {
+		var p struct {
+			Of string `json:"of"`
+		}
+		if json.Unmarshal(raw, &p) == nil && p.Of != "" {
+			return []string{"", p.Of}
+		}
+		return nil
+	}
+	return extOf(category, name, raw)
+}
+
+func extGroupOf(of string) *types.Group {
+	return &types.Group{Type: "GROUP_EXT_OF", Field: "t", Params: json.RawMessage(`{"of":"` + of + `"}`)}
+}
+
+// TestWindowsFirst_ExtensionGrouperFieldInputs (U67 E3-S2): an
+// extension grouper whose FieldInputs names a window label — as a
+// request grouper or a crosstab axis — turns windows-first on and is
+// listed by WindowsFirstReads, as a built-in grouper's field is; the
+// zero classifier keeps the historical order.
+func TestWindowsFirst_ExtensionGrouperFieldInputs(t *testing.T) {
+	t.Parallel()
+
+	s := postWindowSchema()
+	ext := Classifier{Ext: extGrouperOf}
+	lag := []*types.Window{lagOf("x", "lag")}
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{"group", &types.Request{Windows: lag, Groups: []*types.Group{extGroupOf("lag")}, Aggregations: []*types.Aggregation{sumOf("x")}}},
+		{"crosstab rows", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{extGroupOf("lag")}, Cell: sumOf("x")}}},
+		{"crosstab columns", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{catOf("t")}, Columns: []*types.Group{extGroupOf("lag")}, Cell: sumOf("x")}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if !WindowsFirst(c.req, s, ext) || !PostWindowAttributes(c.req, s, ext).WindowsFirst {
+				t.Fatal("the grouper hook's window read did not turn windows-first on")
+			}
+			if WindowsFirst(c.req, s, Classifier{}) {
+				t.Fatal("the zero classifier saw the hook")
+			}
+			if got := WindowsFirstReads(c.req, s, ext); !reflect.DeepEqual(got, []string{"lag"}) {
+				t.Fatalf("WindowsFirstReads = %v, want [lag]", got)
+			}
+		})
+	}
+	if got := GroupColumnReads(extGroupOf("lag"), extGrouperOf); !reflect.DeepEqual(got, []string{"t", "lag"}) {
+		t.Fatalf("GroupColumnReads = %v, want [t lag] (Field, then the hook's non-empty names)", got)
+	}
+	if got := GroupColumnReads(extGroupOf("lag"), nil); !reflect.DeepEqual(got, []string{"t"}) {
+		t.Fatalf("GroupColumnReads without hooks = %v, want [t]", got)
+	}
+}

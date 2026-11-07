@@ -35,11 +35,11 @@ import (
 // order: every such name was refused before (unknown field, or
 // PULSE_ATTRIBUTE_WINDOW_ORDER), so no valid request changes meaning.
 //
-// An extension aggregator's FieldInputs names count as its column reads
-// (Classifier.Ext, AggregationColumnReads): a window label read only
-// through one turns the mode on exactly as a built-in's field does, and
-// the windows-first pass copies it onto the records the aggregator
-// folds. Predict hands the classifier its extensions snapshot's hooks,
+// An extension aggregator's or grouper's FieldInputs names count as its
+// column reads (Classifier.Ext, AggregationColumnReads,
+// GroupColumnReads): a window label read only through one turns the
+// mode on exactly as a built-in's field does, and the windows-first
+// pass copies it onto the records the operator folds or keys. Predict hands the classifier its extensions snapshot's hooks,
 // the runtime its registry's — the same callbacks over the same params
 // (ExtInputs), so the two classify alike.
 
@@ -167,10 +167,10 @@ func windowDerived(req *types.Request, schema *encoding.Schema) map[string]bool 
 
 // outputSlotsRead reports whether any aggregation, grouper or crosstab
 // axis / cell / margin aggregation of req reads a name in derived (ext:
-// the extension hooks, AggregationColumnReads).
+// the extension hooks, AggregationColumnReads / GroupColumnReads).
 func outputSlotsRead(req *types.Request, derived map[string]bool, ext ExtInputs) bool {
 	for _, g := range req.Groups {
-		if g != nil && g.Field != "" && derived[g.Field] {
+		if groupReads(g, derived, ext) {
 			return true
 		}
 	}
@@ -185,7 +185,7 @@ func outputSlotsRead(req *types.Request, derived map[string]bool, ext ExtInputs)
 	}
 	for _, axis := range [][]*types.Group{spec.Rows, spec.Columns} {
 		for _, g := range axis {
-			if g != nil && g.Field != "" && derived[g.Field] {
+			if groupReads(g, derived, ext) {
 				return true
 			}
 		}
@@ -237,6 +237,38 @@ func AggregationColumnReads(a *types.Aggregation, ext ExtInputs) []string {
 	return out
 }
 
+// GroupColumnReads lists the record columns grouper g reads by name:
+// its Field, then — an extension grouper — every non-empty name its
+// FieldInputs hook declares (ext, nil: none), in hook order. Nil for a
+// nil slot.
+func GroupColumnReads(g *types.Group, ext ExtInputs) []string {
+	if g == nil {
+		return nil
+	}
+	var out []string
+	if g.Field != "" {
+		out = append(out, g.Field)
+	}
+	if ext != nil {
+		for _, n := range ext("grouper", string(g.Type), g.Params) {
+			if n != "" {
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
+// groupReads reports whether g reads a name in derived.
+func groupReads(g *types.Group, derived map[string]bool, ext ExtInputs) bool {
+	for _, n := range GroupColumnReads(g, ext) {
+		if derived[n] {
+			return true
+		}
+	}
+	return false
+}
+
 // aggregationReads reports whether a reads a name in derived.
 func aggregationReads(a *types.Aggregation, derived map[string]bool, ext ExtInputs) bool {
 	for _, n := range AggregationColumnReads(a, ext) {
@@ -252,8 +284,8 @@ func aggregationReads(a *types.Aggregation, derived map[string]bool, ext ExtInpu
 // groupers and crosstab axes / cell / margin aggregations read by name,
 // in first-read order: aggregations (AggregationColumnReads over
 // c.Ext, so an extension aggregator's FieldInputs count), then
-// groupers, then the crosstab's row and column axes, its cell and its
-// margin aggregations. The windows-first engine copies exactly these
+// groupers (GroupColumnReads, likewise), then the crosstab's row and
+// column axes, its cell and its margin aggregations. The windows-first engine copies exactly these
 // onto the records ahead of the aggregation pass; a post-window
 // attribute's label is not listed (the attribute writes it on the
 // record itself). Nil when req is not windows-first-shaped or reads
@@ -277,15 +309,15 @@ func WindowsFirstReads(req *types.Request, schema *encoding.Schema, c Classifier
 		}
 	}
 	for _, g := range req.Groups {
-		if g != nil {
-			add(g.Field)
+		for _, n := range GroupColumnReads(g, c.Ext) {
+			add(n)
 		}
 	}
 	if spec := req.Crosstab; spec != nil {
 		for _, axis := range [][]*types.Group{spec.Rows, spec.Columns} {
 			for _, g := range axis {
-				if g != nil {
-					add(g.Field)
+				for _, n := range GroupColumnReads(g, c.Ext) {
+					add(n)
 				}
 			}
 		}

@@ -1929,13 +1929,15 @@ Return-value semantics:
   (nothing judged), not as a crash. The projection extractor itself
   still drops non-schema names, so a declared derived column costs
   nothing there.
-- An **aggregator's** declared names also count as its column reads in
-  the windows-first decision, exactly as a built-in's `field` and column
-  params do: a name that is a window label of the request (or a
-  post-window attribute's label) runs the request windows-first — the
-  windows run over the filtered records before the groups, aggregations
-  and crosstab, and the window value is on every record the aggregator
-  folds (`Record.NumericValue(label)`). Predict and the runtime classify
+- An **aggregator's** or **grouper's** declared names also count as its
+  column reads in the windows-first decision, exactly as a built-in's
+  `field` and column params do: a name that is a window label of the
+  request (or a post-window attribute's label) runs the request
+  windows-first — the windows run over the filtered records before the
+  groups, aggregations and crosstab, and the window value is on every
+  record the aggregator folds or the grouper keys
+  (`Record.NumericValue(label)`), a request grouper and a crosstab axis
+  alike. Predict and the runtime classify
   over the same hook (predict's extensions snapshot, the runtime's
   registry), so predict's `post_window.windows_first` and `streamable`
   verdict match what runs. An expression-capable param written as an
