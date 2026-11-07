@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -280,6 +281,17 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		if w.Type == types.WIN_LIFT {
 			if name, ok := jsonStringField(w.Params, "base"); ok {
 				addKnown(name)
+			}
+		}
+		// WIN_FORMULA reads the columns its expression names; over the
+		// record rows those are record fields, which a projected decode
+		// would otherwise leave null.
+		if w.Type == types.WIN_FORMULA {
+			if src, ref := windowparams.Formula(w); ref == nil {
+				if !appendExprIdents(out, src, known, vecMembers) {
+					out.Widen()
+					return out
+				}
 			}
 		}
 		addAllKnown(w.PartitionBy)

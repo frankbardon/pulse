@@ -68,7 +68,10 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 			}
 		}
 	}
-	return window.ApplyObserved(ctx, rows, windows, p.exts.LookupWindow, orders, copies)
+	// A WIN_FORMULA compiles against the registry's request-bound
+	// declarations (params, ExprFunctions, lookup, range_label) — the
+	// set predict's field-reference walk declares with placeholders.
+	return window.ApplyWith(ctx, rows, windows, p.exts.LookupWindow, orders, copies, window.WindowOptions{ExprBound: p.exts.exprBound()})
 }
 
 // resolveWindowScalars is the runtime's windowscalar pass over windows:

@@ -110,7 +110,7 @@ var selfReadingOperators = []string{
 	string(types.GROUP_KMEANS), string(types.GROUP_NUMERIC_RANGES), string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
 	string(types.GROUP_SET_PER_ELEMENT), string(types.GROUP_SET_VALUE),
 	// window
-	string(types.WIN_LAG), string(types.WIN_LEAD), string(types.WIN_ROW_NUMBER),
+	string(types.WIN_FORMULA), string(types.WIN_LAG), string(types.WIN_LEAD), string(types.WIN_ROW_NUMBER),
 	string(types.WIN_RUNNING_SUM),
 	// feature
 	string(types.FEAT_BUCKETIZE), string(types.FEAT_DATE_FEATURES), string(types.FEAT_ONE_HOT),

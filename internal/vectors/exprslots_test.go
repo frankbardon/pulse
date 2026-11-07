@@ -24,6 +24,11 @@ var exprSlotsOutOfScope = map[string]string{
 	// its owners directly (SweepSlotReadsFit walks Regressions[].Holdout
 	// beside ExprSlots); it binds no request vector or reference table.
 	exprslots.SlotHoldout: "regression holdout: read beside ExprSlots by its owners",
+	// A WIN_FORMULA expression reads output-row columns only: it binds
+	// no request vector, refuses ref() at compile (internal/winformula)
+	// and declares no coef(), so no reference / kind / length check or
+	// sweep-fit scan has anything to read in it.
+	exprslots.SlotWindowFormula: "window formula: output-row columns only, no vector, ref() or coef()",
 }
 
 // TestTemplateExprSplice_EngineExprSlotsMatch, both directions: every

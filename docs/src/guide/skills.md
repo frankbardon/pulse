@@ -254,6 +254,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-dense-rank`](skills/op-win-dense-rank.md): Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition.
 - [`op-win-distributed-lag`](skills/op-win-distributed-lag.md): Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 - [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
+- [`op-win-formula`](skills/op-win-formula.md): Row-local expression over a result row's columns and earlier windows' outputs — e.g. the ratio or gap of two share columns in a gains table.
 - [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
 - [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.
 - [`op-win-lift`](skills/op-win-lift.md): Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.

@@ -700,6 +700,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					})
 				}
 			}
+			// WIN_FORMULA's params.expression reads columns by name:
+			// each must be on the row before this window runs, and the
+			// expression must compile to a number (internal/winformula).
+			if opRoute(inst, win.Type) == types.WIN_FORMULA {
+				w.checkWindowFormula(req, i, win, aggLabels)
+			}
 			w.checkInputs("window", string(win.Type), win.Params, "window")
 			label := windowLabel(win)
 			w.shadow(label, func() *errors.CodedError {

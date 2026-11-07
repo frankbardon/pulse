@@ -152,3 +152,51 @@ func TestUnknownType_RenameHint(t *testing.T) {
 		t.Errorf("never registered: %q %v", msg, d)
 	}
 }
+
+// TestFormula_SlotRules: WIN_FORMULA needs a non-empty
+// params.expression, needs no order_by, and refuses order_by,
+// partition_by, field and frame — it reads only its own row.
+func TestFormula_SlotRules(t *testing.T) {
+	t.Parallel()
+
+	formula := func(params string) *types.Window {
+		return &types.Window{Type: types.WIN_FORMULA, Label: "r", Params: json.RawMessage(params)}
+	}
+	if refs := Check(formula(`{"expression":"a / b"}`)); refs != nil {
+		t.Errorf("valid formula refused: %q", messages(refs))
+	}
+	if src, ref := Formula(formula(`{"expression":"a / b"}`)); ref != nil || src != "a / b" {
+		t.Errorf("Formula = %q, %v", src, ref)
+	}
+	for _, tc := range []struct {
+		name string
+		w    *types.Window
+		want []string
+	}{
+		{"no params", &types.Window{Type: types.WIN_FORMULA}, []string{"params.expression is required (a non-empty expression over the row's columns)"}},
+		{"empty expression", formula(`{"expression":""}`), []string{"params.expression is required (a non-empty expression over the row's columns)"}},
+		{"not a string", formula(`{"expression":3}`), []string{"malformed params: json: cannot unmarshal number into Go struct field formulaParams.expression of type string"}},
+		{"order_by, partition_by, field, frame", &types.Window{Type: types.WIN_FORMULA, Field: "x",
+			OrderBy: []types.OrderKey{{Field: "t"}}, PartitionBy: []string{"g"}, Frame: &types.FrameSpec{Mode: "rows"},
+			Params: json.RawMessage(`{"expression":"x"}`)}, []string{
+			"order_by is not allowed: this operator reads only its own row",
+			"partition_by is not allowed: this operator reads only its own row",
+			"field is not allowed: this operator reads only the columns params.expression names",
+			"frame is not allowed for this operator",
+		}},
+	} {
+		got := messages(Check(tc.w))
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: Check = %q, want %q", tc.name, got, tc.want)
+			continue
+		}
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s: refusal %d = %q, want %q", tc.name, i, got[i], tc.want[i])
+			}
+		}
+	}
+	if !RowLocal(types.WIN_FORMULA) || RowLocal(types.WIN_SHARE) {
+		t.Error("RowLocal: want WIN_FORMULA only")
+	}
+}

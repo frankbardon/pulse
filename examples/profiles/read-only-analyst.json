@@ -125,6 +125,7 @@
     "WIN_DENSE_RANK",
     "WIN_DISTRIBUTED_LAG",
     "WIN_EWMA",
+    "WIN_FORMULA",
     "WIN_LAG",
     "WIN_LEAD",
     "WIN_LIFT",

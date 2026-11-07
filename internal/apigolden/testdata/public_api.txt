@@ -6748,6 +6748,7 @@ pulse/types: const WIN_DELTA pulse/types.WindowType = "WIN_DELTA"
 pulse/types: const WIN_DENSE_RANK pulse/types.WindowType = "WIN_DENSE_RANK"
 pulse/types: const WIN_DISTRIBUTED_LAG pulse/types.WindowType = "WIN_DISTRIBUTED_LAG"
 pulse/types: const WIN_EWMA pulse/types.WindowType = "WIN_EWMA"
+pulse/types: const WIN_FORMULA pulse/types.WindowType = "WIN_FORMULA"
 pulse/types: const WIN_LAG pulse/types.WindowType = "WIN_LAG"
 pulse/types: const WIN_LEAD pulse/types.WindowType = "WIN_LEAD"
 pulse/types: const WIN_LIFT pulse/types.WindowType = "WIN_LIFT"
@@ -6777,4 +6778,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: babe1685eba26dfe2197e216d4d72a5fddcd4fb4be93a78dd155cfb59a7a5b90
+// golden-hash: 357bd71f0d23d28b97e0331fefb38620e6b8ca3549701d67fdc556235b70cc38

@@ -8,6 +8,7 @@ The window operators this instance offers: what each is for, the questions it an
 | [`WIN_DENSE_RANK`](#op-win_dense_rank) | Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. | Which price tier is each product in, counting equal prices as one tier? | basic | [`WIN_RANK`](#op-win_rank) when the rank should skip past equal values, as in sports standings.<br>[`WIN_ROW_NUMBER`](#op-win_row_number) when every row needs its own number even when values are equal. |
 | [`WIN_DISTRIBUTED_LAG`](#op-win_distributed_lag) | Adds a carry-over (distributed lag, or adstock) series: each row sums current and earlier values, weighted by a decaying curve. | How much of last month's advertising is still working this week, as a column a model can use? | intermediate | [`WIN_EWMA`](#op-win_ewma) when you want a smoothed level of the series itself, seeded from its first value.<br>[`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally. |
 | [`WIN_EWMA`](#op-win_ewma) | Adds a smoothed series: each new value counts for a fixed share w, the previous smoothed level for 1 - w, so older values fade. | What is the underlying level of daily demand once day-to-day noise is damped? | intermediate | [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally.<br>[`OVERLAY_ZSCORE_VS_ROLLING`](overlay.md#op-overlay_zscore_vs_rolling) when you want how unusual each period is against its recent run. |
+| [`WIN_FORMULA`](#op-win_formula) | Adds a number to every result row computed from that row's columns and earlier windows, such as one share divided by another. | What is each decile's share of defaults minus its share of loans? | intermediate | [`WIN_LIFT`](#op-win_lift) when you want one column's share over another's share, the lift of a gains table.<br>[`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want a value computed per record before grouping. |
 | [`WIN_LAG`](#op-win_lag) | Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. | What were each store's sales in the month before, on the same row as this month's? | basic | [`WIN_DELTA`](#op-win_delta) when you want the difference from the earlier row, not its value.<br>[`WIN_LEAD`](#op-win_lead) when you want the value from a later row.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period against the period before it as an index. |
 | [`WIN_LEAD`](#op-win_lead) | Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. | What did each customer spend in the following month, beside this month's spend? | basic | [`WIN_LAG`](#op-win_lag) when you want the value from an earlier row.<br>[`WIN_DELTA`](#op-win_delta) when you want how much the field changed between rows. |
 | [`WIN_LIFT`](#op-win_lift) | Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. | How many times the average default rate do the riskiest deciles of a score capture? | intermediate | [`WIN_SHARE`](#op-win_share) when you want one column's share of its own total.<br>[`AGG_AUC`](aggregator.md#op-agg_auc) when you want how well a score ranks one outcome above the other as one number.<br>[`OVERLAY_INDEX_VS_TOTAL`](overlay.md#op-overlay_index_vs_total) when you want each group against the overall figure as an index. |
@@ -167,6 +168,40 @@ Adds a smoothed series: each new value counts for a fixed share w, the previous 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-win-ewma`](../skills/op-win-ewma.md)
+
+<a id="op-win_formula"></a>
+
+### `WIN_FORMULA`
+
+Adds a number to every result row computed from that row's columns and earlier windows, such as one share divided by another.
+
+**Level:** intermediate
+
+**Questions it answers:**
+
+- What is each decile's share of defaults minus its share of loans?
+- What is each region's revenue per order, next to its share of the total?
+
+**Use cases by domain:**
+
+- *survey:* The gap between a segment's share of complaints and its share of respondents.
+- *ops:* Revenue per order per store, from the summed revenue and the order count.
+- *science:* Cases per thousand at risk per site, from the case and population columns.
+
+**Assumptions:**
+
+- Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
+- It reads only its own row: the group keys, the aggregation labels and the outputs of the windows listed before it, never a later window.
+- A missing value in any column it reads makes the row's result missing; a division by zero reads missing too, never infinity.
+
+**Use something else:**
+
+- [`WIN_LIFT`](#op-win_lift) when you want one column's share over another's share, the lift of a gains table.
+- [`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want a value computed per record before grouping.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-win-formula`](../skills/op-win-formula.md)
 
 <a id="op-win_lag"></a>
 

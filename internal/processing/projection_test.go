@@ -113,6 +113,28 @@ func TestNeededFields_WindowLiftBase(t *testing.T) {
 	}
 }
 
+// WIN_FORMULA's params.expression names the columns it reads: beside an
+// aggregation reading its label (windows-first, over the records) those
+// record fields decode; a field the request never names does not.
+func TestNeededFields_WindowFormulaExpression(t *testing.T) {
+	t.Parallel()
+
+	schema := mkSchema("a", "v", "b", "unused")
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "sum_f"}},
+		Windows: []*types.Window{{
+			Type:   types.WIN_FORMULA,
+			Label:  "f",
+			Params: json.RawMessage(`{"expression": "v / b + params.k"}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"b", "v"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 // Windows-only requests emit the filtered records as rows, and a record
 // row carries every schema field, so the set widens (#201d); a window
 // beside an aggregation, a group or a crosstab rides aggregated rows

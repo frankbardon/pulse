@@ -288,6 +288,7 @@
     - [op-win-dense-rank](skills/op-win-dense-rank.md)
     - [op-win-distributed-lag](skills/op-win-distributed-lag.md)
     - [op-win-ewma](skills/op-win-ewma.md)
+    - [op-win-formula](skills/op-win-formula.md)
     - [op-win-lag](skills/op-win-lag.md)
     - [op-win-lead](skills/op-win-lead.md)
     - [op-win-lift](skills/op-win-lift.md)

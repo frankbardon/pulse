@@ -96,6 +96,13 @@ func ApplyKeyed(ctx context.Context, rows []map[string]any, windows []*types.Win
 // observer is ApplyKeyed, byte-identically. An extension window is
 // never observed.
 func ApplyObserved(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver, orders KeyOrders, observe CopyObserver) error {
+	return ApplyWith(ctx, rows, windows, resolve, orders, observe, WindowOptions{})
+}
+
+// ApplyWith is ApplyObserved with opts handed to every factory (a
+// WIN_FORMULA compiles against opts.ExprBound). Zero opts is
+// ApplyObserved, byte-identically.
+func ApplyWith(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver, orders KeyOrders, observe CopyObserver, opts WindowOptions) error {
 	_ = ctx
 	if len(windows) == 0 || len(rows) == 0 {
 		return nil
@@ -115,7 +122,7 @@ func ApplyObserved(ctx context.Context, rows []map[string]any, windows []*types.
 			})
 			return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID, msg, details)
 		}
-		computer, err := factory(w, WindowOptions{})
+		computer, err := factory(w, opts)
 		if err != nil {
 			return err
 		}

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:43e617be5178dd414cefee2f65536f40921fe3a82efde865afb2a60abbff7822",
+    "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
     "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
     "commands": [
       {
@@ -6532,6 +6532,31 @@
           },
           "intents": [
             "change_over_time"
+          ]
+        },
+        {
+          "name": "WIN_FORMULA",
+          "category": "window",
+          "description": "Row-local expression over the row's columns — group keys and aggregation labels on grouped rows, record fields on the record rows — and every EARLIER window's output, e.g. the ratio of two WIN_SHARE columns. Reading this window's own label or a later window's is refused. No order_by, partition_by, field or frame.",
+          "params": [
+            {
+              "name": "expression",
+              "type": "string",
+              "required": true,
+              "description": "Expression returning a number; names columns and earlier window labels, params.\u003cname\u003e reads request params. No coef(), ref() or total()."
+            }
+          ],
+          "accepts_types": [],
+          "forbids_field": true,
+          "emits_type": "f64",
+          "emits_type_note": "one float per row; null when a column the expression reads is null, or the result is nil or not finite",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "composition"
           ]
         },
         {
@@ -14688,6 +14713,10 @@
         "description": "Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}."
       },
       {
+        "name": "op-win-formula",
+        "description": "Row-local expression over a result row's columns and earlier windows' outputs — e.g. the ratio or gap of two share columns in a gains table."
+      },
+      {
         "name": "op-win-lag",
         "description": "Per-row value of Field from N rows earlier in the ordered partition."
       },
@@ -15232,7 +15261,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 272,
+    "examples_count": 273,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21195,4 +21224,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 09301e681354472e70317de3e264d7a4112d74c47accbf091bce0dafb33a06d5
+// golden-hash: 5bf6be4808c8ae15abeadc045935fa5e075b4f38ae2b87eebc79c2ffbadf0ad9

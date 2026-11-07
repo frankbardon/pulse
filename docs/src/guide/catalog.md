@@ -6,7 +6,7 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Attributes](catalog/attribute.md) (22)
 - [Filterers](catalog/filterer.md) (12)
 - [Groupers](catalog/grouper.md) (10)
-- [Window operators](catalog/window.md) (14)
+- [Window operators](catalog/window.md) (15)
 - [Feature operators](catalog/feature.md) (9)
 - [Statistical tests](catalog/test.md) (26)
 - [Regressions](catalog/regression.md) (7)

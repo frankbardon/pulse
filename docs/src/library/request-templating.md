@@ -178,7 +178,8 @@ rejected outright at validation, so this is never a silent no-op.
 expression-bearing string — a filterer's or an attribute's
 `expression` (a `total()` argument included, and the filterers nested
 in an attribute's `params`), a regression's `holdout`, an overlay's
-`params.formula`, a feature's `params.fit_on`, an optimize bound, a
+`params.formula`, a feature's `params.fit_on`, a `WIN_FORMULA`
+window's `params.expression`, an optimize bound, a
 window's or an embedder extension's expression-capable param (the
 manifest marks it `expression: true`), at any depth of any
 target — is `PULSE_TEMPLATE_EXPR_SPLICE`, raised at declaration

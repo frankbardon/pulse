@@ -1,6 +1,6 @@
-# Architecture — Public vs internal, how the narrowed packages are built, the `linalg` split, CLI
+# Architecture — Public vs internal (the package tree)
 
-Per-topic slice of the architecture reference (Public vs internal, how the narrowed packages are built, the `linalg` split, CLI; the MCP layer split moved to `architecture/mcp.md` at bayesian-mmm E1-S1). Index (preamble + section map): `.claude/reference/architecture.md` — load it first, then only the slice(s) your change touches.
+Per-topic slice of the architecture reference (Public vs internal: the package tree; the MCP layer split moved to `architecture/mcp.md` at bayesian-mmm E1-S1, how the narrowed packages are built, the `linalg` split and the CLI to `architecture/package-build.md` at predict-extension-parity-2 E6-S1). Index (preamble + section map): `.claude/reference/architecture.md` — load it first, then only the slice(s) your change touches.
 
 ## Public vs internal
 
@@ -68,6 +68,7 @@ internal/extspec/          the one extension `Validate` hook rule (extend.SpecVa
 internal/ewmaparams/       the one WIN_EWMA params reading (exactly one of alpha / decay; decay → alpha through the exact decimal 1 − decay); windowparams calls it (leaf: stdlib + errors)
 internal/shareparams/      the one WIN_SHARE / WIN_LIFT slot reading (cumulative, base, field required, no frame, order_by only when cumulative); factory and predict both call it, refusals PULSE_WINDOW_INVALID on both sides (leaf: errors, types, paramread)
 internal/windowparams/     the one window SLOT reading (order_by, field, frame matrix, params; delegates EWMA / share / lift); predict reports every refusal, the engine (registry wrapper + applyWindows) the first — PULSE_WINDOW_INVALID, one sentence (leaf: errors, types, paramread, ewmaparams, shareparams)
+internal/winformula/       the one WIN_FORMULA compile: every name the expression reads declared `any`, the request-bound functions less coef / sweep_axis / response, ref() refused, a number result; predict's field-reference walk and the window factory both call it, so a refusal is one PULSE_FORMULA_COMPILE_ERROR sentence (leaf: expr-lang, exprenv, exprident, exprslots, errors)
 internal/seriesfield/      the one series-overlay `params.field` reading (scored aggregation by output label; PULSE_OVERLAY_FIELD_UNKNOWN); the runtime host builder, the Compose dispatcher (`ResolveComposeSlot`), the chain dispatcher (`ResolveChainStage`) and predict all call it (leaf: stdlib + types/errors)
 internal/overlayhost/      the one overlay-slot declaration (which of Request / Compose / Chain / Facet .Overlays runs each catalog kind, and the MATRIX / SERIES Process shapes of each Request kind) + the wrong-slot and wrong-shape refusals (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details {index, kind, host, hosts} / {index, kind, host, shape, shapes}); predict, the Process hooks, every dispatch loop and the FACET service loop call it (leaf: stdlib + types/errors, no-execute)
 internal/twosample/        the one reading of a Compose two-sample overlay's explicit per-side inputs (variance_* / sample_size_*, else symmetric variance / sample_size; finite > 0; no default); descriptor.ComposeOverlayTwoSampleInputsRefusal and the four processing T / Z handlers both call it (leaf: stdlib only)
@@ -100,29 +101,3 @@ docs/                      mdBook source (docs/book/ is generated)
 ```
 
 The pack is still ADDRESSED pack-relative in prose — `skills/<stem>.md` — and resolved under `internal/skills/` by `TestSkillsCoverAllCrossReferences`; the examples are addressed as `examples/<dir>/*.json` the same way.
-
-## How the narrowed packages are built
-
-Three techniques, chosen per package:
-
-- **Split in place** (`encoding`, `descriptor`). The kept subset stays at the public path; the remainder moved to an `internal/<pkg>` twin with the same package name, so `encoding.X` / `descriptor.X` spellings read the same in prose either way. Methods on kept types that only the remainder needs became functions in the twin (`BuildDecodePlan`, `DecodeGroupEntry`, `NewGroupEntryDecoder`, `GroupSpecOf`, `ReadRecordAt`). The public `encoding` reaches its twin's needs through `internal/encodingbridge` hooks installed at init. `internal/tools/pkgsplit` is the AST rewriter that performed the split.
-- **Alias facade** (`io`, `synth`). The whole implementation lives in `internal/io` (+ `internal/iocore`) and `internal/synth`; the public package holds only `type X = internal.X` aliases, re-declared constants and thin function wrappers for the kept subset. An alias freezes its target's fields and methods exactly as if the target were public — which is why `TestPublicAPIGolden` expands every alias.
-- **Left whole** (`errors`, `mcpserve`) or **unexported in place** (`mcp/gosdk`).
-
-**Reading package-qualified names.** Because each internal twin keeps its public package's NAME, contributor prose spelling `encoding.X`, `descriptor.X`, `synth.X` or `io.X` may mean the internal twin (`synth.AllDistributions`, `descriptor.BuildManifest`, `encoding.SidecarIndexPath` are all internal). Embedder-facing prose (`docs/src/library/`, README, the skill pack) names only spellings an external module can import; `internal/apigolden/testdata/public_api.txt` is the arbiter.
-
-**Root aliases.** Facade-returned types from internal packages keep their `pulse.X` spelling as aliases (`ComposeOptions`, `Row`, `RowIter`, the shard and index result types, `ImportSpec` / `ImportResult` / `ImportEntry` / `ImportSidecar`, `Example` / `ExampleSummary`, `SkillMetadata`, `Template*` / `RenderedTemplate`, `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex`, …). `DateRangeSpec`, `MemberSet` and `LoadMemberSetResult` are root-NATIVE types, not aliases. `pulse.go` also re-exports `types.Request` / `Response` / `ComposedRequest` and `synth.Spec` / `Result` / `Options` / `Profile` / `ProfileOptions`.
-
-**The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. `internal/iocore` itself is a leaf reaching only the `.pulse` codec (`encoding`, `internal/encoding`, `internal/encodingbridge`, `internal/temporal`), `errors` and `types` — plus the stdlib-only `internal/returnplan`, which rides in through `types`. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
-
-**Surface guards.** `TestPublicAPIGolden` (blocking) freezes every public package's exported shape, aliases expanded; regenerate with `go test -tags heavy ./internal/apigolden/ -run TestPublicAPIGolden -update` only for an intentional surface change and review the diff. The `apidiff` job in `.github/workflows/ci.yml` is advisory against the latest tag (label `api-break-ok` marks an intentional break) and flips to blocking once a stable `v1.0.0` tag exists. `make smoke` builds `internal/embeddersmoke`, an external module that only uses public spellings. Contributor prose: `docs/src/contributing/pr-process.md`.
-
-**The `linalg` guards.** `TestLinalgImportBoundary` (`linalg/boundary_test.go`, an AST import walk over the non-test files) keeps `linalg` a leaf over the standard library, `gonum.org/v1/gonum/...` and Pulse's `errors` — never `internal/processing`, `internal/service` or `descriptor`. `TestLinalgSurfaceNamesNoGonum` (`internal/apigolden`) fails if the golden's `linalg` section names a `gonum` token: gonum is pre-1.0, so no gonum type may freeze into Pulse's v1 surface. `internal/embeddersmoke` pins the `linalg` spellings through the public import path.
-
-## `linalg` two-backend split
-
-`linalg` deliberately carries two backends behind one surface. **Reference kernels** (`Cholesky`, `CholeskyRidge`, `SolveSPD`, `InverseSPD`, the general LU solve `FactorLU` / `LUFactor` / `Solve`, `CoMoment` `Add` / `Merge`, `MergeTree`) are pure Go and FMA-free — every product feeding an add or subtract is an explicit `float64(a*b)` — so they produce identical bits on arm64 and amd64; synth's correlator (seed reproducibility) and the blocked merge tree (worker invariance) depend on that. **gonum-backed routines** (`SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber`, and the `FactorSPD` / `SPDFactor` / `Mul` path the regression engine routes through) carry no cross-architecture bit contract: the decompositions are canonicalised (order, sign, one rank tolerance) so every decision is portable, and the SPD path equals raw gonum bit for bit on one machine, which kept regression output byte-identical when it moved onto `linalg`. Never swap a reference kernel onto gonum or reorder its arithmetic. The why, the evidence and the tolerances: `.claude/reference/matrix-and-vectors.md`.
-
-## CLI
-
-CLI commands map 1:1 to manifest commands — the list is in CLAUDE.md "Architecture". `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.

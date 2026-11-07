@@ -194,5 +194,20 @@ func windowCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "one float per row, a ratio (1 = no lift); null when either share is null or the base share is zero",
 			Streamable:    false,
 		},
+		{
+			Name:        string(types.WIN_FORMULA),
+			Category:    "window",
+			Description: "Row-local expression over the row's columns — group keys and aggregation labels on grouped rows, record fields on the record rows — and every EARLIER window's output, e.g. the ratio of two WIN_SHARE columns. Reading this window's own label or a later window's is refused. No order_by, partition_by, field or frame.",
+			Params: []descriptor.Param{
+				{Name: "expression", Type: "string", Required: true, Description: "Expression returning a number; names columns and earlier window labels, params.<name> reads request params. No coef(), ref() or total()."},
+			},
+			// Reads the columns its expression names (ForbidsField),
+			// so it accepts no field type.
+			AcceptsTypes:  []string{},
+			ForbidsField:  true,
+			EmitsType:     "f64",
+			EmitsTypeNote: "one float per row; null when a column the expression reads is null, or the result is nil or not finite",
+			Streamable:    false,
+		},
 	}
 }

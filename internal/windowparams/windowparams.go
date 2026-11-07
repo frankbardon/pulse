@@ -8,10 +8,13 @@
 //
 //   - order_by needs at least one key — except WIN_SHARE / WIN_LIFT,
 //     whose own reading (internal/shareparams) needs it only when
-//     cumulative — and every key names a field;
+//     cumulative, and the row-local WIN_FORMULA, which refuses
+//     order_by and partition_by (it reads only its own row) — and every
+//     key names a field;
 //   - field is required on every value-bearing operator (FieldRequired)
 //     and refused on the order-only ones (FieldForbidden: row number,
-//     rank, dense rank read no value);
+//     rank, dense rank read no value; WIN_FORMULA reads the columns
+//     its params.expression names);
 //   - frame is refused on the operators that read none (FrameRejected),
 //     required on the ones that do (FrameRequired); a given frame is
 //     mode "rows", its bounds are >= 0, and a moving average bounds both
@@ -64,6 +67,8 @@ var frameRejected = map[types.WindowType]bool{
 	types.WIN_DELTA:      true,
 	// The lag kernel's reach is params.max_lag, never a frame.
 	types.WIN_DISTRIBUTED_LAG: true,
+	// Row-local: the expression reads its own row only.
+	types.WIN_FORMULA: true,
 }
 
 // fieldRequired lists the value-bearing operators. ROW_NUMBER / RANK /
@@ -88,7 +93,20 @@ var fieldForbidden = map[types.WindowType]bool{
 	types.WIN_ROW_NUMBER: true,
 	types.WIN_RANK:       true,
 	types.WIN_DENSE_RANK: true,
+	// WIN_FORMULA reads the columns its params.expression names.
+	types.WIN_FORMULA: true,
 }
+
+// rowLocal lists the operators that read only the current row: they
+// refuse order_by and partition_by, which would order and slice rows
+// the operator never compares.
+var rowLocal = map[types.WindowType]bool{
+	types.WIN_FORMULA: true,
+}
+
+// RowLocal reports whether a window of type t reads only its own row
+// (and so refuses order_by and partition_by).
+func RowLocal(t types.WindowType) bool { return rowLocal[t] }
 
 // FieldForbidden reports whether a window of type t refuses a field.
 func FieldForbidden(t types.WindowType) bool { return fieldForbidden[t] }
@@ -168,7 +186,15 @@ func CheckDeferred(w *types.Window, deferred map[string]bool) []*Refusal {
 		out = append(out, &Refusal{Op: w.Type, Message: msg, Details: details})
 	}
 
-	if len(w.OrderBy) == 0 && !shareparams.Handles(w.Type) {
+	if rowLocal[w.Type] {
+		if len(w.OrderBy) > 0 {
+			refuse("order_by is not allowed: this operator reads only its own row", nil)
+		}
+		if len(w.PartitionBy) > 0 {
+			refuse("partition_by is not allowed: this operator reads only its own row", map[string]any{"partition_by": w.PartitionBy})
+		}
+	}
+	if len(w.OrderBy) == 0 && !shareparams.Handles(w.Type) && !rowLocal[w.Type] {
 		refuse("order_by is required (at least one key)", nil)
 	}
 	for j, k := range w.OrderBy {
@@ -183,7 +209,11 @@ func CheckDeferred(w *types.Window, deferred map[string]bool) []*Refusal {
 		refuse("field is required", nil)
 	}
 	if fieldForbidden[w.Type] && w.Field != "" {
-		refuse("field is not allowed: this operator reads only its order_by keys", map[string]any{"field": w.Field})
+		reads := "its order_by keys"
+		if w.Type == types.WIN_FORMULA {
+			reads = "the columns params.expression names"
+		}
+		refuse("field is not allowed: this operator reads only "+reads, map[string]any{"field": w.Field})
 	}
 
 	if w.Frame != nil && frameRejected[w.Type] {
@@ -237,8 +267,36 @@ func paramsRefusal(w *types.Window, deferred map[string]bool) *Refusal {
 		if _, ref := Periods(w); ref != nil {
 			return ref
 		}
+	case types.WIN_FORMULA:
+		if _, ref := Formula(w); ref != nil {
+			return ref
+		}
 	}
 	return nil
+}
+
+// formulaParams is WIN_FORMULA's params wire shape.
+type formulaParams struct {
+	Expression *string `json:"expression"`
+}
+
+// Formula reads a WIN_FORMULA slot's params.expression: a non-empty
+// string, required. Whether it compiles, and whether every column it
+// reads exists before this window, is internal/winformula's and the
+// field-reference walk's judgement.
+func Formula(w *types.Window) (string, *Refusal) {
+	paramread.Declare(paramread.Window, string(w.Type), (*formulaParams)(nil))
+	var p formulaParams
+	if len(w.Params) > 0 {
+		if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
+			return "", &Refusal{Op: w.Type, Message: "malformed params: " + err.Error()}
+		}
+	}
+	if p.Expression == nil || *p.Expression == "" {
+		return "", &Refusal{Op: w.Type, Message: "params.expression is required (a non-empty expression over the row's columns)",
+			Details: map[string]any{"param": "expression"}}
+	}
+	return *p.Expression, nil
 }
 
 // LagSpec is the resolved meaning of a WIN_LAG / WIN_LEAD slot's params.
