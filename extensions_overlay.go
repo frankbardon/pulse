@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -533,7 +534,7 @@ func probeOverlaySpec(reg OverlayRegistration) *types.OverlaySpec {
 func probeComposeOverlaySpec(reg OverlayRegistration, spec *types.OverlaySpec) *types.ComposeOverlaySpec {
 	c := &types.ComposeOverlaySpec{Kind: reg.Name, Scope: reg.Scopes[0], Reference: "reference", Targets: []string{"target"}}
 	if len(spec.Params) > 0 {
-		_ = json.Unmarshal(spec.Params, &c.Params) // probeParams marshals an object
+		_ = paramread.Probe(spec.Params, &c.Params) // probeParams marshals an object
 	}
 	return c
 }
