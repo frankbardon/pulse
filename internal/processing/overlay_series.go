@@ -131,6 +131,21 @@ type SeriesHostView struct {
 	// the host carries none. Attached by withPriorLegs only for a spec
 	// of those kinds, so no other host pays for it.
 	legs *seriesLegSource
+
+	// valueLabel names the scored column the resolver reads ("" when
+	// the host was built from a bare resolver). Set by
+	// buildSeriesHostFromGroupedResponse; an extension handler reads it
+	// (extend.SeriesOverlayHost.ValueLabel).
+	valueLabel string
+}
+
+// ValueLabel returns the scored column's label, "" when the view was
+// built from a bare resolver. Nil-receiver-safe.
+func (h *SeriesHostView) ValueLabel() string {
+	if h == nil {
+		return ""
+	}
+	return h.valueLabel
 }
 
 // NewSeriesHostView wraps an ordered list of group keys plus a value
@@ -495,6 +510,35 @@ func ApplyOverlaysSeries(specs []types.OverlaySpec, host *SeriesHostView) ([]typ
 	return applyOverlaysSeriesWith(specs, host, nil, nil)
 }
 
+// ApplyOverlaysSeriesWithExtensions is ApplyOverlaysSeries over the
+// instance registry exts: every spec first meets the spec-alone SERIES
+// rule (SeriesSpecRefusal), then the fold dispatches on each kind's
+// route, so an extension kind runs its Series handler and a kind the
+// instance feature set hides misses every table like a never-registered
+// one. Pulse.ApplySeriesOverlays calls it.
+func ApplyOverlaysSeriesWithExtensions(specs []types.OverlaySpec, host *SeriesHostView, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	for i := range specs {
+		if cerr := exts.SeriesSpecRefusal(&specs[i], i); cerr != nil {
+			return nil, nil, cerr
+		}
+	}
+	return applyOverlaysSeriesWith(specs, host, exts, nil)
+}
+
+// SeriesSpecRefusal is the rule a spec meets on a SERIES host from the
+// spec alone (no Request): an extension kind its declaration's rule
+// judged series (overlayhost.ExtensionRequestRefusal — host shape, Ref,
+// Scope, Level / Within, then its Validate hook), a built-in the shared
+// SERIES Ref / Scope rule (overlayhost.SeriesSpecRefusal), each keyed on
+// the route so a hidden kind takes neither. Nil-receiver-safe.
+func (r *ExtensionRegistry) SeriesSpecRefusal(spec *types.OverlaySpec, index int) *errors.CodedError {
+	route := r.overlayRoute(spec.Kind)
+	if x := r.extensionOverlay(route); x != nil {
+		return overlayhost.ExtensionRequestRefusal(&x.Decl, types.OverlayShapeSeries, false, spec, index)
+	}
+	return overlayhost.SeriesSpecRefusal(spec, route, index)
+}
+
 // applyOverlaysSeriesWith is ApplyOverlaysSeries dispatching on the
 // route exts gives each kind: a kind the instance feature set hides
 // misses the table exactly like a never-registered kind.
@@ -532,6 +576,26 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		if cerr := overlayhost.Refusal(overlayhost.Request, spec.Kind, route, i); cerr != nil {
 			return nil, nil, cerr
 		}
+		// An extension kind: its declaration's rule (the Process hook,
+		// refuseWrongHostOverlays, already ran it with the Validate hook),
+		// then its SERIES handler over the host scoring the request's
+		// first aggregation, its output held to the declaration.
+		if x := exts.extensionOverlay(route); x != nil {
+			if cerr := overlayhost.ExtensionDeclRefusal(&x.Decl, types.OverlayShapeSeries, false, spec, i); cerr != nil {
+				return nil, nil, cerr
+			}
+			host, _, err := hostFor(i, spec, route)
+			if err != nil {
+				return nil, nil, err
+			}
+			layer, ws, err := applyExtensionOverlaySeries(x, spec, host, i)
+			if err != nil {
+				return nil, nil, err
+			}
+			layers = append(layers, layer)
+			warnings = append(warnings, ws...)
+			continue
+		}
 		// A MATRIX-only kind handed to this SERIES loop: the shared
 		// wrong-shape refusal, not PULSE_OVERLAY_KIND_UNKNOWN.
 		if cerr := overlayhost.ShapeRefusal(types.OverlayShapeSeries, spec.Kind, route, i); cerr != nil {
@@ -539,14 +603,8 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		}
 		handler, ok := seriesOverlayHandlers[route]
 		if !ok {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no SERIES runtime handler: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-					"host":  "series",
-				})
+			// predict's catalog-probe refusal (validateOverlaySpec).
+			return nil, nil, overlayhost.KindUnknownRefusal(spec.Kind, i, "series")
 		}
 		if route == types.OverlayKindFormula {
 			// The shared Request-host gate predict raises first, before

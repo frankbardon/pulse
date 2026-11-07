@@ -130,7 +130,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 111,
+    "error_codes_count": 114,
     "error_domains": [
       "CLI",
       "DATA",
@@ -171,6 +171,7 @@
       "PULSE_DEDUP_LOW_RATIO",
       "PULSE_DOCS_EXPORT_DIR_NOT_EMPTY",
       "PULSE_EXTENSION_ARRAY_VALUED_MISMATCH",
+      "PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH",
       "PULSE_EXTENSION_DUPLICATE",
       "PULSE_EXTENSION_EXAMPLE_COLLISION",
@@ -184,11 +185,13 @@
       "PULSE_EXTENSION_NAME_COLLISION",
       "PULSE_EXTENSION_NAME_INVALID",
       "PULSE_EXTENSION_NAME_RESERVED",
+      "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
+      "PULSE_EXTENSION_SPEC_REFUSED",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
       "PULSE_FEATURE_PROFILE_DEPENDENCY",
       "PULSE_FEATURE_PROFILE_INVALID",
@@ -709,6 +712,7 @@
       "tests": [],
       "matrix_ops": [],
       "regressions": [],
+      "overlays": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -897,4 +901,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 62daa8c1f2f3cacb6717ba50985d60a19c477d384ca96993408c0cab67b5e842
+// golden-hash: ff1f3d69d4c0eb1d2febd930e5d276137a89eb72bec6cc79e3552fcafe816663

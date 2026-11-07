@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -29,7 +30,7 @@ func TestComputedColumns(t *testing.T) {
 	t.Parallel()
 
 	s := testSchema()
-	got := ComputedColumns(computedRequest(), s, nil)
+	got := ComputedColumns(computedRequest(), s, Classifier{})
 	want := Computed{
 		"LOG_q_2":         {Slot: "feature", Index: 0, Type: encoding.FieldTypeF64},
 		"imp":             {Slot: "attribute", Index: 0, Type: encoding.FieldTypeF64},
@@ -41,18 +42,18 @@ func TestComputedColumns(t *testing.T) {
 	}
 	grouped := computedRequest()
 	grouped.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q_1"}}
-	if _, ok := ComputedColumns(grouped, s, nil)["lag"]; ok {
+	if _, ok := ComputedColumns(grouped, s, Classifier{})["lag"]; ok {
 		t.Error("a window over aggregated rows is no record column")
 	}
 	shadow := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "q_1", Expression: "q_2"}}}
-	if c := ComputedColumns(shadow, s, nil); c != nil {
+	if c := ComputedColumns(shadow, s, Classifier{}); c != nil {
 		t.Errorf("a label equal to a schema field is computed: %+v", c)
 	}
-	if ComputedColumns(&types.Request{}, s, nil) != nil || ComputedColumns(nil, s, nil) != nil {
+	if ComputedColumns(&types.Request{}, s, Classifier{}) != nil || ComputedColumns(nil, s, Classifier{}) != nil {
 		t.Error("a request computing nothing has computed columns")
 	}
 	prev := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "region", Label: "was"}}}
-	if c := ComputedColumns(prev, s, nil)["was"]; c.Type != encoding.FieldTypeCategoricalU8 {
+	if c := ComputedColumns(prev, s, Classifier{})["was"]; c.Type != encoding.FieldTypeCategoricalU8 {
 		t.Errorf("previous-state column type %v, want the state field's", c.Type)
 	}
 }
@@ -72,7 +73,7 @@ func TestResolveRequest_ComputedMembers(t *testing.T) {
 		{Name: "g", Fields: []string{"q_*", "im*"}},
 		{Name: "plain", Fields: []string{"q_1", "q_2"}},
 	}
-	got, err := ResolveRequest(req, s, nil)
+	got, err := ResolveRequest(req, s, Classifier{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,21 +93,21 @@ func TestResolveRequest_ComputedMembers(t *testing.T) {
 		t.Errorf("Resolve without the request admits a computed member: %v", err)
 	}
 	req.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "nosuch"}}}
-	if _, err := ResolveRequest(req, s, nil); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["field"] != "nosuch" {
+	if _, err := ResolveRequest(req, s, Classifier{}); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["field"] != "nosuch" {
 		t.Errorf("unknown literal: %v", err)
 	}
 	prev := &types.Request{
 		Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "region", Label: "was"}},
 		Vectors:    []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "was"}}},
 	}
-	if _, err := ResolveRequest(prev, s, nil); err == nil || err.Code != errors.PULSE_VECTOR_MEMBER_TYPE || err.Details["field"] != "was" {
+	if _, err := ResolveRequest(prev, s, Classifier{}); err == nil || err.Code != errors.PULSE_VECTOR_MEMBER_TYPE || err.Details["field"] != "was" {
 		t.Errorf("categorical computed member: %v", err)
 	}
 	// Members (projection) resolves the computed vector and adds no
 	// computed name as a source field it could not decode.
 	req = computedRequest()
 	req.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "imp"}}}
-	if m, ok := Members(req, s, nil); !ok || !slices.Equal(m, []string{"q_1", "imp"}) {
+	if m, ok := Members(req, s, Classifier{}); !ok || !slices.Equal(m, []string{"q_1", "imp"}) {
 		t.Errorf("Members = %v, %v", m, ok)
 	}
 }
@@ -133,10 +134,10 @@ func TestResolveMatrices_ComputedMembers(t *testing.T) {
 		!slices.Equal(mats[2].Extra, []string{"LOG_q_2"}) {
 		t.Errorf("matrices = %+v", mats)
 	}
-	if got := MatrixComputedMembers(req, s, nil); !slices.Equal(got, []string{"imp", "lag", "LOG_q_2"}) {
+	if got := MatrixComputedMembers(req, s, Classifier{}); !slices.Equal(got, []string{"imp", "lag", "LOG_q_2"}) {
 		t.Errorf("MatrixComputedMembers = %v", got)
 	}
-	if m, ok := MatrixMembers(req, s, nil); !ok || slices.Contains(m, "LOG_q_2") {
+	if m, ok := MatrixMembers(req, s, Classifier{}); !ok || slices.Contains(m, "LOG_q_2") {
 		t.Errorf("MatrixMembers = %v, %v", m, ok)
 	}
 }
@@ -152,17 +153,17 @@ func TestMatrixComputedMembers_SEMGroup(t *testing.T) {
 	s := testSchema()
 	req := computedRequest()
 	req.Matrices = []types.MatrixSpec{{Name: "s", Type: types.MAT_SEM, Fields: []string{"q_1", "q_2", "q_3"}, Params: json.RawMessage(`{"group": "lag"}`)}}
-	if got := MatrixComputedMembers(req, s, nil); !slices.Equal(got, []string{"lag"}) {
+	if got := MatrixComputedMembers(req, s, Classifier{}); !slices.Equal(got, []string{"lag"}) {
 		t.Errorf("MatrixComputedMembers = %v, want [lag]", got)
 	}
-	if m, ok := MatrixMembers(req, s, nil); !ok || slices.Contains(m, "lag") {
+	if m, ok := MatrixMembers(req, s, Classifier{}); !ok || slices.Contains(m, "lag") {
 		t.Errorf("MatrixMembers = %v, %v", m, ok)
 	}
 	req.Matrices[0].Params = json.RawMessage(`{"group": "region"}`)
-	if got := MatrixComputedMembers(req, s, nil); got != nil {
+	if got := MatrixComputedMembers(req, s, Classifier{}); got != nil {
 		t.Errorf("cohort-field group listed as computed: %v", got)
 	}
-	if m, ok := MatrixMembers(req, s, nil); !ok || !slices.Contains(m, "region") {
+	if m, ok := MatrixMembers(req, s, Classifier{}); !ok || !slices.Contains(m, "region") {
 		t.Errorf("MatrixMembers = %v, %v, want region", m, ok)
 	}
 }
@@ -227,5 +228,26 @@ func TestFeatureOutputLabels(t *testing.T) {
 	}
 	if got := WindowLabel(&types.Window{Type: types.WIN_ROW_NUMBER}); got != "WIN_ROW_NUMBER" {
 		t.Errorf("window label %q", got)
+	}
+}
+
+// TestComputedColumns_InheritedDictionary (U67 E3-S2): an extension
+// attribute declaring an inherited dictionary (Classifier.Dict) is a
+// computed column of its source's type, as an ATTR_PREVIOUS_STATE
+// output is; the zero classifier types it f64.
+func TestComputedColumns_InheritedDictionary(t *testing.T) {
+	t.Parallel()
+
+	dict := encoding.NewDictionary()
+	if _, err := dict.Add("a"); err != nil {
+		t.Fatal(err)
+	}
+	s := &encoding.Schema{Fields: []encoding.Field{{Name: "c", Type: encoding.FieldTypeCategoricalU16, Dictionary: dict}}}
+	req := &types.Request{Attributes: []*types.Attribute{{Type: "ATTR_T_COPY", Field: "c", Label: "k"}}}
+	if got := ComputedColumns(req, s, Classifier{Dict: prevstate.Inherits{"ATTR_T_COPY": ""}})["k"].Type; got != encoding.FieldTypeCategoricalU16 {
+		t.Fatalf("declared output typed %s, want categorical_u16", got)
+	}
+	if got := ComputedColumns(req, s, Classifier{})["k"].Type; got != encoding.FieldTypeF64 {
+		t.Fatalf("undeclared output typed %s, want f64", got)
 	}
 }

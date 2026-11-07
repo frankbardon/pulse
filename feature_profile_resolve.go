@@ -34,6 +34,9 @@ type featureUniverse struct {
 	// extScorer marks the extension regressions whose registration
 	// supplies a Scorer (descx.ExtensionRegressionMeetsGroup).
 	extScorer map[string]bool
+	// extOverlayHosts is each extension overlay kind's host group: the
+	// hosts its handlers run on (descx.ExtensionOverlayHostCapabilities).
+	extOverlayHosts map[string][]string
 	// unverified marks names an offline CheckFeatureProfile accepted as
 	// extension operators without a registration (withUnverified).
 	unverified map[string]bool
@@ -47,10 +50,11 @@ type featureUniverse struct {
 
 func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 	u := featureUniverse{
-		version:   version,
-		extDeps:   map[string][]string{},
-		extOrigin: map[string]string{},
-		extScorer: map[string]bool{},
+		version:         version,
+		extDeps:         map[string][]string{},
+		extOrigin:       map[string]string{},
+		extScorer:       map[string]bool{},
+		extOverlayHosts: map[string][]string{},
 	}
 	add := func(cat extensionCategory, name string, deps []string) {
 		u.extDeps[name] = deps
@@ -84,6 +88,10 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 		add(categoryRegression, string(r.Name), r.DependsOn)
 		u.extScorer[string(r.Name)] = r.Scorer != nil
 	}
+	for _, r := range ext.Overlays {
+		add(categoryOverlay, string(r.Name), r.DependsOn)
+		u.extOverlayHosts[string(r.Name)] = descx.ExtensionOverlayHostCapabilities(overlayDeclaration(r))
+	}
 	// Synth distributions are not features (capability:synth gates
 	// them), so an extension SYNTH_* name never resolves.
 	return u
@@ -109,9 +117,13 @@ func (u featureUniverse) dependencies(name string) ([][]string, bool) {
 		return nil, false
 	}
 	// An extension operator needs a request host exactly like a
-	// built-in non-overlay operator (extensions cannot register
-	// overlays); its DependsOn entries add single-name AND groups.
+	// built-in non-overlay operator, and an extension overlay kind the
+	// hosts its handlers run on, like a built-in kind (overlayHostKinds);
+	// its DependsOn entries add single-name AND groups.
 	groups := [][]string{descx.RequestHostCapabilities()}
+	if hosts, ok := u.extOverlayHosts[name]; ok && u.extOrigin[name] == string(categoryOverlay) {
+		groups = [][]string{hosts}
+	}
 	// A MAT_* operator rides the Request.Matrices slot, which
 	// capability:matrices gates — the edge every built-in MAT_* row
 	// carries (internal/descriptor hardEdges).

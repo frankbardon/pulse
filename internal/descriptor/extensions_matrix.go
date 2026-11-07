@@ -28,6 +28,11 @@ type ExtensionMatrixOp struct {
 	// shape; the engine-owned missing / max_drop_share are prepended by
 	// the manifest projection (MatrixMemberParams).
 	Params []descriptor.Param
+	// Validate is the registration's opt-in, spec-only refusal hook
+	// (MatrixOpRegistration.Validate, an extend.SpecValidator); nil
+	// accepts every spec. Predict and the runtime adapter both run it
+	// through ExtensionMatrixValidateRefusal.
+	Validate func(*types.MatrixSpec) error
 }
 
 // MatrixMemberTypes are the member column types every built-in matrix

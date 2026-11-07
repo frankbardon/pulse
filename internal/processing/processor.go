@@ -101,6 +101,10 @@ type Processor struct {
 	// request has no such slot. Only GROUP_CATEGORY is built against it
 	// (grouperSchema) — never a decode, stride or aggregator schema.
 	keySchema *encoding.Schema
+	// u64Aliases are the current run's formula aliases of u64 fields
+	// (prevstate.U64Aliases; nil: none), set by prepare beside
+	// keySchema: an expression reading one binds the field's word.
+	u64Aliases map[string]string
 }
 
 // grouperSchema is the schema grp's grouper is built against: the
@@ -110,10 +114,21 @@ type Processor struct {
 // field itself), the cohort schema for every other grouper — whose
 // construction and keys stay exactly what they were.
 func (p *Processor) grouperSchema(grp *types.Group) *encoding.Schema {
-	if grp != nil && grp.Type == types.GROUP_CATEGORY && p.keySchema != nil {
-		return p.keySchema
+	return GrouperKeySchema(grp, p.schema, p.keySchema)
+}
+
+// GrouperKeySchema is the schema grp's grouper is built against over
+// the cohort schema and the run's dictionary-inheritance view keys
+// (prevstate.KeySchemaWith; nil: none): keys for a GROUP_CATEGORY
+// slot, schema for every other. The buffered paths (grouperSchema),
+// the fused crosstab axes and the parallel reducers' partition
+// groupers all build through it, so an inherited-dictionary output
+// keys alike in every arm.
+func GrouperKeySchema(grp *types.Group, schema, keys *encoding.Schema) *encoding.Schema {
+	if grp != nil && grp.Type == types.GROUP_CATEGORY && keys != nil {
+		return keys
 	}
-	return p.schema
+	return schema
 }
 
 // SetModels installs the request's bound models (nil: none). The
@@ -142,6 +157,11 @@ func (p *Processor) regressionResolver() regression.Resolver {
 // ComputedColumns, ResolveRequest and the per-slot resolvers; the
 // post-window plan): nil when none is bound.
 func (p *Processor) catalog() model.Catalog { return catalogOf(p.models) }
+
+// classifier is the run's windows-first classifier: the bound models
+// and the registry's extension FieldInputs hooks
+// (ExtensionRegistry.Classifier).
+func (p *Processor) classifier() vectors.Classifier { return p.exts.Classifier(p.catalog()) }
 
 // catalogOf is models as a model.Catalog, nil (not a typed nil) when
 // models is nil.
@@ -1695,7 +1715,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 // Shared between streaming and buffered paths to keep error semantics
 // identical.
 func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
-	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors, p.keySchema)
+	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors, p.exprKeys())
 }
 
 // buildFilterFuncsWith compiles filterers against schema with the
@@ -1703,7 +1723,7 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 // vectors — the one filter build, shared by the request's filter chain,
 // a fitted attribute's params.fit_on (fitOnBinder) and the service's
 // per-worker builds (BuildFiltersWithVectors).
-func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) ([]FilterFunc, error) {
+func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -1726,7 +1746,7 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 // buildFilterFunc builds one filterer from factory with the registry,
 // the bound models and the named vectors bound — buildFilterFuncsWith's
 // per-slot step, shared with a feature's fit_on (featureResolver).
-func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) (FilterFunc, error) {
+func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys exprKeys) (FilterFunc, error) {
 	builder := factory()
 	if aware, ok := builder.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
@@ -1748,6 +1768,11 @@ func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encodin
 	}
 	return wrapFilterPrecompute(fn, f, schema, exts), nil
 }
+
+// exprKeys is the run's derived-column view for the expression
+// operators: the dictionary-inheritance view and the u64 formula
+// aliases.
+func (p *Processor) exprKeys() exprKeys { return exprKeys{view: p.keySchema, u64: p.u64Aliases} }
 
 // featureResolver is the instance's feature lookup (exts.LookupFeature)
 // with each constructed Computer's fit_on bound (feature.FitOnBinder):
@@ -1774,7 +1799,7 @@ func (p *Processor) featureResolver() feature.Resolver {
 				return c, nil
 			}
 			spec := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: b.FitOnExpression(), TimeZone: feat.TimeZone}
-			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors, p.keySchema)
+			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors, p.exprKeys())
 			if err != nil {
 				return nil, err
 			}

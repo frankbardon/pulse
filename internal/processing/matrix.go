@@ -181,7 +181,7 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	// buffer, never an unknown_type refusal. An offered extension
 	// operator resolves through its registration (declared tier,
 	// opaque params, Accepts).
-	plans, verr := vectors.ResolveMatricesWith(req, schema, catalogOf(models), vectors.MatrixResolve{
+	plans, verr := vectors.ResolveMatricesWith(req, schema, exts.Classifier(catalogOf(models)), vectors.MatrixResolve{
 		Known: func(t types.MatrixType) bool {
 			return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
 		},

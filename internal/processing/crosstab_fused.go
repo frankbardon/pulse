@@ -330,6 +330,15 @@ type auxMarginAccumulator struct {
 // true. AssertCanFuse is the defensive sibling that callers can use to
 // fail fast when their dispatch shortcut may have missed an edge case.
 func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ext *ExtensionRegistry) (*FusedCrosstabState, error) {
+	return newFusedCrosstabStateKeyed(spec, schema, schema, ext)
+}
+
+// newFusedCrosstabStateKeyed is NewFusedCrosstabState with the axis
+// groupers' dictionary-inheritance view keys (GrouperKeySchema; nil or
+// schema itself: none) — the run's Processor.keySchema, so a fused
+// GROUP_CATEGORY axis over an inherited-dictionary output keys by the
+// dictionary's labels as the buffered RunCrosstab does.
+func newFusedCrosstabStateKeyed(spec *types.CrosstabSpec, schema, keys *encoding.Schema, ext *ExtensionRegistry) (*FusedCrosstabState, error) {
 	if spec == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"NewFusedCrosstabState called with nil spec")
@@ -376,11 +385,11 @@ func NewFusedCrosstabState(spec *types.CrosstabSpec, schema *encoding.Schema, ex
 			map[string]any{"aggregation": string(spec.Cell.Type)})
 	}
 
-	rowGroupers, err := buildStreamableAxis(spec.Rows, schema, ext, "rows")
+	rowGroupers, err := buildStreamableAxis(spec.Rows, schema, keys, ext, "rows")
 	if err != nil {
 		return nil, err
 	}
-	colGroupers, err := buildStreamableAxis(spec.Columns, schema, ext, "columns")
+	colGroupers, err := buildStreamableAxis(spec.Columns, schema, keys, ext, "columns")
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +660,7 @@ func axisGrouperList(axis []fusedAxisGrouper) []Grouper {
 // factory constructs, this builds the long-lived instances. The two
 // must stay in lockstep: anything the gate admits, this must construct
 // (TestBuiltinGrouperKeyableMatchesRegistry pins the table).
-func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]fusedAxisGrouper, error) {
+func buildStreamableAxis(axis []*types.Group, schema, keys *encoding.Schema, ext *ExtensionRegistry, axisName string) ([]fusedAxisGrouper, error) {
 	if len(axis) == 0 {
 		return nil, nil
 	}
@@ -668,7 +677,7 @@ func buildStreamableAxis(axis []*types.Group, schema *encoding.Schema, ext *Exte
 				fmt.Sprintf("unknown group type: %s", grp.Type),
 				map[string]any{"axis": axisName, "position": i, "group_type": string(grp.Type)})
 		}
-		instance, err := factory(grp, schema)
+		instance, err := factory(grp, GrouperKeySchema(grp, schema, keys))
 		if err != nil {
 			return nil, err
 		}

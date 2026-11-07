@@ -37,13 +37,14 @@ type attrSlotOut struct {
 // models and refuses a window-dependent slot that cannot move
 // (PULSE_ATTRIBUTE_WINDOW_ORDER — the field-reference walk's refusal,
 // re-raised for a processor driven without the service). Its
-// WindowsFirst reports the windows-first mode (vectors.WindowsFirst,
-// with the bound models): every shape runs it (windowsFirstPass) —
+// WindowsFirst reports the windows-first mode (vectors.WindowsFirst
+// over Processor.classifier: the bound models and the registry's
+// extension FieldInputs hooks): every shape runs it (windowsFirstPass) —
 // ungrouped and grouped in processRecords, the buffered crosstab in
 // RunCrosstab; the streaming arms and the fused crosstab never see it
 // (canStream and the fusion gate refuse any window).
 func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, error) {
-	pw := vectors.PostWindowAttributes(req, p.schema, nil, p.catalog())
+	pw := vectors.PostWindowAttributes(req, p.schema, p.classifier())
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
 	}

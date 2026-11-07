@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -52,10 +53,16 @@ func probeExtensions(ext Extensions) error {
 	if err := probeFeatures(ext.Features); err != nil {
 		return err
 	}
+	if err := probeWindows(ext.Windows); err != nil {
+		return err
+	}
 	if err := probeMatrixOps(ext.MatrixOps); err != nil {
 		return err
 	}
 	if err := probeRegressions(ext.Regressions); err != nil {
+		return err
+	}
+	if err := probeOverlays(ext.Overlays); err != nil {
 		return err
 	}
 	return nil
@@ -417,6 +424,9 @@ func probeAttributes(regs []AttributeRegistration) error {
 					return err
 				}
 			}
+			if err := probeAttributeCodes(reg); err != nil {
+				return err
+			}
 			var viaFunc func() (map[string]any, error)
 			if reg.ComponentsFunc != nil {
 				viaFunc = func() (map[string]any, error) { return safeInvokeAttributeComponents(reg, instance) }
@@ -511,6 +521,11 @@ func probeTests(regs []TestRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
 		if !reg.WeightAware {
+			// Not factory-probed, but a declared Validate hook is
+			// judged on the name-only probe spec all the same.
+			if err := probeTestValidate(reg, &types.Test{Type: reg.Name, Params: probeParams(reg.Params, nil)}, false); err != nil {
+				return err
+			}
 			continue
 		}
 		for _, weighted := range []bool{false, true} {
@@ -578,6 +593,9 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema, we
 	if weighted {
 		spec.Weight = probeWeight
 	}
+	if err := probeValidateRefusal("aggregator", string(reg.Name), descx.ExtensionAggregatorValidateRefusal(spec, reg.Validate), spec.Params, weighted); err != nil {
+		return nil, err
+	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -611,6 +629,9 @@ func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema, weig
 	spec := &types.Attribute{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	if weighted {
 		spec.Weight = probeWeight
+	}
+	if err := probeValidateRefusal("attribute", string(reg.Name), descx.ExtensionAttributeValidateRefusal(spec, reg.Validate), spec.Params, weighted); err != nil {
+		return nil, err
 	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
@@ -653,6 +674,9 @@ func safeBuildTest(reg TestRegistration, schema *encoding.Schema, weighted bool)
 	spec := &types.Test{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	if weighted {
 		spec.Weight = probeWeight
+	}
+	if err := probeTestValidate(reg, spec, weighted); err != nil {
+		return err
 	}
 	var isNil bool
 	switch {
@@ -726,6 +750,9 @@ func safeBuildFeature(reg FeatureRegistration, schema *encoding.Schema) (instanc
 		}
 	}()
 	spec := &types.Feature{Type: reg.Name, Params: probeParams(reg.Params, nil)}
+	if err := probeValidateRefusal("feature", string(reg.Name), descx.ExtensionFeatureValidateRefusal(spec, reg.Validate), spec.Params, false); err != nil {
+		return nil, err
+	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -757,6 +784,9 @@ func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instanc
 		}
 	}()
 	spec := &types.Group{Type: reg.Name, Params: probeParams(reg.Params, nil)}
+	if err := probeValidateRefusal("grouper", string(reg.Name), descx.ExtensionGrouperValidateRefusal(spec, reg.Validate), spec.Params, false); err != nil {
+		return nil, err
+	}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -788,6 +818,10 @@ func safeBuildFilterer(reg FiltererRegistration) (builder extend.FiltererBuilder
 			)
 		}
 	}()
+	spec := &types.Filterer{Type: reg.Name, Params: probeParams(reg.Params, nil)}
+	if err := probeValidateRefusal("filterer", string(reg.Name), descx.ExtensionFiltererValidateRefusal(spec, reg.Validate), spec.Params, false); err != nil {
+		return nil, err
+	}
 	builder = reg.Factory()
 	if builder == nil {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -1062,6 +1096,30 @@ func verifyComponentSchemaPresence(category, name string, schema descriptor.Comp
 				"reason":       "mergeability_without_keys",
 			},
 		)
+	}
+	return nil
+}
+
+// probeTestValidate judges a test registration's Validate hook on its
+// probe spec (slot by tier: "tests" or "post_tests").
+func probeTestValidate(reg TestRegistration, spec *types.Test, weighted bool) error {
+	return probeValidateRefusal("test", string(reg.Name),
+		descx.ExtensionTestValidateRefusal(spec, reg.Tier == TestTierPost, reg.Validate), spec.Params, weighted)
+}
+
+// probeWindows judges every window registration's Validate hook on a
+// name-only probe spec (plus probeParams). Window factories themselves
+// are not probed (windows predate probe-validation); a registration
+// without Validate is not touched.
+func probeWindows(regs []WindowRegistration) error {
+	for _, reg := range regs {
+		if reg.Validate == nil {
+			continue
+		}
+		spec := &types.Window{Type: reg.Name, Params: probeParams(reg.Params, nil)}
+		if err := probeValidateRefusal("window", string(reg.Name), descx.ExtensionWindowValidateRefusal(spec, reg.Validate), spec.Params, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }

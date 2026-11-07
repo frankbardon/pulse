@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -495,7 +496,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	predictVectors(env, result, req, schema, opts.Strict, models)
+	predictVectors(env, result, req, schema, opts.Strict, opts.classifier(models))
 	predictReferences(env, req, schema, extensionsFromOpts(opts), models)
 	// The merge-fragment count the matrix state scales with: over the
 	// per-shard counts for an archive (plus the rows non-head fragments
@@ -737,7 +738,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.
-	predictVectorLengths(env, req, schema, opts.boundModels())
+	predictVectorLengths(env, req, schema, opts.classifier(opts.boundModels()))
 
 	// Validate tier-1 and tier-2 statistical tests against the schema +
 	// projected column set. Tier-1 catches missing fields and type
@@ -769,7 +770,16 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// runtime's too: a binding on an ATTR_PREVIOUS_STATE output column
 	// validates as one on its state field.
 	if len(req.Labels) > 0 {
-		ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+		ValidateLabels(env, req.Labels, keySchemaOf(req.Attributes, schema, extensionsFromOpts(opts), opts.instance()), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+	}
+
+	// Last, the extension slots' own spec-only Validate hooks — only on
+	// a request every rule above (and every entry pass) accepted: the
+	// runtime judges its own rules before any extension factory, so a
+	// spec an engine rule refuses is reported as that rule's refusal
+	// alone (regressions run theirs per slot in validateRegression).
+	if len(env.Errors) == 0 {
+		validateExtensionSpecs(env, req, schema, opts)
 	}
 }
 
@@ -852,7 +862,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// crosstab gate below. The classification reads the request's bound
 	// models (opts.boundModels — the walk's catalog), so a request
 	// windows-first only through a bound model's terms is named so too.
-	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, opts.boundModels())
+	// An extension aggregator's FieldInputs count as its reads
+	// (PredictOptions.classifier — the runtime's
+	// ExtensionRegistry.Classifier twin).
+	cls := opts.classifier(opts.boundModels())
+	cls.Route = opts.instance().attributeRoute()
+	windowsFirst := vectors.WindowsFirst(req, schema, cls)
 	if windowsFirst {
 		reasons = append(reasons, "windows run first over every filtered record (windows-first: an aggregation, grouper or crosstab axis reads a window output), so the request runs via the buffered path")
 	}
@@ -956,6 +971,13 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 
 	reasons = append(reasons, streamableTestReasons(req, schema, opts)...)
+
+	// Request.Overlays: the runtime's streaming gate routes a request
+	// buffered on the same rule (overlayhost.StreamReasons) — a
+	// buffered-only or extension kind, or one its host refuses.
+	reasons = append(reasons, overlayhost.StreamReasons(req, opts.overlayRoute, func(k types.OverlayKind) bool {
+		return opts.extensionOverlay(k) != nil
+	})...)
 
 	return len(reasons) == 0, reasons
 }
@@ -1133,7 +1155,7 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// Check regression slots: structural shape and every spec rule the
 	// engines share with predict (validateRegressions); data-dependent
 	// checks (n ≥ p + 1, separation, convergence) stay with the fit.
-	validateRegressions(env, req, schema, projected, opts.Instance)
+	validateRegressions(env, req, schema, projected, opts)
 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
 	// the schema, and the absent-categorical-code warning.

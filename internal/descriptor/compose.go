@@ -667,13 +667,23 @@ func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
 // per-spec coverage can grow kind-by-kind without expanding the
 // outer-loop signature.
 func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidationResult, spec *types.ComposeOverlaySpec, specIdx int, byLabel map[string]*types.Request, byIndex map[string]int, req *types.ComposedRequest, opts *PredictOptions) {
-	// Gate 0: unknown kind. The catalog lookup runs against
-	// types.AllOverlayKinds() so a new kind shows up here automatically
-	// once it's appended to the catalog.
-	if !composeOverlayKindKnown(opts.overlayRoute(spec.Kind)) {
-		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-			"compose overlay spec carries unknown kind: "+string(spec.Kind),
-			map[string]any{"index": specIdx, "kind": string(spec.Kind)})
+	// Gate 0 for an extension kind: its declaration (a Compose handler,
+	// Scope, Level / Within, then its ValidateCompose hook) — the rule
+	// the runtime dispatcher raises right after the wrong-slot refusal
+	// (overlayhost.ExtensionComposeRefusal). Every gate below then holds
+	// it like any Compose kind.
+	if d := opts.extensionOverlay(spec.Kind); d != nil {
+		if cerr := overlayhost.ExtensionComposeRefusal(d, spec, specIdx); cerr != nil {
+			addCodedError(env, cerr)
+			appendComposeSlotPair(result, spec.Reference, "", "host-incompatible")
+			return
+		}
+	} else if cerr := overlayhost.ComposeKindUnknownRefusal(spec.Kind, opts.overlayRoute(spec.Kind), false, specIdx); cerr != nil {
+		// Gate 0: unknown kind — a never-registered or hidden one. The
+		// catalog lookup runs against types.AllOverlayKinds() so a new
+		// kind shows up here automatically once it's appended to the
+		// catalog; the runtime dispatcher raises the same refusal first.
+		addCodedError(env, cerr)
 		appendComposeSlotPair(result, spec.Reference, "", "kind-unknown")
 		return
 	}
@@ -894,15 +904,14 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// processing.kindRequiresMatrix (see compose_test.go for the
 	// lock-step sync test).
 	//
-	// Gate 4a, the SERIES value + key rule (U46): a non-crosstab slot is
+	// Gate 4a, the SERIES value rule (U46): a non-crosstab slot is
 	// scored on the aggregation params.field names (else
 	// Aggregations[0]) and keyed on its GROUP columns alone — the
 	// runtime's processing.projectComposeSeriesSlots. An unknown label
 	// is PULSE_OVERLAY_FIELD_UNKNOWN on the first slot naming none
-	// (reference first, then targets — one error, as the runtime),
-	// and two SERIES slots whose group key columns differ by name can
-	// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
-	// runtime key-set gate raises.
+	// (reference first, then targets — one error, as the runtime). The
+	// key rule (differently named group columns) runs per target after
+	// the schema match below, the runtime's gate order.
 	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
 		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
 		for _, s := range slots {
@@ -935,26 +944,6 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		}
 	}
 	refShape := inferComposeSlotShape(refReq)
-	if refShape == types.OverlayShapeSeries {
-		refKeys := composeSeriesKeyFields(refReq)
-		for _, target := range resolved {
-			if inferComposeSlotShape(target.req) != types.OverlayShapeSeries {
-				continue
-			}
-			if tKeys := composeSeriesKeyFields(target.req); !composeStringTuplesEqual(refKeys, tKeys) {
-				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
-					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
-					map[string]any{
-						"index":            specIdx,
-						"reference":        spec.Reference,
-						"target":           target.label,
-						"reference_fields": refKeys,
-						"target_fields":    tKeys,
-					})
-				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
-			}
-		}
-	}
 	if kindRequiresMatrixCompose(spec.Kind) && refShape != types.OverlayShapeMatrix {
 		env.AddError(string(errors.PULSE_OVERLAY_SLOT_NOT_CROSSTAB),
 			"compose overlay kind requires a MATRIX-shape host but the reference slot is not a crosstab",
@@ -1011,18 +1000,48 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		// to read; the per-Request inference reads the same per-
 		// grouper Kind tuples the matrix RowHeader / ColumnHeader
 		// types would have echoed.
-		if !composeAxisKindsEqual(refReq, target.req) {
-			env.AddError(string(errors.PULSE_OVERLAY_SCHEMA_DIVERGENT),
-				"compose overlay reference and target slots produce structurally different axis schemas",
-				map[string]any{
-					"index":            specIdx,
-					"kind":             string(spec.Kind),
-					"reference":        spec.Reference,
-					"target_label":     target.label,
-					"reference_schema": composeRequestSchemaCanonical(refReq),
-					"target_schema":    composeRequestSchemaCanonical(target.req),
-				})
+		refAxes := overlayhost.RequestAxisSchema(refReq)
+		if cerr := overlayhost.SchemaDivergentRefusal(specIdx, spec.Kind, spec.Reference, target.label,
+			refAxes, overlayhost.RequestAxisSchema(target.req)); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+			continue
+		}
+		// The cell-shape arm of the same refusal: two MATRIX slots whose
+		// cell aggregations write structurally different payloads (one
+		// number vs a label list or a count map) — the
+		// runtime's per-cell probe (CellShapeDivergentRefusal), read here
+		// off each cell aggregation's type (overlayhost.RequestCellShape;
+		// a type that does not decide it never refuses). The runtime
+		// excuses a slot with no present cell, which the request alone
+		// cannot see.
+		if refShape == types.OverlayShapeMatrix {
+			refCell, tCell := composeSlotCellShape(refReq, opts), composeSlotCellShape(target.req, opts)
+			if refCell != "" && tCell != "" && refCell != tCell {
+				addCodedError(env, overlayhost.CellShapeDivergentRefusal(specIdx, spec.Kind, spec.Reference, target.label, refAxes, refCell, tCell))
+				appendComposeSlotPair(result, spec.Reference, target.label, "schema-divergent")
+				continue
+			}
+		}
+		// Two SERIES slots whose group key columns differ by name can
+		// never align: PULSE_OVERLAY_KEY_SET_DIVERGENT, the code the
+		// runtime key-set gate raises after the schema match — so a pair
+		// whose grouper kinds differ too is SCHEMA_DIVERGENT on both
+		// sides.
+		if refShape == types.OverlayShapeSeries {
+			refKeys, tKeys := composeSeriesKeyFields(refReq), composeSeriesKeyFields(target.req)
+			if !composeStringTuplesEqual(refKeys, tKeys) {
+				env.AddError(string(errors.PULSE_OVERLAY_KEY_SET_DIVERGENT),
+					"compose overlay key set divergent: reference and target SERIES slots key on differently named group columns",
+					map[string]any{
+						"index":            specIdx,
+						"reference":        spec.Reference,
+						"target":           target.label,
+						"reference_fields": refKeys,
+						"target_fields":    tKeys,
+					})
+				appendComposeSlotPair(result, spec.Reference, target.label, "key-set-divergent")
+			}
 		}
 	}
 
@@ -1045,6 +1064,18 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 			addCodedError(env, cerr)
 		}
 	}
+}
+
+// composeSlotCellShape is the cell-shape token a Compose slot's
+// crosstab cell writes (overlayhost.RequestCellShape): its cell type
+// routed through the instance (a hidden type is unknown), built-in iff
+// a catalog type, weighted iff the cell resolves an applied weight.
+func composeSlotCellShape(req *types.Request, opts *PredictOptions) string {
+	route := func(t types.AggregationType) (types.AggregationType, bool) {
+		r := opRoute(opts.instance(), t)
+		return r, r != "" && isBuiltinAggregationType(r)
+	}
+	return overlayhost.RequestCellShape(req, route, crosstabCellWeightBasis(req, opts).Weighted())
 }
 
 // composeSlotRowAxis returns one Compose slot's crosstab ROW axis, or
@@ -1208,73 +1239,6 @@ func inferComposeSlotShape(req *types.Request) types.OverlayShape {
 	return types.OverlayShapeScalar
 }
 
-// composeAxisKindsEqual reports whether the row and column grouper-
-// kind tuples of two slots agree structurally. Field names are
-// allowed to differ across slots — only the per-axis kind tuple is
-// compared (mirrors internal/processing/axisKindsEqual + extractSchemaShape).
-//
-// Matrix arm: row axis = Crosstab.Rows[].Type; col axis =
-// Crosstab.Columns[].Type. Both tuples come from the request
-// directly; the runtime extractSchemaShape reads them from
-// MatrixPayload.{RowHeader,ColumnHeader}.Types post-execution and
-// the descriptor side reads them from the request pre-execution.
-// Both surfaces yield identical strings because the matrix payload
-// echoes the per-grouper Type verbatim.
-//
-// Series arm: row axis = Groups[].Field (NOT Type), aligned with the
-// runtime extractSeriesAxisFields heuristic that drops field names
-// from the Data row keys. Sorted to mirror the runtime sort. The
-// column axis is empty for SERIES.
-//
-// Scalar arm: both axes empty.
-func composeAxisKindsEqual(a, b *types.Request) bool {
-	aRow, aCol := composeRequestAxisTuples(a)
-	bRow, bCol := composeRequestAxisTuples(b)
-	if !composeStringTuplesEqual(aRow, bRow) {
-		return false
-	}
-	return composeStringTuplesEqual(aCol, bCol)
-}
-
-// composeRequestAxisTuples extracts the row and column grouper-kind
-// tuples from a *types.Request. See composeAxisKindsEqual for the
-// shape contract. Matrix arm reads Crosstab.{Rows,Columns}.Type;
-// series arm reads sorted Groups[].Field (mirrors the runtime
-// extractSeriesAxisFields rule); scalar arm returns empty tuples.
-func composeRequestAxisTuples(req *types.Request) ([]string, []string) {
-	if req == nil {
-		return nil, nil
-	}
-	if req.Crosstab != nil {
-		row := make([]string, 0, len(req.Crosstab.Rows))
-		for _, g := range req.Crosstab.Rows {
-			if g == nil {
-				continue
-			}
-			row = append(row, string(g.Type))
-		}
-		col := make([]string, 0, len(req.Crosstab.Columns))
-		for _, g := range req.Crosstab.Columns {
-			if g == nil {
-				continue
-			}
-			col = append(col, string(g.Type))
-		}
-		return row, col
-	}
-	if len(req.Groups) > 0 {
-		row := make([]string, 0, len(req.Groups))
-		for _, g := range req.Groups {
-			if g == nil {
-				continue
-			}
-			row = append(row, string(g.Type))
-		}
-		return row, nil
-	}
-	return nil, nil
-}
-
 // requestLabelsDeferred reports whether a Compose slot or chain stage
 // Request carries an aggregation with neither a Label nor a Type: its
 // output label is the smart default's TYPE_field, which only its
@@ -1338,7 +1302,7 @@ func composeSeriesKeyFields(req *types.Request) []string {
 
 // composeStringTuplesEqual reports byte-equality between two string
 // slices. Nil and empty slices compare equal — both are the "no axis"
-// shape. Order-sensitive per the runtime axisKindsEqual contract.
+// shape. Order-sensitive, as overlayhost.AxisSchema.Equal.
 func composeStringTuplesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -1349,31 +1313,6 @@ func composeStringTuplesEqual(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-// composeRequestSchemaCanonical renders the per-slot axis tuples as a
-// deterministic string for the envelope Details payload. Format
-// mirrors internal/processing/composeOverlaySchemaShape.canonical:
-// "<rowKinds>/<colKinds>" with each half joined by "|". Empty axis
-// halves render as "" so the slash is always present, making the
-// two-axis nature visually unambiguous in MCP error payloads.
-func composeRequestSchemaCanonical(req *types.Request) string {
-	row, col := composeRequestAxisTuples(req)
-	return composeJoinKindTuple(row) + "/" + composeJoinKindTuple(col)
-}
-
-// composeJoinKindTuple joins a string slice with "|" without going
-// through strings.Join (kept inline to mirror the runtime helper that
-// avoids the import on the hot path). Empty slices render as "".
-func composeJoinKindTuple(parts []string) string {
-	if len(parts) == 0 {
-		return ""
-	}
-	out := parts[0]
-	for i := 1; i < len(parts); i++ {
-		out += "|" + parts[i]
-	}
-	return out
 }
 
 // appendComposeSlotPair pushes one SlotPair entry onto the result's
@@ -1776,7 +1715,7 @@ func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOpt
 		}
 		return mats[0].FitLabels(), append([]string(nil), mats[0].Columns()...)
 	}
-	inputs, err := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
+	inputs, err := vectors.ResolveAttributes(req, schema, opts.classifier(models), func(t types.AttributeType) types.AttributeType {
 		return opRoute(opts.instance(), t)
 	}, nil)
 	if err != nil {

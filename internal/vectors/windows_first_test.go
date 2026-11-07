@@ -76,10 +76,10 @@ func TestWindowsFirst_Classification(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := WindowsFirst(c.req, postWindowSchema(), nil, c.cat); got != c.want {
+			if got := WindowsFirst(c.req, postWindowSchema(), Classifier{Cat: c.cat}); got != c.want {
 				t.Fatalf("WindowsFirst = %v, want %v", got, c.want)
 			}
-			if got := PostWindowAttributes(c.req, postWindowSchema(), nil, c.cat).WindowsFirst; got != c.want {
+			if got := PostWindowAttributes(c.req, postWindowSchema(), Classifier{Cat: c.cat}).WindowsFirst; got != c.want {
 				t.Fatalf("PostWindow.WindowsFirst = %v, want %v", got, c.want)
 			}
 		})
@@ -100,17 +100,17 @@ func TestWindowsFirst_WindowsOverRecords(t *testing.T) {
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Terms: []string{"lag"}, Kind: types.FitKindRegression}}
 	lag := []*types.Window{lagOf("x", "lag")}
 	s := postWindowSchema()
-	if !WindowsOverRecords(&types.Request{Windows: lag}, s, nil) {
+	if !WindowsOverRecords(&types.Request{Windows: lag}, s, Classifier{}) {
 		t.Error("record-row shape: windows not over the records")
 	}
-	if WindowsOverRecords(&types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("x")}}, s, cat) {
+	if WindowsOverRecords(&types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("x")}}, s, Classifier{Cat: cat}) {
 		t.Error("historical order: windows over the records")
 	}
 	wf := &types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("lag")}}
-	if !WindowsOverRecords(wf, s, nil) {
+	if !WindowsOverRecords(wf, s, Classifier{}) {
 		t.Error("windows-first: windows not over the records")
 	}
-	if comp := ComputedColumns(wf, s, nil); comp["lag"].Slot != "window" {
+	if comp := ComputedColumns(wf, s, Classifier{}); comp["lag"].Slot != "window" {
 		t.Errorf("windows-first: the window label is no computed record column (%v)", comp)
 	}
 	scored := &types.Request{Windows: lag,
@@ -120,33 +120,33 @@ func TestWindowsFirst_WindowsOverRecords(t *testing.T) {
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"x", "lag"}}},
 		Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "v"}},
 	}
-	if !WindowsOverRecords(scored, s, cat) {
+	if !WindowsOverRecords(scored, s, Classifier{Cat: cat}) {
 		t.Error("catalog-triggered windows-first: windows not over the records")
 	}
-	if pw := PostWindowAttributes(scored, s, nil, cat); !pw.WindowsFirst || !pw.IsPost(0) || pw.Refusal(scored) != nil {
+	if pw := PostWindowAttributes(scored, s, Classifier{Cat: cat}); !pw.WindowsFirst || !pw.IsPost(0) || pw.Refusal(scored) != nil {
 		t.Errorf("catalog-triggered windows-first: attribute plan %+v", pw)
 	}
-	if comp := ComputedColumns(scored, s, cat); comp["lag"].Slot != "window" {
+	if comp := ComputedColumns(scored, s, Classifier{Cat: cat}); comp["lag"].Slot != "window" {
 		t.Errorf("catalog-triggered: the window label is no computed record column (%v)", comp)
 	}
-	if got := RegressionWindowReads(scored, s, cat); !reflect.DeepEqual(got, []string{"lag"}) {
+	if got := RegressionWindowReads(scored, s, Classifier{Cat: cat}); !reflect.DeepEqual(got, []string{"lag"}) {
 		t.Errorf("catalog-triggered regression window reads %v, want [lag]", got)
 	}
-	if got := MatrixComputedMembers(scored, s, cat); !reflect.DeepEqual(got, []string{"lag"}) {
+	if got := MatrixComputedMembers(scored, s, Classifier{Cat: cat}); !reflect.DeepEqual(got, []string{"lag"}) {
 		t.Errorf("catalog-triggered matrix computed members %v, want [lag]", got)
 	}
-	if r, err := ResolveRequest(scored, s, cat); err != nil || !reflect.DeepEqual(r[0].Computed, []string{"lag"}) {
+	if r, err := ResolveRequest(scored, s, Classifier{Cat: cat}); err != nil || !reflect.DeepEqual(r[0].Computed, []string{"lag"}) {
 		t.Errorf("catalog-triggered ResolveRequest %+v, %v; want v resolved with computed member lag", r, err)
 	}
 	// Without the binding catalog the model reads nothing: the
 	// historical order, the window label no record column.
-	if WindowsOverRecords(scored, s, nil) || RegressionWindowReads(scored, s, nil) != nil {
+	if WindowsOverRecords(scored, s, Classifier{}) || RegressionWindowReads(scored, s, Classifier{}) != nil {
 		t.Error("no catalog: windows over the records")
 	}
-	if _, err := ResolveRequest(scored, s, nil); err == nil {
+	if _, err := ResolveRequest(scored, s, Classifier{}); err == nil {
 		t.Error("no catalog: vector v resolved its window member")
 	}
-	if WindowsOverRecords(nil, s, cat) || WindowsOverRecords(&types.Request{}, s, cat) {
+	if WindowsOverRecords(nil, s, Classifier{Cat: cat}) || WindowsOverRecords(&types.Request{}, s, Classifier{Cat: cat}) {
 		t.Error("no window: windows over the records")
 	}
 }
@@ -191,7 +191,7 @@ func TestWindowsFirst_PostWindowPlan(t *testing.T) {
 		Groups:       []*types.Group{catOf("t")},
 		Aggregations: []*types.Aggregation{sumOf("sat")},
 	}
-	pw := PostWindowAttributes(req, postWindowSchema(), nil, nil)
+	pw := PostWindowAttributes(req, postWindowSchema(), Classifier{})
 	if !pw.WindowsFirst || !pw.IsPost(0) || pw.IsPost(1) || !reflect.DeepEqual(pw.WindowReads, []string{"lag"}) || !reflect.DeepEqual(pw.Labels, []string{"sat"}) {
 		t.Fatalf("plan %+v", pw)
 	}
@@ -200,7 +200,7 @@ func TestWindowsFirst_PostWindowPlan(t *testing.T) {
 		t.Fatalf("refusal %v, want the ATTR_ZSCORE with the record-row why", ce)
 	}
 	noAttr := &types.Request{Windows: req.Windows, Aggregations: []*types.Aggregation{sumOf("lag")}}
-	if pw := PostWindowAttributes(noAttr, postWindowSchema(), nil, nil); !reflect.DeepEqual(pw, PostWindow{WindowsFirst: true}) {
+	if pw := PostWindowAttributes(noAttr, postWindowSchema(), Classifier{}); !reflect.DeepEqual(pw, PostWindow{WindowsFirst: true}) {
 		t.Fatalf("no-attribute plan %+v, want only the mode", pw)
 	}
 }
@@ -240,7 +240,7 @@ func TestAggregationColumnReads(t *testing.T) {
 		{&types.Aggregation{Type: types.AGG_SUM, Field: "x", Params: json.RawMessage(`{"numerator_field":"n"}`)}, []string{"x"}},
 	}
 	for i, c := range cases {
-		if got := AggregationColumnReads(c.agg); !reflect.DeepEqual(got, c.want) {
+		if got := AggregationColumnReads(c.agg, nil); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("case %d: %v, want %v", i, got, c.want)
 		}
 	}
@@ -272,9 +272,142 @@ func TestWindowsFirstReads(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := WindowsFirstReads(c.req, postWindowSchema()); !reflect.DeepEqual(got, c.want) {
+			if got := WindowsFirstReads(c.req, postWindowSchema(), Classifier{}); !reflect.DeepEqual(got, c.want) {
 				t.Fatalf("WindowsFirstReads = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// extOf is a test ExtInputs: extension aggregator AGG_EXT_OF reads the
+// column its params.of names (a built-in name declares nothing).
+func extOf(category, name string, raw json.RawMessage) []string {
+	if category != "aggregator" || name != "AGG_EXT_OF" {
+		return nil
+	}
+	var p struct {
+		Of string `json:"of"`
+	}
+	if json.Unmarshal(raw, &p) != nil || p.Of == "" {
+		return nil
+	}
+	return []string{p.Of, ""}
+}
+
+func extAggOf(of string) *types.Aggregation {
+	return &types.Aggregation{Type: "AGG_EXT_OF", Field: "x", Label: "e_" + of, Params: json.RawMessage(`{"of":"` + of + `"}`)}
+}
+
+// TestWindowsFirst_ExtensionFieldInputs (U67 E3-S1): an extension
+// aggregator whose FieldInputs (Classifier.Ext) names a window label —
+// as an aggregation, a crosstab cell or a margin aggregation, or
+// through a post-window attribute — turns windows-first on for every
+// reader of the decision; the zero classifier keeps the historical
+// order, and a hook naming no window output changes nothing.
+func TestWindowsFirst_ExtensionFieldInputs(t *testing.T) {
+	t.Parallel()
+
+	s := postWindowSchema()
+	ext := Classifier{Ext: extOf}
+	lag := []*types.Window{lagOf("x", "lag")}
+	cases := []struct {
+		name  string
+		req   *types.Request
+		reads []string
+	}{
+		{"aggregation", &types.Request{Windows: lag, Aggregations: []*types.Aggregation{extAggOf("lag")}}, []string{"lag"}},
+		{"crosstab cell", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{catOf("t")}, Cell: extAggOf("lag")}}, []string{"lag"}},
+		{"crosstab margin", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{catOf("t")}, Cell: sumOf("x"), MarginAggregations: []*types.Aggregation{extAggOf("lag")}}}, []string{"lag"}},
+		{"post-window attribute", &types.Request{Windows: lag, Attributes: []*types.Attribute{formula("sat", "lag * 2")},
+			Aggregations: []*types.Aggregation{extAggOf("sat")}}, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if !WindowsFirst(c.req, s, ext) || !WindowsOverRecords(c.req, s, ext) || !PostWindowAttributes(c.req, s, ext).WindowsFirst {
+				t.Fatal("the hook's window read did not turn windows-first on")
+			}
+			if WindowsFirst(c.req, s, Classifier{}) || PostWindowAttributes(c.req, s, Classifier{}).WindowsFirst {
+				t.Fatal("the zero classifier saw the hook")
+			}
+			if got := WindowsFirstReads(c.req, s, ext); !reflect.DeepEqual(got, c.reads) {
+				t.Fatalf("WindowsFirstReads = %v, want %v", got, c.reads)
+			}
+			if comp := ComputedColumns(c.req, s, ext); comp["lag"].Slot != "window" {
+				t.Fatalf("the window label is no computed record column (%v)", comp)
+			}
+		})
+	}
+	plain := &types.Request{Windows: lag, Aggregations: []*types.Aggregation{extAggOf("x")}}
+	if WindowsFirst(plain, s, ext) {
+		t.Fatal("a hook naming a schema field turned windows-first on")
+	}
+	if got := AggregationColumnReads(extAggOf("lag"), extOf); !reflect.DeepEqual(got, []string{"x", "lag"}) {
+		t.Fatalf("AggregationColumnReads = %v, want [x lag] (Field, then the hook's non-empty names)", got)
+	}
+	if got := AggregationColumnReads(extAggOf("lag"), nil); !reflect.DeepEqual(got, []string{"x"}) {
+		t.Fatalf("AggregationColumnReads without hooks = %v, want [x]", got)
+	}
+}
+
+// extGrouperOf is the test grouper hook: GROUP_EXT_OF reads the column
+// params.of names (Field is the bucket label the request writes).
+func extGrouperOf(category, name string, raw json.RawMessage) []string {
+	if category == "grouper" && name == "GROUP_EXT_OF" {
+		var p struct {
+			Of string `json:"of"`
+		}
+		if json.Unmarshal(raw, &p) == nil && p.Of != "" {
+			return []string{"", p.Of}
+		}
+		return nil
+	}
+	return extOf(category, name, raw)
+}
+
+func extGroupOf(of string) *types.Group {
+	return &types.Group{Type: "GROUP_EXT_OF", Field: "t", Params: json.RawMessage(`{"of":"` + of + `"}`)}
+}
+
+// TestWindowsFirst_ExtensionGrouperFieldInputs (U67 E3-S2): an
+// extension grouper whose FieldInputs names a window label — as a
+// request grouper or a crosstab axis — turns windows-first on and is
+// listed by WindowsFirstReads, as a built-in grouper's field is; the
+// zero classifier keeps the historical order.
+func TestWindowsFirst_ExtensionGrouperFieldInputs(t *testing.T) {
+	t.Parallel()
+
+	s := postWindowSchema()
+	ext := Classifier{Ext: extGrouperOf}
+	lag := []*types.Window{lagOf("x", "lag")}
+	cases := []struct {
+		name string
+		req  *types.Request
+	}{
+		{"group", &types.Request{Windows: lag, Groups: []*types.Group{extGroupOf("lag")}, Aggregations: []*types.Aggregation{sumOf("x")}}},
+		{"crosstab rows", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{extGroupOf("lag")}, Cell: sumOf("x")}}},
+		{"crosstab columns", &types.Request{Windows: lag, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{catOf("t")}, Columns: []*types.Group{extGroupOf("lag")}, Cell: sumOf("x")}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if !WindowsFirst(c.req, s, ext) || !PostWindowAttributes(c.req, s, ext).WindowsFirst {
+				t.Fatal("the grouper hook's window read did not turn windows-first on")
+			}
+			if WindowsFirst(c.req, s, Classifier{}) {
+				t.Fatal("the zero classifier saw the hook")
+			}
+			if got := WindowsFirstReads(c.req, s, ext); !reflect.DeepEqual(got, []string{"lag"}) {
+				t.Fatalf("WindowsFirstReads = %v, want [lag]", got)
+			}
+		})
+	}
+	if got := GroupColumnReads(extGroupOf("lag"), extGrouperOf); !reflect.DeepEqual(got, []string{"t", "lag"}) {
+		t.Fatalf("GroupColumnReads = %v, want [t lag] (Field, then the hook's non-empty names)", got)
+	}
+	if got := GroupColumnReads(extGroupOf("lag"), nil); !reflect.DeepEqual(got, []string{"t"}) {
+		t.Fatalf("GroupColumnReads without hooks = %v, want [t]", got)
 	}
 }

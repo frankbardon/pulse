@@ -10,7 +10,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/aggconst"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -420,9 +419,10 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 // The result is keyed by the slot's *types.Aggregation and holds only
 // the slots that resolved a vector input; the first refusal is
 // returned. Like Resolve it reads only the schema.
-// cat is the site's bound-model catalog, read by the windows-first
-// decision (ResolveRequest; nil none).
-func ResolveAggregations(req *types.Request, schema *encoding.Schema, cat model.Catalog, kinds AggregationKinds) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
+// cls is the site's windows-first classifier (its bound-model catalog
+// and extension hooks), read by the windows-first decision
+// (ResolveRequest; the zero value: none).
+func ResolveAggregations(req *types.Request, schema *encoding.Schema, cls Classifier, kinds AggregationKinds) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
 	// Nothing to judge when no slot reads a vector or is a vector
 	// aggregator: return before building the slot list (the common
 	// request allocates nothing here).
@@ -432,7 +432,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, cat model.
 		return nil, nil
 	}
 	slots := AggregationSlots(req)
-	resolved, verr := ResolveRequest(req, schema, cat)
+	resolved, verr := ResolveRequest(req, schema, cls)
 	if verr != nil {
 		return nil, verr
 	}

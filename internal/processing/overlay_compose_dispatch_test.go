@@ -17,6 +17,12 @@ const (
 	testComposeStubKind2 types.OverlayKind = "OVERLAY_TEST_COMPOSE_STUB_2"
 )
 
+// The stub kinds fold to the stub layer (composeStubKinds) instead of
+// the unknown-kind refusal every never-registered kind gets.
+func init() {
+	composeStubKinds = map[types.OverlayKind]bool{testComposeStubKind: true, testComposeStubKind2: true}
+}
+
 // composeSlotOf returns a *types.Response whose host shape matches the
 // requested OverlayShape. Used by the COMPOSE-host dispatch chassis
 // tests to build synthetic per-slot results without going through the

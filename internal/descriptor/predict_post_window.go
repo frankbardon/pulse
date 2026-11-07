@@ -53,14 +53,16 @@ func postWindowDescriptor(req *types.Request, schema *encoding.Schema, pw vector
 // call the walk makes (vectors.PostWindowAttributes), over whatever is
 // known: schema nil when unread (only a window label shadowing a field
 // is then misjudged — a request the walk would refuse anyway), the
-// instance route, and cat the models predict resolved (nil: none, so an
+// instance route and extension hooks (an extension aggregator's
+// FieldInputs), and cat the models predict resolved (nil: none, so an
 // ATTR_REG_PREDICT reads nothing). Nil when req carries no window.
 func classifyPostWindow(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, cat model.Catalog) *descriptor.PostWindowPlan {
 	if req == nil || len(req.Windows) == 0 {
 		return nil
 	}
-	route := func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }
-	return postWindowDescriptor(req, schema, vectors.PostWindowAttributes(req, schema, route, cat))
+	cls := classifierOf(inst.Extensions(), cat)
+	cls.Route = inst.attributeRoute()
+	return postWindowDescriptor(req, schema, vectors.PostWindowAttributes(req, schema, cls))
 }
 
 // earlyPostWindow is classifyPostWindow for a Process predict stopped

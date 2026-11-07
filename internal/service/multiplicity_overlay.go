@@ -90,6 +90,22 @@ var overlayPSites = map[types.OverlayKind]overlayPSite{
 	types.OverlayKindKSVsPop:    pSiteSummaryPValue,
 }
 
+// extensionPSite is an extension overlay layer's p-site, keyed by its
+// payload shape (overlayhost.ExtensionPSite — the output rule holds a
+// layer declaring EmitsPValues to it): every present MATRIX cell, every
+// SERIES entry's Summary.PValue, a SCALAR layer's Summary.PValue.
+func extensionPSite(shape types.OverlayShape) (overlayPSite, bool) {
+	switch shape {
+	case types.OverlayShapeMatrix:
+		return pSiteMatrixCell, true
+	case types.OverlayShapeSeries:
+		return pSiteSeriesPValue, true
+	case types.OverlayShapeScalar:
+		return pSiteSummaryPValue, true
+	}
+	return 0, false
+}
+
 // overlayFamilyKey keys one overlay layer's family. `layer` is local to
 // the layer (its slot inside scope), so two layers never mix; `request`
 // and `compose` share multFamilyKey with the tests, so a request-family
@@ -133,6 +149,9 @@ func collectOverlaySites(fams *multFamilies, scope string, slots []descx.Resolve
 			continue
 		}
 		site, ok := overlayPSites[layer.Kind]
+		if rm.ExtensionOverlay {
+			site, ok = extensionPSite(layer.Payload.Shape)
+		}
 		if !ok {
 			continue
 		}

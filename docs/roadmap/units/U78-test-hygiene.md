@@ -4,7 +4,7 @@ slug: test-hygiene
 title: "The test suite measures what it claims, hides no drift and carries no stale references."
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: []
 blocks: [U32, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76]

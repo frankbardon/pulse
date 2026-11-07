@@ -73,7 +73,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 	measureSpecs := crosstabMeasureSpecs(spec)
 	states := make([]*FusedCrosstabState, len(measureSpecs))
 	for i, ms := range measureSpecs {
-		st, err := NewFusedCrosstabState(ms, p.schema, p.exts)
+		st, err := newFusedCrosstabStateKeyed(ms, p.schema, p.keySchema, p.exts)
 		if err != nil {
 			return nil, err
 		}

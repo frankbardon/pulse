@@ -218,3 +218,33 @@ func TestNumber(t *testing.T) {
 		}
 	}
 }
+
+// TestStandIns: an expression-capable param written as an expression
+// string becomes the number 0; a number, an unflagged key, non-object
+// params and no keys leave raw untouched (the same bytes).
+func TestStandIns(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`{"of":"lag","scale":"1 + 1","k":2}`)
+	got := extscalar.StandIns(raw, []string{"scale", "k"})
+	var m map[string]any
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["scale"] != float64(0) || m["k"] != float64(2) || m["of"] != "lag" {
+		t.Fatalf("StandIns = %s", got)
+	}
+	for _, c := range []struct {
+		raw  json.RawMessage
+		keys []string
+	}{
+		{raw, nil},
+		{raw, []string{"k"}},
+		{json.RawMessage(`[1]`), []string{"scale"}},
+		{nil, []string{"scale"}},
+	} {
+		if out := extscalar.StandIns(c.raw, c.keys); string(out) != string(c.raw) {
+			t.Errorf("StandIns(%s, %v) = %s, want raw", c.raw, c.keys, out)
+		}
+	}
+}

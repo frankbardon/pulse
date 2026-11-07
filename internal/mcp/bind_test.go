@@ -11,6 +11,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/types"
 )
 
 // makeBindSchema constructs a schema with one numeric, one categorical, and a
@@ -324,8 +326,10 @@ func TestMCPSchemaBinding_IncludesCustomAggregator(t *testing.T) {
 }
 
 // TestMCPSchemaBinding_IncludesCustomOverlayKind asserts an embedder-registered
-// overlay kind merges into the Request-facade overlay_kind enum (the per-facade
-// merge path) while built-in Request kinds survive.
+// overlay kind merges into the overlay_kind enum of each facade its handlers
+// run on (the per-facade merge path) while built-in kinds survive: a Matrix
+// kind on the Request facade only, a Compose-only kind on the Compose facade
+// only, neither on chain or facet.
 func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 	t.Parallel()
 
@@ -333,7 +337,34 @@ func TestMCPSchemaBinding_IncludesCustomOverlayKind(t *testing.T) {
 		Fields: []encoding.Field{{Name: "score", Type: encoding.FieldTypeF64}},
 	}
 	snap := &descx.ExtensionsSnapshot{
-		OverlayKinds: []descriptor.OperatorMeta{{Name: "OVERLAY_ACME_HEAT"}},
+		Overlays: []descriptor.OperatorMeta{{Name: "OVERLAY_ACME_HEAT"}, {Name: "OVERLAY_ACME_RATIO"}},
+		OverlayDetails: map[string]overlayhost.ExtensionDecl{
+			"OVERLAY_ACME_HEAT":  {Kind: "OVERLAY_ACME_HEAT", HostShapes: []types.OverlayShape{types.OverlayShapeMatrix}},
+			"OVERLAY_ACME_RATIO": {Kind: "OVERLAY_ACME_RATIO", Compose: true},
+		},
+	}
+	inst := descx.UnscopedInstanceSnapshot(snap)
+	for _, c := range []struct {
+		facade overlayFacade
+		want   []string
+		absent []string
+	}{
+		{overlayFacadeRequest, []string{"OVERLAY_ACME_HEAT"}, []string{"OVERLAY_ACME_RATIO"}},
+		{overlayFacadeCompose, []string{"OVERLAY_ACME_RATIO"}, []string{"OVERLAY_ACME_HEAT"}},
+		{overlayFacadeChain, nil, []string{"OVERLAY_ACME_HEAT", "OVERLAY_ACME_RATIO"}},
+		{overlayFacadeFacet, nil, []string{"OVERLAY_ACME_HEAT", "OVERLAY_ACME_RATIO"}},
+	} {
+		got := overlayKindEnumForFacade(c.facade, inst)
+		for _, k := range c.want {
+			if !slices.Contains(got, k) {
+				t.Errorf("facade %v enum missing %s: %v", c.facade, k, got)
+			}
+		}
+		for _, k := range c.absent {
+			if slices.Contains(got, k) {
+				t.Errorf("facade %v enum lists %s, whose handlers do not run there", c.facade, k)
+			}
+		}
 	}
 
 	// Core enum builder must merge the custom kind onto the Request facade.

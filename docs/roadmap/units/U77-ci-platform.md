@@ -4,7 +4,7 @@ slug: ci-platform
 title: "CI exercises every shipped platform and untrusted-input surface, and scans for vulnerabilities."
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: []
 blocks: [U32, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76]

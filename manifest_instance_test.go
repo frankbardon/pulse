@@ -3,11 +3,14 @@ package pulse
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/types"
 )
 
 // manifestJSONOutsideOwnedLists marshals m with the sections other units
@@ -272,5 +275,31 @@ func TestManifest_HiddenExtensionAbsent(t *testing.T) {
 	}
 	if d := descx.BuildManifestWithExtensions(full.svc.ExtensionsSnapshot()).FeatureSetDigest; d != full.FeatureSetDigest() {
 		t.Errorf("unscoped manifest digest %q != profile-free instance digest %q", d, full.FeatureSetDigest())
+	}
+}
+
+// TestManifest_ExtensionOverlayInDigest: an extension overlay kind is a
+// feature, so the unscoped manifest's digest (BuildManifestWithExtensions)
+// counts it exactly as a profile-free instance registering it does.
+func TestManifest_ExtensionOverlayInDigest(t *testing.T) {
+	t.Parallel()
+
+	ext := Extensions{Overlays: []OverlayRegistration{{
+		Name: "OVERLAY_ACME_HEAT", Description: "Stub.",
+		Handler: extend.OverlayHandler{Matrix: func(*types.OverlaySpec, extend.MatrixOverlayHost) (extend.OverlayOutput, error) {
+			return extend.OverlayOutput{}, stderrors.New("stub")
+		}},
+		Shapes: []types.OverlayShape{types.OverlayShapeMatrix},
+		Scopes: []types.OverlayScope{types.OverlayScopeCell},
+	}}}
+	full, err := New(Options{FS: memFsWith(t, nil), Extensions: ext})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if d := descx.BuildManifestWithExtensions(full.svc.ExtensionsSnapshot()).FeatureSetDigest; d != full.FeatureSetDigest() {
+		t.Errorf("unscoped manifest digest %q != profile-free instance digest %q", d, full.FeatureSetDigest())
+	}
+	if !full.svc.InstanceSnapshot().Enabled("OVERLAY_ACME_HEAT") {
+		t.Error("the extension overlay kind is not in the instance's feature set")
 	}
 }

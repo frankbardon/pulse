@@ -72,7 +72,9 @@ func validateFormulaExpressions(env *descriptor.Envelope, req *types.Request, op
 //     a derived column the dictionary-inheritance view types
 //     (prevstate.KeySchema: a previous-state output), declared as its
 //     state field binds (exprenv.DerivedDecl — a categorical is a
-//     string), the engine's declaration from the same view. The
+//     string), the engine's declaration from the same view, and a
+//     formula alias of a u64 field (prevstate.U64Aliases), declared
+//     exprenv.DerivedU64Type as the engine declares it. The
 //     engine meets these only on the first record (a deferred compile)
 //     and types them from it; predict types them from the producing
 //     slot. A name no slot produces stays undeclared and fails as the
@@ -109,6 +111,10 @@ type exprCompileScope struct {
 	// (prevstate.KeySchema; schema itself when no slot contributes): a
 	// derived column it declares is typed as its source field.
 	keys *encoding.Schema
+	// u64 are the request's formula aliases of u64 fields
+	// (prevstate.U64Aliases — the engine's map): such a label is
+	// declared exprenv.DerivedU64Type, as the engine declares it.
+	u64 map[string]string
 	// vecs are the request's named vectors, resolved over schema;
 	// vecNames their names, and vecsFailed set when Resolve refused
 	// (its refusal is reported elsewhere): a name among vecNames is then
@@ -127,14 +133,15 @@ type exprCompileScope struct {
 func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) {
 	c := &w.compile
 	c.schema = schema
-	c.keys = prevstate.KeySchema(req.Attributes, schema)
+	c.keys = keySchemaOf(req.Attributes, schema, w.snap, w.inst)
+	c.u64 = prevstate.U64Aliases(req.Attributes, schema)
 	if len(req.Vectors) > 0 {
 		c.vecNames = make(map[string]bool, len(req.Vectors))
 		for _, v := range req.Vectors {
 			c.vecNames[v.Name] = true
 		}
 	}
-	vecs, err := vectors.ResolveRequest(req, schema, w.models)
+	vecs, err := vectors.ResolveRequest(req, schema, classifierOf(w.snap, w.models))
 	c.vecs, c.vecsFailed = vecs, err != nil
 	// range_label is declared on every runtime compile (its unknown
 	// table is a run-time refusal), so predict declares it too.
@@ -222,6 +229,9 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 			switch {
 			case w.cols[name], w.preFilter[name], c.extra[name]:
 				decl[name] = exprenv.DerivedDecl(c.keys, name)
+				if _, ok := c.u64[name]; ok {
+					decl[name] = exprenv.DerivedU64Type
+				}
 			case w.open, c.vecsFailed && c.vecNames[name]:
 				return nil
 			}

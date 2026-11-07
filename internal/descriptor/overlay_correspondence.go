@@ -4,7 +4,6 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/overlayhost"
-	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -42,7 +41,7 @@ var correspondenceParts = map[string]overlayPart{
 //     dimensions above the known cap.
 //   - PULSE_OVERLAY_NONNEGATIVE_REQUIRED: a cell aggregation other
 //     than AGG_COUNT / AGG_SUM.
-func validateOverlayCorrespondence(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, route types.OverlayKind, index int) {
+func validateOverlayCorrespondence(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, route types.OverlayKind, index int) {
 	if route != types.OverlayKindCorrespondence || req == nil || spec == nil {
 		return
 	}
@@ -68,7 +67,10 @@ func validateOverlayCorrespondence(env *descriptor.Envelope, req *types.Request,
 			return
 		}
 	}
-	keys := prevstate.KeySchema(req.Attributes, schema) // dictionary-inheritance view
+	// The dictionary-inheritance view: an ATTR_PREVIOUS_STATE output or
+	// an extension attribute declaring InheritsDictionary reads as its
+	// source (the runtime's ExtensionRegistry.AttributeDictionaryView).
+	keys := keySchemaOf(req.Attributes, schema, snap, inst)
 	rows := axisBuckets(req.Crosstab.Rows, keys, inst)
 	cols := axisBuckets(req.Crosstab.Columns, keys, inst)
 	if rows > 0 && cols > 0 {

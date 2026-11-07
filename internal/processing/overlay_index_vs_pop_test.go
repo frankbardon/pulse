@@ -384,7 +384,7 @@ func TestApplyOverlaysFacet_UnknownKind(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected coded error, got nil")
 	}
-	if !strings.Contains(err.Error(), "no FACET runtime handler") {
+	if !strings.Contains(err.Error(), "is not in the catalog") {
 		t.Errorf("error = %v, want message containing 'no FACET runtime handler'", err)
 	}
 }

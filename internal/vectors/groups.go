@@ -8,7 +8,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -138,9 +137,10 @@ func GroupSlots(req *types.Request) []GroupSlot {
 // judged); nil means none is. The result is keyed by the slot's
 // *types.Group and holds only the slots that resolved a vector input;
 // the first refusal is returned. Like Resolve it reads only the schema.
-// cat is the site's bound-model catalog, read by the windows-first
-// decision (ResolveRequest; nil none).
-func ResolveGroups(req *types.Request, schema *encoding.Schema, cat model.Catalog, route func(types.GroupType) types.GroupType, ext func(string) bool) (map[*types.Group]GroupInput, *errors.CodedError) {
+// cls is the site's windows-first classifier (its bound-model catalog
+// and extension hooks), read by the windows-first decision
+// (ResolveRequest; the zero value: none).
+func ResolveGroups(req *types.Request, schema *encoding.Schema, cls Classifier, route func(types.GroupType) types.GroupType, ext func(string) bool) (map[*types.Group]GroupInput, *errors.CodedError) {
 	slots := GroupSlots(req)
 	if len(slots) == 0 {
 		return nil, nil
@@ -148,7 +148,7 @@ func ResolveGroups(req *types.Request, schema *encoding.Schema, cat model.Catalo
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
 	}
-	resolved, verr := ResolveRequest(req, schema, cat)
+	resolved, verr := ResolveRequest(req, schema, cls)
 	if verr != nil {
 		return nil, verr
 	}

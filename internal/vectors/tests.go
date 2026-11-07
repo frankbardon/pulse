@@ -8,7 +8,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -111,16 +110,17 @@ func (in TestInput) P() int { return len(in.Members.Members) }
 // judged); nil means none is. The result is index-aligned with
 // req.Tests (the zero TestInput for a test that reads no vector); the
 // first refusal is returned. Like Resolve it reads only the schema.
-// cat is the site's bound-model catalog, read by the windows-first
-// decision (ResolveRequest; nil none).
-func ResolveTests(req *types.Request, schema *encoding.Schema, cat model.Catalog, route func(types.TestType) types.TestType, ext func(string) bool) ([]TestInput, *errors.CodedError) {
+// cls is the site's windows-first classifier (its bound-model catalog
+// and extension hooks), read by the windows-first decision
+// (ResolveRequest; the zero value: none).
+func ResolveTests(req *types.Request, schema *encoding.Schema, cls Classifier, route func(types.TestType) types.TestType, ext func(string) bool) ([]TestInput, *errors.CodedError) {
 	if req == nil || (len(req.Tests) == 0 && len(req.PostTests) == 0) {
 		return nil, nil
 	}
 	if route == nil {
 		route = func(t types.TestType) types.TestType { return t }
 	}
-	resolved, verr := ResolveRequest(req, schema, cat)
+	resolved, verr := ResolveRequest(req, schema, cls)
 	if verr != nil {
 		return nil, verr
 	}

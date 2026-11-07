@@ -158,8 +158,7 @@ func (s *matrixPlanSet) buildMatrixOps(req *types.Request) error {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				"extension matrix operator is not registered", map[string]any{"type": string(plan.Type)})
 		}
-		spec := req.Matrices[plan.Index]
-		spec.Params = append(json.RawMessage(nil), plan.ExtParams...)
+		spec := vectors.ExtensionMatrixSpec(req.Matrices[plan.Index], plan)
 		fin, err := op.Factory(&spec, s.schema)
 		if err != nil {
 			var ce *errors.CodedError

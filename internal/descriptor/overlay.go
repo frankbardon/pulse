@@ -10,7 +10,6 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/overlayhost"
-	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -651,6 +650,17 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		// A request carrying matrices offers the MATRIX_RESULT host too
 		// (overlayhost.JudgedShape — the runtime hooks' rule).
 		judged := overlayhost.JudgedShape(inferComposeSlotShape(req), len(req.Matrices) > 0, opts.overlayRoute(spec.Kind))
+		// An extension kind is judged by its declaration alone — the
+		// rule every runtime Process hook raises
+		// (overlayhost.ExtensionRequestRefusal): host shape,
+		// multi-measure host, Ref, Scope, Level / Within, then its
+		// Validate hook.
+		if d := opts.extensionOverlay(spec.Kind); d != nil {
+			if cerr := overlayhost.ExtensionRequestRefusal(d, judged, req.Crosstab.HasMeasures(), spec, i); cerr != nil {
+				addCodedError(env, cerr)
+			}
+			continue
+		}
 		if cerr := overlayhost.ShapeRefusal(judged, spec.Kind, opts.overlayRoute(spec.Kind), i); cerr != nil {
 			addCodedError(env, cerr)
 			continue
@@ -695,16 +705,16 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		}
 		validateOverlaySpec(env, req, spec, opts, i)
 		validateOverlayMatrixResult(env, req, spec, opts.overlayRoute(spec.Kind), i)
-		validateOverlayCorrespondence(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+		validateOverlayCorrespondence(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayMarkov(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
-		validateOverlayBaselineIndexPredict(env, req, spec, schema, opts.instance(), i)
+		validateOverlayBaselineIndexPredict(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), i)
 		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
 		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols)
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		if len(env.Errors) == before {
-			validateFormulaBaselineBound(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
+			validateFormulaBaselineBound(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), opts.overlayRoute(spec.Kind), i)
 			validateOverlayPriorMeasure(env, req, spec, opts, opts.overlayRoute(spec.Kind), i, cols)
 		}
 	}
@@ -719,7 +729,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 // over them, and an axis it cannot bound (a range, date, quantile or
 // set grouper) is left to the runtime. Run only on a spec no other rule
 // refused, so the runtime's single refusal is predict's only one.
-func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, route types.OverlayKind, index int) {
+func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, route types.OverlayKind, index int) {
 	if route != types.OverlayKindFormula || req == nil || req.Crosstab != nil || len(req.Groups) == 0 {
 		return
 	}
@@ -731,7 +741,7 @@ func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, 
 	if err != nil || depth >= len(req.Groups) {
 		return
 	}
-	bound := categoricalSeriesLengthBound(req.Groups[depth:], prevstate.KeySchema(req.Attributes, schema), inst)
+	bound := categoricalSeriesLengthBound(req.Groups[depth:], keySchemaOf(req.Attributes, schema, snap, inst), inst)
 	if bound < 0 || pos < bound {
 		return
 	}
@@ -826,7 +836,7 @@ func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, sp
 //     no shipping kind consumes those). The gate skips when
 //     `req.Crosstab` is set so a future MATRIX-host kind landing on a
 //     different Ref arm does not collide with the SERIES check.
-func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, inst *InstanceSnapshot, index int) {
+func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, index int) {
 	if spec == nil || spec.Ref.BaselineIndex == nil {
 		return
 	}
@@ -840,7 +850,7 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 	ref := spec.Ref.BaselineIndex
 	// Compute the predicted series length upper bound. -1 means "not
 	// derivable from schema; defer the range check to runtime".
-	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema, inst)
+	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema, snap, inst)
 	if ref.Position < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			"overlay "+string(spec.Kind)+" baseline-index position must be non-negative",
@@ -880,11 +890,11 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 // bound); a single non-categorical grouper anywhere in the list yields
 // -1 (the cartesian is non-computable). A grouper inst hides counts as
 // a non-categorical (never-registered) one.
-func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) int {
+func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) int {
 	if req == nil {
 		return -1
 	}
-	return categoricalSeriesLengthBound(req.Groups, prevstate.KeySchema(req.Attributes, schema), inst)
+	return categoricalSeriesLengthBound(req.Groups, keySchemaOf(req.Attributes, schema, snap, inst), inst)
 }
 
 // categoricalSeriesLengthBound is the schema upper bound on the rows of
@@ -1365,12 +1375,13 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 	// "is this kind in the catalog?" probe; AllOverlayKinds() and the
 	// streamability table are co-maintained per TestStreamability_OverlaysKnown.
 	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
-		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-			"overlay kind is not in the catalog: "+string(spec.Kind),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		// The runtime dispatcher's refusal: a grouped request's SERIES
+		// fold names its host, a crosstab's MATRIX fold none.
+		host := ""
+		if req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
+			host = "series"
+		}
+		addCodedError(env, overlayhost.KindUnknownRefusal(spec.Kind, index, host))
 		return
 	}
 

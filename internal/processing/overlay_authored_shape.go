@@ -1,6 +1,9 @@
 package processing
 
-import "github.com/frankbardon/pulse/types"
+import (
+	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/types"
+)
 
 // AuthoredHostShape is the host shape a Compose slot or chain stage
 // DECLARES: MATRIX for a crosstab, SERIES for a grouped request with
@@ -18,16 +21,7 @@ import "github.com/frankbardon/pulse/types"
 // from the authored request whenever one is in reach, so both sides
 // refuse a grouped-vs-ungrouped pair under the shape code.
 func AuthoredHostShape(req *types.Request) types.OverlayShape {
-	if req == nil {
-		return types.OverlayShapeScalar
-	}
-	if req.Crosstab != nil {
-		return types.OverlayShapeMatrix
-	}
-	if len(req.Aggregations) > 0 && len(req.Groups) > 0 {
-		return types.OverlayShapeSeries
-	}
-	return types.OverlayShapeScalar
+	return overlayhost.AuthoredHostShape(req)
 }
 
 // hostShapeAt is the shape the overlay gates judge a slot / stage by:
@@ -46,6 +40,12 @@ func hostShapeAt(requests []*types.Request, idx int, fallback types.OverlayShape
 type composeSlotShapes struct {
 	ref     types.OverlayShape
 	targets []types.OverlayShape
+	// refAxes / targetAxes are each slot's AUTHORED axis schema
+	// (overlayhost.RequestAxisSchema) when its request is in reach —
+	// the tuples predict-compose judges the schema match by — nil
+	// otherwise (the gate then reads the Response's own headers).
+	refAxes    *overlayhost.AxisSchema
+	targetAxes []*overlayhost.AxisSchema
 }
 
 // responseSlotShapes probes every slot's shape off its Response alone —
@@ -64,12 +64,25 @@ func responseSlotShapes(refResp *types.Response, targetResps []*types.Response) 
 func authoredSlotShapes(refResp *types.Response, targetResps []*types.Response, refIdx int, targetIdxs []int, requests []*types.Request) composeSlotShapes {
 	out := responseSlotShapes(refResp, targetResps)
 	out.ref = hostShapeAt(requests, refIdx, out.ref)
+	out.refAxes = authoredAxesAt(requests, refIdx)
+	out.targetAxes = make([]*overlayhost.AxisSchema, len(out.targets))
 	for i := range out.targets {
 		idx := -1
 		if i < len(targetIdxs) {
 			idx = targetIdxs[i]
 		}
 		out.targets[i] = hostShapeAt(requests, idx, out.targets[i])
+		out.targetAxes[i] = authoredAxesAt(requests, idx)
 	}
 	return out
+}
+
+// authoredAxesAt is requests[idx]'s authored axis schema, nil when the
+// request is out of reach.
+func authoredAxesAt(requests []*types.Request, idx int) *overlayhost.AxisSchema {
+	if idx < 0 || idx >= len(requests) || requests[idx] == nil {
+		return nil
+	}
+	a := overlayhost.RequestAxisSchema(requests[idx])
+	return &a
 }

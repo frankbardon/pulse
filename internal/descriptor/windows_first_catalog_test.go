@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -72,7 +73,7 @@ func TestWindowsFirst_CatalogTriggeredPredictMatchesRuntime(t *testing.T) {
 	}
 	env := descriptor.NewEnvelope(nil)
 	result := &descriptor.PredictResult{}
-	predictVectors(env, result, req, schema, false, set)
+	predictVectors(env, result, req, schema, false, vectors.Classifier{Cat: set})
 	if !reflect.DeepEqual(result.ResolvedVectors["v"], []string{"n", "lag_n"}) {
 		t.Fatalf("resolved vectors %v, want v = [n lag_n]", result.ResolvedVectors)
 	}

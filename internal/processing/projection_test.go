@@ -188,6 +188,47 @@ func TestNeededFields_FilterExpressionExtractsIdents(t *testing.T) {
 	}
 }
 
+// TestNeededFields_EnvMembersProjected: a constant-name `$env` member
+// (`$env.a`, `$env["b"]`) projects its field like a bare identifier —
+// unprojected, the read was nil on every row; a dynamic $env use
+// (`$env[name]`, `values($env)`) reads any field and widens.
+func TestNeededFields_EnvMembersProjected(t *testing.T) {
+	t.Parallel()
+
+	schema := mkSchema("a", "b", "c", "unused")
+	for _, c := range []struct {
+		expr string
+		want []string // nil: wide
+	}{
+		{`$env.a > 1 && $env["b"] < 2`, []string{"a", "b"}},
+		{`let k = $env.a; k > c`, []string{"a", "c"}},
+		{`$env?.b == nil`, []string{"b"}},
+		{`$env.nope == nil && a > 0`, []string{"a"}},
+		{`let n = "a"; $env[n] > 1`, nil},
+		{`len(values($env)) > 0`, nil},
+		{`get($env, "a") > 1`, nil},
+	} {
+		for _, slot := range []string{"filter", "formula"} {
+			req := &types.Request{}
+			if slot == "filter" {
+				req.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: c.expr}}
+			} else {
+				req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "f", Expression: c.expr}}
+			}
+			got := NeededFields(req, schema, nil)
+			if c.want == nil {
+				if !got.IsWide() {
+					t.Errorf("%s %q: %v, want wide", slot, c.expr, sortedFields(got))
+				}
+				continue
+			}
+			if got.IsWide() || !equalStrings(sortedFields(got), c.want) {
+				t.Errorf("%s %q: %v (wide=%v), want %v", slot, c.expr, sortedFields(got), got.IsWide(), c.want)
+			}
+		}
+	}
+}
+
 func TestNeededFields_MalformedExpressionWidens(t *testing.T) {
 	t.Parallel()
 

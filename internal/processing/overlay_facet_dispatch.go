@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -181,19 +180,13 @@ func ApplyOverlaysFacetWithExtensions(specs []types.OverlaySpec, host *types.Fac
 		spec := &specs[i]
 		// A catalog kind that runs on another slot: the shared wrong-slot
 		// refusal predict raises (validateFacetOverlaySpec).
-		if cerr := overlayhost.Refusal(overlayhost.Facet, spec.Kind, exts.overlayRoute(spec.Kind), i); cerr != nil {
+		if cerr := exts.extensionSlotRefusal(overlayhost.Facet, spec.Kind, i); cerr != nil {
 			return nil, nil, cerr
 		}
 		handler, ok := facetOverlayHandlers[exts.overlayRoute(spec.Kind)]
 		if !ok {
-			return nil, nil, errors.NewCodedErrorWithDetails(
-				errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no FACET runtime handler: "+string(spec.Kind),
-				map[string]any{
-					"index": i,
-					"kind":  string(spec.Kind),
-					"host":  "facet",
-				})
+			// predict-facet's catalog-probe refusal.
+			return nil, nil, overlayhost.KindUnknownRefusal(spec.Kind, i, "facet")
 		}
 		layer, ws, err := handler(spec, host, pop)
 		if err != nil {

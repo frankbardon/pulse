@@ -2049,12 +2049,30 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH: {
+		Message: "An attribute registration declaring InheritsDictionary emitted a value that is no code of its source field's dictionary (an integer from 0 to the entry count minus 1; NaN is a null) — computed at pulse.New over a synthetic three-entry categorical source, or on any run — or declares an Emits other than float64.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return, per row, the source field's own dictionary index (Record.NumericValue of a categorical field is that index; 0 / 1 for a packed_bool) or NaN for no value; never mint a code past the dictionary — details.value and details.dictionary_size name the fault. Leave Emits empty or float64. If the output is not a code of the source, drop InheritsDictionary.",
+			},
+		},
+	},
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH: {
 		Message: "A matrix registration's operator — finalized at pulse.New over a synthetic three-member co-moment, or on any run — returned no Primary matrix or filled an Auxiliary, Vectors or Scalars key its OutputKeys do not declare.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Always return MatrixOutput.Primary, and list every Auxiliary, Vectors and Scalars key Finalize can fill in the registration's OutputKeys (a declared key the operator leaves unfilled on some input is fine) — or stop filling the undeclared key named in details.undeclared.",
+			},
+		},
+	},
+	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH: {
+		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return OverlayOutput.Payload with a Shape listed in the registration's Shapes and only its matching arm set (Scalar, Series or Matrix); leave Parts and every p_adjusted / significant_adjusted field nil (the engine owns multiple-comparison correction); give every warning a Code and a Message. details.reason names the rule that failed.",
 			},
 		},
 	},
@@ -2073,6 +2091,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Factories must tolerate a minimal synthetic spec + schema during probe; guard against nil inputs and avoid panics. Use coded errors instead.",
+			},
+		},
+	},
+	PULSE_EXTENSION_SPEC_REFUSED: {
+		Message: "An extension registration's spec-only Validate hook refused a request slot's spec (its error text is in the message) or panicked judging it (details.panic); predict and the runtime raise the same refusal. Details name the category, the operator type, the request slot key and the slot's name when it has one.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Change the slot named in details.slot / details.name so the operator in details.type accepts it — the message carries the operator's own reason. An embedder whose Validate panicked (details.panic) should make it total over every spec and return an error instead; one that wants a specific code should return an *errors.CodedError, which keeps its code.",
 			},
 		},
 	},

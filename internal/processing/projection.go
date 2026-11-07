@@ -112,7 +112,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// its members (exprProgram.bindVectors): appendExprIdents expands it,
 	// or the members would decode as null and the expression would
 	// silently fold NaN.
-	vecMembers := exprVectorMembers(req, schema, catalogOf(models))
+	vecMembers := exprVectorMembers(req, schema, ext.Classifier(catalogOf(models)))
 
 	addKnown := func(name string) {
 		if _, ok := known[name]; ok {
@@ -383,7 +383,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// resolver predict and the runtime refuse with). A vector that does
 	// not resolve is refused before any record is read; decode wide
 	// rather than guess.
-	members, ok := vectors.Members(req, schema, catalogOf(models))
+	members, ok := vectors.Members(req, schema, ext.Classifier(catalogOf(models)))
 	if !ok {
 		out.Widen()
 		return out
@@ -393,7 +393,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// entry) decodes whole.
 	addAllKnown(vectors.ReferencedNatives(req, schema))
 	// A matrix spec's inline fields resolve by the same rules.
-	matMembers, ok := vectors.MatrixMembers(req, schema, catalogOf(models))
+	matMembers, ok := vectors.MatrixMembers(req, schema, ext.Classifier(catalogOf(models)))
 	if !ok {
 		out.Widen()
 		return out
@@ -730,8 +730,8 @@ func schemaFieldSet(schema *encoding.Schema) map[string]struct{} {
 // exprVectorMembers maps each of req's named vectors to its resolved
 // members (nil when the request defines none or one fails to resolve —
 // that request is refused before any decode).
-func exprVectorMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) map[string][]string {
-	resolved := ExprVectors(req, schema, cat)
+func exprVectorMembers(req *types.Request, schema *encoding.Schema, c vectors.Classifier) map[string][]string {
+	resolved := ExprVectors(req, schema, c)
 	if len(resolved) == 0 {
 		return nil
 	}
@@ -745,15 +745,18 @@ func exprVectorMembers(req *types.Request, schema *encoding.Schema, cat model.Ca
 // appendExprIdents parses src as an expr-lang expression and adds every
 // identifier that matches a schema field name to out, and every member
 // of an identifier that names a request vector (vecs: name -> members;
-// nil: none). Returns false when the expression fails to parse — caller
-// must widen the set.
+// nil: none). A constant-name `$env` member (`$env.a`, `$env["a"]`)
+// is a read of its field like a bare identifier. Returns false when the
+// expression fails to parse or uses $env dynamically (`$env[name]`,
+// `values($env)` — it may read any field) — caller must widen the set.
 func appendExprIdents(out FieldSet, src string, known map[string]struct{}, vecs map[string][]string) bool {
 	tree, err := exprparser.Parse(src)
 	if err != nil {
 		return false
 	}
-	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known, vecs: vecs})
-	return true
+	env := &envStaticVisitor{claimed: map[*exprast.IdentifierNode]bool{}}
+	exprast.Walk(&tree.Node, &exprIdentVisitor{out: out, known: known, vecs: vecs, env: env})
+	return env.static()
 }
 
 // exprIdentVisitor collects IdentifierNode values that match schema
@@ -764,9 +767,16 @@ type exprIdentVisitor struct {
 	out   FieldSet
 	known map[string]struct{}
 	vecs  map[string][]string
+	env   *envStaticVisitor
 }
 
 func (v *exprIdentVisitor) Visit(node *exprast.Node) {
+	if name, ok := v.env.visit(node); ok {
+		if _, ok := v.known[name]; ok {
+			v.out.Add(name)
+		}
+		return
+	}
 	id, ok := (*node).(*exprast.IdentifierNode)
 	if !ok {
 		return

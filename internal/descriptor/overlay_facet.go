@@ -95,16 +95,18 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	if spec == nil {
 		return
 	}
+	// An extension kind never runs on a FACET: its own wrong-slot
+	// refusal (overlayhost.ExtensionSlotRefusal), the runtime FACET
+	// loop's (processing.WrongHostRefusal), not an unknown kind.
+	if cerr := opts.extensionSlotRefusal(overlayhost.Facet, spec.Kind, index); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
 	// Unknown-kind probe first — every other rule is keyed by Kind so we
 	// cannot reasonably validate Scope / Ref against an unknown catalog
 	// entry. Mirrors the Request-host validator's policy.
 	if _, known := types.OverlayStreamable(opts.overlayRoute(spec.Kind)); !known {
-		env.AddError(string(errors.PULSE_OVERLAY_KIND_UNKNOWN),
-			"overlay kind is not in the catalog: "+string(spec.Kind),
-			map[string]any{
-				"index": index,
-				"kind":  string(spec.Kind),
-			})
+		addCodedError(env, overlayhost.KindUnknownRefusal(spec.Kind, index, "facet"))
 		return
 	}
 	// A catalog kind that runs on another slot gets the shared

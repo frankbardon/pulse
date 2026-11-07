@@ -14,7 +14,8 @@
 // (TestTemplatePackage_ImportBoundary) admits it. The coverage gates —
 // every exprenv compile site is one of these (TestTemplateExprSplice_
 // CompileSitesShared, internal/exprenv), every engine expression path
-// matches (TestTemplateExprSplice_EngineExprSlotsMatch,
+// matches and every compiled slot is walked by the engine or named out
+// of scope (TestTemplateExprSplice_EngineExprSlotsMatch,
 // internal/vectors), every owner position in the request roots matches
 // (TestTemplateExprSplice_SlotsCoverRequestRoots, here) — keep it from
 // becoming a second hand-kept list.

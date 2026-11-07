@@ -102,22 +102,23 @@ func PostWindowEligible(route types.AttributeType, attr *types.Attribute) bool {
 	return false
 }
 
-// PostWindowAttributes classifies req's attributes (route: the
-// instance's view of a type, nil the identity; cat: the bound models an
-// ATTR_REG_PREDICT or params.fit slot reads its terms from, nil none).
+// PostWindowAttributes classifies req's attributes over c (Route: the
+// instance's view of a type; Cat: the bound models an ATTR_REG_PREDICT
+// or params.fit slot reads its terms from; Ext: the extension hooks the
+// windows-first decision reads an extension aggregator's columns from).
 // A window label equal to a schema field or to a named vector of req is
 // no window-derived name (the field wins and the walk refuses the
 // shadowing window; the vector collision is
 // PULSE_VECTOR_NAME_COLLISION's). The plan's WindowsFirst is
-// WindowsFirst(req, schema, route, cat). Allocation-free — the zero
+// WindowsFirst(req, schema, c). Allocation-free — the zero
 // plan — when req carries no window, or no attribute and no group,
 // aggregation or crosstab.
-func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, cat model.Catalog) PostWindow {
+func PostWindowAttributes(req *types.Request, schema *encoding.Schema, c Classifier) PostWindow {
 	var pw PostWindow
 	if req == nil || len(req.Windows) == 0 {
 		return pw
 	}
-	pw.WindowsFirst = WindowsFirst(req, schema, route, cat)
+	pw.WindowsFirst = WindowsFirst(req, schema, c)
 	if len(req.Attributes) == 0 {
 		return pw
 	}
@@ -137,8 +138,8 @@ func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route fun
 		if attr == nil {
 			continue
 		}
-		rt := routeOf(route, attr.Type)
-		reads := attributeReads(attr, rt, cat)
+		rt := routeOf(c.Route, attr.Type)
+		reads := attributeReads(attr, rt, c.Cat)
 		dep := ""
 		for _, n := range reads {
 			if derived[n] {

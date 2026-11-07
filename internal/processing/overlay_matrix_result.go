@@ -3,7 +3,6 @@ package processing
 import (
 	"math"
 
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
@@ -115,9 +114,7 @@ func ApplyMatrixResultOverlays(req *types.Request, resp *types.Response, exts *E
 		}
 		handler, ok := matrixResultOverlayHandlers[route]
 		if !ok {
-			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_KIND_UNKNOWN,
-				"overlay kind has no runtime handler: "+string(spec.Kind),
-				map[string]any{"index": i, "kind": string(spec.Kind)})
+			return overlayhost.KindUnknownRefusal(spec.Kind, i, "")
 		}
 		layer, ws, err := handler(spec, newMatrixResultHostView(spec.Ref.Matrix.Name, resp.Matrices))
 		if err != nil {

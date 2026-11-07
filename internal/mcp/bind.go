@@ -477,7 +477,7 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 	case "regression":
 		metas = snap.Regressions
 	case "overlay":
-		metas = snap.OverlayKinds
+		metas = snap.Overlays
 	default:
 		return nil
 	}
@@ -1706,10 +1706,30 @@ func overlayKindEnumForFacade(facade overlayFacade, inst *descx.InstanceSnapshot
 		}
 		out = append(out, name)
 	}
-	if facade == overlayFacadeRequest {
-		out = append(out, extensionNames(inst.Extensions(), "overlay")...)
-	}
+	out = append(out, extensionOverlayKinds(facade, inst)...)
 	return sortedDedupe(out)
+}
+
+// extensionOverlayKinds is the instance's extension overlay kinds the
+// facade's slot runs (pulse.New already dropped the hidden ones): the
+// Request facade lists a kind with a Matrix or Series handler, the
+// Compose facade a kind with a Compose handler; no extension kind runs
+// on a chain or facet slot.
+func extensionOverlayKinds(facade overlayFacade, inst *descx.InstanceSnapshot) []string {
+	snap := inst.Extensions()
+	if snap == nil {
+		return nil
+	}
+	var out []string
+	for _, name := range extensionNames(snap, "overlay") {
+		d := snap.OverlayDetails[name]
+		switch {
+		case facade == overlayFacadeRequest && len(d.HostShapes) > 0,
+			facade == overlayFacadeCompose && d.Compose:
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // stringSetFrom builds a membership set from a slice.

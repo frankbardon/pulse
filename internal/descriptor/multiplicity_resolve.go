@@ -75,6 +75,11 @@ type ResolvedMultiplicity struct {
 	// list: a listed name the fit reports no p-value for stays a member
 	// with an undefined p (excluded from m, p_adjusted null).
 	ExplicitCoefficients bool
+	// ExtensionOverlay reports an extension overlay kind declaring
+	// EmitsPValues: its p-values sit at its layer's payload-shape p-site
+	// (overlayhost.ExtensionPSite) — the fold reads them there, as it
+	// reads a built-in kind's off its p-site table entry.
+	ExtensionOverlay bool
 	// ResultCoefficients reports a member extension REG_* model without
 	// its own coefficient list: its coefficients are named by the model,
 	// so the family is read off the result — every coefficient carrying
@@ -406,7 +411,12 @@ func (r multResolver) overlay(slot string, s multSurface, kind types.OverlayKind
 	// belongs to the overlay validators, so the family is judged
 	// without the MATRIX rule and the slot joins no family.
 	matrix, inferential, known := false, false, false
-	if routed := opRoute(r.inst, kind); routed != "" {
+	if d := extensionOverlayDecl(r.inst, kind); d != nil {
+		// An extension kind: its p-values are its declaration's
+		// (EmitsPValues), its shapes its registration's.
+		known, inferential, matrix = true, d.EmitsPValues, d.MatrixOnly()
+		rm.ExtensionOverlay = d.EmitsPValues
+	} else if routed := opRoute(r.inst, kind); routed != "" {
 		if c := overlayCapabilityFor(routed); c.Kind != "" && len(c.Shapes) > 0 {
 			known, inferential = true, c.Inferential
 			matrix = true
