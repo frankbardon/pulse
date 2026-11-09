@@ -31,7 +31,7 @@ The primary stays RAW p-values; direction and significance ride `letters` only w
 
 ## The letters part
 
-`payload.parts.letters` — MATRIX on the HOST coordinates. A cell of a compared pair-axis index holds `{letter, group, higher, above}`: its letter (`A`, `B`, … `Z`, `AA`, in axis order, restarting per comparison group — one group, or one per `pair_along_dim` bucket), the group, the letters of same-group indexes its figure beats (the sign of the kind's statistic) and the significant subset. Significant = raw p < `0.05` (or `alpha`, echoed as `summary.parameters.letters_alpha`); under a correction `significant_adjusted` (an explicit `alpha` compares `p_adjusted`). An index compared to nothing — the implicit Total column, a lone bucket member — has no cell. A multi-measure host letters each measure's rows.
+`payload.parts.letters` — MATRIX on the HOST coordinates. A cell of a compared pair-axis index holds `{letter, group, higher, above}`: its letter (`A`, `B`, … `Z`, `AA`, in axis order, restarting per comparison group — one group, or one per `pair_along_dim` bucket), the group, the letters of same-group indexes its figure beats (the sign of the kind's statistic) and the significant subset. Significant = raw p < `0.05` (or `alpha`, echoed as `summary.parameters.letters_alpha`); under a correction `significant_adjusted` (an explicit `alpha` compares `p_adjusted`). An index compared to nothing — the implicit Total column, a lone bucket member — has no cell. A multi-measure host letters each measure's rows; a refused measure's cells beat nothing.
 
 ## Missing and degenerate pairs
 

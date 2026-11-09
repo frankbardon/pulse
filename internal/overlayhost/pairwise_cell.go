@@ -2,6 +2,7 @@ package overlayhost
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/types"
 )
@@ -14,6 +15,43 @@ import (
 // type's declared ComponentSchema) raise it with the same text.
 func WelfordCellMessage(kind types.OverlayKind) string {
 	return "overlay " + string(kind) + " requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none"
+}
+
+// PairwiseMeasureReasonNoWelfordTriple is details.reason of a
+// per-measure refusal (PairwiseMeasureRefusedWarning): the measure's
+// cells carry no Welford triple {mean, variance, n}.
+const PairwiseMeasureReasonNoWelfordTriple = "no_welford_triple"
+
+// PairwiseMeasureRefusable reports whether a pairwise kind refuses one
+// measure of a multi-measure crosstab (types.CrosstabSpec.Cells) ALONE
+// when that measure's cell cannot carry the Welford triple (U66 #476):
+// the moment kinds (types.PairwiseKindUsesWelford). The refused
+// measure's folded rows are null cells and the others score; only when
+// every measure is refused does the layer refuse, under the
+// single-measure PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Every other
+// per-measure refusal still refuses the layer.
+func PairwiseMeasureRefusable(kind types.OverlayKind) bool {
+	return types.PairwiseKindUsesWelford(kind)
+}
+
+// PairwiseMeasureRefusedWarning is the PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// WARNING a moment pairwise kind raises for measure m (label, cell type
+// cellType) of a multi-measure crosstab whose cells carry no Welford
+// triple, while another measure scores. The runtime
+// (processing.runPairwiseOverlayMeasures) and predict
+// (descriptor.validateOverlayPairwise) build it here; predict adds
+// details.index. Details {kind, measure, measure_index, cell_type,
+// reason}.
+func PairwiseMeasureRefusedWarning(kind types.OverlayKind, m int, label string, cellType types.AggregationType) (string, map[string]any) {
+	msg := "overlay " + string(kind) + " refused measure " + strconv.Quote(label) + " (" + string(cellType) +
+		"): its cells carry no Welford triple {mean, variance, n}, so its rows are null cells while the other measures score; use an AGG_WELFORD measure to test it"
+	return msg, map[string]any{
+		"kind":          string(kind),
+		"measure":       label,
+		"measure_index": m,
+		"cell_type":     string(cellType),
+		"reason":        PairwiseMeasureReasonNoWelfordTriple,
+	}
 }
 
 // ComponentsRequiredMessage is the PULSE_OVERLAY_COMPONENTS_REQUIRED

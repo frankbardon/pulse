@@ -135,6 +135,16 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 	return ", or use " + strings.Join(offered, " / ") + ", which " + what
 }
 
+// pairwiseWelfordCellRefused reports whether a moment pairwise kind
+// (types.PairwiseKindUsesWelford) refuses req's single-measure crosstab
+// cell: its declared ComponentSchema cannot carry the Welford triple
+// (welfordTripleCellRefused) — the runtime's
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+func pairwiseWelfordCellRefused(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions) bool {
+	return types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab != nil && req.Crosstab.Cell != nil &&
+		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts)
+}
+
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
@@ -154,21 +164,49 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // (types.CrosstabSpec.MeasureSpec), stopping at the first measure that
 // refuses — the runtime's order (processing.runPairwiseOverlayMeasures
 // gates each measure in turn), so the cell-type, weight-basis and
-// distinct-key rules judge each measure's own cell.
+// distinct-key rules judge each measure's own cell. A moment kind's
+// Welford-cell refusal is the exception (U66 #476,
+// overlayhost.PairwiseMeasureRefusable): that measure is refused ALONE —
+// the runtime nulls its rows — and reported as the shared
+// overlayhost.PairwiseMeasureRefusedWarning; only when every measure is
+// refused is the first measure's refusal the error.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if req != nil && req.Crosstab.HasMeasures() {
+		var first []*descriptor.EnvelopeEntry
+		var refused []*descriptor.EnvelopeEntry
+		measures := 0
 		for m, cell := range req.Crosstab.Cells {
 			if cell == nil {
 				continue
 			}
+			measures++
 			mreq := *req
 			mreq.Crosstab = req.Crosstab.MeasureSpec(m)
-			before := len(env.Errors)
-			validateOverlayPairwise(env, &mreq, spec, opts, index)
-			if len(env.Errors) > before {
+			scratch := descriptor.NewEnvelope(nil)
+			validateOverlayPairwise(scratch, &mreq, spec, opts, index)
+			if len(scratch.Errors) == 1 && overlayhost.PairwiseMeasureRefusable(spec.Kind) && pairwiseWelfordCellRefused(&mreq, spec, opts) &&
+				scratch.Errors[0].Code == string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) &&
+				scratch.Errors[0].Message == overlayhost.WelfordCellMessage(spec.Kind) {
+				if first == nil {
+					first = scratch.Errors
+				}
+				msg, details := overlayhost.PairwiseMeasureRefusedWarning(spec.Kind, m, types.AggregationLabelOf(cell), cell.Type)
+				details["index"] = index
+				refused = append(refused, &descriptor.EnvelopeEntry{
+					Code: string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE), Message: msg, Details: details})
+				continue
+			}
+			env.Warnings = append(env.Warnings, scratch.Warnings...)
+			if len(scratch.Errors) > 0 {
+				env.Errors = append(env.Errors, scratch.Errors...)
 				return
 			}
 		}
+		if len(refused) == measures && first != nil {
+			env.Errors = append(env.Errors, first...)
+			return
+		}
+		env.Warnings = append(env.Warnings, refused...)
 		return
 	}
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
@@ -214,8 +252,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	// Welford cell shape: a moment kind over a cell whose components
 	// cannot carry the triple is the runtime's
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, same message.
-	if types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab.Cell != nil &&
-		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts) {
+	if pairwiseWelfordCellRefused(req, spec, opts) {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			overlayhost.WelfordCellMessage(spec.Kind),
 			map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(req.Crosstab.Cell.Type)})

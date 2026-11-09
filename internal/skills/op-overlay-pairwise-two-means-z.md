@@ -25,7 +25,7 @@ Normal-CDF two-means z on MEANS between host slots ALONG one axis of the SAME cr
 
 ## Host shape
 
-MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, read for the `{mean, variance, n}` triple per cell. A cell without `mean` + `variance` components → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime. A population-variance cell is converted to the sample variance (`overlay-pairwise`).
+MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, read for the `{mean, variance, n}` triple per cell. A cell without `mean` + `variance` components → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime. Multi-measure host (`cells`): a measure without the triple is refused ALONE — its rows null, a same-code warning (`details.measure`); every measure refused → the layer refuses. A population-variance cell is converted to the sample variance (`overlay-pairwise`).
 
 ## Output
 

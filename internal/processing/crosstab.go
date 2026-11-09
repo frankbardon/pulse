@@ -896,6 +896,7 @@ func applyOverlaysToResponse(req *types.Request, resp *types.Response, exts *Ext
 			if mh.cell != nil {
 				sub.cellType = mh.cell.Type
 			}
+			sub.cell = mh.cell
 			host.measures[m] = sub
 		}
 	}
