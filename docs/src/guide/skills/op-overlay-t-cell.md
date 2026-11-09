@@ -63,6 +63,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value (Student t, Welch–Satterthw
 - Weighted: legs read N* (`sum_weights` / `n_eff`), never the raw `n`; `Summary.Parameters` adds them.
 - **Byte-equal** to Welch's t-test on the same inputs (shared `statdist.StudentTTwoSidedP` and df recurrence).
 - Canonical pairing: `AGG_WELFORD` + `OVERLAY_T_CELL`.
+- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) carries no moments, so it is read as the mean → `PROCESSING_CONFIG`, reason `categorical_code`.
 
 ## See
 

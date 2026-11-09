@@ -341,7 +341,7 @@ func ccChainRefused(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest
 		t.Fatal(err)
 	}
 	if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PROCESSING_CONFIG) || !reflect.DeepEqual(env.Errors[0].Details, wantDetails) {
-		t.Fatalf("PredictChain = %+v, want PROCESSING_CONFIG %v first", env.Errors, wantDetails)
+		t.Fatalf("PredictChain = %s, want PROCESSING_CONFIG %v first", nsJSON(t, env.Errors), wantDetails)
 	}
 	_, err = p.ProcessChain(ctx, req())
 	ce := codeOf(t, err)
@@ -362,7 +362,7 @@ func ccChainRuns(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest) *
 		t.Fatal(err)
 	}
 	if len(env.Errors) != 0 {
-		t.Fatalf("PredictChain errors = %+v, want none", env.Errors)
+		t.Fatalf("PredictChain errors = %s, want none", nsJSON(t, env.Errors))
 	}
 	out, err := p.ProcessChain(ctx, req())
 	if err != nil {

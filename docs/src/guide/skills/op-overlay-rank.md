@@ -52,6 +52,7 @@ MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected 
 - An absent target cell stays absent and is NOT in the population's denominator — ranks cover PRESENT cells only.
 - `population=row` → rank within the cell's row; `column` → within its column; `matrix` → across all present cells.
 - Buffered (the slot barrier always buffers, and ranking needs the full materialised matrix).
+- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See
 

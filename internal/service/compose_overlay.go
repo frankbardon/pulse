@@ -159,15 +159,16 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 		return nil, nil, err
 	}
 	// A slot the overlay reads scores an array-valued (vector),
-	// non-scalar or categorical-code aggregation: the handler would fold
-	// its array as NaN (or an expanded element column as the value), no
+	// non-scalar or categorical-code aggregation, or is a crosstab whose
+	// code cell the kind reads as a value: the handler would fold its
+	// array as NaN (or an expanded element column as the value), no
 	// value, or a dictionary index as a magnitude. Same rule, same slots
 	// as ValidateComposeWithOptions; the code rule reads the slot's
 	// input schema (requestInputSchema), opened only for an input-valued
 	// scored aggregation.
 	if err := descx.ComposeOverlayArrayValuedRefusal(req.Overlays, requests, labels, s.instance, func(j int) *encoding.Schema {
 		return s.requestInputSchema(ctx, requests[j])
-	}); err != nil {
+	}, s.componentsGateClosed); err != nil {
 		return nil, nil, err
 	}
 	// A two-sample T / Z kind needs each side's mean, variance and n:

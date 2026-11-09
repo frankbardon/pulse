@@ -380,3 +380,40 @@ func ReadsCellValue(kind types.OverlayKind) bool {
 	}
 	return matrix && !types.PairwiseKindUsesWelford(kind) && !types.PairwiseKindUsesWeightedMoments(kind) && !PriorTestUsesWelford(kind)
 }
+
+// composeCellValueKinds are the Compose kinds that read a crosstab
+// slot's cell VALUE whatever the cell carries: the vs-ref ratio and
+// delta (INDEX / DELTA_VS_REF, PANEL_INDEX_VS_REF), the proportion
+// kinds (PROP_Z_CELL, PROP_Z_PANEL: the cell value as a share or
+// count), χ² against the reference (the cell values as observed
+// counts), RANK and OVERLAY_FORMULA (`ref` / `target`).
+var composeCellValueKinds = map[types.OverlayKind]bool{
+	types.OverlayKindIndexVsRef:      true,
+	types.OverlayKindDeltaVsRef:      true,
+	types.OverlayKindPanelIndexVsRef: true,
+	types.OverlayKindPropZCell:       true,
+	types.OverlayKindPropZPanel:      true,
+	types.OverlayKindChiSqVsRef:      true,
+	types.OverlayKindRank:            true,
+	types.OverlayKindFormula:         true,
+}
+
+// ComposeReadsCellValue is ReadsCellValue for a Compose crosstab slot
+// (U66 #445): whether kind reads the slot's cell VALUE. cellMoments
+// reports that the cell's components carry mean and variance (a
+// moment-carrying cell aggregator with components enabled) — then
+// OVERLAY_T_CELL / OVERLAY_Z_CELL read those moments, and over any
+// other cell they read the value as the side's mean, so they are
+// value-reading exactly when the cell carries no moments. The
+// two-sample vs-ref kinds read grouped rows only (a crosstab slot is
+// refused by their own input rule) and every non-Compose kind is false.
+// The categorical-code rule refuses a value-reading kind over a slot
+// whose cell is a code; processing's
+// TestComposeReadsCellValue_MatchesHandlers pins this to what each
+// Compose handler reads.
+func ComposeReadsCellValue(kind types.OverlayKind, cellMoments bool) bool {
+	if kind == types.OverlayKindTCell || kind == types.OverlayKindZCell {
+		return !cellMoments
+	}
+	return composeCellValueKinds[kind]
+}

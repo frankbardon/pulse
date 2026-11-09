@@ -801,10 +801,11 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		addCodedError(env, ferr)
 	}
 	// Gate 2d: a slot the overlay reads scores an array-valued (vector),
-	// non-scalar or categorical-code aggregation (PROCESSING_CONFIG,
-	// reason array_valued / non_scalar / categorical_code) —
-	// the runtime's check in Service.applyComposeOverlays.
-	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts)); aerr != nil {
+	// non-scalar or categorical-code aggregation, or is a crosstab whose
+	// code cell the kind reads as a value (PROCESSING_CONFIG, reason
+	// array_valued / non_scalar / categorical_code) — the runtime's
+	// check in Service.applyComposeOverlays.
+	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts), opts.componentsDisabled); aerr != nil {
 		addCodedError(env, aerr)
 	}
 	// Gate 2e: a two-sample kind (OVERLAY_T_VS_REF / _Z_VS_REF /

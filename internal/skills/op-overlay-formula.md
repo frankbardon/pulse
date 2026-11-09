@@ -41,7 +41,7 @@ Shape matches host; one `float64` per evaluation. No `Baseline`.
 - No vector functions; `total(expr)` is `PULSE_FORMULA_TOTAL_SITE` here (use the `total` variable). Embedder `ExprFunctions` widen functions, never variables.
 - Margins, totals and SDs are post-fold, hence buffered.
 <!-- feature: AGG_MODE -->
-- MATRIX `Request.Overlays` reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- A crosstab (`Request.Overlays` or a Compose slot) reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`; the cell path in `slot` / Compose `host`), predict and runtime. Use a count cell.
 <!-- /feature -->
 
 ## See

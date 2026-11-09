@@ -44,6 +44,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival.
 - Weighted: legs read N* (`sum_weights` / `n_eff`), never the raw `n`; `Summary.Parameters` adds them.
 - **Byte-equal** to the two-sample z-test on the same inputs (shared `normalTwoSidedP`).
 - Differs from the cell t overlay only by distribution (normal vs Student t); same SE `sqrt(var_t/n_t + var_r/n_r)`.
+<!-- feature: AGG_MODE -->- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) carries no moments, so it is read as the mean → `PROCESSING_CONFIG`, reason `categorical_code`.<!-- /feature -->
 
 ## See
 

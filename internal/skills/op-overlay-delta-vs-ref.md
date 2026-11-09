@@ -37,6 +37,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - r
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO` (mirrors per-Request DELTA family).
 - Target key absent from the reference → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`; no entry is emitted for it (series: the entry is DROPPED; matrix: the cell stays absent) — never a NaN entry.
 - SERIES dispatch is fold-only (one accumulator per group), streamable per `OverlayStreamability`; MATRIX is forced buffered by the slot barrier.
+<!-- feature: AGG_MODE -->- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.<!-- /feature -->
 
 ## See
 

@@ -2254,7 +2254,9 @@ so a pick over it there scores — unless a code-emitting aggregation (a
 declared pick over a code, or `AGG_MODE`) wrote it: code-ness propagates
 through every stage. A pick over a forwarded group key
 (`categorical_u32`) is refused. As a crosstab cell over a code field it
-is refused under every MATRIX overlay kind that reads cell values. Undeclared, an overlay scores the code
+is refused under every MATRIX overlay kind that reads cell values, and
+so is a Compose crosstab slot under a Compose kind that does (`OVERLAY_T_CELL` /
+`OVERLAY_Z_CELL` too unless the cell's components carry mean and variance). Undeclared, an overlay scores the code
 as a magnitude. The manifest's extension entry carries
 `emits_input_value`.
 

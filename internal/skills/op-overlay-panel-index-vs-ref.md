@@ -41,6 +41,7 @@ ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Paylo
 - Shared coord space is enforced before dispatch.
 - Layer slice order matches `spec.Targets`, stable across re-runs.
 - Weighted slots → weighted figures (reads the slot payloads).
+<!-- feature: AGG_MODE -->- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.<!-- /feature -->
 
 ## See
 
