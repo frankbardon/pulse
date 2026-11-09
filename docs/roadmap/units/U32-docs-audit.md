@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 504, 505, 527, 556, 557, 558, 560, 666, 667, 706]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 504, 505, 527, 556, 557, 558, 560, 666, 667, 706, 715]
 branch: docs-audit
 ---
 
@@ -203,3 +203,4 @@ Filed from [U31](U31-guidance-guides.md#handed-on); tick in [`TODO.md`](../TODO.
 Filed from [U79](U79-library-gaps.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
 - [ ] **#706** `make sites` covers `types.Request` only, not `ComposedRequest`: a change to a Compose-level slot lists none of `setSlots`, the request-reads walker, Explain, MCP bind / `return_default`, the strict-acceptance families, the example profiles, the limits-parity site lists or `ResultCatalog` (extends #560, which names `sweep` / `optimize`). Found in library-gaps E1-S1 and E6-S1 · [U32](units/U32-docs-audit.md)
+- [ ] **#715** `make sites ARGS="op OVERLAY_FORMULA"` does not list `internal/seriesfield` / `internal/seriespartition` (the shared `params.field` / `partition_by` engines) as sites. Found in U66 (E1-S1) · [U32](units/U32-docs-audit.md)
