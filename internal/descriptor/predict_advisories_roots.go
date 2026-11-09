@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -132,6 +134,7 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 	inst := opts.instance()
 	var out []descriptor.Advisory
 	var slots []descriptor.ComposeSlotPredict
+	hosts := map[string]composeAxisSlot{}
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
@@ -142,6 +145,13 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 			schema = cohort
 		}
 		defaulted := defaultedForValidation(slot, schema, opts)
+		label := slot.Label
+		if label == "" {
+			label = composeDescriptorDefaultLabel(i)
+		}
+		if _, dup := hosts[label]; !dup {
+			hosts[label] = composeAxisSlot{index: i, req: defaulted, schema: schema}
+		}
 		var slotPlan *MultiplicityPlan
 		if plan != nil && i < len(plan.Requests) {
 			slotPlan = plan.Requests[i]
@@ -197,6 +207,7 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		})...)
 	}
 	out = append(out, fitJackknifeCostAdvisories(req, opts, inst)...)
+	out = append(out, composeSeriesAxisAdvisories(req, hosts, inst)...)
 	if a, ok := familiesSplitAdvisory(slots); ok && !inst.AdvisorySuppressed(a.Code) {
 		out = append(out, a)
 	}
@@ -204,6 +215,55 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		out = append(out, a)
 	}
 	return out, slots
+}
+
+// composeAxisSlot is a Compose slot as the advisories read it: its
+// index, its defaulted request and the schema it executes over.
+type composeAxisSlot struct {
+	index  int
+	req    *types.Request
+	schema *encoding.Schema
+}
+
+// composeSeriesAxisAdvisories is PULSE_ADVISORY_SERIES_AXIS_NOT_DATE over
+// the Compose-host overlays: a kind that runs per partition of its host
+// slot (seriespartition.AppliesCompose — the first target, the slot
+// ComposeHostDepth splits) and reads its rows in order
+// (seriespartition.Ordered), with no explicit partition_by, draws the
+// advisory Process predict gives the same host (newSeriesAxisHost, the
+// one rule). details.slot is the spec's path (overlays[i]), plus
+// request (the host slot's index) and target (its label). hosts maps a
+// slot label to its slot; an unknown target is the label gate's refusal
+// and draws nothing here.
+func composeSeriesAxisAdvisories(req *types.ComposedRequest, hosts map[string]composeAxisSlot, inst *InstanceSnapshot) []descriptor.Advisory {
+	var out []descriptor.Advisory
+	for i := range req.Overlays {
+		spec := &req.Overlays[i]
+		kind := opRoute(inst, spec.Kind)
+		if !seriespartition.AppliesCompose(kind) || !seriespartition.Ordered(kind) || len(spec.Targets) == 0 {
+			continue
+		}
+		if ospec, ok := seriespartition.FromCompose(spec); !ok || seriespartition.Explicit(ospec) {
+			continue
+		}
+		host, ok := hosts[spec.Targets[0]]
+		if !ok {
+			continue
+		}
+		h := newSeriesAxisHost(host.req, host.schema, inst)
+		if h == nil {
+			continue
+		}
+		slot := "overlays[" + strconv.Itoa(i) + "]"
+		a := h.advisory(kind, slot, slot+" (host slot "+spec.Targets[0]+")")
+		if inst.AdvisorySuppressed(a.Code) {
+			continue
+		}
+		a.Details["request"] = host.index
+		a.Details["target"] = spec.Targets[0]
+		out = append(out, a)
+	}
+	return out
 }
 
 // fitJackknifeCostAdvisories is PULSE_ADVISORY_JACKKNIFE_COST and

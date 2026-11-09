@@ -223,3 +223,47 @@ func TestComposeFormula_ScoresNamedField(t *testing.T) {
 		t.Errorf("predict-compose = %+v, want one error with details %#v", env.Errors, ce.Details)
 	}
 }
+
+// TestComposeFormula_SeriesAxisAdvisoryNeverChangesExecution (U66
+// E8-S2): over region x sex (no date grouper) a Compose FORMULA with no
+// partition_by draws PULSE_ADVISORY_SERIES_AXIS_NOT_DATE from facade
+// predict-compose, attributed to the spec and its host slot; a strict
+// instance keeps it out of errors and warnings, and the Compose output is
+// byte-identical with the code suppressed.
+func TestComposeFormula_SeriesAxisAdvisoryNeverChangesExecution(t *testing.T) {
+	t.Parallel()
+
+	code := string(perr.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE)
+	f := newMGFixture(t, pulse.Options{Strict: true})
+	req := cfCompose(f, cfRegionSex, cfFormula("prior", "prior", nil))
+	env := csPredict(t, f.p, req)
+	res := env.Data.(*pulse.ComposePredictResult)
+	var got []map[string]any
+	for _, a := range res.Advisories {
+		if a.Code == code {
+			got = append(got, a.Details)
+		}
+	}
+	if len(got) != 1 || got[0]["slot"] != "overlays[0]" || got[0]["request"] != 1 || got[0]["target"] != "b" {
+		t.Fatalf("advisories = %+v, want one on overlays[0] over request 1 (b)", res.Advisories)
+	}
+	if !res.Valid || len(env.Errors) != 0 || len(env.Warnings) != 0 {
+		t.Errorf("strict: valid=%v errors=%v warnings=%v", res.Valid, env.Errors, env.Warnings)
+	}
+	run := func(p *pulse.Pulse) string {
+		t.Helper()
+		resp, err := p.Compose(context.Background(), req)
+		if err != nil {
+			t.Fatalf("compose: %v", err)
+		}
+		b, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	quiet := newMGFixture(t, pulse.Options{Strict: true, SuppressAdvisories: []string{code}})
+	if a, b := run(f.p), run(quiet.p); a != b {
+		t.Errorf("Compose output differs with the advisory suppressed:\n%s\n---\n%s", a, b)
+	}
+}

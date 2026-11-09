@@ -400,3 +400,35 @@ func TestAppliesWith(t *testing.T) {
 		t.Error("the built-in table moved under the hook")
 	}
 }
+
+// TestFromCompose: a Compose spec reads as the OverlaySpec Explicit and
+// Depth take — Kind kept, Params re-encoded — so the partition rule and
+// predict's series-axis advisory see one partition_by.
+func TestFromCompose(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := FromCompose(nil); ok {
+		t.Error("FromCompose(nil) ok")
+	}
+	for _, c := range []struct {
+		params   map[string]any
+		explicit bool
+	}{
+		{nil, false},
+		{map[string]any{"formula": "prior"}, false},
+		{map[string]any{"partition_by": nil}, false},
+		{map[string]any{"partition_by": []string{}}, true},
+		{map[string]any{"partition_by": []string{"region"}}, true},
+	} {
+		got, ok := FromCompose(&types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Params: c.params})
+		if !ok || got.Kind != types.OverlayKindFormula {
+			t.Fatalf("%v: FromCompose = (%+v, %v)", c.params, got, ok)
+		}
+		if Explicit(got) != c.explicit {
+			t.Errorf("%v: Explicit = %v, want %v", c.params, !c.explicit, c.explicit)
+		}
+	}
+	if _, ok := FromCompose(&types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Params: map[string]any{"x": func() {}}}); ok {
+		t.Error("unencodable params: ok")
+	}
+}

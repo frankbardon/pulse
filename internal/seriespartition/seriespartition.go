@@ -175,6 +175,26 @@ func ComposeKinds() []types.OverlayKind {
 	return out
 }
 
+// FromCompose is spec read as the OverlaySpec Depth and Explicit take:
+// its Kind and its Params map re-encoded as JSON. ok is false when the
+// Params do not encode (the kind's own params gate owns that refusal).
+// One adapter for the Compose partition rule (ComposeHostDepth) and
+// predict's Compose series-axis advisory.
+func FromCompose(spec *types.ComposeOverlaySpec) (*types.OverlaySpec, bool) {
+	if spec == nil {
+		return nil, false
+	}
+	ospec := &types.OverlaySpec{Kind: spec.Kind}
+	if len(spec.Params) > 0 {
+		raw, err := json.Marshal(spec.Params)
+		if err != nil {
+			return nil, false
+		}
+		ospec.Params = raw
+	}
+	return ospec, true
+}
+
 // ComposeHostDepth is Depth for a Compose overlay spec over its host
 // slot — the first target, whose Request is host (the gates already
 // proved every slot it reads keys on the same group columns). A kind
@@ -188,13 +208,9 @@ func ComposeHostDepth(host *types.Request, spec *types.ComposeOverlaySpec, index
 	if spec == nil || !AppliesCompose(spec.Kind) || host == nil || host.Crosstab != nil || len(host.Groups) == 0 {
 		return 0, nil
 	}
-	ospec := &types.OverlaySpec{Kind: spec.Kind}
-	if len(spec.Params) > 0 {
-		raw, err := json.Marshal(spec.Params)
-		if err != nil {
-			return 0, nil // undecodable params: the kind's own params gate owns it
-		}
-		ospec.Params = raw
+	ospec, ok := FromCompose(spec)
+	if !ok {
+		return 0, nil // undecodable params: the kind's own params gate owns it
 	}
 	depth, err := Depth(host.Groups, ospec, index)
 	if ce, ok := err.(*errors.CodedError); ok {
