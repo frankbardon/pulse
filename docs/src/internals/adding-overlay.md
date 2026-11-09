@@ -111,6 +111,12 @@ What each declaration buys:
 - `Validate` / `ValidateCompose` — optional spec-only hooks, run after the
   declarative rules, once per spec, identically at predict and runtime.
 - `WeightAware` — see step 5.
+- `ReadsCellCountsOnly` — declare it only if the handler reads the cells'
+  record counts and weight figures (`CellN`, the margin Ns, `CellSumWeights`,
+  `CellNEff`) and never a cell or margin value. Undeclared, a spec over a
+  crosstab whose cell is a categorical code (`AGG_MODE` of a categorical or
+  `packed_bool` field) is refused `PROCESSING_CONFIG`, reason
+  `categorical_code`, on the Process host and on a Compose crosstab slot alike.
 - `DependsOn` — feature edges; the kind is a feature (host group from its
   handlers: `Matrix` needs `capability:crosstab`, `Series` / `Compose` need
   `capability:compose`), so a [feature profile](../library/feature-profiles.md)

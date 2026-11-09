@@ -59,6 +59,32 @@ func extensionOverlayDecl(inst *InstanceSnapshot, kind types.OverlayKind) *overl
 	return &d
 }
 
+// readsCellValue is the instance's ReadsCellValue: whether kind, on a
+// MATRIX Process host, reads the crosstab cell VALUES — an extension
+// kind by its declaration (overlayhost.ExtensionReadsCellValue, U66
+// #447), a built-in by overlayhost.ReadsCellValue; a hidden kind never
+// (it is left to the kind rule).
+func readsCellValue(inst *InstanceSnapshot, kind types.OverlayKind) bool {
+	if inst.Hidden(string(kind)) {
+		return false
+	}
+	if d := extensionOverlayDecl(inst, kind); d != nil {
+		return overlayhost.ExtensionReadsCellValue(d, overlayhost.Request)
+	}
+	return overlayhost.ReadsCellValue(kind)
+}
+
+// composeReadsCellValue is the instance's ComposeReadsCellValue: an
+// extension kind by its declaration, a built-in by
+// overlayhost.ComposeReadsCellValue (cellMoments: the cell's components
+// carry mean and variance).
+func composeReadsCellValue(inst *InstanceSnapshot, kind types.OverlayKind, cellMoments bool) bool {
+	if d := extensionOverlayDecl(inst, kind); d != nil {
+		return overlayhost.ExtensionReadsCellValue(d, overlayhost.Compose)
+	}
+	return overlayhost.ComposeReadsCellValue(kind, cellMoments)
+}
+
 // ExtensionOverlayHostCapabilities returns the host capabilities the
 // extension overlay kind d declares runs under, sorted:
 // capability:crosstab for a Matrix handler, capability:compose for a

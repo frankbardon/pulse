@@ -789,6 +789,7 @@ pulse: type OverlayRegistration field Interpretation []pulse/descriptor.Interpre
 pulse: type OverlayRegistration field Name pulse/types.OverlayKind
 pulse: type OverlayRegistration field Params []pulse.ParamMeta
 pulse: type OverlayRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type OverlayRegistration field ReadsCellCountsOnly bool
 pulse: type OverlayRegistration field Refs []pulse/extend.OverlayRefKind
 pulse: type OverlayRegistration field Scopes []pulse/types.OverlayScope
 pulse: type OverlayRegistration field Shapes []pulse/types.OverlayShape
@@ -6778,4 +6779,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 357bd71f0d23d28b97e0331fefb38620e6b8ca3549701d67fdc556235b70cc38
+// golden-hash: 010979b9a99eeb69ab32c2d1c7556ecc601ac53944a3320bf6010c57a91bf9d6

@@ -2254,7 +2254,9 @@ so a pick over it there scores — unless a code-emitting aggregation (a
 declared pick over a code, or `AGG_MODE`) wrote it: code-ness propagates
 through every stage. A pick over a forwarded group key
 (`categorical_u32`) is refused. As a crosstab cell over a code field it
-is refused under every MATRIX overlay kind that reads cell values, and
+is refused under every MATRIX overlay kind that reads cell values (an
+extension kind included, unless it declares `ReadsCellCountsOnly` — see
+[Overlay kinds over a code cell](#overlay-kinds-over-a-code-cell)), and
 so is a Compose crosstab slot under a Compose kind that does (`OVERLAY_T_CELL` /
 `OVERLAY_Z_CELL` too unless the cell's components carry mean and variance). Undeclared, an overlay scores the code
 as a magnitude. The manifest's extension entry carries
@@ -2360,6 +2362,24 @@ registration without `EmitsPValues` is `undeclared_p_values`, one off
 its shape's site (a matrix or series layer's own `Summary.PValue`)
 `misplaced_p_values`, one outside [0, 1] `invalid_p_value`, and a probe
 run that returns no p-value at all `missing_p_values`.
+
+### Overlay kinds over a code cell
+
+A crosstab whose cell aggregation is a categorical code (`AGG_MODE`, or
+an `EmitsInputValue` aggregator, over a `categorical_*` / `packed_bool`
+field) holds a dictionary index or a 0/1 truth value in every cell and
+margin, not a magnitude. An `OverlayRegistration` with a `Matrix`
+handler (the Process crosstab host) or a `Compose` handler (a Compose
+crosstab slot it reads) is taken to read the cell VALUES
+(`MatrixOverlayHost.Cell`, `RowMargin`, `ColumnMargin`, `GrandTotal`),
+so a spec of it over such a cell is refused `PROCESSING_CONFIG`, reason
+`categorical_code` (Details add `field` and `field_type`), at predict
+and at runtime alike — exactly as a built-in value-reading kind. Declare
+`ReadsCellCountsOnly: true` when the handler reads only the record
+counts and weight figures (`CellN`, `RowMarginN`, `ColumnMarginN`,
+`CellSumWeights`, `CellNEff`); the rule then leaves the kind alone. The
+declaration is trusted, not probed. It has no effect on a `Series`-only
+kind.
 
 ## Built-in accepted types: the one table (contributor flow)
 

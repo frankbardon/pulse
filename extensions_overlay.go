@@ -140,6 +140,19 @@ type OverlayRegistration struct {
 	// never takes the streaming path (PredictResult.Streamable is false
 	// with the reason named).
 	EmitsPValues bool
+	// ReadsCellCountsOnly declares that the handler reads only a crosstab
+	// host's record counts and weight figures (MatrixOverlayHost.CellN,
+	// RowMarginN, ColumnMarginN, CellSumWeights, CellNEff), never a cell
+	// or margin VALUE (Cell, RowMargin, ColumnMargin, GrandTotal), on its
+	// Matrix handler and on a Compose crosstab slot alike. Unset (the
+	// default), a kind with a Matrix or Compose handler reads values: over
+	// a crosstab whose cell is a categorical code (AGG_MODE, or an
+	// EmitsInputValue aggregator, over a categorical_* / packed_bool
+	// field) a spec of it is refused PROCESSING_CONFIG, reason
+	// categorical_code, at predict and at runtime alike, exactly as a
+	// built-in value-reading kind. It has no effect on a Series-only
+	// kind.
+	ReadsCellCountsOnly bool
 	// Validate is the optional spec-only refusal hook
 	// (extend.SpecValidator): it judges a spec the declarative rules
 	// accepted, at predict and at runtime alike, before the handler;
@@ -246,13 +259,14 @@ func badEnumList[T ~string](list, known []T) (string, bool) {
 // runtime registry and the snapshot both carry.
 func overlayDeclaration(r OverlayRegistration) overlayhost.ExtensionDecl {
 	d := overlayhost.ExtensionDecl{
-		Kind:         r.Name,
-		Shapes:       slices.Clone(r.Shapes),
-		Scopes:       slices.Clone(r.Scopes),
-		Refs:         []string{overlayhost.RefNone},
-		WeightAware:  r.WeightAware,
-		Inferential:  r.Inferential,
-		EmitsPValues: r.EmitsPValues,
+		Kind:                r.Name,
+		Shapes:              slices.Clone(r.Shapes),
+		Scopes:              slices.Clone(r.Scopes),
+		Refs:                []string{overlayhost.RefNone},
+		WeightAware:         r.WeightAware,
+		Inferential:         r.Inferential,
+		EmitsPValues:        r.EmitsPValues,
+		ReadsCellCountsOnly: r.ReadsCellCountsOnly,
 	}
 	if r.Handler.Matrix != nil {
 		d.HostShapes = append(d.HostShapes, types.OverlayShapeMatrix)

@@ -694,7 +694,7 @@ func composeCellCodeRefusal(i int, spec *types.ComposeOverlaySpec, j int, slot s
 		return nil
 	}
 	moments := (disabled == nil || !disabled(r)) && cellCarriesMoments(inst, kinds.Routed(cell.Type))
-	if !overlayhost.ComposeReadsCellValue(spec.Kind, moments) {
+	if !composeReadsCellValue(inst, spec.Kind, moments) {
 		return nil
 	}
 	kind := string(spec.Kind)

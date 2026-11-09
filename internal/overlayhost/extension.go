@@ -56,6 +56,34 @@ type ExtensionDecl struct {
 	// member slot's p-values join the request's multiple-comparison
 	// family like a built-in inferential kind's.
 	EmitsPValues bool
+	// ReadsCellCountsOnly declares that the handler reads only a
+	// crosstab host's record counts and weight figures, never a cell or
+	// margin VALUE: the categorical-code cell rule then leaves the kind
+	// alone (ExtensionReadsCellValue). Unset, a kind with a MATRIX or
+	// Compose handler reads values and is refused over a code cell.
+	ReadsCellCountsOnly bool
+}
+
+// ExtensionReadsCellValue is ReadsCellValue / ComposeReadsCellValue for
+// an extension kind (U66 #447): whether d's handler reads a crosstab
+// cell's VALUE on host — Request iff the kind has a MATRIX Process
+// handler, Compose iff it has a Compose handler (a crosstab slot's
+// view) — unless the registration declares ReadsCellCountsOnly. No
+// extension kind runs on Chain or Facet. Predict and the runtime both
+// reach it through the instance snapshot's declaration, which
+// pulse.New builds from the same registration as the runtime
+// registry's.
+func ExtensionReadsCellValue(d *ExtensionDecl, host Host) bool {
+	if d == nil || d.ReadsCellCountsOnly {
+		return false
+	}
+	switch host {
+	case Request:
+		return slices.Contains(d.HostShapes, types.OverlayShapeMatrix)
+	case Compose:
+		return d.Compose
+	}
+	return false
 }
 
 // MatrixOnly reports whether every payload shape the kind may return
