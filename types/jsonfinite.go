@@ -482,6 +482,13 @@ func (v GrouperComponents) MarshalJSON() ([]byte, error) {
 	return MarshalFinite((*alias)(&v))
 }
 
+// MarshalJSON writes one params.fit "within" refit's components with
+// every non-finite float as null; see MarshalFinite.
+func (v GrouperBucketComponents) MarshalJSON() ([]byte, error) {
+	type alias GrouperBucketComponents
+	return MarshalFinite((*alias)(&v))
+}
+
 // MarshalJSON writes the crosstab components with every non-finite float as null;
 // see MarshalFinite.
 func (v CrosstabComponents) MarshalJSON() ([]byte, error) {

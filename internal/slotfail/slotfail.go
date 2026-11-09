@@ -47,7 +47,38 @@ const (
 	// failed on its data — the fit's own code). internal/regcompare
 	// builds its error; Collect never lists it (it is no Response slot).
 	KindComparisons Kind = "comparisons"
+	// KindGroups is one params.fit "within" refit of a Request.Groups
+	// (or crosstab axis) slot that failed on one outer bucket's records
+	// (RefitDegenerate). The engine builds its error into the slot's
+	// GrouperComponents.Buckets entry and raises its warning itself, so
+	// Collect never lists it (Components may be off).
+	KindGroups Kind = "groups"
 )
+
+// ReasonKExceedsDistinctPoints is GROUP_KMEANS's details.reason when
+// params.k exceeds the distinct member tuples it clusters.
+const ReasonKExceedsDistinctPoints = "k_exceeds_distinct_points"
+
+// RefitDegenerate reports whether err is the data-dependent refusal a
+// params.fit "within" refit raises over one outer bucket: GROUP_KMEANS
+// k above that bucket's distinct member tuples (PROCESSING_CONFIG,
+// details.reason k_exceeds_distinct_points). The whole-set fit of the
+// same slot already succeeded, so the refusal is the bucket's data,
+// never the request's; any other refit error stays fatal.
+func RefitDegenerate(err error) (*types.SlotError, bool) {
+	var coded *errors.CodedError
+	if err == nil || !stderrors.As(err, &coded) {
+		return nil, false
+	}
+	if coded.Code != errors.PROCESSING_CONFIG || coded.Details["reason"] != ReasonKExceedsDistinctPoints {
+		return nil, false
+	}
+	se := &types.SlotError{Code: string(coded.Code), Message: coded.Message}
+	if len(coded.Details) > 0 {
+		se.Details = maps.Clone(coded.Details)
+	}
+	return se, true
+}
 
 // ComparisonCodes are the data-dependent refusals a nested-model
 // comparison raises itself: the two fits used different rows.

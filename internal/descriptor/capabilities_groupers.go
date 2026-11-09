@@ -336,5 +336,6 @@ var groupFitParam = descriptor.Param{
 	EnumValues: []string{"global", "within"},
 	Description: "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). " +
 		"within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. " +
-		"On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
+		"On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time. " +
+		"Under within the slot's components stay the whole-set fit's and add buckets, one per refit (predict refit_buckets); a refit refused on its bucket's data fails that bucket alone (PULSE_SLOT_FAILED).",
 }

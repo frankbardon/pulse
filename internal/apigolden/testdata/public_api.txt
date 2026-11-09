@@ -1666,6 +1666,7 @@ pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type GroupPredict field Field string "json:\"field,omitempty\""
+pulse/descriptor: type GroupPredict field RefitBuckets bool "json:\"refit_buckets,omitempty\""
 pulse/descriptor: type GroupPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type GroupPredict field Type pulse/types.GroupType "json:\"type\""
 pulse/descriptor: type ImportCapability struct
@@ -5739,7 +5740,15 @@ pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
 pulse/types: type GroupType method (GroupType) Mergeable() bool
 pulse/types: type GroupType method (GroupType) Streamable() bool
+pulse/types: type GrouperBucketComponents struct
+pulse/types: type GrouperBucketComponents field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type GrouperBucketComponents field GroupKey pulse/types.AxisKey "json:\"group_key\""
+pulse/types: type GrouperBucketComponents field NNull int "json:\"n_null,omitempty\""
+pulse/types: type GrouperBucketComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type GrouperBucketComponents field TotalN int "json:\"total_n,omitempty\""
+pulse/types: type GrouperBucketComponents method (GrouperBucketComponents) MarshalJSON() ([]byte, error)
 pulse/types: type GrouperComponents struct
+pulse/types: type GrouperComponents field Buckets []pulse/types.GrouperBucketComponents "json:\"buckets,omitempty\""
 pulse/types: type GrouperComponents field Field string "json:\"field,omitempty\""
 pulse/types: type GrouperComponents field Label string "json:\"label,omitempty\""
 pulse/types: type GrouperComponents field NNull int "json:\"n_null,omitempty\""
@@ -6781,4 +6790,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d67f4e5bfdd82793d824d61c8d7379c94e4559874e55a0a25c121d40e18a645b
+// golden-hash: 6f03f63b23dbe85d47b755311b7e32c4d73f51bbdc9b387d52a38cc383c6ebc8

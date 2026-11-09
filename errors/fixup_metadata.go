@@ -5654,7 +5654,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SLOT_FAILED: {
-		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). Under Options.Strict the run fails with the slot's own code instead.",
+		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). slot_kind `groups` is one outer bucket of a params.fit \"within\" grouper whose refit failed on that bucket's data (a cluster count above its distinct tuples): `index` is the composite position (a crosstab counts rows, then columns), `label` the key column, its records join no bucket and its `components.groupers[index].buckets` entry carries the error. Under Options.Strict the run fails with the slot's own code instead.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

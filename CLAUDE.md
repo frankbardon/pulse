@@ -119,7 +119,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.1"`). Mirrors the request shape:
 
 - `Aggregations []AggregationComponents` — one entry per aggregator slot; universal floor `{n, n_null}` + operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: cohort-wide floor + per-row `Groups` (reference).
-- `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout.
+- `Groupers []GrouperComponents` — universal floor `{total_n, n_null}` + operator-specific bucket layout; `fit: "within"` adds per-refit `buckets`.
 - `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, row/column/grand-total margin counterparts, axis-key components. Mirrors `MatrixPayload` coordinate-for-coordinate. Auxiliary `crosstab.margin_aggregations` figures and the multi-measure (`crosstab.cells`) `Measures` extend this bullet — reference below.
 - `Filterers []FiltererComponents` — uniform `{n_in, n_out, n_null_input}` on every filterer.
 - `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. Coexists with `Response.Metadata`: `Metadata` keeps non-numerical run facts (cohort filename); `Run` carries the typed counters.

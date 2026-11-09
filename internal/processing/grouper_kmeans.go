@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupfit"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -177,7 +178,7 @@ func (g *kmeansGrouper) Group(records []*Record, _ string) (map[string][]*Record
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"GROUP_KMEANS params.k = "+strconv.Itoa(g.cfg.K)+" exceeds the "+strconv.Itoa(len(points))+
 				" distinct member tuples the clustered rows carry; lower k",
-			map[string]any{"group": g.key, "reason": "k_exceeds_distinct_points", "k": g.cfg.K, "distinct_points": len(points)})
+			map[string]any{"group": g.key, "reason": slotfail.ReasonKExceedsDistinctPoints, "k": g.cfg.K, "distinct_points": len(points)})
 	}
 	fit := kmeansRun(points, g.cfg)
 	g.fit = fit
@@ -664,6 +665,11 @@ type wholeSetAxis struct {
 	keyOf      map[*Record]string
 	order      *includeFilter
 	components map[string]any
+	// refits holds a "within" position's per-outer-bucket refit
+	// components, keyed by CompositeAxisKey of the outer segment,
+	// captured by the cell partitions (the plain-groups Buckets
+	// figures); a row-axis key component reads its row's refit.
+	refits map[string]map[string]any
 }
 
 // partition routes records by the fitted assignment; a record the fit

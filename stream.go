@@ -634,10 +634,13 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 		}
 		out.Aggregations = clone
 	}
-	if len(buffered.Groupers) > 0 && grpHasNone(grpMerge) {
+	if len(buffered.Groupers) > 0 && (grpHasNone(grpMerge) || grpHasBuckets(buffered.Groupers)) {
 		clone := make([]types.GrouperComponents, len(buffered.Groupers))
 		copy(clone, buffered.Groupers)
 		for i := range clone {
+			// A params.fit "within" slot's per-refit Buckets are
+			// TERMINAL-only, like a grouped slot's per-group figures.
+			clone[i].Buckets = nil
 			if i < len(grpMerge) && grpMerge[i] == descriptor.None {
 				// Non-mergeable grouper (GROUP_QUANTILE): strip the
 				// per-operator key map (bucket edges, dict mappings,
@@ -661,6 +664,17 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 		out.Attributes = clone
 	}
 	return out
+}
+
+// grpHasBuckets reports whether any grouper slot carries params.fit
+// "within" Buckets.
+func grpHasBuckets(groupers []types.GrouperComponents) bool {
+	for _, g := range groupers {
+		if len(g.Buckets) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // attributeNoneTypes is the set of built-in attribute operators whose

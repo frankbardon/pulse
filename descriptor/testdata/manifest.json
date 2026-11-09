@@ -5839,7 +5839,7 @@
               "type": "enum",
               "required": false,
               "default": "global",
-              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
+              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time. Under within the slot's components stay the whole-set fit's and add buckets, one per refit (predict refit_buckets); a refit refused on its bucket's data fails that bucket alone (PULSE_SLOT_FAILED).",
               "enum_values": [
                 "global",
                 "within"
@@ -6056,7 +6056,7 @@
               "type": "enum",
               "required": false,
               "default": "global",
-              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time.",
+              "description": "Where the grouper is fitted. global: once over the whole filtered set, whatever its position (plain groups, crosstab and Compose alike). within: refitted inside each bucket of the groupers before it (crosstab: rows, then columns), so [region, quartile] gives per-region quartiles. On the outermost position (groups[0], crosstab rows[0]) within is a no-op. Any other value is refused PROCESSING_CONFIG on predict and at run time. Under within the slot's components stay the whole-set fit's and add buckets, one per refit (predict refit_buckets); a refit refused on its bucket's data fails that bucket alone (PULSE_SLOT_FAILED).",
               "enum_values": [
                 "global",
                 "within"
@@ -21225,4 +21225,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0dba76af96ad85bbfe311d333bc23484abed25f06b0b5ac38e1cdc51b883c9c9
+// golden-hash: 5b94b7902bda643f52df1b32d695e29d184336bfbfa70205a21d8e8e15275a54

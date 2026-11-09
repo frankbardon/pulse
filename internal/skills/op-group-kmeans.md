@@ -21,7 +21,7 @@ examples_tags: [multivariate, buffered-pipeline]
 | `n_init` | int | `10` | Seeded starts; lowest within-SS wins. |
 | `standardize` | bool | `true` | z-score each member first. |
 | `missing` | enum | `listwise` | `listwise` only. |
-| `fit` | enum | `global` | `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost). A `within` refit that stops at `max_iter` warns once per bucket, `details.group_key` = the outer segment; the whole-set fit (Components) warns unstamped. |
+| `fit` | enum | `global` | `global` (once over the filtered set) or `within` (refit per bucket of the earlier groupers; no-op outermost): each refit is a Components `buckets` entry, warns with `details.group_key`; k above a bucket's distinct tuples fails it alone (`PULSE_SLOT_FAILED`). |
 
 `weight`: frequency only (a row is w points).
 

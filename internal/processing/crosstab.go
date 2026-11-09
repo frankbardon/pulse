@@ -87,7 +87,8 @@ func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, oute
 	ApplyGrouperExtensions(grouper, p.exts)
 	var buckets map[string][]*Record
 	order := buildIncludeFilter(grp.Include)
-	if ws := p.wholeSetAxes[grp]; ws != nil && ws.route {
+	ws := p.wholeSetAxes[grp]
+	if ws != nil && ws.route {
 		// A whole-set axis (GROUP_QUANTILE / GROUP_KMEANS under
 		// params.fit "global") was fitted once over every filtered
 		// record (fitWholeSetAxes); this level only routes its records
@@ -97,15 +98,33 @@ func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, oute
 		if ws.order != nil {
 			order = ws.order
 		}
-	} else {
-		if buckets, err = grouper.Group(records, grp.Field); err != nil {
+	} else if buckets, err = grouper.Group(records, grp.Field); err != nil {
+		// A degenerate "within" refit fails this outer bucket alone
+		// (degenerateRefit, the plain-groups rule): its records join no
+		// key here. Only the cell partitions (warns) warn or, under
+		// Strict, fail; every other pass drops the bucket silently.
+		w, _, ok, fatal := degenerateRefit(err, grp, len(outer), outer, p.strictWeights && warns != nil)
+		if !ok {
 			return nil, err
 		}
+		if fatal != nil {
+			return nil, fatal
+		}
+		if warns != nil {
+			*warns = append(*warns, w)
+		}
+		buckets = map[string][]*Record{}
+	} else {
 		if eo, ok := grouper.(emissionOrderer); ok {
 			order = eo.emissionOrder()
 		}
 		if warns != nil {
 			*warns = append(*warns, refitWarnings(grouper, outer)...)
+			if ws != nil && !ws.route {
+				if err := ws.captureRefit(grouper, outer); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -345,6 +364,58 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 		}
 	}
 	return out, nil
+}
+
+// captureRefit stores a successful "within" refit's components under
+// its outer segment (CompositeAxisKey of the outer tuple).
+func (ws *wholeSetAxis) captureRefit(g Grouper, outer types.AxisKey) error {
+	meta, ok := g.(MetaGrouper)
+	if !ok {
+		return nil
+	}
+	op, err := meta.Components()
+	if err != nil {
+		return err
+	}
+	parts := make([]string, len(outer))
+	for i, v := range outer {
+		parts[i], _ = v.(string)
+	}
+	if ws.refits == nil {
+		ws.refits = map[string]map[string]any{}
+	}
+	ws.refits[CompositeAxisKey(parts)] = op
+	return nil
+}
+
+// projectRowRefits points each row's key component at a params.fit
+// "within" row position (after the first) to the bucket of THAT row's
+// refit — the refit over the row tuple's outer segment, whose figures
+// the plain-groups GrouperComponents.Buckets entry carries — instead of
+// the whole-set fit's bucket of the same key. A column position spans
+// every row bucket, so ColumnKeyComponents keeps the whole-set fit.
+func (p *Processor) projectRowRefits(rows []*types.Group, tuples []types.AxisKey, comps []map[string]any) {
+	for pos := 1; pos < len(rows); pos++ {
+		ws := p.wholeSetAxes[rows[pos]]
+		if ws == nil || ws.route {
+			continue
+		}
+		for r, tuple := range tuples {
+			if r >= len(comps) || comps[r] == nil || len(tuple) <= pos {
+				continue
+			}
+			axes, _ := comps[r]["axes"].([]map[string]any)
+			if pos >= len(axes) {
+				continue
+			}
+			parts := make([]string, pos)
+			for i := range pos {
+				parts[i], _ = tuple[i].(string)
+			}
+			key, _ := tuple[pos].(string)
+			axes[pos]["bucket"] = bucketByKey(axisBuckets(ws.refits[CompositeAxisKey(parts)]), key)
+		}
+	}
 }
 
 // projectAxisKeyComponents builds the per-axis-key component vector
@@ -664,6 +735,7 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 		}
 		rowKeyComponents = projectAxisKeyComponents(spec.Rows, rowPart.Tuples, rowAxisComponents)
 		colKeyComponents = projectAxisKeyComponents(spec.Columns, colPart.Tuples, colAxisComponents)
+		p.projectRowRefits(spec.Rows, rowPart.Tuples, rowKeyComponents)
 	}
 
 	// One run per measure: the single Cell, or each Cells entry as the

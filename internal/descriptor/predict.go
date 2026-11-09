@@ -13,6 +13,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/featstream"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -1438,7 +1439,7 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 	}
 	idx := grouperComponentSchemaIndex(opts)
 	out := make([]descriptor.GroupPredict, 0, len(req.Groups))
-	for _, grp := range req.Groups {
+	for i, grp := range req.Groups {
 		if grp == nil {
 			continue
 		}
@@ -1448,6 +1449,10 @@ func populateGroupPredicts(result *descriptor.PredictResult, req *types.Request,
 			Field:              grp.Field,
 			ComponentSchema:    schema,
 			BufferedComponents: schema.Mergeability == descriptor.None,
+			// A "within" position after the first is refitted per outer
+			// bucket; the runtime emits one Buckets entry per refit
+			// (the outermost "within" is the whole-set fit).
+			RefitBuckets: i > 0 && groupfit.IsWithin(grp),
 		})
 	}
 	result.Groups = out

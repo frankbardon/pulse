@@ -8,13 +8,13 @@ applies_to: process, compose, predict, sample, facet
 
 # `Response.Components`
 
-The constituent parts behind every emitted value. Reach for it when a figure must be checked or re-based: "what n is this mean over?". This skill is the shared shape; per-operator keys live in each atomic skill's `## Components` and in `manifest.components_schemas`.
+The constituent parts behind every emitted value. Reach for it to check or re-base a figure ("what n is this mean over?"). This skill is the shared shape; per-operator keys live in each atomic skill's `## Components` and in `manifest.components_schemas`.
 
 Additive `omitempty`: nothing components-shaped, no `components` key. Nothing here moves `format_version` (`"1.1"`).
 
 ## Universal floor
 
-Filled by the ENGINE, not the operator — every slot carries it, even a floor-only operator.
+Engine-filled: every slot carries it, even a floor-only operator.
 
 | Shell | JSON keys |
 |---|---|
@@ -42,7 +42,7 @@ Filled by the ENGINE, not the operator — every slot carries it, even a floor-o
 | `attributes` | one per attribute slot whose operator declares a schema · `label` + `type`, NOT index | `n` / `n_null` (present / null outputs) + `operator`; cohort-wide, never per bucket |
 
 - **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (all filter-passing records, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream: terminal chunk only.
-- Several `groups`: `group_key` is the tuple; one `groupers` entry per slot.
+- Several `groups`: `group_key` is the tuple; one `groupers` entry per slot. A `fit: "within"` slot adds `buckets`: one `{group_key, total_n, n_null, operator}` per refit (failed: `error`).
 - A fan-out grouper's bucket sum may EXCEED `total_n`.
 - `run` coexists with `Response.Metadata` (`Metadata.TotalRows == Run.TotalRecords`), which keeps non-numerical facts.
 
@@ -62,7 +62,7 @@ Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis 
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process`<!-- feature: capability:process_chain --> / `process-chain`<!-- /feature --><!-- feature: capability:compose --> / `compose`<!-- /feature -->; request JSON `"disable_components"` wins over it |
 
-Disabled ⇒ `Response.Components` stays `nil` (byte-identical; the work is skipped). Consumers MUST tolerate `nil`. Compose: per `requests[i]`. MCP never surfaces the knob.
+Disabled ⇒ `Response.Components` is `nil` (byte-identical, work skipped); tolerate `nil`. Compose: per `requests[i]`. MCP never surfaces the knob.
 
 ## Manifest declaration
 
@@ -70,7 +70,7 @@ Disabled ⇒ `Response.Components` stays `nil` (byte-identical; the work is skip
 
 ## Mergeability
 
-`mergeability` classifies how an operator's components fold across streaming chunks and parallel partitions.
+`mergeability`: how components fold across chunks and partitions.
 
 | Class | Wire | Meaning for a consumer |
 |---|---|---|
