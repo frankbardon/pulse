@@ -47,13 +47,15 @@ type ComposeOverlaySpec struct {
 
 	// Targets names the slot label(s) whose result(s) the comparison
 	// surface decorates. Length >= 1 for every kind today. The panel
-	// kinds consume the full slice; the pair kinds OVERLAY_INDEX_VS_REF,
-	// OVERLAY_DELTA_VS_REF, OVERLAY_T_VS_REF and OVERLAY_Z_VS_REF fan
-	// out to one layer per target, in Targets order (one target: the
-	// spec's Name, byte-identical to before; two or more:
-	// `<name>__<target>`), capped by Options.MaxPanelTargets. The other
-	// single-target kinds still consume Targets[0]; OVERLAY_FORMULA hosts
-	// on Targets[0] and reads the others as `slot.<label>`. Order is
+	// kinds consume the full slice; every other kind but OVERLAY_FORMULA
+	// — the pair kinds OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF,
+	// OVERLAY_T_VS_REF, OVERLAY_Z_VS_REF and the matrix kinds
+	// OVERLAY_T_CELL, OVERLAY_Z_CELL, OVERLAY_PROP_Z_CELL,
+	// OVERLAY_CHISQ_VS_REF, OVERLAY_RANK — fans out to one layer per
+	// target, in Targets order (one target: the spec's Name,
+	// byte-identical to before; two or more: `<name>__<target>`),
+	// capped by Options.MaxPanelTargets. OVERLAY_FORMULA hosts on
+	// Targets[0] and reads the others as `slot.<label>`. Order is
 	// significant — the canonical-hash walker preserves slice order via
 	// the data-driven JSON walk.
 	Targets []string `json:"targets,omitempty"`

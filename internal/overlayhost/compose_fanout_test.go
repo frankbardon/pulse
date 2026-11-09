@@ -15,6 +15,11 @@ func TestComposeFanOutKinds(t *testing.T) {
 		types.OverlayKindDeltaVsRef: true,
 		types.OverlayKindTVsRef:     true,
 		types.OverlayKindZVsRef:     true,
+		types.OverlayKindTCell:      true,
+		types.OverlayKindZCell:      true,
+		types.OverlayKindPropZCell:  true,
+		types.OverlayKindChiSqVsRef: true,
+		types.OverlayKindRank:       true,
 	}
 	for _, k := range types.AllOverlayKinds() {
 		if got := ComposeFanOutKind(k); got != want[k] {
@@ -34,7 +39,7 @@ func TestComposeLayerSpecs(t *testing.T) {
 	t.Parallel()
 	specs := []types.ComposeOverlaySpec{
 		{Kind: types.OverlayKindTVsRef, Targets: []string{"a", "b", "c"}},
-		{Kind: types.OverlayKindPropZCell, Targets: []string{"a", "b"}},
+		{Kind: types.OverlayKindPropZPanel, Targets: []string{"a", "b"}},
 		{Kind: types.OverlayKindIndexVsRef, Targets: []string{"a"}},
 		{Kind: types.OverlayKindPanelIndexVsRef, Targets: []string{"a", "b"}},
 	}

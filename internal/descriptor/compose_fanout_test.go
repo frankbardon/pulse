@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/overlayhost"
@@ -29,5 +30,17 @@ func TestComposeOverlayCost_FanOutScalesPerTarget(t *testing.T) {
 	}
 	if composeDefaultPanelCap != overlayhost.DefaultComposeTargetCap {
 		t.Errorf("composeDefaultPanelCap %d != overlayhost.DefaultComposeTargetCap %d", composeDefaultPanelCap, overlayhost.DefaultComposeTargetCap)
+	}
+}
+
+// TestComposeFanOutKinds_CapabilityNotesFanOut: every fan-out kind's
+// manifest description says it fans out, and no other kind's does.
+func TestComposeFanOutKinds_CapabilityNotesFanOut(t *testing.T) {
+	t.Parallel()
+	for _, kind := range types.AllOverlayKinds() {
+		has := strings.Contains(overlayCapabilityFor(kind).Description, composeFanOutNote)
+		if has != overlayhost.ComposeFanOutKind(kind) {
+			t.Errorf("%s: description carries the fan-out note %v, fan-out kind %v", kind, has, overlayhost.ComposeFanOutKind(kind))
+		}
 	}
 }

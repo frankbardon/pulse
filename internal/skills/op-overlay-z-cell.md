@@ -32,7 +32,7 @@ COMPOSE — MATRIX crosstab on both slots. Reads `{n, mean, variance}` from `Res
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival. One layer per target; `Baseline` unset.
+MATRIX — `Cells[r][c].Value` = two-sided p-value via standard normal survival. One layer per target (`<name>__<target>` for 2+); cap `max_panel_targets`; `Baseline` unset.
 
 <!-- generated: reading-the-output -->
 

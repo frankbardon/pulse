@@ -3170,7 +3170,9 @@ type OverlayOptions struct {
 	// folds them into a pairwise output, OVERLAY_PANEL_INDEX_VS_REF
 	// emits a layer per target) and the fan-out kinds
 	// (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF, OVERLAY_T_VS_REF,
-	// OVERLAY_Z_VS_REF: one layer per target). Default 16 when the slot is zero — per the
+	// OVERLAY_Z_VS_REF, OVERLAY_T_CELL, OVERLAY_Z_CELL,
+	// OVERLAY_PROP_Z_CELL, OVERLAY_CHISQ_VS_REF, OVERLAY_RANK: one
+	// layer per target). Default 16 when the slot is zero — per the
 	// interview risk paragraph "Multi-reference combinatorics" the
 	// default 16 is the explicit upper bound on per-cell pairwise
 	// p-value computation; bumping the default requires an interview

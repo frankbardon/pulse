@@ -138,22 +138,18 @@ type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, refere
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
-	types.OverlayKindPropZCell:  applyPropZCell,
 	types.OverlayKindPropZPanel: applyPropZPanel,
-	types.OverlayKindTCell:      applyTCell,
-	types.OverlayKindZCell:      applyZCell,
-	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
-	types.OverlayKindRank:       applyRank,
 	types.OverlayKindFormula:    applyComposeFormula,
 }
 
-// composeCellTypedHandlers overrides composeOverlayHandlers for the
-// moment cell kinds when the dispatcher holds the authored slot
-// requests: each handler also receives the reference / first target
-// slot's crosstab cell type, so an AGG_VARIANCE / AGG_STDDEV cell's
-// population variance is read as the sample variance (E4-S4). The
-// composeOverlayHandlers entries (zero cell types) serve the bare
-// handler-signature path.
+// composeCellTypedHandlers overrides the multi-layer fan-out entries of
+// the moment cell kinds when the dispatcher holds the authored slot
+// requests: each target's layer also receives the reference slot's and
+// THAT target slot's crosstab cell type (composeCellTypes), so an
+// AGG_VARIANCE / AGG_STDDEV cell's population variance is read as the
+// sample variance (E4-S4) on every target, not only the first. The
+// composeOverlayMultiLayerHandlers entries (zero cell types) serve the
+// bare handler-signature path.
 var composeCellTypedHandlers = map[types.OverlayKind]func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int, cellTypes composeSlotCellTypes) (types.OverlayLayer, []types.OverlayWarning, error){
 	types.OverlayKindTCell: applyTCellWith,
 	types.OverlayKindZCell: applyZCellWith,
@@ -184,6 +180,11 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 	types.OverlayKindDeltaVsRef:      composeFanOut(applyDeltaVsRef),
 	types.OverlayKindTVsRef:          composeFanOut(applyTVsRef),
 	types.OverlayKindZVsRef:          composeFanOut(applyZVsRef),
+	types.OverlayKindTCell:           composeFanOut(applyTCell),
+	types.OverlayKindZCell:           composeFanOut(applyZCell),
+	types.OverlayKindPropZCell:       composeFanOut(applyPropZCell),
+	types.OverlayKindChiSqVsRef:      composeFanOut(applyChiSqVsRef),
+	types.OverlayKindRank:            composeFanOut(applyRank),
 }
 
 // ApplyComposeOverlays executes every spec in specs against the
@@ -519,6 +520,14 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 		// dispatch below is the historical default; the two tables are
 		// mutually exclusive per kind.
 		if mhandler, ok := composeOverlayMultiLayerHandlers[route]; ok {
+			// The moment cell kinds read each slot's authored cell type,
+			// which no *Response carries: each target's layer gets the
+			// reference's and its OWN target's (composeCellTypes).
+			if cellHandler, typed := composeCellTypedHandlers[route]; typed {
+				mhandler = composeFanOut(func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
+					return cellHandler(spec, reference, targets, refIdx, targetIdxs, composeCellTypes(requests, refIdx, composeTargetIdx(targetIdxs, 0)))
+				})
+			}
 			multi, ws, offsets, err := mhandler(spec, refResp, targetResps, refIdx, targetIdxs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -550,14 +559,6 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 			continue
 		}
 		handler, ok := composeOverlayHandlers[route]
-		// The moment cell kinds read each slot's authored cell type,
-		// which no *Response carries (composeSlotCellTypes).
-		if cellHandler, typed := composeCellTypedHandlers[route]; typed {
-			cellTypes := composeCellTypes(requests, refIdx, targetIdxs)
-			handler, ok = func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
-				return cellHandler(spec, reference, targets, refIdx, targetIdxs, cellTypes)
-			}, true
-		}
 		if !ok {
 			// Chassis fallback: only a test stub kind
 			// (composeStubKinds) reaches here — every unknown kind was

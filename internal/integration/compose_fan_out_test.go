@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -15,7 +16,16 @@ import (
 
 // Compose fan-out (U66 #443): INDEX_VS_REF, DELTA_VS_REF, T_VS_REF and
 // Z_VS_REF once scored Targets[0] and dropped every later target in
-// silence; they now emit one layer per target, in Targets order.
+// silence; they now emit one layer per target, in Targets order. The
+// matrix fan-out kinds: compose_fan_out_matrix_test.go.
+
+// foSeriesKinds are the series fan-out kinds.
+var foSeriesKinds = []types.OverlayKind{
+	types.OverlayKindIndexVsRef,
+	types.OverlayKindDeltaVsRef,
+	types.OverlayKindTVsRef,
+	types.OverlayKindZVsRef,
+}
 
 // foSlot is one Compose slot over the multi-grouper cohort grouped by
 // region, scoring the mean of y; sex "" keeps every row.
@@ -58,6 +68,12 @@ func foRun(t *testing.T, f *mgFixture, req *types.ComposedRequest) *types.Compos
 		t.Fatalf("compose: %v", err)
 	}
 	return resp
+}
+
+func sortedKinds(ks []types.OverlayKind) []types.OverlayKind {
+	out := append([]types.OverlayKind{}, ks...)
+	slices.Sort(out)
+	return out
 }
 
 func foJSON(t *testing.T, v any) string {
@@ -133,7 +149,7 @@ func TestComposeFanOut_SingleTargetByteIdentical(t *testing.T) {
 	t.Parallel()
 
 	f := newMGFixture(t, pulse.Options{})
-	for _, kind := range overlayhost.ComposeFanOutKinds() {
+	for _, kind := range foSeriesKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			resp := foRun(t, f, foCompose(f, foSpec(kind, "M")))
 			got, want := foJSON(t, resp.Overlays), foSingleTargetGolden[kind]
@@ -153,10 +169,12 @@ func TestComposeFanOut_OneLayerPerTarget(t *testing.T) {
 	t.Parallel()
 
 	f := newMGFixture(t, pulse.Options{})
-	if got := len(overlayhost.ComposeFanOutKinds()); got != 4 {
-		t.Fatalf("ComposeFanOutKinds() = %d kinds, want 4", got)
+	// The series and matrix halves together are every fan-out kind.
+	all := append(append([]types.OverlayKind{}, foSeriesKinds...), foMatrixKinds...)
+	if got := overlayhost.ComposeFanOutKinds(); !reflect.DeepEqual(sortedKinds(got), sortedKinds(all)) {
+		t.Fatalf("ComposeFanOutKinds() = %v, want the series and matrix halves %v", got, all)
 	}
-	for _, kind := range overlayhost.ComposeFanOutKinds() {
+	for _, kind := range foSeriesKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			resp := foRun(t, f, foCompose(f, foSpec(kind, "M", "ALL"), foSpec(kind, "ALL")))
 			if len(resp.Overlays) != 3 {
@@ -199,7 +217,7 @@ func TestComposeFanOut_TargetCapParity(t *testing.T) {
 	t.Parallel()
 
 	f := newMGFixture(t, pulse.Options{})
-	for _, kind := range overlayhost.ComposeFanOutKinds() {
+	for _, kind := range foSeriesKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			spec := foSpec(kind, "M", "ALL")
 			spec.Options = &types.OverlayOptions{MaxPanelTargets: 1}

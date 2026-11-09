@@ -395,7 +395,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning per layer). Inherently buffered — inferential overlays " +
 				"as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key " +
 				"alignment + schema match + dict drift all run BEFORE the handler dispatches so the handler " +
-				"receives finalised *Response objects for both slots with identical structure.",
+				"receives finalised *Response objects for both slots with identical structure. " + composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsBaseline:
 		return descriptor.OverlayCapability{
@@ -1172,7 +1172,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"zero row margin on EITHER side — the cell value is never borrowed as n) produce NaN p-values with one " +
 				"PULSE_OVERLAY_REF_ZERO warning per affected cell (margin_missing: true for the margin case). Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
-				"Non-Goals).",
+				"Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindPropZPanel:
 		return descriptor.OverlayCapability{
@@ -1294,7 +1294,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target " +
 				"comparison family while still reusing the same resolution + alignment pipeline. Inherently buffered — the " +
 				"COMPOSE host is buffered by the slot barrier; ranking within the target matrix requires the full materialised " +
-				"matrix anyway.",
+				"matrix anyway. " + composeFanOutNote,
 		}
 	case types.OverlayKindShareOfCol:
 		return descriptor.OverlayCapability{
@@ -1558,7 +1558,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses the statdist.StudentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Inherently buffered — inferential overlays as a " +
-				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
+				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindTVsRef:
 		return descriptor.OverlayCapability{
@@ -1838,7 +1838,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"z = (target_cell - ref_cell) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
-				"streamable-test path is plumbed (PRD §2 Non-Goals).",
+				"streamable-test path is plumbed (PRD §2 Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindZVsRef:
 		return descriptor.OverlayCapability{

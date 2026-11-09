@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
+`Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one or more target slot labels.
 
 
 ## Host shape
@@ -35,7 +35,7 @@ COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment 
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target.
+SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Reading the output
 

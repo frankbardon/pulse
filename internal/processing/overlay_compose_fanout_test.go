@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 
 	pulseerrors "github.com/frankbardon/pulse/errors"
@@ -36,14 +37,34 @@ var fanOutSingleTargetHandlers = map[types.OverlayKind]composeOverlayHandler{
 	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
 	types.OverlayKindTVsRef:     applyTVsRef,
 	types.OverlayKindZVsRef:     applyZVsRef,
+	types.OverlayKindTCell:      applyTCell,
+	types.OverlayKindZCell:      applyZCell,
+	types.OverlayKindPropZCell:  applyPropZCell,
+	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
+	types.OverlayKindRank:       applyRank,
+}
+
+// fanOutHosts are the slot shapes each fan-out kind runs on.
+func fanOutHosts(kind types.OverlayKind) []string {
+	switch kind {
+	case types.OverlayKindIndexVsRef, types.OverlayKindDeltaVsRef:
+		return []string{"series", "matrix"}
+	case types.OverlayKindTVsRef, types.OverlayKindZVsRef:
+		return []string{"series"}
+	}
+	return []string{"matrix"}
 }
 
 // fanOutSpec is a fan-out spec over reference "a"; the two-sample kinds
 // carry both sides' variance and sample size.
 func fanOutSpec(kind types.OverlayKind, scope types.OverlayScope, targets ...string) types.ComposeOverlaySpec {
 	spec := types.ComposeOverlaySpec{Name: "test", Kind: kind, Scope: scope, Reference: "a", Targets: targets}
-	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+	switch kind {
+	case types.OverlayKindTVsRef, types.OverlayKindZVsRef, types.OverlayKindTCell, types.OverlayKindZCell:
 		spec.Params = map[string]any{"variance": 4.0, "sample_size": 9.0}
+	}
+	if kind == types.OverlayKindChiSqVsRef {
+		spec.Scope = types.OverlayScopeMatrix
 	}
 	return spec
 }
@@ -72,12 +93,10 @@ func TestComposeFanOut_SingleTargetMatchesHandler(t *testing.T) {
 		makeMatrixFromValues([3][3]float64{{0, 20, 30}, {40, 50, 60}, {70, 80, 90}}),
 		makeMatrixFromValues([3][3]float64{{15, 30, 45}, {60, 75, 90}, {105, 120, 135}}),
 	}
+	shapes := map[string][]*types.Response{"series": series, "matrix": matrix}
 	for _, kind := range overlayhost.ComposeFanOutKinds() {
-		hosts := map[string][]*types.Response{"series": series}
-		if kind == types.OverlayKindIndexVsRef || kind == types.OverlayKindDeltaVsRef {
-			hosts["matrix"] = matrix
-		}
-		for name, slots := range hosts {
+		for _, name := range fanOutHosts(kind) {
+			slots := shapes[name]
 			t.Run(string(kind)+"/"+name, func(t *testing.T) {
 				scope := types.OverlayScopeGroup
 				if name == "matrix" {
@@ -94,6 +113,9 @@ func TestComposeFanOut_SingleTargetMatchesHandler(t *testing.T) {
 					t.Fatalf("handler: %v", err)
 				}
 				for i := range wantWs {
+					if wantWs[i].Details == nil {
+						wantWs[i].Details = map[string]any{}
+					}
 					wantWs[i].Details["overlay_index"] = 0
 				}
 				if len(layers) != 1 {
@@ -222,5 +244,70 @@ func TestComposeFanOut_WeightedHostPerLayer(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// composeAllTargetKinds are the documented Compose kinds that read every
+// target in ONE layer and so never fan out: OVERLAY_FORMULA (host = the
+// first target, every other slot read as `slot.<label>`) and the two
+// panel kinds (OVERLAY_PANEL_INDEX_VS_REF emits its own layer per
+// target; OVERLAY_PROP_Z_PANEL tests all targets jointly).
+var composeAllTargetKinds = map[types.OverlayKind]bool{
+	types.OverlayKindFormula:         true,
+	types.OverlayKindPanelIndexVsRef: true,
+	types.OverlayKindPropZPanel:      true,
+}
+
+// TestComposeKinds_NoSilentTargetDrop (U66 #443): every built-in kind
+// that runs on ComposedRequest.Overlays either reads all its targets
+// (composeAllTargetKinds, the documented exceptions) or is a fan-out
+// kind in the multi-layer table that, handed two targets, answers one
+// layer per target — none still scores Targets[0] (composeFirstTarget)
+// and drops the rest.
+func TestComposeKinds_NoSilentTargetDrop(t *testing.T) {
+	t.Parallel()
+	series := makeSeriesResponse([]string{"north", "south"}, []float64{4, 10})
+	matrix := makeMatrixFromValues([3][3]float64{{10, 20, 30}, {40, 50, 60}, {70, 80, 90}})
+	matrix2 := makeMatrixFromValues([3][3]float64{{12, 21, 33}, {41, 55, 61}, {72, 84, 93}})
+	shapes := map[string][]*types.Response{
+		"series": {series, makeSeriesResponse([]string{"north", "south"}, []float64{5, 50}), makeSeriesResponse([]string{"north", "south"}, []float64{7, 70})},
+		"matrix": {matrix, matrix2, makeMatrixFromValues([3][3]float64{{11, 25, 31}, {44, 52, 66}, {71, 88, 97}})},
+	}
+	seen := 0
+	for _, kind := range types.AllOverlayKinds() {
+		if !slices.Contains(overlayhost.Hosts(kind), overlayhost.Compose) {
+			continue
+		}
+		seen++
+		if composeAllTargetKinds[kind] {
+			if overlayhost.ComposeFanOutKind(kind) {
+				t.Errorf("%s reads every target, yet is a fan-out kind", kind)
+			}
+			continue
+		}
+		if !overlayhost.ComposeFanOutKind(kind) {
+			t.Errorf("%s runs on Compose, reads one target and does not fan out", kind)
+			continue
+		}
+		if _, single := composeOverlayHandlers[kind]; single {
+			t.Errorf("%s is still in the single-layer table", kind)
+		}
+		for _, name := range fanOutHosts(kind) {
+			spec := fanOutSpec(kind, types.OverlayScopeGroup, "b", "c")
+			if name == "matrix" && kind != types.OverlayKindChiSqVsRef {
+				spec.Scope = types.OverlayScopeCell
+			}
+			layers, _, err := ApplyComposeOverlays([]types.ComposeOverlaySpec{spec}, shapes[name], []string{"a", "b", "c"})
+			if err != nil {
+				t.Errorf("%s/%s: %v", kind, name, err)
+				continue
+			}
+			if len(layers) != 2 || layers[0].Name != "test__b" || layers[1].Name != "test__c" {
+				t.Errorf("%s/%s: %d layers, want test__b and test__c", kind, name, len(layers))
+			}
+		}
+	}
+	if seen != len(overlayhost.ComposeFanOutKinds())+len(composeAllTargetKinds) {
+		t.Errorf("%d Compose kinds, want %d fan-out + %d all-target", seen, len(overlayhost.ComposeFanOutKinds()), len(composeAllTargetKinds))
 	}
 }

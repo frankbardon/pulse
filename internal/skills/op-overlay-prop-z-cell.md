@@ -24,7 +24,7 @@ COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = succes
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. One layer per target. Layer `Baseline` unset (inferential).
+MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. Layer `Baseline` unset (inferential). One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 <!-- generated: reading-the-output -->
 

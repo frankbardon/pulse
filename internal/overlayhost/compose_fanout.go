@@ -31,12 +31,20 @@ func ComposeTargetCap(opts *types.OverlayOptions) int {
 }
 
 // composeFanOutKinds are the single-target Compose kinds that fan out
-// to one layer per target (U66 #443, series half).
+// to one layer per target (U66 #443): the series pair kinds and the
+// matrix cell / whole-matrix kinds. Every other Compose kind reads all
+// its targets at once — OVERLAY_FORMULA (host = the first target, the
+// others as `slot.<label>`) and the two panel kinds.
 var composeFanOutKinds = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsRef: true,
 	types.OverlayKindDeltaVsRef: true,
 	types.OverlayKindTVsRef:     true,
 	types.OverlayKindZVsRef:     true,
+	types.OverlayKindTCell:      true,
+	types.OverlayKindZCell:      true,
+	types.OverlayKindPropZCell:  true,
+	types.OverlayKindChiSqVsRef: true,
+	types.OverlayKindRank:       true,
 }
 
 // ComposeFanOutKind reports whether kind is a single-target Compose
