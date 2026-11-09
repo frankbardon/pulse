@@ -30,7 +30,8 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `correct` | bool | `true` | (R's `mcnemar.test`): 2 × 2 continuity correction `(\|n_12 − n_21\| − 1)²`, clamped at 0; inert on k × k. |
+| `correct` | bool | `true` | (R's `mcnemar.test`): 2 × 2 continuity correction `(\|n_12 − n_21\| − 1)²`, clamped at 0; inert on k × k and under `exact`. |
+| `exact` | bool | `false` | 2 × 2 only: exact binomial McNemar (R `binom.test(n_12, n_12 + n_21)`) — use it on small discordant counts. |
 
 ## Host shape
 
@@ -38,12 +39,12 @@ MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one 
 
 ## Output
 
-SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`.
+SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`. `exact`: statistic / scalar `n_12`, exact p, `exact: 1`, no `df`.
 
 ## Reading the output
 
 - `scalar`: The symmetry chi-square, also in summary.statistic: over every pair of states, the squared gap between moves one way and moves back, divided by all moves between the two. 0 means every pair moved both ways equally; read summary.p_value rather than the raw value.
-- `summary.statistic`: The same symmetry chi-square as scalar.
+- `summary.statistic`: The same figure as scalar: the symmetry chi-square, or n_12 under params.exact.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
 ## Contract
@@ -55,7 +56,8 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 ## Gotchas
 
 - An empty pair (`n_ij + n_ji = 0`) is dropped, lowering `df` (R gives NaN). None kept ⇒ statistic / p `null`.
-- Pair expected `(n_ij + n_ji) / 2 < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW`.
+- Pair expected `(n_ij + n_ji) / 2 < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW` (never under `exact`).
+- `exact` refusals: k × k ⇒ `PULSE_OVERLAY_PARAM_MISSING` (runtime: states are data); probability-weighted cell ⇒ `PULSE_WEIGHT_UNSUPPORTED`; a discordant count > 1e-7 off whole ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 - Weighted: Σw table, Kish-scaled under probability (+ `sum_weights`, `n_eff`).
 - Grouper counts differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`; non-count / negative cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`; an undefined (NaN) cell is absent (0).
 

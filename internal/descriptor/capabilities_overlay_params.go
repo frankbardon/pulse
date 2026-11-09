@@ -122,7 +122,10 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 			descriptor.Param{Name: "n_within_depth", Type: "int", Required: false, Description: "With a within-prefix n_source, the row-key prefix depth the margin is summed within; required there, refused otherwise."},
 		)
 	case types.OverlayKindSymmetry:
-		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k."})
+		ps = append(ps,
+			descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k and under exact."},
+			descriptor.Param{Name: "exact", Type: "bool", Required: false, Default: false, Description: "2 x 2 only: exact binomial McNemar (R binom.test(n_12, n_12 + n_21)); statistic n_12, Summary.Parameters exact 1, no df. Refused on k x k, on a probability-weighted cell and on non-whole discordant counts."},
+		)
 	case types.OverlayKindChiSqMatrix:
 		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); Summary.Parameters adds continuity_correction (Y). Inert on any larger table."})
 	case types.OverlayKindMarkov:

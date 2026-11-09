@@ -1444,7 +1444,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayStdResidual(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindSymmetry:
-		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), index)
+		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), crosstabCellWeightBasis(req, opts) == weighting.Probability, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindRetention:
 		validateOverlayRetention(env, req, spec, opts.overlayRoute(spec.Kind), index)

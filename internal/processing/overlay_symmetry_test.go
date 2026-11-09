@@ -17,6 +17,7 @@ type symmetryCase struct {
 	States              []string    `json:"states"`
 	Counts              [][]float64 `json:"counts"`
 	Correct             bool        `json:"correct"`
+	Exact               bool        `json:"exact"`
 	Statistic           *float64    `json:"statistic"`
 	DF                  float64     `json:"df"`
 	PValue              *float64    `json:"p_value"`
@@ -86,9 +87,10 @@ func TestSymmetry_MatchesR(t *testing.T) {
 	t.Parallel()
 
 	doc := loadReference[symmetryCase](t, "symmetry")
-	if len(doc.Cases) < 7 {
-		t.Fatalf("symmetry.json has %d cases, want at least 7", len(doc.Cases))
+	if len(doc.Cases) < 14 {
+		t.Fatalf("symmetry.json has %d cases, want at least 14", len(doc.Cases))
 	}
+	exactCases := 0
 	for _, c := range doc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			k := len(c.States)
@@ -107,6 +109,10 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			if c.Correct {
 				params = `{"correct":true}`
 			}
+			if c.Exact {
+				exactCases++
+				params = params[:len(params)-1] + `,"exact":true}`
+			}
 			layer, _, err := applySymmetry(symmetrySpec(params), symmetryHost(c.States, cols, counts))
 			if err != nil {
 				t.Fatal(err)
@@ -122,10 +128,108 @@ func TestSymmetry_MatchesR(t *testing.T) {
 				"df": c.DF, "states": float64(k), "discordant": c.Discordant,
 				"pairs_dropped": c.PairsDropped, "continuity_corrected": c.ContinuityCorrected,
 			}
+			if c.Exact {
+				// The exact arm has no chi-square df; it records the method.
+				delete(want, "df")
+				want["exact"] = 1
+			}
 			if !reflect.DeepEqual(s.Parameters, want) {
 				t.Errorf("parameters %v, want %v", s.Parameters, want)
 			}
 		})
+	}
+	if exactCases < 7 {
+		t.Fatalf("symmetry.json has %d exact cases, want at least 7", exactCases)
+	}
+}
+
+// TestSymmetry_ExactDefaultByteIdentical: an absent exact and an
+// explicit exact false emit the same layer and warnings, byte for byte,
+// as the params-free spec — the χ² arm never sees the new param.
+func TestSymmetry_ExactDefaultByteIdentical(t *testing.T) {
+	t.Parallel()
+
+	host := func() *CrosstabHostView {
+		return symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{10, 1}, {4, 12}})
+	}
+	marshal := func(params string) string {
+		t.Helper()
+		layer, ws, err := applySymmetry(symmetrySpec(params), host())
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := json.Marshal(struct {
+			L types.OverlayLayer
+			W []types.OverlayWarning
+		}{layer, ws})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	base := marshal("")
+	for _, params := range []string{`{"exact":false}`, `{"correct":true,"exact":false}`} {
+		if got := marshal(params); got != base {
+			t.Errorf("%s:\n got %s\nwant %s", params, got, base)
+		}
+	}
+	if marshal(`{"exact":true}`) == base {
+		t.Fatal("exact true emitted the chi-square layer")
+	}
+}
+
+// TestSymmetry_ExactIgnoresCorrectAndLowExpected: under exact the
+// continuity correction is inert (correct true and false give the same
+// layer, continuity_corrected 0) and no PULSE_OVERLAY_EXPECTED_LOW is
+// raised on a table the chi-square arm would warn on.
+func TestSymmetry_ExactIgnoresCorrectAndLowExpected(t *testing.T) {
+	t.Parallel()
+
+	host := func() *CrosstabHostView {
+		return symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{10, 1}, {4, 12}})
+	}
+	if _, ws, err := applySymmetry(symmetrySpec(""), host()); err != nil || len(ws) != 1 {
+		t.Fatalf("chi-square arm: warnings %+v err %v, want one EXPECTED_LOW", ws, err)
+	}
+	on, wsOn, err := applySymmetry(symmetrySpec(`{"exact":true,"correct":true}`), host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	off, wsOff, err := applySymmetry(symmetrySpec(`{"exact":true,"correct":false}`), host())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wsOn) != 0 || len(wsOff) != 0 {
+		t.Fatalf("exact warnings %+v / %+v, want none", wsOn, wsOff)
+	}
+	if !reflect.DeepEqual(on, off) || on.Summary.Parameters["continuity_corrected"] != 0 {
+		t.Fatalf("correct moved the exact layer: %+v vs %+v", on.Summary, off.Summary)
+	}
+	if *on.Summary.Statistic != 1 || math.Abs(*on.Summary.PValue-0.375) > 1e-15 {
+		t.Fatalf("exact statistic %v p %v, want 1 and 0.375", *on.Summary.Statistic, *on.Summary.PValue)
+	}
+}
+
+// TestSymmetry_ExactCounts: a frequency-weighted (Σw) table of whole
+// counts runs exact as is, stamping the weighted floor; a fractional
+// discordant pair (an AGG_SUM host) is refused, a near-whole one
+// (within binom.test's 1e-7) rounded.
+func TestSymmetry_ExactCounts(t *testing.T) {
+	t.Parallel()
+
+	near := symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{10, 1.00000001}, {4, 12}})
+	layer, _, err := applySymmetry(symmetrySpec(`{"exact":true}`), near)
+	if err != nil || *layer.Summary.Statistic != 1 || layer.Summary.Parameters["discordant"] != 5 {
+		t.Fatalf("near-whole pair: %+v %v", layer.Summary, err)
+	}
+	frac := symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{10, 1.5}, {4, 12}})
+	_, _, err = applySymmetryAt(symmetrySpec(`{"exact":true}`), frac, 2)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED || ce.Details["reason"] != "non_integer" || ce.Details["index"] != 2 {
+		t.Fatalf("fractional pair: err %v", err)
+	}
+	if _, _, err := applySymmetry(symmetrySpec(""), frac); err != nil {
+		t.Fatalf("chi-square arm refused a fractional table: %v", err)
 	}
 }
 
@@ -260,7 +364,9 @@ func TestSymmetry_Refusals(t *testing.T) {
 		want   errors.Code
 		indexd bool
 	}{
-		{"unknown param", symmetrySpec(`{"exact":true}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
+		{"unknown param", symmetrySpec(`{"mid_p":true}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
+		{"non-boolean exact", symmetrySpec(`{"exact":1}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
+		{"exact on 3 states", symmetrySpec(`{"exact":true}`), symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{1, 2, 3}, {3, 4, 5}, {5, 6, 7}}), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"non-boolean correct", symmetrySpec(`{"correct":"yes"}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"average cell", symmetrySpec(""), avg, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED, true},
 		{"grouper counts differ", symmetrySpec(""), twoCols, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE, true},

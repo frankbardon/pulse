@@ -1524,7 +1524,11 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"every pair of states, moves i -> j are as frequent as moves j -> i. chi-square = sum over pairs i < j of " +
 				"(n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept " +
 				"(k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless " +
-				"params.correct is false (R's default correct = TRUE; inert on k x k). With no pair kept, the statistic and " +
+				"params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial " +
+				"McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact " +
+				"(1) and no df, no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a " +
+				"probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
+				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and " +
 				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +
 				"chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, " +
 				"continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by " +

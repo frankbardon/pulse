@@ -24,6 +24,21 @@
 #     empty pairs; continuity_corrected = 1 when the correction applied.
 # NaN is written as JSON null.
 #
+# Exact cases (exact = TRUE, U66 E6-S1): the exact binomial McNemar
+# on a 2 x 2, binom.test(n_12, n_12 + n_21)$p.value (p = 0.5, R's
+# relErr = 1 + 1e-7 tie rule); statistic = n_12 (binom.test's
+# "number of successes"); df is null (no chi-square), continuity
+# correction never applies. With n_12 + n_21 = 0 binom.test refuses, so
+# the statistic and p are null (Pulse's "nothing to test").
+#
+# Also writes <out_dir>/binomial.json: the primitive
+# statdist.BinomialTwoSidedP against binom.test(x, n, p)$p.value over a
+# grid that reaches the relErr tie rule (p = (i + 1) / (n + 1) makes
+# d(i) = d(i + 1) on both sides of the mean, equal only up to rounding —
+# without the 1 + 1e-7 tolerance n = 2, x = 1, p = 1/3 gives 5/9, not
+# 1), x on the mean (p = 1), both
+# tails, p = 0 / 1 edges and a large n.
+#
 # Cases: Agresti's presidential approval ratings (An Introduction to
 # Categorical Data Analysis, 2nd ed., 2007, Table 8.1: 794 / 150 / 86 /
 # 570; published McNemar z^2 = 17.36 uncorrected; also R's own
@@ -55,12 +70,34 @@ sy_num <- function(x) {
 }
 sy_mat <- function(m) lapply(seq_len(nrow(m)), function(i) lapply(as.numeric(m[i, ]), sy_num))
 
-sy_case <- function(name, states, counts, note, correct = TRUE) {
+sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
   k <- length(states)
   x <- matrix(counts, nrow = k, byrow = TRUE, dimnames = list(states, states))
   up <- upper.tri(x)
   s <- (x + t(x))[up]
   keep <- s > 0
+  if (exact) {
+    stopifnot(k == 2)
+    n12 <- x[1, 2]
+    n <- x[1, 2] + x[2, 1]
+    stat <- if (n > 0) n12 else NaN
+    p <- if (n > 0) binom.test(n12, n)$p.value else NaN
+    return(list(
+      name = name,
+      note = note,
+      states = states,
+      counts = sy_mat(x),
+      correct = correct,
+      exact = TRUE,
+      statistic = sy_num(stat),
+      df = sy_num(NA),
+      p_value = sy_num(p),
+      r_statistic = sy_num(if (n > 0) unname(binom.test(n12, n)$statistic) else NaN),
+      discordant = sy_num(n),
+      pairs_dropped = sy_num(if (n > 0) 0 else 1),
+      continuity_corrected = sy_num(0)
+    ))
+  }
   r <- suppressWarnings(mcnemar.test(x, correct = correct))
   applied <- correct && k == 2 && any(x - t(x) != 0)
   if (all(keep)) {
@@ -154,6 +191,63 @@ sy_cases[[length(sy_cases) + 1]] <- sy_case(
   "Nobody changed state: no pair is kept, so the statistic and p are null and df is 0."
 )
 
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "agresti_approval_exact",
+  c("approve", "disapprove"),
+  c(794, 150, 86, 570),
+  "Agresti (2007) Table 8.1 exact: binom.test(150, 236); correct is inert under exact.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "tiny_exact",
+  c("yes", "no"),
+  c(10, 1, 4, 12),
+  "Tiny discordant count: binom.test(1, 5) = 0.375, where the chi-square would warn PULSE_OVERLAY_EXPECTED_LOW.",
+  correct = FALSE,
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "upper_tail_exact",
+  c("before", "after"),
+  c(3, 9, 2, 6),
+  "n_12 > n_21: the upper branch of binom.test's two-sided rule, binom.test(9, 11).",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "one_way_exact",
+  c("yes", "no"),
+  c(5, 0, 7, 5),
+  "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "symmetric_exact",
+  c("yes", "no"),
+  c(30, 9, 9, 40),
+  "n_12 = n_21 (x on the mean): binom.test's p is exactly 1.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "odd_tie_exact",
+  c("yes", "no"),
+  c(4, 6, 7, 2),
+  "Odd n = 13, x = 6 next to the centre: the mirror density d(7) = d(6) is matched by the relErr tie rule, p = 1.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "diagonal_exact",
+  c("yes", "no"),
+  c(30, 0, 0, 40),
+  "No discordant unit: binom.test(0, 0) refuses, so the statistic and p are null.",
+  exact = TRUE
+)
+
 write_golden("symmetry", list(
   generator = "scripts/reference/gen_symmetry.R",
   r_version = R.version.string,
@@ -162,6 +256,29 @@ write_golden("symmetry", list(
     jsonlite = as.character(packageVersion("jsonlite"))
   ),
   primitive = "OVERLAY_SYMMETRY",
-  r_function = "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand",
+  r_function = "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2)",
   cases = sy_cases
+))
+
+bn_case <- function(x, n, p) {
+  list(x = x, n = n, p = sy_num(p), p_value = sy_num(binom.test(x, n, p)$p.value))
+}
+bn_grid <- list(
+  c(150, 236, 0.5), c(1, 5, 0.5), c(9, 11, 0.5), c(0, 7, 0.5), c(7, 7, 0.5),
+  c(6, 13, 0.5), c(7, 13, 0.5), c(500, 1000, 0.5), c(470, 1000, 0.5),
+  c(49500, 100000, 0.5), c(0, 2, 1 / 3), c(1, 5, 1 / 3), c(3, 5, 1 / 3),
+  c(3, 10, 0.3), c(2, 10, 0.25), c(7, 20, 0.2), c(1, 30, 0.1), c(12, 30, 0.1),
+  c(0, 4, 0), c(1, 4, 0), c(4, 4, 1), c(3, 4, 1), c(1, 3, 0.25), c(60, 80, 0.9),
+  c(1, 2, 1 / 3), c(0, 3, 0.25), c(1, 4, 0.4), c(3, 6, 3 / 7), c(5, 6, 6 / 7)
+)
+write_golden("binomial", list(
+  generator = "scripts/reference/gen_symmetry.R",
+  r_version = R.version.string,
+  packages = list(
+    stats = as.character(packageVersion("stats")),
+    jsonlite = as.character(packageVersion("jsonlite"))
+  ),
+  primitive = "statdist.BinomialTwoSidedP",
+  r_function = "stats::binom.test(x, n, p)$p.value (two-sided, relErr = 1 + 1e-7)",
+  cases = lapply(bn_grid, function(g) bn_case(g[[1]], g[[2]], g[[3]]))
 ))

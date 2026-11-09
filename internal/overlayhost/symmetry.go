@@ -3,6 +3,8 @@ package overlayhost
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -19,17 +21,26 @@ import (
 type SymmetryParams struct {
 	// Correct applies Edwards' continuity correction to a 2 × 2 table
 	// (McNemar): (|n_12 − n_21| − 1)². Default true, R's
-	// mcnemar.test(correct = TRUE); inert on a k × k table (Bowker).
+	// mcnemar.test(correct = TRUE); inert on a k × k table (Bowker) and
+	// under Exact.
 	Correct bool
+	// Exact runs the exact binomial McNemar on a 2 × 2 table:
+	// p = binom.test(n_12, n_12 + n_21)$p.value (statdist.
+	// BinomialTwoSidedP at 0.5) and statistic = n_12. Default false (the
+	// χ² test, byte-identical); refused on k × k (SymmetryExactStatesRefusal)
+	// and on a probability-weighted host (SymmetryExactWeightRefusal).
+	Exact bool
 }
 
-// ParseSymmetryParams decodes spec.Params strictly: only `correct` (a
-// JSON boolean) is accepted. Anything else is PULSE_OVERLAY_PARAM_MISSING
-// with details {kind, param?, ...} plus index when index >= 0.
+// ParseSymmetryParams decodes spec.Params strictly: only `correct` and
+// `exact` (JSON booleans) are accepted. Anything else is
+// PULSE_OVERLAY_PARAM_MISSING with details {kind, param?, ...} plus
+// index when index >= 0.
 func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *errors.CodedError) {
 	out := SymmetryParams{Correct: true}
 	var in struct {
 		Correct json.RawMessage `json:"correct"`
+		Exact   json.RawMessage `json:"exact"`
 	}
 	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
 	raw := bytes.TrimSpace(spec.Params)
@@ -38,16 +49,86 @@ func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *e
 	}
 	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, markovParamRefusal(spec.Kind, index, "",
-			"params must be an object with only correct: "+err.Error(), nil)
+			"params must be an object with only correct and exact: "+err.Error(), nil)
 	}
-	if len(in.Correct) > 0 {
-		var b *bool
-		if err := json.Unmarshal(in.Correct, &b); err != nil || b == nil {
-			return out, markovParamRefusal(spec.Kind, index, "correct",
-				"correct must be true or false, got "+string(in.Correct),
-				map[string]any{"correct": string(in.Correct)})
+	for _, f := range []struct {
+		name string
+		raw  json.RawMessage
+		dst  *bool
+	}{{"correct", in.Correct, &out.Correct}, {"exact", in.Exact, &out.Exact}} {
+		if len(f.raw) == 0 {
+			continue
 		}
-		out.Correct = *b
+		var b *bool
+		if err := json.Unmarshal(f.raw, &b); err != nil || b == nil {
+			return out, markovParamRefusal(spec.Kind, index, f.name,
+				f.name+" must be true or false, got "+string(f.raw),
+				map[string]any{f.name: string(f.raw)})
+		}
+		*f.dst = *b
 	}
 	return out, nil
+}
+
+// SymmetryExactStatesRefusal refuses params.exact on a table of states
+// other than 2: the exact binomial McNemar is a 2 × 2 test (an exact
+// Bowker is not offered). PULSE_OVERLAY_PARAM_MISSING {kind, param:
+// "exact", states, index?}. The state count is the data's (row keys
+// plus column-only keys), so only the runtime handler can raise it —
+// predict reads no record, like the fewer-than-2-states refusal.
+func SymmetryExactStatesRefusal(kind types.OverlayKind, p SymmetryParams, states, index int) *errors.CodedError {
+	if !p.Exact || states == 2 {
+		return nil
+	}
+	return markovParamRefusal(kind, index, "exact",
+		"exact is the 2 x 2 McNemar test and the table has "+strconv.Itoa(states)+
+			" states; drop exact for Bowker's chi-square test", map[string]any{"states": states})
+}
+
+// SymmetryExactWeightRefusal refuses params.exact over a crosstab cell
+// weighted under kind probability: the exact test needs integer counts,
+// and a Kish-scaled Σw table is not one (the χ² test, which scales by
+// n_eff, stays available). PULSE_WEIGHT_UNSUPPORTED with the
+// frequency-only host details {slot, operator, host, kind,
+// supported_kinds} plus param "exact" and index; predict
+// (descriptor.validateOverlaySpec, the cell's resolved basis) and the
+// runtime handler (the host's WeightBasis) raise it alike. Frequency
+// weights are replication counts, so their Σw table is read as counts.
+func SymmetryExactWeightRefusal(kind types.OverlayKind, p SymmetryParams, probability bool, index int) *errors.CodedError {
+	if !p.Exact || !probability {
+		return nil
+	}
+	slot := "overlays"
+	details := map[string]any{"operator": string(kind), "host": "crosstab.cell", "param": "exact",
+		"kind": string(types.WeightKindProbability), "supported_kinds": []string{string(types.WeightKindFrequency)}}
+	if index >= 0 {
+		slot += "[" + strconv.Itoa(index) + "]"
+		details["index"] = index
+	}
+	details["slot"] = slot
+	return errors.NewCodedErrorWithDetails(errors.PULSE_WEIGHT_UNSUPPORTED,
+		slot+": "+string(kind)+" params.exact needs integer counts, and its host crosstab cell is weighted under kind \""+
+			string(types.WeightKindProbability)+"\"; use a frequency weight (integer replication counts) on the crosstab cell, "+
+			"set \"weight\": null on it, or drop exact for the chi-square test (scaled to the Kish n_eff)", details)
+}
+
+// SymmetryExactCountsRefusal refuses params.exact when the discordant
+// pair n_12 / n_21 is not a whole count: binom.test's rule, a value
+// more than 1e-7 from its rounding (an AGG_SUM host of fractional
+// values) is refused, a closer one is rounded. PULSE_OVERLAY_
+// NONNEGATIVE_REQUIRED {kind, param: "exact", reason: "non_integer",
+// n12, n21, index?}; runtime only (data). It returns the rounded pair.
+func SymmetryExactCountsRefusal(kind types.OverlayKind, n12, n21 float64, index int) (int, int, *errors.CodedError) {
+	r12, r21 := math.Round(n12), math.Round(n21)
+	if math.Abs(n12-r12) <= 1e-7 && math.Abs(n21-r21) <= 1e-7 {
+		return int(r12), int(r21), nil
+	}
+	details := map[string]any{"kind": string(kind), "param": "exact", "reason": "non_integer", "n12": n12, "n21": n21}
+	if index >= 0 {
+		details["index"] = index
+	}
+	return 0, 0, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED,
+		"overlay "+string(kind)+": exact needs whole discordant counts, got n_12 = "+
+			strconv.FormatFloat(n12, 'g', -1, 64)+" and n_21 = "+strconv.FormatFloat(n21, 'g', -1, 64)+
+			"; use AGG_COUNT cells or drop exact", details)
 }

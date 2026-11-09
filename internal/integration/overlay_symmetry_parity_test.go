@@ -42,7 +42,10 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 		{"average cell", markovCrosstab(cohort, square, types.AGG_AVERAGE, nil, symmetryOverlay("")), errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"columns carry two groupers", markovCrosstab(cohort, twoCols, types.AGG_COUNT, nil, symmetryOverlay("")), errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"non-boolean correct", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"correct":1}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
+		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"mid_p":true}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
+		{"non-boolean exact", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":"yes"}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"exact on a probability-weighted cell", markovCrosstab(cohort, square, types.AGG_COUNT,
+			&types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}, symmetryOverlay(`{"exact":true}`)), errors.PULSE_WEIGHT_UNSUPPORTED},
 		{"cell scope", markovCrosstab(cohort, square, types.AGG_COUNT, nil, cellScope), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
 		{"ref set", markovCrosstab(cohort, square, types.AGG_COUNT, nil, withRef), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
 		{"level set", markovCrosstab(cohort, square, types.AGG_COUNT, nil, func() types.OverlaySpec { s := symmetryOverlay(""); s.Level = 1; return s }()), errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE},
@@ -108,5 +111,63 @@ func TestSymmetry_EndToEnd(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestSymmetry_ExactEndToEnd: params.exact on a g x t_categorical_u8
+// host (2 states, n_12 = n_21 = 12) runs the exact binomial McNemar —
+// predict accepts, statistic n_12, p 1 (binom.test(12, 24)), exact 1, no
+// df — under no weight and under a frequency weight (whole replication
+// counts); on g x subj (more than 2 states) predict accepts (the state
+// count is data) and the runtime refuses PULSE_OVERLAY_PARAM_MISSING
+// {param: exact, states}, located at the spec.
+func TestSymmetry_ExactEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	two := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "t_categorical_u8"}}
+	for name, w := range map[string]*types.WeightSpec{
+		"unweighted": nil,
+		"frequency":  {Field: "week", Kind: types.WeightKindFrequency},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := markovCrosstab(cohort, two, types.AGG_COUNT, w, symmetryOverlay(`{"exact":true}`))
+			if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
+				t.Fatalf("predict %+v", env.Errors)
+			}
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := resp.Overlays[0].Summary
+			// Unweighted the pair is 12 / 12 (p 1); under the frequency
+			// weight week = i + 1 it is the Σw pair 300 / 288 — R
+			// binom.test(300, 588) = 0.65013033446921742
+			stat, n, wantP := 12.0, 24.0, 1.0
+			if w != nil {
+				stat, n, wantP = 300, 588, 0.65013033446921742
+			}
+			if s.Parameters["exact"] != 1 || s.Parameters["states"] != 2 || math.Abs(*s.PValue-wantP) > 1e-13 ||
+				*s.Statistic != stat || s.Parameters["discordant"] != n {
+				t.Fatalf("summary %+v statistic %v p %v", s.Parameters, *s.Statistic, *s.PValue)
+			}
+			if _, ok := s.Parameters["df"]; ok {
+				t.Fatalf("exact layer carries df: %v", s.Parameters)
+			}
+			if w != nil && s.Parameters["sum_weights"] == 0 {
+				t.Fatalf("frequency host lacks the weighted floor: %v", s.Parameters)
+			}
+		})
+	}
+
+	req := markovCrosstab(cohort, []*types.Group{{Type: types.GROUP_CATEGORY, Field: "subj"}}, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`))
+	if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
+		t.Fatalf("predict refused a data-dependent state count: %+v", env.Errors)
+	}
+	_, err := p.Process(ctx, req)
+	ce := requireCode(t, err, errors.PULSE_OVERLAY_PARAM_MISSING)
+	if ce.Details["param"] != "exact" || ce.Details["index"] != 0 || ce.Details["states"] == nil {
+		t.Fatalf("details %v", ce.Details)
 	}
 }

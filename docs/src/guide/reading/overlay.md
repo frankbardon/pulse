@@ -670,16 +670,17 @@ The symmetry chi-square, also in summary.statistic: over every pair of states, t
 
 - null means nobody changed state (every pair is empty), so there is nothing to test.
 - It does not say which pair is lopsided or in which direction: compare each cell with its mirror cell across the diagonal.
+- With params.exact it is instead n_12, the moves from the first state to the second (summary.parameters.exact is 1).
 
 #### `summary.statistic`
 
-The same symmetry chi-square as scalar.
+The same figure as scalar: the symmetry chi-square, or n_12 under params.exact.
 
 #### `summary.p_value`
 
 **Caveats:**
 
-- It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does.
+- It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does. On a 2x2 set params.exact for the exact binomial p.
 - It is meaningful only when each cell counts units seen twice (AGG_COUNT of paired before and after answers); on independent samples use OVERLAY_CHISQ_MATRIX.
 - On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not a design-based correction.
 
@@ -704,6 +705,10 @@ How many pairs of states had no move either way: they carry no information and l
 #### `summary.parameters.continuity_corrected`
 
 1 when the 2x2 continuity correction was applied (it shrinks the gap between the two off-diagonal counts by 1, making the test more cautious), 0 otherwise.
+
+#### `summary.parameters.exact`
+
+1 when the p-value is the exact binomial McNemar test (params.exact on a 2x2): no chi-square approximation, so it holds on small counts; df is then absent.
 
 <a id="op-overlay_t_cell"></a>
 

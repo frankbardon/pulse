@@ -29,7 +29,12 @@ import (
 //     than AGG_COUNT / AGG_SUM.
 //   - PULSE_OVERLAY_MATRIX_NOT_SQUARE: different grouper counts on the
 //     two axes.
-func validateOverlaySymmetry(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
+//   - PULSE_WEIGHT_UNSUPPORTED: params.exact over a crosstab cell whose
+//     weight resolves to kind probability (probability = the caller's
+//     crosstabCellWeightBasis verdict; overlayhost.SymmetryExactWeightRefusal,
+//     the runtime handler's twin). exact on more than 2 states is the
+//     runtime's alone: the state count is data.
+func validateOverlaySymmetry(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, probability bool, index int) {
 	if route != types.OverlayKindSymmetry || req == nil || spec == nil {
 		return
 	}
@@ -41,7 +46,8 @@ func validateOverlaySymmetry(env *descriptor.Envelope, req *types.Request, spec 
 		addHostRequired(env, spec, route, len(req.Groups) > 0, index)
 		return
 	}
-	if _, cerr := overlayhost.ParseSymmetryParams(spec, index); cerr != nil {
+	params, cerr := overlayhost.ParseSymmetryParams(spec, index)
+	if cerr != nil {
 		addCodedError(env, cerr)
 		return
 	}
@@ -52,6 +58,10 @@ func validateOverlaySymmetry(env *descriptor.Envelope, req *types.Request, spec 
 		}
 	}
 	if cerr := overlayhost.MarkovArityRefusal(spec.Kind, len(req.Crosstab.Rows), len(req.Crosstab.Columns), index); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
+	if cerr := overlayhost.SymmetryExactWeightRefusal(spec.Kind, params, probability, index); cerr != nil {
 		addCodedError(env, cerr)
 	}
 }

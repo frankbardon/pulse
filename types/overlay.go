@@ -1539,6 +1539,13 @@ const (
 	// information and is dropped; R would return NaN). A 2 × 2 table
 	// takes Edwards' continuity correction (|n_12 − n_21| − 1)² by
 	// default, params.correct false switches it off (R's correct).
+	// params.exact (default false) runs the exact binomial McNemar on a
+	// 2 × 2 instead (R binom.test(n_12, n_12 + n_21)): statistic = n_12,
+	// an exact p, Parameters exact = 1 and no df; correct is inert there.
+	// exact on more than 2 states is PULSE_OVERLAY_PARAM_MISSING, over a
+	// probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, and on a
+	// discordant pair more than 1e-7 from whole counts
+	// PULSE_OVERLAY_NONNEGATIVE_REQUIRED.
 	// MATRIX-scoped over a MATRIX (crosstab) host, implicit-margin (Ref
 	// empty); rows and columns align BY KEY (the OVERLAY_MARKOV rule),
 	// a state on one axis only is a row / column of zeros. Inferential:

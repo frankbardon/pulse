@@ -6,7 +6,7 @@
     "jsonlite": "2.0.0"
   },
   "primitive": "OVERLAY_SYMMETRY",
-  "r_function": "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand",
+  "r_function": "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2)",
   "cases": [
     {
       "name": "agresti_approval_corrected",
@@ -198,7 +198,175 @@
       "discordant": 0,
       "pairs_dropped": 1,
       "continuity_corrected": 0
+    },
+    {
+      "name": "agresti_approval_exact",
+      "note": "Agresti (2007) Table 8.1 exact: binom.test(150, 236); correct is inert under exact.",
+      "states": ["approve", "disapprove"],
+      "counts": [
+        [
+          794,
+          150
+        ],
+        [
+          86,
+          570
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 150,
+      "df": null,
+      "p_value": 3.7159361395714361e-05,
+      "r_statistic": 150,
+      "discordant": 236,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "tiny_exact",
+      "note": "Tiny discordant count: binom.test(1, 5) = 0.375, where the chi-square would warn PULSE_OVERLAY_EXPECTED_LOW.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          10,
+          1
+        ],
+        [
+          4,
+          12
+        ]
+      ],
+      "correct": false,
+      "exact": true,
+      "statistic": 1,
+      "df": null,
+      "p_value": 0.37499999999999994,
+      "r_statistic": 1,
+      "discordant": 5,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "upper_tail_exact",
+      "note": "n_12 > n_21: the upper branch of binom.test's two-sided rule, binom.test(9, 11).",
+      "states": ["before", "after"],
+      "counts": [
+        [
+          3,
+          9
+        ],
+        [
+          2,
+          6
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 9,
+      "df": null,
+      "p_value": 0.065429687500000042,
+      "r_statistic": 9,
+      "discordant": 11,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "one_way_exact",
+      "note": "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          5,
+          0
+        ],
+        [
+          7,
+          5
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 0,
+      "df": null,
+      "p_value": 0.015625000000000007,
+      "r_statistic": 0,
+      "discordant": 7,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "symmetric_exact",
+      "note": "n_12 = n_21 (x on the mean): binom.test's p is exactly 1.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          30,
+          9
+        ],
+        [
+          9,
+          40
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 9,
+      "df": null,
+      "p_value": 1,
+      "r_statistic": 9,
+      "discordant": 18,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "odd_tie_exact",
+      "note": "Odd n = 13, x = 6 next to the centre: the mirror density d(7) = d(6) is matched by the relErr tie rule, p = 1.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          4,
+          6
+        ],
+        [
+          7,
+          2
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 6,
+      "df": null,
+      "p_value": 1,
+      "r_statistic": 6,
+      "discordant": 13,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
+    },
+    {
+      "name": "diagonal_exact",
+      "note": "No discordant unit: binom.test(0, 0) refuses, so the statistic and p are null.",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          30,
+          0
+        ],
+        [
+          0,
+          40
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": null,
+      "df": null,
+      "p_value": null,
+      "r_statistic": null,
+      "discordant": 0,
+      "pairs_dropped": 1,
+      "continuity_corrected": 0
     }
   ]
 }
-// golden-hash: ffad48a9095de63a10c7ef73d699e965a58f8a185f61d160494b2609a88cd419
+// golden-hash: 1742a7466d79f14650ba70661bd341fb373a86f8fd10b7242f4dc0bcdc644795
