@@ -47,6 +47,7 @@ func processChainCapability() descriptor.ProcessChainCapability {
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
 			"chain rejects GROUP_QUANTILE / GROUP_DATE / GROUP_KMEANS (non-mergeable)",
 			"chain rejects built-in aggregators over decimal128 targets",
+			"chain rejects a numeric aggregator over a column an earlier stage forwarded as a categorical code (AGG_MODE over a categorical): PULSE_FIELD_TYPE_UNSUPPORTED, details.forwarded_code",
 			"chain rejects extension aggregators and groupers not declared Mergeable",
 			"chain rejects non-streamable filterers",
 			"chain rejects Joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)",

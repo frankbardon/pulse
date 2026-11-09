@@ -21,7 +21,7 @@ Weighted: the value with the largest Σw; `count` becomes that Σw (a float).
 
 ## Output
 
-Scalar `float64` — the modal value (categorical: its dictionary index). Per-group under a grouper. ProcessChain admits it: a later stage reads that index as a number, not a label.
+Scalar `float64` — the modal value (categorical: its dictionary index). Per-group under a grouper. ProcessChain admits it: a later stage reads that index as a CODE — a numeric reader over it (a sum, mean, min, …) is `PULSE_FIELD_TYPE_UNSUPPORTED` (`forwarded_code`); a `packed_bool` 0/1 mode still sums.
 
 ## Components
 

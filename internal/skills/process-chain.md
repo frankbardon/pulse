@@ -14,7 +14,7 @@ requires: [capability:process_chain]
 
 ## When to chain
 
-Chain when a question is "aggregate, then aggregate the aggregates" — revenue per store, then its spread per region. If the steps are independent of each other, batch them instead<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
+Chain to "aggregate, then aggregate the aggregates" — revenue per store, then its spread per region. If the steps are independent of each other, batch them instead<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 ```jsonc
 {
@@ -30,7 +30,7 @@ Chain when a question is "aggregate, then aggregate the aggregates" — revenue 
 }
 ```
 
-`<…>` = any operator the stage gate admits (below). Only stage 0 names a cohort (the chain-level `cohort`); later stages' `cohort` is ignored. A later stage addresses earlier outputs by their LABEL (`store_rev`) or default output name.
+`<…>` = any operator the gate admits (below). Only stage 0 names a cohort (the chain-level `cohort`); later stages' `cohort` is ignored. A later stage addresses earlier outputs by their LABEL (`store_rev`) or default output name.
 
 <!-- feature: capability:params -->
 Chain-level `params` merge into every stage: `request-params`.
@@ -41,10 +41,10 @@ Chain-level `params` merge into every stage: `request-params`.
 Stages bridge through a synthesised cohort: grouper keys become `categorical_u32` columns, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
 
 - **Smart defaults run first.** `{"field": "n"}` on a numeric field is gated as its default aggregator, and the next stage sees that default's output name. A joined stage 0 defaults against the joined schema.
-- **A modal value on a categorical field chains its DICTIONARY INDEX** — the next stage sees a number.
+- **A categorical modal value chains its DICTIONARY INDEX — still a code:** a later numeric reader over it ⇒ `PULSE_FIELD_TYPE_UNSUPPORTED` (`forwarded_code`); count it instead. A `packed_bool` mode still sums.
 - **Only stage 0 may join.** A later stage's `joins` ⇒ `PULSE_CHAIN_STAGE_JOIN {count, stage, stage_name}`<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 - **No stage may carry a `crosstab`** (it answers a matrix, not rows) ⇒ `PULSE_CHAIN_NOT_MERGEABLE`.
-- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run: a stage 2 refusal comes after stages 0–1 executed; any other stage refusal carries `details.stage`.
+- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run (a stage 2 refusal comes after stages 0–1 ran); any other stage refusal carries `details.stage`.
 - **`labels` + `AutoLabels` apply on every stage**: a forwarded group key relabels; an f64 output ⇒ `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
 On refusal, run stage 0 as an ordinary request<!-- feature: capability:process --> (`pulse_process`)<!-- /feature --> and finish the later steps client-side.
@@ -82,11 +82,11 @@ An empty `target` defaults to the LAST stage. `ref` has no default — every spe
 
 ## Shape divergence
 
-A whole-chain overlay fires only when ref and target produce the same host shape: aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch predict-chain and the runtime each emit ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING per spec; predict stays valid, the runtime returns an empty layer in the target's shape. Never fatal, even under strict. Keep compared stages shape-identical: same groups, same aggregation count. Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
+A whole-chain overlay fires only when ref and target produce the same host shape: aggregations + groups ⇒ SERIES, aggregations alone ⇒ SCALAR. On a mismatch predict-chain and runtime each emit ONE `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING per spec; predict stays valid, the runtime returns an empty layer in the target's shape. Never fatal, even under strict. Keep compared stages shape-identical (same groups and aggregation count). Other whole-chain refusals: `PULSE_OVERLAY_KIND_UNKNOWN` (a kind outside `overlay_kinds`), `PULSE_OVERLAY_REFERENCE_UNKNOWN` / `PULSE_OVERLAY_TARGET_UNKNOWN` (index out of range, unmatched name, both or neither set).
 
 ## Hashing & echo
 
-`ChainRequest.Hash()` is a 32-char canonical-JSON digest; `overlays` is `omitempty`, so an overlay-free chain hashes as it always did. `--echo-request` puts each stage's post-defaults form on `envelope.request`.
+`ChainRequest.Hash()` is a 32-char canonical-JSON digest; an overlay-free chain hashes as before. `--echo-request` puts each stage's post-defaults form on `envelope.request`.
 
 ## See
 

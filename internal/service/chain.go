@@ -374,6 +374,14 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	}); err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}
+	// A numeric reader over a forwarded code column (an upstream
+	// code-emitting aggregation's f64 output) is refused as stage 0
+	// refuses one over the categorical field itself (U66 #446) — the
+	// shared rule predict reports at the same point, before any
+	// operator is built.
+	if crs := descx.ChainStageCodeReaderRefusals(stage, synthSchema, codes, s.instance); len(crs) > 0 {
+		return nil, nil, descx.RefusalAt(crs[0], "stage", i)
+	}
 
 	// The stage's label bindings, judged against its input schema before
 	// it runs and applied to its rows after (#201c) — the binding path
