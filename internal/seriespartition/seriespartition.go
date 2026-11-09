@@ -93,6 +93,15 @@ var kinds = map[types.OverlayKind]bool{
 // partition and reads Param.
 func Applies(kind types.OverlayKind) bool { return kinds[kind] }
 
+// AppliesWith is Applies on an instance: a built-in kind by the table,
+// an extension kind by ext — the instance's hook
+// (overlayhost.ExtensionHonoursPartitionBy over the kind's
+// declaration); nil opts none in (U66 #713). An extension kind is never
+// Ordered: the series-axis advisory stays the built-ins'.
+func AppliesWith(kind types.OverlayKind, ext func(types.OverlayKind) bool) bool {
+	return kinds[kind] || (ext != nil && ext(kind))
+}
+
 // Ordered reports whether kind is one of the partitioned kinds that
 // reads its partition as an ordered series, so the last grouper's key
 // order is the series order (the _TOTAL kinds are order-free).

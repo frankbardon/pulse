@@ -385,3 +385,18 @@ func TestComposeHostDepth(t *testing.T) {
 		t.Errorf("details %#v, want %#v", ce.Details, want)
 	}
 }
+
+// AppliesWith adds an instance's extension kinds through the hook
+// alone; a nil hook is the built-in table (U66 #713).
+func TestAppliesWith(t *testing.T) {
+	t.Parallel()
+
+	const ext = types.OverlayKind("OVERLAY_ACME_TREND")
+	yes := func(k types.OverlayKind) bool { return k == ext }
+	if AppliesWith(ext, nil) || !AppliesWith(ext, yes) || Ordered(ext) {
+		t.Error("an extension kind applies without its hook, not with it, or reads as ordered")
+	}
+	if !AppliesWith(types.OverlayKindDeltaVsPrior, nil) || AppliesWith(types.OverlayKindIndexVsRef, yes) {
+		t.Error("the built-in table moved under the hook")
+	}
+}

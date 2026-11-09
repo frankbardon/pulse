@@ -146,14 +146,14 @@ func applyOverlaysSeriesToResponse(req *types.Request, resp *types.Response, ext
 	// per partition).
 	hostFor := func(i int, spec *types.OverlaySpec, kind types.OverlayKind) (*SeriesHostView, seriesPartitionPlan, error) {
 		scored := seriesfield.Scored{Column: AggregationLabel(req.Aggregations[0])}
-		if seriesfield.Applies(kind) {
+		if seriesfield.AppliesWith(kind, exts.fieldHonours(overlayhost.Request)) {
 			sc, err := seriesfield.Resolve(req.Aggregations, spec, i, cols)
 			if err != nil {
 				return nil, seriesPartitionPlan{}, err
 			}
 			scored = sc
 		}
-		plan, err := seriesPartitionFor(req, spec, kind, i)
+		plan, err := seriesPartitionFor(req, spec, kind, i, exts)
 		if err != nil {
 			return nil, seriesPartitionPlan{}, err
 		}

@@ -2381,6 +2381,42 @@ counts and weight figures (`CellN`, `RowMarginN`, `ColumnMarginN`,
 declaration is trusted, not probed. It has no effect on a `Series`-only
 kind.
 
+### Overlay kinds and the series params
+
+A `Series` handler is scored on the request's first aggregation over the
+whole grouped host, and a `Compose` handler's series slots on each
+slot's first aggregation — unless the registration opts into the
+params a built-in series kind reads:
+
+- `HonoursField: true` (needs a `Series` or `Compose` handler) — the
+  host (each Compose series slot) is scored on the aggregation whose
+  output label, or expanded element column `"<label>[<element>]"`,
+  `params.field` names; `SeriesOverlayHost.ValueLabel` is that column.
+  An unknown name is `PULSE_OVERLAY_FIELD_UNKNOWN`, and a scored
+  aggregation that is not one number (array-valued, non-scalar, a
+  categorical code) `PROCESSING_CONFIG`, at predict and at runtime alike.
+- `HonoursPartitionBy: true` (needs a `Series` handler and the `series`
+  shape) — over two or more groupers the handler runs once per
+  `params.partition_by` partition (default every key but the last; `[]`
+  one walk), on a host holding only that partition's rows with their
+  full keys, and the engine lays each partition's entries back on the
+  rows they came from (layer `Summary` Min / Max widen, Count sums, the
+  rest is the first partition's; a warning code raised by several
+  partitions lands once with `details.partitions`). A partition output
+  that is not a series with one entry per partition row is
+  `PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH`, reason
+  `partition_misaligned`. A list that is not a leading key prefix is
+  `PULSE_OVERLAY_PARTITION_INVALID`, predict and runtime alike. Request
+  host only: on `ComposedRequest.Overlays` a `partition_by` is refused
+  (reason `compose_host`).
+
+Opted in, the key is declared for the kind (a declared `Params` list
+admits it; listing it yourself is `PULSE_EXTENSION_PARAM_INVALID`, reason
+`reserved_series_param`) and the manifest lists it beside the kind's own
+params. Unset, both keys are unknown params of a declared list and the
+handler sees exactly what it saw before. The series-axis advisory
+(`PULSE_ADVISORY_SERIES_AXIS_NOT_DATE`) stays the built-ins'.
+
 ## Built-in accepted types: the one table (contributor flow)
 
 Which field types a BUILT-IN operator slot reads is declared once, in the

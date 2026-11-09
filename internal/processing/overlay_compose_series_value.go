@@ -40,12 +40,12 @@ import (
 // returned in the order given; a field refusal (reference first, then
 // targets in order) is returned as is, the same refusal predict-compose
 // raises from the same Requests.
-func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, ref *types.Response, refIdx int, targets []*types.Response, targetIdxs []int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, []*types.Response, error) {
+func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, ref *types.Response, refIdx int, targets []*types.Response, targetIdxs []int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds, ext seriesfield.Honours) (*types.Response, []*types.Response, error) {
 	if len(requests) == 0 {
 		return ref, targets, nil
 	}
 	cols := composeSlotColumns(requests, slotSchema, kinds)
-	refScored, err := composeSeriesScored(spec, route, specIdx, spec.Reference, refIdx, requests, cols)
+	refScored, err := composeSeriesScored(spec, route, specIdx, spec.Reference, refIdx, requests, cols, ext)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,7 +53,7 @@ func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.Overl
 	out := make([]*types.Response, len(targets))
 	for i, t := range targets {
 		idx := composeTargetIdx(targetIdxs, i)
-		sc, err := composeSeriesScored(spec, route, specIdx, composeTargetLabel(spec, i), idx, requests, cols)
+		sc, err := composeSeriesScored(spec, route, specIdx, composeTargetLabel(spec, i), idx, requests, cols, ext)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -134,10 +134,12 @@ func composeTargetLabel(spec *types.ComposeOverlaySpec, i int) string {
 }
 
 // composeSeriesScored is what one SERIES slot is scored on: the
-// aggregation params.field names on a kind seriesfield.AppliesCompose
-// accepts (its refusal returned as is), else Aggregations[0]. The zero
-// Scored for a slot with no authored Request or a crosstab.
-func composeSeriesScored(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, idx int, requests []*types.Request, cols func(j int) seriesfield.Columns) (seriesfield.Scored, error) {
+// aggregation params.field names on a kind seriesfield.AppliesComposeWith
+// accepts (a built-in by the table, an extension kind declaring
+// HonoursField through ext; its refusal returned as is), else
+// Aggregations[0]. The zero Scored for a slot with no authored Request
+// or a crosstab.
+func composeSeriesScored(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, idx int, requests []*types.Request, cols func(j int) seriesfield.Columns, ext seriesfield.Honours) (seriesfield.Scored, error) {
 	req := requestAt(requests, idx)
 	if req == nil || req.Crosstab != nil {
 		return seriesfield.Scored{}, nil
@@ -146,7 +148,7 @@ func composeSeriesScored(spec *types.ComposeOverlaySpec, route types.OverlayKind
 	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
 		scored.Column = types.AggregationLabelOf(req.Aggregations[0])
 	}
-	if seriesfield.AppliesCompose(route) {
+	if seriesfield.AppliesComposeWith(route, ext) {
 		return seriesfield.ResolveComposeSlot(req.Aggregations, spec, specIdx, label, cols(idx))
 	}
 	return scored, nil
@@ -171,7 +173,7 @@ func composeMomentLegs(spec *types.ComposeOverlaySpec, route types.OverlayKind, 
 	if req == nil || req.Crosstab != nil || slot == nil || len(slot.Data) == 0 {
 		return slot, nil
 	}
-	scored, err := composeSeriesScored(spec, route, specIdx, label, idx, requests, cols)
+	scored, err := composeSeriesScored(spec, route, specIdx, label, idx, requests, cols, nil) // the T / Z vs-ref built-ins
 	ai := scored.Index
 	if err != nil || ai < 0 || ai >= len(req.Aggregations) || req.Aggregations[ai] == nil || scored.Element(req.Aggregations) {
 		return slot, nil

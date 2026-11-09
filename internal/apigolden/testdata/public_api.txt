@@ -784,6 +784,8 @@ pulse: type OverlayRegistration field DependsOn []string
 pulse: type OverlayRegistration field Description string
 pulse: type OverlayRegistration field EmitsPValues bool
 pulse: type OverlayRegistration field Handler pulse/extend.OverlayHandler
+pulse: type OverlayRegistration field HonoursField bool
+pulse: type OverlayRegistration field HonoursPartitionBy bool
 pulse: type OverlayRegistration field Inferential bool
 pulse: type OverlayRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type OverlayRegistration field Name pulse/types.OverlayKind
@@ -6779,4 +6781,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 010979b9a99eeb69ab32c2d1c7556ecc601ac53944a3320bf6010c57a91bf9d6
+// golden-hash: d67f4e5bfdd82793d824d61c8d7379c94e4559874e55a0a25c121d40e18a645b

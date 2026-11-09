@@ -948,7 +948,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// (reference first, then targets — one error, as the runtime). The
 	// key rule (differently named group columns) runs per target after
 	// the schema match below, the runtime's gate order.
-	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
+	if seriesfield.AppliesComposeWith(opts.overlayRoute(spec.Kind), fieldHonours(opts.instance(), overlayhost.Compose)) {
 		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
 		for _, s := range slots {
 			if s.req == nil || s.req.Crosstab != nil {

@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
@@ -408,7 +409,8 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 		// gate reads a Data row, so a multi-aggregation slot keys on its
 		// groups alone. The field refusal sits where predict-compose
 		// raises it: after label resolution, before the key-set gate.
-		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds())
+		fieldExt := exts.fieldHonours(overlayhost.Compose)
+		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds(), fieldExt)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -484,12 +486,22 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 		// read-only views of each one's judged shape; its warnings route
 		// to its own OverlayLayer.Warnings like a built-in's.
 		if ext != nil {
+			// A kind declaring HonoursField scores each SERIES slot on the
+			// aggregation params.field names — resolved above, so no
+			// refusal remains; any other kind on Aggregations[0] (U66 #713).
+			scoredAt := func(label string, idx int) seriesfield.Scored {
+				if !seriesfield.AppliesComposeWith(route, fieldExt) {
+					return seriesfield.Scored{}
+				}
+				sc, _ := composeSeriesScored(spec, route, i, label, idx, requests, composeSlotColumns(requests, slotSchema, exts.AggregationKinds()), fieldExt)
+				return sc
+			}
 			host := &ExtensionComposeHost{
-				Reference: extensionComposeSlot(spec.Reference, refIdx, shapes.ref, refResp, requestAt(requests, refIdx)),
+				Reference: extensionComposeSlot(spec.Reference, refIdx, shapes.ref, refResp, requestAt(requests, refIdx), scoredAt(spec.Reference, refIdx)),
 				Targets:   make([]*ExtensionComposeSlot, len(targetResps)),
 			}
 			for t := range targetResps {
-				host.Targets[t] = extensionComposeSlot(spec.Targets[t], targetIdxs[t], shapes.targets[t], targetResps[t], requestAt(requests, targetIdxs[t]))
+				host.Targets[t] = extensionComposeSlot(spec.Targets[t], targetIdxs[t], shapes.targets[t], targetResps[t], requestAt(requests, targetIdxs[t]), scoredAt(spec.Targets[t], targetIdxs[t]))
 			}
 			layer, ws, err := applyExtensionOverlayCompose(ext, spec, host, i)
 			if err != nil {

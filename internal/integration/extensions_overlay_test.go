@@ -372,6 +372,18 @@ func TestExtensions_OverlayRegistrationRefused(t *testing.T) {
 		{name: "no_shapes", regs: reg(func(r *pulse.OverlayRegistration) { r.Shapes = nil }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_shape"},
 		{name: "bad_scope", regs: reg(func(r *pulse.OverlayRegistration) { r.Scopes = []types.OverlayScope{"diagonal"} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_scope"},
 		{name: "bad_ref", regs: reg(func(r *pulse.OverlayRegistration) { r.Refs = []extend.OverlayRefKind{"prior"} }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "invalid_ref"},
+		// U66 #713: the series params need a series host.
+		{name: "field_matrix_only", regs: reg(func(r *pulse.OverlayRegistration) { r.HonoursField = true }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "field_without_series_handler"},
+		{name: "partition_matrix_only", regs: reg(func(r *pulse.OverlayRegistration) { r.HonoursPartitionBy = true }), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "partition_needs_series"},
+		{name: "partition_no_series_shape", regs: reg(func(r *pulse.OverlayRegistration) {
+			r.Handler.Series = trendSeries
+			r.HonoursPartitionBy = true
+		}), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "partition_needs_series"},
+		{name: "field_declared", regs: reg(func(r *pulse.OverlayRegistration) {
+			r.Handler.Series = trendSeries
+			r.HonoursField = true
+			r.Params = append(r.Params, pulse.ParamMeta{Name: "field", JSONType: "string"})
+		}), code: perr.PULSE_EXTENSION_PARAM_INVALID, reason: "reserved_series_param"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -658,6 +658,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		if d := opts.extensionOverlay(spec.Kind); d != nil {
 			if cerr := overlayhost.ExtensionRequestRefusal(d, judged, req.Crosstab.HasMeasures(), spec, i); cerr != nil {
 				addCodedError(env, cerr)
+				continue
+			}
+			// A kind declaring HonoursField / HonoursPartitionBy reads the
+			// shared series params on a SERIES host — the runtime hostFor's
+			// reading, field before partition (U66 #713).
+			if judged == types.OverlayShapeSeries {
+				cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
+				validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols, opts.instance())
+				validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i, opts.instance())
 			}
 			continue
 		}
@@ -711,8 +720,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), i)
 		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols)
-		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols, opts.instance())
+		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i, opts.instance())
 		if len(env.Errors) == before {
 			validateFormulaBaselineBound(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), opts.overlayRoute(spec.Kind), i)
 			validateOverlayPriorMeasure(env, req, spec, opts, opts.overlayRoute(spec.Kind), i, cols)
@@ -758,8 +767,10 @@ func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, 
 // internal/seriespartition.Depth, the one the runtime hook
 // (processing.applyOverlaysSeriesToResponse) calls, so the refusal is
 // identical on both sides. SERIES host only (Groups set, Crosstab nil).
-func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
-	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriespartition.Applies(route) {
+// An extension kind on inst is judged iff it declares
+// HonoursPartitionBy (seriespartition.AppliesWith, U66 #713).
+func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, inst *InstanceSnapshot) {
+	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriespartition.AppliesWith(route, partitionHonours(inst)) {
 		return
 	}
 	if _, err := seriespartition.Depth(req.Groups, spec, index); err != nil {
@@ -780,9 +791,11 @@ func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request
 // columns each aggregation writes over the request's schema
 // (vectors.AggregationColumns), so an expanded element column
 // "<label>[<element label>]" resolves; one the slot does not write is
-// refused here, its element columns listed in Details.available.
-func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns) {
-	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.Applies(route) {
+// refused here, its element columns listed in Details.available. An
+// extension kind on inst is judged iff it declares HonoursField
+// (seriesfield.AppliesWith, U66 #713).
+func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns, inst *InstanceSnapshot) {
+	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.AppliesWith(route, fieldHonours(inst, overlayhost.Request)) {
 		return
 	}
 	if _, err := seriesfield.Resolve(req.Aggregations, spec, index, cols); err != nil {

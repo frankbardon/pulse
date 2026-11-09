@@ -7,6 +7,8 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -85,6 +87,53 @@ func composeReadsCellValue(inst *InstanceSnapshot, kind types.OverlayKind, cellM
 	return overlayhost.ComposeReadsCellValue(kind, cellMoments)
 }
 
+// fieldHonours is seriesfield's instance hook on inst for host: an
+// extension kind honours params.field there iff its declaration opts in
+// (overlayhost.ExtensionHonoursField, U66 #713) — the hook the runtime
+// builds from the registry's copy of the same declaration. A hidden or
+// built-in kind never.
+func fieldHonours(inst *InstanceSnapshot, host overlayhost.Host) seriesfield.Honours {
+	return func(kind types.OverlayKind) bool {
+		return overlayhost.ExtensionHonoursField(extensionOverlayDecl(inst, kind), host)
+	}
+}
+
+// partitionHonours is seriespartition's instance hook on inst: an
+// extension kind runs per params.partition_by partition iff its
+// declaration opts in (overlayhost.ExtensionHonoursPartitionBy).
+func partitionHonours(inst *InstanceSnapshot) func(types.OverlayKind) bool {
+	return func(kind types.OverlayKind) bool {
+		return overlayhost.ExtensionHonoursPartitionBy(extensionOverlayDecl(inst, kind))
+	}
+}
+
+// extensionFieldParam / extensionPartitionByParam are the engine params
+// a kind declaring HonoursField / HonoursPartitionBy lists in the
+// manifest (its registration's Params never carry them).
+var (
+	extensionFieldParam = descriptor.Param{
+		Name: seriesfield.Param, Type: "string", Required: false,
+		Description: "On a SERIES host (and each Compose series slot), the OUTPUT LABEL of the aggregation the handler scores (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
+	}
+	extensionPartitionByParam = descriptor.Param{
+		Name: seriespartition.Param, Type: "list", Required: false,
+		Description: "Request SERIES host only: over two or more groupers, the leading group key columns each partition shares — the handler runs once per partition (default every key but the last; [] = one walk over every row). Not a leading prefix is PULSE_OVERLAY_PARTITION_INVALID.",
+	}
+)
+
+// extensionEngineParamKeys are the params keys the engine reads for
+// the extension kind d beyond its registration's Params.
+func extensionEngineParamKeys(d *overlayhost.ExtensionDecl) []string {
+	var out []string
+	if overlayhost.ExtensionHonoursField(d, overlayhost.Request) || overlayhost.ExtensionHonoursField(d, overlayhost.Compose) {
+		out = append(out, seriesfield.Param)
+	}
+	if overlayhost.ExtensionHonoursPartitionBy(d) {
+		out = append(out, seriespartition.Param)
+	}
+	return out
+}
+
 // ExtensionOverlayHostCapabilities returns the host capabilities the
 // extension overlay kind d declares runs under, sorted:
 // capability:crosstab for a Matrix handler, capability:compose for a
@@ -149,6 +198,13 @@ func extensionOverlayCapabilities(s *ExtensionsSnapshot, weighting bool) []descr
 			Description: m.Description,
 			Inferential: d.Inferential,
 			Params:      slices.Clone(s.OverlayParams[m.Name]),
+		}
+		for _, k := range extensionEngineParamKeys(&d) {
+			if k == seriesfield.Param {
+				c.Params = append(c.Params, extensionFieldParam)
+			} else {
+				c.Params = append(c.Params, extensionPartitionByParam)
+			}
 		}
 		for _, r := range d.Refs {
 			if r == overlayhost.RefMargin {

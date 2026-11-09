@@ -324,7 +324,7 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 		kinds := aggregationKinds(inst, nil)
 		cols := vectors.AggregationColumns(r, composeSlotSchemaFunc(slotSchema, j), kinds)
 		ai, agg, reason := scoredNonScalarAggregation(r, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (seriesfield.Scored, error) {
-			if !seriesfield.AppliesCompose(spec.Kind) {
+			if !seriesfield.AppliesComposeWith(spec.Kind, fieldHonours(inst, overlayhost.Compose)) {
 				return seriesfield.Scored{}, nil
 			}
 			return seriesfield.ResolveComposeSlot(aggs, spec, i, slot, cols)
@@ -560,8 +560,10 @@ func chainStageIndex(req *types.ChainRequest, ref types.StageRef, dflt bool) (in
 // chain stage >= 1 the code columns it inherits
 // (vectors.CodeFieldTypes). A crosstab request is judged by
 // crosstabCellCodeRefusal instead; readsCell reports whether a kind
-// reads its cell values (the instance's overlayhost.ReadsCellValue).
-func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, cols seriesfield.Columns, readsCell func(types.OverlayKind) bool) []*errors.CodedError {
+// reads its cell values (the instance's overlayhost.ReadsCellValue);
+// fieldExt is seriesfield's instance hook (an extension kind declaring
+// HonoursField scores params.field's aggregation, U66 #713).
+func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, cols seriesfield.Columns, readsCell func(types.OverlayKind) bool, fieldExt seriesfield.Honours) []*errors.CodedError {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -576,7 +578,7 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		ai, host, reason := scoredNonScalarAggregation(req, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (seriesfield.Scored, error) {
-			if !seriesfield.Applies(spec.Kind) {
+			if !seriesfield.AppliesWith(spec.Kind, fieldExt) {
 				return seriesfield.Scored{}, nil
 			}
 			return seriesfield.Resolve(aggs, spec, i, cols)

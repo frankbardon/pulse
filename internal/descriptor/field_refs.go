@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -928,7 +929,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	ovKinds := aggregationKinds(inst, w.snap)
 	w.out = append(w.out, processOverlayArrayValuedRefusals(req, ovKinds, vectors.CodeFieldTypes(schema, codes),
 		vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, ovKinds),
-		func(k types.OverlayKind) bool { return readsCellValue(inst, k) })...)
+		func(k types.OverlayKind) bool { return readsCellValue(inst, k) }, fieldHonours(inst, overlayhost.Request))...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
 			if t != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/extspec"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -62,6 +63,46 @@ type ExtensionDecl struct {
 	// alone (ExtensionReadsCellValue). Unset, a kind with a MATRIX or
 	// Compose handler reads values and is refused over a code cell.
 	ReadsCellCountsOnly bool
+	// HonoursField declares that the handler scores the aggregation
+	// params.field names (internal/seriesfield) — on the SERIES host
+	// and on each Compose series slot — instead of the first
+	// aggregation (ExtensionHonoursField). Unset, field is not an
+	// engine param of the kind.
+	HonoursField bool
+	// HonoursPartitionBy declares that the SERIES handler runs once per
+	// params.partition_by partition of a grouped host
+	// (internal/seriespartition; ExtensionHonoursPartitionBy). Request
+	// host only: a Compose spec carrying partition_by is refused
+	// (ExtensionComposeRefusal).
+	HonoursPartitionBy bool
+}
+
+// ExtensionHonoursField reports whether the kind d declares scores the
+// aggregation params.field names on host (U66 #713): Request iff it
+// declares HonoursField and has a SERIES Process handler, Compose iff
+// it declares HonoursField and has a Compose handler. The instance
+// hooks of seriesfield.AppliesWith / AppliesComposeWith, consulted by
+// predict through the snapshot's declaration and by the runtime
+// through the registry's — both built from the same registration.
+func ExtensionHonoursField(d *ExtensionDecl, host Host) bool {
+	if d == nil || !d.HonoursField {
+		return false
+	}
+	switch host {
+	case Request:
+		return slices.Contains(d.HostShapes, types.OverlayShapeSeries)
+	case Compose:
+		return d.Compose
+	}
+	return false
+}
+
+// ExtensionHonoursPartitionBy reports whether the kind d declares runs
+// its SERIES handler once per params.partition_by partition (U66 #713):
+// HonoursPartitionBy and a SERIES Process handler. The instance hook of
+// seriespartition.AppliesWith on predict and runtime alike.
+func ExtensionHonoursPartitionBy(d *ExtensionDecl) bool {
+	return d != nil && d.HonoursPartitionBy && slices.Contains(d.HostShapes, types.OverlayShapeSeries)
 }
 
 // ExtensionReadsCellValue is ReadsCellValue / ComposeReadsCellValue for
@@ -278,6 +319,8 @@ func extensionScopeLevelRefusal(d *ExtensionDecl, k types.OverlayKind, scope typ
 //     ExtensionSlotRefusal;
 //  2. Scope one of Scopes — PULSE_OVERLAY_SCOPE_UNSUPPORTED;
 //  3. Level / Within zero — PULSE_OVERLAY_LEVEL_OUT_OF_RANGE;
+//     3a. no params.partition_by on a kind declaring HonoursPartitionBy
+//     (extensionComposePartitionRefusal, reason compose_host);
 //  4. the ValidateCompose hook (extspec.Refusal, site {overlay, kind,
 //     overlays, spec.Name}).
 //
@@ -294,7 +337,31 @@ func ExtensionComposeRefusal(d *ExtensionDecl, spec *types.ComposeOverlaySpec, i
 	if cerr := extensionScopeLevelRefusal(d, spec.Kind, spec.Scope, spec.Level, spec.Within, index); cerr != nil {
 		return cerr
 	}
+	if cerr := extensionComposePartitionRefusal(d, spec, index); cerr != nil {
+		return cerr
+	}
 	return extspec.Refusal(d.ValidateCompose, spec, extspec.Site{Category: "overlay", Type: string(spec.Kind), Slot: "overlays", Name: spec.Name})
+}
+
+// extensionComposePartitionRefusal refuses a Compose spec carrying a
+// non-null params.partition_by for a kind that declares
+// HonoursPartitionBy: the engine partitions only the Request SERIES
+// host for an extension kind, so the param would be accepted (the
+// kind's allowlist lists it) and silently ignored on a Compose host.
+// PULSE_OVERLAY_PARTITION_INVALID {index, kind, partition_by, reason:
+// "compose_host"}.
+func extensionComposePartitionRefusal(d *ExtensionDecl, spec *types.ComposeOverlaySpec, index int) *errors.CodedError {
+	if !d.HonoursPartitionBy {
+		return nil
+	}
+	given, ok := spec.Params[seriespartition.Param]
+	if !ok || given == nil {
+		return nil
+	}
+	kind := string(spec.Kind)
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARTITION_INVALID,
+		"overlay "+kind+" params.partition_by partitions a Request.Overlays SERIES host only; an extension kind's Compose handler reads every slot whole — omit partition_by on ComposedRequest.Overlays",
+		map[string]any{"index": index, "kind": kind, "partition_by": given, "reason": "compose_host"})
 }
 
 // extensionRefRefusal is ExtensionRequestRefusal's Ref rule.
@@ -391,6 +458,36 @@ func ExtensionOutputRefusal(d *ExtensionDecl, payload *types.OverlayPayload, sum
 		}
 	}
 	return nil
+}
+
+// ExtensionPartitionOutputRefusal holds one partition's output of a
+// kind declaring HonoursPartitionBy, run over a sub-host of rows group
+// rows (two or more partitions): the engine lays each partition's
+// entries back onto the host rows they came from, so the payload must
+// be SERIES with exactly one entry per partition row — else
+// PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH, reason
+// partition_misaligned, details as ExtensionOutputRefusal's plus
+// {rows, entries} (entries -1 for a non-SERIES payload). Runtime only:
+// the partitions are data. nil when it holds.
+func ExtensionPartitionOutputRefusal(d *ExtensionDecl, payload *types.OverlayPayload, rows, index int) *errors.CodedError {
+	if d == nil || payload == nil {
+		return nil
+	}
+	entries := -1
+	if payload.Shape == types.OverlayShapeSeries && payload.Series != nil {
+		entries = len(payload.Series.Entries)
+	}
+	if entries == rows {
+		return nil
+	}
+	shapes := make([]string, len(d.Shapes))
+	for i, s := range d.Shapes {
+		shapes[i] = string(s)
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH,
+		"extension overlay "+string(d.Kind)+" returned a payload its registration does not declare: a partitioned SERIES host (HonoursPartitionBy) needs a series payload with one entry per partition row ("+strconv.Itoa(rows)+")",
+		map[string]any{"category": "overlay", "name": string(d.Kind), "reason": "partition_misaligned",
+			"shape": string(payload.Shape), "shapes": shapes, "index": index, "rows": rows, "entries": entries})
 }
 
 // ExtensionPSite is where an extension layer of payload shape carries

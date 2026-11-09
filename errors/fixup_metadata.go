@@ -2078,11 +2078,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH: {
-		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message.",
+		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message — or, for a kind declaring HonoursPartitionBy, returned for one partition anything but a series payload with one entry per partition row (reason partition_misaligned, details {rows, entries}).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Return OverlayOutput.Payload with a Shape listed in the registration's Shapes and only its matching arm set (Scalar, Series or Matrix); leave Parts and every p_adjusted / significant_adjusted field nil (the engine owns multiple-comparison correction); give every warning a Code and a Message. details.reason names the rule that failed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "reason partition_misaligned: under HonoursPartitionBy the Series handler runs once per partition over a host holding only that partition's rows — return a series payload with one entry per host.Groups() row (details.rows), or drop HonoursPartitionBy so the handler sees the whole host once.",
 			},
 		},
 	},
@@ -2114,7 +2118,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input; an overlay's HonoursField without a Series or Compose handler — field_without_series_handler —, HonoursPartitionBy without a Series handler returning the series shape — partition_needs_series —, or a Params entry for the engine-owned field / partition_by it opts into — reserved_series_param).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2125,6 +2129,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "Aggregators", "*", "CountSemantic"},
 				Hint:   "reason count_semantic_vector_input: CountSemantic declares one count per slot, which a VectorInput / ArrayValued aggregator (one figure per member) never finishes as — drop CountSemantic, or register a single-field aggregator.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "Overlays", "*", "Params"},
+				Hint:   "reasons field_without_series_handler / partition_needs_series / reserved_series_param: set Handler.Series (and list the series shape for HonoursPartitionBy; HonoursField also takes Handler.Compose) or drop the flag, and remove field / partition_by from Params — the engine declares and reads them.",
 			},
 		},
 	},
@@ -3649,7 +3658,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARTITION_INVALID: {
-		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order.",
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order. An extension kind declaring HonoursPartitionBy partitions the Request SERIES host only: on ComposedRequest.Overlays its partition_by is refused with Details {index, kind, partition_by, reason: compose_host}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3662,6 +3671,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
 				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of Details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
 				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:   "reason compose_host: drop partition_by from the ComposedRequest.Overlays spec — the extension kind's Compose handler reads every slot whole; partition on a grouped request's Request.Overlays instead.",
 			},
 		},
 	},

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -104,6 +105,25 @@ func (r *ExtensionRegistry) extensionOverlay(route types.OverlayKind) *Extension
 	return r.Overlays[route]
 }
 
+// fieldHonours is seriesfield's instance hook on r for host: an
+// extension kind (routed) honours params.field there iff its declaration
+// opts in (overlayhost.ExtensionHonoursField) — the hook predict builds
+// from the snapshot's copy of the same declaration.
+func (r *ExtensionRegistry) fieldHonours(host overlayhost.Host) seriesfield.Honours {
+	return func(route types.OverlayKind) bool {
+		x := r.extensionOverlay(route)
+		return x != nil && overlayhost.ExtensionHonoursField(&x.Decl, host)
+	}
+}
+
+// partitionHonours is seriespartition's instance hook on r: an
+// extension kind (routed) runs per params.partition_by partition iff
+// its declaration opts in (overlayhost.ExtensionHonoursPartitionBy).
+func (r *ExtensionRegistry) partitionHonours(route types.OverlayKind) bool {
+	x := r.extensionOverlay(route)
+	return x != nil && overlayhost.ExtensionHonoursPartitionBy(&x.Decl)
+}
+
 // ExtensionOverlayLayerName is an extension layer's renderer-facing
 // label: spec.Name, else the kind lower-cased without its OVERLAY_
 // prefix (OVERLAY_ACME_HEAT → acme_heat) — the built-ins' bare-kind
@@ -161,6 +181,41 @@ func applyExtensionOverlaySeries(x *ExtensionOverlay, spec *types.OverlaySpec, h
 	}
 	out, err := x.Series(cloneOverlaySpec(spec), host)
 	return extensionLayer(x, out, err, spec.Name, spec.Kind, spec.Scope, spec.Ref, index)
+}
+
+// applyExtensionOverlaySeriesPartitioned is applyExtensionOverlaySeries
+// for a kind declaring HonoursPartitionBy (U66 #713): the handler runs
+// once per partition of plan through the built-in partition engine
+// (runSeriesHandlerPartitioned — one partition runs it on host itself,
+// byte-identical to the unpartitioned call), each partition's output
+// held to the declaration and, over two or more partitions, to its
+// sub-host's rows (overlayhost.ExtensionPartitionOutputRefusal); the
+// merged layer is then held and stamped like any extension layer.
+func applyExtensionOverlaySeriesPartitioned(x *ExtensionOverlay, spec *types.OverlaySpec, host *SeriesHostView, plan seriesPartitionPlan, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	if x.Series == nil {
+		return types.OverlayLayer{}, nil, extensionNoHandler(spec.Kind, "series", index)
+	}
+	run := func(s *types.OverlaySpec, sub *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
+		out, err := x.Series(cloneOverlaySpec(s), sub)
+		if err != nil {
+			return types.OverlayLayer{}, nil, err
+		}
+		if cerr := overlayhost.ExtensionOutputRefusal(&x.Decl, &out.Payload, out.Summary, out.Warnings, index); cerr != nil {
+			return types.OverlayLayer{}, nil, cerr
+		}
+		if sub != host {
+			if cerr := overlayhost.ExtensionPartitionOutputRefusal(&x.Decl, &out.Payload, sub.GroupCount(), index); cerr != nil {
+				return types.OverlayLayer{}, nil, cerr
+			}
+		}
+		return types.OverlayLayer{Payload: out.Payload, Summary: out.Summary}, out.Warnings, nil
+	}
+	merged, ws, err := runSeriesHandlerPartitioned(run, nil, spec, host, plan)
+	if err != nil {
+		return types.OverlayLayer{}, nil, err
+	}
+	return extensionLayer(x, ExtensionOverlayOutput{Payload: merged.Payload, Summary: merged.Summary, Warnings: ws}, nil,
+		spec.Name, spec.Kind, spec.Scope, spec.Ref, index)
 }
 
 // applyExtensionOverlayCompose is applyExtensionOverlayMatrix over a
@@ -245,8 +300,11 @@ func cloneJSONValue(v any) any {
 }
 
 // extensionComposeSlot builds the extension view of one resolved
-// Compose slot from its (projected) response and authored request.
-func extensionComposeSlot(label string, index int, shape types.OverlayShape, resp *types.Response, req *types.Request) *ExtensionComposeSlot {
+// Compose slot from its (projected) response and authored request. A
+// SERIES slot is scored on scored — the aggregation params.field names
+// for a kind declaring HonoursField (composeSeriesScored), else the
+// zero Scored: Aggregations[0].
+func extensionComposeSlot(label string, index int, shape types.OverlayShape, resp *types.Response, req *types.Request, scored seriesfield.Scored) *ExtensionComposeSlot {
 	s := &ExtensionComposeSlot{Label: label, Index: index, Shape: shape}
 	if resp == nil {
 		return s
@@ -262,7 +320,7 @@ func extensionComposeSlot(label string, index int, shape types.OverlayShape, res
 		}
 	case types.OverlayShapeSeries:
 		if req != nil && len(req.Aggregations) > 0 {
-			s.Series = buildSeriesHostFromGroupedResponse(req, resp, 0, "")
+			s.Series = buildSeriesHostFromGroupedResponse(req, resp, scored.Index, scored.Column)
 		}
 	case types.OverlayShapeScalar:
 		if req != nil && len(req.Aggregations) > 0 && req.Aggregations[0] != nil && len(resp.Data) > 0 {

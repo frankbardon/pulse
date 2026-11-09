@@ -244,3 +244,35 @@ func TestResolve_ElementColumnRefused(t *testing.T) {
 		t.Errorf("ResolveChainStage m[c] = %v", err)
 	}
 }
+
+// AppliesWith / AppliesComposeWith add an instance's extension kinds to
+// the built-in sets through the hook alone: a nil hook is the table, a
+// built-in stays in whatever the hook says, an extension kind follows
+// the hook (U66 #713).
+func TestAppliesWith(t *testing.T) {
+	t.Parallel()
+
+	const ext = types.OverlayKind("OVERLAY_ACME_TREND")
+	yes := func(k types.OverlayKind) bool { return k == ext }
+	no := func(types.OverlayKind) bool { return false }
+	for _, c := range []struct {
+		kind types.OverlayKind
+		hook Honours
+		proc bool
+		comp bool
+	}{
+		{ext, nil, false, false},
+		{ext, no, false, false},
+		{ext, yes, true, true},
+		{types.OverlayKindDeltaVsPrior, no, true, false},
+		{types.OverlayKindIndexVsRef, no, false, true},
+		{types.OverlayKindRank, yes, false, false},
+	} {
+		if got := AppliesWith(c.kind, c.hook); got != c.proc {
+			t.Errorf("AppliesWith(%s, hook=%v) = %v, want %v", c.kind, c.hook != nil, got, c.proc)
+		}
+		if got := AppliesComposeWith(c.kind, c.hook); got != c.comp {
+			t.Errorf("AppliesComposeWith(%s, hook=%v) = %v, want %v", c.kind, c.hook != nil, got, c.comp)
+		}
+	}
+}

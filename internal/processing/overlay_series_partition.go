@@ -219,16 +219,18 @@ func (h *SeriesHostView) subset(rows []int, project int) *SeriesHostView {
 			kinds = []types.GroupType{h.grouperKinds[project]}
 		}
 	}
-	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: fields, grouperKinds: kinds, legs: h.legs.subset(rows)}
+	return &SeriesHostView{groupKeys: keys, resolver: resolver, groupFields: fields, grouperKinds: kinds, legs: h.legs.subset(rows), valueLabel: h.valueLabel}
 }
 
 // seriesPartitionFor is how spec splits the grouped host: OVERLAY_YOY
 // partitions on every non-date key and projects onto the date key
 // (seriespartition.YoY, which also refuses zero / 2+ date groupers and
 // a partition_by other than the non-date keys); a kind that runs per
-// partition (seriespartition.Applies on its route) on the leading
-// seriespartition.Depth keys; any other kind walks the whole host.
-func seriesPartitionFor(req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) (seriesPartitionPlan, error) {
+// partition (seriespartition.AppliesWith on its route: a built-in by
+// the table, an extension kind declaring HonoursPartitionBy through
+// exts) on the leading seriespartition.Depth keys; any other kind walks
+// the whole host.
+func seriesPartitionFor(req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, exts *ExtensionRegistry) (seriesPartitionPlan, error) {
 	if route == types.OverlayKindYoY {
 		date, on, err := seriespartition.YoY(req.Groups, isDateGrouper, spec, index)
 		if err != nil {
@@ -236,7 +238,7 @@ func seriesPartitionFor(req *types.Request, spec *types.OverlaySpec, route types
 		}
 		return seriesPartitionPlan{on: on, project: date}, nil
 	}
-	if !seriespartition.Applies(route) {
+	if !seriespartition.AppliesWith(route, exts.partitionHonours) {
 		return noPartition, nil
 	}
 	depth, err := seriespartition.Depth(req.Groups, spec, index)
