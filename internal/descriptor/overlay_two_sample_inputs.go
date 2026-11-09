@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/twosample"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -106,6 +107,24 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 	if composeTwoSampleSpecMalformed(i, spec, requests, labels, kinds) {
 		return nil
 	}
+	// The measure rule (U66 #444): a vs-ref kind reads each grouped
+	// slot's scored measure as a mean only when it is one, or through
+	// its components when they carry the moments — the allowlist the
+	// runtime dispatcher applies to the same slots.
+	if !cellKind {
+		slotIndex := func(label string) int {
+			for j, l := range labels {
+				if l == label && j < len(requests) && requests[j] != nil {
+					return j
+				}
+			}
+			return -1
+		}
+		cols := func(j int) seriesfield.Columns { return vectors.AggregationColumns(requests[j], nil, kinds) }
+		if ce := overlayhost.ComposeVsRefMeasureRefusal(spec, spec.Kind, i, requests, slotIndex, cols, kinds); ce != nil {
+			return ce
+		}
+	}
 	for j, r := range requests {
 		if r == nil || j >= len(labels) {
 			continue
@@ -170,8 +189,9 @@ func composeOverlayTwoSampleInputsRefusal(i int, spec *types.ComposeOverlaySpec,
 		if kinds.IsArrayValued(agg.Type) {
 			continue // the array-valued rule owns it
 		}
-		if kinds.IsNonScalarSlot(agg) {
-			if !overlayReadsPayload(spec.Kind, kinds.Routed(agg.Type)) || !disabled(r) {
+		momentSlot := overlayhost.VsRefMeasureRead(kinds.Routed(agg.Type), false, kinds.ExtensionCarriesMoments(agg.Type)) == overlayhost.VsRefReadMoments
+		if kinds.IsNonScalarSlot(agg) || momentSlot {
+			if !(momentSlot || overlayReadsPayload(spec.Kind, kinds.Routed(agg.Type))) || !disabled(r) {
 				continue // the non-scalar rule owns it, or the components carry the moments
 			}
 			label := types.AggregationLabelOf(agg)

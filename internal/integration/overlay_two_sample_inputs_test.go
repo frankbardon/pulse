@@ -95,7 +95,9 @@ func TestComposeOverlay_TwoSampleInputsRefused(t *testing.T) {
 	}
 	var cases []refusal
 	for _, kind := range seriesKinds {
-		for _, agg := range []types.AggregationType{types.AGG_AVERAGE, types.AGG_VARIANCE, types.AGG_SUM} {
+		// Only a mean reads params (U66 #444: AGG_VARIANCE reads its
+		// components, AGG_SUM is refused — compose_vs_ref_measure_test.go).
+		for _, agg := range []types.AggregationType{types.AGG_AVERAGE} {
 			cases = append(cases,
 				refusal{"no params", kind, false, agg, nil, false,
 					missing(kind, "requests[0].aggregations[0]", agg, "v", "reference", "variance_ref", "sample_size_ref"), perr.PULSE_OVERLAY_PARAM_MISSING},
@@ -259,7 +261,7 @@ func TestComposeOverlay_TwoSampleExplicitParams(t *testing.T) {
 
 // TestComposeOverlay_TwoSampleComponentsRoutesIgnoreParams: the
 // components routes need no params and are byte-identical with or
-// without them — AGG_WELFORD rows, and crosstab cells whose components
+// without them — AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV rows, and crosstab cells whose components
 // carry mean and variance (AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV).
 func TestComposeOverlay_TwoSampleComponentsRoutesIgnoreParams(t *testing.T) {
 	t.Parallel()
@@ -274,7 +276,10 @@ func TestComposeOverlay_TwoSampleComponentsRoutesIgnoreParams(t *testing.T) {
 	}
 	var routes []route
 	for _, k := range []types.OverlayKind{types.OverlayKindTVsRef, types.OverlayKindZVsRef} {
-		routes = append(routes, route{k, false, types.AGG_WELFORD})
+		// AGG_VARIANCE / AGG_STDDEV rows read their components (U66 #444).
+		for _, a := range []types.AggregationType{types.AGG_WELFORD, types.AGG_VARIANCE, types.AGG_STDDEV} {
+			routes = append(routes, route{k, false, a})
+		}
 	}
 	for _, k := range []types.OverlayKind{types.OverlayKindTCell, types.OverlayKindZCell} {
 		for _, a := range []types.AggregationType{types.AGG_WELFORD, types.AGG_VARIANCE, types.AGG_STDDEV} {

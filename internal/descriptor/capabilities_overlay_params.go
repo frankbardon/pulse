@@ -49,7 +49,7 @@ func facetOverlayKind(kind types.OverlayKind) bool {
 // overlay reads for a scalar side (internal/twosample).
 func twoSampleParams() []descriptor.Param {
 	side := func(key, what string) descriptor.Param {
-		return descriptor.Param{Name: key, Type: "float", Required: false, Description: what + " Required (> 0) for a side whose cell carries no mean + variance components; no default."}
+		return descriptor.Param{Name: key, Type: "float", Required: false, Description: what + " Required (> 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."}
 	}
 	return []descriptor.Param{
 		side(twosample.VarianceKey(twosample.Target), "Target side's sample variance."),

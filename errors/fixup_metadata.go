@@ -3504,6 +3504,12 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays. On ComposedRequest.Overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
 				Examples: []any{"matrix", "series"},
 			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Hint:     "When details.measure_type is present the kind cannot read that measure. A Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF, details.reason measure_not_mean, details.slot / details.host the scored aggregation) needs a mean — AGG_AVERAGE or AGG_WEIGHTED_MEAN, with the variance and sample size in params — or a measure whose components carry the moments: AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV (or an extension declaring mean + variance), read with no params. Score one of those, or point params.field at it. A prior-period T / Z kind needs AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV; the proportion kind an AGG_AVERAGE of a 0/1 indicator.",
+				Examples: []any{"AGG_AVERAGE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_VARIANCE", "AGG_STDDEV"},
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
@@ -3785,7 +3791,7 @@ var codeMetadata = map[Code]Metadata{
 		// Prose points at the predict-side SlotPair surface so MCP
 		// planners can fan the per-divergence repair without parsing
 		// envelope Details.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. A two-sample vs-ref kind also raises it, details.reason mixed_measure_read, when one slot's measure is a bare mean and the other's carries the moments. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3796,6 +3802,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
 				Hint:   "Re-issue the diverging slot Request with the same column-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Hint:     "When details.reason is mixed_measure_read a Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF) reads one side as a bare mean and the other through its moments (details.reference_read / details.target_read): score the same family on both slots — AGG_AVERAGE / AGG_WEIGHTED_MEAN (variance and n from params) on both, or AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV (components) on both.",
+				Examples: []any{"AGG_AVERAGE", "AGG_WELFORD"},
 			},
 		},
 	},

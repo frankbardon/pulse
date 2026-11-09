@@ -63,7 +63,8 @@ func nsFixture(t *testing.T, opts pulse.Options) (*pulse.Pulse, []byte) {
 }
 
 // nsAggs builds aggregations from a layout: "n" = the non-scalar a
-// labelled n, "s" = AGG_SUM score labelled s.
+// labelled n, "s" = AGG_AVERAGE score labelled s (a mean, so the
+// two-sample vs-ref kinds read it too — U66 #444).
 func nsAggs(a nsAgg, layout string) []*types.Aggregation {
 	var out []*types.Aggregation
 	for _, c := range layout {
@@ -71,7 +72,7 @@ func nsAggs(a nsAgg, layout string) []*types.Aggregation {
 		case 'n':
 			out = append(out, &types.Aggregation{Type: a.typ, Field: a.field, Label: "n"})
 		case 's':
-			out = append(out, &types.Aggregation{Type: types.AGG_SUM, Field: "score", Label: "s"})
+			out = append(out, &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score", Label: "s"})
 		}
 	}
 	return out

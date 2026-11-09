@@ -139,12 +139,23 @@ func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 				}
 				return csRender(t, resp)
 			}
-			named := run("aa_sum", csZ, csA)
-			if want := run("", csA); named != want {
+			z, a := csZ, csA
+			if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+				// The two-sample kinds score only a mean (U66 #444):
+				// the same labels over AGG_AVERAGE.
+				z = func() *types.Aggregation {
+					return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "id", Label: "zz_n"}
+				}
+				a = func() *types.Aggregation {
+					return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "y", Label: "aa_sum"}
+				}
+			}
+			named := run("aa_sum", z, a)
+			if want := run("", a); named != want {
 				t.Errorf("field aa_sum over [zz_n, aa_sum]:\n %s\nwant [aa_sum] alone:\n %s", named, want)
 			}
-			def := run("", csZ, csA)
-			if want := run("", csZ); def != want {
+			def := run("", z, a)
+			if want := run("", z); def != want {
 				t.Errorf("absent field over [zz_n, aa_sum]:\n %s\nwant aggregations[0] [zz_n] alone:\n %s", def, want)
 			}
 			if named == def {

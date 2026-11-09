@@ -2,8 +2,11 @@ package processing
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -41,52 +44,210 @@ func projectComposeSeriesSlots(spec *types.ComposeOverlaySpec, route types.Overl
 	if len(requests) == 0 {
 		return ref, targets, nil
 	}
-	narrowedRef, err := projectComposeSeriesSlot(spec, route, specIdx, spec.Reference, ref, refIdx, requests, slotSchema, kinds)
+	cols := composeSlotColumns(requests, slotSchema, kinds)
+	refScored, err := composeSeriesScored(spec, route, specIdx, spec.Reference, refIdx, requests, cols)
+	if err != nil {
+		return nil, nil, err
+	}
+	narrowedRef := narrowComposeSeriesSlot(ref, refIdx, refScored, requests)
+	out := make([]*types.Response, len(targets))
+	for i, t := range targets {
+		idx := composeTargetIdx(targetIdxs, i)
+		sc, err := composeSeriesScored(spec, route, specIdx, composeTargetLabel(spec, i), idx, requests, cols)
+		if err != nil {
+			return nil, nil, err
+		}
+		out[i] = narrowComposeSeriesSlot(t, idx, sc, requests)
+	}
+	return narrowedRef, out, nil
+}
+
+// applyComposeVsRefMeasure is the two-sample measure rule (U66 #444)
+// at the Compose dispatcher, the one predict-compose applies at gate
+// 2e (overlayhost.ComposeVsRefMeasureRefusal): a T / Z vs-ref slot's
+// scored measure is a mean, or its components carry the moments. It
+// runs after the slot shape and schema gates (predict stands aside on
+// a mixed-shape spec) and before the key-set gate. Then, on every
+// narrowed slot whose measure carries the moments (AGG_VARIANCE /
+// AGG_STDDEV / a moment-declaring extension; AGG_WELFORD's triple
+// narrowSeriesHost already reads), each row's value becomes the
+// group's (mean, variance, n) leg off the slot's components
+// (momentComponentsLeg) — a slot that came back without them is
+// PULSE_OVERLAY_COMPONENTS_REQUIRED: its value is the variance, never a
+// mean. ref / targets come back in the order given; a rewritten slot is
+// a shallow copy with fresh rows, the slot's own Response untouched.
+func applyComposeVsRefMeasure(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, ref *types.Response, refIdx int, targets []*types.Response, targetIdxs []int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, []*types.Response, error) {
+	if len(requests) == 0 || !overlayhost.VsRefMeasureKind(route) {
+		return ref, targets, nil
+	}
+	cols := composeSlotColumns(requests, slotSchema, kinds)
+	slots := map[string]int{spec.Reference: refIdx}
+	for i := range spec.Targets {
+		slots[spec.Targets[i]] = composeTargetIdx(targetIdxs, i)
+	}
+	slotIndex := func(label string) int {
+		if j, ok := slots[label]; ok {
+			return j
+		}
+		return -1
+	}
+	if ce := overlayhost.ComposeVsRefMeasureRefusal(spec, route, specIdx, requests, slotIndex, cols, kinds); ce != nil {
+		return nil, nil, ce
+	}
+	ref, err := composeMomentLegs(spec, route, specIdx, spec.Reference, ref, refIdx, requests, cols, kinds)
 	if err != nil {
 		return nil, nil, err
 	}
 	out := make([]*types.Response, len(targets))
 	for i, t := range targets {
-		label := ""
-		if i < len(spec.Targets) {
-			label = spec.Targets[i]
-		}
-		idx := -1
-		if i < len(targetIdxs) {
-			idx = targetIdxs[i]
-		}
-		if out[i], err = projectComposeSeriesSlot(spec, route, specIdx, label, t, idx, requests, slotSchema, kinds); err != nil {
+		if out[i], err = composeMomentLegs(spec, route, specIdx, composeTargetLabel(spec, i), t, composeTargetIdx(targetIdxs, i), requests, cols, kinds); err != nil {
 			return nil, nil, err
 		}
 	}
-	return narrowedRef, out, nil
+	return ref, out, nil
 }
 
-// projectComposeSeriesSlot is projectComposeSeriesSlots for one slot.
-func projectComposeSeriesSlot(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, resp *types.Response, idx int, requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) (*types.Response, error) {
-	if idx < 0 || idx >= len(requests) {
-		return resp, nil
+// composeSlotColumns is slot j's column lister (vectors.AggregationColumns
+// over slotSchema(j)).
+func composeSlotColumns(requests []*types.Request, slotSchema func(j int) *encoding.Schema, kinds vectors.AggregationKinds) func(j int) seriesfield.Columns {
+	return func(j int) seriesfield.Columns {
+		var schema func() *encoding.Schema
+		if slotSchema != nil {
+			schema = func() *encoding.Schema { return slotSchema(j) }
+		}
+		return vectors.AggregationColumns(requestAt(requests, j), schema, kinds)
 	}
-	req := requests[idx]
+}
+
+func composeTargetIdx(targetIdxs []int, i int) int {
+	if i < len(targetIdxs) {
+		return targetIdxs[i]
+	}
+	return -1
+}
+
+func composeTargetLabel(spec *types.ComposeOverlaySpec, i int) string {
+	if i < len(spec.Targets) {
+		return spec.Targets[i]
+	}
+	return ""
+}
+
+// composeSeriesScored is what one SERIES slot is scored on: the
+// aggregation params.field names on a kind seriesfield.AppliesCompose
+// accepts (its refusal returned as is), else Aggregations[0]. The zero
+// Scored for a slot with no authored Request or a crosstab.
+func composeSeriesScored(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, idx int, requests []*types.Request, cols func(j int) seriesfield.Columns) (seriesfield.Scored, error) {
+	req := requestAt(requests, idx)
 	if req == nil || req.Crosstab != nil {
-		return resp, nil
+		return seriesfield.Scored{}, nil
 	}
 	scored := seriesfield.Scored{}
 	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
 		scored.Column = types.AggregationLabelOf(req.Aggregations[0])
 	}
 	if seriesfield.AppliesCompose(route) {
-		var schema func() *encoding.Schema
-		if slotSchema != nil {
-			schema = func() *encoding.Schema { return slotSchema(idx) }
-		}
-		sc, err := seriesfield.ResolveComposeSlot(req.Aggregations, spec, specIdx, label, vectors.AggregationColumns(req, schema, kinds))
-		if err != nil {
-			return nil, err
-		}
-		scored = sc
+		return seriesfield.ResolveComposeSlot(req.Aggregations, spec, specIdx, label, cols(idx))
 	}
-	return narrowSeriesHost(req, scored, resp), nil
+	return scored, nil
+}
+
+// narrowComposeSeriesSlot narrows one slot (narrowSeriesHost) to its
+// scored column; a slot with no authored Request or a crosstab is left
+// as it is.
+func narrowComposeSeriesSlot(resp *types.Response, idx int, scored seriesfield.Scored, requests []*types.Request) *types.Response {
+	req := requestAt(requests, idx)
+	if req == nil || req.Crosstab != nil {
+		return resp
+	}
+	return narrowSeriesHost(req, scored, resp)
+}
+
+// composeMomentLegs returns one narrowed slot with its rows' values
+// replaced by the moment legs of its moment-carrying measure
+// (applyComposeVsRefMeasure); the slot as it is for any other measure.
+func composeMomentLegs(spec *types.ComposeOverlaySpec, route types.OverlayKind, specIdx int, label string, slot *types.Response, idx int, requests []*types.Request, cols func(j int) seriesfield.Columns, kinds vectors.AggregationKinds) (*types.Response, error) {
+	req := requestAt(requests, idx)
+	if req == nil || req.Crosstab != nil || slot == nil || len(slot.Data) == 0 {
+		return slot, nil
+	}
+	scored, err := composeSeriesScored(spec, route, specIdx, label, idx, requests, cols)
+	ai := scored.Index
+	if err != nil || ai < 0 || ai >= len(req.Aggregations) || req.Aggregations[ai] == nil || scored.Element(req.Aggregations) {
+		return slot, nil
+	}
+	agg := req.Aggregations[ai]
+	routed := kinds.Routed(agg.Type)
+	if routed == types.AGG_WELFORD || overlayhost.VsRefMeasureRead(routed, false, kinds.ExtensionCarriesMoments(agg.Type)) != overlayhost.VsRefReadMoments {
+		return slot, nil // AGG_WELFORD's triple: narrowSeriesHost's reading, as before
+	}
+	aggLabel := types.AggregationLabelOf(agg)
+	groups := scoredGroupComponents(slot, aggLabel, ai)
+	popVariance := overlayhost.PopulationVarianceCell(routed)
+	out := *slot
+	out.Data = make([]map[string]any, len(slot.Data))
+	for r, row := range slot.Data {
+		nr := make(map[string]any, len(row))
+		for k, v := range row {
+			nr[k] = v
+		}
+		out.Data[r] = nr
+		if _, isLeg := row[aggLabel].(map[string]any); isLeg {
+			continue
+		}
+		leg, ok := momentComponentsLeg(groups, r, popVariance)
+		if !ok {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_COMPONENTS_REQUIRED,
+				"overlays["+strconv.Itoa(specIdx)+"] ("+string(spec.Kind)+") reads slot "+strconv.Quote(label)+"'s "+aggLabel+" ("+string(agg.Type)+
+					") from its per-group components (mean, variance, n), and the slot came back without them; enable components on that slot",
+				map[string]any{"overlay_index": specIdx, "kind": string(spec.Kind), "slot": label,
+					"aggregation": string(agg.Type), "label": aggLabel, "reason": "components_disabled"})
+		}
+		nr[aggLabel] = leg
+	}
+	return &out, nil
+}
+
+// momentComponentsLeg is the components reading of a moment-carrying
+// scalar measure's group row r (AGG_VARIANCE / AGG_STDDEV, or an
+// extension declaring mean + variance): the {mean, variance, n, …} map
+// the two-sample handlers read through the weighted-host rule
+// (readMeanLeg) — the crosstab cell arm's reading (CrosstabHostView.
+// MeanLeg). An unweighted population-variance type's variance is
+// converted to the sample variance (overlayhost.SampleVariance); an
+// extension's is read as is. ok is false when the group's components
+// are absent or lack mean / variance.
+func momentComponentsLeg(groups []types.AggregationGroupComponents, r int, popVariance bool) (map[string]any, bool) {
+	if r >= len(groups) {
+		return nil, false
+	}
+	g := groups[r]
+	leg := map[string]any{"n": g.N}
+	for _, k := range []string{"mean", "variance"} {
+		x, ok := g.Operator[k]
+		if !ok {
+			return nil, false
+		}
+		leg[k] = x
+	}
+	for _, k := range []string{"m2", "origin", "shifted_mean"} {
+		if x, ok := g.Operator[k]; ok {
+			leg[k] = x
+		}
+	}
+	if g.SumWeights != nil {
+		leg["sum_weights"] = *g.SumWeights
+	}
+	if g.NEff != nil {
+		leg["n_eff"] = *g.NEff
+	}
+	if popVariance && g.SumWeights == nil {
+		v, _ := componentsNumeric(leg, "variance")
+		m2, hasM2 := componentsNumeric(leg, "m2")
+		n, _ := componentsNumeric(leg, "n")
+		leg["variance"] = overlayhost.SampleVariance(v, m2, hasM2, n)
+	}
+	return leg, true
 }
 
 // narrowSeriesHost is the narrowing both the Compose and the chain

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/feature"
@@ -107,12 +108,14 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			}
 			r.MarginReducibility[reg.Name] = reg.MarginReducibility
 			r.WeightAware[processing.StreamabilityKey("aggregator", string(reg.Name))] = reg.WeightAware
-			if reg.VectorInput || reg.NonScalar || reg.EmitsInputValue {
+			moments := componentSchemaCarriesMoments(reg.ComponentSchema)
+			if reg.VectorInput || reg.NonScalar || reg.EmitsInputValue || moments {
 				if r.VectorAggregators == nil {
 					r.VectorAggregators = make(map[types.AggregationType]vectors.ExtensionAggregation)
 				}
 				r.VectorAggregators[reg.Name] = vectors.ExtensionAggregation{Registered: true, VectorInput: reg.VectorInput,
-					ArrayValued: reg.ArrayValued, NonScalar: reg.NonScalar, EmitsInputValue: reg.EmitsInputValue}
+					ArrayValued: reg.ArrayValued, NonScalar: reg.NonScalar, EmitsInputValue: reg.EmitsInputValue,
+					CarriesMoments: moments}
 			}
 			addFieldInputs("aggregator", string(reg.Name), reg.FieldInputs)
 		}
@@ -300,4 +303,22 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.ReferenceVectors) > 0 ||
 		len(ext.LabelTables) > 0 ||
 		len(ext.RangeTables) > 0
+}
+
+// componentSchemaCarriesMoments reports whether an extension
+// aggregator's declared ComponentSchema carries both `mean` and
+// `variance` — the moments the Compose two-sample overlays read off its
+// components (vectors.ExtensionAggregation.CarriesMoments; predict
+// reads the same keys off the extensions snapshot).
+func componentSchemaCarriesMoments(schema descriptor.ComponentSchema) bool {
+	var mean, variance bool
+	for _, k := range schema.Keys {
+		switch k.Name {
+		case "mean":
+			mean = true
+		case "variance":
+			variance = true
+		}
+	}
+	return mean && variance
 }

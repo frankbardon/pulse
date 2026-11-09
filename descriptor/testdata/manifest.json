@@ -17560,37 +17560,37 @@
             "name": "variance_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance",
             "type": "float",
             "required": false,
-            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size",
             "type": "float",
             "required": false,
-            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           }
         ]
       },
@@ -17640,7 +17640,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses statdist.StudentTTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host per-group Welch t-test against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_T_CELL (the per-cell MATRIX-host Welch t-test) and twin to the SERIES arm of OVERLAY_INDEX_VS_REF / OVERLAY_DELTA_VS_REF (descriptive series-shape Compose-only kinds). Each per-group target / reference value is treated as a sample mean. The scored measure (params.field, else aggregations[0]) must be a mean or carry the moments: AGG_AVERAGE / AGG_WEIGHTED_MEAN (or an AGG_VEC_MEAN element column) is a scalar mean; AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV or an extension whose ComponentSchema declares mean and variance reads its mean, variance and n from the slot's per-group components with no params (an unweighted AGG_VARIANCE / AGG_STDDEV population variance converted to the sample variance; PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other measure is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.measure_type, reason measure_not_mean), and a mean on one side with moments on the other is PULSE_OVERLAY_SCHEMA_DIVERGENT (reason mixed_measure_read). A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses statdist.StudentTTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "compare_groups"
         ],
@@ -17660,37 +17660,37 @@
             "name": "variance_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance",
             "type": "float",
             "required": false,
-            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size",
             "type": "float",
             "required": false,
-            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           }
         ]
       },
@@ -17882,37 +17882,37 @@
             "name": "variance_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance",
             "type": "float",
             "required": false,
-            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size",
             "type": "float",
             "required": false,
-            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           }
         ]
       },
@@ -17962,7 +17962,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean. A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other scored aggregation is a scalar mean. A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = erfc(|z|/√2). Reuses normalTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
+        "description": "COMPOSE-host per-group two-sample z-test on the means against the reference slot's matching group, against a SERIES (grouped Process) host. GROUP scope over a SERIES host with SERIES payload — one SeriesEntry per host group key in host order, each carrying the two-sided p-value on Summary.Statistic. Series-shape sibling of OVERLAY_Z_CELL (the per-cell MATRIX-host z-test) and twin to the SERIES arm of OVERLAY_T_VS_REF (Welch t-test sibling on the same fold-and-finalise shape; different distribution — standard normal instead of Student's t). Each per-group target / reference value is treated as a sample mean. The scored measure (params.field, else aggregations[0]) must be a mean or carry the moments: AGG_AVERAGE / AGG_WEIGHTED_MEAN (or an AGG_VEC_MEAN element column) is a scalar mean; AGG_WELFORD, AGG_VARIANCE, AGG_STDDEV or an extension whose ComponentSchema declares mean and variance reads its mean, variance and n from the slot's per-group components with no params (an unweighted AGG_VARIANCE / AGG_STDDEV population variance converted to the sample variance; PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other measure is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.measure_type, reason measure_not_mean), and a mean on one side with moments on the other is PULSE_OVERLAY_SCHEMA_DIVERGENT (reason mixed_measure_read). A scalar side REQUIRES its variance and sample size in params — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides, each a finite number \u003e 0; there is no default (PULSE_OVERLAY_PARAM_MISSING on predict and runtime, details.side and details.params naming what is missing). Over crosstab slots the kind is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin. Math reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); z = (target - ref) / se; p_value = erfc(|z|/√2). Reuses normalTwoSidedP so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n \u003c 2) produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing value) on every slot it reads; absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime.",
         "intents": [
           "compare_groups"
         ],
@@ -17982,37 +17982,37 @@
             "name": "variance_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample variance. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample variance. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "variance",
             "type": "float",
             "required": false,
-            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample variance for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_target",
             "type": "float",
             "required": false,
-            "description": "Target side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Target side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size_ref",
             "type": "float",
             "required": false,
-            "description": "Reference side's sample size. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "Reference side's sample size. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           },
           {
             "name": "sample_size",
             "type": "float",
             "required": false,
-            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side whose cell carries no mean + variance components; no default."
+            "description": "One sample size for both sides, read when a side's own key is absent. Required (\u003e 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."
           }
         ]
       }
@@ -21224,4 +21224,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0969ec47cd95e8370f8d6d24bc96a9862cee95a4907f6b2faebe0c7438700c68
+// golden-hash: 6969d38a8c25b817a4fa071d63255bb3314906329aad70837e040646557de4ce

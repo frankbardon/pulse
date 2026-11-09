@@ -19,6 +19,8 @@ The cell kinds (MATRIX, `Scope` `cell`) and the vs-reference kinds (SERIES, `Sco
 
 **The explicit-moments rule.** A scalar scored measure — any cell or aggregation without mean + variance components — REQUIRES `params.variance_target` / `variance_ref` and `sample_size_target` / `sample_size_ref` (or the symmetric `variance` / `sample_size`, read when a side's own key is absent), each > 0, no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. These ONE values per side apply to EVERY cell or group, so the p-values describe the supplied values (and the measure's units), not each coordinate's spread.
 
+**The vs-reference measure.** Each group's value is that side's MEAN, so the scored measure must be one: an average-family mean takes the params above; `AGG_VARIANCE` / `AGG_STDDEV` (sample variance) and a mean + variance extension read the components, as the cell kinds do. Anything else (a sum, median, mode, an untyped numeric field's sum default) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); a mean beside moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`.
+
 **Sample variance.** The test reads m2 / (n − 1): an unweighted population-variance cell (`AGG_VARIANCE`, `AGG_STDDEV`: m2 / n) is converted, so it scores as the Welford cell to the accumulators' last-bit rounding; n < 2 → `null` + `PULSE_OVERLAY_REF_ZERO`. An extension cell is read as is and must expose the sample variance.
 
 **Host refusals.** Cell kinds on grouped slots → `PULSE_OVERLAY_SLOT_NOT_CROSSTAB`; vs-reference kinds on crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin); any other non-scalar scored aggregation → refused, reason `non_scalar`.

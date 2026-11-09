@@ -407,6 +407,14 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
 			return nil, nil, err
 		}
+		// A two-sample vs-ref kind's measure rule (U66 #444): after the
+		// shape gates, before the key-set gate — where predict-compose's
+		// gate 2e judges it (it stands aside on a mixed-shape spec). A
+		// moment-carrying slot's rows then carry its components' legs.
+		refResp, targetResps, err = applyComposeVsRefMeasure(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds())
+		if err != nil {
+			return nil, nil, err
+		}
 		// Strict cross-Request key-set alignment. Runs AFTER the
 		// structural schema match (two slots whose grouper kinds differ
 		// are PULSE_OVERLAY_SCHEMA_DIVERGENT, the refusal predict-compose

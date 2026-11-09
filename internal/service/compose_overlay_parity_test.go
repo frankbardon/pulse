@@ -203,6 +203,9 @@ type parityFixture struct {
 	// params is the per-spec params bag, forwarded verbatim into the
 	// ComposeOverlaySpec.Params slot.
 	params map[string]any
+	// seriesAgg overrides the series slots' AGG_SUM: the two-sample
+	// vs-ref kinds read a mean (U66 #444).
+	seriesAgg types.AggregationType
 }
 
 // parityComposed builds the parity ComposedRequest for a fixture. The
@@ -212,6 +215,13 @@ func parityComposed(fx parityFixture) *types.ComposedRequest {
 	makeReq := parityRequestMatrix
 	if fx.shape == "series" {
 		makeReq = parityRequestSeries
+		if fx.seriesAgg != "" {
+			makeReq = func(label, filename string) *types.Request {
+				r := parityRequestSeries(label, filename)
+				r.Aggregations[0].Type = fx.seriesAgg
+				return r
+			}
+		}
 	}
 	var requests []*types.Request
 	var spec types.ComposeOverlaySpec
@@ -442,7 +452,8 @@ func TestComposeOverlayParity_OVERLAY_T_VS_REF(t *testing.T) {
 		targets: 1,
 		shape:   "series",
 		// A scalar side needs explicit variance / sample size (U46 E4-S16).
-		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
+		params:    map[string]any{"variance": 1.0, "sample_size": 2.0},
+		seriesAgg: types.AGG_AVERAGE,
 	})
 }
 
@@ -472,7 +483,8 @@ func TestComposeOverlayParity_OVERLAY_Z_VS_REF(t *testing.T) {
 		targets: 1,
 		shape:   "series",
 		// A scalar side needs explicit variance / sample size (U46 E4-S16).
-		params: map[string]any{"variance": 1.0, "sample_size": 2.0},
+		params:    map[string]any{"variance": 1.0, "sample_size": 2.0},
+		seriesAgg: types.AGG_AVERAGE,
 	})
 }
 

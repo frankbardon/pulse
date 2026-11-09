@@ -1891,7 +1891,12 @@ const twoSampleCellInputs = "A cell whose components carry mean and variance (AG
 
 // twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs
 // rule.
-const twoSampleSeriesInputs = "A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group " +
-	"components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other " +
-	"scored aggregation is a scalar mean. " + twoSampleParamsRule + " Over crosstab slots the kind is " +
+const twoSampleSeriesInputs = "The scored measure (params.field, else aggregations[0]) must be a mean or carry the " +
+	"moments: AGG_AVERAGE / AGG_WEIGHTED_MEAN (or an AGG_VEC_MEAN element column) is a scalar mean; AGG_WELFORD, " +
+	"AGG_VARIANCE, AGG_STDDEV or an extension whose ComponentSchema declares mean and variance reads its mean, variance " +
+	"and n from the slot's per-group components with no params (an unweighted AGG_VARIANCE / AGG_STDDEV population " +
+	"variance converted to the sample variance; PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are " +
+	"disabled); any other measure is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.measure_type, reason " +
+	"measure_not_mean), and a mean on one side with moments on the other is PULSE_OVERLAY_SCHEMA_DIVERGENT (reason " +
+	"mixed_measure_read). " + twoSampleParamsRule + " Over crosstab slots the kind is " +
 	"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin."

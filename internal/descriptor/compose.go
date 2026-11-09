@@ -813,7 +813,16 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// a vs-ref kind over a crosstab slot
 	// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) — the runtime's check
 	// in Service.applyComposeOverlays.
-	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
+	// The slots are judged as executed (composeSlotTypedAsExecuted): an
+	// untyped aggregation's smart default is the measure the runtime
+	// scores (an f64 field's AGG_SUM is not a mean — U66 #444).
+	executed := make([]*types.Request, len(req.Requests))
+	for j, r := range req.Requests {
+		if r != nil {
+			executed[j] = composeSlotTypedAsExecuted(r, opts)
+		}
+	}
+	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, executed, labels, opts.instance(), opts.componentsDisabled); werr != nil {
 		addCodedError(env, werr)
 	}
 
@@ -1296,6 +1305,32 @@ func composeSlotInputSchema(requests []*types.Request, opts *PredictOptions) fun
 		}
 		return joinedDefaultsSchema(requests[j], cohortSchemaFor(requests[j].Cohort, opts), opts)
 	}
+}
+
+// composeSlotTypedAsExecuted is composeSlotAsExecuted for a slot with
+// ANY untyped aggregation, labelled or not: its smart defaults resolved
+// against the schema it executes over, so a rule keyed on the scored
+// TYPE judges what the runtime scores. req itself when every
+// aggregation is typed, defaults are off or the schema does not load.
+func composeSlotTypedAsExecuted(req *types.Request, opts *PredictOptions) *types.Request {
+	if opts == nil || opts.DisableDefaults {
+		return req
+	}
+	untyped := false
+	for _, a := range req.Aggregations {
+		if a != nil && a.Type == "" {
+			untyped = true
+			break
+		}
+	}
+	if !untyped {
+		return req
+	}
+	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	if schema == nil {
+		return req
+	}
+	return defaultedForValidation(req, schema, opts)
 }
 
 // composeSlotAsExecuted is a Compose slot as the runtime executes it
