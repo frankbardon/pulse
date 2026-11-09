@@ -351,7 +351,7 @@ func runComposeOverlayParity(t *testing.T, fx parityFixture) {
 	// Mirror the service-layer warning fold so the comparison is apples-
 	// to-apples. distributeComposeWarnings mutates layers in place and
 	// returns the same slice for chained-expression convenience.
-	internalLayers = distributeComposeWarnings(internalLayers, internalWarnings)
+	internalLayers = distributeComposeWarnings(internalLayers, internalWarnings, nil)
 
 	// Byte-equal marshal check. Both slices serialise via encoding/json
 	// (json.Marshal sorts map keys deterministically, so any drift

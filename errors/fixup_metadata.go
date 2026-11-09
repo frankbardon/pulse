@@ -3853,12 +3853,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
-		Message: "A multi-reference COMPOSE-host overlay spec (today: the panel proportion-z and panel index-vs-ref overlays) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
+		Message: "A multi-target COMPOSE-host overlay spec (the panel proportion-z and panel index-vs-ref overlays, and the fan-out kinds index-vs-ref, delta-vs-ref, t-vs-ref and z-vs-ref, which emit one layer per target) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold, or adds one more layer, so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap` (a fan-out kind also the spec `index`, identically at predict and run time).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Targets"},
-				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
+				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer; a fan-out spec splits into several specs the same way.",
 			},
 			{
 				Action: FixupReplaceField,

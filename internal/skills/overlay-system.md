@@ -9,7 +9,7 @@ covers: [OVERLAY, OverlaySpec, OverlayLayer]
 
 # Overlays
 
-Read-only decorations of a DERIVED figure. Specs ride `Request.Overlays`, one layer each in `Response.Overlays[i]`, in spec order, keyed to host coordinates — the base payload is NEVER mutated.
+Read-only decorations of a DERIVED figure. Specs ride `Request.Overlays`, one layer each in `Response.Overlays[i]`, in spec order, keyed to host coordinates; the base payload is NEVER mutated.
 
 ## Which skill answers what
 
@@ -31,13 +31,13 @@ Read-only decorations of a DERIVED figure. Specs ride `Request.Overlays`, one la
 
 1. Name the question, then read its intent (`pulse_skills_get intents`).
 2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
-3. Read the kind's atomic skill. Never hardcode a kind count.
+3. Read the kind's atomic skill; never hardcode a kind count.
 
 ## OverlaySpec composition
 
 `kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
 
-Predict and runtime refuse a misshapen spec, or a kind off its hosts, with the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, `_SCOPE_UNSUPPORTED`, …).
+Predict and runtime refuse a misshapen or off-host spec with the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, …).
 
 ## Reference families
 
@@ -57,7 +57,7 @@ Implicit-margin kinds (χ² / Fisher cell tests) leave `ref` empty.
 
 ## Three payload shapes
 
-`payload.shape` ∈ `scalar|series|matrix`. Scalar — `payload.scalar` + optional `summary`. Series — `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix — `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre (100 for an index, 0 for a delta / z), absent for inferential kinds.
+`payload.shape` ∈ `scalar|series|matrix`. Scalar: `payload.scalar` + optional `summary`. Series: `payload.series.entries[i].{key, summary}`, aligned to host keys; the figure is `summary.statistic`. Matrix: `payload.matrix.cells[r][c]`, mirroring host cells. `baseline` is the centre (100 for an index, 0 for a delta / z), absent if inferential.
 
 ## Parts (multi-output kinds)
 
@@ -73,13 +73,13 @@ The carrying request decides the host, the host the legal kinds (an ungrouped or
 - **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
 - **FORMULA** — expression over a crosstab, grouped Process or any Compose shape (SERIES partitioned, `field` per slot).
-- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `ComposedResponse.Overlays[i]` (top-level `return` prunes post-fold), buffered only<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
+- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `ComposedResponse.Overlays` (top-level `return` prunes post-fold), buffered only; pair kinds fan out per target (`<name>__<target>`)<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
 
 Extension kinds (`extensions.overlays`): a handler per host (Matrix, Series, Compose), buffered, never chain or facet<!-- feature: capability:weighting -->; weighted only if `weight_aware`<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the matching layer's `Overlays[i].Warnings`<!-- feature: capability:compose_banner --><!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail it.
+`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the layer that raised it (a fan-out target's)<!-- feature: capability:compose_banner --><!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). Warnings never fail it.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity

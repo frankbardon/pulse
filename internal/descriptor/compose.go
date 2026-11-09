@@ -58,7 +58,7 @@ import (
 // MaxPanelTargets > 0 the per-spec value takes precedence; the
 // `OverlayOptions.MaxPanelTargets` doc explicitly notes this is the
 // per-request override.
-const composeDefaultPanelCap = 16
+const composeDefaultPanelCap = overlayhost.DefaultComposeTargetCap
 
 // ComposeValidationResult is the structured output of ValidateCompose.
 // Mirrors ChainValidationResult / FacetValidationResult: the input
@@ -100,7 +100,8 @@ type ComposeValidationResult struct {
 	// PValues counts the inferential p-values the Compose-host overlays
 	// emit and how many no multiplicity block corrects. Their extent
 	// depends on slot results predict never sees, so each inferential
-	// spec counts as one and the basis is always lower_bound. Omitted
+	// layer counts as one — a fan-out spec emits one layer per target —
+	// and the basis is always lower_bound. Omitted
 	// when no host overlay is inferential, when the batch multiplicity is
 	// refused, and when the instance hides capability:multiplicity.
 	PValues *descriptor.PValueCount `json:"p_values,omitempty"`
@@ -636,8 +637,9 @@ func composeOverlayDescriptorName(spec *types.ComposeOverlaySpec) string {
 // ComposeOverlaySpec. Single-target kinds delegate to the streamability-
 // derived dispatch (overlayCostForKind) — streamable kinds report ~0.05x
 // and buffered kinds report ~1.0x. Multi-reference kinds
-// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) scale the base cost
-// by `min(len(spec.Targets), cap)` where cap = spec.Options.MaxPanelTargets
+// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) and the fan-out
+// kinds (overlayhost.ComposeFanOutKind: one layer per target, U66 #443)
+// scale the base cost by `min(len(spec.Targets), cap)` where cap = spec.Options.MaxPanelTargets
 // when > 0, else composeDefaultPanelCap (16). The cap clamp is the same
 // rule descriptor.validateComposeOverlaySpec uses to reject
 // PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP — a spec that would be rejected
@@ -655,7 +657,7 @@ func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
 		return 0
 	}
 	base := overlayCostForKind(spec.Kind)
-	if !composeKindIsPanel(spec.Kind) {
+	if !composeKindIsPanel(spec.Kind) && !overlayhost.ComposeFanOutKind(spec.Kind) {
 		return base
 	}
 	targets := len(spec.Targets)
@@ -833,6 +835,15 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// composeDefaultPanelCap (16). Only the two multi-reference
 	// kinds enforce the cap today — other kinds ignore the slot per
 	// OverlayOptions.MaxPanelTargets doc.
+	// A fan-out kind (one layer per target, U66 #443) is capped by the
+	// rule the runtime dispatcher raises right after target resolution
+	// (overlayhost.ComposeFanOutCapRefusal) — same code, message and
+	// Details.
+	if cerr := overlayhost.ComposeFanOutCapRefusal(spec, opts.overlayRoute(spec.Kind), specIdx); cerr != nil {
+		addCodedError(env, cerr)
+		appendComposeSlotPair(result, spec.Reference, "", "panel-targets-over-cap")
+		return
+	}
 	if composeKindIsPanel(spec.Kind) {
 		cap := composeDefaultPanelCap
 		if spec.Options != nil && spec.Options.MaxPanelTargets > 0 {

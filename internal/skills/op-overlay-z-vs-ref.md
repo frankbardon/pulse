@@ -25,7 +25,7 @@ Compose-only parity overlay: the two-means z per group, target slot against the 
 | `sample_size_ref` | float | — | Reference sample size; likewise. |
 | `sample_size` | float | — | Both sides, when a side's own key is absent. |
 
-`Scope` `group`; rows key on group columns. A mean measure needs the params for EVERY group (missing → `PULSE_OVERLAY_PARAM_MISSING`); other measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); mean vs moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`. Allowlist: `overlay-reference-tests`.
+`Scope` `group`; rows key on group columns. A mean measure needs the params for EVERY group and target (missing → `PULSE_OVERLAY_PARAM_MISSING`); other measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); mean vs moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`. Allowlist: `overlay-reference-tests`.
 
 ## Host shape
 
@@ -33,7 +33,7 @@ COMPOSE — SERIES grouped Process on both slots. Reads `{n, mean, variance}` fr
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statistic`; one layer per target, `Baseline` unset.
+SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statistic`; `Baseline` unset. One layer per target (`<name>__<target>` for 2+); cap `max_panel_targets`.
 
 <!-- generated: reading-the-output -->
 

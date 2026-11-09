@@ -39,7 +39,7 @@ COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + tar
 
 ## Output
 
-MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × scale`. Layer `Baseline = scale` (default `100`).
+MATRIX (cell host) or SERIES (group host) — per-coordinate `(target / ref) × scale`. Layer `Baseline = scale` (default `100`). One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Contract
 

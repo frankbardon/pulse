@@ -3165,9 +3165,12 @@ type OverlayOptions struct {
 	// PULSE_OVERLAY_DICT_PREFIX_DRIFT and the spec is rejected.
 	DictPrefixFast bool `json:"dict_prefix_fast,omitempty"`
 
-	// MaxPanelTargets caps the number of target slots a multi-reference
-	// COMPOSE-host overlay (today: OVERLAY_PROP_Z_PANEL) will fold into
-	// a pairwise output. Default 16 when the slot is zero — per the
+	// MaxPanelTargets caps the number of target slots a multi-target
+	// COMPOSE-host overlay names: the panel kinds (OVERLAY_PROP_Z_PANEL
+	// folds them into a pairwise output, OVERLAY_PANEL_INDEX_VS_REF
+	// emits a layer per target) and the fan-out kinds
+	// (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF, OVERLAY_T_VS_REF,
+	// OVERLAY_Z_VS_REF: one layer per target). Default 16 when the slot is zero — per the
 	// interview risk paragraph "Multi-reference combinatorics" the
 	// default 16 is the explicit upper bound on per-cell pairwise
 	// p-value computation; bumping the default requires an interview
@@ -3176,7 +3179,7 @@ type OverlayOptions struct {
 	// today. `len(spec.Targets) > MaxPanelTargets` fires
 	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry (and the
 	// equivalent predict-time check in internal/descriptor.ValidateCompose
-	// via internal/descriptor.ValidateCompose). Non-panel kinds ignore
+	// via internal/descriptor.ValidateCompose). Other kinds ignore
 	// this knob.
 	MaxPanelTargets int `json:"max_panel_targets,omitempty"`
 }

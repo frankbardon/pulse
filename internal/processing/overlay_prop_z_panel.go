@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -68,8 +69,9 @@ import (
 // of every cell's output vector.
 
 // defaultMaxPanelTargets is the explicit default for
-// OverlayOptions.MaxPanelTargets when the slot is zero / unset.
-const defaultMaxPanelTargets = 16
+// OverlayOptions.MaxPanelTargets when the slot is zero / unset — the
+// one predict and the fan-out kinds read (overlayhost).
+const defaultMaxPanelTargets = overlayhost.DefaultComposeTargetCap
 
 // pairIndex maps a (i, j) pair with i < j into the flattened
 // upper-triangular slice index for an M-slot panel. The flattening is
@@ -107,10 +109,7 @@ func pairCount(m int) int {
 // them; the runtime safe-defaults to 16 if a negative value slips
 // through.
 func resolveMaxPanelTargets(opts *types.OverlayOptions) int {
-	if opts == nil || opts.MaxPanelTargets <= 0 {
-		return defaultMaxPanelTargets
-	}
-	return opts.MaxPanelTargets
+	return overlayhost.ComposeTargetCap(opts)
 }
 
 // matrixAxisIndexLookups builds the (row key string → row index) and

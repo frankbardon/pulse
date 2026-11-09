@@ -26,7 +26,8 @@ import (
 //   - Delegates per-spec dispatch to processing.ApplyComposeOverlays,
 //     which resolves Reference / Targets, dispatches each via the
 //     per-kind handler table, and returns one OverlayLayer per spec
-//     in matching index order.
+//     in matching index order (one per target for a panel or fan-out
+//     kind).
 //
 // Call-site invariant: both Compose paths invoke this hook AFTER every
 // slot's Process call has terminated and BEFORE the response is
@@ -70,11 +71,22 @@ import (
 // is empty. Shared between `service.Compose` and
 // `service.ComposeParallel` so both serial and parallel paths preserve
 // the identical layer-warning routing contract.
-func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.OverlayWarning) []types.OverlayLayer {
+//
+// at, when it parallels warnings (processing.ApplyComposeOverlaysRouted),
+// is each warning's layer position and wins: once a spec emits several
+// layers (the panel and fan-out kinds, one per target) the spec index no
+// longer names the layer. Without it (the bare ApplyComposeOverlays
+// path) the spec index routes, as before.
+func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.OverlayWarning, at []int) []types.OverlayLayer {
 	if len(layers) == 0 || len(warnings) == 0 {
 		return layers
 	}
+	routed := len(at) == len(warnings)
 	for i := range warnings {
+		if routed && at[i] >= 0 && at[i] < len(layers) {
+			layers[at[i]].Warnings = append(layers[at[i]].Warnings, warnings[i])
+			continue
+		}
 		layerIdx := 0
 		if warnings[i].Details != nil {
 			if v, ok := warnings[i].Details["overlay_index"]; ok {
@@ -90,7 +102,8 @@ func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.Ove
 
 // applyComposeOverlays runs the COMPOSE-host overlay dispatch against
 // the materialised per-slot responses and returns the resulting
-// layers + warnings in spec order. No-op (returns `(nil, nil)`) when
+// layers (spec order, then target order for a multi-layer spec), each
+// carrying its own warnings, plus the flat warning slice. No-op (returns `(nil, nil)`) when
 // `req.Overlays` is empty — additive byte-identity contract.
 //
 // `req` carries the user-facing Overlays slice (Compose-only specs,
@@ -186,9 +199,15 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// Each slot's input schema (header only, opened only for a
 	// params.field naming an expanded element column) resolves that
 	// column against the slot's members — predict-compose's reading.
-	return processing.ApplyComposeOverlaysWithSchemas(req.Overlays, responses, labels, requests, func(j int) *encoding.Schema {
+	layers, warnings, at, err := processing.ApplyComposeOverlaysRouted(req.Overlays, responses, labels, requests, func(j int) *encoding.Schema {
 		return s.requestInputSchema(ctx, requests[j])
 	}, s.composeExtensions(req))
+	if err != nil {
+		return nil, nil, err
+	}
+	// Each warning rides the layer that raised it: a fan-out spec's
+	// warning its own target's layer, never the spec index's position.
+	return distributeComposeWarnings(layers, warnings, at), warnings, nil
 }
 
 // composeOverlayFloorsPresent re-runs descx.ComposeOverlayHiddenFloorRefusal

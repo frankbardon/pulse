@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -49,7 +50,8 @@ func countFacetPValues(req *types.FacetRequest, plan []ResolvedMultiplicity, opt
 // countComposeHostPValues is ComposeValidationResult.PValues: the
 // p-values the Compose-host overlays carry. A Compose-host overlay's
 // extent depends on slot results predict never sees, so every
-// inferential spec counts as one and the basis is always lower_bound.
+// inferential layer counts as one (a fan-out spec emits one per target)
+// and the basis is always lower_bound.
 // plan is ResolveComposeMultiplicity's (nil when nothing names a block).
 func countComposeHostPValues(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, opts *PredictOptions) *descriptor.PValueCount {
 	if req == nil {
@@ -65,7 +67,10 @@ func countComposeHostPValues(req *types.ComposedRequest, plan *ComposeMultiplici
 		if routed == "" || !overlayCapabilityFor(routed).Inferential {
 			continue
 		}
-		addPValues(out, 1, descriptor.PValueBasisLowerBound, i < len(members) && members[i].Member)
+		// One per emitted layer: a fan-out spec emits one layer per
+		// target (overlayhost.ComposeLayerCount, the count the runtime
+		// fold maps its resolved slot onto).
+		addPValues(out, overlayhost.ComposeLayerCount(&req.Overlays[i], routed), descriptor.PValueBasisLowerBound, i < len(members) && members[i].Member)
 	}
 	if out.Total == 0 {
 		return nil

@@ -27,7 +27,7 @@ COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + tar
 
 ## Output
 
-MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - ref`. Preserves target slot's units. Layer `Baseline = 0`.
+MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - ref`. Preserves target slot's units. Layer `Baseline = 0`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 <!-- generated: contract -->
 

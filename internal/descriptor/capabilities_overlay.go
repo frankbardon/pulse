@@ -488,7 +488,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"BEFORE the handler dispatches. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the " +
 				"kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape " +
-				"convention).",
+				"convention). " + composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsSibling:
 		return descriptor.OverlayCapability{
@@ -897,7 +897,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Detail flag. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot " +
 				"barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming " +
 				"capability via its SERIES handler, mirroring OVERLAY_SHARE_OF_TOTAL's dual-shape convention). Renderers " +
-				"centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family).",
+				"centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). " + composeFanOutNote,
 		}
 	case types.OverlayKindIndexVsRollingMean:
 		return descriptor.OverlayCapability{
@@ -1588,7 +1588,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
 				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
-				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches.",
+				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. " + composeFanOutNote,
 		}
 	case types.OverlayKindTVsPrior:
 		return priorTestCapability(types.OverlayKindTVsPrior,
@@ -1869,7 +1869,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +
 				"produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay " +
 				"buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + " +
-				"schema match + dict drift all run BEFORE the handler dispatches.",
+				"schema match + dict drift all run BEFORE the handler dispatches. " + composeFanOutNote,
 		}
 	}
 	return descriptor.OverlayCapability{Kind: kind}
@@ -1888,6 +1888,12 @@ const twoSampleCellInputs = "A cell whose components carry mean and variance (AG
 	"the variance is the SAMPLE variance m2/(n-1): an unweighted AGG_VARIANCE / AGG_STDDEV cell's population variance is " +
 	"converted (n < 2: undefined), an extension cell is read as is and must expose it; " +
 	"any other cell — or any cell of a slot built with components disabled — is a scalar mean. " + twoSampleParamsRule
+
+// composeFanOutNote closes the fan-out kinds' descriptions
+// (overlayhost.ComposeFanOutKind, U66 #443).
+const composeFanOutNote = "Several targets fan out: one layer per target in Targets order, each the single-target " +
+	"layer for its (reference, target) pair, named `<name>__<target>` (one target keeps the spec's name), capped " +
+	"by Options.MaxPanelTargets (PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP); a multiplicity block maps onto every layer."
 
 // twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs
 // rule.
