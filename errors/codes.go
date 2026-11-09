@@ -2376,7 +2376,8 @@ const (
 	// too (details.slot, shape matrix, shapes [series]). It is also a
 	// WARNING when OVERLAY_PAIRWISE_WELCH_T / _TWO_MEANS_Z refuse ONE
 	// measure of a multi-measure crosstab (crosstab.cells) whose cells
-	// carry no Welford triple while another measure scores: that
+	// carry no Welford triple (OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z: no
+	// weighted moments, U66 E8-S1) while another measure scores: that
 	// measure's rows are null cells; details carry "measure",
 	// "measure_index", "cell_type" and "reason" (U66 #476).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"

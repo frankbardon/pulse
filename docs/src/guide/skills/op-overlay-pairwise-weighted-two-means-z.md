@@ -37,7 +37,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab, weighted-moment cell: `AGG_WEIGHTED_MEAN` or a weighted `AGG_AVERAGE`. Reads `weighted_mean`, `m2_weighted`, `sum_weights`, `sum_weights_sq` — never floor `n`. Else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED` (predict and runtime, after the `n_basis` / selector checks).
+MATRIX crosstab, weighted-moment cell: `AGG_WEIGHTED_MEAN` or a weighted `AGG_AVERAGE`. Reads `weighted_mean`, `m2_weighted`, `sum_weights`, `sum_weights_sq` — never floor `n`. Else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` — on a multi-measure host (`cells`) that measure alone: rows null, same-code warning (`details.measure`); all refused → layer refuses; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED` (predict and runtime, after the `n_basis` / selector checks).
 
 ## Output
 

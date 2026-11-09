@@ -26,7 +26,8 @@ import (
 //
 // Every per-measure refusal is the single-measure refusal (pairwiseGate),
 // raised for the first measure that trips it — except a moment kind's
-// measure whose cells carry no Welford triple (U66 #476), refused ALONE:
+// measure whose cells carry no Welford triple (U66 #476), or the
+// weighted kind's measure without the weighted moments (E8-S1), refused ALONE:
 // its folded rows (COLUMN: r*M+m; ROW: its pairs' rows) are null cells,
 // a PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE warning names it
 // (overlayhost.PairwiseMeasureRefusedWarning, ahead of the skip
@@ -72,8 +73,9 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 	}
 	var groups [][]int
 	var letters *types.PairwiseLetters
-	// A measure whose cells carry no Welford triple is refused ALONE on
-	// a moment kind (U66 #476, overlayhost.PairwiseMeasureRefusable):
+	// A measure whose cells carry no Welford triple (no weighted moments
+	// on the weighted kind) is refused ALONE (U66 #476 / E8-S1,
+	// overlayhost.PairwiseMeasureRefusable):
 	// its pairs are laid as null cells (absent p, absent direction — so
 	// letters and the multiplicity fold skip them) and it warns; the
 	// first refusal is the layer's when every measure is refused.
@@ -199,15 +201,25 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 }
 
 // pairwiseMeasureRefused reports whether err — pairwiseGate's refusal of
-// one measure sub of a multi-measure host — is the per-measure Welford
-// refusal a moment kind lays as null rows (overlayhost.PairwiseMeasureRefusable)
+// one measure sub of a multi-measure host — is the per-measure refusal a
+// refusable kind lays as null rows (overlayhost.PairwiseMeasureRefusable)
 // rather than a layer refusal: the gate's Welford-cell refusal on a
-// measure whose cells carry no triple. Every earlier gate refusal is
+// measure whose cells carry no triple (the moment kinds), or its
+// weighted-moment refusal on a measure whose cells carry no weighted
+// moments (the weighted kind, U66 E8-S1). Every earlier gate refusal is
 // layer-wide (Params, letters, components) and keeps refusing the layer.
 func pairwiseMeasureRefused(spec *types.OverlaySpec, sub *CrosstabHostView, shape pwShape, err error) bool {
-	return overlayhost.PairwiseMeasureRefusable(spec.Kind) && shape == pwShapeWelford &&
-		errors.HasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) &&
-		sub.HasComponents() && !sub.HasWelfordCells()
+	if !overlayhost.PairwiseMeasureRefusable(spec.Kind) || !errors.HasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
+		!sub.HasComponents() {
+		return false
+	}
+	switch shape {
+	case pwShapeWelford:
+		return !sub.HasWelfordCells()
+	case pwShapeWeighted:
+		return !sub.HasWeightedMomentCells()
+	}
+	return false
 }
 
 // nullPairCells is evaluate's pair-major grid for a refused measure:

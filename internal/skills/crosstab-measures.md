@@ -44,7 +44,7 @@ Row margins fold with the rows. Column margins and the grand total are per measu
 
 ## Overlays
 
-Only the `OVERLAY_PAIRWISE_*` kinds run on a multi-measure crosstab: once per measure, and pairs never cross measures. A column-scope pair reads row r × M + m; a row-scope pair compares the folded rows of one measure. Welch t / two-means z refuse a measure without the Welford triple ALONE: its rows are null, a `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` warning names it (`details.measure`); all refused → the layer refuses. Every other request overlay, and any Compose overlay reading a multi-measure slot, is refused with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.reason: "multi_measure_host"`) — predict and runtime alike.
+Only the `OVERLAY_PAIRWISE_*` kinds run on a multi-measure crosstab: once per measure, and pairs never cross measures. A column-scope pair reads row r × M + m; a row-scope pair compares the folded rows of one measure. Welch t / two-means z refuse a measure without the Welford triple ALONE (weighted two-means z: without the weighted moments): its rows are null, a `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` warning names it (`details.measure`); all refused → the layer refuses. Every other request overlay, and any Compose overlay reading a multi-measure slot, is refused with `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.reason: "multi_measure_host"`) — predict and runtime alike.
 
 ## Predict and execution
 

@@ -145,6 +145,51 @@ func pairwiseWelfordCellRefused(req *types.Request, spec *types.OverlaySpec, opt
 		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts)
 }
 
+// pairwiseWeightedCellRefused reports whether the weighted-moments kind
+// (types.PairwiseKindUsesWeightedMoments) refuses req's single-measure
+// crosstab cell from the request alone: a BUILT-IN cell type that emits
+// no weighted moments (neither AGG_WEIGHTED_MEAN nor a weighted
+// AGG_AVERAGE, weightedMomentCell) on a components-on host — the
+// runtime's PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. An empty Type or
+// an extension type defers to the runtime's key gate.
+func pairwiseWeightedCellRefused(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, componentsOff bool) bool {
+	if !types.PairwiseKindUsesWeightedMoments(spec.Kind) || componentsOff || req.Crosstab == nil {
+		return false
+	}
+	cell := req.Crosstab.Cell
+	return cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
+		isBuiltinAggregationType(opRoute(opts.instance(), cell.Type))
+}
+
+// weightedCellRefusalMessage is predict's
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE message for a cell
+// pairwiseWeightedCellRefused refuses.
+func weightedCellRefusalMessage(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions) string {
+	return "overlay " + string(spec.Kind) + " requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is " +
+		weightedMomentCellName(req, req.Crosstab.Cell, opts)
+}
+
+// pairwiseMeasureCellRefused reports whether scratch — the per-measure
+// validation of mreq (one measure of a multi-measure crosstab) — holds
+// exactly the refusable kind's cell refusal
+// (overlayhost.PairwiseMeasureRefusable) and nothing else: the moment
+// kinds' Welford-cell refusal, or the weighted kind's weighted-moment
+// cell refusal. That measure is refused ALONE, as the runtime nulls it.
+func pairwiseMeasureCellRefused(scratch *descriptor.Envelope, mreq *types.Request, spec *types.OverlaySpec, opts *PredictOptions) bool {
+	if len(scratch.Errors) != 1 || !overlayhost.PairwiseMeasureRefusable(spec.Kind) ||
+		scratch.Errors[0].Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		return false
+	}
+	msg := scratch.Errors[0].Message
+	if pairwiseWelfordCellRefused(mreq, spec, opts) {
+		return msg == overlayhost.WelfordCellMessage(spec.Kind)
+	}
+	if pairwiseWeightedCellRefused(mreq, spec, opts, opts.componentsDisabled(mreq)) {
+		return msg == weightedCellRefusalMessage(mreq, spec, opts)
+	}
+	return false
+}
+
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
@@ -165,7 +210,8 @@ func pairwiseWelfordCellRefused(req *types.Request, spec *types.OverlaySpec, opt
 // refuses — the runtime's order (processing.runPairwiseOverlayMeasures
 // gates each measure in turn), so the cell-type, weight-basis and
 // distinct-key rules judge each measure's own cell. A moment kind's
-// Welford-cell refusal is the exception (U66 #476,
+// Welford-cell refusal, and the weighted kind's weighted-moment cell
+// refusal, are the exception (U66 #476 / E8-S1,
 // overlayhost.PairwiseMeasureRefusable): that measure is refused ALONE —
 // the runtime nulls its rows — and reported as the shared
 // overlayhost.PairwiseMeasureRefusedWarning; only when every measure is
@@ -184,9 +230,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			mreq.Crosstab = req.Crosstab.MeasureSpec(m)
 			scratch := descriptor.NewEnvelope(nil)
 			validateOverlayPairwise(scratch, &mreq, spec, opts, index)
-			if len(scratch.Errors) == 1 && overlayhost.PairwiseMeasureRefusable(spec.Kind) && pairwiseWelfordCellRefused(&mreq, spec, opts) &&
-				scratch.Errors[0].Code == string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) &&
-				scratch.Errors[0].Message == overlayhost.WelfordCellMessage(spec.Kind) {
+			if pairwiseMeasureCellRefused(scratch, &mreq, spec, opts) {
 				if first == nil {
 					first = scratch.Errors
 				}
@@ -384,10 +428,12 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		// gates on the keys, not the type name.
 		// A cell type the instance hides is judged as a never-registered
 		// (non-built-in) name.
-		if cell := req.Crosstab.Cell; !componentsOff && cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
-			isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
+		// On a multi-measure crosstab this measure is refused alone
+		// (pairwiseMeasureCellRefused, U66 E8-S1).
+		if pairwiseWeightedCellRefused(req, spec, opts, componentsOff) {
+			cell := req.Crosstab.Cell
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is "+weightedMomentCellName(req, cell, opts),
+				weightedCellRefusalMessage(req, spec, opts),
 				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
 					"required_cell_type": []string{string(types.AGG_WEIGHTED_MEAN), string(types.AGG_AVERAGE)}})
 			refused = true
