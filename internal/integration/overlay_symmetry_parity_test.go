@@ -158,6 +158,12 @@ func TestSymmetry_ExactEndToEnd(t *testing.T) {
 			if w != nil && s.Parameters["sum_weights"] == 0 {
 				t.Fatalf("frequency host lacks the weighted floor: %v", s.Parameters)
 			}
+			// The discordant odds ratio n_12 / n_21 rides the frequency
+			// host's whole Σw counts, inside its exact interval.
+			if or := s.Parameters["odds_ratio"]; or != stat/(n-stat) ||
+				!(s.Parameters["odds_ratio_ci_lower"] < or && or < s.Parameters["odds_ratio_ci_upper"]) {
+				t.Fatalf("odds ratio %v, want %v inside its interval: %v", or, stat/(n-stat), s.Parameters)
+			}
 		})
 	}
 

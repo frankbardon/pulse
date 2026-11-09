@@ -710,6 +710,23 @@ How many pairs of states had no move either way: they carry no information and l
 
 1 when the p-value is the exact binomial McNemar test (params.exact on a 2x2): no chi-square approximation, so it holds on small counts; df is then absent.
 
+#### `summary.parameters.odds_ratio`
+
+Under params.exact, the discordant odds ratio n_12 / n_21: moves from the first state to the second per move back. 1 means switching is balanced; above 1 more units moved to the second state, below 1 more moved back.
+
+**Caveats:**
+
+- null when nobody changed state, and when every move went from the first state to the second (n_21 is 0: the ratio is unbounded).
+- It is absent without params.exact; read it beside its interval, which is wide when few units changed state.
+
+#### `summary.parameters.odds_ratio_ci_lower`
+
+Lower end of the exact 95% confidence interval for the odds ratio: the exact binomial interval for n_12 out of the units that changed state, turned into odds. 0 when n_12 is 0.
+
+#### `summary.parameters.odds_ratio_ci_upper`
+
+Upper end of the exact 95% confidence interval for the odds ratio; null when n_21 is 0 (unbounded). An interval that spans 1 is compatible with balanced switching.
+
 <a id="op-overlay_t_cell"></a>
 
 ### `OVERLAY_T_CELL`

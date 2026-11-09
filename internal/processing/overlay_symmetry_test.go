@@ -13,18 +13,47 @@ import (
 
 // symmetryCase is one symmetry.json case (scripts/reference/gen_symmetry.R).
 type symmetryCase struct {
-	Name                string      `json:"name"`
-	States              []string    `json:"states"`
-	Counts              [][]float64 `json:"counts"`
-	Correct             bool        `json:"correct"`
-	Exact               bool        `json:"exact"`
-	Statistic           *float64    `json:"statistic"`
-	DF                  float64     `json:"df"`
-	PValue              *float64    `json:"p_value"`
-	Discordant          float64     `json:"discordant"`
-	PairsDropped        float64     `json:"pairs_dropped"`
-	ContinuityCorrected float64     `json:"continuity_corrected"`
+	Name                string       `json:"name"`
+	States              []string     `json:"states"`
+	Counts              [][]float64  `json:"counts"`
+	Correct             bool         `json:"correct"`
+	Exact               bool         `json:"exact"`
+	Statistic           *float64     `json:"statistic"`
+	DF                  float64      `json:"df"`
+	PValue              *float64     `json:"p_value"`
+	Discordant          float64      `json:"discordant"`
+	PairsDropped        float64      `json:"pairs_dropped"`
+	ContinuityCorrected float64      `json:"continuity_corrected"`
+	OddsRatio           symmetryOdds `json:"odds_ratio"`
+	OddsRatioCILower    symmetryOdds `json:"odds_ratio_ci_lower"`
+	OddsRatioCIUpper    symmetryOdds `json:"odds_ratio_ci_upper"`
 }
+
+// symmetryOdds is a symmetry.json odds figure: null (NaN), the string
+// "Inf" (+Inf: n_21 = 0) or a number. Absent (a chi-square case) leaves
+// it unset.
+type symmetryOdds struct {
+	Set bool
+	V   float64
+}
+
+func (o *symmetryOdds) UnmarshalJSON(b []byte) error {
+	o.Set = true
+	switch string(b) {
+	case "null":
+		o.V = math.NaN()
+		return nil
+	case `"Inf"`:
+		o.V = math.Inf(1)
+		return nil
+	}
+	return json.Unmarshal(b, &o.V)
+}
+
+// symmetryOddsOracleTol holds the odds-ratio CI to R's binom.test
+// conf.int: a root solve (Pulse's on the log-odds, R's qbeta), so the
+// statdist oracle tolerance, not the statistic's.
+const symmetryOddsOracleTol = 1e-10
 
 // symmetryOracleTol is the relative tolerance the R figures are held to:
 // the statistic is a short sum of ratios, but the p-value runs through
@@ -88,7 +117,7 @@ func TestSymmetry_MatchesR(t *testing.T) {
 
 	doc := loadReference[symmetryCase](t, "symmetry")
 	if len(doc.Cases) < 14 {
-		t.Fatalf("symmetry.json has %d cases, want at least 14", len(doc.Cases))
+		t.Fatalf("symmetry.json has %d cases, want at least 15", len(doc.Cases))
 	}
 	exactCases := 0
 	for _, c := range doc.Cases {
@@ -128,18 +157,54 @@ func TestSymmetry_MatchesR(t *testing.T) {
 				"df": c.DF, "states": float64(k), "discordant": c.Discordant,
 				"pairs_dropped": c.PairsDropped, "continuity_corrected": c.ContinuityCorrected,
 			}
+			got := s.Parameters
 			if c.Exact {
-				// The exact arm has no chi-square df; it records the method.
+				// The exact arm has no chi-square df; it records the method
+				// and the discordant odds ratio with its exact CI.
 				delete(want, "df")
 				want["exact"] = 1
+				got = map[string]float64{}
+				for key, v := range s.Parameters {
+					got[key] = v
+				}
+				for _, o := range []struct {
+					key string
+					ref symmetryOdds
+					tol float64
+				}{
+					{"odds_ratio", c.OddsRatio, 0},
+					{"odds_ratio_ci_lower", c.OddsRatioCILower, symmetryOddsOracleTol},
+					{"odds_ratio_ci_upper", c.OddsRatioCIUpper, symmetryOddsOracleTol},
+				} {
+					v, ok := got[o.key]
+					delete(got, o.key)
+					switch {
+					case !o.ref.Set:
+						t.Errorf("symmetry.json exact case lacks %s", o.key)
+					case !ok:
+						t.Errorf("parameters lack %s", o.key)
+					case math.IsNaN(o.ref.V):
+						if !math.IsNaN(v) {
+							t.Errorf("%s = %v, want NaN (null)", o.key, v)
+						}
+					case math.IsInf(o.ref.V, 1) || o.ref.V == 0 || o.tol == 0:
+						if v != o.ref.V {
+							t.Errorf("%s = %.17g, want %.17g (R)", o.key, v, o.ref.V)
+						}
+					case !(math.Abs(v-o.ref.V) <= o.tol*math.Abs(o.ref.V)):
+						t.Errorf("%s = %.17g, want %.17g (R)", o.key, v, o.ref.V)
+					}
+				}
+			} else if c.OddsRatio.Set {
+				t.Errorf("symmetry.json chi-square case carries an odds ratio")
 			}
-			if !reflect.DeepEqual(s.Parameters, want) {
-				t.Errorf("parameters %v, want %v", s.Parameters, want)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("parameters %v, want %v", got, want)
 			}
 		})
 	}
-	if exactCases < 7 {
-		t.Fatalf("symmetry.json has %d exact cases, want at least 7", exactCases)
+	if exactCases < 8 {
+		t.Fatalf("symmetry.json has %d exact cases, want at least 8", exactCases)
 	}
 }
 
@@ -230,6 +295,66 @@ func TestSymmetry_ExactCounts(t *testing.T) {
 	}
 	if _, _, err := applySymmetry(symmetrySpec(""), frac); err != nil {
 		t.Fatalf("chi-square arm refused a fractional table: %v", err)
+	}
+}
+
+// TestSymmetry_ExactOddsRatioEdges: the discordant odds ratio's zero
+// edges. n_21 = 0 is +Inf (ratio and upper bound) in Go and null on
+// the wire (types.MarshalFinite), the lower bound finite; n_12 = 0 is
+// 0 (ratio and lower bound); no discordant unit is NaN (null) on all
+// three. The chi-square arm on the same table carries none of the keys.
+func TestSymmetry_ExactOddsRatioEdges(t *testing.T) {
+	t.Parallel()
+
+	run := func(params string, n12, n21 float64) types.OverlayLayer {
+		t.Helper()
+		layer, _, err := applySymmetry(symmetrySpec(params),
+			symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{5, n12}, {n21, 5}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return layer
+	}
+	keys := []string{"odds_ratio", "odds_ratio_ci_lower", "odds_ratio_ci_upper"}
+
+	up := run(`{"exact":true}`, 7, 0).Summary.Parameters
+	if !math.IsInf(up["odds_ratio"], 1) || !math.IsInf(up["odds_ratio_ci_upper"], 1) ||
+		!(up["odds_ratio_ci_lower"] > 0) || math.IsInf(up["odds_ratio_ci_lower"], 0) {
+		t.Errorf("n_21 = 0: %v, want +Inf ratio and upper, a finite positive lower", up)
+	}
+	wire, err := types.MarshalFinite(run(`{"exact":true}`, 7, 0).Summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded struct {
+		Parameters map[string]any `json:"parameters"`
+	}
+	if err := json.Unmarshal(wire, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"odds_ratio", "odds_ratio_ci_upper"} {
+		if v, ok := decoded.Parameters[k]; !ok || v != nil {
+			t.Errorf("wire %s = %v (present %v), want null with the key kept: %s", k, v, ok, wire)
+		}
+	}
+
+	down := run(`{"exact":true}`, 0, 7).Summary.Parameters
+	if down["odds_ratio"] != 0 || down["odds_ratio_ci_lower"] != 0 || !(down["odds_ratio_ci_upper"] > 0) {
+		t.Errorf("n_12 = 0: %v, want ratio and lower 0, a positive upper", down)
+	}
+
+	none := run(`{"exact":true}`, 0, 0).Summary.Parameters
+	for _, k := range keys {
+		if v, ok := none[k]; !ok || !math.IsNaN(v) {
+			t.Errorf("no discordant unit: %s = %v (present %v), want NaN", k, v, ok)
+		}
+	}
+
+	chi := run("", 7, 3).Summary.Parameters
+	for _, k := range keys {
+		if _, ok := chi[k]; ok {
+			t.Errorf("chi-square arm carries %s: %v", k, chi)
+		}
 	}
 }
 

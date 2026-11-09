@@ -221,7 +221,10 @@
       "r_statistic": 150,
       "discordant": 236,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 1.7441860465116279,
+      "odds_ratio_ci_lower": 1.3292282526052634,
+      "odds_ratio_ci_upper": 2.3009790804219943
     },
     {
       "name": "tiny_exact",
@@ -245,7 +248,10 @@
       "r_statistic": 1,
       "discordant": 5,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 0.25,
+      "odds_ratio_ci_lower": 0.0050764030902959462,
+      "odds_ratio_ci_upper": 2.5263161086817547
     },
     {
       "name": "upper_tail_exact",
@@ -269,11 +275,14 @@
       "r_statistic": 9,
       "discordant": 11,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 4.5,
+      "odds_ratio_ci_lower": 0.93141225819376772,
+      "odds_ratio_ci_upper": 42.799715935267798
     },
     {
       "name": "one_way_exact",
-      "note": "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7.",
+      "note": "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7; odds ratio 0, its CI lower bound 0.",
       "states": ["yes", "no"],
       "counts": [
         [
@@ -293,7 +302,37 @@
       "r_statistic": 0,
       "discordant": 7,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 0,
+      "odds_ratio_ci_lower": 0,
+      "odds_ratio_ci_upper": 0.69381398009645256
+    },
+    {
+      "name": "one_way_up_exact",
+      "note": "Every move goes from the first state to the second: n_21 = 0, so the odds ratio and its CI upper bound are +Inf (null on the wire).",
+      "states": ["yes", "no"],
+      "counts": [
+        [
+          5,
+          7
+        ],
+        [
+          0,
+          5
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 7,
+      "df": null,
+      "p_value": 0.015625000000000007,
+      "r_statistic": 7,
+      "discordant": 7,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0,
+      "odds_ratio": "Inf",
+      "odds_ratio_ci_lower": 1.441308518835239,
+      "odds_ratio_ci_upper": "Inf"
     },
     {
       "name": "symmetric_exact",
@@ -317,7 +356,10 @@
       "r_statistic": 9,
       "discordant": 18,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 1,
+      "odds_ratio_ci_lower": 0.35169947405279206,
+      "odds_ratio_ci_upper": 2.8433366376029738
     },
     {
       "name": "odd_tie_exact",
@@ -341,7 +383,10 @@
       "r_statistic": 6,
       "discordant": 13,
       "pairs_dropped": 0,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": 0.8571428571428571,
+      "odds_ratio_ci_lower": 0.23797989885847648,
+      "odds_ratio_ci_upper": 2.9785875241018807
     },
     {
       "name": "diagonal_exact",
@@ -365,8 +410,11 @@
       "r_statistic": null,
       "discordant": 0,
       "pairs_dropped": 1,
-      "continuity_corrected": 0
+      "continuity_corrected": 0,
+      "odds_ratio": null,
+      "odds_ratio_ci_lower": null,
+      "odds_ratio_ci_upper": null
     }
   ]
 }
-// golden-hash: 1742a7466d79f14650ba70661bd341fb373a86f8fd10b7242f4dc0bcdc644795
+// golden-hash: 7ed19676bfd6706d4e5afc7302ca7ec94c38b00704295c19d32e4fd15d1108ef

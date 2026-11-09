@@ -1526,7 +1526,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless " +
 				"params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial " +
 				"McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact " +
-				"(1) and no df, no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a " +
+				"(1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact " +
+				"95% conf.int mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a " +
 				"probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
 				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and " +
 				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +

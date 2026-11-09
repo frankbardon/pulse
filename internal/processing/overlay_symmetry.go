@@ -15,6 +15,11 @@ import (
 // (PULSE_OVERLAY_EXPECTED_LOW), here (n_ij + n_ji) / 2 < 5.
 const symmetryLowExpected = 5
 
+// symmetryOddsConfLevel is the coverage of the exact arm's discordant
+// odds-ratio interval: binom.test's default conf.level. OVERLAY_SYMMETRY
+// takes no confidence-level param, so the overlay's level is this one.
+const symmetryOddsConfLevel = 0.95
+
 // applySymmetry is the OVERLAY_SYMMETRY handler: McNemar's (2 × 2) /
 // Bowker's (k × k) test of symmetry on the host crosstab read as a
 // from-state (row) × to-state (column) table of PAIRED observations.
@@ -265,6 +270,19 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 // discordant, pairs_dropped and continuity_corrected (always 0:
 // correct is inert under exact), plus the weighted floor; no df and no
 // PULSE_OVERLAY_EXPECTED_LOW (nothing is approximated).
+//
+// The effect size rides Parameters too (overlays have no
+// details.effect_size home): the discordant odds ratio
+//
+//	odds_ratio          = n_12 / n_21
+//	odds_ratio_ci_lower / _upper = binom.test(n_12, n)$conf.int (the
+//	                      Clopper–Pearson interval on n_12 / n at
+//	                      symmetryOddsConfLevel) mapped to p / (1 − p)
+//	                      (statdist.BinomialOddsInterval)
+//
+// n_21 = 0 makes the ratio and the upper bound +Inf, n_12 = 0 the ratio
+// and the lower bound 0, and n = 0 all three NaN — +Inf and NaN are
+// both null on the wire (types.MarshalFinite).
 func symmetryExactLayer(spec *types.OverlaySpec, observed [][]float64, table *weightedLegTally, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	n12, n21, cerr := overlayhost.SymmetryExactCountsRefusal(spec.Kind, observed[0][1], observed[1][0], index)
 	if cerr != nil {
@@ -272,8 +290,14 @@ func symmetryExactLayer(spec *types.OverlaySpec, observed [][]float64, table *we
 	}
 	n := n12 + n21
 	statistic, pValue, dropped := math.NaN(), math.NaN(), 1.0
+	oddsRatio, oddsLower, oddsUpper := math.NaN(), math.NaN(), math.NaN()
 	if n > 0 {
 		statistic, pValue, dropped = float64(n12), statdist.BinomialTwoSidedP(n12, n, 0.5), 0
+		oddsRatio = math.Inf(1)
+		if n21 > 0 {
+			oddsRatio = float64(n12) / float64(n21)
+		}
+		oddsLower, oddsUpper = statdist.BinomialOddsInterval(n12, n, symmetryOddsConfLevel)
 	}
 	scalar := statistic
 	summary := &types.OverlaySummary{
@@ -285,6 +309,9 @@ func symmetryExactLayer(spec *types.OverlaySpec, observed [][]float64, table *we
 			"discordant":           float64(n),
 			"pairs_dropped":        dropped,
 			"continuity_corrected": 0,
+			"odds_ratio":           oddsRatio,
+			"odds_ratio_ci_lower":  oddsLower,
+			"odds_ratio_ci_upper":  oddsUpper,
 		},
 	}
 	table.stamp(summary)

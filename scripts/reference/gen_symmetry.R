@@ -31,13 +31,21 @@
 # correction never applies. With n_12 + n_21 = 0 binom.test refuses, so
 # the statistic and p are null (Pulse's "nothing to test").
 #
+# Exact cases also carry the discordant odds ratio n_12 / n_21 and its
+# exact conditional CI (U66 E6-S2): binom.test(n_12, n)$conf.int (the
+# Clopper-Pearson interval on n_12 / n at 95%) transformed to the odds
+# p / (1 - p). n_21 = 0 makes the ratio and the upper bound +Inf
+# (written "Inf"); n_12 = 0 makes the ratio and the lower bound 0.
+#
 # Also writes <out_dir>/binomial.json: the primitive
 # statdist.BinomialTwoSidedP against binom.test(x, n, p)$p.value over a
 # grid that reaches the relErr tie rule (p = (i + 1) / (n + 1) makes
 # d(i) = d(i + 1) on both sides of the mean, equal only up to rounding —
 # without the 1 + 1e-7 tolerance n = 2, x = 1, p = 1/3 gives 5/9, not
 # 1), x on the mean (p = 1), both
-# tails, p = 0 / 1 edges and a large n.
+# tails, p = 0 / 1 edges and a large n; each row also carries
+# binom.test's conf.int at its level (0.95 unless set) transformed to
+# odds (statdist.BinomialOddsInterval).
 #
 # Cases: Agresti's presidential approval ratings (An Introduction to
 # Categorical Data Analysis, 2nd ed., 2007, Table 8.1: 794 / 150 / 86 /
@@ -68,6 +76,18 @@ sy_num <- function(x) {
   if (!is.finite(x)) stop("infinite reference value: ", x)
   structure(sprintf("%.17g", x), class = "json")
 }
+# sy_odds encodes an odds figure: NaN -> null, +Inf -> the string "Inf"
+# (Pulse emits +Inf in Go and null on the wire; the string keeps it
+# distinct from NaN in the golden), finite -> a number.
+sy_odds <- function(x) {
+  if (is.na(x)) return(structure("null", class = "json"))
+  if (is.infinite(x) && x > 0) return("Inf")
+  sy_num(x)
+}
+# sy_ci_odds is binom.test's exact (Clopper-Pearson) conf.int on the
+# success probability, transformed to the odds p / (1 - p): 0 at a
+# 0 lower bound, Inf at a 1 upper bound.
+sy_ci_odds <- function(ci) lapply(ci, function(p) sy_odds(p / (1 - p)))
 sy_mat <- function(m) lapply(seq_len(nrow(m)), function(i) lapply(as.numeric(m[i, ]), sy_num))
 
 sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
@@ -82,6 +102,7 @@ sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
     n <- x[1, 2] + x[2, 1]
     stat <- if (n > 0) n12 else NaN
     p <- if (n > 0) binom.test(n12, n)$p.value else NaN
+    ci <- if (n > 0) sy_ci_odds(binom.test(n12, n)$conf.int) else list(sy_odds(NaN), sy_odds(NaN))
     return(list(
       name = name,
       note = note,
@@ -95,7 +116,10 @@ sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
       r_statistic = sy_num(if (n > 0) unname(binom.test(n12, n)$statistic) else NaN),
       discordant = sy_num(n),
       pairs_dropped = sy_num(if (n > 0) 0 else 1),
-      continuity_corrected = sy_num(0)
+      continuity_corrected = sy_num(0),
+      odds_ratio = sy_odds(if (n > 0) n12 / (n - n12) else NaN),
+      odds_ratio_ci_lower = ci[[1]],
+      odds_ratio_ci_upper = ci[[2]]
     ))
   }
   r <- suppressWarnings(mcnemar.test(x, correct = correct))
@@ -220,7 +244,15 @@ sy_cases[[length(sy_cases) + 1]] <- sy_case(
   "one_way_exact",
   c("yes", "no"),
   c(5, 0, 7, 5),
-  "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7.",
+  "Every move goes one way: binom.test(0, 7) = 2 * 0.5^7; odds ratio 0, its CI lower bound 0.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "one_way_up_exact",
+  c("yes", "no"),
+  c(5, 7, 0, 5),
+  "Every move goes from the first state to the second: n_21 = 0, so the odds ratio and its CI upper bound are +Inf (null on the wire).",
   exact = TRUE
 )
 
@@ -260,8 +292,11 @@ write_golden("symmetry", list(
   cases = sy_cases
 ))
 
-bn_case <- function(x, n, p) {
-  list(x = x, n = n, p = sy_num(p), p_value = sy_num(binom.test(x, n, p)$p.value))
+bn_case <- function(x, n, p, level = 0.95) {
+  r <- binom.test(x, n, p, conf.level = level)
+  ci <- sy_ci_odds(r$conf.int)
+  list(x = x, n = n, p = sy_num(p), p_value = sy_num(r$p.value),
+       level = sy_num(level), odds_lower = ci[[1]], odds_upper = ci[[2]])
 }
 bn_grid <- list(
   c(150, 236, 0.5), c(1, 5, 0.5), c(9, 11, 0.5), c(0, 7, 0.5), c(7, 7, 0.5),
@@ -269,7 +304,12 @@ bn_grid <- list(
   c(49500, 100000, 0.5), c(0, 2, 1 / 3), c(1, 5, 1 / 3), c(3, 5, 1 / 3),
   c(3, 10, 0.3), c(2, 10, 0.25), c(7, 20, 0.2), c(1, 30, 0.1), c(12, 30, 0.1),
   c(0, 4, 0), c(1, 4, 0), c(4, 4, 1), c(3, 4, 1), c(1, 3, 0.25), c(60, 80, 0.9),
-  c(1, 2, 1 / 3), c(0, 3, 0.25), c(1, 4, 0.4), c(3, 6, 3 / 7), c(5, 6, 6 / 7)
+  c(1, 2, 1 / 3), c(0, 3, 0.25), c(1, 4, 0.4), c(3, 6, 3 / 7), c(5, 6, 6 / 7),
+  # Interval-only rows at other confidence levels and in the far tails
+  # (the p-value column rides along): statdist.BinomialOddsInterval.
+  c(3, 10, 0.5, 0.9), c(150, 236, 0.5, 0.99), c(0, 7, 0.5, 0.8),
+  c(49500, 100000, 0.5, 0.99), c(1, 1000, 0.5, 0.95), c(999, 1000, 0.5, 0.95),
+  c(1, 1, 0.5, 0.95), c(2, 3, 0.5, 0.5)
 )
 write_golden("binomial", list(
   generator = "scripts/reference/gen_symmetry.R",
@@ -279,6 +319,6 @@ write_golden("binomial", list(
     jsonlite = as.character(packageVersion("jsonlite"))
   ),
   primitive = "statdist.BinomialTwoSidedP",
-  r_function = "stats::binom.test(x, n, p)$p.value (two-sided, relErr = 1 + 1e-7)",
-  cases = lapply(bn_grid, function(g) bn_case(g[[1]], g[[2]], g[[3]]))
+  r_function = "stats::binom.test(x, n, p, conf.level = level): $p.value (two-sided, relErr = 1 + 1e-7) and $conf.int transformed to odds p / (1 - p)",
+  cases = lapply(bn_grid, function(g) bn_case(g[[1]], g[[2]], g[[3]], if (length(g) > 3) g[[4]] else 0.95))
 ))

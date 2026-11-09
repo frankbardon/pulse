@@ -8,7 +8,9 @@
 // chi-square implementation internal/processing's TEST_* operators use.
 // BinomialTwoSidedP (binomial.go) is the exact two-sided binomial test,
 // R's binom.test with its 1 + 1e-7 tie rule, on the same incomplete
-// beta (OVERLAY_SYMMETRY params.exact).
+// beta (OVERLAY_SYMMETRY params.exact); BinomialOddsInterval is
+// binom.test's exact conf.int on the same beta, solved on the log-odds
+// (the symmetry overlay's discordant odds-ratio interval).
 //
 // It is a LEAF (stdlib + the stdlib-only linalg/detmath; gonum is allowed) so both
 // internal/processing (TEST_* operators, overlays) and

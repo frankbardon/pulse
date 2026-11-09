@@ -3571,6 +3571,12 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"FacetRequest", "DiscreteTopK"},
 				Hint:   "OVERLAY_CHISQ_VS_POP fix: raise the subset record count by widening the FacetRequest filter (drop a restrictive Filterer) OR coarsen the facet's discrete dictionary (the host's DiscreteTopK ceiling) so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
 			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "exact"},
+				Hint:     "OVERLAY_SYMMETRY on a 2 x 2 (two states): set params.exact to true for the exact binomial McNemar test (R binom.test(n_12, n_12 + n_21)), which needs no expected-count threshold and adds the discordant odds ratio with its exact interval. Not on more than 2 states or a probability-weighted cell (both refused).",
+				Examples: []any{true},
+			},
 		},
 	},
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {

@@ -145,3 +145,78 @@ func stirlerr(k float64) float64 {
 	lg, _ := detmath.Lgamma(k + 1)
 	return lg - float64((k+0.5)*detmath.Log(k)) + k - lnSqrt2Pi
 }
+
+// BinomialOddsInterval returns the exact (Clopper–Pearson) confidence
+// interval at level for the success probability of x successes in n
+// trials, transformed to the odds p / (1 − p) — R's
+// binom.test(x, n, conf.level = level)$conf.int mapped through
+// p / (1 − p):
+//
+//	α = (1 − level) / 2
+//	lower: I_p(x, n − x + 1) = α     (0 when x = 0)
+//	upper: I_p(x + 1, n − x) = 1 − α (+Inf when x = n)
+//
+// Each bound is solved directly on the log-odds t = log(p / (1 − p))
+// (binomialOddsQuantile), with p = 1 / (1 + e^−t) and 1 − p =
+// 1 / (1 + e^t) both formed without cancellation, so a bound near
+// either end of [0, 1] keeps its full relative precision as odds,
+// which R's p / (1 − p) of a qbeta near 1 does not. n < 1, x outside
+// [0, n] or a level outside (0, 1) (or NaN) is NaN on both bounds:
+// binom.test refuses them. FMA-free like the rest of the package.
+func BinomialOddsInterval(x, n int, level float64) (lower, upper float64) {
+	if n < 1 || x < 0 || x > n || !(level > 0 && level < 1) {
+		return math.NaN(), math.NaN()
+	}
+	alpha := float64((1 - level) / 2) // barrier: /2 is *0.5, else fused into 1 − α
+	lower, upper = 0, math.Inf(1)
+	if x > 0 {
+		lower = binomialOddsQuantile(alpha, float64(x), float64(n-x+1))
+	}
+	if x < n {
+		upper = binomialOddsQuantile(1-alpha, float64(x+1), float64(n-x))
+	}
+	return lower, upper
+}
+
+// binomialOddsQuantile returns the odds e^t of the Beta(a, b) quantile
+// at target ∈ (0, 1): the t with I_{p(t)}(a, b) = target, p(t) =
+// 1 / (1 + e^−t). I is increasing in t, so g(t) = target − I is
+// decreasing, with g'(t) = −p^a (1 − p)^b / B(a, b) (the beta density
+// times dp/dt = p(1 − p)); the root is bracketed by doubling out from
+// [−1, 1] and refined by newtonBracketed. A bracket past |t| = 1400
+// (beyond float64's odds range) returns 0 or +Inf.
+func binomialOddsQuantile(target, a, b float64) float64 {
+	lb := logBeta(a, b)
+	at := func(t float64) (g, dg float64) {
+		// log p = −log(1 + e^−t), log(1 − p) = −log(1 + e^t).
+		lx := -detmath.Log1p(detmath.Exp(-t))
+		ly := -detmath.Log1p(detmath.Exp(t))
+		x, y := detmath.Exp(lx), detmath.Exp(ly)
+		g = target - regularizedIncompleteBetaLog(a, b, x, y, lx, ly)
+		dg = -detmath.Exp(float64(a*lx) + float64(b*ly) - lb)
+		return g, dg
+	}
+	const limit = 1400
+	lo, hi := -1.0, 1.0
+	for {
+		if g, _ := at(lo); g > 0 {
+			break
+		}
+		hi = lo
+		lo *= 2
+		if lo < -limit {
+			return 0
+		}
+	}
+	for {
+		if g, _ := at(hi); g <= 0 {
+			break
+		}
+		lo = hi
+		hi *= 2
+		if hi > limit {
+			return math.Inf(1)
+		}
+	}
+	return detmath.Exp(newtonBracketed(lo, hi, at))
+}

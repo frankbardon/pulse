@@ -194,6 +194,18 @@ A measure of how far a fitted model's predictions sit from the observed outcomes
 
 **See also:** [`generalized-linear-model`](#term-generalized-linear-model), [`pseudo-r-squared`](#term-pseudo-r-squared)
 
+<a id="term-discordant-odds-ratio"></a>
+
+## discordant-odds-ratio
+
+In a before-and-after table of the same units, the moves from the first state to the second divided by the moves back; 1 means switching is balanced.
+
+**Why care:** It sizes a McNemar result: the p-value says whether switching is lopsided, the ratio says by how much and which way. Units that kept their state do not enter it.
+
+**Forms:** discordant odds ratio, discordant odds ratios
+
+**See also:** [`odds-ratio`](#term-odds-ratio), [`paired-data`](#term-paired-data), [`effect-size`](#term-effect-size)
+
 <a id="term-distance"></a>
 
 ## distance

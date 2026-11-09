@@ -39,7 +39,7 @@ MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one 
 
 ## Output
 
-SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`. `exact`: statistic / scalar `n_12`, exact p, `exact: 1`, no `df`.
+SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`. `exact`: statistic / scalar `n_12`, exact p, `exact: 1`, no `df`, plus the discordant `odds_ratio` `n_12 / n_21` and `odds_ratio_ci_lower` / `_upper` (exact 95%: `binom.test` `conf.int` → `p / (1 − p)`).
 
 ## Reading the output
 
@@ -56,6 +56,7 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 ## Gotchas
 
 - An empty pair (`n_ij + n_ji = 0`) is dropped, lowering `df` (R gives NaN). None kept ⇒ statistic / p `null`.
+- `exact` odds: `n_21 = 0` ⇒ ratio and upper `null` (+Inf); `n_12 = 0` ⇒ ratio and lower `0`; no discordant unit ⇒ all `null`.
 - Pair expected `(n_ij + n_ji) / 2 < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW` (never under `exact`).
 - `exact` refusals: k × k ⇒ `PULSE_OVERLAY_PARAM_MISSING` (runtime: states are data); probability-weighted cell ⇒ `PULSE_WEIGHT_UNSUPPORTED`; a discordant count > 1e-7 off whole ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
 - Weighted: Σw table, Kish-scaled under probability (+ `sum_weights`, `n_eff`).
