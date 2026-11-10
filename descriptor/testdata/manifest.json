@@ -1899,7 +1899,7 @@
               "name": "percentile",
               "type": "float",
               "required": true,
-              "description": "Percentile to compute, in [0, 100]. e.g. 95 for p95."
+              "description": "Required, no default: a number in [0, 100], e.g. 95 for p95 (50 is the median). Absent or null is refused (PROCESSING_CONFIG)."
             },
             {
               "name": "ordered",
@@ -21342,4 +21342,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d7542e946e290fd5bf389f101227e481bf8a76281ef72f0cf86b317a74b4e19d
+// golden-hash: 554f9b78578e922b3c91fb7ee4c70ee316b9af4f512beb4d6e3087f2f46a2e5c

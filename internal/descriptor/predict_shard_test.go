@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -84,11 +85,14 @@ func TestShardArchivePredict_BufferedRequestBuffered(t *testing.T) {
 
 	req := &types.Request{
 		Aggregations: []*types.Aggregation{
-			{Type: types.AGG_PERCENTILE, Field: "score", Label: "p50"},
+			{Type: types.AGG_PERCENTILE, Field: "score", Label: "p50", Params: json.RawMessage(`{"percentile":50}`)},
 		},
 	}
 
 	env := predictFromBytes(data, req, nil)
+	if len(env.Errors) != 0 {
+		t.Fatalf("unexpected errors: %+v", env.Errors)
+	}
 	result := env.Data.(*descriptor.PredictResult)
 	if result.Streamable {
 		t.Errorf("AGG_PERCENTILE marked Streamable; want buffered. reasons=%v",

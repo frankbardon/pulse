@@ -1227,33 +1227,34 @@ func TestAggregator_Percentile_InvalidParams(t *testing.T) {
 	}
 }
 
-func TestAggregator_Percentile_DefaultParams(t *testing.T) {
+func TestAggregator_Percentile_MissingPercentileRefused(t *testing.T) {
 	t.Parallel()
 
+	// D33 (U66 E9-S5): no default percentile — absent params, a null
+	// params object, an object without the key and a null key are all
+	// refused PROCESSING_CONFIG at construction (internal/percentilespec).
 	schema := numericSchema()
-	// nil params should default to p50
-	agg, err := newPercentileAggregator(&types.Aggregation{
-		Type:  types.AGG_PERCENTILE,
-		Field: "score",
-	}, schema)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	records := makeRecords(schema, "score", []float64{3, 1, 4, 1, 5})
-	result, err := agg.Aggregate(records, "score")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Default p50 of [1,1,3,4,5] at rank 2.0 = 3.0
-	if !floatClose(result, 3.0, 0.001) {
-		t.Errorf("default percentile = %f, want 3.0", result)
+	for _, raw := range []string{"", "null", "{}", `{"percentile":null}`} {
+		var params json.RawMessage
+		if raw != "" {
+			params = json.RawMessage(raw)
+		}
+		_, err := newPercentileAggregator(&types.Aggregation{
+			Type:   types.AGG_PERCENTILE,
+			Field:  "score",
+			Params: params,
+		}, schema)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != "missing" {
+			t.Errorf("params %q: err %v, want PROCESSING_CONFIG reason missing", raw, err)
+		}
 	}
 }
 
 // helper to create percentile aggregator with specific percentile value
 func makePercentileAggregator(t *testing.T, field string, schema *encoding.Schema, percentile float64) Aggregator {
 	t.Helper()
-	params, _ := json.Marshal(percentilespec.Params{Percentile: percentile})
+	params, _ := json.Marshal(percentilespec.Params{Percentile: &percentile})
 	agg, err := newPercentileAggregator(&types.Aggregation{
 		Type:   types.AGG_PERCENTILE,
 		Field:  field,

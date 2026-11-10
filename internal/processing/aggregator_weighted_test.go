@@ -623,7 +623,11 @@ func TestWeightedCore_ComponentsDeclared(t *testing.T) {
 					t.Errorf("schema does not declare optional floor key %s", k)
 				}
 			}
-			req := &types.Request{Weight: &types.WeightSpec{Field: "weight"}, Aggregations: []*types.Aggregation{{Type: op, Field: "value", Label: "x"}}}
+			slot := &types.Aggregation{Type: op, Field: "value", Label: "x"}
+			if op == types.AGG_PERCENTILE {
+				slot.Params = json.RawMessage(`{"percentile":50}`) // required (D33)
+			}
+			req := &types.Request{Weight: &types.WeightSpec{Field: "weight"}, Aggregations: []*types.Aggregation{slot}}
 			resp, err := NewProcessor(cohortSchema()).processRecords(context.Background(), StampWeights(req, nil), wvRecords(wvOracleX, wvOracleW))
 			if err != nil {
 				t.Fatal(err)

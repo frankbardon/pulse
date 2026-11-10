@@ -936,9 +936,9 @@ func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggreg
 	return &percentileAggregator{percentile: p}, nil
 }
 
-// percentileParam is AGG_PERCENTILE's params.percentile (50 when
-// params are absent), refusing one outside [0, 100] or a non-numeric
-// one — the plain and the ordered-categorical constructors share it,
+// percentileParam is AGG_PERCENTILE's required params.percentile,
+// refusing a missing (absent or null) one, one outside [0, 100] or a
+// non-numeric one — the plain and the ordered-categorical constructors share it,
 // and predict reads the same rule (internal/percentilespec).
 func percentileParam(agg *types.Aggregation) (float64, error) {
 	p, cerr := percentilespec.Resolve(agg.Params)

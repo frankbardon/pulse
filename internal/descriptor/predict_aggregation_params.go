@@ -6,8 +6,11 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ddofspec"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/orderedcat"
 	"github.com/frankbardon/pulse/internal/percentilespec"
 	"github.com/frankbardon/pulse/types"
 )
@@ -17,14 +20,22 @@ import (
 // predict refuses what Process would refuse at operator construction.
 // That is AGG_STDDEV / AGG_VARIANCE with a params.ddof other than 0 / 1
 // (internal/ddofspec, the constructors' rule), AGG_PERCENTILE with a
-// params.percentile outside [0, 100] or not a number
-// (internal/percentilespec, likewise), and AGG_FREQUENCY
+// params.percentile missing (absent or null — required, D33), outside
+// [0, 100] or not a number (internal/percentilespec, likewise), and AGG_FREQUENCY
 // without params.value: the slot once named
 // the modal count, so the message also points at AGG_MODE_COUNT —
 // unless the instance hides it (a refusal never names a hidden
 // feature). Walks every aggregation slot a Request carries: the
 // top-level list, the crosstab cell and its margin aggregations.
-func validateAggregationParams(env *descriptor.Envelope, req *types.Request, inst *InstanceSnapshot) {
+//
+// A slot whose field the accepted-types table (decimal rule included)
+// or the ordered-categorical rule already refuses gets no ddof /
+// percentile finding: the runtime raises that field refusal before its
+// constructor reads the param (the decimal dispatch, orderedFactory and
+// numericReader all run first), so predict's first finding for the
+// slot is the runtime's (U66 E9-S5; validateFieldAcceptance /
+// validateOrderedAggregations report it).
+func validateAggregationParams(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) {
 	if req == nil {
 		return
 	}
@@ -36,6 +47,9 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 		// rule (internal/ddofspec), on every field type — the decimal
 		// dispatch resolves it too.
 		if route := opRoute(inst, agg.Type); ddofspec.Applies(route) {
+			if fieldRuleRefuses(route, agg, schema) {
+				return
+			}
 			if _, cerr := ddofspec.Resolve(route, agg.Params); cerr != nil {
 				addCodedError(env, cerr)
 			}
@@ -45,6 +59,9 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 		// (internal/percentilespec) — the plain, weighted and
 		// ordered-categorical arms all read it.
 		if route := opRoute(inst, agg.Type); percentilespec.Applies(route) {
+			if fieldRuleRefuses(route, agg, schema) {
+				return
+			}
 			if _, cerr := percentilespec.Resolve(agg.Params); cerr != nil {
 				addCodedError(env, cerr)
 			}
@@ -70,6 +87,25 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 			check(a, "crosstab.margin_aggregations["+strconv.Itoa(i)+"]")
 		}
 	}
+}
+
+// fieldRuleRefuses reports whether the runtime refuses agg's field
+// before its constructor reads a param: the ordered-categorical rule
+// (internal/orderedcat) for a slot requesting the ordered reading, the
+// accepted-types table (internal/fieldaccept, decimal rule first)
+// otherwise — the order of the runtime's orderedFactory / numericReader
+// and decimal dispatch. A field the schema does not carry is the
+// field-reference walk's (or the ordered rule's) finding, not judged
+// here by the table.
+func fieldRuleRefuses(op types.AggregationType, agg *types.Aggregation, schema *encoding.Schema) bool {
+	if schema == nil {
+		return false
+	}
+	if orderedcat.Requested(op, agg.Params) {
+		_, cerr := orderedcat.Resolve(op, agg.Field, agg.Params, schema)
+		return cerr != nil
+	}
+	return fieldaccept.Check(string(op), fieldaccept.SlotField, agg.Field, schema) != nil
 }
 
 // frequencyValueMissingMessage mirrors the runtime refusal

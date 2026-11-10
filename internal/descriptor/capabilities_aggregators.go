@@ -560,7 +560,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Name:        "percentile",
 					Type:        "float",
 					Required:    true,
-					Description: "Percentile to compute, in [0, 100]. e.g. 95 for p95.",
+					Description: "Required, no default: a number in [0, 100], e.g. 95 for p95 (50 is the median). Absent or null is refused (PROCESSING_CONFIG).",
 				},
 			}, orderedParams...),
 			// No decimal128 — see AGG_RANGE.

@@ -11,7 +11,9 @@ import (
 )
 
 // TestResolve: the percentile a slot reads, and the refusal (code,
-// message, details) predict and the runtime constructors share.
+// message, details) predict and the runtime constructors share. A
+// missing percentile (absent / null params, no key, a null key) is
+// refused — D33, U66 E9-S5; there is no default.
 func TestResolve(t *testing.T) {
 	t.Parallel()
 
@@ -19,9 +21,6 @@ func TestResolve(t *testing.T) {
 		raw  string
 		want float64
 	}{
-		{``, percentilespec.Default},
-		{`{}`, 0},
-		{`{"percentile":null}`, 0},
 		{`{"percentile":0}`, 0},
 		{`{"percentile":100}`, 100},
 		{`{"percentile":97.5}`, 97.5},
@@ -34,10 +33,17 @@ func TestResolve(t *testing.T) {
 		}
 	}
 
+	missing := map[string]any{"aggregation": "AGG_PERCENTILE", "param": "percentile", "reason": "missing"}
+	const missingMsg = "percentile is required: AGG_PERCENTILE needs params.percentile, a number between 0 and 100 (50 is the median)"
 	refused := []struct {
 		raw, msg string
 		details  map[string]any
 	}{
+		{``, missingMsg, missing},
+		{`null`, missingMsg, missing},
+		{`{}`, missingMsg, missing},
+		{`{"percentile":null}`, missingMsg, missing},
+		{`{"ordered":true}`, missingMsg, missing},
 		{`{"percentile":100.0001}`, "percentile must be between 0 and 100",
 			map[string]any{"aggregation": "AGG_PERCENTILE", "param": "percentile", "value": 100.0001}},
 		{`{"percentile":-1}`, "percentile must be between 0 and 100",

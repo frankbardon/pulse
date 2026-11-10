@@ -326,7 +326,12 @@ func TestOrderedAgg_AbsentIsUnchanged(t *testing.T) {
 	t.Parallel()
 
 	for _, op := range []types.AggregationType{types.AGG_MIN, types.AGG_MAX, types.AGG_MEDIAN, types.AGG_PERCENTILE} {
-		for _, params := range []json.RawMessage{nil, json.RawMessage(`{"ordered":false}`), json.RawMessage(`{"ordered":null}`)} {
+		variants := []json.RawMessage{nil, json.RawMessage(`{"ordered":false}`), json.RawMessage(`{"ordered":null}`)}
+		if op == types.AGG_PERCENTILE {
+			// params.percentile is required (D33).
+			variants = []json.RawMessage{json.RawMessage(`{"percentile":50}`), json.RawMessage(`{"ordered":false,"percentile":50}`), json.RawMessage(`{"ordered":null,"percentile":50}`)}
+		}
+		for _, params := range variants {
 			_, err := aggregatorRegistry[op](&types.Aggregation{Type: op, Field: "sat", Params: params}, ordSchema())
 			if !errors.HasCode(err, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 				t.Fatalf("%s %s on categorical: %v, want PULSE_FIELD_TYPE_UNSUPPORTED", op, params, err)

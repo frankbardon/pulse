@@ -266,6 +266,11 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// (TestPredict_AggFrequencyMissingValue).
 			agg.Params = json.RawMessage(`{"value":"1"}`)
 		}
+		if aggType == types.AGG_PERCENTILE {
+			// Its required params.percentile is refused when absent
+			// (D33, TestPercentileParam_PredictMatchesRuntime).
+			agg.Params = json.RawMessage(`{"percentile":50}`)
+		}
 		if aggType == types.AGG_WEIGHTED_MEAN {
 			// A weighted figure: with no weight resolving it is refused
 			// (TestResolveWeights_WeightedMeanSugar).

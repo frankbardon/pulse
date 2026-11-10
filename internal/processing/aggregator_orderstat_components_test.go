@@ -35,7 +35,7 @@ func TestMetaAggregator_OrderStatOps_Components(t *testing.T) {
 	// Percentile param helpers — keep the json.RawMessage literal at
 	// the call site so the request shape is grep-discoverable.
 	pParams := func(p float64) json.RawMessage {
-		raw, err := json.Marshal(percentilespec.Params{Percentile: p})
+		raw, err := json.Marshal(percentilespec.Params{Percentile: &p})
 		if err != nil {
 			t.Fatalf("marshal percentile params: %v", err)
 		}

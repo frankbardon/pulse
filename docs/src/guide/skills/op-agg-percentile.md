@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `percentile` | float | (required) | Percentile in `[0, 100]`. e.g. 95 for p95. |
+| `percentile` | float | (required) | In `[0, 100]`, e.g. 95; no default. |
 | `ordered` | bool | `false` | Categorical field: dictionary order is the level order. |
 | `levels` | array | — | Level order, lowest first, by label; implies `ordered`. |
 
@@ -69,7 +69,7 @@ Scalar `float64`. Per-group when wired under a grouper. Ordered: the level's dic
 ## Gotchas
 
 - Buffered full-input path; cohort-sized memory peak.
-- Out-of-range `percentile` rejected.
+- Absent, null or out-of-range `percentile` refused.
 - No non-null value → `null` (NaN), never 0.
 - Ordered: unlisted labels dropped; overlays refuse the code (`categorical_code`); `PROCESSING_CONFIG` `reason` `ordered_needs_categorical` / `unknown_level` / `duplicate_level`.
 
