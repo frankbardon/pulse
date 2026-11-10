@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/frankbardon/pulse/internal/aggconst"
+	"github.com/frankbardon/pulse/internal/ddofspec"
 	"sort"
 	"strings"
 
@@ -1599,6 +1600,46 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 		return cellAggregationResult{}, nil, 0, 0, err
 	}
 	return cellAggregationResult{value: v, present: true, weight: wf}, aggregator, n, nNull, nil
+}
+
+// probeCellAggregation raises every CONFIGURATION refusal
+// runCellAggregation would raise for slot, without a record: the same
+// decision sequence (the decimal128 dispatch and its params, else the
+// factory) up to the point where records are read. A slot that probes
+// clean constructs on any bucket; what it may still refuse there is
+// data-dependent. The buffered crosstab arm probes every margin
+// aggregation with it so a declared auxiliary refuses whether or not a
+// margin observes it — predict's verdict, and the fused arm's
+// construction-time probe (NewFusedCrosstabState).
+//
+// KEEP THE SEQUENCE IN STEP WITH runCellAggregation: a check present
+// there and missing here is a refusal that again depends on whether a
+// margin was requested.
+func (p *Processor) probeCellAggregation(slot *types.Aggregation) error {
+	if p.schema != nil && !p.exts.isExtensionAggregator(slot.Type) {
+		if f := p.schema.Field(slot.Field); f != nil && f.Type.IsDecimal() && !p.exts.decimalAggregationSupported(slot.Type) {
+			if cerr := p.exts.decimalAggregationRefusal(slot.Type, slot.Field, f.Type); cerr != nil {
+				return cerr
+			}
+		} else if f != nil && f.Type.IsDecimal() {
+			if err := orderedDecimalRefusal(slot, p.schema); err != nil {
+				return err
+			}
+			if ddofspec.Applies(slot.Type) {
+				if _, cerr := ddofspec.Resolve(slot.Type, slot.Params); cerr != nil {
+					return cerr
+				}
+			}
+			return nil
+		}
+	}
+	factory, ok := p.exts.LookupAggregator(slot.Type)
+	if !ok {
+		return errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("unknown aggregation type: %s", slot.Type))
+	}
+	_, err := factory(slot, p.schema)
+	return err
 }
 
 // buildCellComponentMap merges the per-cell universal-floor counters

@@ -30,6 +30,13 @@ func TestOrderedCategorical_PredictMatchesRuntime(t *testing.T) {
 		"grouped": `{"groups":[{"type":"GROUP_CATEGORY","field":"subj"}],"aggregations":[$A]}`,
 		"cell":    `{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"subj"}],"columns":[{"type":"GROUP_CATEGORY","field":"t_categorical_u8"}],"cell":$A}}`,
 		"margin":  `{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"subj"}],"columns":[{"type":"GROUP_CATEGORY","field":"t_categorical_u8"}],"cell":{"type":"AGG_COUNT","field":"x","label":"n"},"margins":{"rows":true},"margin_aggregations":[$A]}}`,
+		// E9-S3: no margin requested. The buffered arm (an AGG_MEDIAN
+		// cell forces it; so does a non-online or decimal auxiliary
+		// beside an AGG_COUNT cell) still constructs every margin
+		// aggregation, so it refuses exactly as predict does even with
+		// nowhere for a figure to land.
+		"margin unobserved":            `{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"subj"}],"columns":[{"type":"GROUP_CATEGORY","field":"t_categorical_u8"}],"cell":{"type":"AGG_MEDIAN","field":"x","label":"n"},"margin_aggregations":[$A]}}`,
+		"margin unobserved count cell": `{"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"subj"}],"columns":[{"type":"GROUP_CATEGORY","field":"t_categorical_u8"}],"cell":{"type":"AGG_COUNT","field":"x","label":"n"},"margin_aggregations":[$A]}}`,
 	}
 	cases := []struct {
 		name, agg string

@@ -26,7 +26,7 @@ Manifest: `crosstab.supports_margin_aggregations` + `crosstab.margin_aggregation
 ## Validation
 
 - Effective label = `label`, else `TYPE_field`; unique across the slot **and** distinct from the cell's, because figures are keyed by label. Faults: `PULSE_CROSSTAB_MARGIN_AGG_INVALID` (null entry / no type), `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL`; an unknown operator is refused.
-- Declared on a crosstab that DISPLAYS no margin ⇒ `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` **warning** — the request runs, the figures have nowhere to land.
+- Declared on a crosstab that DISPLAYS no margin ⇒ `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` **warning** — the request runs, the figures have nowhere to land. An entry's own fault (bad params, a field type it refuses) is still refused, margins or not.
 
 ## The admission rule
 

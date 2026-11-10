@@ -144,18 +144,31 @@ func (p *Processor) computeAuxMargins(spec *types.CrosstabSpec, filtered []*Reco
 	// request happened to dispatch to. Refused rather than dropped, for
 	// E2-S1's stated reason: silently skipping it returns a margin with
 	// the requested figure missing and nothing saying so.
+	//
+	// Every auxiliary is then PROBE-CONSTRUCTED (probeCellAggregation),
+	// whether or not any margin slot will ever observe it (U66 E9-S3).
+	// Predict validates every declared auxiliary unconditionally, and
+	// the fused arm probe-constructs at NewFusedCrosstabState; building
+	// one here only when a margin is requested refused an invalid
+	// auxiliary (an AGG_MEDIAN over a categorical without `ordered`, an
+	// unknown `levels` entry) on predict and never at runtime once no
+	// margin was asked for. Pinned by
+	// TestOrderedCategorical_PredictMatchesRuntime's "margin unobserved"
+	// shapes.
 	for _, aux := range spec.MarginAggregations {
-		if _, ok := p.exts.LookupAggregator(aux.Type); ok {
-			// The decimal rule, as for the cell: a decimal128 field on
-			// a built-in with no decimal arm.
-			if cerr := p.exts.decimalSlotRefusal(aux, p.schema); cerr != nil {
-				return nil, cerr
-			}
-			continue
+		if _, ok := p.exts.LookupAggregator(aux.Type); !ok {
+			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("unknown crosstab margin aggregation type: %s", aux.Type),
+				map[string]any{"aggregation": string(aux.Type), "slot": "margin_aggregations"})
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("unknown crosstab margin aggregation type: %s", aux.Type),
-			map[string]any{"aggregation": string(aux.Type), "slot": "margin_aggregations"})
+		// The decimal rule, as for the cell: a decimal128 field on a
+		// built-in with no decimal arm.
+		if cerr := p.exts.decimalSlotRefusal(aux, p.schema); cerr != nil {
+			return nil, cerr
+		}
+		if err := p.probeCellAggregation(aux); err != nil {
+			return nil, err
+		}
 	}
 
 	// Past the refusal, the figures are compute-plan work: a `return`
