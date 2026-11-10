@@ -96,3 +96,44 @@ func TestSymmetryExactRefusals(t *testing.T) {
 		t.Fatalf("non-integer pair refusal %v", cerr)
 	}
 }
+
+// TestParseSymmetryParams_ConfLevel: conf_level defaults to 0.95 (with
+// and without exact), decodes a number in (0, 1) under exact, and is
+// refused PULSE_OVERLAY_PARAM_MISSING {param: conf_level, reason} —
+// needs_exact without exact (or with exact false), out_of_range for a
+// value outside (0, 1) or a non-number. The range is judged first, so a
+// bad value without exact names its range, not exact.
+func TestParseSymmetryParams_ConfLevel(t *testing.T) {
+	t.Parallel()
+
+	spec := &types.OverlaySpec{Kind: types.OverlayKindSymmetry}
+	for _, params := range []string{``, `{"exact":true}`, `{"correct":false}`} {
+		spec.Params = json.RawMessage(params)
+		if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.95 {
+			t.Fatalf("%s: default conf_level %+v %v", params, p, cerr)
+		}
+	}
+	spec.Params = json.RawMessage(`{"exact":true,"conf_level":0.9}`)
+	if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.9 || !p.Exact {
+		t.Fatalf("conf_level 0.9 %+v %v", p, cerr)
+	}
+	for _, c := range []struct{ params, reason string }{
+		{`{"conf_level":0.9}`, "needs_exact"},
+		{`{"exact":false,"conf_level":0.9}`, "needs_exact"},
+		{`{"correct":true,"conf_level":0.95}`, "needs_exact"},
+		{`{"exact":true,"conf_level":0}`, "out_of_range"},
+		{`{"exact":true,"conf_level":1}`, "out_of_range"},
+		{`{"exact":true,"conf_level":-0.5}`, "out_of_range"},
+		{`{"exact":true,"conf_level":95}`, "out_of_range"},
+		{`{"exact":true,"conf_level":"0.9"}`, "out_of_range"},
+		{`{"exact":true,"conf_level":null}`, "out_of_range"},
+		{`{"conf_level":1.5}`, "out_of_range"},
+	} {
+		spec.Params = json.RawMessage(c.params)
+		_, cerr := ParseSymmetryParams(spec, 3)
+		if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_PARAM_MISSING || cerr.Details["param"] != "conf_level" ||
+			cerr.Details["reason"] != c.reason || cerr.Details["index"] != 3 || cerr.Details["kind"] != "OVERLAY_SYMMETRY" {
+			t.Fatalf("%s: refusal %v, want reason %s", c.params, cerr, c.reason)
+		}
+	}
+}

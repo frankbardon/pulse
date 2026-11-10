@@ -224,7 +224,36 @@
       "continuity_corrected": 0,
       "odds_ratio": 1.7441860465116279,
       "odds_ratio_ci_lower": 1.3292282526052634,
-      "odds_ratio_ci_upper": 2.3009790804219943
+      "odds_ratio_ci_upper": 2.3009790804219943,
+      "conf_level": 0.94999999999999996
+    },
+    {
+      "name": "agresti_approval_exact_90",
+      "note": "Agresti (2007) Table 8.1 exact at params.conf_level 0.9: binom.test(150, 236, conf.level = 0.9)$conf.int as odds.",
+      "states": ["approve", "disapprove"],
+      "counts": [
+        [
+          794,
+          150
+        ],
+        [
+          86,
+          570
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 150,
+      "df": null,
+      "p_value": 3.7159361395714361e-05,
+      "r_statistic": 150,
+      "discordant": 236,
+      "pairs_dropped": 0,
+      "continuity_corrected": 0,
+      "odds_ratio": 1.7441860465116279,
+      "odds_ratio_ci_lower": 1.3859097178202655,
+      "odds_ratio_ci_upper": 2.2025046022788395,
+      "conf_level": 0.90000000000000002
     },
     {
       "name": "tiny_exact",
@@ -251,7 +280,8 @@
       "continuity_corrected": 0,
       "odds_ratio": 0.25,
       "odds_ratio_ci_lower": 0.0050764030902959462,
-      "odds_ratio_ci_upper": 2.5263161086817547
+      "odds_ratio_ci_upper": 2.5263161086817547,
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "upper_tail_exact",
@@ -278,7 +308,8 @@
       "continuity_corrected": 0,
       "odds_ratio": 4.5,
       "odds_ratio_ci_lower": 0.93141225819376772,
-      "odds_ratio_ci_upper": 42.799715935267798
+      "odds_ratio_ci_upper": 42.799715935267798,
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "one_way_exact",
@@ -305,7 +336,8 @@
       "continuity_corrected": 0,
       "odds_ratio": 0,
       "odds_ratio_ci_lower": 0,
-      "odds_ratio_ci_upper": 0.69381398009645256
+      "odds_ratio_ci_upper": 0.69381398009645256,
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "one_way_up_exact",
@@ -332,7 +364,8 @@
       "continuity_corrected": 0,
       "odds_ratio": "Inf",
       "odds_ratio_ci_lower": 1.441308518835239,
-      "odds_ratio_ci_upper": "Inf"
+      "odds_ratio_ci_upper": "Inf",
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "symmetric_exact",
@@ -359,7 +392,8 @@
       "continuity_corrected": 0,
       "odds_ratio": 1,
       "odds_ratio_ci_lower": 0.35169947405279206,
-      "odds_ratio_ci_upper": 2.8433366376029738
+      "odds_ratio_ci_upper": 2.8433366376029738,
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "odd_tie_exact",
@@ -386,7 +420,8 @@
       "continuity_corrected": 0,
       "odds_ratio": 0.8571428571428571,
       "odds_ratio_ci_lower": 0.23797989885847648,
-      "odds_ratio_ci_upper": 2.9785875241018807
+      "odds_ratio_ci_upper": 2.9785875241018807,
+      "conf_level": 0.94999999999999996
     },
     {
       "name": "diagonal_exact",
@@ -413,8 +448,9 @@
       "continuity_corrected": 0,
       "odds_ratio": null,
       "odds_ratio_ci_lower": null,
-      "odds_ratio_ci_upper": null
+      "odds_ratio_ci_upper": null,
+      "conf_level": 0.94999999999999996
     }
   ]
 }
-// golden-hash: 7ed19676bfd6706d4e5afc7302ca7ec94c38b00704295c19d32e4fd15d1108ef
+// golden-hash: 2cd48f90676ae6e914851f0cdf69ff3ed7047c8e500346d7092f78ad56627739

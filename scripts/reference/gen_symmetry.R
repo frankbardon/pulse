@@ -33,9 +33,11 @@
 #
 # Exact cases also carry the discordant odds ratio n_12 / n_21 and its
 # exact conditional CI (U66 E6-S2): binom.test(n_12, n)$conf.int (the
-# Clopper-Pearson interval on n_12 / n at 95%) transformed to the odds
-# p / (1 - p). n_21 = 0 makes the ratio and the upper bound +Inf
-# (written "Inf"); n_12 = 0 makes the ratio and the lower bound 0.
+# Clopper-Pearson interval on n_12 / n at conf_level, 0.95 unless the
+# case sets it: params.conf_level, U66 E9-S1) transformed to the odds
+# p / (1 - p), plus conf_level itself (the layer echoes it). n_21 = 0
+# makes the ratio and the upper bound +Inf (written "Inf"); n_12 = 0
+# makes the ratio and the lower bound 0.
 #
 # Also writes <out_dir>/binomial.json: the primitive
 # statdist.BinomialTwoSidedP against binom.test(x, n, p)$p.value over a
@@ -90,7 +92,7 @@ sy_odds <- function(x) {
 sy_ci_odds <- function(ci) lapply(ci, function(p) sy_odds(p / (1 - p)))
 sy_mat <- function(m) lapply(seq_len(nrow(m)), function(i) lapply(as.numeric(m[i, ]), sy_num))
 
-sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
+sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE, conf_level = 0.95) {
   k <- length(states)
   x <- matrix(counts, nrow = k, byrow = TRUE, dimnames = list(states, states))
   up <- upper.tri(x)
@@ -102,7 +104,7 @@ sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
     n <- x[1, 2] + x[2, 1]
     stat <- if (n > 0) n12 else NaN
     p <- if (n > 0) binom.test(n12, n)$p.value else NaN
-    ci <- if (n > 0) sy_ci_odds(binom.test(n12, n)$conf.int) else list(sy_odds(NaN), sy_odds(NaN))
+    ci <- if (n > 0) sy_ci_odds(binom.test(n12, n, conf.level = conf_level)$conf.int) else list(sy_odds(NaN), sy_odds(NaN))
     return(list(
       name = name,
       note = note,
@@ -119,7 +121,8 @@ sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE) {
       continuity_corrected = sy_num(0),
       odds_ratio = sy_odds(if (n > 0) n12 / (n - n12) else NaN),
       odds_ratio_ci_lower = ci[[1]],
-      odds_ratio_ci_upper = ci[[2]]
+      odds_ratio_ci_upper = ci[[2]],
+      conf_level = sy_num(conf_level)
     ))
   }
   r <- suppressWarnings(mcnemar.test(x, correct = correct))
@@ -221,6 +224,15 @@ sy_cases[[length(sy_cases) + 1]] <- sy_case(
   c(794, 150, 86, 570),
   "Agresti (2007) Table 8.1 exact: binom.test(150, 236); correct is inert under exact.",
   exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "agresti_approval_exact_90",
+  c("approve", "disapprove"),
+  c(794, 150, 86, 570),
+  "Agresti (2007) Table 8.1 exact at params.conf_level 0.9: binom.test(150, 236, conf.level = 0.9)$conf.int as odds.",
+  exact = TRUE,
+  conf_level = 0.9
 )
 
 sy_cases[[length(sy_cases) + 1]] <- sy_case(

@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"math"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -27,6 +28,7 @@ type symmetryCase struct {
 	OddsRatio           symmetryOdds `json:"odds_ratio"`
 	OddsRatioCILower    symmetryOdds `json:"odds_ratio_ci_lower"`
 	OddsRatioCIUpper    symmetryOdds `json:"odds_ratio_ci_upper"`
+	ConfLevel           float64      `json:"conf_level"`
 }
 
 // symmetryOdds is a symmetry.json odds figure: null (NaN), the string
@@ -119,7 +121,7 @@ func TestSymmetry_MatchesR(t *testing.T) {
 	if len(doc.Cases) < 14 {
 		t.Fatalf("symmetry.json has %d cases, want at least 15", len(doc.Cases))
 	}
-	exactCases := 0
+	exactCases, levelCases := 0, 0
 	for _, c := range doc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			k := len(c.States)
@@ -141,6 +143,12 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			if c.Exact {
 				exactCases++
 				params = params[:len(params)-1] + `,"exact":true}`
+				if c.ConfLevel != 0.95 {
+					// A non-default level rides params.conf_level; the
+					// default cases leave it absent (the 0.95 default).
+					levelCases++
+					params = params[:len(params)-1] + `,"conf_level":` + strconv.FormatFloat(c.ConfLevel, 'g', -1, 64) + `}`
+				}
 			}
 			layer, _, err := applySymmetry(symmetrySpec(params), symmetryHost(c.States, cols, counts))
 			if err != nil {
@@ -163,6 +171,7 @@ func TestSymmetry_MatchesR(t *testing.T) {
 				// and the discordant odds ratio with its exact CI.
 				delete(want, "df")
 				want["exact"] = 1
+				want["conf_level"] = c.ConfLevel
 				got = map[string]float64{}
 				for key, v := range s.Parameters {
 					got[key] = v
@@ -203,8 +212,8 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			}
 		})
 	}
-	if exactCases < 8 {
-		t.Fatalf("symmetry.json has %d exact cases, want at least 8", exactCases)
+	if exactCases < 9 || levelCases < 1 {
+		t.Fatalf("symmetry.json has %d exact cases (%d at a non-default conf_level), want at least 9 (1)", exactCases, levelCases)
 	}
 }
 
@@ -525,5 +534,50 @@ func TestSymmetry_DoesNotMutateHost(t *testing.T) {
 	after, _ := json.Marshal(host.Payload())
 	if string(before) != string(after) {
 		t.Fatalf("host moved:\n%s\n%s", before, after)
+	}
+}
+
+// TestSymmetry_ExactConfLevel: an absent conf_level and an explicit
+// 0.95 emit the same exact layer byte for byte (the default is
+// binom.test's), echoing conf_level 0.95; 0.9 narrows the odds-ratio
+// interval around the same ratio and p, echoing 0.9; the chi-square
+// layer carries no conf_level.
+func TestSymmetry_ExactConfLevel(t *testing.T) {
+	t.Parallel()
+
+	run := func(params string) types.OverlayLayer {
+		t.Helper()
+		layer, _, err := applySymmetry(symmetrySpec(params),
+			symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{10, 9}, {4, 12}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return layer
+	}
+	marshal := func(l types.OverlayLayer) string {
+		t.Helper()
+		b, err := types.MarshalFinite(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	def := run(`{"exact":true}`)
+	if got, want := marshal(run(`{"exact":true,"conf_level":0.95}`)), marshal(def); got != want {
+		t.Fatalf("explicit 0.95:\n got %s\nwant %s", got, want)
+	}
+	if def.Summary.Parameters["conf_level"] != 0.95 {
+		t.Fatalf("default echo %v", def.Summary.Parameters)
+	}
+	ninety := run(`{"exact":true,"conf_level":0.9}`).Summary
+	d := def.Summary
+	if ninety.Parameters["conf_level"] != 0.9 || *ninety.PValue != *d.PValue ||
+		ninety.Parameters["odds_ratio"] != d.Parameters["odds_ratio"] ||
+		!(ninety.Parameters["odds_ratio_ci_lower"] > d.Parameters["odds_ratio_ci_lower"]) ||
+		!(ninety.Parameters["odds_ratio_ci_upper"] < d.Parameters["odds_ratio_ci_upper"]) {
+		t.Fatalf("0.9 interval %v, want strictly inside the 0.95 one %v", ninety.Parameters, d.Parameters)
+	}
+	if _, ok := run("").Summary.Parameters["conf_level"]; ok {
+		t.Fatal("chi-square arm carries conf_level")
 	}
 }

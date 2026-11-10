@@ -17518,7 +17518,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for every pair of states, moves i -\u003e j are as frequent as moves j -\u003e i. chi-square = sum over pairs i \u003c j of (n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept (k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact (1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact 95% conf.int mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights table; under kind probability scaled to its Kish n_eff first).",
+        "description": "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for every pair of states, moves i -\u003e j are as frequent as moves j -\u003e i. chi-square = sum over pairs i \u003c j of (n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept (k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact (1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights table; under kind probability scaled to its Kish n_eff first).",
         "intents": [
           "flows"
         ],
@@ -17540,7 +17540,14 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "2 x 2 only: exact binomial McNemar (R binom.test(n_12, n_12 + n_21)); statistic n_12, Summary.Parameters exact 1, no df, plus odds_ratio n_12 / n_21 and its exact 95% interval odds_ratio_ci_lower / _upper. Refused on k x k, on a probability-weighted cell and on non-whole discordant counts."
+            "description": "2 x 2 only: exact binomial McNemar (R binom.test(n_12, n_12 + n_21)); statistic n_12, Summary.Parameters exact 1, no df, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). Refused on k x k, on a probability-weighted cell and on non-whole discordant counts."
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Exact arm only: coverage of the odds-ratio interval (R binom.test conf.level), in (0, 1). Without exact true it is refused (reason needs_exact); outside (0, 1) reason out_of_range."
           }
         ]
       },
@@ -21232,4 +21239,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f0664db7fa3a3829e123428c109efca524b72a4e24e30499cd10c79cdbee1aba
+// golden-hash: ce57bee33b13980fa027081d55f1c0e816c9e071dc8995751ab7452c435505ab

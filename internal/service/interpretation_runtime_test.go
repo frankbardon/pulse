@@ -65,10 +65,10 @@ var overlayInterpretationProbes = map[string]overlayInterpretationProbe{
 	// the entries only (region x region with east named absorbing).
 	"OVERLAY_RETENTION": {fields: []string{"summary.parameters.churn", "summary.parameters.from_total", "summary.parameters.switch"},
 		run: retentionOverlayLayer},
-	// The exact and odds-ratio keys ride only the params.exact arm
+	// The exact, odds-ratio and conf_level keys ride only the params.exact arm
 	// (segment x segment, 2 states), df only the chi-square arm: the probe returns the
 	// chi-square layer with the exact layer's keys merged in.
-	"OVERLAY_SYMMETRY": {fields: []string{"summary.parameters.continuity_corrected", "summary.parameters.df",
+	"OVERLAY_SYMMETRY": {fields: []string{"summary.parameters.conf_level", "summary.parameters.continuity_corrected", "summary.parameters.df",
 		"summary.parameters.discordant", "summary.parameters.exact", "summary.parameters.odds_ratio",
 		"summary.parameters.odds_ratio_ci_lower", "summary.parameters.odds_ratio_ci_upper", "summary.parameters.pairs_dropped",
 		"summary.parameters.states"},

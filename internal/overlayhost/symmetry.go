@@ -30,17 +30,32 @@ type SymmetryParams struct {
 	// χ² test, byte-identical); refused on k × k (SymmetryExactStatesRefusal)
 	// and on a probability-weighted host (SymmetryExactWeightRefusal).
 	Exact bool
+	// ConfLevel is the coverage of the exact arm's discordant odds-ratio
+	// interval, binom.test(n_12, n, conf.level = ConfLevel)$conf.int:
+	// in (0, 1), default SymmetryDefaultConfLevel (binom.test's own).
+	// Set without Exact it is refused (reason needs_exact): the
+	// chi-square arm has no interval to cover.
+	ConfLevel float64
 }
 
+// SymmetryDefaultConfLevel is params.conf_level when absent:
+// binom.test's default conf.level. Absent, the exact layer's figures
+// are byte-identical to the fixed-95% interval shipped before the param.
+const SymmetryDefaultConfLevel = 0.95
+
 // ParseSymmetryParams decodes spec.Params strictly: only `correct` and
-// `exact` (JSON booleans) are accepted. Anything else is
-// PULSE_OVERLAY_PARAM_MISSING with details {kind, param?, ...} plus
-// index when index >= 0.
+// `exact` (JSON booleans) and `conf_level` (a number in (0, 1), exact
+// only) are accepted. Anything else is PULSE_OVERLAY_PARAM_MISSING with
+// details {kind, param?, ...} plus index when index >= 0; a bad
+// conf_level adds reason out_of_range (not a number in (0, 1), judged
+// first) or needs_exact (set without exact true). Predict and the
+// runtime handler both call it, so the refusals match.
 func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *errors.CodedError) {
-	out := SymmetryParams{Correct: true}
+	out := SymmetryParams{Correct: true, ConfLevel: SymmetryDefaultConfLevel}
 	var in struct {
-		Correct json.RawMessage `json:"correct"`
-		Exact   json.RawMessage `json:"exact"`
+		Correct   json.RawMessage `json:"correct"`
+		Exact     json.RawMessage `json:"exact"`
+		ConfLevel json.RawMessage `json:"conf_level"`
 	}
 	paramread.Declare(paramread.Overlay, string(spec.Kind), &in)
 	raw := bytes.TrimSpace(spec.Params)
@@ -49,7 +64,7 @@ func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *e
 	}
 	if err := paramread.DecodeStrict(paramread.Overlay, string(spec.Kind), raw, &in); err != nil {
 		return out, markovParamRefusal(spec.Kind, index, "",
-			"params must be an object with only correct and exact: "+err.Error(), nil)
+			"params must be an object with only correct, exact and conf_level: "+err.Error(), nil)
 	}
 	for _, f := range []struct {
 		name string
@@ -67,6 +82,21 @@ func ParseSymmetryParams(spec *types.OverlaySpec, index int) (SymmetryParams, *e
 		}
 		*f.dst = *b
 	}
+	if len(in.ConfLevel) == 0 {
+		return out, nil
+	}
+	var level *float64
+	if err := json.Unmarshal(in.ConfLevel, &level); err != nil || level == nil || !(*level > 0 && *level < 1) {
+		return out, markovParamRefusal(spec.Kind, index, "conf_level",
+			"conf_level must be a number in (0, 1), got "+string(in.ConfLevel),
+			map[string]any{"reason": "out_of_range", "conf_level": string(in.ConfLevel)})
+	}
+	if !out.Exact {
+		return out, markovParamRefusal(spec.Kind, index, "conf_level",
+			"conf_level sets the exact odds-ratio interval and needs exact true; set \"exact\": true or drop conf_level",
+			map[string]any{"reason": "needs_exact"})
+	}
+	out.ConfLevel = *level
 	return out, nil
 }
 

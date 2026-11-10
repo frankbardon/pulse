@@ -124,7 +124,8 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 	case types.OverlayKindSymmetry:
 		ps = append(ps,
 			descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k and under exact."},
-			descriptor.Param{Name: "exact", Type: "bool", Required: false, Default: false, Description: "2 x 2 only: exact binomial McNemar (R binom.test(n_12, n_12 + n_21)); statistic n_12, Summary.Parameters exact 1, no df, plus odds_ratio n_12 / n_21 and its exact 95% interval odds_ratio_ci_lower / _upper. Refused on k x k, on a probability-weighted cell and on non-whole discordant counts."},
+			descriptor.Param{Name: "exact", Type: "bool", Required: false, Default: false, Description: "2 x 2 only: exact binomial McNemar (R binom.test(n_12, n_12 + n_21)); statistic n_12, Summary.Parameters exact 1, no df, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). Refused on k x k, on a probability-weighted cell and on non-whole discordant counts."},
+			descriptor.Param{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Exact arm only: coverage of the odds-ratio interval (R binom.test conf.level), in (0, 1). Without exact true it is refused (reason needs_exact); outside (0, 1) reason out_of_range."},
 		)
 	case types.OverlayKindChiSqMatrix:
 		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); Summary.Parameters adds continuity_correction (Y). Inert on any larger table."})

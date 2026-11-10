@@ -44,6 +44,8 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 		{"non-boolean correct", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"correct":1}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"unknown param", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"mid_p":true}`)), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"non-boolean exact", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":"yes"}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"conf_level without exact", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"conf_level":0.9}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"conf_level out of range", markovCrosstab(cohort, square, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true,"conf_level":1}`)), errors.PULSE_OVERLAY_PARAM_MISSING},
 		{"exact on a probability-weighted cell", markovCrosstab(cohort, square, types.AGG_COUNT,
 			&types.WeightSpec{Field: "y", Kind: types.WeightKindProbability}, symmetryOverlay(`{"exact":true}`)), errors.PULSE_WEIGHT_UNSUPPORTED},
 		{"cell scope", markovCrosstab(cohort, square, types.AGG_COUNT, nil, cellScope), errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED},
@@ -56,9 +58,19 @@ func TestSymmetry_RefusalsMatchPredict(t *testing.T) {
 			if !overlaySpecZeroLocated(ce) {
 				t.Fatalf("runtime details %v lack the spec index", ce.Details)
 			}
+			if want, ok := confLevelReasons[c.name]; ok && (ce.Details["param"] != "conf_level" || ce.Details["reason"] != want) {
+				t.Fatalf("runtime details %v, want param conf_level reason %s", ce.Details, want)
+			}
 			sameEntry(t, predictEnvelope(t, p, fs, cohort, c.req), err)
 		})
 	}
+}
+
+// confLevelReasons is the reason each conf_level refusal case of
+// TestSymmetry_RefusalsMatchPredict carries (D31).
+var confLevelReasons = map[string]string{
+	"conf_level without exact": "needs_exact",
+	"conf_level out of range":  "out_of_range",
 }
 
 // TestSymmetry_EndToEnd: a weighted and an unweighted g x g host (COUNT
@@ -154,6 +166,9 @@ func TestSymmetry_ExactEndToEnd(t *testing.T) {
 			}
 			if _, ok := s.Parameters["df"]; ok {
 				t.Fatalf("exact layer carries df: %v", s.Parameters)
+			}
+			if s.Parameters["conf_level"] != 0.95 {
+				t.Fatalf("exact layer echoes conf_level %v, want the 0.95 default", s.Parameters["conf_level"])
 			}
 			if w != nil && s.Parameters["sum_weights"] == 0 {
 				t.Fatalf("frequency host lacks the weighted floor: %v", s.Parameters)

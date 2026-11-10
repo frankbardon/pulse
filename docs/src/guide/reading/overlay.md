@@ -721,11 +721,15 @@ Under params.exact, the discordant odds ratio n_12 / n_21: moves from the first 
 
 #### `summary.parameters.odds_ratio_ci_lower`
 
-Lower end of the exact 95% confidence interval for the odds ratio: the exact binomial interval for n_12 out of the units that changed state, turned into odds. 0 when n_12 is 0.
+Lower end of the exact confidence interval (at conf_level) for the odds ratio: the exact binomial interval for n_12 out of the units that changed state, turned into odds. 0 when n_12 is 0.
 
 #### `summary.parameters.odds_ratio_ci_upper`
 
-Upper end of the exact 95% confidence interval for the odds ratio; null when n_21 is 0 (unbounded). An interval that spans 1 is compatible with balanced switching.
+Upper end of the exact confidence interval (at conf_level) for the odds ratio; null when n_21 is 0 (unbounded). An interval that spans 1 is compatible with balanced switching.
+
+#### `summary.parameters.conf_level`
+
+Under params.exact, the coverage the odds-ratio interval was built at (params.conf_level, 0.95 by default).
 
 <a id="op-overlay_t_cell"></a>
 
