@@ -1530,7 +1530,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW. " +
 				"On k x k params.exact runs the exact conditional Bowker test: given each pair's total, n_ij ~ Binomial(n_ij + n_ji, 1/2), " +
 				"p = P(chi-square >= observed) by exact convolution; statistic the uncorrected chi-square, Parameters exact, states, " +
-				"discordant, pairs_dropped (no df, odds ratio or conf_level); past 2^20 enumeration terms PULSE_OVERLAY_PARAM_MISSING " +
+				"discordant, pairs_dropped, continuity_corrected 0 (no df, odds ratio or conf_level); past 2^20 enumeration terms PULSE_OVERLAY_PARAM_MISSING " +
 				"(reason exact_too_large), an explicit conf_level reason needs_2x2 (both runtime only). exact over a " +
 				"probability-weighted cell is PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
 				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and " +

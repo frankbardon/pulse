@@ -132,7 +132,7 @@ func TestSymmetry_EndToEnd(t *testing.T) {
 // df — under no weight and under a frequency weight (whole replication
 // counts); on g x subj (more than 2 states) it runs the exact Bowker
 // test — statistic the chi-square arm's uncorrected one, exact 1, no df,
-// odds ratio, conf_level or continuity_corrected.
+// odds ratio or conf_level, continuity_corrected 0.
 func TestSymmetry_ExactEndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -197,7 +197,10 @@ func TestSymmetry_ExactEndToEnd(t *testing.T) {
 		if s.Parameters["exact"] != 1 || !(s.Parameters["states"] > 2) || s.PValue == nil || !(*s.PValue >= 0 && *s.PValue <= 1) {
 			t.Fatalf("k x k exact summary %+v", s)
 		}
-		for _, key := range []string{"df", "odds_ratio", "conf_level", "continuity_corrected"} {
+		if v, ok := s.Parameters["continuity_corrected"]; !ok || v != 0 {
+			t.Fatalf("k x k exact layer continuity_corrected %v (present %v), want 0", v, ok)
+		}
+		for _, key := range []string{"df", "odds_ratio", "conf_level"} {
 			if _, ok := s.Parameters[key]; ok {
 				t.Fatalf("k x k exact layer carries %s: %v", key, s.Parameters)
 			}

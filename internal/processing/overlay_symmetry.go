@@ -344,8 +344,9 @@ func symmetryExactLayer(spec *types.OverlaySpec, params overlayhost.SymmetryPara
 // (null). Past statdist.BowkerExactMaxTerms enumeration terms it is
 // PULSE_OVERLAY_PARAM_MISSING exact_too_large
 // (SymmetryExactTooLargeRefusal) — never a silent chi-square. Parameters
-// exact (1), states, discordant and pairs_dropped, plus the weighted
-// floor; no df, no odds ratio (a 2 × 2 figure) and no
+// exact (1), states, discordant, pairs_dropped and continuity_corrected
+// (always 0, as every arm reports it), plus the weighted floor; no df,
+// no odds ratio (a 2 × 2 figure) and no
 // PULSE_OVERLAY_EXPECTED_LOW.
 func symmetryBowkerExactLayer(spec *types.OverlaySpec, observed [][]float64, names []string, table *weightedLegTally, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	k := len(observed)
@@ -373,10 +374,11 @@ func symmetryBowkerExactLayer(spec *types.OverlaySpec, observed [][]float64, nam
 		Statistic: &statistic,
 		PValue:    &pValue,
 		Parameters: map[string]float64{
-			"exact":         1,
-			"states":        float64(k),
-			"discordant":    float64(discordant),
-			"pairs_dropped": float64(dropped),
+			"exact":                1,
+			"states":               float64(k),
+			"discordant":           float64(discordant),
+			"pairs_dropped":        float64(dropped),
+			"continuity_corrected": 0,
 		},
 	}
 	table.stamp(summary)

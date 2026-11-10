@@ -181,13 +181,14 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			got := s.Parameters
 			if c.Exact && k > 2 {
 				// The exact Bowker arm (R brute-force enumeration): no
-				// df, continuity correction, odds ratio or conf_level.
+				// df, odds ratio or conf_level; continuity_corrected 0.
 				bowkerCases++
 				symmetryCloseTol(t, "p_value", *s.PValue, c.PValue, symmetryBowkerOracleTol)
 				if c.OddsRatio.Set {
 					t.Errorf("symmetry.json k x k exact case carries an odds ratio")
 				}
-				want = map[string]float64{"exact": 1, "states": float64(k), "discordant": c.Discordant, "pairs_dropped": c.PairsDropped}
+				want = map[string]float64{"exact": 1, "states": float64(k), "discordant": c.Discordant, "pairs_dropped": c.PairsDropped,
+					"continuity_corrected": c.ContinuityCorrected}
 				if !reflect.DeepEqual(got, want) {
 					t.Errorf("parameters %v, want %v", got, want)
 				}
@@ -616,7 +617,7 @@ func TestSymmetry_ExactConfLevel(t *testing.T) {
 // exact Bowker test — the statistic and scalar are the chi-square arm's
 // uncorrected statistic bit for bit, the p is the exact one (not the
 // chi-square's), the parameters are exactly exact / states / discordant
-// / pairs_dropped (no df, continuity correction, odds ratio or
+// / pairs_dropped / continuity_corrected 0 (no df, odds ratio or
 // conf_level), correct is inert, and no PULSE_OVERLAY_EXPECTED_LOW is
 // raised on a table the chi-square arm warns on. A diagonal table has a
 // null statistic and p, every pair dropped.
@@ -648,7 +649,7 @@ func TestSymmetry_BowkerExact(t *testing.T) {
 	if math.Abs(*s.PValue-0.51220703125) > 1e-12 || *s.PValue == *chi.Summary.PValue {
 		t.Fatalf("exact p %.17g (chi-square %v), want 0.51220703125", *s.PValue, *chi.Summary.PValue)
 	}
-	want := map[string]float64{"exact": 1, "states": 4, "discordant": 17, "pairs_dropped": 0}
+	want := map[string]float64{"exact": 1, "states": 4, "discordant": 17, "pairs_dropped": 0, "continuity_corrected": 0}
 	if !reflect.DeepEqual(s.Parameters, want) {
 		t.Fatalf("parameters %v, want %v", s.Parameters, want)
 	}

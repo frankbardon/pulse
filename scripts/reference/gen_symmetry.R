@@ -48,8 +48,8 @@
 # sum((2 a_ij - m_ij)^2 / m_ij); p = the total probability of the
 # outcomes whose statistic * (1 + 1e-7) >= the observed one (fisher.test's
 # relErr convention). statistic = the uncorrected Bowker sum over the
-# kept pairs; df null; no continuity_corrected, odds ratio or
-# conf_level (2 x 2 figures); no discordant unit => statistic and p
+# kept pairs; df null; continuity_corrected 0 (as every exact arm); no
+# odds ratio or conf_level (2 x 2 figures); no discordant unit => statistic and p
 # null.
 #
 # Also writes <out_dir>/binomial.json: the primitive
@@ -136,7 +136,8 @@ sy_bowker_exact <- function(name, note, states, x, correct) {
     p_value = sy_num(p),
     r_statistic = sy_num(unname(suppressWarnings(mcnemar.test(x))$statistic)),
     discordant = sy_num(sum(m)),
-    pairs_dropped = sy_num(sum(!keep))
+    pairs_dropped = sy_num(sum(!keep)),
+    continuity_corrected = sy_num(0)
   )
 }
 

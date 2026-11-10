@@ -479,7 +479,8 @@
       "p_value": 0.13094417836632036,
       "r_statistic": 5.6666666666666661,
       "discordant": 51,
-      "pairs_dropped": 0
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
     },
     {
       "name": "small_4x4_exact",
@@ -518,7 +519,8 @@
       "p_value": 0.51220703125,
       "r_statistic": 6.0000000000000009,
       "discordant": 17,
-      "pairs_dropped": 0
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
     },
     {
       "name": "empty_pair_3x3_exact",
@@ -548,7 +550,8 @@
       "p_value": 0.21732863783836354,
       "r_statistic": null,
       "discordant": 29,
-      "pairs_dropped": 1
+      "pairs_dropped": 1,
+      "continuity_corrected": 0
     },
     {
       "name": "one_sided_3x3_exact",
@@ -578,7 +581,8 @@
       "p_value": 0.015625,
       "r_statistic": 9,
       "discordant": 9,
-      "pairs_dropped": 0
+      "pairs_dropped": 0,
+      "continuity_corrected": 0
     },
     {
       "name": "diagonal_3x3_exact",
@@ -608,8 +612,9 @@
       "p_value": null,
       "r_statistic": null,
       "discordant": 0,
-      "pairs_dropped": 3
+      "pairs_dropped": 3,
+      "continuity_corrected": 0
     }
   ]
 }
-// golden-hash: 6bb74a84868baf74cd9ae2bfc15cda57c9606636095eba4abb273eaba17bde3b
+// golden-hash: 04bab22fe618a4bc47a260d750227886536eb41e05f5a1ebb7b6d7f235fa829d
