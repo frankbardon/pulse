@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ddofspec"
+	"github.com/frankbardon/pulse/internal/percentilespec"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,7 +16,9 @@ import (
 // a param its factory requires, with the runtime's code and message, so
 // predict refuses what Process would refuse at operator construction.
 // That is AGG_STDDEV / AGG_VARIANCE with a params.ddof other than 0 / 1
-// (internal/ddofspec, the constructors' rule), and AGG_FREQUENCY
+// (internal/ddofspec, the constructors' rule), AGG_PERCENTILE with a
+// params.percentile outside [0, 100] or not a number
+// (internal/percentilespec, likewise), and AGG_FREQUENCY
 // without params.value: the slot once named
 // the modal count, so the message also points at AGG_MODE_COUNT —
 // unless the instance hides it (a refusal never names a hidden
@@ -34,6 +37,15 @@ func validateAggregationParams(env *descriptor.Envelope, req *types.Request, ins
 		// dispatch resolves it too.
 		if route := opRoute(inst, agg.Type); ddofspec.Applies(route) {
 			if _, cerr := ddofspec.Resolve(route, agg.Params); cerr != nil {
+				addCodedError(env, cerr)
+			}
+			return
+		}
+		// AGG_PERCENTILE params.percentile: the constructors' own rule
+		// (internal/percentilespec) — the plain, weighted and
+		// ordered-categorical arms all read it.
+		if route := opRoute(inst, agg.Type); percentilespec.Applies(route) {
+			if _, cerr := percentilespec.Resolve(agg.Params); cerr != nil {
 				addCodedError(env, cerr)
 			}
 			return

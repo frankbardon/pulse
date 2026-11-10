@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/percentilespec"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1252,7 +1253,7 @@ func TestAggregator_Percentile_DefaultParams(t *testing.T) {
 // helper to create percentile aggregator with specific percentile value
 func makePercentileAggregator(t *testing.T, field string, schema *encoding.Schema, percentile float64) Aggregator {
 	t.Helper()
-	params, _ := json.Marshal(percentileParams{Percentile: percentile})
+	params, _ := json.Marshal(percentilespec.Params{Percentile: percentile})
 	agg, err := newPercentileAggregator(&types.Aggregation{
 		Type:   types.AGG_PERCENTILE,
 		Field:  field,

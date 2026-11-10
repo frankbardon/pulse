@@ -6,9 +6,8 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ddofspec"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/percentilespec"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
@@ -914,10 +913,6 @@ func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, erro
 // (nil, nil) per the universal-floor convention.
 const percentileMethodLinear = "linear"
 
-type percentileParams struct {
-	Percentile float64 `json:"percentile"`
-}
-
 type percentileAggregator struct {
 	percentile      float64
 	frozenFinalized bool
@@ -941,21 +936,14 @@ func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggreg
 	return &percentileAggregator{percentile: p}, nil
 }
 
-// percentileParam decodes AGG_PERCENTILE's params.percentile (50 when
-// params are absent) and refuses one outside [0, 100] — the plain and
-// the ordered-categorical constructors share it.
+// percentileParam is AGG_PERCENTILE's params.percentile (50 when
+// params are absent), refusing one outside [0, 100] or a non-numeric
+// one — the plain and the ordered-categorical constructors share it,
+// and predict reads the same rule (internal/percentilespec).
 func percentileParam(agg *types.Aggregation) (float64, error) {
-	p := 50.0
-	paramread.Declare(paramread.Aggregator, string(agg.Type), (*percentileParams)(nil))
-	if len(agg.Params) > 0 {
-		var params percentileParams
-		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
-			return 0, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
-		}
-		p = params.Percentile
-	}
-	if p < 0 || p > 100 {
-		return 0, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	p, cerr := percentilespec.Resolve(agg.Params)
+	if cerr != nil {
+		return 0, cerr
 	}
 	return p, nil
 }

@@ -37,15 +37,11 @@ func TestCrosstabMarginAgg_RefusalIndependentOfMargins(t *testing.T) {
 	type auxCase struct {
 		name, agg string
 		code      errors.Code // "" = runs
-		// runtimeOnly: predict accepts this at EVERY aggregation slot
-		// today (a separate gap, not this slot's), so only the
-		// runtime's independence from the margins is asserted.
-		runtimeOnly bool
 	}
 	auxes := []auxCase{
 		{name: "average", agg: `{"type":"AGG_AVERAGE","field":"x","label":"a"}`},
 		{name: "median categorical", agg: `{"type":"AGG_MEDIAN","field":"g","label":"a"}`, code: errors.PULSE_FIELD_TYPE_UNSUPPORTED},
-		{name: "percentile out of range", agg: `{"type":"AGG_PERCENTILE","field":"x","label":"a","params":{"percentile":150}}`, code: errors.PROCESSING_CONFIG, runtimeOnly: true},
+		{name: "percentile out of range", agg: `{"type":"AGG_PERCENTILE","field":"x","label":"a","params":{"percentile":150}}`, code: errors.PROCESSING_CONFIG},
 		{name: "variance bad ddof", agg: `{"type":"AGG_VARIANCE","field":"x","label":"a","params":{"ddof":7}}`, code: errors.PROCESSING_CONFIG},
 		{name: "decimal variance bad ddof", agg: `{"type":"AGG_VARIANCE","field":"t_decimal128","label":"a","params":{"ddof":7}}`, code: errors.PROCESSING_CONFIG},
 		{name: "decimal median", agg: `{"type":"AGG_MEDIAN","field":"t_decimal128","label":"a"}`, code: errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL},
@@ -93,9 +89,7 @@ func TestCrosstabMarginAgg_RefusalIndependentOfMargins(t *testing.T) {
 					t.Errorf("%s: runtime %v, want %s", where, rerr, aux.code)
 					continue
 				}
-				if !aux.runtimeOnly {
-					predictMatches(t, where, ce, env.Errors)
-				}
+				predictMatches(t, where, ce, env.Errors)
 				if first == nil {
 					first = ce
 				} else if first.Code != ce.Code || first.Message != ce.Message || !reflect.DeepEqual(first.Details, ce.Details) {
