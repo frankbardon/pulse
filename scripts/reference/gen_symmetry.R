@@ -39,6 +39,19 @@
 # makes the ratio and the upper bound +Inf (written "Inf"); n_12 = 0
 # makes the ratio and the lower bound 0.
 #
+# Exact k x k cases (exact = TRUE, k > 2, U66 E10-S1): the exact
+# conditional Bowker test, by BRUTE-FORCE ENUMERATION in base R (no
+# convolution, independent of Pulse's statdist.BowkerExactP): given each
+# kept pair's discordant total m_ij = n_ij + n_ji, every joint outcome
+# a_ij in 0..m_ij (expand.grid over the pairs) has probability
+# prod(dbinom(a_ij, m_ij, 0.5)) and statistic
+# sum((2 a_ij - m_ij)^2 / m_ij); p = the total probability of the
+# outcomes whose statistic * (1 + 1e-7) >= the observed one (fisher.test's
+# relErr convention). statistic = the uncorrected Bowker sum over the
+# kept pairs; df null; no continuity_corrected, odds ratio or
+# conf_level (2 x 2 figures); no discordant unit => statistic and p
+# null.
+#
 # Also writes <out_dir>/binomial.json: the primitive
 # statdist.BinomialTwoSidedP against binom.test(x, n, p)$p.value over a
 # grid that reaches the relErr tie rule (p = (i + 1) / (n + 1) makes
@@ -92,14 +105,51 @@ sy_odds <- function(x) {
 sy_ci_odds <- function(ci) lapply(ci, function(p) sy_odds(p / (1 - p)))
 sy_mat <- function(m) lapply(seq_len(nrow(m)), function(i) lapply(as.numeric(m[i, ]), sy_num))
 
+sy_bowker_exact <- function(name, note, states, x, correct) {
+  up <- upper.tri(x)
+  nij <- x[up]
+  m <- (x + t(x))[up]
+  keep <- m > 0
+  stat <- NaN
+  p <- NaN
+  if (any(keep)) {
+    mk <- m[keep]
+    stat <- sum((nij[keep] - (mk - nij[keep]))^2 / mk)
+    grid <- as.matrix(expand.grid(lapply(mk, function(mm) 0:mm)))
+    prob <- rep(1, nrow(grid))
+    outcome <- rep(0, nrow(grid))
+    for (j in seq_along(mk)) {
+      prob <- prob * dbinom(grid[, j], mk[j], 0.5)
+      outcome <- outcome + (2 * grid[, j] - mk[j])^2 / mk[j]
+    }
+    p <- min(1, sum(prob[outcome * (1 + 1e-7) >= stat]))
+  }
+  list(
+    name = name,
+    note = note,
+    states = states,
+    counts = sy_mat(x),
+    correct = correct,
+    exact = TRUE,
+    statistic = sy_num(stat),
+    df = sy_num(NA),
+    p_value = sy_num(p),
+    r_statistic = sy_num(unname(suppressWarnings(mcnemar.test(x))$statistic)),
+    discordant = sy_num(sum(m)),
+    pairs_dropped = sy_num(sum(!keep))
+  )
+}
+
 sy_case <- function(name, states, counts, note, correct = TRUE, exact = FALSE, conf_level = 0.95) {
   k <- length(states)
   x <- matrix(counts, nrow = k, byrow = TRUE, dimnames = list(states, states))
   up <- upper.tri(x)
   s <- (x + t(x))[up]
   keep <- s > 0
+  if (exact && k > 2) {
+    return(sy_bowker_exact(name, note, states, x, correct))
+  }
   if (exact) {
-    stopifnot(k == 2)
     n12 <- x[1, 2]
     n <- x[1, 2] + x[2, 1]
     stat <- if (n > 0) n12 else NaN
@@ -292,6 +342,67 @@ sy_cases[[length(sy_cases) + 1]] <- sy_case(
   exact = TRUE
 )
 
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "bowker_3x3_exact",
+  c("low", "mid", "high"),
+  c(
+    40, 12, 4,
+    6, 55, 18,
+    2, 9, 30
+  ),
+  "The 3 x 3 Bowker table, exact: brute-force enumeration over the 19 * 7 * 28 binomial outcomes.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "small_4x4_exact",
+  c("w", "x", "y", "z"),
+  c(
+    10, 2, 1, 0,
+    0, 8, 3, 1,
+    2, 1, 12, 2,
+    1, 0, 4, 9
+  ),
+  "Sparse 4 x 4 (discordant totals 2, 3, 1, 4, 1, 6): where the chi-square would warn PULSE_OVERLAY_EXPECTED_LOW on every pair.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "empty_pair_3x3_exact",
+  c("a", "b", "c"),
+  c(
+    20, 8, 0,
+    3, 25, 7,
+    0, 11, 15
+  ),
+  "The (a, c) pair has no move either way: dropped (pairs_dropped 1), the enumeration runs over the two kept pairs.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "one_sided_3x3_exact",
+  c("bronze", "silver", "gold"),
+  c(
+    5, 3, 2,
+    0, 6, 4,
+    0, 0, 7
+  ),
+  "Every move goes up: each pair at its most extreme outcome, p = prod over pairs of 2 * 0.5^m.",
+  exact = TRUE
+)
+
+sy_cases[[length(sy_cases) + 1]] <- sy_case(
+  "diagonal_3x3_exact",
+  c("a", "b", "c"),
+  c(
+    9, 0, 0,
+    0, 4, 0,
+    0, 0, 6
+  ),
+  "Nobody changed state on a 3 x 3: every pair dropped, the statistic and p are null.",
+  exact = TRUE
+)
+
 write_golden("symmetry", list(
   generator = "scripts/reference/gen_symmetry.R",
   r_version = R.version.string,
@@ -300,7 +411,7 @@ write_golden("symmetry", list(
     jsonlite = as.character(packageVersion("jsonlite"))
   ),
   primitive = "OVERLAY_SYMMETRY",
-  r_function = "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2)",
+  r_function = "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2); exact k x k Bowker by brute-force enumeration over stats::dbinom",
   cases = sy_cases
 ))
 

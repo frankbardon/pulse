@@ -31,3 +31,35 @@ func TestErrorsLookup_OverlayExpectedLow_FixupPointsAtExact(t *testing.T) {
 	}
 	t.Errorf("no fixup on Overlays.*.Params.exact among %+v", r.Fixups)
 }
+
+// TestErrorsLookup_OverlayParamMissing_SymmetryExactFixups: the
+// PULSE_OVERLAY_PARAM_MISSING answer offers the two k x k exact
+// OVERLAY_SYMMETRY ways out (U66 E10-S1) — REMOVE_PARAM on
+// Overlays[*].Params.exact for exact_too_large and on
+// Overlays[*].Params.conf_level for needs_2x2 — and its message names
+// both reasons.
+func TestErrorsLookup_OverlayParamMissing_SymmetryExactFixups(t *testing.T) {
+	t.Parallel()
+
+	r, ok := perr.Lookup(string(perr.PULSE_OVERLAY_PARAM_MISSING))
+	if !ok {
+		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_PARAM_MISSING")
+	}
+	for _, reason := range []string{"exact_too_large", "needs_2x2"} {
+		if !strings.Contains(r.Message, reason) {
+			t.Errorf("message lacks reason %s", reason)
+		}
+	}
+	for param, reason := range map[string]string{"exact": "exact_too_large", "conf_level": "needs_2x2"} {
+		found := false
+		for _, f := range r.Fixups {
+			if slices.Equal(f.Path, []string{"Overlays", "*", "Params", param}) && f.Action == perr.FixupRemoveParam &&
+				strings.Contains(f.Hint, reason) && strings.Contains(f.Hint, "OVERLAY_SYMMETRY") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no REMOVE_PARAM fixup on Overlays.*.Params.%s for %s among %+v", param, reason, r.Fixups)
+		}
+	}
+}

@@ -79,7 +79,8 @@ var categoryTable = []categoryDef{
 			".claude/reference/matrix-and-vectors.md", ".claude/reference/matrix-and-vectors/matrix-slot.md", udWeighting, refWeight, udComps, refComps)},
 	{Name: "overlay", Aliases: []string{"overlays"}, Prefix: "OVERLAY_", Dir: "types", AllFunc: "AllOverlayKinds", Skill: "op-overlay-",
 		Manual: append(append([]string{}, opManual...), ".claude/reference/update-demand/overlays.md",
-			".claude/reference/execution-modes/overlays.md", ".claude/reference/execution-modes/overlays-matrix-kinds.md", udWeighting, refWeight, udComps, refComps)},
+			".claude/reference/execution-modes/overlays.md", ".claude/reference/execution-modes/overlays-matrix-kinds.md",
+			".claude/reference/execution-modes/overlays-flow-kinds.md", udWeighting, refWeight, udComps, refComps)},
 	{Name: "synth", Recipe: "docs/src/internals/adding-synth-distribution.md", Aliases: []string{"distribution", "synth-distribution", "dist"}, Dir: "internal/synth", AllFunc: "AllDistributions", Skill: "op-synth-", Quoted: true,
 		Manual: []string{udIndex, ".claude/reference/update-demand/synth-model.md", ".claude/reference/synthetic-data.md", refFeatures, refSkills}},
 }

@@ -2,6 +2,7 @@ package overlayhost
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -55,25 +56,37 @@ func TestParseSymmetryParams(t *testing.T) {
 	}
 }
 
-// TestSymmetryExactRefusals: exact is refused on a table of other than
-// 2 states, over a probability-weighted cell and on a non-integer
-// discordant pair (binom.test's 1e-7 rounding rule); each is inert
-// without exact.
+// TestSymmetryExactRefusals: an explicit conf_level with exact is
+// refused on a table of other than 2 states (needs_2x2: the k × k exact
+// Bowker test has no odds ratio) and an absent one is not; exact past
+// the Bowker work cap is refused exact_too_large; exact is refused over
+// a probability-weighted cell and on a non-integer discordant pair
+// (binom.test's 1e-7 rounding rule); each is inert without exact.
 func TestSymmetryExactRefusals(t *testing.T) {
 	t.Parallel()
 
 	kind := types.OverlayKindSymmetry
 	exact, chi := SymmetryParams{Exact: true}, SymmetryParams{Correct: true}
-	if cerr := SymmetryExactStatesRefusal(kind, exact, 2, 1); cerr != nil {
-		t.Fatalf("2 states refused: %v", cerr)
+	level := SymmetryParams{Exact: true, ConfLevel: 0.9, ConfLevelSet: true}
+	if cerr := SymmetryExactConfLevelRefusal(kind, level, 2, 1); cerr != nil {
+		t.Fatalf("2 states with conf_level refused: %v", cerr)
 	}
-	if cerr := SymmetryExactStatesRefusal(kind, chi, 3, 1); cerr != nil {
+	if cerr := SymmetryExactConfLevelRefusal(kind, exact, 3, 1); cerr != nil {
+		t.Fatalf("exact on 3 states without conf_level refused: %v", cerr)
+	}
+	if cerr := SymmetryExactConfLevelRefusal(kind, chi, 3, 1); cerr != nil {
 		t.Fatalf("chi-square on 3 states refused: %v", cerr)
 	}
-	cerr := SymmetryExactStatesRefusal(kind, exact, 3, 1)
+	cerr := SymmetryExactConfLevelRefusal(kind, level, 3, 1)
+	if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_PARAM_MISSING || cerr.Details["param"] != "conf_level" ||
+		cerr.Details["reason"] != "needs_2x2" || cerr.Details["states"] != 3 || cerr.Details["index"] != 1 {
+		t.Fatalf("3-state conf_level refusal %v", cerr)
+	}
+	cerr = SymmetryExactTooLargeRefusal(kind, 4, 1<<21, 1<<20, 2)
 	if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_PARAM_MISSING || cerr.Details["param"] != "exact" ||
-		cerr.Details["states"] != 3 || cerr.Details["index"] != 1 {
-		t.Fatalf("3-state exact refusal %v", cerr)
+		cerr.Details["reason"] != "exact_too_large" || cerr.Details["states"] != 4 || cerr.Details["terms"] != 1<<21 ||
+		cerr.Details["limit"] != 1<<20 || cerr.Details["index"] != 2 {
+		t.Fatalf("too-large refusal %v", cerr)
 	}
 
 	if cerr := SymmetryExactWeightRefusal(kind, exact, false, 0); cerr != nil {
@@ -88,12 +101,18 @@ func TestSymmetryExactRefusals(t *testing.T) {
 		t.Fatalf("probability exact refusal %v", cerr)
 	}
 
-	if a, b, cerr := SymmetryExactCountsRefusal(kind, 3.00000001, 5, 0); cerr != nil || a != 3 || b != 5 {
+	if a, b, cerr := SymmetryExactCountsRefusal(kind, 3.00000001, 5, nil, 0); cerr != nil || a != 3 || b != 5 {
 		t.Fatalf("near-integer pair: %d %d %v", a, b, cerr)
 	}
-	_, _, cerr = SymmetryExactCountsRefusal(kind, 3, 5.5, 0)
-	if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED || cerr.Details["reason"] != "non_integer" || cerr.Details["index"] != 0 {
+	_, _, cerr = SymmetryExactCountsRefusal(kind, 3, 5.5, nil, 0)
+	if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED || cerr.Details["reason"] != "non_integer" ||
+		cerr.Details["index"] != 0 || cerr.Details["pair"] != nil {
 		t.Fatalf("non-integer pair refusal %v", cerr)
+	}
+	_, _, cerr = SymmetryExactCountsRefusal(kind, 2.5, 1, []string{"b", "c"}, 0)
+	if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED || cerr.Details["reason"] != "non_integer" ||
+		!slices.Equal(cerr.Details["pair"].([]string), []string{"b", "c"}) {
+		t.Fatalf("k x k non-integer pair refusal %v", cerr)
 	}
 }
 
@@ -109,12 +128,12 @@ func TestParseSymmetryParams_ConfLevel(t *testing.T) {
 	spec := &types.OverlaySpec{Kind: types.OverlayKindSymmetry}
 	for _, params := range []string{``, `{"exact":true}`, `{"correct":false}`} {
 		spec.Params = json.RawMessage(params)
-		if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.95 {
+		if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.95 || p.ConfLevelSet {
 			t.Fatalf("%s: default conf_level %+v %v", params, p, cerr)
 		}
 	}
 	spec.Params = json.RawMessage(`{"exact":true,"conf_level":0.9}`)
-	if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.9 || !p.Exact {
+	if p, cerr := ParseSymmetryParams(spec, -1); cerr != nil || p.ConfLevel != 0.9 || !p.Exact || !p.ConfLevelSet {
 		t.Fatalf("conf_level 0.9 %+v %v", p, cerr)
 	}
 	for _, c := range []struct{ params, reason string }{

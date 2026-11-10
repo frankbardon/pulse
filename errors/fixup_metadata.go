@@ -3574,7 +3574,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "exact"},
-				Hint:     "OVERLAY_SYMMETRY on a 2 x 2 (two states): set params.exact to true for the exact binomial McNemar test (R binom.test(n_12, n_12 + n_21)), which needs no expected-count threshold and adds the discordant odds ratio with its exact interval. Not on more than 2 states or a probability-weighted cell (both refused).",
+				Hint:     "OVERLAY_SYMMETRY: set params.exact to true for an exact p that needs no expected-count threshold — on a 2 x 2 the exact binomial McNemar test (R binom.test(n_12, n_12 + n_21)) with the discordant odds ratio and its exact interval, on k x k the exact conditional Bowker test. Not over a probability-weighted cell (refused).",
 				Examples: []any{true},
 			},
 		},
@@ -3597,7 +3597,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is).",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is). The paired-change test of symmetry refuses two exact k x k requests at runtime only (the state count and counts are data): an explicit params.conf_level with exact on more than 2 states (details.reason needs_2x2 — the k x k exact Bowker test has no odds ratio to cover) and an exact Bowker test whose convolution would enumerate more than 2^20 terms (details.reason exact_too_large, details.terms / limit) — never a silent fall back to the chi-square.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3616,6 +3616,16 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "p_source"},
 				Hint:     "Pairwise proportion kind on a normalised crosstab (details.param p_source, details.normalize set): drop p_source — the default on a normalised host reads each cell as the 0..1 share it already is — or set it to cell_value. Keep cell_value_pct only for a normalize none host whose cells are 0..100 percentages.",
 				Examples: []any{map[string]any{"p_source": "cell_value"}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "exact"},
+				Hint:   "OVERLAY_SYMMETRY details.reason exact_too_large: drop params.exact — the table's discordant counts are large enough for Bowker's chi-square test, which is what the exact test would approximate anyway. Or coarsen the states (fewer, merged categories) to bring the exact test under its limit.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "conf_level"},
+				Hint:   "OVERLAY_SYMMETRY details.reason needs_2x2: drop params.conf_level — on more than 2 states the exact Bowker test reports no odds ratio, so there is no interval to set a level for. Keep conf_level only on a 2 x 2 table.",
 			},
 		},
 	},

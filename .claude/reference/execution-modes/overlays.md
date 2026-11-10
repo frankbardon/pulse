@@ -1,6 +1,6 @@
 # Execution modes — overlays (hosts, wiring, displaced contributor notes)
 
-Per-topic slice of the execution-modes reference. Index (Mode index + section map): `.claude/reference/execution-modes.md` — load it first, then only the slice(s) your engine work touches. The payload-parts, MATRIX_RESULT-host and U28 kind notes continue in `.claude/reference/execution-modes/overlays-matrix-kinds.md`; the grouped-Process SERIES host notes (measure, partitions, SERIES FORMULA, rolling windows) in `.claude/reference/execution-modes/overlays-series.md`; the COMPOSE host notes (arm, series value + key, fan-out) in `.claude/reference/execution-modes/overlays-compose.md`.
+Per-topic slice of the execution-modes reference. Index (Mode index + section map): `.claude/reference/execution-modes.md` — load it first, then only the slice(s) your engine work touches. The payload-parts, MATRIX_RESULT-host and U28 kind notes continue in `.claude/reference/execution-modes/overlays-matrix-kinds.md`; the paired-flow kinds (MARKOV, SYMMETRY, RETENTION) in `.claude/reference/execution-modes/overlays-flow-kinds.md`; the grouped-Process SERIES host notes (measure, partitions, SERIES FORMULA, rolling windows) in `.claude/reference/execution-modes/overlays-series.md`; the COMPOSE host notes (arm, series value + key, fan-out) in `.claude/reference/execution-modes/overlays-compose.md`.
 
 ## Overlays
 

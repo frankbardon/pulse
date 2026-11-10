@@ -130,9 +130,9 @@ func TestSymmetry_EndToEnd(t *testing.T) {
 // host (2 states, n_12 = n_21 = 12) runs the exact binomial McNemar —
 // predict accepts, statistic n_12, p 1 (binom.test(12, 24)), exact 1, no
 // df — under no weight and under a frequency weight (whole replication
-// counts); on g x subj (more than 2 states) predict accepts (the state
-// count is data) and the runtime refuses PULSE_OVERLAY_PARAM_MISSING
-// {param: exact, states}, located at the spec.
+// counts); on g x subj (more than 2 states) it runs the exact Bowker
+// test — statistic the chi-square arm's uncorrected one, exact 1, no df,
+// odds ratio, conf_level or continuity_corrected.
 func TestSymmetry_ExactEndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -182,13 +182,76 @@ func TestSymmetry_ExactEndToEnd(t *testing.T) {
 		})
 	}
 
-	req := markovCrosstab(cohort, []*types.Group{{Type: types.GROUP_CATEGORY, Field: "subj"}}, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`))
-	if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
-		t.Fatalf("predict refused a data-dependent state count: %+v", env.Errors)
+	// g x subj (more than 2 states): the exact Bowker test.
+	subj := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "subj"}}
+	t.Run("k x k", func(t *testing.T) {
+		req := markovCrosstab(cohort, subj, types.AGG_COUNT, nil, symmetryOverlay(`{"exact":true}`))
+		if env := predictEnvelope(t, p, fs, cohort, req); len(env.Errors) != 0 {
+			t.Fatalf("predict %+v", env.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := resp.Overlays[0].Summary
+		if s.Parameters["exact"] != 1 || !(s.Parameters["states"] > 2) || s.PValue == nil || !(*s.PValue >= 0 && *s.PValue <= 1) {
+			t.Fatalf("k x k exact summary %+v", s)
+		}
+		for _, key := range []string{"df", "odds_ratio", "conf_level", "continuity_corrected"} {
+			if _, ok := s.Parameters[key]; ok {
+				t.Fatalf("k x k exact layer carries %s: %v", key, s.Parameters)
+			}
+		}
+		chi, err := p.Process(ctx, markovCrosstab(cohort, subj, types.AGG_COUNT, nil, symmetryOverlay(`{"correct":false}`)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if *s.Statistic != *chi.Overlays[0].Summary.Statistic {
+			t.Fatalf("k x k exact statistic %v, want the chi-square arm's %v", *s.Statistic, *chi.Overlays[0].Summary.Statistic)
+		}
+	})
+}
+
+// TestSymmetry_ExactStateRefusalsRuntimeOnly: the k x k exact refusals
+// read the data's state count or support, so predict accepts and only
+// the runtime refuses, located at the spec — an explicit conf_level with
+// exact on more than 2 states (PULSE_OVERLAY_PARAM_MISSING {param:
+// conf_level, reason: needs_2x2, states}; the same request on 2 states
+// runs), and exact on the frequency-weighted g x subj host, whose Σw
+// counts (week = i + 1) outgrow the convolution's work cap
+// (PULSE_OVERLAY_PARAM_MISSING {param: exact, reason: exact_too_large,
+// states, terms, limit}; the chi-square arm runs it).
+func TestSymmetry_ExactStateRefusalsRuntimeOnly(t *testing.T) {
+	t.Parallel()
+
+	p, fs, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	subj := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "subj"}}
+	params := `{"exact":true,"conf_level":0.9}`
+	freq := &types.WeightSpec{Field: "week", Kind: types.WeightKindFrequency}
+	for _, c := range []struct {
+		name, param, reason string
+		req                 *types.Request
+	}{
+		{"conf_level on k x k", "conf_level", "needs_2x2", markovCrosstab(cohort, subj, types.AGG_COUNT, nil, symmetryOverlay(params))},
+		{"exact too large", "exact", "exact_too_large", markovCrosstab(cohort, subj, types.AGG_COUNT, freq, symmetryOverlay(`{"exact":true}`))},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if env := predictEnvelope(t, p, fs, cohort, c.req); len(env.Errors) != 0 {
+				t.Fatalf("predict refused a data-dependent refusal: %+v", env.Errors)
+			}
+			_, err := p.Process(ctx, c.req)
+			ce := requireCode(t, err, errors.PULSE_OVERLAY_PARAM_MISSING)
+			if ce.Details["param"] != c.param || ce.Details["reason"] != c.reason || ce.Details["index"] != 0 || ce.Details["states"] == nil {
+				t.Fatalf("details %v", ce.Details)
+			}
+		})
 	}
-	_, err := p.Process(ctx, req)
-	ce := requireCode(t, err, errors.PULSE_OVERLAY_PARAM_MISSING)
-	if ce.Details["param"] != "exact" || ce.Details["index"] != 0 || ce.Details["states"] == nil {
-		t.Fatalf("details %v", ce.Details)
+	two := markovCrosstab(cohort, []*types.Group{{Type: types.GROUP_CATEGORY, Field: "t_categorical_u8"}}, types.AGG_COUNT, nil, symmetryOverlay(params))
+	if _, err := p.Process(ctx, two); err != nil {
+		t.Fatalf("conf_level on 2 states: %v", err)
+	}
+	if _, err := p.Process(ctx, markovCrosstab(cohort, subj, types.AGG_COUNT, freq, symmetryOverlay(""))); err != nil {
+		t.Fatalf("chi-square arm on the large host: %v", err)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -97,7 +98,18 @@ func symmetryHost(rowStates, colStates []string, counts [][]float64) *CrosstabHo
 	return NewCrosstabHostView(mx)
 }
 
+// symmetryBowkerOracleTol holds the exact Bowker p to R's brute-force
+// enumeration: both sum the same binomial masses in a different order
+// (Pulse's convolution merges equal statistic values first), so a
+// relative 1e-10, the statdist oracle tolerance.
+const symmetryBowkerOracleTol = 1e-10
+
 func symmetryClose(t *testing.T, where string, got float64, want *float64) {
+	t.Helper()
+	symmetryCloseTol(t, where, got, want, symmetryOracleTol)
+}
+
+func symmetryCloseTol(t *testing.T, where string, got float64, want *float64, tol float64) {
 	t.Helper()
 	if want == nil {
 		if !math.IsNaN(got) {
@@ -105,7 +117,7 @@ func symmetryClose(t *testing.T, where string, got float64, want *float64) {
 		}
 		return
 	}
-	if d := math.Abs(got - *want); !(d <= symmetryOracleTol*math.Max(1e-300, math.Abs(*want))) && got != *want {
+	if d := math.Abs(got - *want); !(d <= tol*math.Max(1e-300, math.Abs(*want))) && got != *want {
 		t.Errorf("%s = %.17g, want %.17g (R)", where, got, *want)
 	}
 }
@@ -118,10 +130,10 @@ func TestSymmetry_MatchesR(t *testing.T) {
 	t.Parallel()
 
 	doc := loadReference[symmetryCase](t, "symmetry")
-	if len(doc.Cases) < 14 {
-		t.Fatalf("symmetry.json has %d cases, want at least 15", len(doc.Cases))
+	if len(doc.Cases) < 21 {
+		t.Fatalf("symmetry.json has %d cases, want at least 21", len(doc.Cases))
 	}
-	exactCases, levelCases := 0, 0
+	exactCases, levelCases, bowkerCases := 0, 0, 0
 	for _, c := range doc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			k := len(c.States)
@@ -141,9 +153,11 @@ func TestSymmetry_MatchesR(t *testing.T) {
 				params = `{"correct":true}`
 			}
 			if c.Exact {
-				exactCases++
+				if k == 2 {
+					exactCases++
+				}
 				params = params[:len(params)-1] + `,"exact":true}`
-				if c.ConfLevel != 0.95 {
+				if k == 2 && c.ConfLevel != 0.95 {
 					// A non-default level rides params.conf_level; the
 					// default cases leave it absent (the 0.95 default).
 					levelCases++
@@ -160,12 +174,26 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			s := layer.Summary
 			symmetryClose(t, "statistic", *s.Statistic, c.Statistic)
 			symmetryClose(t, "scalar", *layer.Payload.Scalar, c.Statistic)
-			symmetryClose(t, "p_value", *s.PValue, c.PValue)
 			want := map[string]float64{
 				"df": c.DF, "states": float64(k), "discordant": c.Discordant,
 				"pairs_dropped": c.PairsDropped, "continuity_corrected": c.ContinuityCorrected,
 			}
 			got := s.Parameters
+			if c.Exact && k > 2 {
+				// The exact Bowker arm (R brute-force enumeration): no
+				// df, continuity correction, odds ratio or conf_level.
+				bowkerCases++
+				symmetryCloseTol(t, "p_value", *s.PValue, c.PValue, symmetryBowkerOracleTol)
+				if c.OddsRatio.Set {
+					t.Errorf("symmetry.json k x k exact case carries an odds ratio")
+				}
+				want = map[string]float64{"exact": 1, "states": float64(k), "discordant": c.Discordant, "pairs_dropped": c.PairsDropped}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("parameters %v, want %v", got, want)
+				}
+				return
+			}
+			symmetryClose(t, "p_value", *s.PValue, c.PValue)
 			if c.Exact {
 				// The exact arm has no chi-square df; it records the method
 				// and the discordant odds ratio with its exact CI.
@@ -212,8 +240,9 @@ func TestSymmetry_MatchesR(t *testing.T) {
 			}
 		})
 	}
-	if exactCases < 9 || levelCases < 1 {
-		t.Fatalf("symmetry.json has %d exact cases (%d at a non-default conf_level), want at least 9 (1)", exactCases, levelCases)
+	if exactCases < 9 || levelCases < 1 || bowkerCases < 5 {
+		t.Fatalf("symmetry.json has %d exact 2 x 2 cases (%d at a non-default conf_level) and %d exact k x k, want at least 9 (1) and 5",
+			exactCases, levelCases, bowkerCases)
 	}
 }
 
@@ -500,7 +529,8 @@ func TestSymmetry_Refusals(t *testing.T) {
 	}{
 		{"unknown param", symmetrySpec(`{"mid_p":true}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"non-boolean exact", symmetrySpec(`{"exact":1}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
-		{"exact on 3 states", symmetrySpec(`{"exact":true}`), symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{1, 2, 3}, {3, 4, 5}, {5, 6, 7}}), errors.PULSE_OVERLAY_PARAM_MISSING, true},
+		{"conf_level with exact on 3 states", symmetrySpec(`{"exact":true,"conf_level":0.95}`), symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{1, 2, 3}, {3, 4, 5}, {5, 6, 7}}), errors.PULSE_OVERLAY_PARAM_MISSING, true},
+		{"exact on 3 states, non-whole cell", symmetrySpec(`{"exact":true}`), symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"}, [][]float64{{1, 2, 3}, {3, 4, 5}, {5, 6.5, 7}}), errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED, true},
 		{"non-boolean correct", symmetrySpec(`{"correct":"yes"}`), square(), errors.PULSE_OVERLAY_PARAM_MISSING, true},
 		{"average cell", symmetrySpec(""), avg, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED, true},
 		{"grouper counts differ", symmetrySpec(""), twoCols, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE, true},
@@ -579,5 +609,128 @@ func TestSymmetry_ExactConfLevel(t *testing.T) {
 	}
 	if _, ok := run("").Summary.Parameters["conf_level"]; ok {
 		t.Fatal("chi-square arm carries conf_level")
+	}
+}
+
+// TestSymmetry_BowkerExact: params.exact on a k × k table runs the
+// exact Bowker test — the statistic and scalar are the chi-square arm's
+// uncorrected statistic bit for bit, the p is the exact one (not the
+// chi-square's), the parameters are exactly exact / states / discordant
+// / pairs_dropped (no df, continuity correction, odds ratio or
+// conf_level), correct is inert, and no PULSE_OVERLAY_EXPECTED_LOW is
+// raised on a table the chi-square arm warns on. A diagonal table has a
+// null statistic and p, every pair dropped.
+func TestSymmetry_BowkerExact(t *testing.T) {
+	t.Parallel()
+
+	states := []string{"w", "x", "y", "z"}
+	counts := [][]float64{{10, 2, 1, 0}, {0, 8, 3, 1}, {2, 1, 12, 2}, {1, 0, 4, 9}}
+	chi, ws, err := applySymmetry(symmetrySpec(`{"correct":false}`), symmetryHost(states, states, counts))
+	if err != nil || len(ws) != 1 {
+		t.Fatalf("chi-square arm: warnings %+v err %v, want one EXPECTED_LOW", ws, err)
+	}
+	on, wsOn, err := applySymmetry(symmetrySpec(`{"exact":true}`), symmetryHost(states, states, counts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	off, wsOff, err := applySymmetry(symmetrySpec(`{"exact":true,"correct":false}`), symmetryHost(states, states, counts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wsOn) != 0 || len(wsOff) != 0 || !reflect.DeepEqual(on, off) {
+		t.Fatalf("exact warnings %+v / %+v, or correct moved the layer: %+v vs %+v", wsOn, wsOff, on.Summary, off.Summary)
+	}
+	s := on.Summary
+	if *s.Statistic != *chi.Summary.Statistic || *on.Payload.Scalar != *chi.Payload.Scalar {
+		t.Fatalf("exact statistic %v scalar %v, want the chi-square's %v", *s.Statistic, *on.Payload.Scalar, *chi.Summary.Statistic)
+	}
+	// R brute-force enumeration (symmetry.json small_4x4_exact).
+	if math.Abs(*s.PValue-0.51220703125) > 1e-12 || *s.PValue == *chi.Summary.PValue {
+		t.Fatalf("exact p %.17g (chi-square %v), want 0.51220703125", *s.PValue, *chi.Summary.PValue)
+	}
+	want := map[string]float64{"exact": 1, "states": 4, "discordant": 17, "pairs_dropped": 0}
+	if !reflect.DeepEqual(s.Parameters, want) {
+		t.Fatalf("parameters %v, want %v", s.Parameters, want)
+	}
+
+	diag, _, err := applySymmetry(symmetrySpec(`{"exact":true}`), symmetryHost([]string{"a", "b", "c"}, []string{"a", "b", "c"},
+		[][]float64{{9, 0, 0}, {0, 4, 0}, {0, 0, 6}}))
+	if err != nil || !math.IsNaN(*diag.Summary.Statistic) || !math.IsNaN(*diag.Summary.PValue) || !math.IsNaN(*diag.Payload.Scalar) ||
+		diag.Summary.Parameters["pairs_dropped"] != 3 {
+		t.Fatalf("diagonal: %+v %v", diag.Summary, err)
+	}
+}
+
+// TestSymmetry_BowkerExactTwoStatesIsMcNemar: on a 2 × 2 table the
+// exact arm stays the binomial McNemar (statistic n_12, the odds ratio),
+// and its p equals the exact Bowker test's on the one pair (D34: k = 2
+// consistency) to a relative 1e-12.
+func TestSymmetry_BowkerExactTwoStatesIsMcNemar(t *testing.T) {
+	t.Parallel()
+
+	for _, pr := range [][2]int{{1, 4}, {9, 2}, {12, 12}, {0, 7}, {150, 86}, {6, 7}} {
+		host := symmetryHost([]string{"yes", "no"}, []string{"yes", "no"}, [][]float64{{3, float64(pr[0])}, {float64(pr[1]), 5}})
+		layer, _, err := applySymmetry(symmetrySpec(`{"exact":true}`), host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if *layer.Summary.Statistic != float64(pr[0]) {
+			t.Fatalf("%v: 2 x 2 exact statistic %v, want n_12", pr, *layer.Summary.Statistic)
+		}
+		if _, ok := layer.Summary.Parameters["odds_ratio"]; !ok {
+			t.Fatalf("%v: 2 x 2 exact lost its odds ratio: %v", pr, layer.Summary.Parameters)
+		}
+		_, bowker, _, ok := statdist.BowkerExactP([][2]int{pr}, statdist.BowkerExactMaxTerms)
+		if p := *layer.Summary.PValue; !ok || !(math.Abs(p-bowker) <= 1e-12*bowker) {
+			t.Fatalf("%v: McNemar p %.17g, exact Bowker p %.17g", pr, p, bowker)
+		}
+	}
+}
+
+// TestSymmetry_BowkerExactRefusals: on k × k an explicit conf_level
+// (even the 0.95 default) is needs_2x2 and an absent one runs; a
+// non-whole discordant cell is non_integer naming the pair; a table
+// whose convolution outgrows statdist.BowkerExactMaxTerms is
+// exact_too_large, while the chi-square arm runs it — each refusal
+// carrying the spec index.
+func TestSymmetry_BowkerExactRefusals(t *testing.T) {
+	t.Parallel()
+
+	three := []string{"a", "b", "c"}
+	small := [][]float64{{4, 2, 1}, {1, 5, 3}, {0, 2, 6}}
+	refuse := func(params string, states []string, counts [][]float64) *errors.CodedError {
+		t.Helper()
+		_, _, err := applySymmetryAt(symmetrySpec(params), symmetryHost(states, states, counts), 3)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Details["index"] != 3 {
+			t.Fatalf("%s: err %v, want a coded refusal at index 3", params, err)
+		}
+		return ce
+	}
+	for _, params := range []string{`{"exact":true,"conf_level":0.95}`, `{"exact":true,"conf_level":0.9}`} {
+		if ce := refuse(params, three, small); ce.Code != errors.PULSE_OVERLAY_PARAM_MISSING || ce.Details["reason"] != "needs_2x2" ||
+			ce.Details["param"] != "conf_level" || ce.Details["states"] != 3 {
+			t.Fatalf("%s: %v", params, ce)
+		}
+	}
+	if _, _, err := applySymmetry(symmetrySpec(`{"exact":true}`), symmetryHost(three, three, small)); err != nil {
+		t.Fatalf("absent conf_level on 3 states refused: %v", err)
+	}
+
+	frac := [][]float64{{4, 2, 1}, {1, 5, 3}, {0, 2.5, 6}}
+	if ce := refuse(`{"exact":true}`, three, frac); ce.Code != errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED || ce.Details["reason"] != "non_integer" ||
+		!reflect.DeepEqual(ce.Details["pair"], []string{"b", "c"}) {
+		t.Fatalf("non-whole cell: %v", ce)
+	}
+
+	four := []string{"s1", "s2", "s3", "s4"}
+	big := [][]float64{{50, 30, 28, 40}, {25, 60, 27, 35}, {31, 22, 55, 29}, {33, 30, 36, 70}}
+	ce := refuse(`{"exact":true}`, four, big)
+	if ce.Code != errors.PULSE_OVERLAY_PARAM_MISSING || ce.Details["reason"] != "exact_too_large" || ce.Details["param"] != "exact" ||
+		ce.Details["limit"] != statdist.BowkerExactMaxTerms || !(ce.Details["terms"].(int) > statdist.BowkerExactMaxTerms) || ce.Details["states"] != 4 {
+		t.Fatalf("too large: %v", ce)
+	}
+	if _, _, err := applySymmetry(symmetrySpec(""), symmetryHost(four, four, big)); err != nil {
+		t.Fatalf("the chi-square arm refused the large table: %v", err)
 	}
 }

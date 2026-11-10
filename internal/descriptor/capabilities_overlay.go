@@ -1527,8 +1527,12 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial " +
 				"McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact " +
 				"(1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact " +
-				"conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW; exact on k x k is PULSE_OVERLAY_PARAM_MISSING, over a " +
-				"probability-weighted cell PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
+				"conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW. " +
+				"On k x k params.exact runs the exact conditional Bowker test: given each pair's total, n_ij ~ Binomial(n_ij + n_ji, 1/2), " +
+				"p = P(chi-square >= observed) by exact convolution; statistic the uncorrected chi-square, Parameters exact, states, " +
+				"discordant, pairs_dropped (no df, odds ratio or conf_level); past 2^20 enumeration terms PULSE_OVERLAY_PARAM_MISSING " +
+				"(reason exact_too_large), an explicit conf_level reason needs_2x2 (both runtime only). exact over a " +
+				"probability-weighted cell is PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
 				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and " +
 				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +
 				"chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, " +

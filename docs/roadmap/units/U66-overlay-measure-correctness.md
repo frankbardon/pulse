@@ -59,4 +59,4 @@ Not on the original item list; folded in as epic E8 once the effort found them.
 | #716 `AGG_SET_*` over an `f64` chain column: predict and runtime differ in message and details | [U75](U75-zones-labels-2.md) | pre-existing parity edge; U75 owns the remaining parity proofs |
 | #717 configurable `conf_level` for the discordant odds-ratio interval | done in U66 (E9-S1) | owner pulled it in 2026-11-10: `params.conf_level`, default 0.95, `exact` only |
 | #718 ordered-categorical aggregation | done in U66 (E9-S2) | owner pulled it in 2026-11-10: `params.ordered` / `params.levels` on `AGG_MIN` / `AGG_MAX` / `AGG_MEDIAN` / `AGG_PERCENTILE`, R type 1 over level ranks, the figure a dictionary-index code |
-| #719 exact Bowker (k x k) | post-v1 backlog | out of U66's scope; owner to confirm |
+| #719 exact Bowker (k x k) | done in U66 (E10-S1) | owner pulled it in 2026-11-10: `params.exact` on k × k runs the exact conditional Bowker test (exact convolution, capped at 2^20 terms — `exact_too_large`); an explicit `conf_level` on k × k is `needs_2x2` |

@@ -670,17 +670,17 @@ The symmetry chi-square, also in summary.statistic: over every pair of states, t
 
 - null means nobody changed state (every pair is empty), so there is nothing to test.
 - It does not say which pair is lopsided or in which direction: compare each cell with its mirror cell across the diagonal.
-- With params.exact it is instead n_12, the moves from the first state to the second (summary.parameters.exact is 1).
+- With params.exact on a 2x2 it is instead n_12, the moves from the first state to the second (summary.parameters.exact is 1); on a larger table it stays the chi-square.
 
 #### `summary.statistic`
 
-The same figure as scalar: the symmetry chi-square, or n_12 under params.exact.
+The same figure as scalar: the symmetry chi-square, or n_12 under params.exact on a 2x2.
 
 #### `summary.p_value`
 
 **Caveats:**
 
-- It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does. On a 2x2 set params.exact for the exact binomial p.
+- It comes from the chi-square approximation, which is unreliable when a pair of states has fewer than about 10 moves; Pulse warns (PULSE_OVERLAY_EXPECTED_LOW) when one does. Set params.exact for an exact p on small counts, on any table size.
 - It is meaningful only when each cell counts units seen twice (AGG_COUNT of paired before and after answers); on independent samples use OVERLAY_CHISQ_MATRIX.
 - On a probability-weighted host the table is first scaled to its effective sample size (summary.parameters.n_eff): a first-order Kish approximation, not a design-based correction.
 
@@ -708,7 +708,7 @@ How many pairs of states had no move either way: they carry no information and l
 
 #### `summary.parameters.exact`
 
-1 when the p-value is the exact binomial McNemar test (params.exact on a 2x2): no chi-square approximation, so it holds on small counts; df is then absent.
+1 when the p-value is exact (params.exact): the binomial McNemar test on a 2x2, the exact Bowker test on a larger table. No chi-square approximation, so it holds on small counts; df is then absent.
 
 #### `summary.parameters.odds_ratio`
 

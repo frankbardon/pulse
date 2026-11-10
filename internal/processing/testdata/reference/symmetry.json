@@ -6,7 +6,7 @@
     "jsonlite": "2.0.0"
   },
   "primitive": "OVERLAY_SYMMETRY",
-  "r_function": "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2)",
+  "r_function": "stats::mcnemar.test (McNemar 2 x 2, Bowker k x k); empty pairs dropped by hand; stats::binom.test (exact 2 x 2); exact k x k Bowker by brute-force enumeration over stats::dbinom",
   "cases": [
     {
       "name": "agresti_approval_corrected",
@@ -450,7 +450,166 @@
       "odds_ratio_ci_lower": null,
       "odds_ratio_ci_upper": null,
       "conf_level": 0.94999999999999996
+    },
+    {
+      "name": "bowker_3x3_exact",
+      "note": "The 3 x 3 Bowker table, exact: brute-force enumeration over the 19 * 7 * 28 binomial outcomes.",
+      "states": ["low", "mid", "high"],
+      "counts": [
+        [
+          40,
+          12,
+          4
+        ],
+        [
+          6,
+          55,
+          18
+        ],
+        [
+          2,
+          9,
+          30
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 5.6666666666666661,
+      "df": null,
+      "p_value": 0.13094417836632036,
+      "r_statistic": 5.6666666666666661,
+      "discordant": 51,
+      "pairs_dropped": 0
+    },
+    {
+      "name": "small_4x4_exact",
+      "note": "Sparse 4 x 4 (discordant totals 2, 3, 1, 4, 1, 6): where the chi-square would warn PULSE_OVERLAY_EXPECTED_LOW on every pair.",
+      "states": ["w", "x", "y", "z"],
+      "counts": [
+        [
+          10,
+          2,
+          1,
+          0
+        ],
+        [
+          0,
+          8,
+          3,
+          1
+        ],
+        [
+          2,
+          1,
+          12,
+          2
+        ],
+        [
+          1,
+          0,
+          4,
+          9
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 6.0000000000000009,
+      "df": null,
+      "p_value": 0.51220703125,
+      "r_statistic": 6.0000000000000009,
+      "discordant": 17,
+      "pairs_dropped": 0
+    },
+    {
+      "name": "empty_pair_3x3_exact",
+      "note": "The (a, c) pair has no move either way: dropped (pairs_dropped 1), the enumeration runs over the two kept pairs.",
+      "states": ["a", "b", "c"],
+      "counts": [
+        [
+          20,
+          8,
+          0
+        ],
+        [
+          3,
+          25,
+          7
+        ],
+        [
+          0,
+          11,
+          15
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 3.1616161616161618,
+      "df": null,
+      "p_value": 0.21732863783836354,
+      "r_statistic": null,
+      "discordant": 29,
+      "pairs_dropped": 1
+    },
+    {
+      "name": "one_sided_3x3_exact",
+      "note": "Every move goes up: each pair at its most extreme outcome, p = prod over pairs of 2 * 0.5^m.",
+      "states": ["bronze", "silver", "gold"],
+      "counts": [
+        [
+          5,
+          3,
+          2
+        ],
+        [
+          0,
+          6,
+          4
+        ],
+        [
+          0,
+          0,
+          7
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": 9,
+      "df": null,
+      "p_value": 0.015625,
+      "r_statistic": 9,
+      "discordant": 9,
+      "pairs_dropped": 0
+    },
+    {
+      "name": "diagonal_3x3_exact",
+      "note": "Nobody changed state on a 3 x 3: every pair dropped, the statistic and p are null.",
+      "states": ["a", "b", "c"],
+      "counts": [
+        [
+          9,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0
+        ],
+        [
+          0,
+          0,
+          6
+        ]
+      ],
+      "correct": true,
+      "exact": true,
+      "statistic": null,
+      "df": null,
+      "p_value": null,
+      "r_statistic": null,
+      "discordant": 0,
+      "pairs_dropped": 3
     }
   ]
 }
-// golden-hash: 2cd48f90676ae6e914851f0cdf69ff3ed7047c8e500346d7092f78ad56627739
+// golden-hash: 6bb74a84868baf74cd9ae2bfc15cda57c9606636095eba4abb273eaba17bde3b
