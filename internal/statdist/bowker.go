@@ -8,13 +8,14 @@ import (
 
 // BowkerExactMaxTerms bounds the work of BowkerExactP: the number of
 // (statistic value, mass) terms the convolution enumerates, summed over
-// every pair step (2^20). Past it the caller refuses the exact test
+// every pair step (2^22). Past it the caller refuses the exact test
 // rather than fall back to the chi-square approximation. At the cap a
-// run holds about 16 MB of terms for some 40 ms; it admits the tables
-// the exact test is for — small discordant counts: up to about 200
-// moves per pair on a 3 x 3, about 20 on a 4 x 4, about 8 on a 6 x 6 —
-// and a table past it has counts large enough for the chi-square.
-const BowkerExactMaxTerms = 1 << 20
+// run holds about 64 MB of terms for some 150 ms; it admits the tables
+// the exact test is for — small discordant counts (how many moves per
+// pair depends on how the pair values merge: several hundred on a
+// 3 x 3) — and a table past it has counts large enough for the
+// chi-square.
+const BowkerExactMaxTerms = 1 << 22
 
 // bowkerRelErr is the tolerance on the statistic comparison, R
 // fisher.test's relErr convention: an outcome counts as at least as

@@ -59,7 +59,7 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 - An empty pair (`n_ij + n_ji = 0`) is dropped, lowering `df` (R gives NaN). None kept ⇒ statistic / p `null`.
 - `exact` odds: `n_21 = 0` ⇒ ratio and upper `null` (+Inf); `n_12 = 0` ⇒ ratio and lower `0`; no discordant unit ⇒ all `null`.
 - Pair expected `(n_ij + n_ji) / 2 < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW` (never under `exact`).
-- `exact` refusals: probability-weighted cell ⇒ `PULSE_WEIGHT_UNSUPPORTED`; a discordant count > 1e-7 off whole ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`; k × k past 2^20 terms ⇒ `PULSE_OVERLAY_PARAM_MISSING` `exact_too_large`. `conf_level` (same code): no `exact` ⇒ `needs_exact`, k × k ⇒ `needs_2x2`, outside (0, 1) ⇒ `out_of_range`. k × k ones: runtime only.
+- `exact` refusals: probability-weighted cell ⇒ `PULSE_WEIGHT_UNSUPPORTED`; a discordant count > 1e-7 off whole ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`; k × k past 2^22 terms ⇒ `PULSE_OVERLAY_PARAM_MISSING` `exact_too_large`. `conf_level` (same code): no `exact` ⇒ `needs_exact`, k × k ⇒ `needs_2x2`, outside (0, 1) ⇒ `out_of_range`. k × k ones: runtime only.
 - Weighted: Σw table, Kish-scaled under probability (+ `sum_weights`, `n_eff`).
 - Grouper counts differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`; non-count / negative cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`; an undefined (NaN) cell is absent (0).
 
