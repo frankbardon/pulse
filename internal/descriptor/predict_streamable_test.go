@@ -825,6 +825,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		// model-workbench E3-S3: a target encoder's pre-pass reads its
 		// field, target and fit_on from the raw record — a stored column
 		// streams, an earlier feature's column buffers.
+		// U66 E9-S2: an ordered-categorical order statistic keeps its
+		// operator's class — MIN / MAX stream, MEDIAN / PERCENTILE buffer.
+		{"ordered min on categorical streams", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MIN, Field: "g", Params: json.RawMessage(`{"levels":["b","a"]}`)}}}, teSchema},
+		{"ordered max on categorical streams", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MAX, Field: "g", Params: json.RawMessage(`{"ordered":true}`)}}}, teSchema},
+		{"ordered median on categorical buffers", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "g", Params: json.RawMessage(`{"ordered":true}`)}}}, teSchema},
 		{"target encode streams", teReq(`{"target":"y"}`, nil), teSchema},
 		{"target encode fit_on stored streams", teReq(`{"target":"y","fit_on":"s == 0","folds":3,"rng_seed":1}`, nil), teSchema},
 		{"target encode fit_on derived buffers", teReq(`{"target":"y","fit_on":"split == 0"}`, func(r *types.Request) {

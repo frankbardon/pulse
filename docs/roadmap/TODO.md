@@ -827,6 +827,7 @@ Theme documents: see the [roadmap index](README.md).
 
 #### Follow-ups from U66
 - [x] **#717** `OVERLAY_SYMMETRY` `params.exact`: a configurable `conf_level` for the discordant odds-ratio interval (fixed at 95% after E6-S2, binom.test's default). Found in U66 (E6-S2); pulled into U66 by the owner 2026-11-10. Done in U66 (E9-S1): `params.conf_level` in (0, 1), default 0.95, `exact` only (`PULSE_OVERLAY_PARAM_MISSING` `needs_exact` / `out_of_range`, predict and runtime), echoed as `summary.parameters.conf_level`, R-oracle-pinned. · [U66](units/U66-overlay-measure-correctness.md)
+- [x] **#718** Aggregation of an ordered categorical (median, quantile and percentile over the level order, not the codes). Named out of scope by U66; pulled into U66 by the owner 2026-11-10. Done in U66 (E9-S2): opt-in `params.ordered` / `params.levels` on `AGG_MIN`, `AGG_MAX`, `AGG_MEDIAN`, `AGG_PERCENTILE` over a `categorical_*` field — R `quantile(type = 1)` over level ranks, unlisted labels dropped and counted (`n_unlisted`), the figure the level's dictionary index (a code, so the `categorical_code` / `forwarded_code` refusals apply), refusals identical at predict and runtime, R-oracle-pinned. · [U66](units/U66-overlay-measure-correctness.md)
 
 ### E7 — Native vector field types
 - [x] **#151** `vec_f32` / `vec_f64` encoding and the `VECTORS` schema extension section (tag 2); `ReadVector` accessor · [U29](units/U29-vector-field-types.md)
@@ -969,5 +970,4 @@ Deliberately excluded from v1.0.0, decided 2026-11-02; open items with no unit.
 - [ ] **#681** Release signing, SBOM and build-provenance attestations (`release.yml` has `contents: write` only; checksums ship today). Evidence: `v1.0.0-api-and-release/01-release-pipeline.md` ("optional follow-up") · post-v1, no unit
 - [ ] **#682** Homebrew tap (and Scoop) as install channels; today `go install` and the GitHub Release archives are the channels · post-v1, no unit
 - [ ] **#683** Container image published with each release · post-v1, no unit
-- [ ] **#718** Aggregation of an ordered categorical (median, quantile and percentile over the dictionary order, not the codes). Named out of scope by U66; the owner has not yet confirmed the post-v1 placement · post-v1, no unit
 - [ ] **#719** Exact Bowker's test of symmetry for a k × k table (U66 ships the exact 2 × 2 McNemar only; `exact` on k × k is `PULSE_OVERLAY_PARAM_MISSING`). The owner has not yet confirmed the post-v1 placement · post-v1, no unit

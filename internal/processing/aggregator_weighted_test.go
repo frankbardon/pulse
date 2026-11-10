@@ -611,6 +611,11 @@ func TestWeightedCore_ComponentsDeclared(t *testing.T) {
 					declaredFloor[k.Name] = true
 					continue
 				}
+				if k.Name == "n_unlisted" {
+					// Ordered-categorical slots only (params.ordered /
+					// levels): this numeric slot never emits it.
+					continue
+				}
 				want = append(want, k.Name)
 			}
 			for _, k := range []string{"sum_weights", "n_eff", "n_weight_invalid"} {

@@ -147,14 +147,14 @@ func schemaFieldTypes(schema *encoding.Schema) fieldTypeLookup {
 }
 
 // codeInput returns the input field type that makes a a categorical
-// code under kinds (IsCode), ok false when it is not one. inputType nil
+// code under kinds (IsCodeSlot), ok false when it is not one. inputType nil
 // judges nothing.
 func codeInput(a *types.Aggregation, kinds vectors.AggregationKinds, inputType fieldTypeLookup) (encoding.FieldType, bool) {
-	if a == nil || inputType == nil || a.Field == "" || !kinds.EmitsInputValue(a.Type) {
+	if a == nil || inputType == nil || a.Field == "" || !kinds.EmitsInputValueSlot(a) {
 		return 0, false
 	}
 	ft, ok := inputType(a.Field)
-	if !ok || !kinds.IsCode(a.Type, ft) {
+	if !ok || !kinds.IsCodeSlot(a, ft) {
 		return 0, false
 	}
 	return ft, true

@@ -2633,6 +2633,9 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 					return nil, nil, cerr
 				}
 			} else if f != nil && f.Type.IsDecimal() {
+				if err := orderedDecimalRefusal(agg, p.schema); err != nil {
+					return nil, nil, err
+				}
 				out, err := AggregateDecimalSlot(agg, records, f.Scale)
 				if err != nil {
 					return nil, nil, err

@@ -931,22 +931,33 @@ type percentileAggregator struct {
 }
 
 func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-	p := 50.0
-	paramread.Declare(paramread.Aggregator, string(agg.Type), (*percentileParams)(nil))
-	if len(agg.Params) > 0 {
-		var params percentileParams
-		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
-		}
-		p = params.Percentile
-	}
-	if p < 0 || p > 100 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	p, err := percentileParam(agg)
+	if err != nil {
+		return nil, err
 	}
 	if w := slotWeight(agg); w != nil {
 		return newWeightedQuantileAggregator(types.AGG_PERCENTILE, w, p), nil
 	}
 	return &percentileAggregator{percentile: p}, nil
+}
+
+// percentileParam decodes AGG_PERCENTILE's params.percentile (50 when
+// params are absent) and refuses one outside [0, 100] — the plain and
+// the ordered-categorical constructors share it.
+func percentileParam(agg *types.Aggregation) (float64, error) {
+	p := 50.0
+	paramread.Declare(paramread.Aggregator, string(agg.Type), (*percentileParams)(nil))
+	if len(agg.Params) > 0 {
+		var params percentileParams
+		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
+			return 0, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
+		}
+		p = params.Percentile
+	}
+	if p < 0 || p > 100 {
+		return 0, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	}
+	return p, nil
 }
 
 func (a *percentileAggregator) Aggregate(records []*Record, field string) (float64, error) {

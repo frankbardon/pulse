@@ -12,8 +12,9 @@ import (
 // a synthesised schema (descriptor synthChainSchema on predict,
 // processing.ChainOutputSchema at runtime) that types every
 // aggregation output column f64. An aggregation that writes a code
-// (IsCode — AGG_MODE over a categorical_* / packed_bool field writes
-// the dictionary index / truth value) therefore forwards a CODE in an
+// (IsCodeSlot — AGG_MODE over a categorical_* / packed_bool field writes
+// the dictionary index / truth value, as does an ordered-categorical
+// order statistic) therefore forwards a CODE in an
 // f64 column: AGG_MODE over it at the next stage picks a code again,
 // and an overlay scoring that is scoring codes as magnitudes. The
 // synthesised schema cannot carry the fact (the column is a plain f64
@@ -23,7 +24,7 @@ import (
 
 // StageCodeColumns returns the output columns of the chain stage req
 // that carry a categorical code, each mapped to the field type it is a
-// code of: an aggregation k.IsCode over its input field's type as
+// code of: an aggregation k.IsCodeSlot over its input field's type as
 // inputType reports it (nil: none), keyed by its output label
 // (types.AggregationLabelOf, the column the stage writes). Nil when
 // none does.
@@ -33,11 +34,11 @@ func (k AggregationKinds) StageCodeColumns(req *types.Request, inputType func(fi
 	}
 	var out map[string]encoding.FieldType
 	for _, a := range req.Aggregations {
-		if a == nil || a.Field == "" || !k.EmitsInputValue(a.Type) {
+		if a == nil || a.Field == "" || !k.EmitsInputValueSlot(a) {
 			continue
 		}
 		ft, ok := inputType(a.Field)
-		if !ok || !k.IsCode(a.Type, ft) {
+		if !ok || !k.IsCodeSlot(a, ft) {
 			continue
 		}
 		if out == nil {

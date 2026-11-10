@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/orderedcat"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -58,7 +59,12 @@ func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schem
 			return
 		}
 		op := string(opRoute(inst, a.Type))
-		check(op, fieldaccept.SlotField, a.Field)
+		// An order statistic requesting the ordered-categorical reading
+		// is judged by its own rule (validateOrderedAggregations,
+		// internal/orderedcat), which replaces the table's row.
+		if !orderedcat.Requested(types.AggregationType(op), a.Params) {
+			check(op, fieldaccept.SlotField, a.Field)
+		}
 		if op == string(types.AGG_RATIO) {
 			// AGG_RATIO sums its two params columns, numerator first —
 			// the constructor's order, after its params parse (a

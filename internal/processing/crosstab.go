@@ -1567,6 +1567,9 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 				return cellAggregationResult{}, nil, 0, 0, cerr
 			}
 		} else if f != nil && f.Type.IsDecimal() {
+			if err := orderedDecimalRefusal(slot, p.schema); err != nil {
+				return cellAggregationResult{}, nil, 0, 0, err
+			}
 			out, err := AggregateDecimalSlot(slot, bucket, f.Scale)
 			if err != nil {
 				return cellAggregationResult{}, nil, 0, 0, err

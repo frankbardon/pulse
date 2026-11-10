@@ -1451,8 +1451,22 @@
         {
           "name": "AGG_MAX",
           "category": "aggregator",
-          "description": "Largest non-null value of the field.",
-          "params": null,
+          "description": "Largest non-null value of the field; with params.ordered / params.levels, the highest level of a categorical.",
+          "params": [
+            {
+              "name": "ordered",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "true reads a categorical_* field's dictionary order as its level order (otherwise a categorical is refused); the figure is the chosen level's dictionary index — a code, as AGG_MODE's. On any other field PROCESSING_CONFIG reason ordered_needs_categorical."
+            },
+            {
+              "name": "levels",
+              "type": "list",
+              "required": false,
+              "description": "Level order, lowest first, by label (implies ordered). A row whose label is unlisted is dropped and counted in components n_unlisted. A label not in the dictionary is PROCESSING_CONFIG reason unknown_level, one listed twice duplicate_level."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -1466,7 +1480,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1483,7 +1497,13 @@
               {
                 "name": "max",
                 "type": "float64",
-                "description": "Largest non-null value observed."
+                "description": "Largest non-null value observed (ordered: the highest level's dictionary index)."
+              },
+              {
+                "name": "n_unlisted",
+                "type": "int",
+                "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+                "optional": true
               }
             ],
             "mergeability": "mergeable"
@@ -1496,8 +1516,22 @@
         {
           "name": "AGG_MEDIAN",
           "category": "aggregator",
-          "description": "50th percentile of the field; requires sorting the full value set.",
-          "params": null,
+          "description": "50th percentile of the field; requires sorting the full value set. With params.ordered / params.levels, the median level of a categorical (R quantile type 1 over level ranks, no interpolation).",
+          "params": [
+            {
+              "name": "ordered",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "true reads a categorical_* field's dictionary order as its level order (otherwise a categorical is refused); the figure is the chosen level's dictionary index — a code, as AGG_MODE's. On any other field PROCESSING_CONFIG reason ordered_needs_categorical."
+            },
+            {
+              "name": "levels",
+              "type": "list",
+              "required": false,
+              "description": "Level order, lowest first, by label (implies ordered). A row whose label is unlisted is dropped and counted in components n_unlisted. A label not in the dictionary is PROCESSING_CONFIG reason unknown_level, one listed twice duplicate_level."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -1510,7 +1544,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": false,
           "streamable_hint": "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
           "component_schema": {
@@ -1556,7 +1590,13 @@
               {
                 "name": "median",
                 "type": "float64",
-                "description": "Resolved median value (linear interpolation between the bracketing positions)."
+                "description": "Resolved median value (linear interpolation between the bracketing positions). Ordered: the chosen level's dictionary index; both positions are its 0-based rank."
+              },
+              {
+                "name": "n_unlisted",
+                "type": "int",
+                "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+                "optional": true
               }
             ],
             "mergeability": "none"
@@ -1574,8 +1614,22 @@
         {
           "name": "AGG_MIN",
           "category": "aggregator",
-          "description": "Smallest non-null value of the field.",
-          "params": null,
+          "description": "Smallest non-null value of the field; with params.ordered / params.levels, the lowest level of a categorical.",
+          "params": [
+            {
+              "name": "ordered",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "true reads a categorical_* field's dictionary order as its level order (otherwise a categorical is refused); the figure is the chosen level's dictionary index — a code, as AGG_MODE's. On any other field PROCESSING_CONFIG reason ordered_needs_categorical."
+            },
+            {
+              "name": "levels",
+              "type": "list",
+              "required": false,
+              "description": "Level order, lowest first, by label (implies ordered). A row whose label is unlisted is dropped and counted in components n_unlisted. A label not in the dictionary is PROCESSING_CONFIG reason unknown_level, one listed twice duplicate_level."
+            }
+          ],
           "accepts_types": [
             "date",
             "datetime",
@@ -1589,7 +1643,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1606,7 +1660,13 @@
               {
                 "name": "min",
                 "type": "float64",
-                "description": "Smallest non-null value observed."
+                "description": "Smallest non-null value observed (ordered: the lowest level's dictionary index)."
+              },
+              {
+                "name": "n_unlisted",
+                "type": "int",
+                "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+                "optional": true
               }
             ],
             "mergeability": "mergeable"
@@ -1833,13 +1893,26 @@
         {
           "name": "AGG_PERCENTILE",
           "category": "aggregator",
-          "description": "Configurable percentile of the field; requires sorting the full value set.",
+          "description": "Configurable percentile of the field; requires sorting the full value set. With params.ordered / params.levels, a level of a categorical (R quantile type 1 over level ranks, no interpolation).",
           "params": [
             {
               "name": "percentile",
               "type": "float",
               "required": true,
               "description": "Percentile to compute, in [0, 100]. e.g. 95 for p95."
+            },
+            {
+              "name": "ordered",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "true reads a categorical_* field's dictionary order as its level order (otherwise a categorical is refused); the figure is the chosen level's dictionary index — a code, as AGG_MODE's. On any other field PROCESSING_CONFIG reason ordered_needs_categorical."
+            },
+            {
+              "name": "levels",
+              "type": "list",
+              "required": false,
+              "description": "Level order, lowest first, by label (implies ordered). A row whose label is unlisted is dropped and counted in components n_unlisted. A label not in the dictionary is PROCESSING_CONFIG reason unknown_level, one listed twice duplicate_level."
             }
           ],
           "accepts_types": [
@@ -1854,7 +1927,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": false,
           "streamable_hint": "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
           "component_schema": {
@@ -1910,12 +1983,18 @@
               {
                 "name": "method",
                 "type": "string",
-                "description": "Interpolation method (e.g. \"linear\")."
+                "description": "Interpolation method (\"linear\"; ordered: \"type1\", no interpolation)."
               },
               {
                 "name": "value",
                 "type": "float64",
-                "description": "Resolved percentile value."
+                "description": "Resolved percentile value. Ordered: the chosen level's dictionary index; position is its 0-based rank, lower = upper = value."
+              },
+              {
+                "name": "n_unlisted",
+                "type": "int",
+                "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+                "optional": true
               }
             ],
             "mergeability": "none"
@@ -15261,7 +15340,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 273,
+    "examples_count": 274,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -18632,7 +18711,13 @@
             {
               "name": "max",
               "type": "float64",
-              "description": "Largest non-null value observed."
+              "description": "Largest non-null value observed (ordered: the highest level's dictionary index)."
+            },
+            {
+              "name": "n_unlisted",
+              "type": "int",
+              "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -18680,7 +18765,13 @@
             {
               "name": "median",
               "type": "float64",
-              "description": "Resolved median value (linear interpolation between the bracketing positions)."
+              "description": "Resolved median value (linear interpolation between the bracketing positions). Ordered: the chosen level's dictionary index; both positions are its 0-based rank."
+            },
+            {
+              "name": "n_unlisted",
+              "type": "int",
+              "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+              "optional": true
             }
           ],
           "mergeability": "none"
@@ -18700,7 +18791,13 @@
             {
               "name": "min",
               "type": "float64",
-              "description": "Smallest non-null value observed."
+              "description": "Smallest non-null value observed (ordered: the lowest level's dictionary index)."
+            },
+            {
+              "name": "n_unlisted",
+              "type": "int",
+              "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -18874,12 +18971,18 @@
             {
               "name": "method",
               "type": "string",
-              "description": "Interpolation method (e.g. \"linear\")."
+              "description": "Interpolation method (\"linear\"; ordered: \"type1\", no interpolation)."
             },
             {
               "name": "value",
               "type": "float64",
-              "description": "Resolved percentile value."
+              "description": "Resolved percentile value. Ordered: the chosen level's dictionary index; position is its 0-based rank, lower = upper = value."
+            },
+            {
+              "name": "n_unlisted",
+              "type": "int",
+              "description": "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure.",
+              "optional": true
             }
           ],
           "mergeability": "none"
@@ -21239,4 +21342,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ce57bee33b13980fa027081d55f1c0e816c9e071dc8995751ab7452c435505ab
+// golden-hash: d7542e946e290fd5bf389f101227e481bf8a76281ef72f0cf86b317a74b4e19d
