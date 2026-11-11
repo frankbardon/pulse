@@ -270,9 +270,11 @@ Every write — create, add, remove, compact and `cohort filter` to an
 archive — records in `_schema.pulse`, after the SHRD trailer, the exact
 number of distinct values per shard for each `u32`, `u64`, `date`,
 `datetime`, `f32` and `f64` field (on the stored bit pattern, so `+0` /
-`−0` and distinct NaN payloads count separately; nulls excluded). Predict
-reads them to bound a grouper's keys without touching a record. Older
-readers ignore the trailer, and single-file cohorts carry nothing.
+`−0` and distinct NaN payloads count separately; nulls excluded). Under
+`MaxEstimatedMemory`, predict and the run's pre-flight read them to bound
+a grouper's keys without touching a record (the sum of the shards'
+counts; see [Tuning Limits](../library/tuning-limits.md#the-memory-estimate)).
+Older readers ignore the trailer, and single-file cohorts carry nothing.
 
 - **Fresh vs carried.** Create counts every include (each is read twice:
   once to count, once to copy). Add counts the arriving shard and carries

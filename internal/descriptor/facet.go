@@ -180,7 +180,7 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// length-derived record count, or a shard archive's canonical schema
 	// and per-shard header counts: the figures the pre-flight reads off
 	// the cohort Open returns (Service.cohortCounts). Never a record.
-	schema, counts, fault := readCohortHead(fileData)
+	schema, counts, fault := readCohortHead(fileData, false)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false

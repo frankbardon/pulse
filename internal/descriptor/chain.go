@@ -269,7 +269,7 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// whose pre-flight reads the same counts: a single file's
 	// length-derived count (an anchor-opened shard is one), or a shard
 	// archive's per-shard header counts and directory bytes.
-	schema, stage0Counts, fault := readCohortHead(fileData)
+	schema, stage0Counts, fault := readCohortHead(fileData, opts.memoryBounded())
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
