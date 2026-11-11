@@ -420,10 +420,19 @@ type DictRemap = map[uint32]uint32
 // categorical field it computes the union of canonical's and
 // incoming's dictionaries: canonical entries first in their existing
 // order, then any new entries from incoming in their order. Returns
-// the extended canonical schema (deep copy when an extension is
-// adopted; identical pointer when not) and a per-field-index map of
-// DictRemap entries describing how to translate incoming record
-// indices into canonical indices.
+// the extended canonical schema and a per-field-index map of DictRemap
+// entries describing how to translate incoming record indices into
+// canonical indices.
+//
+// The returned schema is canonical ITSELF unless the union adds an
+// entry: an incoming dictionary that only re-orders or subsets
+// canonical's needs a remap but no new schema. When the union does
+// grow, the result is a copy-on-write sibling of canonical — the grown
+// dictionaries are new, every other dictionary is SHARED by pointer
+// (dictionaries are never mutated once a schema holds them). A create
+// that folds N sources keeps each merge's result alive in that source's
+// replay plan, so this is what holds the plan to O(distinct schemas x
+// grown dictionary) instead of O(N x every dictionary).
 //
 // The structural validator (ValidateStructuralCohesion) must run
 // FIRST — this validator assumes field positions, names, and
@@ -496,17 +505,22 @@ func MergeDictUnion(canonical, incoming *encoding.Schema) (*encoding.Schema, map
 				})
 		}
 
-		// Adopt the extension on canonical.
-		if extended == nil {
-			extended = cloneSchema(canonical)
-		}
-		extDict := encoding.NewDictionary()
-		for _, v := range unionVals {
-			if _, err := extDict.Add(v); err != nil {
-				return nil, nil, err
+		// Adopt the extension on canonical — only when the union grew.
+		// An incoming dictionary of canonical's own values in another
+		// order is just a remap: canonical already IS the union, and a
+		// copy of it here would be one more full snapshot per source.
+		if len(unionVals) > len(cv) {
+			if extended == nil {
+				extended = shareSchema(canonical)
 			}
+			extDict := encoding.NewDictionary()
+			for _, v := range unionVals {
+				if _, err := extDict.Add(v); err != nil {
+					return nil, nil, err
+				}
+			}
+			extended.Fields[i].Dictionary = extDict
 		}
-		extended.Fields[i].Dictionary = extDict
 
 		// Build the incoming → union remap. Identity entries are
 		// omitted so callers can skip work when remap[oldIdx] == oldIdx.
@@ -794,6 +808,19 @@ func cloneSchema(s *encoding.Schema) *encoding.Schema {
 			out.Fields[i].Dictionary = d
 		}
 	}
+	out.Groups = cloneGroups(s.Groups)
+	out.Vectors = CloneVectors(s.Vectors)
+	return out
+}
+
+// shareSchema is the copy-on-write sibling of s MergeDictUnion extends:
+// field descriptors are copied by value, so a dictionary the caller
+// REPLACES leaves s untouched, while every dictionary it does not
+// replace is shared by pointer rather than rebuilt. Groups and vectors
+// are cloned as cloneSchema clones them (they are small and a caller
+// may mutate them).
+func shareSchema(s *encoding.Schema) *encoding.Schema {
+	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...)}
 	out.Groups = cloneGroups(s.Groups)
 	out.Vectors = CloneVectors(s.Vectors)
 	return out
