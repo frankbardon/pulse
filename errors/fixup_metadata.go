@@ -2402,6 +2402,25 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_APPEND_INCOMPLETE: {
+		Message: "The shard archive's in-place `shard add` did not finish: its append journal marker is still beside it, so the archive is refused rather than read as a torn or pre-append view.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"--repair"},
+				Hint:   "Run `pulse shard verify --repair <archive>` (library: RepairShardArchive): it checks the journalled length and tail checksum, truncates the archive back to its pre-append bytes and removes the marker; then re-run the `shard add`. `details.journal` is the marker path. Never delete the marker by hand — that publishes whatever torn tail the crash left.",
+			},
+		},
+	},
+	PULSE_SHARD_REPAIR_REFUSED: {
+		Message: "The append journal does not describe the archive on disk, so the repair truncated nothing and kept the marker.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "`details.reason` says what disagreed: journal_invalid (the marker does not decode), archive_shorter_than_journal, tail_checksum_mismatch or tail_not_an_archive (the archive was changed after the interrupted append). Restore the archive from a copy, or rebuild it with `pulse shard create` from its source shards, then remove `details.journal`.",
+			},
+		},
+	},
 	PULSE_SHARD_COUNT_LIMIT: {
 		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
 		Fixups: []Fixup{

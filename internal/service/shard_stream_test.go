@@ -474,7 +474,8 @@ func (d *syncSpyDir) Sync() error {
 
 // TestShardStream_DirectorySyncedAfterRename: every archive mutation
 // fsyncs the archive's directory AFTER the rename, so the published name
-// itself survives a crash.
+// itself survives a crash; the in-place tail append renames only its
+// journal, syncing the directory after publishing and after removing it.
 func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 	t.Parallel()
 
@@ -493,7 +494,7 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 	steps := []struct {
 		name   string
 		run    func() error
-		noSync bool // an in-place tail append renames nothing
+		append bool // an in-place tail append renames only its journal
 	}{
 		{"create", func() error {
 			_, err := svc.CreateShardArchive(ctx, "d/arch.pulse", []string{"d/a.pulse"})
@@ -509,8 +510,10 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 			t.Fatalf("%s: %v", st.name, err)
 		}
 		want := []string{"rename d/arch.pulse", "syncdir d"}
-		if st.noSync {
-			want = nil
+		if st.append {
+			// The journal is published (renamed, directory synced) before
+			// the first archive byte, and its removal synced after.
+			want = []string{"rename d/arch.pulse.append", "syncdir d", "syncdir d"}
 		}
 		if !slices.Equal(spy.events, want) {
 			t.Errorf("%s: events %v, want %v", st.name, spy.events, want)

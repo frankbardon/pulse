@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -41,9 +42,15 @@ import (
 //
 // Failure: any write, flush or fsync error truncates the archive back
 // to its old length (its old EOCD is then the file's last record again)
-// and returns the error. A crash mid-append is not covered here: the
-// old EOCD may no longer sit in the tail a zip reader searches, which
-// is what the append journal recovers.
+// and returns the error. A CRASH mid-append is the append journal's
+// (U73 E2-S2): before the first archive byte, `<archive>.append`
+// records the old length and a CRC-32 of the old tail, durably; it is
+// removed only once the appended bytes are synced. A surviving marker
+// makes every path-based open refuse the archive
+// (PULSE_SHARD_APPEND_INCOMPLETE) until RepairShardArchive truncates it
+// back — the old EOCD may otherwise sit outside the tail a zip reader
+// searches (unopenable), or inside it with a torn tail after it (read
+// silently as the pre-append view).
 //
 // Index upkeep is still BUILT BEFORE PUBLISH: the new shard's sidecars
 // and the updated manifest are staged from an in-memory twin archive
@@ -75,8 +82,13 @@ func (s *Service) appendShard(fsys afero.Fs, archivePath string, a *archiveFile,
 		defer upkeep.abort()
 	}
 
-	// The read handle goes before the write handle opens: nothing of the
-	// archive is read past this point.
+	// The journal's tail checksum is read while the read handle is
+	// open; nothing of the archive is read past this point.
+	journal, err := encx.NewAppendJournal(a.ra, dir.Size, base)
+	if err != nil {
+		return nil, err
+	}
+	// The read handle goes before the write handle opens.
 	if err := a.Close(); err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: closing archive %s", archivePath))
@@ -85,7 +97,7 @@ func (s *Service) appendShard(fsys afero.Fs, archivePath string, a *archiveFile,
 	// as it would with a rewrite's.
 	sweepStagedArchives(fsys, archivePath)
 
-	if err := appendArchiveTail(fsys, archivePath, dir, base, m.incoming, schemaDoc); err != nil {
+	if err := s.appendArchiveTail(fsys, archivePath, dir, journal, base, m.incoming, schemaDoc); err != nil {
 		return nil, err
 	}
 	if upkeep != nil {
@@ -133,24 +145,49 @@ func appendRefused(archivePath, shard, reason string, cause error) error {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_APPEND_REFUSED, msg, details)
 }
 
-// appendArchiveTail opens the archive for writing and appends the new
-// shard, the refreshed `_schema.pulse` and the new directory at dir.Size,
-// then fsyncs. Any failure after the write-open truncates the archive
-// back to dir.Size before returning.
-func appendArchiveTail(fsys afero.Fs, archivePath string, dir *encx.ArchiveDirectory, base string, payload, schemaDoc []byte) (err error) {
+// appendSeam observes a tail append (tests only): wrap wraps the
+// archive writer BELOW the buffer, so every byte it passes on has
+// reached the file; at runs at the named phases ("journalled": the
+// marker is durable and no archive byte written; "synced": every
+// appended byte is durable and the marker not yet removed). A crash
+// test snapshots the files at either.
+type appendSeam struct {
+	wrap func(io.Writer) io.Writer
+	at   func(phase string)
+}
+
+func (s *Service) appendPhase(phase string) {
+	if s.appendSeam != nil && s.appendSeam.at != nil {
+		s.appendSeam.at(phase)
+	}
+}
+
+// appendArchiveTail opens the archive for writing, journals the append
+// (`<archive>.append`, synced), appends the new shard, the refreshed
+// `_schema.pulse` and the new directory at dir.Size, fsyncs, then
+// removes the journal. Any failure after the write-open truncates the
+// archive back to dir.Size before returning; the journal is removed
+// only once that rollback is durable, so an archive the rollback could
+// not restore stays refused until a repair.
+func (s *Service) appendArchiveTail(fsys afero.Fs, archivePath string, dir *encx.ArchiveDirectory, journal *encx.AppendJournal,
+	base string, payload, schemaDoc []byte) (err error) {
 	f, err := fsys.OpenFile(archivePath, os.O_WRONLY, 0)
 	if err != nil {
 		return appendRefused(archivePath, base, "open_for_write", err)
 	}
-	closed := false
+	closed, journalled := false, false
 	defer func() {
 		if closed {
 			return
 		}
-		if err != nil {
-			// Roll back: the old EOCD is the last record again.
-			_ = f.Truncate(dir.Size)
-			_ = f.Sync()
+		if err != nil && journalled {
+			// Roll back: the old EOCD is the last record again. The
+			// journal goes only when the rollback is durable.
+			if f.Truncate(dir.Size) == nil && f.Sync() == nil {
+				_ = f.Close()
+				removeAppendJournal(fsys, archivePath)
+				return
+			}
 		}
 		_ = f.Close()
 	}()
@@ -167,12 +204,24 @@ func appendArchiveTail(fsys afero.Fs, archivePath string, dir *encx.ArchiveDirec
 		return appendRefused(archivePath, base, "archive_changed",
 			fmt.Errorf("archive is %d bytes, was %d when read", st.Size(), dir.Size))
 	}
+	// The journal is durable before the first archive byte: from here a
+	// crash leaves a marker every open refuses.
+	if err = encx.WriteAppendJournal(fsys, archivePath, journal); err != nil {
+		return err
+	}
+	syncDir(fsys, filepath.Dir(archivePath))
+	journalled = true
+	s.appendPhase("journalled")
 	if _, err = f.Seek(dir.Size, io.SeekStart); err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: seeking to the tail of %s", archivePath))
 	}
 
-	bw := bufio.NewWriterSize(f, shardCopyBuffer)
+	var w io.Writer = f
+	if s.appendSeam != nil && s.appendSeam.wrap != nil {
+		w = s.appendSeam.wrap(w)
+	}
+	bw := bufio.NewWriterSize(w, shardCopyBuffer)
 	ap := encx.NewArchiveAppender(bw, dir.Size)
 	shardRec, err := ap.WriteEntry(base, payload)
 	if err != nil {
@@ -203,9 +252,20 @@ func appendArchiveTail(fsys afero.Fs, archivePath string, dir *encx.ArchiveDirec
 	}
 	closed = true
 	if err = f.Close(); err != nil {
-		// The bytes are durable (fsync succeeded); report the close.
+		// The bytes are durable (fsync succeeded); report the close. The
+		// journal stays: the next open refuses and a repair rolls back.
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: closing %s", archivePath))
 	}
+	s.appendPhase("synced")
+	removeAppendJournal(fsys, archivePath)
 	return nil
+}
+
+// removeAppendJournal removes the marker (and any stage of it) and
+// syncs the directory, so the removal is as durable as the append.
+func removeAppendJournal(fsys afero.Fs, archivePath string) {
+	_ = fsys.Remove(encx.AppendJournalPath(archivePath))
+	_ = fsys.Remove(encx.AppendJournalStagePath(archivePath))
+	syncDir(fsys, filepath.Dir(archivePath))
 }

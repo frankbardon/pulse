@@ -40,7 +40,8 @@ import (
 // whatever the archive's size, and the superseded `_schema.pulse` and
 // directory stay behind as dead bytes (CompactShardArchive reclaims
 // them). A write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED,
-// nothing written.
+// nothing written; a crash mid-append is journalled (shard_append.go)
+// and rolled back by RepairShardArchive.
 //
 // Streaming rewrite: when the archive itself moves (an archive-level set
 // widen, a constant-group promotion) — or its tail is a layout the

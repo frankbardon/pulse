@@ -314,6 +314,10 @@ func obsCalls() []obsCall {
 			_, err := p.VerifyShardArchive(ctx, "arch.pulse")
 			return err
 		}},
+		{"RepairShardArchive", observe.OpShardVerify, func(ctx context.Context, p *Pulse) error {
+			_, err := p.RepairShardArchive(ctx, "arch.pulse")
+			return err
+		}},
 		{"RenderTemplate", observe.OpTemplateRender, func(ctx context.Context, p *Pulse) error { _, err := p.RenderTemplate("none", nil); return err }},
 		{"RenderTemplateRequest", observe.OpTemplateRender, func(ctx context.Context, p *Pulse) error {
 			_, err := p.RenderTemplateRequest("none", nil)

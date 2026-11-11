@@ -135,6 +135,9 @@ func measureSegment(ra io.ReaderAt, size int64, geometry *encoding.Schema) (reco
 // verify` applies — so decoding with canonical yields the shard's own
 // values; a shard that breaks either is refused with the verify code.
 func openArchiveRecordReader(fsys afero.Fs, path string, canonical *encoding.Schema, shards []ShardEntry, only string) (*CohortRecordReader, error) {
+	if err := encx.RefuseIncompleteAppend(fsys, path); err != nil {
+		return nil, err
+	}
 	f, size, ra, err := openReaderFile(fsys, path)
 	if err != nil {
 		return nil, err

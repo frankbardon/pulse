@@ -228,6 +228,17 @@ uncompressed) writes only past the archive's old end:
   `PULSE_SHARD_APPEND_REFUSED`, nothing written.
 - **A failed write** truncates the archive back to its old length before
   the error returns.
+- **A crash mid-append** is caught by the append journal. Before the
+  first byte the add writes `<archive>.append` (the old length and a
+  checksum of the old tail, synced) and removes it once the append is
+  synced. While it exists every open of the archive refuses with
+  `PULSE_SHARD_APPEND_INCOMPLETE`, since the tail may be torn or read as
+  the pre-append view. `pulse shard verify --repair` (library:
+  `RepairShardArchive`) truncates the archive back to its pre-append
+  bytes and removes the journal; it refuses with
+  `PULSE_SHARD_REPAIR_REFUSED`, changing nothing, when the journal does
+  not match the archive. A binary older than the journal ignores it, so
+  repair with a current build before any older one touches the archive.
 - An archive whose tail the appender does not extend (data prepended to
   the zip, bytes after its end record, a multi-disk layout) or that
   holds a deflated entry takes the rewrite below instead.

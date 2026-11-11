@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/afero"
 
 	perrors "github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/model"
@@ -305,6 +306,12 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "saved SEM fit file",
 			filename: "brand" + model.SEMSuffix,
 			body:     semFitFileFixture,
+		},
+		{
+			// Not a *.json name at all: the loader never parses it.
+			name:     "shard archive append journal",
+			filename: "cohort.pulse" + encx.AppendJournalSuffix,
+			body:     `{"journal_format_version":1,"archive_size":10,"tail_length":10,"tail_crc32":1}`,
 		},
 	}
 	for _, tc := range cases {

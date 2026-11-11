@@ -53,6 +53,11 @@ type Service struct {
 	// — so a test can wait out a tiny deadline deterministically.
 	entryHook func(ctx context.Context)
 
+	// appendSeam, when set (tests only), observes the in-place tail
+	// append of AddShard (shard_append.go) so a crash test can snapshot
+	// the files at every phase.
+	appendSeam *appendSeam
+
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
 	// parallelDecodeRecordThreshold and the request is mergeable.
@@ -503,6 +508,10 @@ func (s *Service) open(ctx context.Context, path string, exact bool) (*Cohort, e
 	if n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
 		// Shard archive: random access over this handle. The deferred
 		// Close above releases it once the directory and headers are read.
+		// An interrupted append is refused first; Open never repairs.
+		if jerr := encx.RefuseIncompleteAppend(s.fs.Fs(), path); jerr != nil {
+			return nil, jerr
+		}
 		a, aerr := archiveFromFile(f, path)
 		if aerr != nil {
 			return nil, aerr

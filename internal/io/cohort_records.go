@@ -85,6 +85,11 @@ func OpenCohortRecords(fsys afero.Fs, path string) (*CohortRecords, error) {
 		}
 		path = archivePath
 	}
+	// An archive with an interrupted in-place append is refused
+	// (PULSE_SHARD_APPEND_INCOMPLETE); a single file never has a journal.
+	if err := encx.RefuseIncompleteAppend(fsys, path); err != nil {
+		return nil, err
+	}
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, readingPulseFileError(path, err)

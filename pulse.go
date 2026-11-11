@@ -3110,7 +3110,10 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // archive's old end (bytes written O(the new shard + the directory); the
 // superseded entries stay as dead bytes until CompactShardArchive). A
 // write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED with
-// nothing written; a failed write truncates the archive back. A reader
+// nothing written; a failed write truncates the archive back. A crash
+// mid-append leaves the `<archive>.append` journal, and every open then
+// refuses the archive (PULSE_SHARD_APPEND_INCOMPLETE) until
+// RepairShardArchive rolls it back. A reader
 // opened before the append keeps reading every shard it saw. An add
 // that moves the archive (below) instead streams a new archive into a
 // staged file beside the original (memory O(the new shard)) and
@@ -3271,6 +3274,28 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 func (p *Pulse) verifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
 	return p.svc.VerifyShardArchive(ctx, archivePath)
 }
+
+// RepairShardArchive rolls back an interrupted in-place `shard add`.
+// An append journals the archive's length and a checksum of its old
+// tail in `<archive>.append` before writing, and removes the journal
+// once the append is synced; a journal that survives (a crash) makes
+// every open of the archive refuse it with PULSE_SHARD_APPEND_INCOMPLETE.
+// RepairShardArchive checks the journal against the archive (length,
+// tail CRC-32, the journalled prefix parses as an archive), truncates
+// the archive back to its pre-append bytes and removes the journal; a
+// mismatch is PULSE_SHARD_REPAIR_REFUSED with nothing changed. Without
+// a journal it changes nothing (Repaired false). `pulse shard verify
+// --repair` runs it before verifying.
+func (p *Pulse) RepairShardArchive(ctx context.Context, archivePath string) (*ShardRepairResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardVerify, path: archivePath}, func(ctx context.Context) (*ShardRepairResult, error) {
+		return p.svc.RepairShardArchive(ctx, archivePath)
+	})
+}
+
+// ShardRepairResult is RepairShardArchive's outcome: whether a journal
+// was rolled back, the shard whose append it was, and the archive's
+// size before and after the truncation.
+type ShardRepairResult = service.ShardRepairResult
 
 // VerifyResult carries the structured outcome of VerifyShardArchive.
 // Errors aggregate every fatal cohesion failure discovered while

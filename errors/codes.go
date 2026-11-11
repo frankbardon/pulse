@@ -1643,6 +1643,27 @@ const (
 	// rewrite (`--rewrite`) stages a new file and renames it instead.
 	PULSE_SHARD_APPEND_REFUSED Code = "PULSE_SHARD_APPEND_REFUSED"
 
+	// PULSE_SHARD_APPEND_INCOMPLETE indicates a shard archive whose
+	// in-place `shard add` did not finish: its append journal marker
+	// (`<archive>.append`) is still beside it, so the archive may end in a
+	// torn tail — unopenable, or silently readable as its pre-append view.
+	// Every path-based open (Open, Inspect, Predict, CountRecords, Lookup,
+	// export, every shard leaf) refuses it; Open never repairs. details:
+	// archive, journal. `pulse shard verify --repair` rolls the append
+	// back.
+	PULSE_SHARD_APPEND_INCOMPLETE Code = "PULSE_SHARD_APPEND_INCOMPLETE"
+
+	// PULSE_SHARD_REPAIR_REFUSED indicates `pulse shard verify --repair`
+	// (RepairShardArchive) would not roll an interrupted append back
+	// because the journal does not describe the archive on disk: the
+	// marker does not decode (journal_invalid), the archive is shorter
+	// than the journalled length (archive_shorter_than_journal), the
+	// archive's bytes at the journalled tail no longer carry its checksum
+	// (tail_checksum_mismatch), or the journalled prefix is not a
+	// readable archive (tail_not_an_archive). Nothing was truncated and
+	// the marker stays. details: archive, journal, reason, cause.
+	PULSE_SHARD_REPAIR_REFUSED Code = "PULSE_SHARD_REPAIR_REFUSED"
+
 	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
 	// when `pulse shard add` / `shard remove` keeps the archive's
 	// point-lookup indexes in step: an add builds the new shard's sidecar
@@ -4961,6 +4982,8 @@ var allCodes = []Code{
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_SHARD_COUNT_LIMIT,
 	PULSE_SHARD_APPEND_REFUSED,
+	PULSE_SHARD_APPEND_INCOMPLETE,
+	PULSE_SHARD_REPAIR_REFUSED,
 	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,

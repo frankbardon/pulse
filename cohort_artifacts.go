@@ -21,6 +21,9 @@ import (
 //   - cohort.pulse.indexes.json  — the index discovery manifest
 //   - cohort.pulse.spss.json     — the SPSS metadata sidecar
 //   - cohort.pulse.meta.json     — the managed-import handle metadata
+//   - cohort.pulse.append        — a shard archive's interrupted-append
+//     journal (present only after a crash mid `shard add`; it must
+//     travel with the archive, whose every open it makes refuse)
 //
 // It is the answer to "what must travel with this cohort": moving or
 // copying the cohort together with every returned path keeps Lookup
@@ -56,6 +59,7 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 		filepath.Base(encx.IndexManifestPath(cohort)): true, // .indexes.json
 		filepath.Base(spsssidecar.Path(cohort)):       true, // .spss.json
 		base + imports.SidecarSuffix:                  true, // .meta.json
+		filepath.Base(encx.AppendJournalPath(cohort)): true, // .append
 	}
 	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}\.idx$`)
 

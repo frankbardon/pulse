@@ -307,6 +307,7 @@ func shardVerifyCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "repair", Usage: "First roll back an interrupted in-place shard add (truncate to the journalled length, remove the journal); refuses when the journal does not match the archive"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -320,6 +321,13 @@ func shardVerifyCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
+			var repair *pulse.ShardRepairResult
+			if cmd.Bool("repair") {
+				repair, err = p.RepairShardArchive(ctx, archive)
+				if err != nil {
+					return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
+				}
+			}
 			result, err := p.VerifyShardArchive(ctx, archive)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
@@ -328,8 +336,16 @@ func shardVerifyCmd() *cli.Command {
 			if jsonOut {
 				// Re-shape into the envelope's structured {errors, warnings}
 				// list so it merges cleanly with the standard envelope.
-				env := newEnvelopeShardVerify(archive, result)
-				return writeJSON(cmd.Writer, env)
+				return writeJSON(cmd.Writer, newEnvelopeShardVerify(archive, result, repair))
+			}
+
+			if repair != nil {
+				if repair.Repaired {
+					writeText(cmd.Writer, "Repaired %s: rolled back the interrupted append of %s (%d -> %d bytes)\n",
+						archive, repair.Shard, repair.SizeBefore, repair.ArchiveSize)
+				} else {
+					writeText(cmd.Writer, "Repair: %s has no interrupted append\n", archive)
+				}
 			}
 
 			writeText(cmd.Writer, "Verified %s: %d error(s), %d warning(s)\n",
@@ -399,7 +415,10 @@ func shardExtractCmd() *cli.Command {
 // errors/warnings flattened into the envelope's slots. The CLI never
 // builds JSON via fmt.Sprintf — descriptor.NewEnvelope wraps the
 // payload deterministically.
-func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult) *descriptor.Envelope {
+//
+// repair (non-nil only under --repair) rides under data.repair, so a
+// plain verify's envelope is byte-identical to before the flag existed.
+func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult, repair *pulse.ShardRepairResult) *descriptor.Envelope {
 	data := map[string]any{
 		"archive":            archive,
 		"verified":           len(result.Errors) == 0,
@@ -411,6 +430,9 @@ func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult) *descrip
 	// byte-identical to before parent groups existed.
 	if len(result.GroupIndexHeadroom) > 0 {
 		data["group_index_headroom"] = result.GroupIndexHeadroom
+	}
+	if repair != nil {
+		data["repair"] = repair
 	}
 	env := descriptor.NewEnvelope(data)
 	for _, e := range result.Errors {

@@ -609,11 +609,19 @@ func TestHookPanicRecovered(t *testing.T) {
 // decodes a single file's schema through headReader, which replays the
 // magic prefix from an inline buffer — the bytes.Reader + MultiReader
 // pair it replaces cost two allocations per open.
+//
+// Re-pinned by archive-storage E2-S2 (branch archive-storage, on
+// 336f89bc2 + the change, go1.27, arm64): predict 149 → 151 and inspect
+// 65 → 67. The facade's path-based cohort open (openCohortSource) now
+// stats `<cohort>.append` — the interrupted shard-append journal every
+// open refuses (PULSE_SHARD_APPEND_INCOMPLETE) — before reading: the
+// journal path and the Stat are two allocations. Real work on the
+// request path, not observability.
 var obsOffAllocBaseline = map[string]float64{
 	"process":       158,
 	"count_records": 45,
-	"predict":       149,
-	"inspect":       65,
+	"predict":       151,
+	"inspect":       67,
 }
 
 // TestObservabilityOffNoAllocs (FR-30) guards the observability OFF
