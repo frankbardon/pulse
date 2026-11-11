@@ -151,11 +151,12 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 		return nil, err
 	}
 	return &BuildIndexResult{
-		IndexPath:       indexPath,
-		ManifestPath:    encx.IndexManifestPath(path),
-		DistinctKeys:    entry.DistinctKeys,
-		IndexedRecords:  entry.IndexedRecords,
-		ShardIndexPaths: paths,
+		IndexPath:            indexPath,
+		ManifestPath:         encx.IndexManifestPath(path),
+		DistinctKeys:         entry.DistinctKeys,
+		DistinctKeysEstimate: entryDistinctKeysEstimate(entry),
+		IndexedRecords:       entry.IndexedRecords,
+		ShardIndexPaths:      paths,
 	}, nil
 }
 
@@ -185,7 +186,8 @@ func shardSidecarIndex(a *archiveFile, e encx.ArchiveEntry, keys []encx.IndexKey
 // shardManifestRecord is the manifest record of one shard an archive
 // index covers: its identity (e, read from the central directory), its
 // sidecar basename, the sidecar's counts and its key range
-// (encx.IndexKeyRange) — the lookup prune. BuildIndex and shard-add
+// (encx.IndexKeyRange) — the lookup prune — and its distinct-key HLL
+// sketch (encx.IndexHLL, the union estimate). BuildIndex and shard-add
 // index upkeep share it, so both write the identical record.
 func shardManifestRecord(e encx.ArchiveEntry, indexBase string, keys []encx.IndexKeySpec, buckets []encx.IndexBucket) encx.IndexManifestShard {
 	distinct, records := indexBucketCounts(buckets)
@@ -194,7 +196,24 @@ func shardManifestRecord(e encx.ArchiveEntry, indexBase string, keys []encx.Inde
 		Name: e.Name, Size: e.Size, CRC32: e.CRC32,
 		IndexPath: indexBase, DistinctKeys: distinct, IndexedRecords: records,
 		KeyMin: keyMin, KeyMax: keyMax,
+		HLL: encx.IndexHLLFromBuckets(buckets).Encode(),
 	}
+}
+
+// entryDistinctKeysEstimate is a manifest entry's union distinct-key
+// estimate: the exact DistinctKeys for a single-file entry (no Shards —
+// one file holds each key once), the merged shard sketches for an
+// archive entry, nil when any covered shard records no sketch.
+func entryDistinctKeysEstimate(entry encx.IndexManifestEntry) *int {
+	if len(entry.Shards) == 0 {
+		n := entry.DistinctKeys
+		return &n
+	}
+	n, ok := encx.IndexDistinctKeysEstimate(entry.Shards)
+	if !ok {
+		return nil
+	}
+	return &n
 }
 
 // archiveIndexEntry returns the archive's manifest entry for the

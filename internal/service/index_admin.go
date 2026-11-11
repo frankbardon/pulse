@@ -26,13 +26,17 @@ import (
 // the index's logical path (SidecarIndexPath over the archive — no file
 // lives there), ShardIndexPaths the per-shard sidecars in archive
 // order, and the counts the per-shard sums (a key present in k shards
-// counts k times).
+// counts k times). DistinctKeysEstimate is the union figure: exact
+// (= DistinctKeys) for a single file, the merged per-shard HyperLogLog
+// sketches for an archive (BuildIndexResult.DistinctKeysEstimate), nil
+// when unknown.
 type IndexInfo struct {
-	IndexPath       string
-	Keys            []string
-	DistinctKeys    int
-	IndexedRecords  int
-	ShardIndexPaths []string
+	IndexPath            string
+	Keys                 []string
+	DistinctKeys         int
+	DistinctKeysEstimate *int
+	IndexedRecords       int
+	ShardIndexPaths      []string
 }
 
 // sidecarIndexNameRegexp matches the basename shape
@@ -153,11 +157,13 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 		if err != nil {
 			return nil, err
 		}
+		distinct := countIndexDistinctKeys(idx)
 		out = append(out, IndexInfo{
-			IndexPath:      full,
-			Keys:           indexKeyNames(idx),
-			DistinctKeys:   countIndexDistinctKeys(idx),
-			IndexedRecords: countIndexIndexedRecords(idx),
+			IndexPath:            full,
+			Keys:                 indexKeyNames(idx),
+			DistinctKeys:         distinct,
+			DistinctKeysEstimate: &distinct,
+			IndexedRecords:       countIndexIndexedRecords(idx),
 		})
 	}
 

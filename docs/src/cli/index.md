@@ -57,12 +57,21 @@ pulse index build --input sales.pulse --key region,date
     "manifest_path": "sales.pulse.indexes.json",
     "keys": ["region", "date"],
     "distinct_keys": 480,
+    "distinct_keys_estimate": 480,
     "indexed_records": 50000
   },
   "errors": [],
   "warnings": []
 }
 ```
+
+`distinct_keys_estimate` is the index's union distinct-key count:
+equal to `distinct_keys` on a single file (exact), and on a shard
+archive — where `distinct_keys` is a per-shard sum that counts a key in
+k shards k times — the merge of each shard's HyperLogLog sketch
+(about 3.25% relative standard error). It is absent when unknown (an
+archive index built before the sketches existed, or one whose catalog
+an older Pulse rewrote), never 0. `list` carries it too.
 
 `manifest_path` is the keyless catalog this build upserted its entry
 into — the one path that can be read to recover this index's key tuple
@@ -188,7 +197,8 @@ pulse index drop --input sales.pulse --key region,date
 - **Shard archives are indexed per shard.** `build` writes one sidecar
   per shard (`data.shard_index_paths`) plus the archive manifest's
   coverage (name, size and zip CRC32 per shard, plus each shard's
-  key range — `key_min` / `key_max`) and a `.bloom` filter beside each
+  key range — `key_min` / `key_max` — and distinct-key sketch, `hll`)
+  and a `.bloom` filter beside each
   shard sidecar; `pulse api lookup` uses both to skip shards that
   cannot hold the key, and `drop` removes the filters with the
   sidecars; `verify` adds

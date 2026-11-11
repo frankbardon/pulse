@@ -62,6 +62,7 @@ pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field DistinctKeys int
+pulse: type BuildIndexResult field DistinctKeysEstimate *int
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
 pulse: type BuildIndexResult field IndexedRecords int
@@ -619,6 +620,7 @@ pulse: type IndexFreshnessReason underlying string
 pulse: type IndexInfo = pulse/internal/service.IndexInfo
 pulse: type IndexInfo underlying struct
 pulse: type IndexInfo field DistinctKeys int
+pulse: type IndexInfo field DistinctKeysEstimate *int
 pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
@@ -6792,4 +6794,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 788cc6926501e01bf13555c765078990f83167b98461d0a6794e3c00b9135201
+// golden-hash: c82d7200c61eb5c985e62068bd04a8b5d08e75ac74f20b5460b837efbee0d4c7

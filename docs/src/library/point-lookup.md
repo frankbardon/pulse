@@ -198,6 +198,21 @@ stamped with other shard bytes is ignored and the shard is probed.
 that differs (`ShardsBloomStale`, reason `bloom_stale`); `DropIndex`
 removes the filters; shard add and remove keep them in step.
 
+**Distinct keys across shards.** On an archive, `DistinctKeys` is the
+sum of the per-shard counts, so a key present in three shards counts
+three times (`IndexedRecords` is exact either way). Each shard's
+manifest record therefore also carries a HyperLogLog sketch of its
+keys (`hll`, 1024 registers, about 1 KB of base64), and
+`BuildIndexResult.DistinctKeysEstimate` / `IndexInfo.DistinctKeysEstimate`
+(`--json` `distinct_keys_estimate`) merge them into a union estimate —
+about 3.25% relative standard error, clamped between the largest
+shard's count and the sum, so a one-shard archive is exact. On a
+single file the field equals `DistinctKeys`. It is `nil` when any
+covered shard's record has no sketch (built before the sketch existed,
+or rewritten by an older Pulse) — unknown, never 0; rebuild the index
+to restore it. Shard add and remove keep the sketches in step; the
+sketch never affects a lookup and `VerifyIndex` does not check it.
+
 `AddShard` and `RemoveShard` keep every archive index in step. An add
 builds the new shard's sidecar for each index and the updated manifest
 (the new shard's record carries its key range)
