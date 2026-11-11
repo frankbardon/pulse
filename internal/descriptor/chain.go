@@ -433,6 +433,13 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 					// The stage's limit pre-flight refused it (a certain
 					// finding), right after its weights — the runtime's
 					// order; nothing past it runs.
+				} else if crs := ChainStageCodeReaderRefusals(fieldReq, fieldSchema, codes, opts.instance()); len(crs) > 0 {
+					// A numeric reader over a forwarded code column
+					// (U66 #446), right after the limit pre-flight —
+					// the runtime's order, before any operator is built.
+					for _, ce := range crs {
+						addCodedError(env, RefusalAt(ce, "stage", i))
+					}
 				} else if ce := formulaExpressionRefusal(fieldReq, opts); ce != nil {
 					// The attribute constructors run next: ATTR_FORMULA's
 					// empty expression (params.expression is not read).

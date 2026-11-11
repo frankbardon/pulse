@@ -474,7 +474,7 @@ var (
 		KnownAs: []string{"mcnemar test", "bowker test", "test of symmetry"},
 		Glossary: []string{
 			"chi-square", "continuity-correction", "cross-tabulation", "degrees-of-freedom",
-			"null-hypothesis", "p-value", "paired-data",
+			"discordant-odds-ratio", "null-hypothesis", "p-value", "paired-data",
 		},
 	}
 

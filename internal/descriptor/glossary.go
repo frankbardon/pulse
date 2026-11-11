@@ -291,6 +291,13 @@ var glossaryRegistry = []descriptor.Term{
 		SeeAlso: []string{"regression-coefficient", "effect-size"},
 		Jargon:  true, Forms: []string{"odds ratio", "odds ratios"},
 	},
+	{
+		ID:      "discordant-odds-ratio",
+		Short:   "In a before-and-after table of the same units, the moves from the first state to the second divided by the moves back; 1 means switching is balanced.",
+		WhyCare: "It sizes a McNemar result: the p-value says whether switching is lopsided, the ratio says by how much and which way. Units that kept their state do not enter it.",
+		SeeAlso: []string{"odds-ratio", "paired-data", "effect-size"},
+		Jargon:  true, Forms: []string{"discordant odds ratio", "discordant odds ratios"},
+	},
 
 	// --- Describing a measure -------------------------------------------
 	{

@@ -26,7 +26,7 @@ Weighted pairwise two-means z: pairs rows (`row` scope) or columns (`column`) on
 
 ## Host shape
 
-MATRIX crosstab, weighted-moment cell:<!-- feature: AGG_WEIGHTED_MEAN --> `AGG_WEIGHTED_MEAN`<!-- /feature --><!-- feature: AGG_AVERAGE, capability:weighting --> or a weighted `AGG_AVERAGE`<!-- /feature -->. Reads `weighted_mean`, `m2_weighted`, `sum_weights`, `sum_weights_sq` — never floor `n`. Else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED` (predict and runtime, after the `n_basis` / selector checks).
+MATRIX crosstab, weighted-moment cell:<!-- feature: AGG_WEIGHTED_MEAN --> `AGG_WEIGHTED_MEAN`<!-- /feature --><!-- feature: AGG_AVERAGE, capability:weighting --> or a weighted `AGG_AVERAGE`<!-- /feature -->. Reads `weighted_mean`, `m2_weighted`, `sum_weights`, `sum_weights_sq` — never floor `n`. Else `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` — on a multi-measure host (`cells`) that measure alone: rows null, same-code warning (`details.measure`); all refused → layer refuses; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED` (predict and runtime, after the `n_basis` / selector checks).
 
 ## Output
 

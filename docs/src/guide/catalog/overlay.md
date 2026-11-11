@@ -1713,7 +1713,7 @@ Test of symmetry on a before-by-after crosstab of the same units: are moves betw
 - [`OVERLAY_MARKOV`](#op-overlay_markov) when the moves are lopsided and you want the switching probabilities and where they lead.
 - [`OVERLAY_SHARE_OF_ROW`](#op-overlay_share_of_row) when you want each state's share of its row to see which way people moved.
 
-**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data)
+**Glossary:** [`chi-square`](../glossary.md#term-chi-square), [`continuity-correction`](../glossary.md#term-continuity-correction), [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`degrees-of-freedom`](../glossary.md#term-degrees-of-freedom), [`discordant-odds-ratio`](../glossary.md#term-discordant-odds-ratio), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`p-value`](../glossary.md#term-p-value), [`paired-data`](../glossary.md#term-paired-data)
 
 **Validated against:**
 

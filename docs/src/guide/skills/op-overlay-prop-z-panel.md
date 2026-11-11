@@ -55,10 +55,11 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 
 ## Gotchas
 
-- Pairs byte-equal the cell proportion z (shared `twoProportionZ`).
+- Pairs byte-equal the cell proportion z.
 - Degenerate `(n == 0, pooled ∈ {0,1}, se == 0)` → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per (cell, pair).
-- Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`. An unemitted distinct margin skips the coordinate, never tests against 0.
+- Absent value → nil slice + `REF_ZERO` `ref_missing`; an unreadable counted n adds `n_missing` + `slot_index`. An unemitted distinct margin skips the coordinate.
 - Weighted slots: p̂ = cell / margin (Σw), n = the base's N*; the counted and distinct modes are `PROCESSING_CONFIG` there ([`panel-n-sources`](panel-n-sources.md)). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
+- Code cell (`AGG_MODE` over a categorical) → `PROCESSING_CONFIG` `categorical_code`.
 
 ## See
 

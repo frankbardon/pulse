@@ -65,9 +65,14 @@ var overlayInterpretationProbes = map[string]overlayInterpretationProbe{
 	// the entries only (region x region with east named absorbing).
 	"OVERLAY_RETENTION": {fields: []string{"summary.parameters.churn", "summary.parameters.from_total", "summary.parameters.switch"},
 		run: retentionOverlayLayer},
-	"OVERLAY_SYMMETRY": {fields: []string{"summary.parameters.continuity_corrected", "summary.parameters.df",
-		"summary.parameters.discordant", "summary.parameters.pairs_dropped", "summary.parameters.states"},
-		run: func(t *testing.T) types.OverlayLayer { return squareOverlayLayer(t, types.OverlayKindSymmetry) }},
+	// The exact, odds-ratio and conf_level keys ride only the params.exact arm
+	// (segment x segment, 2 states), df only the chi-square arm: the probe returns the
+	// chi-square layer with the exact layer's keys merged in.
+	"OVERLAY_SYMMETRY": {fields: []string{"summary.parameters.conf_level", "summary.parameters.continuity_corrected", "summary.parameters.df",
+		"summary.parameters.discordant", "summary.parameters.exact", "summary.parameters.odds_ratio",
+		"summary.parameters.odds_ratio_ci_lower", "summary.parameters.odds_ratio_ci_upper", "summary.parameters.pairs_dropped",
+		"summary.parameters.states"},
+		run: symmetryOverlayLayer},
 	// Convergence rides every Rake layer's summary (region x segment
 	// raked to share targets; east x wholesale is a structural zero).
 	"OVERLAY_RAKE":         {fields: []string{"summary.parameters.converged", "summary.parameters.residual"}, run: rakeOverlayLayer},
@@ -156,6 +161,43 @@ func squareOverlayLayer(t *testing.T, kind types.OverlayKind) types.OverlayLayer
 		t.Fatalf("Response.Overlays = %d layers, want 1", len(resp.Overlays))
 	}
 	return resp.Overlays[0]
+}
+
+// symmetryOverlayLayer runs OVERLAY_SYMMETRY twice — the chi-square
+// arm over region x region and the params.exact arm over segment x
+// segment (2 states) — and returns the chi-square layer with the exact
+// layer's summary parameters merged in, so every key either arm emits
+// is probed against a real layer.
+func symmetryOverlayLayer(t *testing.T) types.OverlayLayer {
+	t.Helper()
+	layer := squareOverlayLayer(t, types.OverlayKindSymmetry)
+	cfg := setupTestFS(t, "ct.pulse", crosstabSchema(), crosstabRecords())
+	resp, err := New(cfg).Process(context.Background(), &types.Request{
+		Cohort: &types.Cohort{Filename: "ct.pulse"},
+		Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "segment"}},
+			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"},
+			Shape:   types.CrosstabShapeMatrix,
+		},
+		Overlays: []types.OverlaySpec{{Name: "probe", Kind: types.OverlayKindSymmetry, Scope: types.OverlayScopeMatrix,
+			Params: json.RawMessage(`{"exact":true}`)}},
+	})
+	if err != nil {
+		t.Fatalf("Process(exact OVERLAY_SYMMETRY): %v", err)
+	}
+	if len(resp.Overlays) != 1 || resp.Overlays[0].Summary == nil {
+		t.Fatalf("exact Response.Overlays = %+v, want 1 layer with a summary", resp.Overlays)
+	}
+	merged := map[string]float64{}
+	for k, v := range layer.Summary.Parameters {
+		merged[k] = v
+	}
+	for k, v := range resp.Overlays[0].Summary.Parameters {
+		merged[k] = v
+	}
+	layer.Summary.Parameters = merged
+	return layer
 }
 
 // retentionOverlayLayer runs OVERLAY_RETENTION (row scope, east named

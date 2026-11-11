@@ -6,6 +6,15 @@
 // ChiSquareSurvival, RegularizedGammaP) — the deterministic replacements
 // for gonum's distuv.ChiSquared.CDF / UnitNormal.Quantile and the one
 // chi-square implementation internal/processing's TEST_* operators use.
+// BinomialTwoSidedP (binomial.go) is the exact two-sided binomial test,
+// R's binom.test with its 1 + 1e-7 tie rule, on the same incomplete
+// beta (OVERLAY_SYMMETRY params.exact); BinomialOddsInterval is
+// binom.test's exact conf.int on the same beta, solved on the log-odds
+// (the symmetry overlay's discordant odds-ratio interval).
+// BowkerExactP (bowker.go) is the exact conditional Bowker test of
+// symmetry on a k × k table, an exact convolution of each pair's
+// binomial split on the same log density (OVERLAY_SYMMETRY params.exact
+// on k × k), bounded by BowkerExactMaxTerms.
 //
 // It is a LEAF (stdlib + the stdlib-only linalg/detmath; gonum is allowed) so both
 // internal/processing (TEST_* operators, overlays) and

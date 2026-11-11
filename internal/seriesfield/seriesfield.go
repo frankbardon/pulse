@@ -52,6 +52,19 @@ func Applies(kind types.OverlayKind) bool { return kinds[kind] }
 // order.
 func Kinds() []types.OverlayKind { return kindsIn(kinds) }
 
+// Honours is an instance's hook for its registered extension overlay
+// kinds: whether kind opts into Param on the host the caller judges
+// (overlayhost.ExtensionHonoursField over the kind's declaration). nil
+// opts none in — the built-in sets alone.
+type Honours func(kind types.OverlayKind) bool
+
+// AppliesWith is Applies on an instance: a built-in kind by the table,
+// an extension kind by ext (U66 #713). Predict and the runtime pass the
+// hook built from the same registration, so the two cannot disagree.
+func AppliesWith(kind types.OverlayKind, ext Honours) bool {
+	return kinds[kind] || (ext != nil && ext(kind))
+}
+
 // Columns reports the Response.Data columns aggregation i of the
 // resolved slice writes: its label, or — on an expanding array-valued
 // aggregation (params.expand) — one "<label>[<element label>]" column
@@ -219,12 +232,15 @@ func resolve(aggs []*types.Aggregation, kind types.OverlayKind, params map[strin
 // composeKinds is the set of Compose-host kinds whose SERIES arm scores
 // one aggregation of each slot: the value of a slot's Data row is the
 // aggregation Param names, its key the slot's group columns only.
+// OVERLAY_FORMULA's value, ref_value and slot.<label>.value each read
+// it (and its SCALAR value / ref, the one aggregate row's).
 var composeKinds = map[types.OverlayKind]bool{
 	types.OverlayKindIndexVsRef:      true,
 	types.OverlayKindDeltaVsRef:      true,
 	types.OverlayKindTVsRef:          true,
 	types.OverlayKindZVsRef:          true,
 	types.OverlayKindPanelIndexVsRef: true,
+	types.OverlayKindFormula:         true,
 }
 
 // AppliesCompose reports whether kind is a Compose-host kind whose
@@ -234,6 +250,12 @@ func AppliesCompose(kind types.OverlayKind) bool { return composeKinds[kind] }
 // ComposeKinds returns every kind AppliesCompose accepts, in
 // types.AllOverlayKinds order.
 func ComposeKinds() []types.OverlayKind { return kindsIn(composeKinds) }
+
+// AppliesComposeWith is AppliesCompose on an instance: a built-in kind
+// by the table, an extension kind by ext (its Compose-host hook).
+func AppliesComposeWith(kind types.OverlayKind, ext Honours) bool {
+	return composeKinds[kind] || (ext != nil && ext(kind))
+}
 
 // chainKinds is the set of whole-chain (CHAIN-host) kinds whose SERIES
 // arm scores one aggregation of each stage: the value of a stage's Data

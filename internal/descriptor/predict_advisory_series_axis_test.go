@@ -155,3 +155,160 @@ func TestPredict_AdvisorySeriesAxisNeverEscalated(t *testing.T) {
 		t.Errorf("suppressed: advisories = %+v, want none", got)
 	}
 }
+
+// saCompose is a Compose request over the series-axis cohort: slots a
+// and b grouped by groups (b the host, index 1) and the given
+// Compose-host overlays.
+func saCompose(groups []*types.Group, specs ...types.ComposeOverlaySpec) *types.ComposedRequest {
+	slot := func(label string) *types.Request {
+		r := saRequest(groups)
+		r.Label = label
+		r.Cohort = &types.Cohort{Filename: "sa.pulse"}
+		return r
+	}
+	return &types.ComposedRequest{Requests: []*types.Request{slot("a"), slot("b")}, Overlays: specs}
+}
+
+func saComposeFormula(params map[string]any) types.ComposeOverlaySpec {
+	if params == nil {
+		params = map[string]any{}
+	}
+	params["formula"] = "prior"
+	return types.ComposeOverlaySpec{Name: "prior", Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
+		Reference: "a", Targets: []string{"b"}, Params: params}
+}
+
+func saComposeResult(t *testing.T, req *types.ComposedRequest, opts *PredictOptions) (*descriptor.Envelope, *ComposeValidationResult) {
+	t.Helper()
+	if opts == nil {
+		opts = &PredictOptions{}
+	}
+	opts.SchemaLoader = composeSchemaLoader(t, map[string][]byte{"sa.pulse": seriesAxisCohort(t)})
+	env := ValidateComposeWithOptions(req, opts)
+	return env, env.Data.(*ComposeValidationResult)
+}
+
+// TestComposePredict_AdvisorySeriesAxisNotDate (U66 E8-S2): a Compose
+// OVERLAY_FORMULA — the ordered kind that runs per partition of its host
+// slot, the first target — draws the Process advisory, same rule and
+// message shape, when that slot meets the Process condition. details
+// add request (the host slot's index) and target (its label). An
+// explicit partition_by, a date last axis, a hidden kind and a kind the
+// Compose host does not partition never fire, and a quiet request
+// carries no advisory at all.
+func TestComposePredict_AdvisorySeriesAxisNotDate(t *testing.T) {
+	t.Parallel()
+
+	day := saGroup(types.GROUP_DATE, "day")
+	wh := saGroup(types.GROUP_CATEGORY, "warehouse")
+	region := saGroup(types.GROUP_CATEGORY, "region")
+	fired := map[string]any{
+		"slot": "overlays[0]", "operator": "OVERLAY_FORMULA", "series_axis": "warehouse",
+		"grouper": "GROUP_CATEGORY", "groups": []string{"day", "warehouse"}, "date_axis": "day",
+		"request": 1, "target": "b",
+	}
+	notPartitioned := types.ComposeOverlaySpec{Name: "dr", Kind: types.OverlayKindDeltaVsRef, Scope: types.OverlayScopeGroup,
+		Reference: "a", Targets: []string{"b"}}
+	cases := []struct {
+		name string
+		req  *types.ComposedRequest
+		inst *InstanceSnapshot
+		want []map[string]any
+	}{
+		{"[day, warehouse]", saCompose([]*types.Group{day, wh}, saComposeFormula(nil)), nil, []map[string]any{fired}},
+		{"partition_by null is implicit", saCompose([]*types.Group{day, wh}, saComposeFormula(map[string]any{"partition_by": nil})), nil, []map[string]any{fired}},
+		{"[region, warehouse] no date grouper", saCompose([]*types.Group{region, wh}, notPartitioned, saComposeFormula(nil)), nil, []map[string]any{{
+			"slot": "overlays[1]", "operator": "OVERLAY_FORMULA", "series_axis": "warehouse",
+			"grouper": "GROUP_CATEGORY", "groups": []string{"region", "warehouse"}, "request": 1, "target": "b",
+		}}},
+		{"[warehouse, day]", saCompose([]*types.Group{wh, day}, saComposeFormula(nil)), nil, nil},
+		{"one grouper", saCompose([]*types.Group{wh}, saComposeFormula(nil)), nil, nil},
+		{"explicit partition_by", saCompose([]*types.Group{day, wh}, saComposeFormula(map[string]any{"partition_by": []string{"day"}})), nil, nil},
+		{"partition_by []", saCompose([]*types.Group{day, wh}, saComposeFormula(map[string]any{"partition_by": []string{}})), nil, nil},
+		{"a kind the Compose host does not partition", saCompose([]*types.Group{day, wh}, notPartitioned), nil, nil},
+		{"an ordered Process kind on the Compose host", saCompose([]*types.Group{day, wh}, types.ComposeOverlaySpec{Name: "dp",
+			Kind: types.OverlayKindDeltaVsPrior, Scope: types.OverlayScopeGroup, Reference: "a", Targets: []string{"b"}}), nil, nil},
+		{"hidden kind", saCompose([]*types.Group{day, wh}, saComposeFormula(nil)), scopedExcept("OVERLAY_FORMULA"), nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, res := saComposeResult(t, c.req, &PredictOptions{Instance: c.inst})
+			if len(c.want) == 0 {
+				if len(res.Advisories) != 0 {
+					t.Fatalf("advisories = %+v, want none", res.Advisories)
+				}
+				return
+			}
+			if len(res.Advisories) != len(c.want) {
+				t.Fatalf("advisories = %+v, want %d", res.Advisories, len(c.want))
+			}
+			for i, w := range c.want {
+				a := res.Advisories[i]
+				if a.Code != string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE) {
+					t.Fatalf("advisory %d code %s", i, a.Code)
+				}
+				if !reflect.DeepEqual(a.Details, w) {
+					t.Errorf("advisory %d details = %#v, want %#v", i, a.Details, w)
+				}
+				for _, s := range []string{w["slot"].(string), "OVERLAY_FORMULA", "host slot b", "warehouse", "params.partition_by"} {
+					if !strings.Contains(a.Message, s) {
+						t.Errorf("advisory %d message %q does not name %s", i, a.Message, s)
+					}
+				}
+				if hits := LintGuidanceText(a.Message); len(hits) > 0 {
+					t.Errorf("advisory %d lint hits %+v in %q", i, hits, a.Message)
+				}
+			}
+		})
+	}
+}
+
+// TestComposePredict_AdvisorySeriesAxisSharesTheProcessRule: the
+// Compose advisory is the Process one over the host slot — the same
+// message once the host is named, the same details once request and
+// target are dropped.
+func TestComposePredict_AdvisorySeriesAxisSharesTheProcessRule(t *testing.T) {
+	t.Parallel()
+
+	groups := []*types.Group{saGroup(types.GROUP_DATE, "day"), saGroup(types.GROUP_CATEGORY, "warehouse")}
+	process := seriesAxisAdvisoriesFor(t, saRequest(groups, types.OverlaySpec{Name: "f", Kind: types.OverlayKindFormula,
+		Scope: types.OverlayScopeGroup, Params: json.RawMessage(`{"formula": "prior"}`)}), nil)
+	_, res := saComposeResult(t, saCompose(groups, saComposeFormula(nil)), nil)
+	if len(process) != 1 || len(res.Advisories) != 1 {
+		t.Fatalf("vacuous: process %+v, compose %+v", process, res.Advisories)
+	}
+	c := res.Advisories[0]
+	if want := strings.Replace(process[0].Message, "overlays[0]", "overlays[0] (host slot b)", 1); c.Message != want {
+		t.Errorf("compose message %q, want %q", c.Message, want)
+	}
+	details := map[string]any{}
+	for k, v := range c.Details {
+		if k != "request" && k != "target" {
+			details[k] = v
+		}
+	}
+	if !reflect.DeepEqual(details, process[0].Details) {
+		t.Errorf("compose details %#v, want the process details %#v", details, process[0].Details)
+	}
+}
+
+// TestComposePredict_AdvisorySeriesAxisNeverEscalated: strict Compose
+// predict keeps the advisory in its slot — valid, no error, no warning —
+// and suppressing the code drops it.
+func TestComposePredict_AdvisorySeriesAxisNeverEscalated(t *testing.T) {
+	t.Parallel()
+
+	code := string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE)
+	req := saCompose([]*types.Group{saGroup(types.GROUP_DATE, "day"), saGroup(types.GROUP_CATEGORY, "warehouse")}, saComposeFormula(nil))
+	env, res := saComposeResult(t, req, &PredictOptions{Strict: true})
+	if len(res.Advisories) != 1 || res.Advisories[0].Code != code {
+		t.Fatalf("vacuous: advisories = %+v", res.Advisories)
+	}
+	if !res.Valid || len(env.Errors) != 0 || len(env.Warnings) != 0 {
+		t.Errorf("strict: valid=%v errors=%v warnings=%v, want a clean valid result", res.Valid, env.Errors, env.Warnings)
+	}
+	suppressed := &PredictOptions{Instance: (*InstanceSnapshot)(nil).WithSuppressedAdvisories([]string{code})}
+	if _, res := saComposeResult(t, req, suppressed); len(res.Advisories) != 0 {
+		t.Errorf("suppressed: advisories = %+v, want none", res.Advisories)
+	}
+}

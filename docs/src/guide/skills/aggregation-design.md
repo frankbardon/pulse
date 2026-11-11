@@ -24,7 +24,7 @@ Request order: `features → filterers → attributes → groups → aggregation
 
 `aggregations` entry: `{type, field, label, params?}`. `type` is the aggregator constant; `field` is the source column; `label` names the output cell; `params` carries op-specific knobs.
 
-`filterers` entry: `{type, field?, values?, expression?, label}`. Only keys relevant to each filterer's `type` are consulted; the manifest lists the filterers this instance offers.
+`filterers` entry: `{type, field?, values?, expression?, label}`; only the keys its `type` reads are consulted.
 
 ## Choosing an aggregator
 
@@ -61,7 +61,7 @@ Each aggregator declares one class (`components_schemas.aggregators[<op>].mergea
 - **`Partial`** — state is a map or set of values (modes, distinct counts / sums, per-member set frequencies); the merge is staged at terminal flush.
 - **`None`** — needs every value at once (order statistics: median, percentiles); components emit only on terminal buffered flush and predict surfaces `BufferedComponents=true`.
 
-The same floor surfaces different `Operator` payloads — a sum carries `{sum}`; the Welford aggregator `{mean, m2, variance, stddev}`, whose `(mean, variance, n)` is byte-equal to the Welch t-test's numerators; the modal count `{distinct_count, mode_value, mode_count}`, filled at terminal flush.
+The same floor surfaces different `Operator` payloads — a sum carries `{sum}`; the Welford aggregator `{mean, m2, variance, stddev}` (its `(mean, variance, n)` byte-equal to the Welch t-test's numerators).
 
 `Response.Components.Filterers[i]` carries a uniform `{n_in, n_out, n_null_input}` floor across every filterer; no per-operator slot today.
 
@@ -69,7 +69,7 @@ Full Components contract: [`response-components`](response-components.md).
 
 ## Type admissibility
 
-Numeric-only ops on a categorical field (its dictionary index) are refused `PULSE_FIELD_TYPE_UNSUPPORTED`; count / frequency / mode accept any type. Decimal inputs may fall back to `f64` with `PULSE_PRECISION_LOSS` — see [`financial-cohorts`](financial-cohorts.md).
+Numeric-only ops on a categorical field (its dictionary index) are refused `PULSE_FIELD_TYPE_UNSUPPORTED`; count / frequency / mode accept any type. Opt-in `params.ordered` / `levels` let min / max / median / percentile read a categorical as an ordered scale; the figure is a level's dictionary index (a code). Decimal inputs may fall back to `f64` with `PULSE_PRECISION_LOSS` — see [`financial-cohorts`](financial-cohorts.md).
 
 ## Gotchas
 

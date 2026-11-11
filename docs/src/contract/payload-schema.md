@@ -1214,6 +1214,29 @@ a stream carries them on its terminal chunk only. Contract:
 `.claude/reference/response-components.md` (Per-group aggregation
 components).
 
+## Grouper refit buckets
+
+`buckets` on `GrouperComponents` is an additive `omitempty` array of
+`GrouperBucketComponents` `{group_key, total_n?, n_null?, operator?,
+error?}` (`format_version` stays `"1.1"`; a response without a
+`params.fit: "within"` grouper after the first position has no
+`buckets` key and is byte-identical). What the schema cannot say: it is
+present only on a `"within"` position after the first
+(`GROUP_QUANTILE`, `GROUP_KMEANS` refitted inside each bucket of the
+groupers before it) — predict's `groups[i].refit_buckets` says so in
+advance — with one entry per outer bucket, `group_key` the outer
+segment, in the outer segments' `data` order; each entry's figures are
+what a standalone run of the grouper over that segment reports, while
+the slot's own `total_n` / `n_null` / `operator` stay the whole-set
+fit's. A refit refused on its bucket's data (`GROUP_KMEANS` `k` above
+the bucket's distinct tuples) carries `error` (a `SlotError`) and
+`n_null` = the bucket's records instead of figures: those records join
+no bucket, and the run warns `PULSE_SLOT_FAILED` (see Failed slots). A
+stream carries `buckets` on its terminal chunk only. A crosstab has no
+grouper entries: a `"within"` row position's `row_key_components`
+bucket is read off that row's refit instead. Contract:
+`.claude/reference/response-components.md` (Grouper refit buckets).
+
 ## Attribute components
 
 `attributes` on `ResponseComponents` is an additive `omitempty` array of
@@ -1885,7 +1908,8 @@ written otherwise (`statistic`, `p_value`, `alpha`, `reject_null`;
 Each failed slot also adds a `PULSE_SLOT_FAILED` response warning,
 details `{slot_kind, index, label, code}` (`slot_kind` the response
 key, `index` the request slot index, `code` the slot's own code;
-`group_key` for one bucket of a grouped matrix), which the `--json`
+`group_key` for one bucket of a grouped matrix or of a `"within"`
+grouper refit — `slot_kind` `groups`, see Grouper refit buckets), which the `--json`
 envelope lifts to its `warnings`; the run exits 0. Under
 `Options.Strict` (`--strict`) the run instead fails with the slot's
 own code. Only data-dependent refusals fail alone: a configuration

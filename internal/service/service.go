@@ -1447,12 +1447,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation
 	// (byte-identical JSON vs the overlay-free baseline).
-	var (
-		layers   []types.OverlayLayer
-		warnings []types.OverlayWarning
-	)
+	var layers []types.OverlayLayer
 	if foldOverlays {
-		layers, warnings, err = s.applyComposeOverlays(ctx, composed, requests, responses)
+		// Each layer comes back carrying its own warnings
+		// (distributeComposeWarnings, routed by layer position).
+		layers, _, err = s.applyComposeOverlays(ctx, composed, requests, responses)
 		if err != nil {
 			return nil, err
 		}
@@ -1472,19 +1471,18 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
-		// distributeComposeWarnings (internal/service/compose_overlay.go) folds
-		// the flat warnings slice into each layer's `Warnings` slot via
-		// the `Details["overlay_index"]` routing key. Shared with
-		// `service.ComposeParallel` so serial and parallel paths
-		// surface identical layer-warning shapes. Mirrors the
-		// chain-host convention in service.applyChainOverlays.
-		out.Overlays = distributeComposeWarnings(layers, warnings)
+		// applyComposeOverlays already folded each warning into its
+		// layer's `Warnings` slot (distributeComposeWarnings, routed by
+		// layer position). Shared with `service.ComposeParallel` so
+		// serial and parallel paths surface identical layer-warning
+		// shapes.
+		out.Overlays = layers
 	}
 	// The multiplicity barrier fold: every slot and every Compose-host
 	// layer has finished, so the `compose` family pools them all and
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
-	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+	if err := foldComposeMultiplicity(multPlan, out, composed.Overlays); err != nil {
 		return nil, err
 	}
 	// Each slot's own MATRIX_RESULT overlays, after the barrier fold.

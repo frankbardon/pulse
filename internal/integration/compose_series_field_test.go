@@ -43,6 +43,14 @@ func csOverlay(kind types.OverlayKind, field string) types.ComposeOverlaySpec {
 	if field != "" {
 		spec.Params = map[string]any{"field": field}
 	}
+	if kind == types.OverlayKindFormula {
+		// value, ref_value and slot.<label>.value all read the scored
+		// aggregation, so each must follow params.field.
+		if spec.Params == nil {
+			spec.Params = map[string]any{}
+		}
+		spec.Params["formula"] = "value + ref_value * 1000 + slot.F.value * 1000000"
+	}
 	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
 		// A scalar side needs explicit variance / sample size (U46 E4-S16).
 		if spec.Params == nil {
@@ -114,8 +122,8 @@ func csPredict(t *testing.T, p *pulse.Pulse, req *types.ComposedRequest) *descri
 func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 	t.Parallel()
 
-	if got := len(seriesfield.ComposeKinds()); got != 5 {
-		t.Fatalf("seriesfield.ComposeKinds() = %d kinds, want 5", got)
+	if got := len(seriesfield.ComposeKinds()); got != 6 {
+		t.Fatalf("seriesfield.ComposeKinds() = %d kinds, want 6", got)
 	}
 	f := newMGFixture(t, pulse.Options{})
 	for _, kind := range seriesfield.ComposeKinds() {
@@ -131,12 +139,23 @@ func TestComposeSeriesOverlay_ScoresNamedAggregation(t *testing.T) {
 				}
 				return csRender(t, resp)
 			}
-			named := run("aa_sum", csZ, csA)
-			if want := run("", csA); named != want {
+			z, a := csZ, csA
+			if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+				// The two-sample kinds score only a mean (U66 #444):
+				// the same labels over AGG_AVERAGE.
+				z = func() *types.Aggregation {
+					return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "id", Label: "zz_n"}
+				}
+				a = func() *types.Aggregation {
+					return &types.Aggregation{Type: types.AGG_AVERAGE, Field: "y", Label: "aa_sum"}
+				}
+			}
+			named := run("aa_sum", z, a)
+			if want := run("", a); named != want {
 				t.Errorf("field aa_sum over [zz_n, aa_sum]:\n %s\nwant [aa_sum] alone:\n %s", named, want)
 			}
-			def := run("", csZ, csA)
-			if want := run("", csZ); def != want {
+			def := run("", z, a)
+			if want := run("", z); def != want {
 				t.Errorf("absent field over [zz_n, aa_sum]:\n %s\nwant aggregations[0] [zz_n] alone:\n %s", def, want)
 			}
 			if named == def {

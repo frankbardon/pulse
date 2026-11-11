@@ -9,15 +9,15 @@ requires: [capability:multiplicity]
 ---
 # Multiple-comparison correction
 
-Many tests in one answer make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
+Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
 
 ## The block
 
 `multiplicity: {method, family, alpha}`, every key optional:
 
-- `method` — `none`, `bonferroni`, `holm` (both family-wise error), `bh`, `by` (false discovery rate; `by` is valid under any dependence). Matches R `p.adjust`.
-- `family` — which p-values are corrected together (below).
-- `alpha` — overlay significance level in (0, 1), default `0.05`. A test's block refuses `alpha` (it reads its own).
+- `method` — `none`, `bonferroni`, `holm` (both family-wise error), `bh`, `by` (false discovery rate; `by` under any dependence). Matches R `p.adjust`.
+- `family` — which p-values correct together (below).
+- `alpha` — overlay significance level in (0, 1), default `0.05`. A test's block refuses `alpha` (reads its own).
 
 It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` spec<!-- feature: capability:matrices -->, each correlation `matrices[]` spec (implies `params.inference`)<!-- /feature -->, each `regressions[]` spec, the Compose `ComposedRequest` and its overlay specs, and engine-wide as `Options.DefaultMultiplicity`. Each key falls through on its own: slot → request → `ComposedRequest` → engine default → none.
 
@@ -51,7 +51,7 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 ## Where it runs
 
 - Process: every arm (streaming, crosstab, join, shard, decode).
-- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; `--stream` rows carry no corrections; a failed slot errors the batch first.
+- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; each fan-out target layer is its own `layer`; `--stream` rows carry no corrections; a failed slot errors the batch.
 - ProcessChain: per stage, never across stages; whole-chain overlays take no block.
 - Facet: each overlay layer alone.
 - Extension tests, and extension overlays declaring `EmitsPValues`, join like built-ins.
@@ -66,7 +66,7 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 ## Choosing
 
-Few planned tests, false positives costly: `holm`. Screening many cells or pairs: `bh`. Odd dependence: `by`. Match the question: `row` for "does any group differ from the rest", `layer` for one table, `request` / `compose` for one claim over many tests.
+Few planned tests, false positives costly: `holm`. Screening many cells / pairs: `bh`. Odd dependence: `by`. Match the question: `row` for "does any group differ from the rest", `layer` for one table, `request` / `compose` for one claim over many tests.
 
 ## See
 

@@ -664,6 +664,67 @@ func seriesAxisIsDate(g *types.Group, schema *encoding.Schema, inst *InstanceSna
 	return f != nil && (f.Type == encoding.FieldTypeDate || f.Type == encoding.FieldTypeDateTime)
 }
 
+// seriesAxisHost is a SERIES host the series-axis rule judges: two or
+// more groupers whose last (the implicit series axis) is not a date
+// grouper (seriesAxisIsDate). dateAxis is the first leading key column
+// that does bucket time, "" when none.
+type seriesAxisHost struct {
+	groups   []*types.Group
+	cols     []string
+	dateAxis string
+}
+
+// newSeriesAxisHost reads req as a series-axis host: nil when req is
+// nil, a crosstab, has fewer than two groupers, or its last grouper is
+// a date grouper — no ordered overlay over it can fire. One reading for
+// the Process host (seriesAxisAdvisories) and the Compose host slot
+// (composeSeriesAxisAdvisories).
+func newSeriesAxisHost(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot) *seriesAxisHost {
+	if req == nil || req.Crosstab != nil || len(req.Groups) < 2 {
+		return nil
+	}
+	n := len(req.Groups)
+	last := req.Groups[n-1]
+	if last == nil || seriesAxisIsDate(last, schema, inst) {
+		return nil
+	}
+	h := &seriesAxisHost{groups: req.Groups, cols: seriespartition.KeyColumns(req.Groups)}
+	for i, g := range req.Groups[:n-1] {
+		if g != nil && seriesAxisIsDate(g, schema, inst) {
+			h.dateAxis = h.cols[i]
+			break
+		}
+	}
+	return h
+}
+
+// advisory is the one PULSE_ADVISORY_SERIES_AXIS_NOT_DATE an ordered
+// kind with no explicit partition_by draws on h; slot is the overlay's
+// path, where names it in the message (slot, or slot plus its host).
+func (h *seriesAxisHost) advisory(kind types.OverlayKind, slot, where string) descriptor.Advisory {
+	n := len(h.groups)
+	last := h.groups[n-1]
+	details := map[string]any{
+		"slot":        slot,
+		"operator":    string(kind),
+		"series_axis": h.cols[n-1],
+		"grouper":     string(last.Type),
+		"groups":      append([]string(nil), h.cols...),
+	}
+	next := "if " + h.cols[n-1] + " is the order you mean, set params.partition_by to the leading key columns to state it."
+	if h.dateAxis != "" {
+		details["date_axis"] = h.dateAxis
+		next = "put " + h.dateAxis + " last in groups so the series runs through time within each segment, or, " +
+			"if this is the order you mean, set params.partition_by to the leading key columns to state it."
+	}
+	return descriptor.Advisory{
+		Code: string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE),
+		Message: string(kind) + " at " + where + " reads its rows in order and, with no params.partition_by, runs its series down " +
+			h.cols[n-1] + " (" + string(last.Type) + "), the last of " + strconv.Itoa(n) + " groupers, which is not a date grouper; " + next,
+		Details: details,
+	}
+}
+
 // seriesAxisAdvisories: one PULSE_ADVISORY_SERIES_AXIS_NOT_DATE per
 // series overlay (the instance offers) that reads its rows in order
 // (seriespartition.Ordered) on a SERIES host of two or more groupers
@@ -674,21 +735,12 @@ func seriesAxisIsDate(g *types.Group, schema *encoding.Schema, inst *InstanceSna
 // grouper, groups[, date_axis]}: date_axis is the first leading key
 // column that does bucket time, when one exists.
 func seriesAxisAdvisories(req *types.Request, schema *encoding.Schema, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
-	n := len(req.Groups)
-	if req.Crosstab != nil || n < 2 || len(req.Overlays) == 0 {
+	if len(req.Overlays) == 0 {
 		return nil
 	}
-	last := req.Groups[n-1]
-	if last == nil || seriesAxisIsDate(last, schema, inst) {
+	h := newSeriesAxisHost(req, schema, inst)
+	if h == nil {
 		return nil
-	}
-	cols := seriespartition.KeyColumns(req.Groups)
-	dateAxis := ""
-	for i, g := range req.Groups[:n-1] {
-		if g != nil && seriesAxisIsDate(g, schema, inst) {
-			dateAxis = cols[i]
-			break
-		}
 	}
 	var out []descriptor.Advisory
 	for i := range req.Overlays {
@@ -698,26 +750,7 @@ func seriesAxisAdvisories(req *types.Request, schema *encoding.Schema, prefix st
 			continue
 		}
 		slot := prefix + "overlays[" + strconv.Itoa(i) + "]"
-		details := map[string]any{
-			"slot":        slot,
-			"operator":    string(kind),
-			"series_axis": cols[n-1],
-			"grouper":     string(last.Type),
-			"groups":      append([]string(nil), cols...),
-		}
-		next := "if this is the order you mean, set params.partition_by to the leading key columns to state it."
-		if dateAxis != "" {
-			details["date_axis"] = dateAxis
-			next = "put " + dateAxis + " last in groups so the series runs through time within each segment, or, " + next
-		} else {
-			next = "if " + cols[n-1] + " is the order you mean, set params.partition_by to the leading key columns to state it."
-		}
-		out = append(out, descriptor.Advisory{
-			Code: string(errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE),
-			Message: string(kind) + " at " + slot + " reads its rows in order and, with no params.partition_by, runs its series down " +
-				cols[n-1] + " (" + string(last.Type) + "), the last of " + strconv.Itoa(n) + " groupers, which is not a date grouper; " + next,
-			Details: details,
-		})
+		out = append(out, h.advisory(kind, slot, slot))
 	}
 	return out
 }

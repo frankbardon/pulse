@@ -111,6 +111,26 @@ What each declaration buys:
 - `Validate` / `ValidateCompose` — optional spec-only hooks, run after the
   declarative rules, once per spec, identically at predict and runtime.
 - `WeightAware` — see step 5.
+- `ReadsCellCountsOnly` — declare it only if the handler reads the cells'
+  record counts and weight figures (`CellN`, the margin Ns, `CellSumWeights`,
+  `CellNEff`) and never a cell or margin value. Undeclared, a spec over a
+  crosstab whose cell is a categorical code (`AGG_MODE` of a categorical or
+  `packed_bool` field) is refused `PROCESSING_CONFIG`, reason
+  `categorical_code`, on the Process host and on a Compose crosstab slot alike.
+- `HonoursField` / `HonoursPartitionBy` — opt the kind into the engine's
+  series params. `HonoursField` (a `Series` or `Compose` handler): the host
+  is scored on the aggregation `params.field` names, not the first one, and
+  `SeriesOverlayHost.ValueLabel` names it. `HonoursPartitionBy` (a `Series`
+  handler returning the `series` shape): over two or more groupers the
+  handler runs once per `params.partition_by` partition, on a host of that
+  partition's rows, and each partition's entries land back on their rows
+  (one entry per partition row, else `PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH`,
+  reason `partition_misaligned`). Both keys are then declared for the kind
+  (do not list them in `Params`) and judged at predict and runtime alike
+  (`PULSE_OVERLAY_FIELD_UNKNOWN`, `PULSE_OVERLAY_PARTITION_INVALID`); a
+  Compose spec's `partition_by` is refused (reason `compose_host`). Unset,
+  both keys are unknown params and the handler sees the first aggregation
+  over the whole host.
 - `DependsOn` — feature edges; the kind is a feature (host group from its
   handlers: `Matrix` needs `capability:crosstab`, `Series` / `Compose` need
   `capability:compose`), so a [feature profile](../library/feature-profiles.md)

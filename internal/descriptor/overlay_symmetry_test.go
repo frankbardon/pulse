@@ -44,7 +44,9 @@ func TestValidateOverlay_Symmetry(t *testing.T) {
 		{"sum cell", nil, types.AGG_SUM, false, ok, ""},
 		{"correct false", nil, "", false, params(`{"correct":false}`), ""},
 		{"correct not a boolean", nil, "", false, params(`{"correct":"no"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
-		{"unknown param", nil, "", false, params(`{"exact":true}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
+		{"exact", nil, "", false, params(`{"exact":true,"correct":true}`), ""},
+		{"exact not a boolean", nil, "", false, params(`{"exact":"no"}`), errors.PULSE_OVERLAY_PARAM_MISSING},
+		{"unknown param", nil, "", false, params(`{"mid_p":true}`), errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"average cell", nil, types.AGG_AVERAGE, false, ok, errors.PULSE_OVERLAY_NONNEGATIVE_REQUIRED},
 		{"columns carry two groupers", twoCols, "", false, ok, errors.PULSE_OVERLAY_MATRIX_NOT_SQUARE},
 		{"ref margin", nil, "", false, with(func(s *types.OverlaySpec) {

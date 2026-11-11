@@ -58,6 +58,11 @@ func TestComposeOverlayTwoSampleInputsRefusal(t *testing.T) {
 		reason  string
 		side    string
 		missing []string
+		measure types.AggregationType
+	}
+	measure := func(j int, m types.AggregationType) *want {
+		return &want{code: errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, host: "requests[" + string(rune('0'+j)) + "].aggregations[0]",
+			reason: "measure_not_mean", measure: m}
 	}
 	welfOff := &want{code: errors.PULSE_OVERLAY_COMPONENTS_REQUIRED, host: "requests[0].aggregations[0]", reason: "components_disabled"}
 	refParams := &want{code: errors.PULSE_OVERLAY_PARAM_MISSING, host: "requests[0].aggregations[0]", reason: "params_missing",
@@ -93,7 +98,33 @@ func TestComposeOverlayTwoSampleInputsRefusal(t *testing.T) {
 		{"scalar, per-side params", spec(types.OverlayKindTVsRef, both), scalar(), none, nil},
 		{"scalar, symmetric params", spec(types.OverlayKindZVsRef, map[string]any{"variance": 2.0, "sample_size": 5.0}), scalar(), all, nil},
 		{"field scores scalar", spec(types.OverlayKindTVsRef, map[string]any{"field": "a"}),
-			[]*types.Request{slot("r", types.AGG_SUM, types.AGG_WELFORD), slot("t", types.AGG_SUM, types.AGG_WELFORD)}, all, refParams},
+			[]*types.Request{slot("r", types.AGG_AVERAGE, types.AGG_WELFORD), slot("t", types.AGG_AVERAGE, types.AGG_WELFORD)}, all, refParams},
+		{"weighted mean, no params", spec(types.OverlayKindZVsRef, nil),
+			[]*types.Request{slot("r", types.AGG_WEIGHTED_MEAN), slot("t", types.AGG_WEIGHTED_MEAN)}, none, refParams},
+
+		// The measure rule (U66 #444): only a mean, or a measure whose
+		// components carry the moments.
+		{"sum refused", spec(types.OverlayKindTVsRef, both),
+			[]*types.Request{slot("r", types.AGG_SUM), slot("t", types.AGG_SUM)}, none, measure(0, types.AGG_SUM)},
+		{"median target refused", spec(types.OverlayKindZVsRef, both),
+			[]*types.Request{slot("r", types.AGG_AVERAGE), slot("t", types.AGG_MEDIAN)}, none, measure(1, types.AGG_MEDIAN)},
+		{"mode refused", spec(types.OverlayKindTVsRef, both),
+			[]*types.Request{slot("r", types.AGG_MODE), slot("t", types.AGG_MODE)}, none, measure(0, types.AGG_MODE)},
+		{"field names the refused measure", spec(types.OverlayKindTVsRef, with(map[string]any{"field": "b"})),
+			[]*types.Request{slot("r", types.AGG_AVERAGE, types.AGG_COUNT), slot("t", types.AGG_AVERAGE, types.AGG_COUNT)}, none,
+			&want{code: errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, host: "requests[0].aggregations[1]", reason: "measure_not_mean", measure: types.AGG_COUNT}},
+		{"field names the mean", spec(types.OverlayKindTVsRef, with(map[string]any{"field": "a"})),
+			[]*types.Request{slot("r", types.AGG_AVERAGE, types.AGG_COUNT), slot("t", types.AGG_AVERAGE, types.AGG_COUNT)}, none, nil},
+		{"variance reads its components, no params", spec(types.OverlayKindTVsRef, nil),
+			[]*types.Request{slot("r", types.AGG_VARIANCE), slot("t", types.AGG_VARIANCE)}, none, nil},
+		{"stddev reads its components, no params", spec(types.OverlayKindZVsRef, nil),
+			[]*types.Request{slot("r", types.AGG_STDDEV), slot("t", types.AGG_STDDEV)}, none, nil},
+		{"variance with components off", spec(types.OverlayKindTVsRef, both),
+			[]*types.Request{slot("r", types.AGG_VARIANCE), slot("t", types.AGG_VARIANCE)}, all, welfOff},
+		{"mean vs moments mixed", spec(types.OverlayKindTVsRef, both),
+			[]*types.Request{slot("r", types.AGG_AVERAGE), slot("t", types.AGG_WELFORD)}, none,
+			&want{code: errors.PULSE_OVERLAY_SCHEMA_DIVERGENT, reason: "mixed_measure_read"}},
+		{"cell kind not judged by the measure rule", spec(types.OverlayKindTCell, both), crosstab(types.AGG_SUM), none, nil},
 		{"no targets: params left to the target rule", []types.ComposeOverlaySpec{{Name: "o", Kind: types.OverlayKindTVsRef, Reference: "r"}}, scalar(), none, nil},
 		{"unread slot not judged", spec(types.OverlayKindTVsRef, both),
 			[]*types.Request{slot("r", types.AGG_AVERAGE), slot("t", types.AGG_AVERAGE), slot("u", types.AGG_WELFORD)}, all, nil},
@@ -138,13 +169,16 @@ func TestComposeOverlayTwoSampleInputsRefusal(t *testing.T) {
 			if !ok || ce.Code != tc.want.code {
 				t.Fatalf("got %v, want %s", err, tc.want.code)
 			}
-			if tc.want.code == errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
+			if tc.want.measure != "" && ce.Details["measure_type"] != string(tc.want.measure) {
+				t.Fatalf("details = %v, want measure_type %s", ce.Details, tc.want.measure)
+			}
+			if tc.want.code == errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE && tc.want.measure == "" {
 				if ce.Details["slot"] != "r" || ce.Details["shape"] != "matrix" || !reflect.DeepEqual(ce.Details["shapes"], []string{"series"}) {
 					t.Fatalf("details = %v", ce.Details)
 				}
 				return
 			}
-			if ce.Details["host"] != tc.want.host || ce.Details["reason"] != tc.want.reason {
+			if (tc.want.host != "" && ce.Details["host"] != tc.want.host) || ce.Details["reason"] != tc.want.reason {
 				t.Fatalf("details = %v, want host %s reason %s", ce.Details, tc.want.host, tc.want.reason)
 			}
 			if tc.want.side != "" && (ce.Details["side"] != tc.want.side || !reflect.DeepEqual(ce.Details["params"], tc.want.missing)) {

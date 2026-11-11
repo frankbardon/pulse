@@ -21,7 +21,8 @@ type OverlayHandler struct {
 	Matrix MatrixOverlayFunc
 	// Series runs the kind over a SERIES host: a grouped request
 	// (Request.Groups + Request.Aggregations, no Request.Crosstab),
-	// scored on its first aggregation.
+	// scored on its first aggregation unless the registration opts into
+	// params.field / params.partition_by (SeriesOverlayHost).
 	Series SeriesOverlayFunc
 	// Compose runs the kind over ComposedRequest.Overlays: the
 	// already-finalised slot responses its Reference and Targets name.
@@ -141,7 +142,12 @@ type MatrixOverlayHost interface {
 
 // SeriesOverlayHost is the read-only SERIES an extension overlay folds
 // over: one entry per group row, in the response's row order, scored on
-// one aggregation column. Every accessor returns a copy or a scalar;
+// one aggregation column — the request's first aggregation, or the one
+// params.field names when the registration declares HonoursField. Under
+// HonoursPartitionBy the handler is called once per params.partition_by
+// partition with a host holding only that partition's rows (full group
+// keys, host order), and each entry of its series payload lands back on
+// the row it came from. Every accessor returns a copy or a scalar;
 // nothing it returns aliases the response.
 type SeriesOverlayHost interface {
 	// Groups is the number of group rows.
@@ -153,8 +159,9 @@ type SeriesOverlayHost interface {
 	// GroupKey is the group tuple at index i (nil out of range),
 	// element-for-element with GroupFields.
 	GroupKey(i int) types.AxisKey
-	// ValueLabel is the scored aggregation's output label (the
-	// request's first aggregation).
+	// ValueLabel is the scored column: the first aggregation's output
+	// label, or under HonoursField the label (or expanded element
+	// column) params.field names.
 	ValueLabel() string
 	// Value is the scored aggregation at group i; false for an absent,
 	// undefined (NaN) or non-numeric value.
@@ -189,8 +196,9 @@ type ComposeOverlaySlot interface {
 	Shape() types.OverlayShape
 	// Matrix is the slot's crosstab, nil unless Shape is matrix.
 	Matrix() MatrixOverlayHost
-	// Series is the slot's series, scored on its first aggregation, nil
-	// unless Shape is series.
+	// Series is the slot's series, scored on its first aggregation (or
+	// params.field's under HonoursField; never partitioned), nil unless
+	// Shape is series.
 	Series() SeriesOverlayHost
 	// Scalar is an ungrouped slot's first aggregation value; false
 	// unless Shape is scalar and the value is a finite number.

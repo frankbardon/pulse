@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
 	"github.com/frankbardon/pulse/internal/processing/regression"
@@ -345,7 +346,12 @@ const composeHostScope = "compose/"
 // The fold runs only on a complete batch: both orchestrators return an
 // error before the barrier when any slot fails, so a `compose` family
 // is never corrected over a partial set of members.
-func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.ComposedResponse) error {
+//
+// specs is the batch's ComposedRequest.Overlays: a spec may emit several
+// layers (the panel and fan-out kinds, one per target), so its resolved
+// slot is mapped onto each of its layers (composeLayerMultiplicity)
+// before the index-aligned collection.
+func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.ComposedResponse, specs []types.ComposeOverlaySpec) error {
 	if plan == nil || out == nil {
 		return nil
 	}
@@ -355,7 +361,7 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 			collectRequestSites(fams, composeSlotScope(i), sub, out.Responses[i])
 		}
 	}
-	collectOverlaySites(fams, composeHostScope, plan.Overlays, out.Overlays)
+	collectOverlaySites(fams, composeHostScope, composeLayerMultiplicity(plan.Overlays, specs), out.Overlays)
 	collectComparisonSites(fams, plan.Comparisons, out.Comparisons)
 	if err := fams.fold(); err != nil {
 		return err
@@ -369,6 +375,31 @@ func foldComposeMultiplicity(plan *descx.ComposeMultiplicityPlan, out *types.Com
 		}
 	}
 	return nil
+}
+
+// composeLayerMultiplicity maps the Compose-host overlay slots (one per
+// spec) onto the layers the fold emitted (one per target of a panel or
+// fan-out spec, overlayhost.ComposeLayerSpecs), so each layer is
+// collected under its own spec's resolution. Each target layer of a
+// multi-layer spec is its own `layer` (and `row` / `column`) family —
+// its Slot gains the target offset — while a `compose` family pools
+// them all. Every spec emitting one layer returns slots unchanged.
+func composeLayerMultiplicity(slots []descx.ResolvedMultiplicity, specs []types.ComposeOverlaySpec) []descx.ResolvedMultiplicity {
+	specOf, targetOf := overlayhost.ComposeLayerSpecs(specs, nil)
+	if len(specOf) == len(specs) {
+		return slots
+	}
+	out := make([]descx.ResolvedMultiplicity, len(specOf))
+	for l, i := range specOf {
+		if i >= len(slots) {
+			continue
+		}
+		out[l] = slots[i]
+		if overlayhost.ComposeLayerCount(&specs[i], specs[i].Kind) > 1 {
+			out[l].Slot += "/" + strconv.Itoa(targetOf[l])
+		}
+	}
+	return out
 }
 
 // collectComparisonSites files each member nested-model comparison's

@@ -590,7 +590,9 @@ func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.
 			if !ok {
 				return vectors.ExtensionAggregation{}
 			}
-			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued, NonScalar: m.NonScalar, EmitsInputValue: m.EmitsInputValue}
+			schema := snap.ComponentSchemas[name]
+			return vectors.ExtensionAggregation{Registered: true, VectorInput: m.VectorInput, ArrayValued: m.ArrayValued, NonScalar: m.NonScalar, EmitsInputValue: m.EmitsInputValue,
+				CarriesMoments: schemaCarriesMoments(schema.Keys)}
 		}
 	}
 	return k

@@ -333,3 +333,102 @@ func TestYoY_Refused(t *testing.T) {
 		}
 	}
 }
+
+// ComposeHostDepth is the Depth rule over a Compose OVERLAY_FORMULA's
+// host slot (its first target): every key but the last by default, an
+// explicit leading prefix, [] for none. A crosstab, ungrouped or absent
+// host, and a kind outside AppliesCompose, partition nothing. A
+// refusal is Depth's, located by Details.slot.
+func TestComposeHostDepth(t *testing.T) {
+	t.Parallel()
+
+	if !AppliesCompose(types.OverlayKindFormula) || AppliesCompose(types.OverlayKindIndexVsRef) {
+		t.Fatal("compose partition kind set wrong")
+	}
+	if got := ComposeKinds(); !reflect.DeepEqual(got, []types.OverlayKind{types.OverlayKindFormula}) {
+		t.Fatalf("ComposeKinds = %v", got)
+	}
+	formula := func(params map[string]any) *types.ComposeOverlaySpec {
+		return &types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Reference: "a", Targets: []string{"b"}, Params: params}
+	}
+	host := func(n int) *types.Request { return &types.Request{Groups: groups(n)} }
+	for _, c := range []struct {
+		name string
+		req  *types.Request
+		spec *types.ComposeOverlaySpec
+		want int
+	}{
+		{"implicit 3", host(3), formula(map[string]any{"formula": "value"}), 2},
+		{"implicit 2", host(2), formula(nil), 1},
+		{"one grouper", host(1), formula(nil), 0},
+		{"explicit prefix", host(3), formula(map[string]any{"partition_by": []any{"region"}}), 1},
+		{"explicit none", host(3), formula(map[string]any{"partition_by": []any{}}), 0},
+		{"null", host(2), formula(map[string]any{"partition_by": nil}), 1},
+		{"ungrouped", host(0), formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"crosstab", &types.Request{Groups: groups(3), Crosstab: &types.CrosstabSpec{}}, formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"nil host", nil, formula(map[string]any{"partition_by": []any{"x"}}), 0},
+		{"other kind", host(3), &types.ComposeOverlaySpec{Kind: types.OverlayKindIndexVsRef, Targets: []string{"b"}, Params: map[string]any{"partition_by": []any{"x"}}}, 0},
+	} {
+		got, err := ComposeHostDepth(c.req, c.spec, 0)
+		if err != nil || got != c.want {
+			t.Errorf("%s: ComposeHostDepth = (%d, %v), want %d", c.name, got, err, c.want)
+		}
+	}
+	_, err := ComposeHostDepth(host(2), formula(map[string]any{"partition_by": []any{"store"}}), 4)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_OVERLAY_PARTITION_INVALID {
+		t.Fatalf("err = %v, want PULSE_OVERLAY_PARTITION_INVALID", err)
+	}
+	want := map[string]any{"index": 4, "kind": string(types.OverlayKindFormula), "partition_by": []string{"store"},
+		"groups": []string{"region", "store"}, "reason": "not_prefix", "field": "store", "slot": "b"}
+	if !reflect.DeepEqual(ce.Details, want) {
+		t.Errorf("details %#v, want %#v", ce.Details, want)
+	}
+}
+
+// AppliesWith adds an instance's extension kinds through the hook
+// alone; a nil hook is the built-in table (U66 #713).
+func TestAppliesWith(t *testing.T) {
+	t.Parallel()
+
+	const ext = types.OverlayKind("OVERLAY_ACME_TREND")
+	yes := func(k types.OverlayKind) bool { return k == ext }
+	if AppliesWith(ext, nil) || !AppliesWith(ext, yes) || Ordered(ext) {
+		t.Error("an extension kind applies without its hook, not with it, or reads as ordered")
+	}
+	if !AppliesWith(types.OverlayKindDeltaVsPrior, nil) || AppliesWith(types.OverlayKindIndexVsRef, yes) {
+		t.Error("the built-in table moved under the hook")
+	}
+}
+
+// TestFromCompose: a Compose spec reads as the OverlaySpec Explicit and
+// Depth take — Kind kept, Params re-encoded — so the partition rule and
+// predict's series-axis advisory see one partition_by.
+func TestFromCompose(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := FromCompose(nil); ok {
+		t.Error("FromCompose(nil) ok")
+	}
+	for _, c := range []struct {
+		params   map[string]any
+		explicit bool
+	}{
+		{nil, false},
+		{map[string]any{"formula": "prior"}, false},
+		{map[string]any{"partition_by": nil}, false},
+		{map[string]any{"partition_by": []string{}}, true},
+		{map[string]any{"partition_by": []string{"region"}}, true},
+	} {
+		got, ok := FromCompose(&types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Params: c.params})
+		if !ok || got.Kind != types.OverlayKindFormula {
+			t.Fatalf("%v: FromCompose = (%+v, %v)", c.params, got, ok)
+		}
+		if Explicit(got) != c.explicit {
+			t.Errorf("%v: Explicit = %v, want %v", c.params, !c.explicit, c.explicit)
+		}
+	}
+	if _, ok := FromCompose(&types.ComposeOverlaySpec{Kind: types.OverlayKindFormula, Params: map[string]any{"x": func() {}}}); ok {
+		t.Error("unencodable params: ok")
+	}
+}

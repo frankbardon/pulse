@@ -688,9 +688,56 @@
       "enum": [],
       "type": "string"
     },
+    "GrouperBucketComponents": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "group_key": {
+          "items": true,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "operator": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "total_n": {
+          "type": "integer"
+        }
+      },
+      "then": {
+        "required": [
+          "group_key"
+        ]
+      },
+      "type": "object"
+    },
     "GrouperComponents": {
       "additionalProperties": false,
       "properties": {
+        "buckets": {
+          "items": {
+            "$ref": "#/$defs/GrouperBucketComponents"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "field": {
           "type": "string"
         },
@@ -2365,4 +2412,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 48cc6fb2ee8247f04494599b8361db0a0986f056e22190282e477c8bfc22fade
+// golden-hash: 1b64b275cf73b98c9344e1634d331a9fa7f428306bdc9f20e5e13a4bd78e56f6

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -328,9 +329,12 @@ func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Reque
 }
 
 // hasPercentileParam reports whether the raw-JSON Params block carries
-// a percentile (or "p") key. Returns true when the JSON is absent or
-// malformed — predict's other validators will surface that as an error;
-// suggestions should not double-up.
+// a non-null percentile key — the one the runtime reads
+// (internal/percentilespec); absent params, a null params object, a
+// key-less object and a null key all read as missing (D33: refused,
+// and the suggestion proposes the common quantiles). Returns true when
+// the JSON is malformed — predict's other validators surface that as an
+// error; suggestions should not double-up.
 func hasPercentileParam(raw json.RawMessage) bool {
 	if len(raw) == 0 {
 		return false
@@ -342,13 +346,8 @@ func hasPercentileParam(raw json.RawMessage) bool {
 		// failure.
 		return true
 	}
-	if _, ok := probe["percentile"]; ok {
-		return true
-	}
-	if _, ok := probe["p"]; ok {
-		return true
-	}
-	return false
+	v, ok := probe["percentile"]
+	return ok && strings.TrimSpace(string(v)) != "null"
 }
 
 // appendStreamabilitySuggestions emits one suggestion per operator that

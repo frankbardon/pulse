@@ -15,7 +15,7 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
+`Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one or more target slot labels.
 
 
 ## Host shape
@@ -24,7 +24,7 @@ COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment 
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target.
+SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 <!-- generated: reading-the-output -->
 
@@ -38,6 +38,7 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 - `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.
 - Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `DictPrefixFast`).
 - Buffered (inferential; the Compose slot barrier always buffers).
+<!-- feature: AGG_MODE -->- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.<!-- /feature -->
 
 ## See
 

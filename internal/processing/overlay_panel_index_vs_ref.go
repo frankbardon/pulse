@@ -72,6 +72,14 @@ func panelLayerName(spec *types.ComposeOverlaySpec, targetLabel string) string {
 // emitted panel by target offset without any auxiliary index map.
 // Stable across re-runs of the same spec.
 func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	layers, warnings, _, err := applyPanelIndexVsRefLayers(spec, reference, targets, refIdx, targetIdxs)
+	return layers, warnings, err
+}
+
+// applyPanelIndexVsRefLayers is the multi-layer table entry: the
+// panel's layers plus each warning's layer offset (composeFanOutLayers),
+// so the dispatcher routes a warning to the target layer it belongs to.
+func applyPanelIndexVsRefLayers(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, []int, error) {
 	// Cap enforcement runs FIRST — an over-cap panel fails loud before
 	// any per-target work happens. The cap counts target slots only; the
 	// reference is always present and does not count.
@@ -80,7 +88,7 @@ func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Respo
 	paramread.Read(paramread.Overlay, string(spec.Kind), "scale")
 	cap := resolveMaxPanelTargets(spec.Options)
 	if len(targets) > cap {
-		return nil, nil, errors.NewCodedErrorWithDetails(
+		return nil, nil, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 			"compose overlay "+string(spec.Kind)+" exceeded the per-spec MaxPanelTargets cap",
 			map[string]any{
@@ -89,64 +97,10 @@ func applyPanelIndexVsRef(spec *types.ComposeOverlaySpec, reference *types.Respo
 				"cap":      cap,
 			})
 	}
-
-	layers := make([]types.OverlayLayer, 0, len(targets))
-	var warnings []types.OverlayWarning
-
-	for i, target := range targets {
-		// Build a single-target ComposeOverlaySpec shim so the reused
-		// applyIndexVsRef handler sees the same authoring shape it would
-		// see if the caller had supplied one INDEX_VS_REF spec per
-		// target. The shim carries the same Reference, the same Scope,
-		// the same Params (so caller-supplied `Params["scale"]`
-		// propagates through every emitted layer), and a Targets slice
-		// containing only the current target's label. spec.Options does
-		// NOT propagate — the cap check above already gated the panel
-		// shape and propagating MaxPanelTargets to the single-target
-		// sibling would be misleading.
-		targetLabel := ""
-		if i < len(spec.Targets) {
-			targetLabel = spec.Targets[i]
-		}
-		targetIdx := -1
-		if i < len(targetIdxs) {
-			targetIdx = targetIdxs[i]
-		}
-		shim := types.ComposeOverlaySpec{
-			Name:      spec.Name,
-			Kind:      types.OverlayKindIndexVsRef,
-			Scope:     spec.Scope,
-			Reference: spec.Reference,
-			Targets:   []string{targetLabel},
-			Params:    spec.Params,
-		}
-		layer, ws, err := applyIndexVsRef(&shim, reference, []*types.Response{target}, refIdx, []int{targetIdx})
-		if err != nil {
-			return nil, nil, err
-		}
-		// Rename the layer per the panel naming convention. The reused
-		// applyIndexVsRef stamped the layer's Name + CellLabel from the
-		// shim's spec.Name (or kind fallback) via composeOverlayLayerName
-		// — overwrite both slots so the rendered panel surface carries
-		// the per-target handle the kind's catalog row documents.
-		panelName := panelLayerName(spec, targetLabel)
-		layer.Name = panelName
-		// Echo the panel kind on the emitted layer so the renderer sees
-		// the parent kind (PANEL_INDEX_VS_REF), not the underlying
-		// single-target sibling (INDEX_VS_REF).
-		layer.Kind = spec.Kind
-		// MATRIX payload carries a CellLabel slot — keep it aligned with
-		// the renderer-facing Name so the matrix grid's per-cell header
-		// reflects the panel target. Nil-safe (SERIES emissions leave
-		// the matrix slot empty).
-		if layer.Payload.Matrix != nil {
-			layer.Payload.Matrix.CellLabel = panelName
-		}
-		layers = append(layers, layer)
-		if len(ws) > 0 {
-			warnings = append(warnings, ws...)
-		}
-	}
-
-	return layers, warnings, nil
+	// Every layer is the single-target OVERLAY_INDEX_VS_REF output for
+	// its (reference, target) pair, named `<spec.Name>__<target_label>`
+	// — one target included — and echoing the panel kind.
+	return composeFanOutLayers(spec, reference, targets, refIdx, targetIdxs, applyIndexVsRef, types.OverlayKindIndexVsRef, func(targetLabel string, _ int) string {
+		return panelLayerName(spec, targetLabel)
+	})
 }

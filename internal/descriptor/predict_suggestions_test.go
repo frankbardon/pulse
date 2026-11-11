@@ -280,6 +280,28 @@ func TestPredict_Suggestions_PercentileMissingP(t *testing.T) {
 	}
 }
 
+// TestPredict_Suggestions_PercentileMissingForms: every missing form
+// the runtime refuses (D33, U66 E9-S5) — a null params object, a
+// key-less object, a null key — carries the missing-percentile suggestion beside the refusal.
+func TestPredict_Suggestions_PercentileMissingForms(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, Description: "Numeric score in range [0, 1]"},
+		},
+	}
+	for _, raw := range []string{`null`, `{}`, `{"percentile":null}`} {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score", Params: json.RawMessage(raw)}},
+		}
+		ss := runPredictForSuggestions(t, schema, req)
+		if findSuggestionByPath(t, ss, "Aggregations.0.Params.percentile") == nil {
+			t.Errorf("params %s: expected the missing-percentile suggestion; got %+v", raw, ss)
+		}
+	}
+}
+
 func TestPredict_Suggestions_PercentileWithParamSilent(t *testing.T) {
 	t.Parallel()
 

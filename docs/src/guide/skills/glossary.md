@@ -167,6 +167,16 @@ Written as: deviance, deviances, null deviance
 
 See also: generalized-linear-model, pseudo-r-squared
 
+## discordant-odds-ratio
+
+In a before-and-after table of the same units, the moves from the first state to the second divided by the moves back; 1 means switching is balanced.
+
+Why it matters: It sizes a McNemar result: the p-value says whether switching is lopsided, the ratio says by how much and which way. Units that kept their state do not enter it.
+
+Written as: discordant odds ratio, discordant odds ratios
+
+See also: odds-ratio, paired-data, effect-size
+
 ## distance
 
 A number for how far apart two rows are across several fields; zero means identical.

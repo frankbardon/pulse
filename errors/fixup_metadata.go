@@ -2078,11 +2078,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH: {
-		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message.",
+		Message: "An overlay registration's handler — run at pulse.New over a synthetic crosstab host, or on any run — returned a payload whose Shape its Shapes do not list, set an arm other than that shape's own, carried Parts or an engine-owned p_adjusted / significant_adjusted figure, or returned a warning without a code or message — or, for a kind declaring HonoursPartitionBy, returned for one partition anything but a series payload with one entry per partition row (reason partition_misaligned, details {rows, entries}).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Return OverlayOutput.Payload with a Shape listed in the registration's Shapes and only its matching arm set (Scalar, Series or Matrix); leave Parts and every p_adjusted / significant_adjusted field nil (the engine owns multiple-comparison correction); give every warning a Code and a Message. details.reason names the rule that failed.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "reason partition_misaligned: under HonoursPartitionBy the Series handler runs once per partition over a host holding only that partition's rows — return a series payload with one entry per host.Groups() row (details.rows), or drop HonoursPartitionBy so the handler sees the whole host once.",
 			},
 		},
 	},
@@ -2114,7 +2118,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch, or Expression set on a param whose JSONType is not number — reason expression_not_number), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input; an overlay's HonoursField without a Series or Compose handler — field_without_series_handler —, HonoursPartitionBy without a Series handler returning the series shape — partition_needs_series —, or a Params entry for the engine-owned field / partition_by it opts into — reserved_series_param).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2125,6 +2129,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "Aggregators", "*", "CountSemantic"},
 				Hint:   "reason count_semantic_vector_input: CountSemantic declares one count per slot, which a VectorInput / ArrayValued aggregator (one figure per member) never finishes as — drop CountSemantic, or register a single-field aggregator.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "Overlays", "*", "Params"},
+				Hint:   "reasons field_without_series_handler / partition_needs_series / reserved_series_param: set Handler.Series (and list the series shape for HonoursPartitionBy; HonoursField also takes Handler.Compose) or drop the flag, and remove field / partition_by from Params — the engine declares and reads them.",
 			},
 		},
 	},
@@ -3504,6 +3513,12 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays. On ComposedRequest.Overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
 				Examples: []any{"matrix", "series"},
 			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Hint:     "When details.measure_type is present the kind cannot read that measure. A Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF, details.reason measure_not_mean, details.slot / details.host the scored aggregation) needs a mean — AGG_AVERAGE or AGG_WEIGHTED_MEAN, with the variance and sample size in params — or a measure whose components carry the moments: AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV (or an extension declaring mean + variance), read with no params. Score one of those, or point params.field at it. A prior-period T / Z kind needs AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV; the proportion kind an AGG_AVERAGE of a 0/1 indicator.",
+				Examples: []any{"AGG_AVERAGE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_VARIANCE", "AGG_STDDEV"},
+			},
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
@@ -3556,6 +3571,12 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"FacetRequest", "DiscreteTopK"},
 				Hint:   "OVERLAY_CHISQ_VS_POP fix: raise the subset record count by widening the FacetRequest filter (drop a restrictive Filterer) OR coarsen the facet's discrete dictionary (the host's DiscreteTopK ceiling) so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
 			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Overlays", "*", "Params", "exact"},
+				Hint:     "OVERLAY_SYMMETRY: set params.exact to true for an exact p that needs no expected-count threshold — on a 2 x 2 the exact binomial McNemar test (R binom.test(n_12, n_12 + n_21)) with the discordant odds ratio and its exact interval, on k x k the exact conditional Bowker test. Not over a probability-weighted cell (refused).",
+				Examples: []any{true},
+			},
 		},
 	},
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
@@ -3576,7 +3597,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is).",
+		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is). The paired-change test of symmetry refuses two exact k x k requests at runtime only (the state count and counts are data): an explicit params.conf_level with exact on more than 2 states (details.reason needs_2x2 — the k x k exact Bowker test has no odds ratio to cover) and an exact Bowker test whose convolution would enumerate more than 2^20 terms (details.reason exact_too_large, details.terms / limit) — never a silent fall back to the chi-square.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3595,6 +3616,16 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "p_source"},
 				Hint:     "Pairwise proportion kind on a normalised crosstab (details.param p_source, details.normalize set): drop p_source — the default on a normalised host reads each cell as the 0..1 share it already is — or set it to cell_value. Keep cell_value_pct only for a normalize none host whose cells are 0..100 percentages.",
 				Examples: []any{map[string]any{"p_source": "cell_value"}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "exact"},
+				Hint:   "OVERLAY_SYMMETRY details.reason exact_too_large: drop params.exact — the table's discordant counts are large enough for Bowker's chi-square test, which is what the exact test would approximate anyway. Or coarsen the states (fewer, merged categories) to bring the exact test under its limit.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "conf_level"},
+				Hint:   "OVERLAY_SYMMETRY details.reason needs_2x2: drop params.conf_level — on more than 2 states the exact Bowker test reports no odds ratio, so there is no interval to set a level for. Keep conf_level only on a 2 x 2 table.",
 			},
 		},
 	},
@@ -3643,7 +3674,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARTITION_INVALID: {
-		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order.",
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order. An extension kind declaring HonoursPartitionBy partitions the Request SERIES host only: on ComposedRequest.Overlays its partition_by is refused with Details {index, kind, partition_by, reason: compose_host}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3656,6 +3687,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
 				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of Details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
 				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Overlays", "*", "Params", "partition_by"},
+				Hint:   "reason compose_host: drop partition_by from the ComposedRequest.Overlays spec — the extension kind's Compose handler reads every slot whole; partition on a grouped request's Request.Overlays instead.",
 			},
 		},
 	},
@@ -3785,7 +3821,7 @@ var codeMetadata = map[Code]Metadata{
 		// Prose points at the predict-side SlotPair surface so MCP
 		// planners can fan the per-divergence repair without parsing
 		// envelope Details.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. A two-sample vs-ref kind also raises it, details.reason mixed_measure_read, when one slot's measure is a bare mean and the other's carries the moments. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3796,6 +3832,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
 				Hint:   "Re-issue the diverging slot Request with the same column-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Hint:     "When details.reason is mixed_measure_read a Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF) reads one side as a bare mean and the other through its moments (details.reference_read / details.target_read): score the same family on both slots — AGG_AVERAGE / AGG_WEIGHTED_MEAN (variance and n from params) on both, or AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV (components) on both.",
+				Examples: []any{"AGG_AVERAGE", "AGG_WELFORD"},
 			},
 		},
 	},
@@ -3841,12 +3883,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
-		Message: "A multi-reference COMPOSE-host overlay spec (today: the panel proportion-z and panel index-vs-ref overlays) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap`.",
+		Message: "A multi-target COMPOSE-host overlay spec (the panel proportion-z and panel index-vs-ref overlays, and the fan-out kinds index-vs-ref, delta-vs-ref, t-vs-ref, z-vs-ref, t-cell, z-cell, prop-z-cell, chisq-vs-ref and rank, which emit one layer per target) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold, or adds one more layer, so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap` (a fan-out kind also the spec `index`, identically at predict and run time).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Targets"},
-				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer.",
+				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer; a fan-out spec splits into several specs the same way.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -5628,7 +5670,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SLOT_FAILED: {
-		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). Under Options.Strict the run fails with the slot's own code instead.",
+		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). slot_kind `groups` is one outer bucket of a params.fit \"within\" grouper whose refit failed on that bucket's data (a cluster count above its distinct tuples): `index` is the composite position (a crosstab counts rows, then columns), `label` the key column, its records join no bucket and its `components.groupers[index].buckets` entry carries the error. Under Options.Strict the run fails with the slot's own code instead.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

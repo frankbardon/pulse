@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -22,9 +23,21 @@ import (
 //   - Shape: the reference slot's authored shape (the gates already
 //     refused a target of another shape). MATRIX binds cell, margins
 //     and SDs off the target crosstab plus ref_cell; SERIES binds value,
-//     total (sum of the present target values) and prior (lag-1 present
-//     row, in Data order) plus ref_value; SCALAR binds value (the
-//     target's one aggregate row) plus ref.
+//     total (sum of the present target values in the row's partition)
+//     and prior (lag-1 present row within the partition, in Data order)
+//     plus ref_value; SCALAR binds value (the target's one aggregate
+//     row) plus ref.
+//   - Measure (U66 #441): value, ref_value and slot.<label>.value read
+//     the aggregation params.field names on each slot
+//     (seriesfield.AppliesCompose; the dispatcher's
+//     projectComposeSeriesSlots narrows every slot to it), else its
+//     Aggregations[0].
+//   - Partition (U66 #438): over two or more groupers the SERIES arm
+//     runs per partition of the host slot's rows — every key but the
+//     last by default, or params.partition_by
+//     (seriespartition.ComposeHostDepth, the rule predict-compose
+//     raises) — the process-host FORMULA's rule, so total and prior
+//     never cross an outer group.
 //   - slot.<label>.cell (MATRIX) / slot.<label>.value: every slot the
 //     spec names (reference and targets), aligned to the host
 //     coordinate by key — the key-set gate already proved the sets
@@ -42,14 +55,27 @@ import (
 // off the responses (the bare ApplyComposeOverlays path). The
 // dispatcher calls applyComposeFormulaWith instead, with each slot's
 // authored shape and the instance's ExprFunctions.
+//
+// With no authored Request in reach it cannot read the host's group
+// key columns, so its SERIES arm walks every row as one partition.
 func applyComposeFormula(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
-	return applyComposeFormulaWith(spec, -1, responseSlotShapes(reference, targets), reference, targets, nil)
+	return applyComposeFormulaWith(spec, -1, responseSlotShapes(reference, targets), reference, targets, nil, composeSeriesPartition{})
+}
+
+// composeSeriesPartition is how a Compose SERIES host's rows split into
+// partitions: by key equality on the first depth of the host slot's
+// group key columns cols (seriespartition.KeyColumns). depth 0 is one
+// partition holding every row.
+type composeSeriesPartition struct {
+	cols  []string
+	depth int
 }
 
 // applyComposeFormulaWith evaluates the Compose FORMULA spec at index
 // with each slot judged by shapes (reference, then targets parallel to
-// targets) and exts' ExprFunctions / LookupTables in reach.
-func applyComposeFormulaWith(spec *types.ComposeOverlaySpec, index int, shapes composeSlotShapes, reference *types.Response, targets []*types.Response, exts *ExtensionRegistry) (types.OverlayLayer, []types.OverlayWarning, error) {
+// targets), exts' ExprFunctions / LookupTables in reach and the SERIES
+// arm split by part.
+func applyComposeFormulaWith(spec *types.ComposeOverlaySpec, index int, shapes composeSlotShapes, reference *types.Response, targets []*types.Response, exts *ExtensionRegistry, part composeSeriesPartition) (types.OverlayLayer, []types.OverlayWarning, error) {
 	paramread.Read(paramread.Overlay, string(spec.Kind), "formula")
 	slots := composeFormulaSlots(spec, shapes)
 	if cerr := formulaident.ComposeRefusalWithTables(spec.Kind, spec.Params, index, shapes.ref, slots, exts.overlayFormulaFuncs(), exts.Params(), exts.TablesCatalog()); cerr != nil {
@@ -86,7 +112,7 @@ func applyComposeFormulaWith(spec *types.ComposeOverlaySpec, index int, shapes c
 	case types.OverlayShapeMatrix:
 		layer, err = composeFormulaMatrix(spec, ospec, formula, reference, target, slots, slotResps, exts)
 	case types.OverlayShapeSeries:
-		layer, err = composeFormulaSeries(ospec, formula, reference, target, slots, slotResps, exts)
+		layer, err = composeFormulaSeries(ospec, formula, reference, target, slots, slotResps, exts, part)
 	default:
 		layer, err = composeFormulaScalar(ospec, formula, reference, target, slots, slotResps, exts)
 	}
@@ -186,7 +212,11 @@ func alignMatrixCells(src, host *types.MatrixPayload) [][]float64 {
 
 // composeFormulaSeries is the SERIES arm: the target's Data rows (in
 // order) are the host; ref_value and each slot are aligned by row key.
-func composeFormulaSeries(ospec *types.OverlaySpec, formula string, reference, target *types.Response, slots []formulaident.Slot, slotResps []*types.Response, exts *ExtensionRegistry) (types.OverlayLayer, error) {
+// Each row's total and prior are its partition's (part): the sum of the
+// partition's present values, and the previous present row within the
+// partition — one partition holding every row reads exactly the
+// pre-partition figures.
+func composeFormulaSeries(ospec *types.OverlaySpec, formula string, reference, target *types.Response, slots []formulaident.Slot, slotResps []*types.Response, exts *ExtensionRegistry, part composeSeriesPartition) (types.OverlayLayer, error) {
 	keys := make([]string, len(target.Data))
 	axis := make([]types.AxisKey, len(target.Data))
 	values := make([]float64, len(target.Data))
@@ -199,6 +229,7 @@ func composeFormulaSeries(ospec *types.OverlaySpec, formula string, reference, t
 			total += v
 		}
 	}
+	rowTotal, rowPrior := composeSeriesPartitionFigures(target.Data, values, present, part)
 	host := NewSeriesHostView(axis, func(i int) (float64, bool) {
 		if i < 0 || i >= len(values) {
 			return 0, false
@@ -227,6 +258,7 @@ func composeFormulaSeries(ospec *types.OverlaySpec, formula string, reference, t
 		if _, ok := bindFormulaEnvSeries(env, ctx, i); !ok {
 			continue
 		}
+		env["total"], env["prior"] = rowTotal[i], rowPrior[i]
 		stat, err := evalFormula(ospec, program, env, map[string]any{"row_index": i, "row_key": keys[i]})
 		if err != nil {
 			return types.OverlayLayer{}, err
@@ -240,6 +272,31 @@ func composeFormulaSeries(ospec *types.OverlaySpec, formula string, reference, t
 		Payload: types.OverlayPayload{Shape: types.OverlayShapeSeries, Series: &types.SeriesPayload{Entries: entries}},
 		Summary: acc.summary(),
 	}, nil
+}
+
+// composeSeriesPartitionFigures returns each host row's partition total
+// (the sum of its partition's present values, in row order) and prior
+// (the previous present value within its partition, NaN at the first) —
+// seriespartition.Partition over the rows' key columns part.cols.
+func composeSeriesPartitionFigures(rows []map[string]any, values []float64, present []bool, part composeSeriesPartition) (totals, priors []float64) {
+	parts := seriespartition.Partition(seriespartition.RowKeys(rows, part.cols), part.depth)
+	totals = make([]float64, len(rows))
+	priors = make([]float64, len(rows))
+	for _, p := range parts {
+		var sum float64
+		prior := math.NaN()
+		for _, i := range p {
+			priors[i] = prior
+			if present[i] {
+				sum += values[i]
+				prior = values[i]
+			}
+		}
+		for _, i := range p {
+			totals[i] = sum
+		}
+	}
+	return totals, priors
 }
 
 // alignSeriesValues reads resp's Data value per host row key, NaN where

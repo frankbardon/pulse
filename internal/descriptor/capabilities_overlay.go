@@ -98,6 +98,8 @@ func OverlayCapabilities() []descriptor.OverlayCapability {
 // "".
 func seriesFieldNoteFor(k types.OverlayKind) string {
 	switch {
+	case seriespartition.Ordered(k) && seriespartition.AppliesCompose(k):
+		return seriesFieldNote + seriesPartitionNote + seriesAxisNote + composePartitionNote
 	case seriespartition.Ordered(k):
 		return seriesFieldNote + seriesPartitionNote + seriesAxisNote
 	case seriespartition.Applies(k):
@@ -152,6 +154,13 @@ const seriesTotalNote = " Each row is scored against its partition's total (and,
 const composeSeriesFieldNote = " Measure: on SERIES slots the overlay keys each row on the slot's group columns alone and scores " +
 	"the aggregation whose OUTPUT LABEL Params[\"field\"] names (explicit Label, else TYPE_field)" + elementFieldNote + " on every slot it reads; " +
 	"absent, each slot's Aggregations[0]. A label a slot lacks fires PULSE_OVERLAY_FIELD_UNKNOWN (Details.slot) at predict and at runtime."
+
+// composePartitionNote closes the Description of a kind that also runs
+// per partition on a Compose host (seriespartition.AppliesCompose;
+// seriesfield.AppliesCompose holds it too): the same two rules, per slot.
+const composePartitionNote = " On a Compose host Params[\"field\"] names the aggregation each slot it reads is scored on " +
+	"(PULSE_OVERLAY_FIELD_UNKNOWN carries Details.slot), and the partition rule splits the first target slot's rows " +
+	"(Details.slot on a refusal)."
 
 // chainSeriesFieldNote closes the Description of every whole-chain
 // kind whose SERIES arm scores one stage aggregation
@@ -386,7 +395,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning per layer). Inherently buffered — inferential overlays " +
 				"as a family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key " +
 				"alignment + schema match + dict drift all run BEFORE the handler dispatches so the handler " +
-				"receives finalised *Response objects for both slots with identical structure.",
+				"receives finalised *Response objects for both slots with identical structure. " + composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsBaseline:
 		return descriptor.OverlayCapability{
@@ -479,7 +488,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"BEFORE the handler dispatches. Streamable via the SERIES dispatch (the MATRIX route is forced " +
 				"buffered through the slot barrier in service.Compose / service.ComposeParallel; the flag describes the " +
 				"kind's INTRINSIC streaming capability via its SERIES handler, mirroring OVERLAY_INDEX_VS_REF's dual-shape " +
-				"convention).",
+				"convention). " + composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsSibling:
 		return descriptor.OverlayCapability{
@@ -888,7 +897,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"Detail flag. Streamable via the SERIES dispatch (the MATRIX route is forced buffered through the slot " +
 				"barrier in service.Compose / service.ComposeParallel; the flag describes the kind's INTRINSIC streaming " +
 				"capability via its SERIES handler, mirroring OVERLAY_SHARE_OF_TOTAL's dual-shape convention). Renderers " +
-				"centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family).",
+				"centre diverging colour ramps on baseline=scale (default 100 mirrors the per-Request INDEX_VS_* family). " + composeFanOutNote,
 		}
 	case types.OverlayKindIndexVsRollingMean:
 		return descriptor.OverlayCapability{
@@ -1163,7 +1172,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"zero row margin on EITHER side — the cell value is never borrowed as n) produce NaN p-values with one " +
 				"PULSE_OVERLAY_REF_ZERO warning per affected cell (margin_missing: true for the margin case). Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
-				"Non-Goals).",
+				"Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindPropZPanel:
 		return descriptor.OverlayCapability{
@@ -1285,7 +1294,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"but the rank computation reads only the target cells — RANK is orthogonal to the ref-vs-target " +
 				"comparison family while still reusing the same resolution + alignment pipeline. Inherently buffered — the " +
 				"COMPOSE host is buffered by the slot barrier; ranking within the target matrix requires the full materialised " +
-				"matrix anyway.",
+				"matrix anyway. " + composeFanOutNote,
 		}
 	case types.OverlayKindShareOfCol:
 		return descriptor.OverlayCapability{
@@ -1515,7 +1524,16 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"every pair of states, moves i -> j are as frequent as moves j -> i. chi-square = sum over pairs i < j of " +
 				"(n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept " +
 				"(k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless " +
-				"params.correct is false (R's default correct = TRUE; inert on k x k). With no pair kept, the statistic and " +
+				"params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial " +
+				"McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact " +
+				"(1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact " +
+				"conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW. " +
+				"On k x k params.exact runs the exact conditional Bowker test: given each pair's total, n_ij ~ Binomial(n_ij + n_ji, 1/2), " +
+				"p = P(chi-square >= observed) by exact convolution; statistic the uncorrected chi-square, Parameters exact, states, " +
+				"discordant, pairs_dropped, continuity_corrected 0 (no df, odds ratio or conf_level); past 2^20 enumeration terms PULSE_OVERLAY_PARAM_MISSING " +
+				"(reason exact_too_large), an explicit conf_level reason needs_2x2 (both runtime only). exact over a " +
+				"probability-weighted cell is PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts " +
+				"PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and " +
 				"p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the " +
 				"chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, " +
 				"continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by " +
@@ -1549,7 +1567,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"(var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses the statdist.StudentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Inherently buffered — inferential overlays as a " +
-				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
+				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindTVsRef:
 		return descriptor.OverlayCapability{
@@ -1579,7 +1597,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
 				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
 				"buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD §2 " +
-				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches.",
+				"Non-Goals). Resolution + key alignment + schema match + dict drift all run BEFORE the handler dispatches. " + composeFanOutNote,
 		}
 	case types.OverlayKindTVsPrior:
 		return priorTestCapability(types.OverlayKindTVsPrior,
@@ -1829,7 +1847,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"z = (target_cell - ref_cell) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
-				"streamable-test path is plumbed (PRD §2 Non-Goals).",
+				"streamable-test path is plumbed (PRD §2 Non-Goals). " + composeFanOutNote,
 		}
 	case types.OverlayKindZVsRef:
 		return descriptor.OverlayCapability{
@@ -1860,7 +1878,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +
 				"produce NaN p-values with the same warning. Inherently buffered — inferential overlays as a family stay " +
 				"buffered until a streamable-test path is plumbed (PRD §2 Non-Goals). Resolution + key alignment + " +
-				"schema match + dict drift all run BEFORE the handler dispatches.",
+				"schema match + dict drift all run BEFORE the handler dispatches. " + composeFanOutNote,
 		}
 	}
 	return descriptor.OverlayCapability{Kind: kind}
@@ -1880,9 +1898,20 @@ const twoSampleCellInputs = "A cell whose components carry mean and variance (AG
 	"converted (n < 2: undefined), an extension cell is read as is and must expose it; " +
 	"any other cell — or any cell of a slot built with components disabled — is a scalar mean. " + twoSampleParamsRule
 
+// composeFanOutNote closes the fan-out kinds' descriptions
+// (overlayhost.ComposeFanOutKind, U66 #443).
+const composeFanOutNote = "Several targets fan out: one layer per target in Targets order, each the single-target " +
+	"layer for its (reference, target) pair, named `<name>__<target>` (one target keeps the spec's name), capped " +
+	"by Options.MaxPanelTargets (PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP); a multiplicity block maps onto every layer."
+
 // twoSampleSeriesInputs is OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF's inputs
 // rule.
-const twoSampleSeriesInputs = "A group scoring AGG_WELFORD reads its mean, variance and n from the slot's per-group " +
-	"components with no params (PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are disabled); any other " +
-	"scored aggregation is a scalar mean. " + twoSampleParamsRule + " Over crosstab slots the kind is " +
+const twoSampleSeriesInputs = "The scored measure (params.field, else aggregations[0]) must be a mean or carry the " +
+	"moments: AGG_AVERAGE / AGG_WEIGHTED_MEAN (or an AGG_VEC_MEAN element column) is a scalar mean; AGG_WELFORD, " +
+	"AGG_VARIANCE, AGG_STDDEV or an extension whose ComponentSchema declares mean and variance reads its mean, variance " +
+	"and n from the slot's per-group components with no params (an unweighted AGG_VARIANCE / AGG_STDDEV population " +
+	"variance converted to the sample variance; PULSE_OVERLAY_COMPONENTS_REQUIRED when that slot's components are " +
+	"disabled); any other measure is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details.measure_type, reason " +
+	"measure_not_mean), and a mean on one side with moments on the other is PULSE_OVERLAY_SCHEMA_DIVERGENT (reason " +
+	"mixed_measure_read). " + twoSampleParamsRule + " Over crosstab slots the kind is " +
 	"PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE — compare cells with the _CELL twin."

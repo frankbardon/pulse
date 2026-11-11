@@ -5,6 +5,8 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -40,8 +42,10 @@ import (
 //   - ApplyComposeOverlays walks the spec list in matching order,
 //     resolves each spec's Reference + Targets via the Label resolver,
 //     dispatches each via composeOverlayHandlers (falling back to the
-//     stub for genuinely unknown kinds), and returns one OverlayLayer
-//     per spec in matching order plus a flat warnings slice.
+//     stub for genuinely unknown kinds), and returns the OverlayLayers
+//     in spec order (one per spec; one per target for a panel or
+//     fan-out kind, overlayhost.ComposeLayerCount) plus a flat
+//     warnings slice.
 //
 // Service-side wiring: post-slot-barrier overlay fold (FailFast-aware).
 // The `internal/service.Compose` /
@@ -113,7 +117,11 @@ type composeOverlayHandler func(spec *types.ComposeOverlaySpec, reference *types
 // COMPOSE-only kind sees the same (spec, refResp, targetResps,
 // refIdx, targetIdxs) input shape regardless of how many layers it
 // emits. The chassis is the only place that branches on the table.
-type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, error)
+//
+// The third result is each warning's layer offset inside the returned
+// layers (parallel to the warnings), so the dispatcher routes a warning
+// to its own target's layer.
+type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) ([]types.OverlayLayer, []types.OverlayWarning, []int, error)
 
 // composeOverlayHandlers is the per-kind dispatch table for the
 // COMPOSE host path. Unregistered kinds fall through to
@@ -131,26 +139,18 @@ type composeOverlayMultiLayerHandler func(spec *types.ComposeOverlaySpec, refere
 // row (types/overlay.go + types/overlay_streamability.go), add the
 // runtime handler in this package, and add the dispatch entry here.
 var composeOverlayHandlers = map[types.OverlayKind]composeOverlayHandler{
-	types.OverlayKindIndexVsRef: applyIndexVsRef,
-	types.OverlayKindDeltaVsRef: applyDeltaVsRef,
-	types.OverlayKindPropZCell:  applyPropZCell,
 	types.OverlayKindPropZPanel: applyPropZPanel,
-	types.OverlayKindTCell:      applyTCell,
-	types.OverlayKindTVsRef:     applyTVsRef,
-	types.OverlayKindZCell:      applyZCell,
-	types.OverlayKindZVsRef:     applyZVsRef,
-	types.OverlayKindChiSqVsRef: applyChiSqVsRef,
-	types.OverlayKindRank:       applyRank,
 	types.OverlayKindFormula:    applyComposeFormula,
 }
 
-// composeCellTypedHandlers overrides composeOverlayHandlers for the
-// moment cell kinds when the dispatcher holds the authored slot
-// requests: each handler also receives the reference / first target
-// slot's crosstab cell type, so an AGG_VARIANCE / AGG_STDDEV cell's
-// population variance is read as the sample variance (E4-S4). The
-// composeOverlayHandlers entries (zero cell types) serve the bare
-// handler-signature path.
+// composeCellTypedHandlers overrides the multi-layer fan-out entries of
+// the moment cell kinds when the dispatcher holds the authored slot
+// requests: each target's layer also receives the reference slot's and
+// THAT target slot's crosstab cell type (composeCellTypes), so an
+// AGG_VARIANCE / AGG_STDDEV cell's population variance is read as the
+// sample variance (E4-S4) on every target, not only the first. The
+// composeOverlayMultiLayerHandlers entries (zero cell types) serve the
+// bare handler-signature path.
 var composeCellTypedHandlers = map[types.OverlayKind]func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int, cellTypes composeSlotCellTypes) (types.OverlayLayer, []types.OverlayWarning, error){
 	types.OverlayKindTCell: applyTCellWith,
 	types.OverlayKindZCell: applyZCellWith,
@@ -168,13 +168,31 @@ var composeCellTypedHandlers = map[types.OverlayKind]func(spec *types.ComposeOve
 // the single-target OVERLAY_INDEX_VS_REF output for that
 // (reference, target[i]) pair. Layer naming convention:
 // `<spec.Name>__<target_label>` per the kind's catalog entry.
+//
+// The fan-out kinds (overlayhost.ComposeFanOutKind, U66 #443) follow:
+// one layer per target, each the single-target handler's output for
+// its pair, named the spec's Name for one target (byte-identical to the
+// single-target layer) and `<name>__<target_label>` for two or more
+// (composeFanOut). TestComposeFanOutKinds_MatchMultiLayerTable pins the
+// table to overlayhost.ComposeMultiLayerKind.
 var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMultiLayerHandler{
-	types.OverlayKindPanelIndexVsRef: applyPanelIndexVsRef,
+	types.OverlayKindPanelIndexVsRef: applyPanelIndexVsRefLayers,
+	types.OverlayKindIndexVsRef:      composeFanOut(applyIndexVsRef),
+	types.OverlayKindDeltaVsRef:      composeFanOut(applyDeltaVsRef),
+	types.OverlayKindTVsRef:          composeFanOut(applyTVsRef),
+	types.OverlayKindZVsRef:          composeFanOut(applyZVsRef),
+	types.OverlayKindTCell:           composeFanOut(applyTCell),
+	types.OverlayKindZCell:           composeFanOut(applyZCell),
+	types.OverlayKindPropZCell:       composeFanOut(applyPropZCell),
+	types.OverlayKindChiSqVsRef:      composeFanOut(applyChiSqVsRef),
+	types.OverlayKindRank:            composeFanOut(applyRank),
 }
 
 // ApplyComposeOverlays executes every spec in specs against the
 // already-finalised per-slot responses and returns one OverlayLayer
-// per spec in matching order, plus a flat warning slice. Returns
+// per spec in matching order — one per target, in target order, for a
+// panel or fan-out kind (overlayhost.ComposeLayerCount) — plus a flat
+// warning slice. Returns
 // (nil, nil, nil) when specs is empty so the service-side Compose /
 // ComposeParallel post-slot-barrier call site can call
 // ApplyComposeOverlays unconditionally — mirrors the MATRIX /
@@ -251,10 +269,24 @@ func ApplyComposeOverlaysWithRequests(specs []types.ComposeOverlaySpec, response
 // members — the reading predict-compose makes over the same schema
 // (vectors.AggregationColumns). Without it such a name resolves when
 // the slot carries its element labels inline, else syntactically.
-// service.(*Service).applyComposeOverlays calls it.
+// service.(*Service).applyComposeOverlays calls it through
+// ApplyComposeOverlaysRouted.
 func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string, requests []*types.Request, slotSchema func(j int) *encoding.Schema, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, error) {
+	layers, warnings, _, err := ApplyComposeOverlaysRouted(specs, responses, labels, requests, slotSchema, exts)
+	return layers, warnings, err
+}
+
+// ApplyComposeOverlaysRouted is ApplyComposeOverlaysWithSchemas plus,
+// parallel to the warnings, the position in the returned layers of the
+// layer each warning belongs to. A spec may emit several layers (the
+// panel and fan-out kinds: one per target), so a warning's
+// Details["overlay_index"] — its SPEC's index — no longer names its
+// layer once an earlier spec fanned out, nor which target layer of a
+// multi-layer spec raised it. service.(*Service).applyComposeOverlays
+// routes each warning by it (distributeComposeWarnings).
+func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*types.Response, labels []string, requests []*types.Request, slotSchema func(j int) *encoding.Schema, exts *ExtensionRegistry) ([]types.OverlayLayer, []types.OverlayWarning, []int, error) {
 	if len(specs) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	workOverlayLayerRuns.Add(int64(len(specs)))
 	// Build the per-slot lookup map ONCE per barrier entry via the
@@ -264,10 +296,13 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 	// slot-label → *Response binding.
 	byLabel, byIndex, err := resolveComposeSlotsFromLabels(labels, responses)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	layers := make([]types.OverlayLayer, 0, len(specs))
-	var warnings []types.OverlayWarning
+	var (
+		warnings []types.OverlayWarning
+		at       []int // at[w]: warnings[w]'s position in layers
+	)
 	for i := range specs {
 		spec := &specs[i]
 		// Every kind-keyed decision below takes the route: a kind the
@@ -280,7 +315,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// the stub and answered an empty layer.
 		ext := exts.extensionOverlay(route)
 		if cerr := overlayhost.ComposeKindUnknownRefusal(spec.Kind, route, ext != nil || composeTableKind(route), i); cerr != nil {
-			return nil, nil, cerr
+			return nil, nil, nil, cerr
 		}
 		// A catalog kind that does not run on ComposedRequest.Overlays
 		// (a Process, whole-chain or FACET kind) is refused first — the
@@ -288,7 +323,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// its unknown-kind gate. It once fell through to the stub and
 		// answered an empty layer.
 		if cerr := overlayhost.Refusal(overlayhost.Compose, spec.Kind, route, i); cerr != nil {
-			return nil, nil, cerr
+			return nil, nil, nil, cerr
 		}
 		// An extension kind is judged by its declaration at the same
 		// point — the rule predict-compose raises
@@ -297,7 +332,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// slot gate below then holds it like any Compose kind.
 		if ext != nil {
 			if cerr := overlayhost.ExtensionComposeRefusal(&ext.Decl, spec, i); cerr != nil {
-				return nil, nil, cerr
+				return nil, nil, nil, cerr
 			}
 		}
 		// total() is ATTR_FORMULA's alone: a Compose-host
@@ -312,14 +347,14 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 				for k, v := range cerr.Details {
 					details[k] = v
 				}
-				return nil, nil, errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
+				return nil, nil, nil, errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
 			}
 			// A vector built-in is refused here too, at the point
 			// predict-compose (descriptor.composeFormulaBuiltinRefusal)
 			// refuses it: a host whose shape never compiles the formula
 			// would otherwise answer an empty layer.
 			if cerr := composeOverlayBuiltinRefusal(spec, formula, i); cerr != nil {
-				return nil, nil, cerr
+				return nil, nil, nil, cerr
 			}
 		}
 		// Reference, then targets, must name a slot — the shared label
@@ -328,11 +363,11 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// refused there. LookupReference / LookupTarget then own only
 		// the failed-slot (nil response) hole.
 		if rs := overlayhost.ComposeSlotRefusals(spec, i, func(label string) bool { _, ok := byLabel[label]; return ok }); len(rs) > 0 {
-			return nil, nil, rs[0]
+			return nil, nil, nil, rs[0]
 		}
 		refResp, err := LookupReference(byLabel, spec.Reference, i)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		refIdx := byIndex[spec.Reference]
 		targetIdxs := make([]int, 0, len(spec.Targets))
@@ -340,10 +375,17 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		for tIdx, label := range spec.Targets {
 			tResp, err := LookupTarget(byLabel, label, i, tIdx)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			targetIdxs = append(targetIdxs, byIndex[label])
 			targetResps = append(targetResps, tResp)
+		}
+		// A fan-out kind emits one layer per target, capped by
+		// MaxPanelTargets — the shared rule predict-compose raises at
+		// its Gate 3 (overlayhost.ComposeFanOutCapRefusal), judged
+		// before any slot gate reads a row.
+		if cerr := overlayhost.ComposeFanOutCapRefusal(spec, route, i); cerr != nil {
+			return nil, nil, nil, cerr
 		}
 		// Panel within-prefix slab partition gate — the RUNTIME twin
 		// of descriptor.validateOverlayPanel's arm, under the same
@@ -360,16 +402,32 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// handler keeps ownership of those diagnostics and the cap
 		// keeps firing first.
 		if err := checkPanelSlabPartition(spec, i, refIdx, targetIdxs, requests, exts); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		// SERIES slots narrow to their group columns plus the scored
 		// aggregation (params.field, else Aggregations[0]) BEFORE any
 		// gate reads a Data row, so a multi-aggregation slot keys on its
 		// groups alone. The field refusal sits where predict-compose
 		// raises it: after label resolution, before the key-set gate.
-		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds())
+		fieldExt := exts.fieldHonours(overlayhost.Compose)
+		refResp, targetResps, err = projectComposeSeriesSlots(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds(), fieldExt)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+		// A per-partition SERIES kind (OVERLAY_FORMULA) reads its host
+		// slot's params.partition_by right after the field rule — the
+		// shared seriespartition.ComposeHostDepth predict-compose raises
+		// at the same point (U66 #438).
+		var part composeSeriesPartition
+		if seriespartition.AppliesCompose(route) && len(targetIdxs) > 0 {
+			host := requestAt(requests, targetIdxs[0])
+			depth, perr := seriespartition.ComposeHostDepth(host, spec, i)
+			if perr != nil {
+				return nil, nil, nil, perr
+			}
+			if depth > 0 {
+				part = composeSeriesPartition{cols: seriespartition.KeyColumns(host.Groups), depth: depth}
+			}
 		}
 		// Both this gate and the key-set alignment below judge each
 		// slot's host SHAPE by its authored Request (authoredSlotShapes)
@@ -389,7 +447,15 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// (per-axis grouper-kind tuples, or cell shapes, disagree across
 		// slots).
 		if err := checkSlotShapeAndSchemaShaped(refResp, targetResps, shapes, *spec, route, i); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+		// A two-sample vs-ref kind's measure rule (U66 #444): after the
+		// shape gates, before the key-set gate — where predict-compose's
+		// gate 2e judges it (it stands aside on a mixed-shape spec). A
+		// moment-carrying slot's rows then carry its components' legs.
+		refResp, targetResps, err = applyComposeVsRefMeasure(spec, route, i, refResp, refIdx, targetResps, targetIdxs, requests, slotSchema, exts.AggregationKinds())
+		if err != nil {
+			return nil, nil, nil, err
 		}
 		// Strict cross-Request key-set alignment. Runs AFTER the
 		// structural schema match (two slots whose grouper kinds differ
@@ -398,7 +464,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// too) and BEFORE the per-kind handler dispatches. Dict-drift
 		// fires AFTER this one.
 		if err := checkKeySetAlignmentShaped(refResp, targetResps, shapes, *spec, i); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		// Categorical dictionary-prefix drift probe. Runs ONLY when
 		// the caller opted into the byte-equal fast path via
@@ -413,23 +479,36 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// for the probe scope.
 		if spec.Options != nil && spec.Options.DictPrefixFast {
 			if err := checkDictPrefixEquality(refResp, targetResps, *spec, i); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		}
 		// An extension kind's handler reads the resolved slots through
 		// read-only views of each one's judged shape; its warnings route
 		// to its own OverlayLayer.Warnings like a built-in's.
 		if ext != nil {
+			// A kind declaring HonoursField scores each SERIES slot on the
+			// aggregation params.field names — resolved above, so no
+			// refusal remains; any other kind on Aggregations[0] (U66 #713).
+			scoredAt := func(label string, idx int) seriesfield.Scored {
+				if !seriesfield.AppliesComposeWith(route, fieldExt) {
+					return seriesfield.Scored{}
+				}
+				sc, _ := composeSeriesScored(spec, route, i, label, idx, requests, composeSlotColumns(requests, slotSchema, exts.AggregationKinds()), fieldExt)
+				return sc
+			}
 			host := &ExtensionComposeHost{
-				Reference: extensionComposeSlot(spec.Reference, refIdx, shapes.ref, refResp, requestAt(requests, refIdx)),
+				Reference: extensionComposeSlot(spec.Reference, refIdx, shapes.ref, refResp, requestAt(requests, refIdx), scoredAt(spec.Reference, refIdx)),
 				Targets:   make([]*ExtensionComposeSlot, len(targetResps)),
 			}
 			for t := range targetResps {
-				host.Targets[t] = extensionComposeSlot(spec.Targets[t], targetIdxs[t], shapes.targets[t], targetResps[t], requestAt(requests, targetIdxs[t]))
+				host.Targets[t] = extensionComposeSlot(spec.Targets[t], targetIdxs[t], shapes.targets[t], targetResps[t], requestAt(requests, targetIdxs[t]), scoredAt(spec.Targets[t], targetIdxs[t]))
 			}
 			layer, ws, err := applyExtensionOverlayCompose(ext, spec, host, i)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+			for range ws {
+				at = append(at, len(layers))
 			}
 			layers = append(layers, layer)
 			warnings = append(warnings, stampOverlayIndex(ws, i)...)
@@ -441,9 +520,9 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// handler-signature path). Its identifier gate is the one
 		// predict-compose raises (formulaident.ComposeRefusal).
 		if route == types.OverlayKindFormula {
-			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts)
+			layer, _, err := applyComposeFormulaWith(spec, i, shapes, refResp, targetResps, exts, part)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			layers = append(layers, layer)
 			continue
@@ -453,9 +532,20 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		// dispatch below is the historical default; the two tables are
 		// mutually exclusive per kind.
 		if mhandler, ok := composeOverlayMultiLayerHandlers[route]; ok {
-			multi, ws, err := mhandler(spec, refResp, targetResps, refIdx, targetIdxs)
+			// The moment cell kinds read each slot's authored cell type,
+			// which no *Response carries: each target's layer gets the
+			// reference's and its OWN target's (composeCellTypes).
+			if cellHandler, typed := composeCellTypedHandlers[route]; typed {
+				mhandler = composeFanOut(func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
+					return cellHandler(spec, reference, targets, refIdx, targetIdxs, composeCellTypes(requests, refIdx, composeTargetIdx(targetIdxs, 0)))
+				})
+			}
+			multi, ws, offsets, err := mhandler(spec, refResp, targetResps, refIdx, targetIdxs)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+			for w := range ws {
+				at = append(at, len(layers)+offsets[w])
 			}
 			layers = append(layers, multi...)
 			if len(ws) > 0 {
@@ -481,14 +571,6 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 			continue
 		}
 		handler, ok := composeOverlayHandlers[route]
-		// The moment cell kinds read each slot's authored cell type,
-		// which no *Response carries (composeSlotCellTypes).
-		if cellHandler, typed := composeCellTypedHandlers[route]; typed {
-			cellTypes := composeCellTypes(requests, refIdx, targetIdxs)
-			handler, ok = func(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
-				return cellHandler(spec, reference, targets, refIdx, targetIdxs, cellTypes)
-			}, true
-		}
 		if !ok {
 			// Chassis fallback: only a test stub kind
 			// (composeStubKinds) reaches here — every unknown kind was
@@ -497,7 +579,10 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 		}
 		layer, ws, err := handler(spec, refResp, targetResps, refIdx, targetIdxs)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+		for range ws {
+			at = append(at, len(layers))
 		}
 		layers = append(layers, layer)
 		if len(ws) > 0 {
@@ -516,7 +601,7 @@ func ApplyComposeOverlaysWithSchemas(specs []types.ComposeOverlaySpec, responses
 			warnings = append(warnings, ws...)
 		}
 	}
-	return layers, warnings, nil
+	return layers, warnings, at, nil
 }
 
 // composeStubKinds are kinds outside every table the dispatcher still

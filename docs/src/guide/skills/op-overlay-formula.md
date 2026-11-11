@@ -28,8 +28,8 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `field` | string | — | SERIES host: the OUTPUT LABEL read as `value` (label, else TYPE_field) or one element column `"<label>[<element label>]"`; absent, the first aggregation. |
-| `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row). |
+| `field` | string | — | SERIES host: the OUTPUT LABEL read as `value` (Compose: and `ref_value`, `slot.<label>.value`, per slot) or one element column `"<label>[<element label>]"`; absent, the first aggregation. |
+| `partition_by` | list | — | Over two or more groupers (Compose: the first target's), the leading group key columns each partition shares (default all but the last; [] = one walk). |
 | `formula` | string | (required) | The expression; absent, empty or not a string → `PULSE_OVERLAY_PARAM_MISSING`, unparsable → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`. |
 | `baseline_position` | int | — | SERIES host: the 0-based row of each partition `baseline` reads. |
 
@@ -54,7 +54,7 @@ Shape matches host; one `float64` per evaluation. No `Baseline`.
 - A name outside the namespace is `PULSE_OVERLAY_FORMULA_INVALID_IDENT` (+ allowed set), predict and runtime; a non-numeric result is `PULSE_OVERLAY_FORMULA_TYPE_MISMATCH`.
 - No vector functions; `total(expr)` is `PULSE_FORMULA_TOTAL_SITE` here (use the `total` variable). Embedder `ExprFunctions` widen functions, never variables.
 - Margins, totals and SDs are post-fold, hence buffered.
-- MATRIX `Request.Overlays` reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- A crosstab (`Request.Overlays` or a Compose slot) reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`; the cell path in `slot` / Compose `host`), predict and runtime. Use a count cell.
 
 ## See
 

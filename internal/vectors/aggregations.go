@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/aggconst"
+	"github.com/frankbardon/pulse/internal/orderedcat"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -65,8 +66,19 @@ import (
 // value is not one number — pulse.AggregatorRegistration.NonScalar) and
 // EmitsInputValue (its value is one of its input field's own encoded
 // values — pulse.AggregatorRegistration.EmitsInputValue).
+// CarriesMoments marks a declared ComponentSchema carrying both `mean`
+// and `variance` (the moments a two-sample overlay reads).
 type ExtensionAggregation struct {
 	Registered, VectorInput, ArrayValued, NonScalar, EmitsInputValue bool
+	CarriesMoments                                                   bool
+}
+
+// ExtensionCarriesMoments reports whether t routes to an extension
+// aggregator whose declared ComponentSchema carries `mean` and
+// `variance` (ExtensionAggregation.CarriesMoments); false for a
+// built-in, hidden or unregistered name.
+func (k AggregationKinds) ExtensionCarriesMoments(t types.AggregationType) bool {
+	return k.extension(k.Routed(t)).CarriesMoments
 }
 
 // AggregationKinds is one instance's view of the aggregation types the
@@ -202,6 +214,24 @@ func (k AggregationKinds) EmitsInputValue(t types.AggregationType) bool {
 // (no records), as the runtime does.
 func (k AggregationKinds) IsCode(t types.AggregationType, input encoding.FieldType) bool {
 	return IsCodeInputType(input) && k.EmitsInputValue(t)
+}
+
+// EmitsInputValueSlot is EmitsInputValue for one slot: its type does,
+// or it is an order statistic whose params request the ordered-
+// categorical reading (internal/orderedcat — its figure is the chosen
+// level's dictionary index, a value of its input field, U66 E9-S2).
+// Declared metadata plus the slot's own params; no record.
+func (k AggregationKinds) EmitsInputValueSlot(a *types.Aggregation) bool {
+	if a == nil {
+		return false
+	}
+	return k.EmitsInputValue(a.Type) || orderedcat.Requested(k.Routed(a.Type), a.Params)
+}
+
+// IsCodeSlot is IsCode for one slot (EmitsInputValueSlot over an
+// IsCodeInputType field).
+func (k AggregationKinds) IsCodeSlot(a *types.Aggregation, input encoding.FieldType) bool {
+	return IsCodeInputType(input) && k.EmitsInputValueSlot(a)
 }
 
 // VectorAggregationTypes returns the built-in aggregation types that

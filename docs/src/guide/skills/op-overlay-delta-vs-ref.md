@@ -39,7 +39,7 @@ COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + tar
 
 ## Output
 
-MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - ref`. Preserves target slot's units. Layer `Baseline = 0`.
+MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - ref`. Preserves target slot's units. Layer `Baseline = 0`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Contract
 
@@ -52,6 +52,7 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - r
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO` (mirrors per-Request DELTA family).
 - Target key absent from the reference → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`; no entry is emitted for it (series: the entry is DROPPED; matrix: the cell stays absent) — never a NaN entry.
 - SERIES dispatch is fold-only (one accumulator per group), streamable per `OverlayStreamability`; MATRIX is forced buffered by the slot barrier.
+- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See
 

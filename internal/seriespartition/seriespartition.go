@@ -93,6 +93,15 @@ var kinds = map[types.OverlayKind]bool{
 // partition and reads Param.
 func Applies(kind types.OverlayKind) bool { return kinds[kind] }
 
+// AppliesWith is Applies on an instance: a built-in kind by the table,
+// an extension kind by ext — the instance's hook
+// (overlayhost.ExtensionHonoursPartitionBy over the kind's
+// declaration); nil opts none in (U66 #713). An extension kind is never
+// Ordered: the series-axis advisory stays the built-ins'.
+func AppliesWith(kind types.OverlayKind, ext func(types.OverlayKind) bool) bool {
+	return kinds[kind] || (ext != nil && ext(kind))
+}
+
 // Ordered reports whether kind is one of the partitioned kinds that
 // reads its partition as an ordered series, so the last grouper's key
 // order is the series order (the _TOTAL kinds are order-free).
@@ -140,6 +149,78 @@ func KeyColumns(groups []*types.Group) []string {
 		}
 	}
 	return out
+}
+
+// composeKinds is the set of Compose-host kinds whose SERIES arm runs
+// per partition of its host slot and honours Param: OVERLAY_FORMULA,
+// whose `total` is the partition's sum and `prior` the previous present
+// row within the partition — the process-host rule.
+var composeKinds = map[types.OverlayKind]bool{
+	types.OverlayKindFormula: true,
+}
+
+// AppliesCompose reports whether kind is a Compose-host kind whose
+// SERIES arm runs per partition and reads Param.
+func AppliesCompose(kind types.OverlayKind) bool { return composeKinds[kind] }
+
+// ComposeKinds returns every kind AppliesCompose accepts, in
+// types.AllOverlayKinds order.
+func ComposeKinds() []types.OverlayKind {
+	out := make([]types.OverlayKind, 0, len(composeKinds))
+	for _, k := range types.AllOverlayKinds() {
+		if composeKinds[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// FromCompose is spec read as the OverlaySpec Depth and Explicit take:
+// its Kind and its Params map re-encoded as JSON. ok is false when the
+// Params do not encode (the kind's own params gate owns that refusal).
+// One adapter for the Compose partition rule (ComposeHostDepth) and
+// predict's Compose series-axis advisory.
+func FromCompose(spec *types.ComposeOverlaySpec) (*types.OverlaySpec, bool) {
+	if spec == nil {
+		return nil, false
+	}
+	ospec := &types.OverlaySpec{Kind: spec.Kind}
+	if len(spec.Params) > 0 {
+		raw, err := json.Marshal(spec.Params)
+		if err != nil {
+			return nil, false
+		}
+		ospec.Params = raw
+	}
+	return ospec, true
+}
+
+// ComposeHostDepth is Depth for a Compose overlay spec over its host
+// slot — the first target, whose Request is host (the gates already
+// proved every slot it reads keys on the same group columns). A kind
+// outside AppliesCompose, or a host that is nil, a crosstab or
+// ungrouped (not a SERIES host), partitions nothing (0, nil). A
+// refusal is Depth's PULSE_OVERLAY_PARTITION_INVALID with Details.slot
+// the host slot's label added; index is the spec's position in
+// ComposedRequest.Overlays. The runtime fold and predict-compose both
+// call it, so the refusal cannot drift between them.
+func ComposeHostDepth(host *types.Request, spec *types.ComposeOverlaySpec, index int) (int, error) {
+	if spec == nil || !AppliesCompose(spec.Kind) || host == nil || host.Crosstab != nil || len(host.Groups) == 0 {
+		return 0, nil
+	}
+	ospec, ok := FromCompose(spec)
+	if !ok {
+		return 0, nil // undecodable params: the kind's own params gate owns it
+	}
+	depth, err := Depth(host.Groups, ospec, index)
+	if ce, ok := err.(*errors.CodedError); ok {
+		slot := ""
+		if len(spec.Targets) > 0 {
+			slot = spec.Targets[0]
+		}
+		ce.Details["slot"] = slot
+	}
+	return depth, err
 }
 
 // Depth returns how many leading groupers spec partitions by: the

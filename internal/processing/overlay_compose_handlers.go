@@ -68,9 +68,11 @@ func composeOverlayLayerName(spec *types.ComposeOverlaySpec) string {
 
 // composeFirstTarget returns the first target slot's *Response from the
 // per-kind handler's `targets` slice plus the first target's index in
-// the parallel `targetIdxs` slice. Every v1 single-target Compose kind
-// reads from the first target; multi-target kinds walk the full
-// slice.
+// the parallel `targetIdxs` slice. A single-target handler reads it
+// only under the fan-out (composeFanOut), which hands it ONE target per
+// layer, so no target is dropped (U66 #443,
+// TestComposeKinds_NoSilentTargetDrop); OVERLAY_FORMULA hosts on it and
+// reads the others as `slot.<label>`; the panel kinds walk the slice.
 //
 // Returns (nil, -1) when targets is empty — the chassis already
 // rejects empty Targets via PULSE_OVERLAY_TARGET_UNKNOWN before
@@ -88,7 +90,7 @@ func composeFirstTarget(targets []*types.Response, targetIdxs []int) (*types.Res
 
 // composeSlotCellTypes is the authored crosstab cell aggregation type
 // (Request.Crosstab.Cell.Type) of a Compose overlay's reference slot
-// and first target slot; zero when unknown. A materialised *Response
+// and of the ONE target slot a fan-out layer scores; zero when unknown. A materialised *Response
 // does not record which aggregator built its cells, yet the moment
 // cell kinds (OVERLAY_T_CELL / OVERLAY_Z_CELL) need it: AGG_VARIANCE /
 // AGG_STDDEV cells carry the POPULATION variance, converted to the
@@ -99,19 +101,19 @@ type composeSlotCellTypes struct {
 }
 
 // composeCellTypes reads composeSlotCellTypes off the authored slot
-// requests (parallel to the responses; nil and short slices tolerated).
-func composeCellTypes(requests []*types.Request, refIdx int, targetIdxs []int) composeSlotCellTypes {
+// requests (parallel to the responses; nil and short slices tolerated)
+// for the reference slot refIdx and the target slot targetIdx. The
+// fan-out calls it once per target, so every target layer is judged on
+// its own slot's cell type (U66 #443) — it once read the first target's
+// for the whole spec.
+func composeCellTypes(requests []*types.Request, refIdx, targetIdx int) composeSlotCellTypes {
 	cellType := func(i int) types.AggregationType {
 		if i < 0 || i >= len(requests) || requests[i] == nil || requests[i].Crosstab == nil || requests[i].Crosstab.Cell == nil {
 			return ""
 		}
 		return requests[i].Crosstab.Cell.Type
 	}
-	out := composeSlotCellTypes{ref: cellType(refIdx)}
-	if len(targetIdxs) > 0 {
-		out.target = cellType(targetIdxs[0])
-	}
-	return out
+	return composeSlotCellTypes{ref: cellType(refIdx), target: cellType(targetIdx)}
 }
 
 // composeFirstTargetLabel returns the first target slot's label from

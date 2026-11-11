@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -216,8 +217,81 @@ type compositePartition struct {
 	PerGrouper []map[string][]*Record
 	// RefitWarnings are the per-outer-bucket refits' warnings of every
 	// params.fit "within" position (refitWarnings: one per refit, each
-	// naming its outer segment as details.group_key), in walk order.
+	// naming its outer segment as details.group_key), in walk order —
+	// a degenerate refit's PULSE_SLOT_FAILED among them.
 	RefitWarnings []*types.ResponseWarning
+	// RefitBuckets maps a "within" position to its refits' Components
+	// entries (GrouperComponents.Buckets), in the outer segments' Data
+	// order; nil unless the partition was asked to collect them.
+	RefitBuckets map[int][]types.GrouperBucketComponents
+}
+
+// withinRefit is how partitionComposite runs a params.fit "within"
+// position: refit mints a fresh grouper for position i, strict makes a
+// degenerate refit (slotfail.RefitDegenerate) fail the run instead of
+// failing its bucket alone, and collect builds each refit's
+// GrouperComponents.Buckets entry.
+type withinRefit struct {
+	refit   func(i int) (Grouper, error)
+	strict  bool
+	collect bool
+}
+
+// degenerateRefit is the one handling of a "within" refit that refused
+// one outer bucket's records on their data (slotfail.RefitDegenerate):
+// under strict the run fails with the refit's own code; otherwise the
+// bucket's records join no bucket of the slot, the slot's Buckets entry
+// carries the error, and the run warns PULSE_SLOT_FAILED (slot_kind
+// "groups", index = the composite position — a crosstab counts rows
+// then columns — label = the slot's key column, group_key = the outer
+// segment). ok is false when err is not degenerate (the caller returns
+// it as the fatal error it is).
+func degenerateRefit(err error, grp *types.Group, pos int, outer types.AxisKey, strict bool) (*types.ResponseWarning, *types.SlotError, bool, error) {
+	se, ok := slotfail.RefitDegenerate(err)
+	if !ok {
+		return nil, nil, false, nil
+	}
+	f := slotfail.Failure{Kind: slotfail.KindGroups, Index: pos, Label: vectors.GroupKeyField(grp.Type, grp), GroupKey: outer, Err: se}
+	if strict {
+		return nil, nil, true, slotfail.StrictError(f)
+	}
+	return slotfail.Warning(f), se, true, nil
+}
+
+// refitBucketEntry is one successful "within" refit as its
+// GrouperComponents.Buckets entry: the outer segment plus the floor and
+// operator keys buildGrouperComponents gives the same grouper over the
+// segment's records.
+func refitBucketEntry(g Grouper, grp *types.Group, outer types.AxisKey, part map[string][]*Record, n int) (types.GrouperBucketComponents, error) {
+	c, err := buildGrouperComponents(g, grp, part, n)
+	if err != nil {
+		return types.GrouperBucketComponents{}, err
+	}
+	return types.GrouperBucketComponents{GroupKey: outer, TotalN: c.TotalN, NNull: c.NNull, Operator: c.Operator}, nil
+}
+
+// orderRefitBuckets orders one "within" position's Buckets entries by
+// their outer segments in Data order: each outer position's native key
+// order (includeFilterOf the whole-set grouper), outer → inner — the
+// order OrderCompositeGroupKeys gives the rows. entries is not mutated.
+func orderRefitBuckets(entries []types.GrouperBucketComponents, outer []Grouper) []types.GrouperBucketComponents {
+	filters := make([]*includeFilter, len(outer))
+	for i, g := range outer {
+		filters[i] = includeFilterOf(g)
+	}
+	keys := make([]string, len(entries))
+	tupleOf := make(map[string]types.AxisKey, len(entries))
+	for i, e := range entries {
+		keys[i] = strconv.Itoa(i)
+		tupleOf[keys[i]] = e.GroupKey
+	}
+	keys = sortCompositeKeys(keys, tupleOf, filters)
+	out := make([]types.GrouperBucketComponents, len(entries))
+	for i, k := range keys {
+		j, _ := strconv.Atoi(k)
+		out[i] = entries[j]
+	}
+	return out
 }
 
 // partitionComposite drives every grouper exactly once over the WHOLE
@@ -235,10 +309,12 @@ type compositePartition struct {
 // Components, its unstamped warnings and key order, and every refit's
 // warnings join RefitWarnings stamped with their outer segment.
 // "within" on groups[0] has no outer segment and is the whole-set fit.
-func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits, refit func(i int) (Grouper, error)) (*compositePartition, error) {
+// A degenerate refit fails its bucket alone (degenerateRefit); with
+// within.collect each refit's figures land in RefitBuckets.
+func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits, within withinRefit) (*compositePartition, error) {
 	n := len(groups)
 	perGrouper := make([]map[string][]*Record, n)
-	within := false
+	hasWithin := false
 	for i, grp := range groups {
 		b, err := groupers[i].Group(records, grp.Field)
 		if err != nil {
@@ -246,7 +322,7 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 		}
 		perGrouper[i] = b
 		if i > 0 && groupfit.IsWithin(grp) {
-			within = true
+			hasWithin = true
 		}
 	}
 
@@ -277,8 +353,8 @@ func partitionComposite(groups []*types.Group, groupers []Grouper, records []*Re
 		}
 	}
 
-	if within {
-		return partitionCompositeWithin(groups, records, lim, refit, pos, perGrouper)
+	if hasWithin {
+		return partitionCompositeWithin(groups, groupers, records, lim, within, pos, perGrouper)
 	}
 
 	set := NewCompositeKeySet(n)
@@ -344,7 +420,11 @@ func (c *compositePosition) keys(ri int) []string {
 // records only, so the inner key depends on the outer tuple. The
 // leaves become the composite buckets — same key strings, tuples, NUL
 // guard and max_groups check as the cross-product path.
-func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limits.Limits, refit func(i int) (Grouper, error), pos []compositePosition, perGrouper []map[string][]*Record) (*compositePartition, error) {
+//
+// Each refit's figures become its GrouperComponents.Buckets entry
+// (within.collect); a degenerate refit fails its bucket alone
+// (degenerateRefit): an error entry, no key for its records.
+func partitionCompositeWithin(groups []*types.Group, groupers []Grouper, records []*Record, lim limits.Limits, within withinRefit, pos []compositePosition, perGrouper []map[string][]*Record) (*compositePartition, error) {
 	idx := make(map[*Record]int, len(records))
 	for i, r := range records {
 		idx[r] = i
@@ -355,20 +435,46 @@ func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limi
 	}
 	level := []prefix{{recs: records}}
 	var refitWarns []*types.ResponseWarning
+	var buckets map[int][]types.GrouperBucketComponents
 	for i, grp := range groups {
 		var next []prefix
 		for _, b := range level {
 			var keysOf func(r *Record) []string
 			if i > 0 && groupfit.IsWithin(grp) {
-				g, err := refit(i)
+				g, err := within.refit(i)
 				if err != nil {
 					return nil, err
 				}
+				outer := stringsAxisKey(b.tuple)
 				m, err := g.Group(b.recs, grp.Field)
 				if err != nil {
-					return nil, err
+					w, se, ok, fatal := degenerateRefit(err, grp, i, outer, within.strict)
+					if !ok {
+						return nil, err
+					}
+					if fatal != nil {
+						return nil, fatal
+					}
+					refitWarns = append(refitWarns, w)
+					if within.collect {
+						if buckets == nil {
+							buckets = map[int][]types.GrouperBucketComponents{}
+						}
+						buckets[i] = append(buckets[i], types.GrouperBucketComponents{GroupKey: outer, NNull: len(b.recs), Error: se})
+					}
+					continue // its records join no bucket of the slot
 				}
-				refitWarns = append(refitWarns, refitWarnings(g, stringsAxisKey(b.tuple))...)
+				refitWarns = append(refitWarns, refitWarnings(g, outer)...)
+				if within.collect {
+					e, err := refitBucketEntry(g, grp, outer, m, len(b.recs))
+					if err != nil {
+						return nil, err
+					}
+					if buckets == nil {
+						buckets = map[int][]types.GrouperBucketComponents{}
+					}
+					buckets[i] = append(buckets[i], e)
+				}
 				local := make(map[*Record][]string, len(b.recs))
 				for k, recs := range m {
 					for _, r := range recs {
@@ -399,7 +505,10 @@ func partitionCompositeWithin(groups []*types.Group, records []*Record, lim limi
 	}
 
 	set := NewCompositeKeySet(len(groups))
-	out := &compositePartition{Set: set, Buckets: map[string][]*Record{}, PerGrouper: perGrouper, RefitWarnings: refitWarns}
+	for i, entries := range buckets {
+		buckets[i] = orderRefitBuckets(entries, groupers[:i])
+	}
+	out := &compositePartition{Set: set, Buckets: map[string][]*Record{}, PerGrouper: perGrouper, RefitWarnings: refitWarns, RefitBuckets: buckets}
 	keySets := make([][]string, len(groups))
 	for _, leaf := range level {
 		for i, k := range leaf.tuple {
@@ -432,12 +541,16 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
-	part, err := partitionComposite(req.Groups, groupers, records, p.limits, func(i int) (Grouper, error) {
-		gs, err := p.newRequestGroupers(req.Groups[i : i+1])
-		if err != nil {
-			return nil, err
-		}
-		return gs[0], nil
+	part, err := partitionComposite(req.Groups, groupers, records, p.limits, withinRefit{
+		refit: func(i int) (Grouper, error) {
+			gs, err := p.newRequestGroupers(req.Groups[i : i+1])
+			if err != nil {
+				return nil, err
+			}
+			return gs[0], nil
+		},
+		strict:  p.strictWeights,
+		collect: p.compute.Groupers,
 	})
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
@@ -486,6 +599,9 @@ func (p *Processor) processGroupedComposite(req *types.Request, records []*Recor
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, err
 		}
+		// A "within" position's per-refit figures (the slot-level floor
+		// and operator keys above stay the whole-set fit's).
+		entry.Buckets = part.RefitBuckets[i]
 		entries = append(entries, entry)
 	}
 	return data, entries, bucketComps, keys, part.Set, warns, nil

@@ -465,6 +465,7 @@ func TestRegistryStreamabilityMatchesTypes(t *testing.T) {
 		types.AGG_RMSE:          `{"prediction_field":"p"}`,
 		types.AGG_MAE:           `{"prediction_field":"p"}`,
 		types.AGG_AUC:           `{"outcome":"p"}`,
+		types.AGG_PERCENTILE:    `{"percentile":50}`,
 	}
 	for _, aggType := range types.AllAggregationTypes() {
 		factory, ok := aggregatorRegistry[aggType]

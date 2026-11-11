@@ -63,7 +63,8 @@ func nsFixture(t *testing.T, opts pulse.Options) (*pulse.Pulse, []byte) {
 }
 
 // nsAggs builds aggregations from a layout: "n" = the non-scalar a
-// labelled n, "s" = AGG_SUM score labelled s.
+// labelled n, "s" = AGG_AVERAGE score labelled s (a mean, so the
+// two-sample vs-ref kinds read it too — U66 #444).
 func nsAggs(a nsAgg, layout string) []*types.Aggregation {
 	var out []*types.Aggregation
 	for _, c := range layout {
@@ -71,7 +72,7 @@ func nsAggs(a nsAgg, layout string) []*types.Aggregation {
 		case 'n':
 			out = append(out, &types.Aggregation{Type: a.typ, Field: a.field, Label: "n"})
 		case 's':
-			out = append(out, &types.Aggregation{Type: types.AGG_SUM, Field: "score", Label: "s"})
+			out = append(out, &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score", Label: "s"})
 		}
 	}
 	return out
@@ -91,8 +92,12 @@ func nsJSON(t *testing.T, v any) string {
 }
 
 // nsTwoSampleParams are the per-side stat params OVERLAY_T_VS_REF /
-// OVERLAY_Z_VS_REF need over a scalar slot.
+// OVERLAY_Z_VS_REF need over a scalar slot (and OVERLAY_FORMULA's
+// required formula).
 func nsTwoSampleParams(kind types.OverlayKind, m map[string]any) map[string]any {
+	if kind == types.OverlayKindFormula {
+		m["formula"] = "value" // FORMULA's one required param
+	}
 	if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
 		for _, k := range []string{"variance_target", "variance_ref", "sample_size_target", "sample_size_ref"} {
 			m[k] = 4.0

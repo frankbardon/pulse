@@ -299,12 +299,11 @@ func (s *Service) composeParallel(
 	// `req.Overlays` spec order regardless of slot dispatch order
 	// because `responses` is keyed by slot index, not completion
 	// order.
-	var (
-		layers   []types.OverlayLayer
-		warnings []types.OverlayWarning
-	)
+	var layers []types.OverlayLayer
 	if foldOverlays {
-		layers, warnings, err = s.applyComposeOverlays(ctx, composed, requests, responses)
+		// Each layer comes back carrying its own warnings
+		// (distributeComposeWarnings, routed by layer position).
+		layers, _, err = s.applyComposeOverlays(ctx, composed, requests, responses)
 		if err != nil {
 			return nil, err
 		}
@@ -325,13 +324,13 @@ func (s *Service) composeParallel(
 		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
-		out.Overlays = distributeComposeWarnings(layers, warnings)
+		out.Overlays = layers
 	}
 	// The multiplicity barrier fold: every slot and every Compose-host
 	// layer has finished, so the `compose` family pools them all and
 	// each slot's own families correct inside the slot. Shared with the
 	// other orchestrator, so serial and parallel answer identically.
-	if err := foldComposeMultiplicity(multPlan, out); err != nil {
+	if err := foldComposeMultiplicity(multPlan, out, composed.Overlays); err != nil {
 		return nil, err
 	}
 	// Each slot's own MATRIX_RESULT overlays, after the barrier fold.

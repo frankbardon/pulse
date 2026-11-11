@@ -929,7 +929,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	ovKinds := aggregationKinds(inst, w.snap)
 	w.out = append(w.out, processOverlayArrayValuedRefusals(req, ovKinds, vectors.CodeFieldTypes(schema, codes),
 		vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, ovKinds),
-		func(k types.OverlayKind) bool { return !inst.Hidden(string(k)) && overlayhost.ReadsCellValue(k) })...)
+		func(k types.OverlayKind) bool { return readsCellValue(inst, k) }, fieldHonours(inst, overlayhost.Request))...)
 	if req.Crosstab == nil {
 		for i, t := range req.PostTests {
 			if t != nil {

@@ -6,9 +6,8 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ddofspec"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/percentilespec"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
@@ -914,10 +913,6 @@ func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, erro
 // (nil, nil) per the universal-floor convention.
 const percentileMethodLinear = "linear"
 
-type percentileParams struct {
-	Percentile float64 `json:"percentile"`
-}
-
 type percentileAggregator struct {
 	percentile      float64
 	frozenFinalized bool
@@ -931,22 +926,26 @@ type percentileAggregator struct {
 }
 
 func newPercentileAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-	p := 50.0
-	paramread.Declare(paramread.Aggregator, string(agg.Type), (*percentileParams)(nil))
-	if len(agg.Params) > 0 {
-		var params percentileParams
-		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid percentile params: "+err.Error())
-		}
-		p = params.Percentile
-	}
-	if p < 0 || p > 100 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "percentile must be between 0 and 100")
+	p, err := percentileParam(agg)
+	if err != nil {
+		return nil, err
 	}
 	if w := slotWeight(agg); w != nil {
 		return newWeightedQuantileAggregator(types.AGG_PERCENTILE, w, p), nil
 	}
 	return &percentileAggregator{percentile: p}, nil
+}
+
+// percentileParam is AGG_PERCENTILE's required params.percentile,
+// refusing a missing (absent or null) one, one outside [0, 100] or a
+// non-numeric one — the plain and the ordered-categorical constructors share it,
+// and predict reads the same rule (internal/percentilespec).
+func percentileParam(agg *types.Aggregation) (float64, error) {
+	p, cerr := percentilespec.Resolve(agg.Params)
+	if cerr != nil {
+		return 0, cerr
+	}
+	return p, nil
 }
 
 func (a *percentileAggregator) Aggregate(records []*Record, field string) (float64, error) {

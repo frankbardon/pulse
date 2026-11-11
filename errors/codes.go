@@ -2373,7 +2373,13 @@ const (
 	// cases: missing Ref.Margin pointer, unknown Ref.Margin.Axis, or
 	// non-MATRIX host (Request.Crosstab is nil). A Compose
 	// OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF over a crosstab slot raises it
-	// too (details.slot, shape matrix, shapes [series]).
+	// too (details.slot, shape matrix, shapes [series]). It is also a
+	// WARNING when OVERLAY_PAIRWISE_WELCH_T / _TWO_MEANS_Z refuse ONE
+	// measure of a multi-measure crosstab (crosstab.cells) whose cells
+	// carry no Welford triple (OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z: no
+	// weighted moments, U66 E8-S1) while another measure scores: that
+	// measure's rows are null cells; details carry "measure",
+	// "measure_index", "cell_type" and "reason" (U66 #476).
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
 	// PULSE_OVERLAY_COMPONENTS_REQUIRED indicates an overlay kind that

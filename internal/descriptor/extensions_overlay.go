@@ -7,6 +7,8 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,6 +59,79 @@ func extensionOverlayDecl(inst *InstanceSnapshot, kind types.OverlayKind) *overl
 		return nil
 	}
 	return &d
+}
+
+// readsCellValue is the instance's ReadsCellValue: whether kind, on a
+// MATRIX Process host, reads the crosstab cell VALUES — an extension
+// kind by its declaration (overlayhost.ExtensionReadsCellValue, U66
+// #447), a built-in by overlayhost.ReadsCellValue; a hidden kind never
+// (it is left to the kind rule).
+func readsCellValue(inst *InstanceSnapshot, kind types.OverlayKind) bool {
+	if inst.Hidden(string(kind)) {
+		return false
+	}
+	if d := extensionOverlayDecl(inst, kind); d != nil {
+		return overlayhost.ExtensionReadsCellValue(d, overlayhost.Request)
+	}
+	return overlayhost.ReadsCellValue(kind)
+}
+
+// composeReadsCellValue is the instance's ComposeReadsCellValue: an
+// extension kind by its declaration, a built-in by
+// overlayhost.ComposeReadsCellValue (cellMoments: the cell's components
+// carry mean and variance).
+func composeReadsCellValue(inst *InstanceSnapshot, kind types.OverlayKind, cellMoments bool) bool {
+	if d := extensionOverlayDecl(inst, kind); d != nil {
+		return overlayhost.ExtensionReadsCellValue(d, overlayhost.Compose)
+	}
+	return overlayhost.ComposeReadsCellValue(kind, cellMoments)
+}
+
+// fieldHonours is seriesfield's instance hook on inst for host: an
+// extension kind honours params.field there iff its declaration opts in
+// (overlayhost.ExtensionHonoursField, U66 #713) — the hook the runtime
+// builds from the registry's copy of the same declaration. A hidden or
+// built-in kind never.
+func fieldHonours(inst *InstanceSnapshot, host overlayhost.Host) seriesfield.Honours {
+	return func(kind types.OverlayKind) bool {
+		return overlayhost.ExtensionHonoursField(extensionOverlayDecl(inst, kind), host)
+	}
+}
+
+// partitionHonours is seriespartition's instance hook on inst: an
+// extension kind runs per params.partition_by partition iff its
+// declaration opts in (overlayhost.ExtensionHonoursPartitionBy).
+func partitionHonours(inst *InstanceSnapshot) func(types.OverlayKind) bool {
+	return func(kind types.OverlayKind) bool {
+		return overlayhost.ExtensionHonoursPartitionBy(extensionOverlayDecl(inst, kind))
+	}
+}
+
+// extensionFieldParam / extensionPartitionByParam are the engine params
+// a kind declaring HonoursField / HonoursPartitionBy lists in the
+// manifest (its registration's Params never carry them).
+var (
+	extensionFieldParam = descriptor.Param{
+		Name: seriesfield.Param, Type: "string", Required: false,
+		Description: "On a SERIES host (and each Compose series slot), the OUTPUT LABEL of the aggregation the handler scores (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
+	}
+	extensionPartitionByParam = descriptor.Param{
+		Name: seriespartition.Param, Type: "list", Required: false,
+		Description: "Request SERIES host only: over two or more groupers, the leading group key columns each partition shares — the handler runs once per partition (default every key but the last; [] = one walk over every row). Not a leading prefix is PULSE_OVERLAY_PARTITION_INVALID.",
+	}
+)
+
+// extensionEngineParamKeys are the params keys the engine reads for
+// the extension kind d beyond its registration's Params.
+func extensionEngineParamKeys(d *overlayhost.ExtensionDecl) []string {
+	var out []string
+	if overlayhost.ExtensionHonoursField(d, overlayhost.Request) || overlayhost.ExtensionHonoursField(d, overlayhost.Compose) {
+		out = append(out, seriesfield.Param)
+	}
+	if overlayhost.ExtensionHonoursPartitionBy(d) {
+		out = append(out, seriespartition.Param)
+	}
+	return out
 }
 
 // ExtensionOverlayHostCapabilities returns the host capabilities the
@@ -123,6 +198,13 @@ func extensionOverlayCapabilities(s *ExtensionsSnapshot, weighting bool) []descr
 			Description: m.Description,
 			Inferential: d.Inferential,
 			Params:      slices.Clone(s.OverlayParams[m.Name]),
+		}
+		for _, k := range extensionEngineParamKeys(&d) {
+			if k == seriesfield.Param {
+				c.Params = append(c.Params, extensionFieldParam)
+			} else {
+				c.Params = append(c.Params, extensionPartitionByParam)
+			}
 		}
 		for _, r := range d.Refs {
 			if r == overlayhost.RefMargin {

@@ -465,8 +465,8 @@ func TestCrosstabCells_PairwisePerMeasure(t *testing.T) {
 // TestCrosstabCells_PredictMatchesRuntime pins predict ≡ runtime for the
 // multi-measure crosstab on both dispatch arms: every shape predict
 // accepts runs, and every refusal — the Cells faults, a measure label a
-// margin aggregation reuses, a non-pairwise overlay, a pairwise kind one
-// measure cannot feed, normalize over a map-valued measure — is raised
+// margin aggregation reuses, a non-pairwise overlay, a pairwise kind no
+// measure can feed, normalize over a map-valued measure — is raised
 // under the same code by both.
 func TestCrosstabCells_PredictMatchesRuntime(t *testing.T) {
 	t.Parallel()
@@ -522,10 +522,19 @@ func TestCrosstabCells_PredictMatchesRuntime(t *testing.T) {
 			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindShareOfRow, Scope: types.OverlayScopeCell,
 				Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}}
 		}), ""},
-		{"welford kind over a non-welford measure", xtab(func(r *types.Request) {
+		// U66 #476: the non-Welford measure is refused alone (a warning;
+		// crosstab_cells_measure_refusal_test.go), the layer runs.
+		{"welford kind over a mixed measure set", xtab(func(r *types.Request) {
 			r.Crosstab.Cells = []*types.Aggregation{
 				{Type: types.AGG_WELFORD, Field: "score", Label: "m"},
 				{Type: types.AGG_COUNT, Field: "score", Label: "n"},
+			}
+			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeColumn}}
+		}), ""},
+		{"welford kind over no welford measure", xtab(func(r *types.Request) {
+			r.Crosstab.Cells = []*types.Aggregation{
+				{Type: types.AGG_COUNT, Field: "score", Label: "m"},
+				{Type: types.AGG_COUNT, Field: "wt", Label: "n"},
 			}
 			r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwiseWelchT, Scope: types.OverlayScopeColumn}}
 		}), errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},

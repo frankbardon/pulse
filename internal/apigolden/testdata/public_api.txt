@@ -784,11 +784,14 @@ pulse: type OverlayRegistration field DependsOn []string
 pulse: type OverlayRegistration field Description string
 pulse: type OverlayRegistration field EmitsPValues bool
 pulse: type OverlayRegistration field Handler pulse/extend.OverlayHandler
+pulse: type OverlayRegistration field HonoursField bool
+pulse: type OverlayRegistration field HonoursPartitionBy bool
 pulse: type OverlayRegistration field Inferential bool
 pulse: type OverlayRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type OverlayRegistration field Name pulse/types.OverlayKind
 pulse: type OverlayRegistration field Params []pulse.ParamMeta
 pulse: type OverlayRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type OverlayRegistration field ReadsCellCountsOnly bool
 pulse: type OverlayRegistration field Refs []pulse/extend.OverlayRefKind
 pulse: type OverlayRegistration field Scopes []pulse/types.OverlayScope
 pulse: type OverlayRegistration field Shapes []pulse/types.OverlayShape
@@ -1663,6 +1666,7 @@ pulse/descriptor: type GroupPredict struct
 pulse/descriptor: type GroupPredict field BufferedComponents bool "json:\"buffered_components,omitempty\""
 pulse/descriptor: type GroupPredict field ComponentSchema pulse/descriptor.ComponentSchema "json:\"component_schema\""
 pulse/descriptor: type GroupPredict field Field string "json:\"field,omitempty\""
+pulse/descriptor: type GroupPredict field RefitBuckets bool "json:\"refit_buckets,omitempty\""
 pulse/descriptor: type GroupPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type GroupPredict field Type pulse/types.GroupType "json:\"type\""
 pulse/descriptor: type ImportCapability struct
@@ -5736,7 +5740,15 @@ pulse/types: type GroupType string
 pulse/types: type GroupType method (GroupType) FansOut() bool
 pulse/types: type GroupType method (GroupType) Mergeable() bool
 pulse/types: type GroupType method (GroupType) Streamable() bool
+pulse/types: type GrouperBucketComponents struct
+pulse/types: type GrouperBucketComponents field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type GrouperBucketComponents field GroupKey pulse/types.AxisKey "json:\"group_key\""
+pulse/types: type GrouperBucketComponents field NNull int "json:\"n_null,omitempty\""
+pulse/types: type GrouperBucketComponents field Operator map[string]any "json:\"operator,omitempty\""
+pulse/types: type GrouperBucketComponents field TotalN int "json:\"total_n,omitempty\""
+pulse/types: type GrouperBucketComponents method (GrouperBucketComponents) MarshalJSON() ([]byte, error)
 pulse/types: type GrouperComponents struct
+pulse/types: type GrouperComponents field Buckets []pulse/types.GrouperBucketComponents "json:\"buckets,omitempty\""
 pulse/types: type GrouperComponents field Field string "json:\"field,omitempty\""
 pulse/types: type GrouperComponents field Label string "json:\"label,omitempty\""
 pulse/types: type GrouperComponents field NNull int "json:\"n_null,omitempty\""
@@ -6778,4 +6790,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 357bd71f0d23d28b97e0331fefb38620e6b8ca3549701d67fdc556235b70cc38
+// golden-hash: 6f03f63b23dbe85d47b755311b7e32c4d73f51bbdc9b387d52a38cc383c6ebc8

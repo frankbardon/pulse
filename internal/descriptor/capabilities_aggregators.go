@@ -75,6 +75,29 @@ var ddofParam = descriptor.Param{
 		"m2_w / (Σw - 1); null when n - ddof <= 0). Any other value is refused with PROCESSING_CONFIG.",
 }
 
+// orderedParams are the order statistics' (AGG_MIN, AGG_MAX,
+// AGG_MEDIAN, AGG_PERCENTILE) opt-in ordered-categorical params, read
+// and refused by internal/orderedcat (runtime constructors and predict
+// alike). Absent, the slot is exactly the numeric operator.
+var orderedParams = []descriptor.Param{
+	{
+		Name:        "ordered",
+		Type:        "bool",
+		Required:    false,
+		Default:     false,
+		Description: "true reads a categorical_* field's dictionary order as its level order (otherwise a categorical is refused); the figure is the chosen level's dictionary index — a code, as AGG_MODE's. On any other field PROCESSING_CONFIG reason ordered_needs_categorical.",
+	},
+	{
+		Name:        "levels",
+		Type:        "list",
+		Required:    false,
+		Description: "Level order, lowest first, by label (implies ordered). A row whose label is unlisted is dropped and counted in components n_unlisted. A label not in the dictionary is PROCESSING_CONFIG reason unknown_level, one listed twice duplicate_level.",
+	},
+}
+
+// orderedComponentKey is the ordered slots' extra component key.
+var orderedComponentKey = descriptor.ComponentKey{Name: "n_unlisted", Type: "int", Optional: true, Description: "Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure."}
+
 // numericFieldTypesAnalyticsNoDecimal mirrors numericFieldTypesAnalytics
 // without decimal128 — for aggregators that operate purely in float64
 // (skewness, kurtosis, zscore, the weighted and interval family) and for
@@ -311,23 +334,27 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_MIN),
 			Category:      "aggregator",
-			Description:   "Smallest non-null value of the field.",
+			Description:   "Smallest non-null value of the field; with params.ordered / params.levels, the lowest level of a categorical.",
+			Params:        orderedParams,
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_MIN),
-			EmitsTypeNote: "scalar float64",
+			EmitsTypeNote: "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "min", Type: "float64", Description: "Smallest non-null value observed."},
+				descriptor.ComponentKey{Name: "min", Type: "float64", Description: "Smallest non-null value observed (ordered: the lowest level's dictionary index)."},
+				orderedComponentKey,
 			),
 		},
 		{
 			Name:          string(types.AGG_MAX),
 			Category:      "aggregator",
-			Description:   "Largest non-null value of the field.",
+			Description:   "Largest non-null value of the field; with params.ordered / params.levels, the highest level of a categorical.",
+			Params:        orderedParams,
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_MAX),
-			EmitsTypeNote: "scalar float64",
+			EmitsTypeNote: "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "max", Type: "float64", Description: "Largest non-null value observed."},
+				descriptor.ComponentKey{Name: "max", Type: "float64", Description: "Largest non-null value observed (ordered: the highest level's dictionary index)."},
+				orderedComponentKey,
 			),
 		},
 		{
@@ -420,16 +447,18 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_MEDIAN),
 			Category:    "aggregator",
-			Description: "50th percentile of the field; requires sorting the full value set.",
+			Description: "50th percentile of the field; requires sorting the full value set. With params.ordered / params.levels, the median level of a categorical (R quantile type 1 over level ranks, no interpolation).",
+			Params:      orderedParams,
 			// No decimal128 — see AGG_RANGE.
 			AcceptsTypes:   tableAcceptsTypes(types.AGG_MEDIAN),
-			EmitsTypeNote:  "scalar float64",
+			EmitsTypeNote:  "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.",
 			ComponentSchema: aggSchema(descriptor.None,
 				descriptor.ComponentKey{Name: "position_low", Type: "int", Description: "Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."},
 				descriptor.ComponentKey{Name: "position_high", Type: "int", Description: "Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n)."},
-				descriptor.ComponentKey{Name: "median", Type: "float64", Description: "Resolved median value (linear interpolation between the bracketing positions)."},
+				descriptor.ComponentKey{Name: "median", Type: "float64", Description: "Resolved median value (linear interpolation between the bracketing positions). Ordered: the chosen level's dictionary index; both positions are its 0-based rank."},
+				orderedComponentKey,
 			),
 		},
 		{
@@ -452,7 +481,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Most-frequent value of the field (ties broken by the smallest value).",
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_MODE),
-			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]; as a crosstab cell, any MATRIX kind reading cell values; on a later chain stage, over a column a code-emitting aggregation wrote) is refused PROCESSING_CONFIG reason categorical_code)",
+			EmitsTypeNote: "scalar float64 (the modal value; for a categorical field, its dictionary index, for a packed_bool field its 0/1 truth value — a code, not a magnitude, so an overlay scoring it over such a field (params.field, else aggregations[0]; as a crosstab cell or Compose crosstab slot cell, any kind reading cell values; on a later chain stage, over a column a code-emitting aggregation wrote) is refused PROCESSING_CONFIG reason categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Partial,
 				descriptor.ComponentKey{Name: "value", Type: "any", Description: "Most-frequent value observed (smallest-value tie-break)."},
@@ -525,18 +554,18 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_PERCENTILE),
 			Category:    "aggregator",
-			Description: "Configurable percentile of the field; requires sorting the full value set.",
-			Params: []descriptor.Param{
+			Description: "Configurable percentile of the field; requires sorting the full value set. With params.ordered / params.levels, a level of a categorical (R quantile type 1 over level ranks, no interpolation).",
+			Params: append([]descriptor.Param{
 				{
 					Name:        "percentile",
 					Type:        "float",
 					Required:    true,
-					Description: "Percentile to compute, in [0, 100]. e.g. 95 for p95.",
+					Description: "Required, no default: a number in [0, 100], e.g. 95 for p95 (50 is the median). Absent or null is refused (PROCESSING_CONFIG).",
 				},
-			},
+			}, orderedParams...),
 			// No decimal128 — see AGG_RANGE.
 			AcceptsTypes:   tableAcceptsTypes(types.AGG_PERCENTILE),
-			EmitsTypeNote:  "scalar float64",
+			EmitsTypeNote:  "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:     false,
 			StreamableHint: "Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.",
 			ComponentSchema: aggSchema(descriptor.None,
@@ -544,8 +573,9 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "position", Type: "int", Description: "Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n)."},
 				descriptor.ComponentKey{Name: "lower", Type: "float64", Description: "Lower bracketing value used during interpolation."},
 				descriptor.ComponentKey{Name: "upper", Type: "float64", Description: "Upper bracketing value used during interpolation."},
-				descriptor.ComponentKey{Name: "method", Type: "string", Description: "Interpolation method (e.g. \"linear\")."},
-				descriptor.ComponentKey{Name: "value", Type: "float64", Description: "Resolved percentile value."},
+				descriptor.ComponentKey{Name: "method", Type: "string", Description: "Interpolation method (\"linear\"; ordered: \"type1\", no interpolation)."},
+				descriptor.ComponentKey{Name: "value", Type: "float64", Description: "Resolved percentile value. Ordered: the chosen level's dictionary index; position is its 0-based rank, lower = upper = value."},
+				orderedComponentKey,
 			),
 		},
 		{

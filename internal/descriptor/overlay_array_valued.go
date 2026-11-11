@@ -64,10 +64,14 @@ import (
 // (processing.narrowSeriesHost), so an unscored one never reaches the
 // fold. A crosstab slot or stage is not narrowed, and keeps the
 // whole-request array-valued rule (its cells carry rich payloads the
-// cell kinds read). On a Process crosstab host the categorical-code
-// rule judges the CELL aggregation instead (crosstabCellCodeRefusal),
-// for the MATRIX kinds that read cell values
-// (overlayhost.ReadsCellValue).
+// cell kinds read). On a crosstab host the categorical-code rule judges
+// the CELL aggregation instead, for the kinds that read cell values:
+// the Process host (crosstabCellCodeRefusal,
+// overlayhost.ReadsCellValue) and a Compose crosstab slot
+// (composeCellCodeRefusal, overlayhost.ComposeReadsCellValue — U66
+// #445). A chain has no crosstab host: mergegate.ChainRefusal refuses
+// every crosstab stage (PULSE_CHAIN_NOT_MERGEABLE) on both sides before
+// any whole-chain overlay runs.
 
 // scoredValueReasons are the details.reason values, and the message
 // phrase each one reads as.
@@ -143,14 +147,14 @@ func schemaFieldTypes(schema *encoding.Schema) fieldTypeLookup {
 }
 
 // codeInput returns the input field type that makes a a categorical
-// code under kinds (IsCode), ok false when it is not one. inputType nil
+// code under kinds (IsCodeSlot), ok false when it is not one. inputType nil
 // judges nothing.
 func codeInput(a *types.Aggregation, kinds vectors.AggregationKinds, inputType fieldTypeLookup) (encoding.FieldType, bool) {
-	if a == nil || inputType == nil || a.Field == "" || !kinds.EmitsInputValue(a.Type) {
+	if a == nil || inputType == nil || a.Field == "" || !kinds.EmitsInputValueSlot(a) {
 		return 0, false
 	}
 	ft, ok := inputType(a.Field)
-	if !ok || !kinds.IsCode(a.Type, ft) {
+	if !ok || !kinds.IsCodeSlot(a, ft) {
 		return 0, false
 	}
 	return ft, true
@@ -274,18 +278,24 @@ func scoredNonScalarAggregation(r *types.Request, kind types.OverlayKind, kinds 
 // none) returns the schema slot j executes over (its cohort's, or the
 // joined one; nil when unreadable) for the categorical-code rule; it
 // is called only for a slot whose scored aggregation is input-valued.
-// Nil when no overlay reads one; a kind the instance hides is left to
-// the kind rule.
-func ComposeOverlayArrayValuedRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema) error {
+// A crosstab slot is judged by its CELL aggregations instead
+// (composeCellCodeRefusal, U66 #445): a kind that reads the cell value
+// (overlayhost.ComposeReadsCellValue) over a code cell is refused;
+// disabled reports a slot built with components disabled (the
+// runtime's effective gate — a moment-carrying cell then exposes no
+// moments, so OVERLAY_T_CELL / OVERLAY_Z_CELL read its value). Nil
+// when no overlay reads one; a kind the instance hides is left to the
+// kind rule.
+func ComposeOverlayArrayValuedRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema, disabled func(*types.Request) bool) error {
 	for i := range overlays {
-		if err := composeOverlayArrayValuedRefusal(i, &overlays[i], requests, labels, inst, slotSchema); err != nil {
+		if err := composeOverlayArrayValuedRefusal(i, &overlays[i], requests, labels, inst, slotSchema, disabled); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema) *errors.CodedError {
+func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, requests []*types.Request, labels []string, inst *InstanceSnapshot, slotSchema func(j int) *encoding.Schema, disabled func(*types.Request) bool) *errors.CodedError {
 	kind := string(spec.Kind)
 	if inst.Hidden(kind) {
 		return nil
@@ -314,12 +324,15 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 		kinds := aggregationKinds(inst, nil)
 		cols := vectors.AggregationColumns(r, composeSlotSchemaFunc(slotSchema, j), kinds)
 		ai, agg, reason := scoredNonScalarAggregation(r, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (seriesfield.Scored, error) {
-			if !seriesfield.AppliesCompose(spec.Kind) {
+			if !seriesfield.AppliesComposeWith(spec.Kind, fieldHonours(inst, overlayhost.Compose)) {
 				return seriesfield.Scored{}, nil
 			}
 			return seriesfield.ResolveComposeSlot(aggs, spec, i, slot, cols)
 		})
 		if agg == nil {
+			if ce := composeCellCodeRefusal(i, spec, j, slot, r, inst, kinds, inputType, disabled); ce != nil {
+				return ce
+			}
 			continue
 		}
 		label := types.AggregationLabelOf(agg)
@@ -347,8 +360,10 @@ func composeOverlayArrayValuedRefusal(i int, spec *types.ComposeOverlaySpec, req
 // columns categorical, aggregation outputs f64) plus the code columns
 // it inherits (vectors.AggregationKinds.ChainCodeColumns — an output
 // column an upstream code-emitting aggregation wrote is still a code),
-// so the stages must carry their smart defaults by then. Nil when no
-// overlay reads one.
+// so the stages must carry their smart defaults by then. A crosstab
+// stage never reaches a whole-chain overlay (mergegate.ChainRefusal
+// refuses it first), so no cell is judged here. Nil when no overlay
+// reads one.
 func ChainOverlayArrayValuedRefusal(req *types.ChainRequest, inst *InstanceSnapshot, stage0 *encoding.Schema) error {
 	if req == nil {
 		return nil
@@ -545,8 +560,10 @@ func chainStageIndex(req *types.ChainRequest, ref types.StageRef, dflt bool) (in
 // chain stage >= 1 the code columns it inherits
 // (vectors.CodeFieldTypes). A crosstab request is judged by
 // crosstabCellCodeRefusal instead; readsCell reports whether a kind
-// reads its cell values (the instance's overlayhost.ReadsCellValue).
-func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, cols seriesfield.Columns, readsCell func(types.OverlayKind) bool) []*errors.CodedError {
+// reads its cell values (the instance's overlayhost.ReadsCellValue);
+// fieldExt is seriesfield's instance hook (an extension kind declaring
+// HonoursField scores params.field's aggregation, U66 #713).
+func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup, cols seriesfield.Columns, readsCell func(types.OverlayKind) bool, fieldExt seriesfield.Honours) []*errors.CodedError {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -561,7 +578,7 @@ func processOverlayArrayValuedRefusals(req *types.Request, kinds vectors.Aggrega
 	for i := range req.Overlays {
 		spec := &req.Overlays[i]
 		ai, host, reason := scoredNonScalarAggregation(req, spec.Kind, kinds, nil, inputType, func(aggs []*types.Aggregation) (seriesfield.Scored, error) {
-			if !seriesfield.Applies(spec.Kind) {
+			if !seriesfield.AppliesWith(spec.Kind, fieldExt) {
 				return seriesfield.Scored{}, nil
 			}
 			return seriesfield.Resolve(aggs, spec, i, cols)
@@ -635,9 +652,59 @@ func crosstabOneCellCodeRefusal(req *types.Request, cell *types.Aggregation, slo
 		label := types.AggregationLabelOf(cell)
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"overlays["+strconv.Itoa(i)+"] ("+string(kind)+") reads the crosstab cell values, and the cell "+label+" ("+string(cell.Type)+
-				") is "+codeClause+"; an overlay compares magnitudes across cells — score a count instead (an AGG_COUNT cell, AGG_FREQUENCY of one label, AGG_AVERAGE of a packed_bool)",
+				") is "+codeClause+cellCodeRemedy,
 			withCodeDetails(map[string]any{"aggregation": string(cell.Type), "label": label, "slot": slot, "reason": reasonCategoricalCode},
 				reasonCategoricalCode, cell, kinds, inputType))
 	}
 	return nil
+}
+
+// cellCodeRemedy is the cell categorical-code refusal message's tail,
+// on every host.
+const cellCodeRemedy = "; an overlay compares magnitudes across cells — score a count instead (an AGG_COUNT cell, AGG_FREQUENCY of one label, AGG_AVERAGE of a packed_bool)"
+
+// firstCodeCell returns the first cell aggregation of a crosstab
+// request that is a categorical code under kinds (codeInput), its
+// index in CellAggregations(); -1, nil when none is (or r is no
+// crosstab, or inputType is nil).
+func firstCodeCell(r *types.Request, kinds vectors.AggregationKinds, inputType fieldTypeLookup) (int, *types.Aggregation) {
+	if r == nil || r.Crosstab == nil || inputType == nil {
+		return -1, nil
+	}
+	for ci, cell := range r.Crosstab.CellAggregations() {
+		if _, ok := codeInput(cell, kinds, inputType); ok {
+			return ci, cell
+		}
+	}
+	return -1, nil
+}
+
+// composeCellCodeRefusal is the Compose half of the cell
+// categorical-code rule (U66 #445; the Process half is
+// crosstabCellCodeRefusal): slot j (label slot) is a crosstab whose
+// cell aggregation — every measure of a multi-measure one — is a
+// categorical code, and spec's kind reads the cell VALUE
+// (overlayhost.ComposeReadsCellValue; OVERLAY_T_CELL / OVERLAY_Z_CELL
+// only over a cell whose components carry no moments —
+// cellCarriesMoments with components enabled). PROCESSING_CONFIG,
+// Details {overlay_index, kind, slot, host: "requests[<j>].<cell
+// path>", aggregation, label, reason: "categorical_code", field,
+// field_type}. Nil otherwise.
+func composeCellCodeRefusal(i int, spec *types.ComposeOverlaySpec, j int, slot string, r *types.Request, inst *InstanceSnapshot, kinds vectors.AggregationKinds, inputType fieldTypeLookup, disabled func(*types.Request) bool) *errors.CodedError {
+	ci, cell := firstCodeCell(r, kinds, inputType)
+	if cell == nil {
+		return nil
+	}
+	moments := (disabled == nil || !disabled(r)) && cellCarriesMoments(inst, kinds.Routed(cell.Type))
+	if !composeReadsCellValue(inst, spec.Kind, moments) {
+		return nil
+	}
+	kind := string(spec.Kind)
+	label := types.AggregationLabelOf(cell)
+	host := "requests[" + strconv.Itoa(j) + "]." + r.Crosstab.CellSlotPath(ci)
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		"overlays["+strconv.Itoa(i)+"] ("+kind+") reads slot "+strconv.Quote(slot)+"'s crosstab cell values, and its "+host+" "+label+" ("+string(cell.Type)+
+			") is "+codeClause+cellCodeRemedy,
+		withCodeDetails(map[string]any{"overlay_index": i, "kind": kind, "slot": slot, "host": host,
+			"aggregation": string(cell.Type), "label": label, "reason": reasonCategoricalCode}, reasonCategoricalCode, cell, kinds, inputType))
 }

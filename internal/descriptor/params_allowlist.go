@@ -268,6 +268,20 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 	ext(paramread.Test, snap.Tests)
 	ext(paramread.Regression, snap.Regressions)
 	ext(paramread.Overlay, snap.Overlays)
+	// An extension overlay kind declaring HonoursField /
+	// HonoursPartitionBy reads field / partition_by through the engine
+	// (U66 #713): a declared list admits them, as a vector-input
+	// aggregator's engine keys; an undeclared one passes them through.
+	for name, d := range snap.OverlayDetails {
+		key := paramread.Key{Category: paramread.Overlay, Op: name}
+		decl, ok := out[key]
+		engine := extensionEngineParamKeys(&d)
+		if !ok || !decl.Declared || len(engine) == 0 {
+			continue
+		}
+		decl.Keys = slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(decl.Keys), engine...))))
+		out[key] = decl
+	}
 	for _, m := range snap.MatrixOps {
 		facts := snap.MatrixDetails[m.Name]
 		d := paramsDeclOf(extensionMatrixParams(m.Streamable, facts.Params))

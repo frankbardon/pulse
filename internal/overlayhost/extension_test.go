@@ -139,6 +139,33 @@ func TestExtensionComposeRefusal_Order(t *testing.T) {
 		}
 	}
 
+	// partition_by on a Compose spec of a kind honouring it (Request
+	// host only) is refused after Level / Within, before the hook; a
+	// kind not honouring it, or a null value, passes to the hook.
+	called = 0
+	part := spec
+	part.Params = map[string]any{"partition_by": []any{"region"}}
+	if got := ExtensionComposeRefusal(d, &part, 3); got == nil || got.Code != errors.PULSE_EXTENSION_SPEC_REFUSED || called != 1 {
+		t.Errorf("partition_by, not honoured = %v (hook called %d), want the hook's refusal", got, called)
+	}
+	d.HonoursPartitionBy = true
+	called = 0
+	want := map[string]any{"index": 3, "kind": string(d.Kind), "partition_by": []any{"region"}, "reason": "compose_host"}
+	if got := ExtensionComposeRefusal(d, &part, 3); got == nil || got.Code != errors.PULSE_OVERLAY_PARTITION_INVALID ||
+		!reflect.DeepEqual(got.Details, want) || called != 0 {
+		t.Errorf("partition_by, honoured = %v (hook called %d), want PULSE_OVERLAY_PARTITION_INVALID %v", got, called, want)
+	}
+	part.Within = 1
+	if got := ExtensionComposeRefusal(d, &part, 3); got == nil || got.Code != errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE {
+		t.Errorf("Within before partition_by: %v", got)
+	}
+	part.Within = 0
+	part.Params = map[string]any{"partition_by": nil}
+	if got := ExtensionComposeRefusal(d, &part, 3); got == nil || got.Code != errors.PULSE_EXTENSION_SPEC_REFUSED {
+		t.Errorf("null partition_by = %v, want the hook's refusal", got)
+	}
+	d.HonoursPartitionBy = false
+
 	called = 0
 	req := types.OverlaySpec{Kind: d.Kind, Scope: types.OverlayScopeCell, Ref: types.OverlayRef{Margin: &types.OverlayMarginRef{Axis: types.MarginAxisRow}}}
 	if got := ExtensionDeclRefusal(d, types.OverlayShapeMatrix, false, &req, 0); got != nil || called != 0 {

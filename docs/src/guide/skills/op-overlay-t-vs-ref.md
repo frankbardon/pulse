@@ -29,22 +29,22 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `field` | string | — | OUTPUT LABEL to score on every slot (`label`, else `TYPE_field`) or an element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; missing on a slot → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
-| `variance_target` | float | — | Target sample variance, > 0; required for a measure without mean + variance components. |
+| `variance_target` | float | — | Target sample variance, > 0; required for a mean measure. |
 | `variance_ref` | float | — | Reference sample variance; likewise. |
 | `variance` | float | — | Both sides, when a side's own key is absent. |
 | `sample_size_target` | float | — | Target sample size; likewise. |
 | `sample_size_ref` | float | — | Reference sample size; likewise. |
 | `sample_size` | float | — | Both sides, when a side's own key is absent. |
 
-`Scope` required, must be `group`. `Reference` / `Targets` required slot labels; rows key on group columns only. A scalar scored aggregation (anything but `AGG_WELFORD`) REQUIRES the variance and sample-size params, applied to EVERY group; missing → `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime.
+`Scope` `group`; rows key on group columns. A mean measure needs the params for EVERY group and target (missing → `PULSE_OVERLAY_PARAM_MISSING`); other measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); mean vs moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`. Allowlist: [`overlay-reference-tests`](overlay-reference-tests.md).
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. Reads `{n, mean, variance}` from the scored `AGG_WELFORD`'s per-group `Response.Components` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else the required `params`. Other non-scalar measures → `non_scalar`; crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
+COMPOSE — SERIES grouped Process on both slots. Reads `{n, mean, variance}` from per-group `Response.Components` of `AGG_WELFORD` or another moment-carrying measure (off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else `params`. Crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statistic`; one layer per target, `Baseline` unset.
+SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statistic`; `Baseline` unset. One layer per target (`<name>__<target>` for 2+); cap `max_panel_targets`.
 
 ## Reading the output
 

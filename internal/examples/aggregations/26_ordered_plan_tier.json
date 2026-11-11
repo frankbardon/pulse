@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Per test arm, the median, lowest and 75th-percentile subscription plan tier, reading the plan categorical as an ordered scale (params.levels basic < plus < pro; params.ordered true would take the dictionary order). AGG_MEDIAN / AGG_MIN / AGG_PERCENTILE return the chosen level's dictionary index — a code, as AGG_MODE over a categorical does — chosen as R quantile(type = 1) over the level ranks, with no interpolation. A plan label params.levels does not list would be dropped and counted in the components' n_unlisted.",
+    "intents": [
+      "describe",
+      "compare_groups"
+    ],
+    "name": "ordered_plan_tier_per_arm",
+    "operators": [
+      "AGG_MEDIAN",
+      "AGG_MIN",
+      "AGG_PERCENTILE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "distribution-shape",
+      "buffered-pipeline",
+      "ordinal"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_MEDIAN",
+      "field": "plan",
+      "label": "median_plan",
+      "params": {"levels": ["basic", "plus", "pro"]}
+    },
+    {
+      "type": "AGG_MIN",
+      "field": "plan",
+      "label": "lowest_plan",
+      "params": {"levels": ["basic", "plus", "pro"]}
+    },
+    {
+      "type": "AGG_PERCENTILE",
+      "field": "plan",
+      "label": "p75_plan",
+      "params": {"percentile": 75, "levels": ["basic", "plus", "pro"]}
+    }
+  ],
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "arm"
+    }
+  ],
+  "sort": [
+    {
+      "field": "arm"
+    }
+  ]
+}

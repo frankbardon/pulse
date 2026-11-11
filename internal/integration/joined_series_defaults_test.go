@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -104,9 +105,30 @@ func TestComposeSeriesOverlay_JoinedSlotDefaultedLabel(t *testing.T) {
 						field = "AGG_SUM_r_y"
 						aggs = append([]func() *types.Aggregation{csZ}, aggs...)
 					}
-					req := csCompose(f, csOverlay(kind, field), csRegion, aggs...)
-					for _, r := range req.Requests {
-						r.Joins = jsJoin(f)
+					build := func() *types.ComposedRequest {
+						req := csCompose(f, csOverlay(kind, field), csRegion, aggs...)
+						for _, r := range req.Requests {
+							r.Joins = jsJoin(f)
+						}
+						return req
+					}
+					req := build()
+					if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+						// The default AGG_SUM is not a mean (U66 #444):
+						// refused on both sides, judged on the default
+						// predict resolves against the joined schema.
+						env := csPredict(t, f.p, req)
+						if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
+							env.Errors[0].Details["measure_type"] != string(types.AGG_SUM) {
+							t.Fatalf("predict-compose = %+v, want the AGG_SUM measure refusal", env.Errors)
+						}
+						_, err := f.p.Compose(context.Background(), build())
+						var ce *perr.CodedError
+						if !errors.As(err, &ce) || ce.Code != perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ||
+							!reflect.DeepEqual(ce.Details, env.Errors[0].Details) || ce.Message != env.Errors[0].Message {
+							t.Fatalf("compose = %v, want predict's %s %v", err, env.Errors[0].Code, env.Errors[0].Details)
+						}
+						return string(ce.Code)
 					}
 					if env := csPredict(t, f.p, req); len(env.Errors) > 0 {
 						t.Fatalf("predict-compose: %+v", env.Errors)

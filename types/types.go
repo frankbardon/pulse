@@ -2021,6 +2021,32 @@ type GrouperComponents struct {
 	// the components entry back to its request slot when multiple
 	// groupers share the same Field.
 	Label string `json:"label,omitempty"`
+
+	// Buckets carries one entry per outer bucket for a params.fit
+	// "within" position after the first (GROUP_QUANTILE, GROUP_KMEANS
+	// refitted inside each bucket of the groupers before it): that
+	// refit's own floor and operator keys, in the outer segments' Data
+	// order. The slot-level TotalN / NNull / Operator above stay the
+	// whole-set fit's. Absent (omitempty) on every other slot, so a
+	// request without "within" is byte-identical.
+	Buckets []GrouperBucketComponents `json:"buckets,omitempty"`
+}
+
+// GrouperBucketComponents is one params.fit "within" refit of a grouper
+// slot: GroupKey is the outer segment (the tuple of the groupers before
+// it) the refit ran over, TotalN / NNull the refit's universal floor
+// over that segment's records and Operator its ComponentSchema keys —
+// the figures a standalone run of the grouper over that segment
+// reports. A degenerate refit (GROUP_KMEANS k above the segment's
+// distinct points) carries Error instead of figures: its records join
+// no bucket of the slot (NNull counts them) and the run warns
+// PULSE_SLOT_FAILED; under Strict the run fails with the refit's code.
+type GrouperBucketComponents struct {
+	GroupKey AxisKey        `json:"group_key"`
+	TotalN   int            `json:"total_n,omitempty"`
+	NNull    int            `json:"n_null,omitempty"`
+	Operator map[string]any `json:"operator,omitempty"`
+	Error    *SlotError     `json:"error,omitempty"`
 }
 
 // CrosstabComponents is declared in types/crosstab.go alongside

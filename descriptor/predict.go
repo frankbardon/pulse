@@ -751,6 +751,14 @@ type GroupPredict struct {
 	// the grouper's term of the MaxEstimatedMemory estimate. Omitted on
 	// every other grouper or with the record count unknown.
 	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
+
+	// RefitBuckets is true on a params.fit "within" position after the
+	// first (GROUP_QUANTILE, GROUP_KMEANS refitted per outer bucket):
+	// its runtime Components.Groupers entry adds `buckets`, one entry
+	// per outer bucket carrying that refit's {total_n, n_null} and
+	// ComponentSchema keys (or a degenerate refit's `error`). Omitted
+	// everywhere else — the slot's components are the whole-set fit's.
+	RefitBuckets bool `json:"refit_buckets,omitempty"`
 }
 
 // FiltererPredict is the per-slot predict surface for one entry of

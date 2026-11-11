@@ -21,7 +21,7 @@ Weighted: the value with the largest Σw; `count` becomes that Σw (a float).
 
 ## Output
 
-Scalar `float64` — the modal value (categorical: its dictionary index). Per-group under a grouper. ProcessChain admits it: a later stage reads that index as a number, not a label.
+Scalar `float64` — the modal value (categorical: its dictionary index). Per-group under a grouper. ProcessChain admits it: a later stage reads that index as a CODE — a numeric reader over it (a sum, mean, min, …) is `PULSE_FIELD_TYPE_UNSUPPORTED` (`forwarded_code`); a `packed_bool` 0/1 mode still sums.
 
 ## Components
 
@@ -37,7 +37,7 @@ Scalar `float64` — the modal value (categorical: its dictionary index). Per-gr
 - Ties go to the SMALLEST value (or index), not the first seen; `tie_count > 1` flags a tie.
 - High cardinality costs memory; pre-filter.
 - No non-null value → `null` (NaN), never 0.
-- Over `categorical_*` / `packed_bool` the value is a CODE: an overlay scoring it (any host; `params.field`, else `aggregations[0]`) is refused `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`). So is a crosstab whose CELL is a code, under any MATRIX kind that reads cell values (`slot: "crosstab.cell"`; the moment pairwise kinds read none). Score a count or share instead. Code-ness survives ProcessChain: a later stage's column written by a code-emitting aggregation is still a code (`field_type` its origin type), so `AGG_MODE` over it, scored, is refused too.
+- Over `categorical_*` / `packed_bool` the value is a CODE: an overlay scoring it (any host; `params.field`, else `aggregations[0]`) is refused `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`). So is a crosstab (or Compose crosstab slot) whose CELL is a code, under any kind that reads cell values (`slot` / `host` the cell path; the moment pairwise kinds read none). Score a count or share instead. Code-ness survives ProcessChain: a later stage's column written by a code-emitting aggregation is still a code (`field_type` its origin type), so `AGG_MODE` over it, scored, is refused too.
 
 ## See
 

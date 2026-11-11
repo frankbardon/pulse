@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
@@ -13,6 +14,8 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -35,7 +38,8 @@ import (
 // A kind runs on the hosts whose handler it sets: Handler.Matrix on a
 // crosstab request's Request.Overlays (and a Compose slot's own),
 // Handler.Series on a grouped request's Request.Overlays (scored on its
-// first aggregation), Handler.Compose on ComposedRequest.Overlays. A
+// first aggregation, or the one params.field names under HonoursField),
+// Handler.Compose on ComposedRequest.Overlays. A
 // spec over a host the kind does not declare — and any spec on
 // ChainRequest.Overlays or FacetRequest.Overlays — is refused at predict
 // and at runtime alike (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, the
@@ -140,6 +144,55 @@ type OverlayRegistration struct {
 	// never takes the streaming path (PredictResult.Streamable is false
 	// with the reason named).
 	EmitsPValues bool
+	// ReadsCellCountsOnly declares that the handler reads only a crosstab
+	// host's record counts and weight figures (MatrixOverlayHost.CellN,
+	// RowMarginN, ColumnMarginN, CellSumWeights, CellNEff), never a cell
+	// or margin VALUE (Cell, RowMargin, ColumnMargin, GrandTotal), on its
+	// Matrix handler and on a Compose crosstab slot alike. Unset (the
+	// default), a kind with a Matrix or Compose handler reads values: over
+	// a crosstab whose cell is a categorical code (AGG_MODE, or an
+	// EmitsInputValue aggregator, over a categorical_* / packed_bool
+	// field) a spec of it is refused PROCESSING_CONFIG, reason
+	// categorical_code, at predict and at runtime alike, exactly as a
+	// built-in value-reading kind. It has no effect on a Series-only
+	// kind.
+	ReadsCellCountsOnly bool
+	// HonoursField opts the kind into the engine's params.field: on a
+	// grouped request (Handler.Series) and on each Compose series slot
+	// (Handler.Compose) the host is scored on the aggregation whose
+	// OUTPUT LABEL (or expanded element column "<label>[<element>]")
+	// params.field names instead of the first aggregation, exactly as a
+	// built-in series kind — the series host's ValueLabel is that
+	// column. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN,
+	// and a scored aggregation that is not one number (array-valued,
+	// non-scalar, a categorical code) PROCESSING_CONFIG, at predict and
+	// at runtime alike. The key is declared for the kind (Params need
+	// not list it; listing it is PULSE_EXTENSION_PARAM_INVALID, reason
+	// reserved_series_param) and appears in the manifest. Requires a
+	// Series or Compose handler (reason field_without_series_handler).
+	// Unset (the default), params.field is not an engine param of the
+	// kind and every host is scored on its first aggregation.
+	HonoursField bool
+	// HonoursPartitionBy opts the kind's Series handler into the
+	// engine's params.partition_by: over two or more groupers the
+	// handler runs once per partition — the rows sharing the leading
+	// key columns (default every key but the last; [] one walk over
+	// every row) — on a sub-host of those rows, and the engine lays each
+	// partition's series entries back onto the host rows they came from
+	// (layer Summary Min / Max widen and Count sums across partitions,
+	// its other fields are the first partition's; a warning code raised
+	// by several partitions lands once with details.partitions). A list
+	// that is not a leading prefix of the group key columns is
+	// PULSE_OVERLAY_PARTITION_INVALID at predict and at runtime alike;
+	// a partition's output that is not a series payload with one entry
+	// per partition row is PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH
+	// (reason partition_misaligned). Request host only: a Compose spec
+	// carrying partition_by is PULSE_OVERLAY_PARTITION_INVALID (reason
+	// compose_host). Requires a Series handler and the series payload
+	// shape (reason partition_needs_series); listing partition_by in
+	// Params is reason reserved_series_param. Unset (the default), the
+	// handler sees the whole host once.
+	HonoursPartitionBy bool
 	// Validate is the optional spec-only refusal hook
 	// (extend.SpecValidator): it judges a spec the declarative rules
 	// accepted, at predict and at runtime alike, before the handler;
@@ -184,8 +237,12 @@ func builtinOverlayNames() map[string]struct{} {
 // validateOverlayRegistrations enforces the OverlayRegistration shape:
 // the shared naming / duplicate / params pass, then at least one
 // handler (reason missing_handler), well-formed Shapes / Scopes / Refs
-// (reasons invalid_shape / invalid_scope / invalid_ref) and
+// (reasons invalid_shape / invalid_scope / invalid_ref),
 // EmitsPValues only with Inferential (reason p_values_not_inferential),
+// HonoursField with a Series or Compose handler (reason
+// field_without_series_handler), HonoursPartitionBy with a Series
+// handler and the series shape (reason partition_needs_series) and no
+// Params entry for an engine-owned key (reason reserved_series_param),
 // each
 // PULSE_EXTENSION_PARAM_INVALID {category: overlay, name, index,
 // reason[, value]}.
@@ -221,6 +278,17 @@ func validateOverlayRegistrations(regs []OverlayRegistration) error {
 		if r.EmitsPValues && !r.Inferential {
 			return invalid("p_values_not_inferential", "declares EmitsPValues without Inferential (a layer carrying p-values is inferential)", "")
 		}
+		if r.HonoursField && r.Handler.Series == nil && r.Handler.Compose == nil {
+			return invalid("field_without_series_handler", "declares HonoursField without a Series or Compose handler (params.field picks a series host's scored aggregation)", "")
+		}
+		if r.HonoursPartitionBy && (r.Handler.Series == nil || !slices.Contains(r.Shapes, types.OverlayShapeSeries)) {
+			return invalid("partition_needs_series", "declares HonoursPartitionBy without a Series handler returning the series shape (each partition's entries land back on its host rows)", "")
+		}
+		for _, p := range r.Params {
+			if (r.HonoursField && p.Name == seriesfield.Param) || (r.HonoursPartitionBy && p.Name == seriespartition.Param) {
+				return invalid("reserved_series_param", "declares a param "+strconv.Quote(p.Name)+", which the engine owns under HonoursField / HonoursPartitionBy; drop it from Params", p.Name)
+			}
+		}
 	}
 	return nil
 }
@@ -246,13 +314,16 @@ func badEnumList[T ~string](list, known []T) (string, bool) {
 // runtime registry and the snapshot both carry.
 func overlayDeclaration(r OverlayRegistration) overlayhost.ExtensionDecl {
 	d := overlayhost.ExtensionDecl{
-		Kind:         r.Name,
-		Shapes:       slices.Clone(r.Shapes),
-		Scopes:       slices.Clone(r.Scopes),
-		Refs:         []string{overlayhost.RefNone},
-		WeightAware:  r.WeightAware,
-		Inferential:  r.Inferential,
-		EmitsPValues: r.EmitsPValues,
+		Kind:                r.Name,
+		Shapes:              slices.Clone(r.Shapes),
+		Scopes:              slices.Clone(r.Scopes),
+		Refs:                []string{overlayhost.RefNone},
+		WeightAware:         r.WeightAware,
+		Inferential:         r.Inferential,
+		EmitsPValues:        r.EmitsPValues,
+		ReadsCellCountsOnly: r.ReadsCellCountsOnly,
+		HonoursField:        r.HonoursField,
+		HonoursPartitionBy:  r.HonoursPartitionBy,
 	}
 	if r.Handler.Matrix != nil {
 		d.HostShapes = append(d.HostShapes, types.OverlayShapeMatrix)

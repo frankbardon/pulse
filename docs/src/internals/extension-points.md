@@ -2254,7 +2254,11 @@ so a pick over it there scores — unless a code-emitting aggregation (a
 declared pick over a code, or `AGG_MODE`) wrote it: code-ness propagates
 through every stage. A pick over a forwarded group key
 (`categorical_u32`) is refused. As a crosstab cell over a code field it
-is refused under every MATRIX overlay kind that reads cell values. Undeclared, an overlay scores the code
+is refused under every MATRIX overlay kind that reads cell values (an
+extension kind included, unless it declares `ReadsCellCountsOnly` — see
+[Overlay kinds over a code cell](#overlay-kinds-over-a-code-cell)), and
+so is a Compose crosstab slot under a Compose kind that does (`OVERLAY_T_CELL` /
+`OVERLAY_Z_CELL` too unless the cell's components carry mean and variance). Undeclared, an overlay scores the code
 as a magnitude. The manifest's extension entry carries
 `emits_input_value`.
 
@@ -2358,6 +2362,60 @@ registration without `EmitsPValues` is `undeclared_p_values`, one off
 its shape's site (a matrix or series layer's own `Summary.PValue`)
 `misplaced_p_values`, one outside [0, 1] `invalid_p_value`, and a probe
 run that returns no p-value at all `missing_p_values`.
+
+### Overlay kinds over a code cell
+
+A crosstab whose cell aggregation is a categorical code (`AGG_MODE`, or
+an `EmitsInputValue` aggregator, over a `categorical_*` / `packed_bool`
+field) holds a dictionary index or a 0/1 truth value in every cell and
+margin, not a magnitude. An `OverlayRegistration` with a `Matrix`
+handler (the Process crosstab host) or a `Compose` handler (a Compose
+crosstab slot it reads) is taken to read the cell VALUES
+(`MatrixOverlayHost.Cell`, `RowMargin`, `ColumnMargin`, `GrandTotal`),
+so a spec of it over such a cell is refused `PROCESSING_CONFIG`, reason
+`categorical_code` (Details add `field` and `field_type`), at predict
+and at runtime alike — exactly as a built-in value-reading kind. Declare
+`ReadsCellCountsOnly: true` when the handler reads only the record
+counts and weight figures (`CellN`, `RowMarginN`, `ColumnMarginN`,
+`CellSumWeights`, `CellNEff`); the rule then leaves the kind alone. The
+declaration is trusted, not probed. It has no effect on a `Series`-only
+kind.
+
+### Overlay kinds and the series params
+
+A `Series` handler is scored on the request's first aggregation over the
+whole grouped host, and a `Compose` handler's series slots on each
+slot's first aggregation — unless the registration opts into the
+params a built-in series kind reads:
+
+- `HonoursField: true` (needs a `Series` or `Compose` handler) — the
+  host (each Compose series slot) is scored on the aggregation whose
+  output label, or expanded element column `"<label>[<element>]"`,
+  `params.field` names; `SeriesOverlayHost.ValueLabel` is that column.
+  An unknown name is `PULSE_OVERLAY_FIELD_UNKNOWN`, and a scored
+  aggregation that is not one number (array-valued, non-scalar, a
+  categorical code) `PROCESSING_CONFIG`, at predict and at runtime alike.
+- `HonoursPartitionBy: true` (needs a `Series` handler and the `series`
+  shape) — over two or more groupers the handler runs once per
+  `params.partition_by` partition (default every key but the last; `[]`
+  one walk), on a host holding only that partition's rows with their
+  full keys, and the engine lays each partition's entries back on the
+  rows they came from (layer `Summary` Min / Max widen, Count sums, the
+  rest is the first partition's; a warning code raised by several
+  partitions lands once with `details.partitions`). A partition output
+  that is not a series with one entry per partition row is
+  `PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH`, reason
+  `partition_misaligned`. A list that is not a leading key prefix is
+  `PULSE_OVERLAY_PARTITION_INVALID`, predict and runtime alike. Request
+  host only: on `ComposedRequest.Overlays` a `partition_by` is refused
+  (reason `compose_host`).
+
+Opted in, the key is declared for the kind (a declared `Params` list
+admits it; listing it yourself is `PULSE_EXTENSION_PARAM_INVALID`, reason
+`reserved_series_param`) and the manifest lists it beside the kind's own
+params. Unset, both keys are unknown params of a declared list and the
+handler sees exactly what it saw before. The series-axis advisory
+(`PULSE_ADVISORY_SERIES_AXIS_NOT_DATE`) stays the built-ins'.
 
 ## Built-in accepted types: the one table (contributor flow)
 

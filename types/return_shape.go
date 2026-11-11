@@ -96,6 +96,7 @@ var structuralTypes = map[reflect.Type]bool{
 	reflect.TypeFor[AggregationComponents]():      true,
 	reflect.TypeFor[AggregationGroupComponents](): true,
 	reflect.TypeFor[GrouperComponents]():          true,
+	reflect.TypeFor[GrouperBucketComponents]():    true,
 	reflect.TypeFor[AttributeComponents]():        true,
 	reflect.TypeFor[CrosstabComponents]():         true,
 	reflect.TypeFor[CrosstabResult]():             true,

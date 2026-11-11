@@ -2,6 +2,7 @@ package overlayhost
 
 import (
 	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/types"
 )
@@ -14,6 +15,59 @@ import (
 // type's declared ComponentSchema) raise it with the same text.
 func WelfordCellMessage(kind types.OverlayKind) string {
 	return "overlay " + string(kind) + " requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none"
+}
+
+// PairwiseMeasureReasonNoWelfordTriple is details.reason of a
+// per-measure refusal (PairwiseMeasureRefusedWarning) on a moment kind
+// (types.PairwiseKindUsesWelford): the measure's cells carry no Welford
+// triple {mean, variance, n}.
+const PairwiseMeasureReasonNoWelfordTriple = "no_welford_triple"
+
+// PairwiseMeasureReasonNoWeightedMoments is details.reason of a
+// per-measure refusal (PairwiseMeasureRefusedWarning) on the
+// weighted-moments kind (types.PairwiseKindUsesWeightedMoments): the
+// measure's cells carry no weighted moments {weighted_mean,
+// m2_weighted, sum_weights, sum_weights_sq} (U66 E8-S1).
+const PairwiseMeasureReasonNoWeightedMoments = "no_weighted_moments"
+
+// PairwiseMeasureRefusable reports whether a pairwise kind refuses one
+// measure of a multi-measure crosstab (types.CrosstabSpec.Cells) ALONE
+// when that measure's cell cannot carry the kind's moment input (U66
+// #476, E8-S1): the Welford triple for the moment kinds
+// (types.PairwiseKindUsesWelford), the weighted moments for the
+// weighted kind (types.PairwiseKindUsesWeightedMoments). The refused
+// measure's folded rows are null cells and the others score; only when
+// every measure is refused does the layer refuse, under the
+// single-measure PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. Every other
+// per-measure refusal still refuses the layer.
+func PairwiseMeasureRefusable(kind types.OverlayKind) bool {
+	return types.PairwiseKindUsesWelford(kind) || types.PairwiseKindUsesWeightedMoments(kind)
+}
+
+// PairwiseMeasureRefusedWarning is the PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// WARNING a refusable pairwise kind (PairwiseMeasureRefusable) raises
+// for measure m (label, cell type cellType) of a multi-measure crosstab
+// whose cells lack the kind's moment input, while another measure
+// scores. The runtime (processing.runPairwiseOverlayMeasures) and
+// predict (descriptor.validateOverlayPairwise) build it here; predict
+// adds details.index. Details {kind, measure, measure_index, cell_type,
+// reason}; reason PairwiseMeasureReasonNoWelfordTriple or
+// PairwiseMeasureReasonNoWeightedMoments.
+func PairwiseMeasureRefusedWarning(kind types.OverlayKind, m int, label string, cellType types.AggregationType) (string, map[string]any) {
+	lacks, reason, advice := "no Welford triple {mean, variance, n}", PairwiseMeasureReasonNoWelfordTriple, "an AGG_WELFORD measure"
+	if types.PairwiseKindUsesWeightedMoments(kind) {
+		lacks, reason, advice = "no weighted moments {weighted_mean, m2_weighted, sum_weights, sum_weights_sq}",
+			PairwiseMeasureReasonNoWeightedMoments, "an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE measure"
+	}
+	msg := "overlay " + string(kind) + " refused measure " + strconv.Quote(label) + " (" + string(cellType) +
+		"): its cells carry " + lacks + ", so its rows are null cells while the other measures score; use " + advice + " to test it"
+	return msg, map[string]any{
+		"kind":          string(kind),
+		"measure":       label,
+		"measure_index": m,
+		"cell_type":     string(cellType),
+		"reason":        reason,
+	}
 }
 
 // ComponentsRequiredMessage is the PULSE_OVERLAY_COMPONENTS_REQUIRED

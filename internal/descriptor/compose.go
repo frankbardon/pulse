@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/seriesfield"
+	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -57,7 +58,7 @@ import (
 // MaxPanelTargets > 0 the per-spec value takes precedence; the
 // `OverlayOptions.MaxPanelTargets` doc explicitly notes this is the
 // per-request override.
-const composeDefaultPanelCap = 16
+const composeDefaultPanelCap = overlayhost.DefaultComposeTargetCap
 
 // ComposeValidationResult is the structured output of ValidateCompose.
 // Mirrors ChainValidationResult / FacetValidationResult: the input
@@ -99,7 +100,8 @@ type ComposeValidationResult struct {
 	// PValues counts the inferential p-values the Compose-host overlays
 	// emit and how many no multiplicity block corrects. Their extent
 	// depends on slot results predict never sees, so each inferential
-	// spec counts as one and the basis is always lower_bound. Omitted
+	// layer counts as one — a fan-out spec emits one layer per target —
+	// and the basis is always lower_bound. Omitted
 	// when no host overlay is inferential, when the batch multiplicity is
 	// refused, and when the instance hides capability:multiplicity.
 	PValues *descriptor.PValueCount `json:"p_values,omitempty"`
@@ -635,8 +637,9 @@ func composeOverlayDescriptorName(spec *types.ComposeOverlaySpec) string {
 // ComposeOverlaySpec. Single-target kinds delegate to the streamability-
 // derived dispatch (overlayCostForKind) — streamable kinds report ~0.05x
 // and buffered kinds report ~1.0x. Multi-reference kinds
-// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) scale the base cost
-// by `min(len(spec.Targets), cap)` where cap = spec.Options.MaxPanelTargets
+// (OVERLAY_PROP_Z_PANEL, OVERLAY_PANEL_INDEX_VS_REF) and the fan-out
+// kinds (overlayhost.ComposeFanOutKind: one layer per target, U66 #443)
+// scale the base cost by `min(len(spec.Targets), cap)` where cap = spec.Options.MaxPanelTargets
 // when > 0, else composeDefaultPanelCap (16). The cap clamp is the same
 // rule descriptor.validateComposeOverlaySpec uses to reject
 // PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP — a spec that would be rejected
@@ -654,7 +657,7 @@ func composeOverlayCostForSpec(spec *types.ComposeOverlaySpec) float64 {
 		return 0
 	}
 	base := overlayCostForKind(spec.Kind)
-	if !composeKindIsPanel(spec.Kind) {
+	if !composeKindIsPanel(spec.Kind) && !overlayhost.ComposeFanOutKind(spec.Kind) {
 		return base
 	}
 	targets := len(spec.Targets)
@@ -798,10 +801,11 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		addCodedError(env, ferr)
 	}
 	// Gate 2d: a slot the overlay reads scores an array-valued (vector),
-	// non-scalar or categorical-code aggregation (PROCESSING_CONFIG,
-	// reason array_valued / non_scalar / categorical_code) —
-	// the runtime's check in Service.applyComposeOverlays.
-	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts)); aerr != nil {
+	// non-scalar or categorical-code aggregation, or is a crosstab whose
+	// code cell the kind reads as a value (PROCESSING_CONFIG, reason
+	// array_valued / non_scalar / categorical_code) — the runtime's
+	// check in Service.applyComposeOverlays.
+	if aerr := composeOverlayArrayValuedRefusal(specIdx, spec, req.Requests, labels, opts.instance(), composeSlotInputSchema(req.Requests, opts), opts.componentsDisabled); aerr != nil {
 		addCodedError(env, aerr)
 	}
 	// Gate 2e: a two-sample kind (OVERLAY_T_VS_REF / _Z_VS_REF /
@@ -812,7 +816,16 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// a vs-ref kind over a crosstab slot
 	// (PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) — the runtime's check
 	// in Service.applyComposeOverlays.
-	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, req.Requests, labels, opts.instance(), opts.componentsDisabled); werr != nil {
+	// The slots are judged as executed (composeSlotTypedAsExecuted): an
+	// untyped aggregation's smart default is the measure the runtime
+	// scores (an f64 field's AGG_SUM is not a mean — U66 #444).
+	executed := make([]*types.Request, len(req.Requests))
+	for j, r := range req.Requests {
+		if r != nil {
+			executed[j] = composeSlotTypedAsExecuted(r, opts)
+		}
+	}
+	if werr := composeOverlayTwoSampleInputsRefusal(specIdx, spec, executed, labels, opts.instance(), opts.componentsDisabled); werr != nil {
 		addCodedError(env, werr)
 	}
 
@@ -823,6 +836,15 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// composeDefaultPanelCap (16). Only the two multi-reference
 	// kinds enforce the cap today — other kinds ignore the slot per
 	// OverlayOptions.MaxPanelTargets doc.
+	// A fan-out kind (one layer per target, U66 #443) is capped by the
+	// rule the runtime dispatcher raises right after target resolution
+	// (overlayhost.ComposeFanOutCapRefusal) — same code, message and
+	// Details.
+	if cerr := overlayhost.ComposeFanOutCapRefusal(spec, opts.overlayRoute(spec.Kind), specIdx); cerr != nil {
+		addCodedError(env, cerr)
+		appendComposeSlotPair(result, spec.Reference, "", "panel-targets-over-cap")
+		return
+	}
 	if composeKindIsPanel(spec.Kind) {
 		cap := composeDefaultPanelCap
 		if spec.Options != nil && spec.Options.MaxPanelTargets > 0 {
@@ -926,7 +948,7 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 	// (reference first, then targets — one error, as the runtime). The
 	// key rule (differently named group columns) runs per target after
 	// the schema match below, the runtime's gate order.
-	if seriesfield.AppliesCompose(opts.overlayRoute(spec.Kind)) {
+	if seriesfield.AppliesComposeWith(opts.overlayRoute(spec.Kind), fieldHonours(opts.instance(), overlayhost.Compose)) {
 		slots := append([]resolvedTarget{{label: spec.Reference, req: refReq}}, resolved...)
 		for _, s := range slots {
 			if s.req == nil || s.req.Crosstab != nil {
@@ -954,6 +976,21 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 				addCodedError(env, ferr)
 				appendComposeSlotPair(result, spec.Reference, s.label, "field-unknown")
 				break
+			}
+		}
+	}
+	// Gate 4a', the SERIES partition rule (U66 #438): a per-partition
+	// kind (OVERLAY_FORMULA) splits its host slot — the first target —
+	// by params.partition_by, else every key but the last. Not a
+	// leading prefix of the host's group key columns is
+	// PULSE_OVERLAY_PARTITION_INVALID, the shared
+	// seriespartition.ComposeHostDepth the runtime raises right after
+	// its field rule.
+	if seriespartition.AppliesCompose(opts.overlayRoute(spec.Kind)) && len(spec.Targets) > 0 {
+		if hReq, ok := byLabel[spec.Targets[0]]; ok && hReq != nil {
+			if _, perr := seriespartition.ComposeHostDepth(composeSlotAsExecuted(hReq, opts), spec, specIdx); perr != nil {
+				addCodedError(env, perr)
+				appendComposeSlotPair(result, spec.Reference, spec.Targets[0], "partition-invalid")
 			}
 		}
 	}
@@ -1280,6 +1317,32 @@ func composeSlotInputSchema(requests []*types.Request, opts *PredictOptions) fun
 		}
 		return joinedDefaultsSchema(requests[j], cohortSchemaFor(requests[j].Cohort, opts), opts)
 	}
+}
+
+// composeSlotTypedAsExecuted is composeSlotAsExecuted for a slot with
+// ANY untyped aggregation, labelled or not: its smart defaults resolved
+// against the schema it executes over, so a rule keyed on the scored
+// TYPE judges what the runtime scores. req itself when every
+// aggregation is typed, defaults are off or the schema does not load.
+func composeSlotTypedAsExecuted(req *types.Request, opts *PredictOptions) *types.Request {
+	if opts == nil || opts.DisableDefaults {
+		return req
+	}
+	untyped := false
+	for _, a := range req.Aggregations {
+		if a != nil && a.Type == "" {
+			untyped = true
+			break
+		}
+	}
+	if !untyped {
+		return req
+	}
+	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	if schema == nil {
+		return req
+	}
+	return defaultedForValidation(req, schema, opts)
 }
 
 // composeSlotAsExecuted is a Compose slot as the runtime executes it

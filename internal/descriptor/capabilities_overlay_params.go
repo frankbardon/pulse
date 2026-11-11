@@ -27,7 +27,7 @@ var overlayFieldParam = descriptor.Param{
 	Name:        "field",
 	Type:        "string",
 	Required:    false,
-	Description: "On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
+	Description: "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
 }
 
 // overlayPartitionByParam is params.partition_by: the leading group key
@@ -36,7 +36,7 @@ var overlayPartitionByParam = descriptor.Param{
 	Name:        "partition_by",
 	Type:        "list",
 	Required:    false,
-	Description: "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). Anything else is PULSE_OVERLAY_PARTITION_INVALID.",
+	Description: "Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). A Compose OVERLAY_FORMULA reads its first target slot's groups. Anything else is PULSE_OVERLAY_PARTITION_INVALID.",
 }
 
 // facetOverlayKind reports whether kind runs on the facet host, which
@@ -49,7 +49,7 @@ func facetOverlayKind(kind types.OverlayKind) bool {
 // overlay reads for a scalar side (internal/twosample).
 func twoSampleParams() []descriptor.Param {
 	side := func(key, what string) descriptor.Param {
-		return descriptor.Param{Name: key, Type: "float", Required: false, Description: what + " Required (> 0) for a side whose cell carries no mean + variance components; no default."}
+		return descriptor.Param{Name: key, Type: "float", Required: false, Description: what + " Required (> 0) for a side scoring a bare mean (a cell or measure with no mean + variance components); no default."}
 	}
 	return []descriptor.Param{
 		side(twosample.VarianceKey(twosample.Target), "Target side's sample variance."),
@@ -122,7 +122,11 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 			descriptor.Param{Name: "n_within_depth", Type: "int", Required: false, Description: "With a within-prefix n_source, the row-key prefix depth the margin is summed within; required there, refused otherwise."},
 		)
 	case types.OverlayKindSymmetry:
-		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k."})
+		ps = append(ps,
+			descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: true, Description: "2 x 2 continuity correction (|n_12 - n_21| - 1)^2; inert on k x k and under exact."},
+			descriptor.Param{Name: "exact", Type: "bool", Required: false, Default: false, Description: "Exact p, no df. 2 x 2: binomial McNemar (R binom.test(n_12, n_12 + n_21)), statistic n_12, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). k x k: exact conditional Bowker test (each pair's split binomial given its total), statistic the uncorrected chi-square; past 2^20 enumeration terms refused (reason exact_too_large). Refused on a probability-weighted cell and on non-whole discordant counts."},
+			descriptor.Param{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Exact 2 x 2 only: coverage of the odds-ratio interval (R binom.test conf.level), in (0, 1). Without exact true it is refused (reason needs_exact), on k x k reason needs_2x2; outside (0, 1) reason out_of_range."},
+		)
 	case types.OverlayKindChiSqMatrix:
 		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); Summary.Parameters adds continuity_correction (Y). Inert on any larger table."})
 	case types.OverlayKindMarkov:

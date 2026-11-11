@@ -211,8 +211,8 @@ func filledResponse() *types.Response {
 }
 
 // filledFailedResponse is filledResponse with every regression, test
-// and matrix result failed: each carries a SlotError, so the wire holds
-// its identity and the error.
+// and matrix result — and every grouper refit bucket — failed: each
+// carries a SlotError, so the wire holds its identity and the error.
 func filledFailedResponse() *types.Response {
 	r := filledResponse()
 	se := func() *types.SlotError {
@@ -228,6 +228,15 @@ func filledFailedResponse() *types.Response {
 	}
 	for i := range r.Matrices {
 		r.Matrices[i].Error = se()
+	}
+	// A degenerate params.fit "within" refit bucket carries its own
+	// SlotError on the grouper's per-bucket components.
+	if r.Components != nil {
+		for i := range r.Components.Groupers {
+			for j := range r.Components.Groupers[i].Buckets {
+				r.Components.Groupers[i].Buckets[j].Error = se()
+			}
+		}
 	}
 	return r
 }

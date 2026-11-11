@@ -240,7 +240,8 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `max` | float64 | always | Largest non-null value observed. |
+| `max` | float64 | always | Largest non-null value observed (ordered: the highest level's dictionary index). |
+| `n_unlisted` | int | when its condition holds | Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure. |
 
 <a id="op-agg_median"></a>
 
@@ -252,7 +253,8 @@ Only the floor keys.
 |---|---|---|---|
 | `position_low` | int | always | Lower index used to bracket the median in the sorted value set (weighted: the expanded-index floor of 0.5·(Σw − 1), probability weights rescaled to Σw = n). |
 | `position_high` | int | always | Upper index used to bracket the median in the sorted value set (weighted: the expanded-index ceiling of 0.5·(Σw − 1), probability weights rescaled to Σw = n). |
-| `median` | float64 | always | Resolved median value (linear interpolation between the bracketing positions). |
+| `median` | float64 | always | Resolved median value (linear interpolation between the bracketing positions). Ordered: the chosen level's dictionary index; both positions are its 0-based rank. |
+| `n_unlisted` | int | when its condition holds | Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure. |
 
 <a id="op-agg_min"></a>
 
@@ -262,7 +264,8 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `min` | float64 | always | Smallest non-null value observed. |
+| `min` | float64 | always | Smallest non-null value observed (ordered: the lowest level's dictionary index). |
+| `n_unlisted` | int | when its condition holds | Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure. |
 
 <a id="op-agg_mode"></a>
 
@@ -309,8 +312,9 @@ Only the floor keys.
 | `position` | int | always | Index into the sorted value set used to resolve the percentile (weighted: the expanded-index floor of p·(Σw − 1), probability weights rescaled to Σw = n). |
 | `lower` | float64 | always | Lower bracketing value used during interpolation. |
 | `upper` | float64 | always | Upper bracketing value used during interpolation. |
-| `method` | string | always | Interpolation method (e.g. "linear"). |
-| `value` | float64 | always | Resolved percentile value. |
+| `method` | string | always | Interpolation method ("linear"; ordered: "type1", no interpolation). |
+| `value` | float64 | always | Resolved percentile value. Ordered: the chosen level's dictionary index; position is its 0-based rank, lower = upper = value. |
+| `n_unlisted` | int | when its condition holds | Ordered slots only (params.ordered / params.levels): non-null rows whose label params.levels does not list, dropped from the figure. |
 
 <a id="op-agg_range"></a>
 

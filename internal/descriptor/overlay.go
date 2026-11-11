@@ -135,6 +135,61 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 	return ", or use " + strings.Join(offered, " / ") + ", which " + what
 }
 
+// pairwiseWelfordCellRefused reports whether a moment pairwise kind
+// (types.PairwiseKindUsesWelford) refuses req's single-measure crosstab
+// cell: its declared ComponentSchema cannot carry the Welford triple
+// (welfordTripleCellRefused) — the runtime's
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+func pairwiseWelfordCellRefused(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions) bool {
+	return types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab != nil && req.Crosstab.Cell != nil &&
+		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts)
+}
+
+// pairwiseWeightedCellRefused reports whether the weighted-moments kind
+// (types.PairwiseKindUsesWeightedMoments) refuses req's single-measure
+// crosstab cell from the request alone: a BUILT-IN cell type that emits
+// no weighted moments (neither AGG_WEIGHTED_MEAN nor a weighted
+// AGG_AVERAGE, weightedMomentCell) on a components-on host — the
+// runtime's PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE. An empty Type or
+// an extension type defers to the runtime's key gate.
+func pairwiseWeightedCellRefused(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, componentsOff bool) bool {
+	if !types.PairwiseKindUsesWeightedMoments(spec.Kind) || componentsOff || req.Crosstab == nil {
+		return false
+	}
+	cell := req.Crosstab.Cell
+	return cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
+		isBuiltinAggregationType(opRoute(opts.instance(), cell.Type))
+}
+
+// weightedCellRefusalMessage is predict's
+// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE message for a cell
+// pairwiseWeightedCellRefused refuses.
+func weightedCellRefusalMessage(req *types.Request, spec *types.OverlaySpec, opts *PredictOptions) string {
+	return "overlay " + string(spec.Kind) + " requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is " +
+		weightedMomentCellName(req, req.Crosstab.Cell, opts)
+}
+
+// pairwiseMeasureCellRefused reports whether scratch — the per-measure
+// validation of mreq (one measure of a multi-measure crosstab) — holds
+// exactly the refusable kind's cell refusal
+// (overlayhost.PairwiseMeasureRefusable) and nothing else: the moment
+// kinds' Welford-cell refusal, or the weighted kind's weighted-moment
+// cell refusal. That measure is refused ALONE, as the runtime nulls it.
+func pairwiseMeasureCellRefused(scratch *descriptor.Envelope, mreq *types.Request, spec *types.OverlaySpec, opts *PredictOptions) bool {
+	if len(scratch.Errors) != 1 || !overlayhost.PairwiseMeasureRefusable(spec.Kind) ||
+		scratch.Errors[0].Code != string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
+		return false
+	}
+	msg := scratch.Errors[0].Message
+	if pairwiseWelfordCellRefused(mreq, spec, opts) {
+		return msg == overlayhost.WelfordCellMessage(spec.Kind)
+	}
+	if pairwiseWeightedCellRefused(mreq, spec, opts, opts.componentsDisabled(mreq)) {
+		return msg == weightedCellRefusalMessage(mreq, spec, opts)
+	}
+	return false
+}
+
 // validateOverlayPairwise validates the shared contract for every
 // OVERLAY_PAIRWISE_* kind: implicit-margin (empty Ref), MATRIX host,
 // ROW / COLUMN scope, and well-formed Params (decodable, known n_source /
@@ -154,21 +209,48 @@ func pairwiseProportionAdvice(opts *PredictOptions, what string) string {
 // (types.CrosstabSpec.MeasureSpec), stopping at the first measure that
 // refuses — the runtime's order (processing.runPairwiseOverlayMeasures
 // gates each measure in turn), so the cell-type, weight-basis and
-// distinct-key rules judge each measure's own cell.
+// distinct-key rules judge each measure's own cell. A moment kind's
+// Welford-cell refusal, and the weighted kind's weighted-moment cell
+// refusal, are the exception (U66 #476 / E8-S1,
+// overlayhost.PairwiseMeasureRefusable): that measure is refused ALONE —
+// the runtime nulls its rows — and reported as the shared
+// overlayhost.PairwiseMeasureRefusedWarning; only when every measure is
+// refused is the first measure's refusal the error.
 func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, opts *PredictOptions, index int) {
 	if req != nil && req.Crosstab.HasMeasures() {
+		var first []*descriptor.EnvelopeEntry
+		var refused []*descriptor.EnvelopeEntry
+		measures := 0
 		for m, cell := range req.Crosstab.Cells {
 			if cell == nil {
 				continue
 			}
+			measures++
 			mreq := *req
 			mreq.Crosstab = req.Crosstab.MeasureSpec(m)
-			before := len(env.Errors)
-			validateOverlayPairwise(env, &mreq, spec, opts, index)
-			if len(env.Errors) > before {
+			scratch := descriptor.NewEnvelope(nil)
+			validateOverlayPairwise(scratch, &mreq, spec, opts, index)
+			if pairwiseMeasureCellRefused(scratch, &mreq, spec, opts) {
+				if first == nil {
+					first = scratch.Errors
+				}
+				msg, details := overlayhost.PairwiseMeasureRefusedWarning(spec.Kind, m, types.AggregationLabelOf(cell), cell.Type)
+				details["index"] = index
+				refused = append(refused, &descriptor.EnvelopeEntry{
+					Code: string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE), Message: msg, Details: details})
+				continue
+			}
+			env.Warnings = append(env.Warnings, scratch.Warnings...)
+			if len(scratch.Errors) > 0 {
+				env.Errors = append(env.Errors, scratch.Errors...)
 				return
 			}
 		}
+		if len(refused) == measures && first != nil {
+			env.Errors = append(env.Errors, first...)
+			return
+		}
+		env.Warnings = append(env.Warnings, refused...)
 		return
 	}
 	// Ref / Scope: the shared crosstab rule the runtime MATRIX dispatcher
@@ -214,8 +296,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	// Welford cell shape: a moment kind over a cell whose components
 	// cannot carry the triple is the runtime's
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, same message.
-	if types.PairwiseKindUsesWelford(spec.Kind) && req.Crosstab.Cell != nil &&
-		welfordTripleCellRefused(opRoute(opts.instance(), req.Crosstab.Cell.Type), opts) {
+	if pairwiseWelfordCellRefused(req, spec, opts) {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
 			overlayhost.WelfordCellMessage(spec.Kind),
 			map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(req.Crosstab.Cell.Type)})
@@ -347,10 +428,12 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		// gates on the keys, not the type name.
 		// A cell type the instance hides is judged as a never-registered
 		// (non-built-in) name.
-		if cell := req.Crosstab.Cell; !componentsOff && cell != nil && cell.Type != "" && !weightedMomentCell(req, cell, opts) &&
-			isBuiltinAggregationType(opRoute(opts.instance(), cell.Type)) {
+		// On a multi-measure crosstab this measure is refused alone
+		// (pairwiseMeasureCellRefused, U66 E8-S1).
+		if pairwiseWeightedCellRefused(req, spec, opts, componentsOff) {
+			cell := req.Crosstab.Cell
 			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"overlay "+string(spec.Kind)+" requires an AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cell (it reads the weighted moments off Response.Components); the crosstab cell is "+weightedMomentCellName(req, cell, opts),
+				weightedCellRefusalMessage(req, spec, opts),
 				map[string]any{"index": index, "kind": string(spec.Kind), "cell_type": string(cell.Type),
 					"required_cell_type": []string{string(types.AGG_WEIGHTED_MEAN), string(types.AGG_AVERAGE)}})
 			refused = true
@@ -658,6 +741,15 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		if d := opts.extensionOverlay(spec.Kind); d != nil {
 			if cerr := overlayhost.ExtensionRequestRefusal(d, judged, req.Crosstab.HasMeasures(), spec, i); cerr != nil {
 				addCodedError(env, cerr)
+				continue
+			}
+			// A kind declaring HonoursField / HonoursPartitionBy reads the
+			// shared series params on a SERIES host — the runtime hostFor's
+			// reading, field before partition (U66 #713).
+			if judged == types.OverlayShapeSeries {
+				cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
+				validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols, opts.instance())
+				validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i, opts.instance())
 			}
 			continue
 		}
@@ -711,8 +803,8 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayBaselineIndexPredict(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), i)
 		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
-		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols)
-		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i)
+		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols, opts.instance())
+		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i, opts.instance())
 		if len(env.Errors) == before {
 			validateFormulaBaselineBound(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), opts.overlayRoute(spec.Kind), i)
 			validateOverlayPriorMeasure(env, req, spec, opts, opts.overlayRoute(spec.Kind), i, cols)
@@ -758,8 +850,10 @@ func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, 
 // internal/seriespartition.Depth, the one the runtime hook
 // (processing.applyOverlaysSeriesToResponse) calls, so the refusal is
 // identical on both sides. SERIES host only (Groups set, Crosstab nil).
-func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int) {
-	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriespartition.Applies(route) {
+// An extension kind on inst is judged iff it declares
+// HonoursPartitionBy (seriespartition.AppliesWith, U66 #713).
+func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, inst *InstanceSnapshot) {
+	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriespartition.AppliesWith(route, partitionHonours(inst)) {
 		return
 	}
 	if _, err := seriespartition.Depth(req.Groups, spec, index); err != nil {
@@ -780,9 +874,11 @@ func validateOverlaySeriesPartition(env *descriptor.Envelope, req *types.Request
 // columns each aggregation writes over the request's schema
 // (vectors.AggregationColumns), so an expanded element column
 // "<label>[<element label>]" resolves; one the slot does not write is
-// refused here, its element columns listed in Details.available.
-func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns) {
-	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.Applies(route) {
+// refused here, its element columns listed in Details.available. An
+// extension kind on inst is judged iff it declares HonoursField
+// (seriesfield.AppliesWith, U66 #713).
+func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, route types.OverlayKind, index int, cols seriesfield.Columns, inst *InstanceSnapshot) {
+	if req == nil || spec == nil || req.Crosstab != nil || len(req.Groups) == 0 || !seriesfield.AppliesWith(route, fieldHonours(inst, overlayhost.Request)) {
 		return
 	}
 	if _, err := seriesfield.Resolve(req.Aggregations, spec, index, cols); err != nil {
@@ -1394,7 +1490,7 @@ func validateOverlaySpec(env *descriptor.Envelope, req *types.Request, spec *typ
 		validateOverlayStdResidual(env, req, spec, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindSymmetry:
-		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), index)
+		validateOverlaySymmetry(env, req, spec, opts.overlayRoute(spec.Kind), crosstabCellWeightBasis(req, opts) == weighting.Probability, index)
 		validateOverlayHiddenFloor(env, req, spec, opts, index)
 	case types.OverlayKindRetention:
 		validateOverlayRetention(env, req, spec, opts.overlayRoute(spec.Kind), index)

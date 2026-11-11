@@ -18,6 +18,7 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 5. Undefined figures on the wire (NaN / ±Inf → `null`)
 6. Matrix components (`Components.Matrices`, U16)
 7. Per-group aggregation components (`aggregations[*].groups`)
+   - Grouper refit buckets (`groupers[*].buckets`, U66 E5-S2) — per-refit figures of a `params.fit: "within"` position, the degenerate-refit rule
 8. Attribute components (`Components.Attributes`, U27 E2-S4)
 9. Run-time warnings in the envelope and the stream (U44 E2-S5)
 10. Per-slot failures (`types.SlotError`, `PULSE_SLOT_FAILED`, failed Compose fits + their readers + `PULSE_FIT_UNAVAILABLE`, U49 E1-S2 / E1-S3 / E1-S4)
@@ -30,4 +31,4 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 |---|---|
 | `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations; Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan (U18); Compose surface (v1.1); Compose envelope (relocated from CLAUDE.md "Output Format Contract" at U18 E1-S1); Sweep (U40); Banner (U47 #326); Fits (U42; vector fits U30 E2-S2); Optimize (U60) |
 | `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; One rule for every JSON payload: a non-finite float (NaN, +Inf, -Inf) is written as JSO…; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion (U44 E2-S5); Streams; Per-slot failures |
-| `response-components/matrix-group-attribute.md` | Matrix components; Per-group aggregation components; Attribute components |
+| `response-components/matrix-group-attribute.md` | Matrix components; Per-group aggregation components; Grouper refit buckets; Attribute components |

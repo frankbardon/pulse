@@ -209,8 +209,10 @@ func TestChainOverlay_ForwardedCodePropagates(t *testing.T) {
 		})
 	}
 	// Magnitudes and figures still score: AGG_MODE over a forwarded
-	// numeric mode, and a figure (AGG_SUM) over a forwarded code is not a
-	// code (a pick only).
+	// numeric mode, and a figure (AGG_SUM) over a forwarded packed_bool
+	// code is not a code (a pick only). AGG_SUM over a forwarded
+	// categorical code is refused outright (U66 #446,
+	// TestChainStage_NumericReaderOverForwardedCodeRefused).
 	t.Run("whole_chain/stage1/mode_over_forwarded_numeric_scores", func(t *testing.T) {
 		ccChainRuns(t, p, func() *pulse.ChainRequest {
 			return ccChain(s0(), []*types.Request{ccStage(nil, mode("mx", "s"))}, kind, 1, nil)
@@ -218,7 +220,7 @@ func TestChainOverlay_ForwardedCodePropagates(t *testing.T) {
 	})
 	t.Run("whole_chain/stage2/sum_breaks_the_code", func(t *testing.T) {
 		ccChainRuns(t, p, func() *pulse.ChainRequest {
-			return ccChain(s0(), []*types.Request{ccStage(nil, sum("mc", "m2")), ccStage(nil, mode("m2", "s"))}, kind, 2, nil)
+			return ccChain(s0(), []*types.Request{ccStage(nil, sum("mf", "m2")), ccStage(nil, mode("m2", "s"))}, kind, 2, nil)
 		})
 	})
 	t.Run("stage_overlay/stage1/mode_over_forwarded_numeric_scores", func(t *testing.T) {

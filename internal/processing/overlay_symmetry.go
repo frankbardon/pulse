@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -60,6 +61,16 @@ const symmetryLowExpected = 5
 // warning {kind, low_expected_pairs, zero_pairs, expected_min}: the χ²
 // approximation weakens there.
 //
+// params.exact (overlayhost.SymmetryParams.Exact) swaps the χ² for an
+// exact test: the binomial McNemar on a 2 × 2 table
+// (symmetryExactLayer), the exact conditional Bowker test on k × k
+// (symmetryBowkerExactLayer). With exact a probability-weighted host is
+// PULSE_WEIGHT_UNSUPPORTED (SymmetryExactWeightRefusal, before the
+// table is read; predict raises it too) and an explicit conf_level on
+// more than 2 states PULSE_OVERLAY_PARAM_MISSING needs_2x2
+// (SymmetryExactConfLevelRefusal, runtime only: states are data).
+// Absent or false, the χ² figures are byte-identical to before.
+//
 // Output: SCALAR payload = χ²; Summary.Statistic / PValue and
 // Parameters df, states, discordant (Σ s_ij over every pair: the units
 // that changed state), pairs_dropped and continuity_corrected (1 when
@@ -85,6 +96,10 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 	}
 	payload := host.Payload()
 	if cerr := overlayhost.MarkovArityRefusal(spec.Kind, overlayhost.HeaderGrouperCount(payload.RowHeader), overlayhost.HeaderGrouperCount(payload.ColumnHeader), index); cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
+	}
+	basis := host.WeightBasis()
+	if cerr := overlayhost.SymmetryExactWeightRefusal(spec.Kind, params, basis == weighting.Probability, index); cerr != nil {
 		return types.OverlayLayer{}, nil, cerr
 	}
 
@@ -122,7 +137,6 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 	rowTotals := make([]float64, k)
 	colTotals := make([]float64, k)
 	var grand float64
-	basis := host.WeightBasis()
 	var table weightedLegTally
 	for i := 0; i < hostRows; i++ {
 		for j := 0; j < hostCols; j++ {
@@ -151,6 +165,19 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires at least 2 states and a non-zero table total",
 			map[string]any{"kind": string(spec.Kind), "states": k, "total": grand})
+	}
+	if cerr := overlayhost.SymmetryExactConfLevelRefusal(spec.Kind, params, k, index); cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
+	}
+	if params.Exact && k == 2 {
+		return symmetryExactLayer(spec, params, observed, &table, index)
+	}
+	if params.Exact {
+		names := make([]string, k)
+		for name, s := range stateIndex {
+			names[s] = name
+		}
+		return symmetryBowkerExactLayer(spec, observed, names, &table, index)
 	}
 	if basis == weighting.Probability {
 		scaleContingency(table.scale(), observed, rowTotals, colTotals, &grand)
@@ -229,7 +256,138 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 	}
 	table.stamp(summary)
 
-	layer := types.OverlayLayer{
+	return symmetryLayer(spec, scalar, summary), warnings, nil
+}
+
+// symmetryExactLayer is the params.exact arm of applySymmetryAt on a
+// 2 × 2 table (k × k is symmetryBowkerExactLayer; the caller refused a
+// probability-weighted host first): the exact binomial McNemar,
+// R's binom.test(n_12, n_12 + n_21) —
+//
+//	statistic = n_12 (binom.test's number of successes; the scalar)
+//	p         = statdist.BinomialTwoSidedP(n_12, n_12 + n_21, ½)
+//
+// over whole counts (overlayhost.SymmetryExactCountsRefusal: within
+// 1e-7 of an integer, rounded; else refused). No discordant unit
+// (n_12 + n_21 = 0) leaves the statistic, p and scalar NaN (null), as
+// the χ² arm's no-pair-kept case. Parameters exact (1), states,
+// discordant, pairs_dropped and continuity_corrected (always 0:
+// correct is inert under exact), plus the weighted floor; no df and no
+// PULSE_OVERLAY_EXPECTED_LOW (nothing is approximated).
+//
+// The effect size rides Parameters too (overlays have no
+// details.effect_size home): the discordant odds ratio
+//
+//	odds_ratio          = n_12 / n_21
+//	odds_ratio_ci_lower / _upper = binom.test(n_12, n)$conf.int (the
+//	                      Clopper–Pearson interval on n_12 / n at
+//	                      params.conf_level, default 0.95) mapped to
+//	                      p / (1 − p) (statdist.BinomialOddsInterval)
+//	conf_level          = that resolved level, echoed always
+//
+// n_21 = 0 makes the ratio and the upper bound +Inf, n_12 = 0 the ratio
+// and the lower bound 0, and n = 0 all three NaN — +Inf and NaN are
+// both null on the wire (types.MarshalFinite).
+func symmetryExactLayer(spec *types.OverlaySpec, params overlayhost.SymmetryParams, observed [][]float64, table *weightedLegTally, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	n12, n21, cerr := overlayhost.SymmetryExactCountsRefusal(spec.Kind, observed[0][1], observed[1][0], nil, index)
+	if cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
+	}
+	n := n12 + n21
+	statistic, pValue, dropped := math.NaN(), math.NaN(), 1.0
+	oddsRatio, oddsLower, oddsUpper := math.NaN(), math.NaN(), math.NaN()
+	if n > 0 {
+		statistic, pValue, dropped = float64(n12), statdist.BinomialTwoSidedP(n12, n, 0.5), 0
+		oddsRatio = math.Inf(1)
+		if n21 > 0 {
+			oddsRatio = float64(n12) / float64(n21)
+		}
+		oddsLower, oddsUpper = statdist.BinomialOddsInterval(n12, n, params.ConfLevel)
+	}
+	scalar := statistic
+	summary := &types.OverlaySummary{
+		Statistic: &statistic,
+		PValue:    &pValue,
+		Parameters: map[string]float64{
+			"exact":                1,
+			"states":               2,
+			"discordant":           float64(n),
+			"pairs_dropped":        dropped,
+			"continuity_corrected": 0,
+			"odds_ratio":           oddsRatio,
+			"odds_ratio_ci_lower":  oddsLower,
+			"odds_ratio_ci_upper":  oddsUpper,
+			"conf_level":           params.ConfLevel,
+		},
+	}
+	table.stamp(summary)
+	return symmetryLayer(spec, scalar, summary), nil, nil
+}
+
+// symmetryBowkerExactLayer is the params.exact arm of applySymmetryAt
+// on a k × k table, k > 2 (the caller refused a probability-weighted
+// host and an explicit conf_level first): the exact conditional Bowker
+// test, statdist.BowkerExactP over the pairs i < j in state order —
+//
+//	statistic = Σ (n_ij − n_ji)² / (n_ij + n_ji) over the pairs with a
+//	            move (the χ² arm's uncorrected statistic, bit for bit;
+//	            the scalar)
+//	p         = P(X² ≥ X²_obs) given every pair's discordant total, each
+//	            n_ij ~ Binomial(n_ij + n_ji, ½) independently, by exact
+//	            convolution (R fisher.test's 1 + 1e-7 tolerance on the
+//	            comparison)
+//
+// over whole counts: every discordant cell within 1e-7 of an integer
+// (rounded), else PULSE_OVERLAY_NONNEGATIVE_REQUIRED non_integer with
+// the pair (SymmetryExactCountsRefusal). A pair with no move is dropped
+// (pairs_dropped); none kept leaves the statistic, p and scalar NaN
+// (null). Past statdist.BowkerExactMaxTerms enumeration terms it is
+// PULSE_OVERLAY_PARAM_MISSING exact_too_large
+// (SymmetryExactTooLargeRefusal) — never a silent chi-square. Parameters
+// exact (1), states, discordant, pairs_dropped and continuity_corrected
+// (always 0, as every arm reports it), plus the weighted floor; no df,
+// no odds ratio (a 2 × 2 figure) and no
+// PULSE_OVERLAY_EXPECTED_LOW.
+func symmetryBowkerExactLayer(spec *types.OverlaySpec, observed [][]float64, names []string, table *weightedLegTally, index int) (types.OverlayLayer, []types.OverlayWarning, error) {
+	k := len(observed)
+	pairs := make([][2]int, 0, k*(k-1)/2)
+	var discordant, dropped int
+	for i := 0; i < k; i++ {
+		for j := i + 1; j < k; j++ {
+			nij, nji, cerr := overlayhost.SymmetryExactCountsRefusal(spec.Kind, observed[i][j], observed[j][i], []string{names[i], names[j]}, index)
+			if cerr != nil {
+				return types.OverlayLayer{}, nil, cerr
+			}
+			pairs = append(pairs, [2]int{nij, nji})
+			discordant += nij + nji
+			if nij+nji == 0 {
+				dropped++
+			}
+		}
+	}
+	statistic, pValue, terms, ok := statdist.BowkerExactP(pairs, statdist.BowkerExactMaxTerms)
+	if !ok {
+		return types.OverlayLayer{}, nil, overlayhost.SymmetryExactTooLargeRefusal(spec.Kind, k, terms, statdist.BowkerExactMaxTerms, index)
+	}
+	scalar := statistic
+	summary := &types.OverlaySummary{
+		Statistic: &statistic,
+		PValue:    &pValue,
+		Parameters: map[string]float64{
+			"exact":                1,
+			"states":               float64(k),
+			"discordant":           float64(discordant),
+			"pairs_dropped":        float64(dropped),
+			"continuity_corrected": 0,
+		},
+	}
+	table.stamp(summary)
+	return symmetryLayer(spec, scalar, summary), nil, nil
+}
+
+// symmetryLayer wraps a symmetry summary in its SCALAR layer.
+func symmetryLayer(spec *types.OverlaySpec, scalar float64, summary *types.OverlaySummary) types.OverlayLayer {
+	return types.OverlayLayer{
 		Name:  overlayLayerName(spec),
 		Kind:  spec.Kind,
 		Scope: spec.Scope,
@@ -240,5 +398,4 @@ func applySymmetryAt(spec *types.OverlaySpec, host *CrosstabHostView, index int)
 		},
 		Summary: summary,
 	}
-	return layer, warnings, nil
 }

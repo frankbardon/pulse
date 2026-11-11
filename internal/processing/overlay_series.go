@@ -579,16 +579,24 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		// An extension kind: its declaration's rule (the Process hook,
 		// refuseWrongHostOverlays, already ran it with the Validate hook),
 		// then its SERIES handler over the host scoring the request's
-		// first aggregation, its output held to the declaration.
+		// first aggregation — or params.field's under HonoursField — its
+		// output held to the declaration; under HonoursPartitionBy once
+		// per partition of the plan hostFor read (U66 #713).
 		if x := exts.extensionOverlay(route); x != nil {
 			if cerr := overlayhost.ExtensionDeclRefusal(&x.Decl, types.OverlayShapeSeries, false, spec, i); cerr != nil {
 				return nil, nil, cerr
 			}
-			host, _, err := hostFor(i, spec, route)
+			host, plan, err := hostFor(i, spec, route)
 			if err != nil {
 				return nil, nil, err
 			}
-			layer, ws, err := applyExtensionOverlaySeries(x, spec, host, i)
+			var layer types.OverlayLayer
+			var ws []types.OverlayWarning
+			if overlayhost.ExtensionHonoursPartitionBy(&x.Decl) {
+				layer, ws, err = applyExtensionOverlaySeriesPartitioned(x, spec, host, plan, i)
+			} else {
+				layer, ws, err = applyExtensionOverlaySeries(x, spec, host, i)
+			}
 			if err != nil {
 				return nil, nil, err
 			}

@@ -22,7 +22,7 @@ requires: [OVERLAY_FORMULA]
 | Compose, SERIES | `group` | `value`, `total`, `prior`, `ref_value` |
 | Compose, SCALAR | `total` | `value`, `ref` |
 
-On Compose the first target is scored against the reference of any shape, and `slot.<label>.cell` / `slot.<label>.value` read the reference and each target, aligned by key (missing → NaN → `null`). Over N ≥ 2 groups a SERIES host runs per partition (`params.partition_by`). An ungrouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+On Compose the first target is scored against the reference of any shape, and `slot.<label>.cell` / `slot.<label>.value` read the reference and each target, aligned by key (missing → NaN → `null`). Over N ≥ 2 groups a SERIES host — Process or Compose (the first target's groups) — runs per partition (`params.partition_by`); Compose `params.field` picks each slot's scored aggregation. An ungrouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## `baseline_position` (SERIES)
 

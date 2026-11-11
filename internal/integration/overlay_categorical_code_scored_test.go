@@ -97,7 +97,8 @@ func ccFixture(t *testing.T, opts pulse.Options) (*pulse.Pulse, []byte) {
 }
 
 // ccAggs builds aggregations from a layout: "m" = typ over field
-// labelled m, "s" = AGG_SUM x labelled s.
+// labelled m, "s" = AGG_AVERAGE x labelled s (a mean, so the
+// two-sample vs-ref kinds read it too — U66 #444).
 func ccAggs(typ types.AggregationType, field, layout string) []*types.Aggregation {
 	var out []*types.Aggregation
 	for _, c := range layout {
@@ -105,7 +106,7 @@ func ccAggs(typ types.AggregationType, field, layout string) []*types.Aggregatio
 		case 'm':
 			out = append(out, &types.Aggregation{Type: typ, Field: field, Label: "m"})
 		case 's':
-			out = append(out, &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s"})
+			out = append(out, &types.Aggregation{Type: types.AGG_AVERAGE, Field: "x", Label: "s"})
 		}
 	}
 	return out
@@ -293,6 +294,18 @@ func TestComposeOverlay_CategoricalCodeScoredRefused(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if kind == types.OverlayKindTVsRef || kind == types.OverlayKindZVsRef {
+				// A mode is not a mean (U66 #444): refused on both sides.
+				if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
+					env.Errors[0].Details["measure_type"] != string(types.AGG_MODE) {
+					t.Fatalf("PredictCompose = %+v, want the measure refusal", env.Errors)
+				}
+				_, err := p.Compose(ctx, ccCompose(types.AGG_MODE, "x", kind, "m", nil))
+				if ce := codeOf(t, err); ce.Code != perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || !reflect.DeepEqual(ce.Details, env.Errors[0].Details) {
+					t.Fatalf("Compose = %s %v, want %v", ce.Code, ce.Details, env.Errors[0].Details)
+				}
+				return
+			}
 			if len(env.Errors) != 0 {
 				t.Fatalf("PredictCompose errors = %+v, want none", env.Errors)
 			}
@@ -328,7 +341,7 @@ func ccChainRefused(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest
 		t.Fatal(err)
 	}
 	if len(env.Errors) == 0 || env.Errors[0].Code != string(perr.PROCESSING_CONFIG) || !reflect.DeepEqual(env.Errors[0].Details, wantDetails) {
-		t.Fatalf("PredictChain = %+v, want PROCESSING_CONFIG %v first", env.Errors, wantDetails)
+		t.Fatalf("PredictChain = %s, want PROCESSING_CONFIG %v first", nsJSON(t, env.Errors), wantDetails)
 	}
 	_, err = p.ProcessChain(ctx, req())
 	ce := codeOf(t, err)
@@ -349,7 +362,7 @@ func ccChainRuns(t *testing.T, p *pulse.Pulse, req func() *pulse.ChainRequest) *
 		t.Fatal(err)
 	}
 	if len(env.Errors) != 0 {
-		t.Fatalf("PredictChain errors = %+v, want none", env.Errors)
+		t.Fatalf("PredictChain errors = %s, want none", nsJSON(t, env.Errors))
 	}
 	out, err := p.ProcessChain(ctx, req())
 	if err != nil {

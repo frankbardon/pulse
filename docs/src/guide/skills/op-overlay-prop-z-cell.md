@@ -35,7 +35,7 @@ COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = succes
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. One layer per target. Layer `Baseline` unset (inferential).
+MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. Layer `Baseline` unset (inferential). One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Reading the output
 
@@ -56,6 +56,7 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
 - Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. Reuses `normalTwoSidedP` — byte-equal to the two-proportion z-test on the same `(success, n)` pair.
 - Degenerate inputs (`pooled ∈ {0,1}`, `se == 0`, missing/zero row margin on EITHER side — never the cell value as n) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected cell.
 - Schema-match + key-alignment gates at the slot barrier.
+- A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See
 

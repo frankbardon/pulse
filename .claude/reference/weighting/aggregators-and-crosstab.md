@@ -11,7 +11,7 @@ Per-topic slice of the weighting reference (Aggregator classification, Crosstab)
 | | `AGG_VARIANCE` / `AGG_STDDEV` | population m2_w/Σw; `params.ddof` 1: sample m2_w/(Σw − 1) (`null` when Σw ≤ 1, as `AGG_WELFORD`) |
 | | `AGG_WELFORD` | sample m2_w/(Σw−1) |
 | | `AGG_SKEWNESS` / `AGG_KURTOSIS` | weighted population moments |
-| | `AGG_MEDIAN` / `AGG_PERCENTILE` | Hmisc `wtd.quantile` (type 7 on the expansion for integer cumulative weights); `probability` weights rescaled to Σw = n (below) |
+| | `AGG_MEDIAN` / `AGG_PERCENTILE` | Hmisc `wtd.quantile` (type 7 on the expansion for integer cumulative weights); `probability` weights rescaled to Σw = n (below). Ordered-categorical slots (`params.ordered` / `levels`, `internal/orderedcat`): the lowest level whose cumulative Σw reaches p·Σw (within 1e-9 relative), scale-free so both kinds agree |
 | | `AGG_MODE` / `AGG_MODE_COUNT` | the max-Σw value / its Σw |
 | | `AGG_FREQUENCY` | Σw of matches; share Σw_match/Σw |
 | | `AGG_RATIO` | Σw·num / Σw·den |

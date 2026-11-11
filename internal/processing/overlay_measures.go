@@ -2,6 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -24,7 +25,14 @@ import (
 //     distinguishable.
 //
 // Every per-measure refusal is the single-measure refusal (pairwiseGate),
-// raised for the first measure that trips it. The layer shares one
+// raised for the first measure that trips it — except a moment kind's
+// measure whose cells carry no Welford triple (U66 #476), or the
+// weighted kind's measure without the weighted moments (E8-S1), refused ALONE:
+// its folded rows (COLUMN: r*M+m; ROW: its pairs' rows) are null cells,
+// a PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE warning names it
+// (overlayhost.PairwiseMeasureRefusedWarning, ahead of the skip
+// warnings), and only when every measure is refused does the layer
+// refuse, with the first measure's error. The layer shares one
 // accumulator, so its summary and warnings describe the whole layer; a
 // COLUMN-scope skip reports its folded row index.
 func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView, kernel pwKernel, shape pwShape) (types.OverlayLayer, []types.OverlayWarning, error) {
@@ -65,10 +73,35 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 	}
 	var groups [][]int
 	var letters *types.PairwiseLetters
+	// A measure whose cells carry no Welford triple (no weighted moments
+	// on the weighted kind) is refused ALONE (U66 #476 / E8-S1,
+	// overlayhost.PairwiseMeasureRefusable):
+	// its pairs are laid as null cells (absent p, absent direction — so
+	// letters and the multiplicity fold skip them) and it warns; the
+	// first refusal is the layer's when every measure is refused.
+	var firstRefusal error
+	var refusals []types.OverlayWarning
 	for m, sub := range host.measures {
 		g, err := pairwiseGate(spec, sub, shape)
+		refused := false
 		if err != nil {
-			return types.OverlayLayer{}, nil, err
+			if !pairwiseMeasureRefused(spec, sub, shape, err) {
+				return types.OverlayLayer{}, nil, err
+			}
+			if firstRefusal == nil {
+				firstRefusal = err
+			}
+			// The gate passed the Params decode (layer-wide) before it
+			// judged the measure's cells, so this decode succeeds.
+			params, derr := types.DecodePairwiseParams(spec.Params)
+			if derr != nil {
+				return types.OverlayLayer{}, nil, err
+			}
+			g = pairwiseGateResult{params: params}
+			msg, details := overlayhost.PairwiseMeasureRefusedWarning(spec.Kind, m, types.AggregationLabelOf(sub.cell), sub.cellType)
+			refusals = append(refusals, types.OverlayWarning{
+				Code: string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE), Message: msg, Details: details})
+			refused = true
 		}
 		pairs, subGroups, err := buildPairwisePairs(spec, sub, g.params, rowScope)
 		if err != nil {
@@ -90,7 +123,12 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 		if !rowScope {
 			oppIdx = func(o int) int { return o*M + m }
 		}
-		pvals, dirs := acc.evaluate(sub, g, kernel, shape, pairs, rowScope, m, oppIdx)
+		var pvals, dirs [][]types.MatrixCell
+		if refused {
+			pvals, dirs = nullPairCells(sub, pairs, rowScope), nullPairCells(sub, pairs, rowScope)
+		} else {
+			pvals, dirs = acc.evaluate(sub, g, kernel, shape, pairs, rowScope, m, oppIdx)
+		}
 
 		if rowScope {
 			for p, pr := range pairs {
@@ -129,6 +167,9 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 			dirCells[r*M+m] = drow
 		}
 	}
+	if len(refusals) == M {
+		return types.OverlayLayer{}, nil, firstRefusal
+	}
 	if !rowScope {
 		mx.ColumnKeys = make([]types.AxisKey, len(colPairs))
 		for p, pr := range colPairs {
@@ -154,7 +195,43 @@ func runPairwiseOverlayMeasures(spec *types.OverlaySpec, host *CrosstabHostView,
 			return types.OverlayLayer{}, nil, err
 		}
 	}
-	warns := acc.tally.warnings(spec)
+	warns := append(refusals, acc.tally.warnings(spec)...)
 	layer.Warnings = warns
 	return layer, warns, nil
+}
+
+// pairwiseMeasureRefused reports whether err — pairwiseGate's refusal of
+// one measure sub of a multi-measure host — is the per-measure refusal a
+// refusable kind lays as null rows (overlayhost.PairwiseMeasureRefusable)
+// rather than a layer refusal: the gate's Welford-cell refusal on a
+// measure whose cells carry no triple (the moment kinds), or its
+// weighted-moment refusal on a measure whose cells carry no weighted
+// moments (the weighted kind, U66 E8-S1). Every earlier gate refusal is
+// layer-wide (Params, letters, components) and keeps refusing the layer.
+func pairwiseMeasureRefused(spec *types.OverlaySpec, sub *CrosstabHostView, shape pwShape, err error) bool {
+	if !overlayhost.PairwiseMeasureRefusable(spec.Kind) || !errors.HasCode(err, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) ||
+		!sub.HasComponents() {
+		return false
+	}
+	switch shape {
+	case pwShapeWelford:
+		return !sub.HasWelfordCells()
+	case pwShapeWeighted:
+		return !sub.HasWeightedMomentCells()
+	}
+	return false
+}
+
+// nullPairCells is evaluate's pair-major grid for a refused measure:
+// every (pair, opposite index) cell absent — JSON null.
+func nullPairCells(sub *CrosstabHostView, pairs []pairwisePair, rowScope bool) [][]types.MatrixCell {
+	opp := sub.ColumnCount()
+	if !rowScope {
+		opp = sub.RowCount()
+	}
+	out := make([][]types.MatrixCell, len(pairs))
+	for p := range out {
+		out[p] = make([]types.MatrixCell, opp)
+	}
+	return out
 }
