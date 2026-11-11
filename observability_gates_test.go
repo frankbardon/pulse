@@ -603,8 +603,14 @@ func TestHookPanicRecovered(t *testing.T) {
 // internal/limits reads a limit through a direct switch instead of a
 // func-table accessor, so the Limits value a limit check is handed no
 // longer escapes to the heap (one allocation per check fewer).
+//
+// Re-pinned by archive-storage E4-S2 (branch archive-storage, on
+// 92b39ad61 + the change, go1.27, arm64): process 160 → 158. Service.Open
+// decodes a single file's schema through headReader, which replays the
+// magic prefix from an inline buffer — the bytes.Reader + MultiReader
+// pair it replaces cost two allocations per open.
 var obsOffAllocBaseline = map[string]float64{
-	"process":       160,
+	"process":       158,
 	"count_records": 45,
 	"predict":       149,
 	"inspect":       65,

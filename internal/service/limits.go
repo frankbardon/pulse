@@ -87,9 +87,9 @@ func decodeMappable(cohort *Cohort) bool {
 // parallel-decode reducer could map it (decodeMappable) — predict's
 // PredictOptions.DecodeMappable, so the memory estimate picks the arm
 // the run picks. An open failure answers false; the pass that loads the
-// schema reports it. No record is read.
+// schema reports it. No record is read (OpenExact).
 func (s *Service) DecodeMappable(ctx context.Context, path string) bool {
-	cohort, err := s.Open(ctx, path)
+	cohort, err := s.OpenExact(ctx, path)
 	if err != nil {
 		return false
 	}
@@ -123,9 +123,9 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 // the limit pre-flight reads for it (cohortCounts) whether or not a
 // memory limit is set — predict's PredictOptions.CohortCounter, so a
 // Compose slot's limit findings carry the runtime's own figures. No
-// record is read.
+// record is read (OpenExact).
 func (s *Service) CohortCounts(ctx context.Context, path string) (descx.CohortCounts, error) {
-	cohort, err := s.Open(ctx, path)
+	cohort, err := s.OpenExact(ctx, path)
 	if err != nil {
 		return descx.CohortCounts{Records: -1}, err
 	}

@@ -1909,7 +1909,9 @@ func (p *Pulse) ClassifyPostWindow(ctx context.Context, req *Request, schema *en
 // builds. Only the header and schema of a single-file cohort are read.
 func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding.Schema, error) {
 	return func(path string) (*encoding.Schema, error) {
-		c, err := p.svc.Open(ctx, path)
+		// OpenExact: Open's buffered schema read over-reads into the
+		// payload, and predict reads no record byte.
+		c, err := p.svc.OpenExact(ctx, path)
 		if err != nil {
 			return nil, err
 		}
