@@ -297,6 +297,10 @@ func obsCalls() []obsCall {
 			_, err := p.AddShard(ctx, "arch.pulse", obsCohort)
 			return err
 		}},
+		{"AddShardWithOptions", observe.OpShardAdd, func(ctx context.Context, p *Pulse) error {
+			_, err := p.AddShardWithOptions(ctx, "arch.pulse", obsCohort, AddShardOptions{Rewrite: true})
+			return err
+		}},
 		{"RemoveShard", observe.OpShardRemove, func(ctx context.Context, p *Pulse) error {
 			_, err := p.RemoveShard(ctx, "arch.pulse", "nope.pulse")
 			return err

@@ -59,16 +59,12 @@ import (
 // for writing, and renamed only after the append is durable.
 
 // appendShard appends m.incoming as base to the archive a (whose tail
-// dir describes) and refreshes `_schema.pulse`. a is closed before the
-// archive is opened for writing.
+// dir describes) and refreshes `_schema.pulse` to schemaDoc (built by
+// AddShard, which sized the append against the dead-byte limit with
+// it). a is closed before the archive is opened for writing.
 func (s *Service) appendShard(fsys afero.Fs, archivePath string, a *archiveFile, dir *encx.ArchiveDirectory,
-	m *shardMerge, base string, aggregate uint64, shardCount int,
+	m *shardMerge, base string, schemaDoc []byte, shardCount int,
 	manifest *encx.IndexManifest, indexEntries []int, result *AddShardResult) (*AddShardResult, error) {
-	schemaDoc, err := buildSchemaDocPayload(m.canonical, aggregate, shardCount, archivePath)
-	if err != nil {
-		return nil, err
-	}
-
 	var upkeep *indexUpkeep
 	if manifest != nil {
 		src, twin, err := appendUpkeepSource(schemaDoc, base, m.incoming)

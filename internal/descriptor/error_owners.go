@@ -383,6 +383,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_NAME_COLLISION:         own(featShard),
 	errors.PULSE_SHARD_COUNT_LIMIT:            own(featShard),
 	errors.PULSE_SHARD_APPEND_REFUSED:         own(featShard),
+	errors.PULSE_SHARD_DEAD_BYTES_RECLAIMED:   own(featShard),
 	errors.PULSE_SHARD_APPEND_INCOMPLETE:      own(featShard),
 	errors.PULSE_SHARD_REPAIR_REFUSED:         own(featShard),
 	errors.PULSE_SHARD_INDEXES_UPDATED:        own(featShard),

@@ -1,4 +1,7 @@
 pulse: package pulse
+pulse: type AddShardOptions = pulse/internal/service.AddShardOptions
+pulse: type AddShardOptions underlying struct
+pulse: type AddShardOptions field Rewrite bool
 pulse: type AddShardResult = pulse/internal/service.AddShardResult
 pulse: type AddShardResult underlying struct
 pulse: type AddShardResult field Added string "json:\"added\""
@@ -843,6 +846,7 @@ pulse: type ProfileOptions field SuggestRules bool
 pulse: type ProfileOptions field TopK int
 pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
+pulse: type Pulse method (*Pulse) AddShardWithOptions(ctx context.Context, archivePath string, shardPath string, opts pulse.AddShardOptions) (*pulse.AddShardResult, error)
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
 pulse: type Pulse method (*Pulse) ClassifyPostWindow(ctx context.Context, req *pulse.Request, schema *pulse/encoding.Schema) (*pulse/descriptor.PostWindowPlan, error)
@@ -1369,6 +1373,8 @@ pulse: type VerifyIndexResult field ShardsRangeMismatched []string
 pulse: type VerifyIndexResult field ShardsUncovered []string
 pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
+pulse: type VerifyResult field DeadBytes int64 "json:\"dead_bytes\""
+pulse: type VerifyResult field DeadSchemaCopies int "json:\"dead_schema_copies\""
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
 pulse: type VerifyResult field GroupIndexHeadroom []pulse/internal/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
 pulse: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroom "json:\"set_width_headroom,omitempty\""
@@ -3021,6 +3027,7 @@ pulse/errors: const PULSE_SEM_SCORE_LEVEL_UNSEEN pulse/errors.Code = "PULSE_SEM_
 pulse/errors: const PULSE_SHARD_APPEND_INCOMPLETE pulse/errors.Code = "PULSE_SHARD_APPEND_INCOMPLETE"
 pulse/errors: const PULSE_SHARD_APPEND_REFUSED pulse/errors.Code = "PULSE_SHARD_APPEND_REFUSED"
 pulse/errors: const PULSE_SHARD_COUNT_LIMIT pulse/errors.Code = "PULSE_SHARD_COUNT_LIMIT"
+pulse/errors: const PULSE_SHARD_DEAD_BYTES_RECLAIMED pulse/errors.Code = "PULSE_SHARD_DEAD_BYTES_RECLAIMED"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DICT_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
@@ -6805,4 +6812,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4b37cf683cb1e108e73ba9c8515d8a370dd4605c9810eab3b41aafdcb907deed
+// golden-hash: 1e599c91f00c2994d5b0a853e89a90e592699425d401c2dbe5c331d74ecae3d7

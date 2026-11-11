@@ -17,15 +17,12 @@ import (
 // is one copy buffer and a Pulse-written archive whose metadata is
 // already current re-emits byte-identically.
 //
-// v1 note: AddShard / RemoveShard already use temp+rename for the
-// whole-archive rewrite, so v1 archives never accumulate orphan bytes
-// from Pulse-issued mutations. Compact still has a job in v1: it
-// refreshes the canonical _schema.pulse metadata that may have drifted
-// (for example, if the archive was edited by a third-party zip tool
-// outside Pulse) and is the explicit reclaim path for archives
-// containing orphan bytes from any source. Future PRs may introduce
-// true in-place AddShard atop lower-level zip primitives; Compact's
-// contract remains identical — produce a clean archive byte-for-byte.
+// Dead bytes: an in-place `shard add` (shard_append.go) leaves every
+// superseded `_schema.pulse` copy and old central directory behind;
+// Compact is the explicit reclaim path (the add's own dead-byte fallback
+// is the automatic one), so its result has zero dead bytes
+// (VerifyResult.DeadBytes). It also refreshes canonical metadata that
+// drifted when the archive was edited outside Pulse.
 //
 // Errors:
 //   - PULSE_ARCHIVE_MAGIC_INVALID / PULSE_ARCHIVE_CORRUPT — surfaced

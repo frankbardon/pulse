@@ -1664,6 +1664,19 @@ const (
 	// the marker stays. details: archive, journal, reason, cause.
 	PULSE_SHARD_REPAIR_REFUSED Code = "PULSE_SHARD_REPAIR_REFUSED"
 
+	// PULSE_SHARD_DEAD_BYTES_RECLAIMED is emitted as a WARNING (not an
+	// error) when an ordinary `pulse shard add` that would have appended
+	// in place took the whole-archive rewrite instead, because the dead
+	// bytes the append would leave (every superseded `_schema.pulse` copy
+	// and old central directory) would exceed half the archive. The
+	// rewrite reclaims them all: the result holds one `_schema.pulse` and
+	// no dead bytes. Mandatory for the reason PULSE_SHARD_SET_WIDENED is:
+	// an expensive rewrite that happens silently is indistinguishable
+	// from a cheap append. details: archive, shard, dead_bytes,
+	// archive_size (both as the append would have left them),
+	// dead_schema_copies, threshold.
+	PULSE_SHARD_DEAD_BYTES_RECLAIMED Code = "PULSE_SHARD_DEAD_BYTES_RECLAIMED"
+
 	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
 	// when `pulse shard add` / `shard remove` keeps the archive's
 	// point-lookup indexes in step: an add builds the new shard's sidecar
@@ -4984,6 +4997,7 @@ var allCodes = []Code{
 	PULSE_SHARD_APPEND_REFUSED,
 	PULSE_SHARD_APPEND_INCOMPLETE,
 	PULSE_SHARD_REPAIR_REFUSED,
+	PULSE_SHARD_DEAD_BYTES_RECLAIMED,
 	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,

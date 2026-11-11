@@ -69,7 +69,30 @@ import (
 // mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
 // that re-encodes the stored shards keeps nothing and reports the
 // sidecars it invalidated (AddShardResult.InvalidatedSidecars).
+//
+// Dead bytes (U73 E2-S3): every append leaves the superseded
+// `_schema.pulse` and directory behind, so an ordinary add whose append
+// would leave dead bytes past HALF the archive (appendDeadByteLimit)
+// takes the rewrite instead — reclaiming them all — with ONE mandatory
+// PULSE_SHARD_DEAD_BYTES_RECLAIMED warning. AddShardWithOptions'
+// Rewrite forces the rewrite outright.
 func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
+	return s.AddShardWithOptions(ctx, archivePath, shardPath, AddShardOptions{})
+}
+
+// AddShardOptions tunes AddShardWithOptions. The zero value is AddShard.
+type AddShardOptions struct {
+	// Rewrite forces the whole-archive streaming rewrite (staged file +
+	// rename) for an add that would otherwise append in place: the
+	// archive is never opened for writing (the answer to
+	// PULSE_SHARD_APPEND_REFUSED) and its dead bytes are reclaimed. No
+	// warning: the caller asked for it.
+	Rewrite bool
+}
+
+// AddShardWithOptions is AddShard with options (`pulse shard add
+// --rewrite`).
+func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPath string, opts AddShardOptions) (*AddShardResult, error) {
 	fsys := s.fs.Fs()
 
 	base := filepath.Base(shardPath)
@@ -169,12 +192,25 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	// layout) takes the rewrite below, as does an archive holding a
 	// deflated entry (a third-party zip tool's), which the rewrite
 	// re-stores.
-	if m.rewrite == nil && allEntriesStored(a) {
+	// An append that would leave the archive more than half dead bytes,
+	// or a caller's Rewrite, takes the rewrite too.
+	if m.rewrite == nil && allEntriesStored(a) && !opts.Rewrite {
 		dir, err := encx.ReadArchiveDirectory(a.ra, a.size)
-		if err == nil {
-			return s.appendShard(fsys, archivePath, a, dir, m, base, aggregate, shardCount, manifest, indexEntries, result)
-		}
-		if !encx.IsNotAppendable(err) {
+		switch {
+		case err == nil:
+			schemaDoc, err := buildSchemaDocPayload(m.canonical, aggregate, shardCount, archivePath)
+			if err != nil {
+				return nil, err
+			}
+			reclaim, err := appendDeadBytesFallback(a, dir, archivePath, base, len(m.incoming), len(schemaDoc))
+			if err != nil {
+				return nil, err
+			}
+			if reclaim == nil {
+				return s.appendShard(fsys, archivePath, a, dir, m, base, schemaDoc, shardCount, manifest, indexEntries, result)
+			}
+			result.Warnings = append(result.Warnings, *reclaim)
+		case !encx.IsNotAppendable(err):
 			return nil, err
 		}
 	}
@@ -227,6 +263,44 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	}
 	result.ShardCount = shardCount
 	return result, nil
+}
+
+// appendDeadByteLimit is the share of the archive the dead bytes an
+// append leaves may reach: past dead*appendDeadByteLimit > size (more
+// than half the file dead), AddShard rewrites instead.
+const appendDeadByteLimit = 2
+
+// appendDeadBytesFallback measures the dead bytes the tail append of a
+// shard of shardSize bytes (and a `_schema.pulse` of schemaSize) would
+// leave — the dead bytes already there plus the live `_schema.pulse` and
+// directory tail the append supersedes — against the archive's size
+// after that append. Over half: the mandatory
+// PULSE_SHARD_DEAD_BYTES_RECLAIMED warning the rewrite reports; at or
+// under: nil, append.
+func appendDeadBytesFallback(a *archiveFile, dir *encx.ArchiveDirectory, archivePath, base string, shardSize, schemaSize int) (*encx.CohesionWarning, error) {
+	sp, err := encx.MeasureArchiveSpace(a.ra, dir)
+	if err != nil {
+		return nil, err
+	}
+	dead := sp.DeadAfterAppend()
+	size := dir.Size + encx.AppendLength(dir, encx.ReservedSchemaName,
+		[]string{base, encx.ReservedSchemaName}, []uint64{uint64(shardSize), uint64(schemaSize)})
+	if dead*appendDeadByteLimit <= size {
+		return nil, nil
+	}
+	return &encx.CohesionWarning{
+		Code: string(errors.PULSE_SHARD_DEAD_BYTES_RECLAIMED),
+		Message: fmt.Sprintf("shard add rewrote %s instead of appending %s in place: the append would have left %d of %d bytes dead (over half); the rewrite reclaimed them",
+			archivePath, base, dead, size),
+		Details: map[string]any{
+			"archive":            archivePath,
+			"shard":              base,
+			"dead_bytes":         dead,
+			"archive_size":       size,
+			"dead_schema_copies": sp.DeadSchemaCopies + 1,
+			"threshold":          0.5,
+		},
+	}, nil
 }
 
 // allEntriesStored reports whether every entry of the archive is

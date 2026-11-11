@@ -41,6 +41,18 @@ type VerifyResult struct {
 	// (PULSE_SHARD_DICT_WIDTH_OVERFLOW), and a constant group's next
 	// distinct value promotes it archive-wide. Nil for ungrouped archives.
 	GroupIndexHeadroom []encx.GroupIndexHeadroom `json:"group_index_headroom,omitempty"`
+
+	// DeadSchemaCopies counts the superseded `_schema.pulse` entries an
+	// in-place `shard add` left in the archive — one per append since
+	// the last rewrite — and DeadBytes every byte the live central
+	// directory does not reference (those copies, the old directories and
+	// their end records). A rewrite (`shard compact`, `remove`, a
+	// widening or forced-rewrite add, the dead-byte fallback) leaves
+	// zero. Both are zero for a tail the appender cannot extend (data
+	// before the archive, bytes after its end record): no append ever
+	// wrote one, so no copy is there to count.
+	DeadSchemaCopies int   `json:"dead_schema_copies"`
+	DeadBytes        int64 `json:"dead_bytes"`
 }
 
 // VerifyShardArchive walks the archive at archivePath and re-validates
@@ -93,6 +105,16 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 	result := &VerifyResult{
 		SetWidthHeadroom:   encx.SetWidthHeadroomFor(canonicalDoc.Schema),
 		GroupIndexHeadroom: encx.GroupIndexHeadroomFor(canonicalDoc.Schema),
+	}
+	// Dead bytes: the gaps the live directory leaves (encx.MeasureArchiveSpace).
+	if dir, derr := encx.ReadArchiveDirectory(a.ra, a.size); derr == nil {
+		sp, merr := encx.MeasureArchiveSpace(a.ra, dir)
+		if merr != nil {
+			return nil, merr
+		}
+		result.DeadSchemaCopies, result.DeadBytes = sp.DeadSchemaCopies, sp.DeadBytes
+	} else if !encx.IsNotAppendable(derr) {
+		return nil, derr
 	}
 	var liveAggregate uint64
 

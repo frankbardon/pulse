@@ -2436,6 +2436,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_DEAD_BYTES_RECLAIMED: {
+		Message: "An ordinary `shard add` rewrote the whole archive instead of appending in place, because the dead bytes an append leaves behind (superseded `_schema.pulse` copies and old central directories) would have exceeded half the archive. The rewrite reclaimed them: the archive holds one `_schema.pulse` and no dead bytes. The archive is correct; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — the next adds append in place again. `details.dead_bytes` / `details.archive_size` are what the append would have left. Adding many small shards one at a time is what accumulates dead bytes (each append supersedes the directory); batch them into one `pulse shard create`, or run `pulse shard compact` on your own schedule. `pulse shard verify --json` reports the dead bytes (`data.dead_bytes`, `data.dead_schema_copies`).",
+			},
+		},
+	},
 	PULSE_SHARD_INDEXES_UPDATED: {
 		Message: "A `shard add` / `shard remove` kept the archive's point-lookup indexes in step: an add built the new shard's sidecar for every archive index, a remove deleted the removed shard's sidecar, and the index manifest's shard coverage was updated. Every index still answers lookups; the warning exists because files beside the archive were rewritten and that must never be silent.",
 		Fixups: []Fixup{

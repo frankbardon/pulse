@@ -13,17 +13,17 @@ Part of the `.pulse` schema surface; entry skill `cohort-schema-design` (Sharded
 
 ## Sharded cohorts — cohesion
 
-- Structural: **strict** at insert except the `set_*` RUNG (auto-widen below). Field count, names, type bytes, field widths, bit positions must match canonical, else `PULSE_SHARD_SCHEMA_MISMATCH`. Stored byte offsets are a cache, never compared: legacy cohorts (all-zero offsets, a pre-canonical bit-packed first field) join with no re-import.
+- Structural: **strict** at insert except the `set_*` RUNG (auto-widen below). Field count, names, type bytes, field widths, bit positions must match canonical, else `PULSE_SHARD_SCHEMA_MISMATCH`. Stored byte offsets are a cache, never compared: legacy cohorts join with no re-import.
 - At most 65535 shards (`shard_count` is a u16); more → `PULSE_SHARD_COUNT_LIMIT`, nothing written.
 - Descriptions: **tolerant**. Divergence → `PULSE_SHARD_DESCRIPTION_DIVERGENCE` (warning); canonical wins.
 - Nullability (`details.dimension: nullable`): never widened. A shard nullable where the archive is not → `PULSE_SHARD_SCHEMA_MISMATCH`; the reverse only with equal bitmap widths, outside groups.
 - Vectors (`vec_f32` / `vec_f64`): the dim is **strict** too (`details.dimension: vector_dim`) — it is not in the type byte, so a trailing vector's dim mismatch is caught nowhere else. Labels / kind / scale range are description-class: `PULSE_SHARD_DESCRIPTION_DIVERGENCE` naming `vector_labels` / `vector_kind` / `vector_scale`; canonical wins.
 - Categorical / set dictionaries: union-merge. Canonical entries first; new entries appended; incoming records byte-rewritten with remapped indices.
-- Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream. Unchanged by auto-widen.
+- Prefix-only validator raises `PULSE_SHARD_DICT_DIVERGENCE` when embedders coordinate dicts upstream.
 - **`set_*` auto-widen.** Two forces, composable: (1) a dictionary union that outgrows a set field's bitmask; (2) the arriving shard **declaring a different rung** (a re-import infers the rung its data needs, so a `set_u128` shard meets a `set_u64` archive). Either way the field is promoted to the narrowest rung holding every member, across `_schema.pulse` and **every** shard payload, instead of refusing the shard.
 - **Only ever wider.** A NARROWER arriving shard never narrows the archive (that would silently drop every selection above the ceiling); it is promoted to the archive's rung, the only shard rewritten.
 - **Create widens too**, on `shard add`'s conditions; the warning rides `CreateShardArchiveResult`.
-- The whole-archive rewrite is atomic (see Concurrency) and emits a mandatory `PULSE_SHARD_SET_WIDENED` warning naming field, old rung, new rung, the arriving shard's rung and the shards rewritten — an archive-wide re-stride costs far more than an append. `details.archive_widened` tells the two directions apart (`from != to` ⇒ the archive moved; equal ⇒ only the arriving shard did). Past `set_u256` there is nowhere to widen to and `PULSE_SHARD_DICT_WIDTH_OVERFLOW` stands. Categorical widths never widen.
+- The whole-archive rewrite is atomic (see Concurrency) and emits a mandatory `PULSE_SHARD_SET_WIDENED` warning naming field, old rung, new rung, the arriving shard's rung and the shards rewritten. `details.archive_widened` tells the two directions apart (`from != to` ⇒ the archive moved; equal ⇒ only the arriving shard did). Past `set_u256` there is nowhere to widen to and `PULSE_SHARD_DICT_WIDTH_OVERFLOW` stands. Categorical widths never widen.
 - `pulse shard verify` reports **set-width headroom** per set field (entries used, capacity, headroom, next rung).
 - **Grouped (`0x02`) shards.** An archive has ONE parent-group layout — part of strict cohesion, so `shard verify` refuses a `0x01` shard in a `0x02` archive. On create/add the ARCHIVE's layout wins: a grouped arrival into an ungrouped archive is stored flattened; an arrival with other groups (or none) is re-encoded into the archive's. Group dictionaries union-merge canonical-first (stored shards untouched, only the arrival renumbered); past the u32 index space → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. An arrival that disagrees with a CONSTANT group promotes it to indexed across every shard; one that violates a declared key is refused (`PULSE_GROUP_MEMBER_NOT_CONSTANT`). Layout changes emit the mandatory `PULSE_SHARD_GROUPS_REWRITTEN` (`details.reason`, `archive_rewritten`); `shard verify` adds `group_index_headroom` (a constant group always shows 0). To keep appends cheap, import every period with the same `--group` flags and don't elide a column that varies between periods. `pulse dedup` refuses archives — dedup each shard, then `shard create`.
 
@@ -34,7 +34,7 @@ respondents/Q1.pulse                 → full sharded cohort (union semantics)
 respondents/Q1.pulse#20190101.pulse  → named shard, as one-shard cohort
 ```
 
-Anchor on a single file → `PULSE_ARCHIVE_MAGIC_INVALID`; missing → `PULSE_SHARD_MISSING`.
+Anchor on a single file: `PULSE_ARCHIVE_MAGIC_INVALID`; missing: `PULSE_SHARD_MISSING`.
 
 ## Memory shape
 
@@ -42,7 +42,7 @@ Materializing ops (percentile / median, quantile and date groupers, windows, dec
 
 ## Concurrency
 
-A plain `add` appends in place (dead bytes until `compact`; refused write-open: `PULSE_SHARD_APPEND_REFUSED`). A crash mid-append leaves `<archive>.append`: opens refuse (`PULSE_SHARD_APPEND_INCOMPLETE`) until `pulse shard verify --repair`. Other mutations (and `cohort filter` output) stream into `<archive>.pulse.tmp-staged`, fsync + rename; the next mutation sweeps crashed stages. `cohort filter --flatten` writes surviving rows as ONE file (canonical schema, archive order). No writer lock: callers own single-writer. `add` / `remove` keep archive indexes in step (`cohort-sidecar-index`).
+A plain `add` appends in place (old `_schema.pulse` + directory go dead: `verify` counts, `compact` reclaims); past half the file dead it rewrites (`PULSE_SHARD_DEAD_BYTES_RECLAIMED`); `--rewrite` forces that (refused write-open: `PULSE_SHARD_APPEND_REFUSED`). A crash mid-append leaves `<archive>.append`: opens refuse (`PULSE_SHARD_APPEND_INCOMPLETE`) until `pulse shard verify --repair`. Other mutations (and `cohort filter` output) stream into `<archive>.pulse.tmp-staged`, fsync + rename; the next mutation sweeps crashed stages. `cohort filter --flatten` writes surviving rows as ONE file (canonical schema, archive order). No writer lock: callers own single-writer. `add` / `remove` keep archive indexes in step (`cohort-sidecar-index`).
 
 ## Moving a cohort (transport-only compression)
 

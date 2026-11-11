@@ -48,7 +48,7 @@ Manifest = the contract. `pulse_inspect` = field names + values. `pulse_examples
 
 Read every `errors[]` / `warnings[]` entry (`{code, message, details}`) → `pulse_errors_lookup` each unique `code` (cache) → apply `fixups[]` → re-`pulse_predict` → re-execute only when predict is clean. An unknown key (any depth) is `PULSE_REQUEST_UNKNOWN_FIELD`: fix `details.path`.
 
-Scripts can trust the CLI exit status (all but `pulse mcp`): `0` ok, warnings allowed; `1` fatal (`errors` under `--json`, `--strict` escalations too); `2` usage error, no envelope.
+CLI exit status (all but `pulse mcp`): `0` ok, warnings ok; `1` fatal (`errors` under `--json`, `--strict` escalations too); `2` usage error, no envelope. `shard add --rewrite` never appends in place.
 
 ## Environment
 
@@ -62,7 +62,7 @@ A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is be
 
 Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `--vector` folds); a handle is never reused across zones — re-import with `overwrite: true`. See `time-zones`.
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`, standard `OTEL_*` for OTLP, HTTP only) and worker caps (`--shard-workers`, `--decode-workers`) never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`, `OTEL_*` for OTLP/HTTP) and worker caps (`--shard-workers`, `--decode-workers`) never reach tool responses.
 
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
 

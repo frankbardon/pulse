@@ -190,7 +190,9 @@ pulse shard list q1_2019.pulse
 
 Re-validates every shard's header + cohesion against the canonical
 schema. Useful after manual archive surgery or when a build pipeline
-appends shards from multiple producers:
+appends shards from multiple producers. `--json` also reports the dead
+bytes in-place adds left (`data.dead_schema_copies`, `data.dead_bytes`;
+see "Dead bytes" below):
 
 ```bash
 pulse shard verify q1_2019.pulse
@@ -198,8 +200,9 @@ pulse shard verify q1_2019.pulse
 
 ## 5. Compact
 
-Reclaims orphan bytes (e.g. after `pulse shard remove`) and refreshes
-canonical metadata (`aggregate_record_count`, `shard_count`). Compacting
+Reclaims the dead bytes in-place `shard add`s leave (every superseded
+`_schema.pulse` copy and old central directory; the result reports zero)
+and refreshes canonical metadata (`aggregate_record_count`, `shard_count`). Compacting
 an archive whose metadata is already current reproduces it byte for
 byte:
 
@@ -242,6 +245,20 @@ uncompressed) writes only past the archive's old end:
 - An archive whose tail the appender does not extend (data prepended to
   the zip, bytes after its end record, a multi-disk layout) or that
   holds a deflated entry takes the rewrite below instead.
+- **Dead bytes.** Each append leaves one superseded `_schema.pulse` copy
+  plus the old directory and end record behind. `pulse shard verify
+  --json` reports them (`data.dead_schema_copies`, `data.dead_bytes`:
+  every byte no live directory record references). An add whose append
+  would leave MORE than half the archive dead takes the rewrite below
+  instead, reclaiming all of them (the result has one `_schema.pulse`
+  and no dead bytes), with one `PULSE_SHARD_DEAD_BYTES_RECLAIMED`
+  warning; the next add appends again. Many tiny single-shard adds are
+  what trip it (each re-supersedes the whole directory) — batch them
+  into one `shard create` where you can.
+- **`--rewrite`** (library: `AddShardWithOptions` with
+  `AddShardOptions{Rewrite: true}`) forces the rewrite: no warning, and
+  the archive is never opened for writing, which is the way past
+  `PULSE_SHARD_APPEND_REFUSED`.
 
 The writer is `internal/encoding/archive_append.go`; its bytes are the
 ones `zip.Writer` writes for the same entries. Layout contract:
@@ -249,8 +266,9 @@ ones `zip.Writer` writes for the same entries. Layout contract:
 
 ## The rewrite contract
 
-`create`, a widening or promoting `add`, `remove` and `compact` (and
-`cohort filter` writing an archive) never edit an archive in place, and
+`create`, a widening, promoting, dead-byte-fallback or `--rewrite`
+`add`, `remove` and `compact` (and `cohort filter` writing an archive)
+never edit an archive in place, and
 never build it in memory:
 
 - **Streamed into a stage.** The new archive is written to

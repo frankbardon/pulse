@@ -3159,6 +3159,24 @@ func (p *Pulse) addShard(ctx context.Context, archivePath, shardPath string) (*A
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
 
+// AddShardWithOptions is AddShard with options; the zero AddShardOptions
+// is AddShard. An ordinary add appends in place unless the dead bytes
+// the append would leave (every superseded `_schema.pulse` copy and old
+// central directory) would exceed half the archive — then it rewrites,
+// reclaiming them, with a mandatory PULSE_SHARD_DEAD_BYTES_RECLAIMED
+// warning. AddShardOptions.Rewrite forces that rewrite (`pulse shard
+// add --rewrite`): the archive is never opened for writing, the answer
+// to PULSE_SHARD_APPEND_REFUSED.
+func (p *Pulse) AddShardWithOptions(ctx context.Context, archivePath, shardPath string, opts AddShardOptions) (*AddShardResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardAdd, path: archivePath}, func(ctx context.Context) (*AddShardResult, error) {
+		return p.svc.AddShardWithOptions(ctx, archivePath, shardPath, opts)
+	})
+}
+
+// AddShardOptions tunes AddShardWithOptions: Rewrite forces the
+// whole-archive streaming rewrite over the in-place append.
+type AddShardOptions = service.AddShardOptions
+
 // AddShardResult carries the outcome of AddShard: the archive's new
 // shard count, any set-field widenings the add forced, the non-fatal
 // warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE, PULSE_SHARD_SET_WIDENED,
@@ -3237,13 +3255,12 @@ func (p *Pulse) extractShard(ctx context.Context, archivePath, shardBasename str
 	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
 }
 
-// CompactShardArchive rewrites the archive to eliminate orphaned bytes
-// from prior in-place mutations and refreshes the canonical metadata
-// (aggregate_record_count + shard_count). v1 AddShard / RemoveShard
-// already use temp+rename (no orphan bytes in v1 archives), so Compact
-// primarily serves to refresh canonical metadata that may have drifted
-// if the archive was edited outside Pulse. The whole-archive rewrite
-// pattern is the explicit reclaim path per the design contract §7.1.
+// CompactShardArchive rewrites the archive to eliminate the dead bytes
+// in-place `AddShard` appends leave (every superseded `_schema.pulse`
+// copy and old central directory; VerifyResult.DeadBytes reports them)
+// and refreshes the canonical metadata (aggregate_record_count +
+// shard_count), including metadata that drifted when the archive was
+// edited outside Pulse. The result has zero dead bytes.
 func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpShardCompact, path: archivePath}, func(ctx context.Context) error {
 		return p.compactShardArchive(ctx, archivePath)

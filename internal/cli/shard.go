@@ -101,6 +101,7 @@ func shardAddCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE SHARD",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "rewrite", Usage: "Rewrite the whole archive (staged file + rename) instead of appending in place; never opens the archive for writing and reclaims dead bytes"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -115,7 +116,7 @@ func shardAddCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
-			result, err := p.AddShard(ctx, archive, shard)
+			result, err := p.AddShardWithOptions(ctx, archive, shard, pulse.AddShardOptions{Rewrite: cmd.Bool("rewrite")})
 			if err != nil {
 				return cliCodedError(cmd, jsonOut, "SHARD_ADD_ERROR", err)
 			}
@@ -136,9 +137,6 @@ func shardAddCmd() *cli.Command {
 				}
 				if len(result.Regrouped) > 0 {
 					data["regrouped"] = result.Regrouped
-				}
-				if len(result.InvalidatedSidecars) > 0 {
-					data["invalidated_sidecars"] = result.InvalidatedSidecars
 				}
 				if len(result.InvalidatedSidecars) > 0 {
 					data["invalidated_sidecars"] = result.InvalidatedSidecars
@@ -365,6 +363,10 @@ func shardVerifyCmd() *cli.Command {
 					"  SET    %s (%s): %d/%d members used, %d headroom, next rung %s\n",
 					h.Field, h.Type, h.Used, h.Capacity, h.Headroom, next)
 			}
+			if result.DeadSchemaCopies > 0 || result.DeadBytes > 0 {
+				writeText(cmd.Writer, "  DEAD   %d superseded _schema.pulse cop(ies), %d dead byte(s); `pulse shard compact` reclaims them\n",
+					result.DeadSchemaCopies, result.DeadBytes)
+			}
 			for _, h := range result.GroupIndexHeadroom {
 				writeText(cmd.Writer,
 					"  GROUP  %s (%s): %d/%d entries used, %d headroom\n",
@@ -425,6 +427,8 @@ func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult, repair *
 		"error_n":            len(result.Errors),
 		"warning_n":          len(result.Warnings),
 		"set_width_headroom": result.SetWidthHeadroom,
+		"dead_schema_copies": result.DeadSchemaCopies,
+		"dead_bytes":         result.DeadBytes,
 	}
 	// Grouped archives only, so an ungrouped archive's envelope is
 	// byte-identical to before parent groups existed.
