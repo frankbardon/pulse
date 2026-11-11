@@ -98,13 +98,24 @@ type IndexManifestEntry struct {
 // same-name replacement, which a bare name would silently accept.
 // IndexPath is the shard's sidecar BASENAME
 // (ArchiveShardIndexPath); the counts are that sidecar's own.
+//
+// KeyMin / KeyMax are the shard's indexed-key range, one
+// order-preserving hex string per key component (IndexKeyRange;
+// index_key_range.go documents the encoding): a lookup skips the shard
+// without opening its sidecar when the probed key falls outside them.
+// Both are additive and omitempty — absent (an empty shard, or a
+// manifest an older binary wrote or rewrote, dropping fields it did not
+// know) means "probe this shard", never "skip it". Later per-shard
+// prune data joins them here as further omitempty fields.
 type IndexManifestShard struct {
-	Name           string `json:"name"`
-	Size           int64  `json:"size"`
-	CRC32          uint32 `json:"crc32"`
-	IndexPath      string `json:"index_path"`
-	DistinctKeys   int    `json:"distinct_keys"`
-	IndexedRecords int    `json:"indexed_records"`
+	Name           string   `json:"name"`
+	Size           int64    `json:"size"`
+	CRC32          uint32   `json:"crc32"`
+	IndexPath      string   `json:"index_path"`
+	DistinctKeys   int      `json:"distinct_keys"`
+	IndexedRecords int      `json:"indexed_records"`
+	KeyMin         []string `json:"key_min,omitempty"`
+	KeyMax         []string `json:"key_max,omitempty"`
 }
 
 // ArchiveShardIndexPath derives the sidecar path of one shard of an

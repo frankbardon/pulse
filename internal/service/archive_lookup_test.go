@@ -104,8 +104,14 @@ func shardLabels(rows []archiveLookupRow) []string {
 // on each key tuple.
 func setupArchiveLookup(t *testing.T, keySets ...[]string) (*Service, afero.Fs) {
 	t.Helper()
+	return setupArchiveLookupOn(t, fs.NewMemMap(), keySets...)
+}
+
+// setupArchiveLookupOn is setupArchiveLookup over a caller-supplied
+// filesystem config (a counting wrapper, say).
+func setupArchiveLookupOn(t *testing.T, cfg *fs.Config, keySets ...[]string) (*Service, afero.Fs) {
+	t.Helper()
 	ctx := context.Background()
-	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
 	var names []string
@@ -281,7 +287,10 @@ func TestArchiveLookup_UncoveredShardRefused(t *testing.T) {
 			if c.name != "shard added" && len(after) != len(before) {
 				t.Fatalf("fixture: the replacement must keep the archive size (%d vs %d)", len(after), len(before))
 			}
-			_, err = svc.Lookup(ctx, &types.LookupRequest{Cohort: &types.Cohort{Filename: "arch.pulse"}, Field: "id", Value: "7"})
+			// id 8: inside d's recorded key range, so d's sidecar is
+			// probed (a shard whose range excludes the key is skipped
+			// unopened — TestArchiveLookupPrune_PrunedShardSidecarUnread).
+			_, err = svc.Lookup(ctx, &types.LookupRequest{Cohort: &types.Cohort{Filename: "arch.pulse"}, Field: "id", Value: "8"})
 			var ce *errors.CodedError
 			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_INDEX_STALE {
 				t.Fatalf("lookup err = %v, want PULSE_INDEX_STALE", err)

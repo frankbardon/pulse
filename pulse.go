@@ -2466,7 +2466,8 @@ type VerifyIndexResult = service.VerifyIndexResult
 
 // IndexFreshnessReason re-exports internal/service.IndexFreshnessReason — why
 // VerifyIndex reached its Fresh/stale verdict
-// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
+// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch", and for a
+// shard archive "range_mismatch").
 type IndexFreshnessReason = service.IndexFreshnessReason
 
 // VerifyIndex reports whether the sidecar point-lookup index built for
@@ -2476,7 +2477,7 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // comment for the full fast-path decision tree. Returns
 // PULSE_INDEX_MISSING when no sidecar exists for keyFields; a shard
 // archive is verified shard by shard (VerifyIndexResult.ShardsUncovered
-// / ShardsMismatched).
+// / ShardsMismatched / ShardsRangeMismatched).
 func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexVerify, path: path}, func(ctx context.Context) (*VerifyIndexResult, error) {
 		return p.verifyIndex(ctx, path, keyFields)

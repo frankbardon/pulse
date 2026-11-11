@@ -193,7 +193,7 @@ func indexListCmd() *cli.Command {
 // indexVerifyOutput is the JSON-envelope shape for a successful
 // `pulse index verify`. Reason is the string form of
 // service.IndexFreshnessReason ("stat_mismatch" / "fingerprint_match" /
-// "fingerprint_mismatch"); FastPath mirrors
+// "fingerprint_mismatch" / archive-only "range_mismatch"); FastPath mirrors
 // service.VerifyIndexResult.FastPath — true only when Reason ==
 // "stat_mismatch" (the size comparison alone was conclusive).
 // ModTimeDrift mirrors service.VerifyIndexResult.ModTimeDrift and is
@@ -207,10 +207,11 @@ type indexVerifyOutput struct {
 	Reason       string   `json:"reason"`
 	FastPath     bool     `json:"fast_path"`
 	ModTimeDrift bool     `json:"modtime_drift,omitempty"`
-	// ShardsUncovered / ShardsMismatched mirror the archive-only
+	// ShardsUncovered / ShardsMismatched / ShardsRangeMismatched mirror the archive-only
 	// service.VerifyIndexResult fields (additive, omitempty).
-	ShardsUncovered  []string `json:"shards_uncovered,omitempty"`
-	ShardsMismatched []string `json:"shards_mismatched,omitempty"`
+	ShardsUncovered       []string `json:"shards_uncovered,omitempty"`
+	ShardsMismatched      []string `json:"shards_mismatched,omitempty"`
+	ShardsRangeMismatched []string `json:"shards_range_mismatched,omitempty"`
 }
 
 func indexVerifyCmd() *cli.Command {
@@ -252,15 +253,16 @@ func indexVerifyCmd() *cli.Command {
 			}
 
 			out := indexVerifyOutput{
-				Cohort:           input,
-				IndexPath:        res.IndexPath,
-				Keys:             keyFields,
-				Fresh:            res.Fresh,
-				Reason:           string(res.Reason),
-				FastPath:         res.FastPath,
-				ModTimeDrift:     res.ModTimeDrift,
-				ShardsUncovered:  res.ShardsUncovered,
-				ShardsMismatched: res.ShardsMismatched,
+				Cohort:                input,
+				IndexPath:             res.IndexPath,
+				Keys:                  keyFields,
+				Fresh:                 res.Fresh,
+				Reason:                string(res.Reason),
+				FastPath:              res.FastPath,
+				ModTimeDrift:          res.ModTimeDrift,
+				ShardsUncovered:       res.ShardsUncovered,
+				ShardsMismatched:      res.ShardsMismatched,
+				ShardsRangeMismatched: res.ShardsRangeMismatched,
 			}
 
 			if jsonOut {

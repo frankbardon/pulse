@@ -205,7 +205,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 		if err := encx.WriteIndexFile(fsys, sf.stage, idx); err != nil {
 			return nil, err
 		}
-		distinct, records := indexBucketCounts(buckets)
+		rec := shardManifestRecord(e, filepath.Base(final), keys[j], buckets)
 		// A record already under this name (a shard removed by a path
 		// that did not keep the index) describes other bytes: replace it.
 		kept := entry.Shards[:0:0]
@@ -217,12 +217,9 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 			}
 			kept = append(kept, old)
 		}
-		entry.Shards = append(kept, encx.IndexManifestShard{
-			Name: shard, Size: e.Size, CRC32: e.CRC32,
-			IndexPath: filepath.Base(final), DistinctKeys: distinct, IndexedRecords: records,
-		})
-		entry.DistinctKeys += distinct
-		entry.IndexedRecords += records
+		entry.Shards = append(kept, rec)
+		entry.DistinctKeys += rec.DistinctKeys
+		entry.IndexedRecords += rec.IndexedRecords
 		u.touched = append(u.touched, map[string]any{
 			"keys":             entry.KeyNames(),
 			"index_path":       filepath.Join(dir, entry.IndexPath),

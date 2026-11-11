@@ -136,7 +136,10 @@ pulse index verify --input sales.pulse --key region,date --json
 ```
 
 `reason` is one of `stat_mismatch` (the **size** alone was conclusive —
-`fast_path: true`), `fingerprint_match`, or `fingerprint_mismatch`.
+`fast_path: true`), `fingerprint_match`, or `fingerprint_mismatch` —
+and, for a shard archive only, `range_mismatch`: every shard hashes
+clean but a shard's recorded key range disagrees with its sidecar
+(`shards_range_mismatched`).
 
 An additive `modtime_drift: true` (omitted when false) means the
 cohort's modification time no longer matches the snapshot taken at
@@ -182,8 +185,11 @@ pulse index drop --input sales.pulse --key region,date
 
 - **Shard archives are indexed per shard.** `build` writes one sidecar
   per shard (`data.shard_index_paths`) plus the archive manifest's
-  coverage (name, size and zip CRC32 per shard); `verify` adds
-  `shards_uncovered` / `shards_mismatched`; `list` adds
+  coverage (name, size and zip CRC32 per shard, plus each shard's
+  key range — `key_min` / `key_max`, which `pulse api lookup` uses to
+  skip shards that cannot hold the key); `verify` adds
+  `shards_uncovered` / `shards_mismatched` / `shards_range_mismatched`;
+  `list` adds
   `shard_index_paths`. A shard the index does not cover makes `verify`
   stale and `pulse api lookup` refuse with `PULSE_INDEX_STALE` —
   rebuild.

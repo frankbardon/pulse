@@ -154,8 +154,8 @@ held by two shards counts twice: an exact union count would need every
 key in memory, which the streaming build avoids (a known limit).
 
 `Lookup` against the archive resolves the key literal once against the
-archive's canonical dictionary, probes every shard, and returns the
-hits in archive order — the same rows, in the same order, as the
+archive's canonical dictionary, probes every shard whose recorded key
+range admits the key, and returns the hits in archive order — the same rows, in the same order, as the
 single-file cohort holding the archive's rows. Multiplicity applies
 across shards: `assert_unique` refuses a key held by two shards, and
 `first` takes the earliest row in archive order. A shard the index
@@ -166,8 +166,28 @@ reports the same shards (`ShardsUncovered`) and hashes every shard
 against its sidecar (`ShardsMismatched`); `ListIndexes` and
 `DropIndex` work on the archive path.
 
+**Key-range pruning.** The build records each shard's indexed-key
+minimum and maximum on its manifest record (`key_min` / `key_max`, one
+string per key column). A lookup skips a shard whose range excludes the
+key without opening that shard's sidecar, so a lookup over shards
+clustered by key (one shard per period, say) opens only the shards
+that can hold it. A composite key is pruned per column: one column out
+of range is enough. The bounds are order-preserving hex — the
+column's value big-endian, with the sign bit flipped for `date`,
+`datetime` and `decimal128` and the IEEE-754 total-order transform for
+floats — so `u64` keys above 2^53 stay exact; a categorical range is a
+dictionary-id range. Pruning only skips work: an empty shard, or a
+manifest written or rewritten by an older Pulse (which drops the
+fields), records no range and every such shard is probed. A skipped
+shard's sidecar is not read, so a stale sidecar there does not refuse
+a lookup that shard cannot answer; `VerifyIndex` still checks every
+sidecar, and also checks each recorded range against its sidecar's
+keys (`ShardsRangeMismatched`, reason `range_mismatch`) — a wrong
+range could hide a match.
+
 `AddShard` and `RemoveShard` keep every archive index in step. An add
 builds the new shard's sidecar for each index and the updated manifest
+(the new shard's record carries its key range)
 before the archive is renamed: if any of that fails, the add returns
 the error and the archive, the sidecars and the manifest are left as
 they were. A remove drops the removed shard's sidecar and manifest

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -47,6 +48,17 @@ const (
 	// rule out, or a same-size rewrite that also moved the mtime
 	// (ModTimeDrift true).
 	IndexFreshnessReasonFingerprintMismatch IndexFreshnessReason = "fingerprint_mismatch"
+
+	// IndexFreshnessReasonRangeMismatch indicates, for a shard archive
+	// whose every shard is covered and hashes to its sidecar's
+	// fingerprint, that a shard's manifest record carries a key range
+	// (key_min / key_max) other than the range of the keys its sidecar
+	// holds. A lookup trusts that range to skip the shard unopened, so a
+	// wrong one can hide a match: the index is reported stale and
+	// VerifyIndexResult.ShardsRangeMismatched names the shards.
+	// `pulse index build` rewrites the manifest. Never reached for a
+	// single-file cohort.
+	IndexFreshnessReasonRangeMismatch IndexFreshnessReason = "range_mismatch"
 )
 
 // VerifyIndexResult is the outcome of Service.VerifyIndex: whether the
@@ -93,6 +105,15 @@ type VerifyIndexResult struct {
 	// sidecar's fingerprint (IndexFreshnessReasonFingerprintMismatch).
 	// Nil for a single-file cohort.
 	ShardsMismatched []string
+
+	// ShardsRangeMismatched names, for a shard archive, every covered
+	// shard whose manifest key range (key_min / key_max — the lookup
+	// prune) differs from the range of the keys in its sidecar, in
+	// archive order. Any entry makes the verdict stale; the reason is
+	// IndexFreshnessReasonRangeMismatch unless a fingerprint mismatch
+	// outranks it. A shard record with no range is never listed. Nil
+	// for a single-file cohort.
+	ShardsRangeMismatched []string
 }
 
 // VerifyIndex reports whether the sidecar point-lookup index built for
@@ -246,7 +267,7 @@ func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []
 			Reason: IndexFreshnessReasonStatMismatch, FastPath: true, ShardsUncovered: uncovered}, nil
 	}
 
-	var mismatched []string
+	var mismatched, rangeMismatched []string
 	for k, cov := range covered {
 		sect, err := a.storedShard(cov.Name)
 		if err != nil {
@@ -259,11 +280,38 @@ func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []
 		if fp != metas[k].Fingerprint {
 			mismatched = append(mismatched, cov.Name)
 		}
+		ok, err := shardKeyRangeMatches(fsys, filepath.Join(dir, cov.IndexPath), cov)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			rangeMismatched = append(rangeMismatched, cov.Name)
+		}
 	}
 	reason := IndexFreshnessReasonFingerprintMatch
-	if len(mismatched) > 0 {
+	switch {
+	case len(mismatched) > 0:
 		reason = IndexFreshnessReasonFingerprintMismatch
+	case len(rangeMismatched) > 0:
+		reason = IndexFreshnessReasonRangeMismatch
 	}
-	return &VerifyIndexResult{IndexPath: indexPath, Fresh: len(mismatched) == 0,
-		Reason: reason, ShardsMismatched: mismatched}, nil
+	return &VerifyIndexResult{IndexPath: indexPath, Fresh: len(mismatched) == 0 && len(rangeMismatched) == 0,
+		Reason: reason, ShardsMismatched: mismatched, ShardsRangeMismatched: rangeMismatched}, nil
+}
+
+// shardKeyRangeMatches reports whether the key range a shard's manifest
+// record carries (key_min / key_max) is exactly the range of the keys
+// in its sidecar. A record with no range matches trivially: it prunes
+// nothing, so it cannot cause a miss. Reading the whole sidecar is the
+// price of the check; a lookup never pays it.
+func shardKeyRangeMatches(fsys afero.Fs, sidecar string, cov encx.IndexManifestShard) (bool, error) {
+	if len(cov.KeyMin) == 0 && len(cov.KeyMax) == 0 {
+		return true, nil
+	}
+	idx, err := encx.ReadIndexFile(fsys, sidecar)
+	if err != nil {
+		return false, err
+	}
+	keyMin, keyMax := encx.IndexKeyRange(idx.Keys, idx.Buckets)
+	return slices.Equal(keyMin, cov.KeyMin) && slices.Equal(keyMax, cov.KeyMax), nil
 }

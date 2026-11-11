@@ -3,6 +3,7 @@ package encoding
 import (
 	"encoding/json"
 	stderrors "errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -244,7 +245,8 @@ func TestIndexManifest_ArchiveEntryRoundTrips(t *testing.T) {
 	keys := []string{"id"}
 	m := NewIndexManifest("arch.pulse")
 	shards := []IndexManifestShard{
-		{Name: "b.pulse", Size: 300, CRC32: 0xdeadbeef, IndexPath: "arch.pulse#b.pulse.x.idx", DistinctKeys: 2, IndexedRecords: 3},
+		{Name: "b.pulse", Size: 300, CRC32: 0xdeadbeef, IndexPath: "arch.pulse#b.pulse.x.idx", DistinctKeys: 2, IndexedRecords: 3,
+			KeyMin: []string{"0000000000000001"}, KeyMax: []string{"0020000000000001"}},
 		{Name: "a.pulse", Size: 120, CRC32: 1, IndexPath: "arch.pulse#a.pulse.x.idx", DistinctKeys: 1, IndexedRecords: 1},
 	}
 	entry := IndexManifestEntryFor(SidecarIndexPath("arch.pulse", keys), manifestTestIndex(IndexKeySpec{Name: "id", Type: encoding.FieldTypeU64}))
@@ -261,7 +263,7 @@ func TestIndexManifest_ArchiveEntryRoundTrips(t *testing.T) {
 		t.Fatalf("round trip lost the shard coverage: %+v", got.Indexes)
 	}
 	for i, sh := range got.Indexes[0].Shards {
-		if sh != shards[i] {
+		if !reflect.DeepEqual(sh, shards[i]) {
 			t.Errorf("shard[%d] = %+v, want %+v (archive order kept)", i, sh, shards[i])
 		}
 	}
