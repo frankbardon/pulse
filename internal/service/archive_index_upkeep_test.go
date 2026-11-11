@@ -427,6 +427,11 @@ func TestArchiveIndexUpkeep_ReplacementAfterUpkeepDetectedByCRC(t *testing.T) {
 	if _, err := svc.AddShard(ctx, "arch.pulse", "e.pulse"); err != nil {
 		t.Fatal(err)
 	}
+	// Compact away the append's dead bytes so the replacement below (a
+	// fresh create) lands at the same archive size.
+	if err := svc.CompactShardArchive(ctx, "arch.pulse"); err != nil {
+		t.Fatal(err)
+	}
 	before, _ := afero.ReadFile(fsys, "arch.pulse")
 	writeUpkeepShard(t, fsys, "x/e.pulse", 99)
 	replaceArchive(t, svc, fsys, []string{"a.pulse", "b.pulse", "c.pulse", "d.pulse", "x/e.pulse"})

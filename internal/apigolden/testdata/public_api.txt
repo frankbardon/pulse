@@ -3010,6 +3010,7 @@ pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVAL
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
 pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
 pulse/errors: const PULSE_SEM_SCORE_LEVEL_UNSEEN pulse/errors.Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
+pulse/errors: const PULSE_SHARD_APPEND_REFUSED pulse/errors.Code = "PULSE_SHARD_APPEND_REFUSED"
 pulse/errors: const PULSE_SHARD_COUNT_LIMIT pulse/errors.Code = "PULSE_SHARD_COUNT_LIMIT"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DICT_DIVERGENCE"
@@ -6794,4 +6795,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c82d7200c61eb5c985e62068bd04a8b5d08e75ac74f20b5460b837efbee0d4c7
+// golden-hash: 6cbcd804045d08faa398dc1841212f4b6c6c3ff5b3137f064d8235341bc6a649

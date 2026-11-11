@@ -143,12 +143,15 @@ func upkeepKeyFields(archivePath string, schema *encoding.Schema, e encx.IndexMa
 }
 
 // stageAddUpkeep builds, for every archive index in manifest, the new
-// shard's sidecar from the FINISHED BUT UNPUBLISHED archive at staged
-// (its central directory carries the identity the published archive
-// will) and the manifest with the shard's record appended, all into
-// stages. One scan of the new shard feeds every index. On error every
-// stage written so far is removed.
-func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.Schema, shard string, manifest *encx.IndexManifest, entries []int) (_ *indexUpkeep, err error) {
+// shard's sidecar from an UNPUBLISHED archive at staged on src that
+// holds the new shard exactly as the published archive will — the
+// rewrite's finished stage, or the tail append's in-memory twin
+// (appendUpkeepSource) — so its central directory carries the identity
+// (name, size, CRC32) the published archive will; and the manifest with
+// the shard's record appended. Every output is a stage on fsys. One scan
+// of the new shard feeds every index. On error every stage written so
+// far is removed.
+func stageAddUpkeep(fsys, src afero.Fs, archivePath, staged string, schema *encoding.Schema, shard string, manifest *encx.IndexManifest, entries []int) (_ *indexUpkeep, err error) {
 	u := &indexUpkeep{fsys: fsys, archive: archivePath, shard: shard, action: "added"}
 	defer func() {
 		if err != nil {
@@ -165,7 +168,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 		}
 	}
 
-	iter := newShardIter(fsys, staged, schema, []ShardEntry{{Filename: shard}})
+	iter := newShardIter(src, staged, schema, []ShardEntry{{Filename: shard}})
 	for iter.Next() {
 		for j := range entries {
 			if key, ok := processing.CompositeKeyFieldOnWireBytes(iter.Record(), fields[j]); ok {
@@ -180,7 +183,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 			fmt.Sprintf("scanning shard %q for index upkeep: %s", shard, archivePath))
 	}
 
-	a, err := openArchiveFile(fsys, staged)
+	a, err := openArchiveFile(src, staged)
 	if err != nil {
 		return nil, err
 	}

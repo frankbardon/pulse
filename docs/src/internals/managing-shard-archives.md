@@ -40,11 +40,14 @@ pulse shard create q1_2019.pulse \
 
 ## 2. Append a shard
 
-Validates cohesion + dict prefix, grows the canonical dict if needed,
-then streams a new archive into a staged file beside the original — a
-refreshed `_schema.pulse`, every stored shard copied raw, the new shard
-last — and renames it over the original (see
-[The rewrite contract](#the-rewrite-contract)):
+Validates cohesion + dict prefix and grows the canonical dict if
+needed. An ordinary add then **appends in place** (see
+[The tail append](#the-tail-append)): the new shard, a refreshed
+`_schema.pulse` and a new central directory are written after the
+archive's old end, and nothing before it changes. An add that moves the
+archive (a set rung widen, a constant-group promotion) streams a new
+archive into a staged file beside the original instead and renames it
+over the original (see [The rewrite contract](#the-rewrite-contract)):
 
 ```bash
 pulse shard add q1_2019.pulse 20190122.pulse
@@ -204,10 +207,40 @@ byte:
 pulse shard compact q1_2019.pulse
 ```
 
+## The tail append
+
+An ordinary `shard add` (no widen, no promotion, every entry stored
+uncompressed) writes only past the archive's old end:
+
+- **What is written.** The new shard's entry, a refreshed
+  `_schema.pulse`, then a new Zip64 central directory listing the new
+  `_schema.pulse` first, every stored shard's old directory record
+  verbatim, and the new shard last. The superseded `_schema.pulse` and
+  the old directory stay in the file as dead bytes that no directory
+  points at; `pulse shard compact` reclaims them. Bytes written are the
+  new shard plus `_schema.pulse` plus the directory, whatever the
+  archive's size.
+- **Readers.** An append assumes no concurrent writer and takes no lock.
+  A reader that opened the archive before the append keeps reading every
+  shard it saw; a reader opening after sees the new one.
+- **A refused write-open** (a read-only file, or on Windows another
+  process holding the archive without write sharing) fails the add with
+  `PULSE_SHARD_APPEND_REFUSED`, nothing written.
+- **A failed write** truncates the archive back to its old length before
+  the error returns.
+- An archive whose tail the appender does not extend (data prepended to
+  the zip, bytes after its end record, a multi-disk layout) or that
+  holds a deflated entry takes the rewrite below instead.
+
+The writer is `internal/encoding/archive_append.go`; its bytes are the
+ones `zip.Writer` writes for the same entries. Layout contract:
+`.claude/reference/byte-layout/archive-append.md`.
+
 ## The rewrite contract
 
-`create`, `add`, `remove` and `compact` (and `cohort filter` writing an
-archive) never edit an archive in place, and never build it in memory:
+`create`, a widening or promoting `add`, `remove` and `compact` (and
+`cohort filter` writing an archive) never edit an archive in place, and
+never build it in memory:
 
 - **Streamed into a stage.** The new archive is written to
   `<archive>.pulse.tmp-staged` in the same directory: the refreshed
@@ -233,8 +266,8 @@ archive) never edit an archive in place, and never build it in memory:
 - **Not verified on the way through.** A raw copy does not re-check a
   stored shard's CRC; `pulse shard verify` is the diagnostic arm.
 
-In-place tail append is not done: it would give up the "original
-byte-identical until the rename" guarantee the widen path relies on.
+A widening or promoting add never appends: it relies on the "original
+byte-identical until the rename" guarantee.
 
 `cohort filter` over an archive filters one shard at a time. It spools
 the surviving shards to `<output>.pulse.tmp-spool`, because
@@ -265,13 +298,15 @@ An archive with point-lookup indexes (`pulse index build archive.pulse`)
 keeps them in step through `add` and `remove`
 (`internal/service/index_upkeep.go`):
 
-- **Add builds before it publishes.** After the stage is finished but
-  before it is renamed, the new shard is scanned once from the stage and
+- **Add builds before it publishes.** Before the archive is written —
+  from an in-memory copy of the new shard's entry for an append, from
+  the finished stage for a rewrite — the new shard is scanned once and
   its sidecar for every archive index is written to
   `<sidecar>.pulse.tmp-staged`, with the updated manifest beside it. If
   any of that fails, the add returns the error and the archive, every
   sidecar and the manifest are left byte-identical. Otherwise the
-  archive is renamed, then each sidecar, then the manifest.
+  archive is appended to (or renamed), then each sidecar, then the
+  manifest is renamed.
 - **Remove touches only the removed shard.** The manifest without the
   shard's record is staged first; after the archive rename it is
   published and that shard's sidecars are deleted.
@@ -317,6 +352,8 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `internal/service/shard_compact.go` | `compact` |
 | `internal/service/index_upkeep.go` | Point-lookup index upkeep on `add` / `remove` (build before publish) |
+| `internal/encoding/archive_append.go` | The hand-written Zip64 tail writer: `ReadArchiveDirectory`, `ArchiveAppender` |
+| `internal/service/shard_append.go` | The in-place tail append of an ordinary `add` |
 | `internal/service/shard_stream.go` | The streaming archive writer (staged file, raw copy, sweep, fsync + rename + directory fsync) shared by every mutation |
 | `internal/service/shard_verify.go` | `verify` |
 | `internal/service/anchor_overlay.go` | Anchor-syntax overlay |

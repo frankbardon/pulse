@@ -12,8 +12,10 @@ import (
 
 // ShardCommand returns the `pulse shard` command group covering
 // archive create / add / remove / list / compact / verify / extract.
-// Shard mutations use the atomic temp+rename pattern so partial writes
-// never appear at the canonical archive path.
+// An ordinary `shard add` appends to the archive's tail in place (a
+// failed write is truncated back); every other mutation uses the atomic
+// temp+rename pattern so partial writes never appear at the canonical
+// archive path.
 func ShardCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "shard",

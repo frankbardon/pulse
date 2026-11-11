@@ -2392,6 +2392,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_APPEND_REFUSED: {
+		Message: "`shard add` could not open the archive for writing to append the new shard in place, or the archive changed between the add's read and its write; nothing was written and the archive is byte-identical.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"--rewrite"},
+				Hint:   "Re-run `pulse shard add --rewrite`: it streams a new archive into a staged file beside the original and renames it over, so it never opens the archive for writing. Or make the archive writable — clear a read-only flag or mount, or close the other process holding it (on Windows a reader that opened it without write sharing refuses the append). `details.reason` is `open_for_write` or `archive_changed`, `details.cause` the underlying error.",
+			},
+		},
+	},
 	PULSE_SHARD_COUNT_LIMIT: {
 		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
 		Fixups: []Fixup{

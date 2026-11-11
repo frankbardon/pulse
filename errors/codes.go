@@ -1632,6 +1632,17 @@ const (
 	// limit, row), nothing written.
 	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
 
+	// PULSE_SHARD_APPEND_REFUSED indicates `shard add` could not open the
+	// archive for writing to append the new shard to its tail — the
+	// in-place append writes the archive itself, so a read-only file or
+	// filesystem, or (Windows) another process holding the archive without
+	// write sharing, refuses it — or the archive changed between the add's
+	// read and its write. Nothing was written: the archive is
+	// byte-identical. details: archive, shard, reason
+	// ("open_for_write" | "archive_changed"), cause. The whole-archive
+	// rewrite (`--rewrite`) stages a new file and renames it instead.
+	PULSE_SHARD_APPEND_REFUSED Code = "PULSE_SHARD_APPEND_REFUSED"
+
 	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
 	// when `pulse shard add` / `shard remove` keeps the archive's
 	// point-lookup indexes in step: an add builds the new shard's sidecar
@@ -4949,6 +4960,7 @@ var allCodes = []Code{
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_SHARD_COUNT_LIMIT,
+	PULSE_SHARD_APPEND_REFUSED,
 	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,

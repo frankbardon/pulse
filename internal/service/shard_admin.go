@@ -32,29 +32,40 @@ import (
 // a cheap append. A union above the widest rung has nowhere to go and
 // stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
 //
-// Streaming rewrite: the archive is opened by random access (central
-// directory + `_schema.pulse`), the aggregate is summed header-only
-// (PeekShardRecordCount), and a new archive is streamed into a staged
-// file beside the original (archiveWriter) — the refreshed
-// `_schema.pulse`, every stored shard copied RAW with zip CreateRaw
-// from a SectionReader (no decode), then the new shard — and renamed
-// over it. Memory is O(the new shard), I/O O(the archive). Only when the
-// archive itself moves (an archive-level set widen, a constant-group
-// promotion) is each stored shard read, one at a time, and re-encoded
-// on its way into the stage. The rename is what makes the widen safe
-// without locking — concurrency is caller-owned by contract, and a
-// failure (or a crash) at any point before it leaves the original
-// archive byte-identical and openable rather than half-widened (which
-// would open, and decode every post-widen field at the wrong offset).
-// True in-place tail append is not done: it would give up exactly that
-// guarantee.
+// Tail append (shard_append.go, U73 #492): an ORDINARY add — no
+// archive-level widen, no constant-group promotion, so every stored
+// shard keeps its bytes — appends the new shard, a refreshed
+// `_schema.pulse` and a new zip64 central directory to the archive's
+// tail in place: bytes written are O(the new shard + the directory),
+// whatever the archive's size, and the superseded `_schema.pulse` and
+// directory stay behind as dead bytes (CompactShardArchive reclaims
+// them). A write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED,
+// nothing written.
+//
+// Streaming rewrite: when the archive itself moves (an archive-level set
+// widen, a constant-group promotion) — or its tail is a layout the
+// appender does not extend — the archive is opened by random access
+// (central directory + `_schema.pulse`), the aggregate is summed
+// header-only (PeekShardRecordCount), and a new archive is streamed into
+// a staged file beside the original (archiveWriter) — the refreshed
+// `_schema.pulse`, every stored shard (re-encoded one at a time on its
+// way into the stage when the archive moves, otherwise copied RAW with
+// zip CreateRaw from a SectionReader), then the new shard — and renamed
+// over it. Memory is O(the new shard), I/O O(the archive). The rename is
+// what makes the widen safe without locking — concurrency is
+// caller-owned by contract, and a failure (or a crash) at any point
+// before it leaves the original archive byte-identical and openable
+// rather than half-widened (which would open, and decode every
+// post-widen field at the wrong offset). That is why a widen or a
+// promotion never appends.
 //
 // Point-lookup indexes (index_upkeep.go): an ordinary add builds the new
 // shard's sidecar for every archive index and the updated index
 // manifest BEFORE the archive is published — any failure aborts the
 // whole add with the archive, every sidecar and the manifest untouched
-// — then renames the archive, the sidecars and the manifest, in that
-// order, with the mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
+// — then publishes the archive (the tail append, or the rename), then
+// renames the sidecars and the manifest, in that order, with the
+// mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
 // that re-encodes the stored shards keeps nothing and reports the
 // sidecars it invalidated (AddShardResult.InvalidatedSidecars).
 func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
@@ -151,6 +162,22 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	aggregate += uint64(n)
 	shardCount := stored.shardCount() + 1
 
+	// An ordinary add keeps every stored shard's bytes, so it appends to
+	// the archive's tail in place (shard_append.go); a tail the appender
+	// does not extend (prepended data, a multi-disk or trailing-bytes
+	// layout) takes the rewrite below, as does an archive holding a
+	// deflated entry (a third-party zip tool's), which the rewrite
+	// re-stores.
+	if m.rewrite == nil && allEntriesStored(a) {
+		dir, err := encx.ReadArchiveDirectory(a.ra, a.size)
+		if err == nil {
+			return s.appendShard(fsys, archivePath, a, dir, m, base, aggregate, shardCount, manifest, indexEntries, result)
+		}
+		if !encx.IsNotAppendable(err) {
+			return nil, err
+		}
+	}
+
 	w, err := newArchiveWriter(fsys, archivePath)
 	if err != nil {
 		return nil, err
@@ -182,7 +209,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	var upkeep *indexUpkeep
 	if manifest != nil {
 		if m.rewrite == nil {
-			upkeep, err = stageAddUpkeep(fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
+			upkeep, err = stageAddUpkeep(fsys, fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
 			if err != nil {
 				return nil, err
 			}
@@ -199,6 +226,17 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	}
 	result.ShardCount = shardCount
 	return result, nil
+}
+
+// allEntriesStored reports whether every entry of the archive is
+// store-only (Method 0).
+func allEntriesStored(a *archiveFile) bool {
+	for _, e := range a.arch.Entries() {
+		if !a.arch.IsStored(e.Name) {
+			return false
+		}
+	}
+	return true
 }
 
 // writeStoredShards streams every stored shard into w in archive order:

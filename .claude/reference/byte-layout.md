@@ -51,6 +51,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 37. Archive key-range prune — `key_min` / `key_max` (U73 #493)
 38. Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493)
 39. Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498)
+40. Shard add tail append — in place (U73 #492)
 
 ## Section map
 
@@ -60,6 +61,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3); Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
 | `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS… |
 | `byte-layout/archive-index.md` | Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage; Archive key-range prune — `key_min` / `key_max` (U73 #493); Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493); Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498) |
+| `byte-layout/archive-append.md` | Shard add tail append — in place (U73 #492): the appended entries and directory, Zip64, which adds rewrite instead, concurrent readers, `PULSE_SHARD_APPEND_REFUSED`, failure rollback, index upkeep from the in-memory twin |
 | `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran… |
 | `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, sidecar skip, collisions, the populations directory) |
 | `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |

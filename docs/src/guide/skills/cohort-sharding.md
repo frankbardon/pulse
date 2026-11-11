@@ -42,7 +42,7 @@ Materializing ops (percentile / median, quantile and date groupers, windows, dec
 
 ## Concurrency
 
-Mutations (and `cohort filter` output) stream into `<archive>.pulse.tmp-staged` (stored shards copied raw, memory O(one shard); `create` plans from headers), then fsync, rename, dir fsync: the original is untouched until the rename; the next mutation sweeps a crashed stage. `cohort filter --flatten` writes an archive's surviving rows as ONE single file: canonical (widened) schema, archive order; no predicate = pure flatten. No writer lock (two writers race, last wins), no read snapshot: the caller owns single-writer. `add` / `remove` keep archive indexes in step ([`cohort-sidecar-index`](cohort-sidecar-index.md)).
+A plain `add` appends in place (dead bytes until `compact`; refused write-open: `PULSE_SHARD_APPEND_REFUSED`). Other mutations (and `cohort filter` output) stream into `<archive>.pulse.tmp-staged` (shards copied raw; `create` plans from headers), then fsync + rename; the next mutation sweeps crashed stages. `cohort filter --flatten` writes an archive's surviving rows as ONE single file: canonical (widened) schema, archive order; no predicate = pure flatten. No writer lock (last writer wins): callers own single-writer. `add` / `remove` keep archive indexes in step ([`cohort-sidecar-index`](cohort-sidecar-index.md)).
 
 ## Moving a cohort (transport-only compression)
 

@@ -3105,11 +3105,18 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // archive's canonical schema and appends it. Dict growth that the
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
-// The new archive is streamed into a staged file beside the original
-// (stored shards copied raw, never decoded; memory O(the new shard)) and
-// published by fsync + rename + directory fsync, so the original stays
-// byte-identical until the rename and a crashed stage is swept by the
-// next mutation.
+// An ordinary add appends in place: the new shard, a refreshed
+// `_schema.pulse` and a new Zip64 central directory are written past the
+// archive's old end (bytes written O(the new shard + the directory); the
+// superseded entries stay as dead bytes until CompactShardArchive). A
+// write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED with
+// nothing written; a failed write truncates the archive back. A reader
+// opened before the append keeps reading every shard it saw. An add
+// that moves the archive (below) instead streams a new archive into a
+// staged file beside the original (memory O(the new shard)) and
+// publishes it by fsync + rename + directory fsync, so the original
+// stays byte-identical until the rename and a crashed stage is swept by
+// the next mutation.
 //
 // A merged dictionary that outgrows a set_* field's bitmask WIDENS the
 // field across the canonical schema and every shard payload instead of

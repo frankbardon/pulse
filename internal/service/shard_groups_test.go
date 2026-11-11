@@ -373,7 +373,8 @@ func TestShardGroups_CreateUnionMergesGroupDictionaries(t *testing.T) {
 // TestShardGroups_CreateAndAddAgree: one rule, no asymmetry. For every
 // reconciliation this story defines, creating the archive from both
 // shards at once and creating it from the first then adding the second
-// produce the SAME archive bytes and the same warnings.
+// produce the SAME archive bytes (once the add's dead bytes are
+// compacted away) and the same warnings.
 func TestShardGroups_CreateAndAddAgree(t *testing.T) {
 	t.Parallel()
 
@@ -403,6 +404,11 @@ func TestShardGroups_CreateAndAddAgree(t *testing.T) {
 			added, err := svc.AddShard(ctx, "seq.pulse", "y/b.pulse")
 			if err != nil {
 				t.Fatalf("add: %v", err)
+			}
+			// An ordinary add appends in place; compacting drops the dead
+			// bytes it left, so the bytes compare like for like.
+			if err := svc.CompactShardArchive(ctx, "seq.pulse"); err != nil {
+				t.Fatal(err)
 			}
 			if !bytes.Equal(gReadFile(t, fsys, "both.pulse"), gReadFile(t, fsys, "seq.pulse")) {
 				t.Fatal("create and create+add produced different archives")
