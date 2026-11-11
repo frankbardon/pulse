@@ -266,6 +266,22 @@ reading a breach: [Tuning Limits](tuning-limits.md).
 p, err := pulse.New(pulse.Options{Limits: pulse.Limits{MaxGroups: 1_000_000}})
 ```
 
+### `ShardDistinctLimit int` / `DisableShardDistinct bool`
+
+Every shard archive write (create, add, remove, compact, `cohort filter`
+to an archive) records, per shard, the exact count of distinct values of
+each `u32`, `u64`, `date`, `datetime`, `f32` and `f64` field in the
+archive's `_schema.pulse`, so predict can bound grouper keys without
+reading records. `ShardDistinctLimit` caps the keys held per field per
+shard while counting: `0` means the default 4,194,304 (up to 64 MiB of
+keys per counted field, for the one shard being counted), past it the
+shard is recorded as "more than the cap", and a negative value fails
+`pulse.New` with `SERVICE_VALIDATION`. `DisableShardDistinct` records
+newly written shards as opted out and reads nothing to count them
+(create and compact then read each shard once). Single-file cohorts never
+carry counts. Detail: [Managing a Shard
+Archive](../internals/managing-shard-archives.md#per-shard-distinct-counts).
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
@@ -277,6 +293,7 @@ p, err := pulse.New(pulse.Options{Limits: pulse.Limits{MaxGroups: 1_000_000}})
 | `DisableDefaults` omitted     | Defaults enabled. |
 | `DisableCrosstabFusion` omitted | Fusion engages whenever the gate admits the crosstab. |
 | `DefaultTimeZone` omitted     | Zone-capable slots without `tz` / `time_zone` resolve to `UTC`. |
+| `ShardDistinctLimit` / `DisableShardDistinct` omitted | Archive writes count distinct values per shard, capped at 4,194,304 keys per field. |
 | `Limits` omitted              | Count limits at their high defaults; `RequestTimeout` and `MaxEstimatedMemory` unlimited. |
 | `FeatureProfile` / `FeatureProfileFile` omitted | No profile: every feature, byte-identical to a profile-free build. |
 

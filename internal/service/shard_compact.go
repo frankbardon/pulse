@@ -59,5 +59,29 @@ func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) e
 		}
 		kept.names = append(kept.names, e.Name)
 	}
-	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept)
+	// Distinct counts (U73 #500): every shard the prior trailer knows
+	// CARRIES its entry (its bytes are copied raw, unchanged), and every
+	// shard with an absent entry — an archive written before the DIST
+	// trailer, a shard an append carried from one, a field that became
+	// eligible — is counted now, off its raw stored bytes: compact is the
+	// BACKFILL.
+	// Opted out, an uncovered shard is recorded opted out instead.
+	prior := readPriorDistinct(a.arch)
+	pass := s.newDistinctPass(canonicalDoc.Schema)
+	fresh := map[string][]encx.DistinctCount{}
+	for _, name := range kept.names {
+		if prior.Known(name, pass.fields) {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		counts, err := pass.entry(a, name)
+		if err != nil {
+			return err
+		}
+		fresh[name] = counts
+	}
+	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, kept.names, prior, fresh)
+	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept, dist)
 }

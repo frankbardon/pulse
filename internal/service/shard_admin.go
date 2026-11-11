@@ -186,6 +186,20 @@ func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPat
 	aggregate += uint64(n)
 	shardCount := stored.shardCount() + 1
 
+	// Per-shard distinct counts (U73 #500): the arrival is counted from
+	// the bytes the archive will store; every stored shard CARRIES the
+	// prior trailer's entry (its words did not change — a widen or
+	// promotion re-lays-out records, never an eligible field's words),
+	// and a stored shard the prior trailer does not cover (an archive
+	// written before it) is recorded absent, never recounted here: the
+	// append reads no stored shard.
+	newCounts, err := s.newDistinctPass(m.canonical).count(bytes.NewReader(m.incoming), base)
+	if err != nil {
+		return nil, err
+	}
+	dist := encx.NextArchiveDistinct(m.canonical, append(append([]string(nil), stored.names...), base),
+		readPriorDistinct(a.arch), map[string][]encx.DistinctCount{base: newCounts})
+
 	// An ordinary add keeps every stored shard's bytes, so it appends to
 	// the archive's tail in place (shard_append.go); a tail the appender
 	// does not extend (prepended data, a multi-disk or trailing-bytes
@@ -198,7 +212,7 @@ func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPat
 		dir, err := encx.ReadArchiveDirectory(a.ra, a.size)
 		switch {
 		case err == nil:
-			schemaDoc, err := buildSchemaDocPayload(m.canonical, aggregate, shardCount, archivePath)
+			schemaDoc, err := buildSchemaDocPayload(m.canonical, aggregate, shardCount, dist, archivePath)
 			if err != nil {
 				return nil, err
 			}
@@ -220,7 +234,7 @@ func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPat
 		return nil, err
 	}
 	defer w.abort()
-	if err := w.writeSchemaDoc(m.canonical, aggregate, shardCount); err != nil {
+	if err := w.writeSchemaDoc(m.canonical, aggregate, shardCount, dist); err != nil {
 		return nil, err
 	}
 	if err := writeStoredShards(w, a, stored, m.rewrite); err != nil {
@@ -410,7 +424,10 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 		}
 		defer upkeep.abort()
 	}
-	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept); err != nil {
+	// The kept shards' bytes are copied raw: their distinct counts carry,
+	// the removed shard's entry drops with it.
+	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, kept.names, readPriorDistinct(a.arch), nil)
+	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept, dist); err != nil {
 		return nil, err
 	}
 	if upkeep != nil {
@@ -444,7 +461,7 @@ type RemoveShardResult struct {
 // share it. It closes a before the rename. Raw copies keep every stored
 // shard's bytes, size and CRC32, so the archive's point-lookup sidecars
 // stay valid for every kept shard.
-func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards) error {
+func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards, dist *encx.ArchiveDistinct) error {
 	aggregate, err := sumStoredRecords(kept)
 	if err != nil {
 		return err
@@ -454,7 +471,7 @@ func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canoni
 		return err
 	}
 	defer w.abort()
-	if err := w.writeSchemaDoc(canonical, aggregate, kept.shardCount()); err != nil {
+	if err := w.writeSchemaDoc(canonical, aggregate, kept.shardCount(), dist); err != nil {
 		return err
 	}
 	if err := writeStoredShards(w, a, kept, nil); err != nil {
@@ -701,12 +718,16 @@ func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 // encoding.ReservedSchemaName. A shard count past the u16 trailer field
 // is refused (PULSE_SHARD_COUNT_LIMIT), never truncated — the last line
 // of defence behind each writer's own up-front check.
-func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, archivePath string) ([]byte, error) {
+//
+// dist is the DIST trailer (per-shard distinct counts, U73 #500) every
+// Pulse archive writer records; this is the one place a `_schema.pulse`
+// is serialised, so every writer path carries one.
+func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, dist *encx.ArchiveDistinct, archivePath string) ([]byte, error) {
 	if err := checkArchiveShardCount(shardCount, archivePath); err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
-	if err := encx.WriteSchemaDoc(&buf, schema, agg, uint16(shardCount)); err != nil {
+	if err := encx.WriteSchemaDocDistinct(&buf, schema, agg, uint16(shardCount), dist); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

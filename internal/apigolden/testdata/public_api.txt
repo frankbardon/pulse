@@ -761,6 +761,7 @@ pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
 pulse: type Options field DisablePanicRecovery bool
 pulse: type Options field DisableProjection bool
+pulse: type Options field DisableShardDistinct bool
 pulse: type Options field EchoRequest bool
 pulse: type Options field Extensions pulse.Extensions
 pulse: type Options field FS github.com/spf13/afero.Fs
@@ -780,6 +781,7 @@ pulse: type Options field PopulationsDir string
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
+pulse: type Options field ShardDistinctLimit int
 pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
 pulse: type Options field SuppressAdvisories []string
@@ -6812,4 +6814,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1e599c91f00c2994d5b0a853e89a90e592699425d401c2dbe5c331d74ecae3d7
+// golden-hash: 619fab2a95d12a1bfe240fc9dc939549c8c6dd6b166fd6d5f2c41f8effa7b321

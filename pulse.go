@@ -371,6 +371,24 @@ type Options struct {
 	// --decode-workers flag.
 	DecodeWorkers int
 
+	// ShardDistinctLimit caps the keys a shard archive writer holds per
+	// field per shard while counting the exact distinct values it
+	// records in `_schema.pulse` (U73 #500; the DIST trailer: create,
+	// add, remove, compact and filter-to-file all write one). Counted
+	// fields are u32, u64, date, datetime, f32 and f64, on the stored
+	// bit pattern, nulls excluded. A shard's field with more distinct
+	// values than the cap is recorded as "more than the cap". Zero
+	// means the default, 4,194,304 (up to 64 MiB of keys per counted
+	// field, for the one shard being counted); negative values are
+	// rejected at New() time. Single-file cohorts never carry counts.
+	ShardDistinctLimit int
+
+	// DisableShardDistinct opts archive writers out of counting: the
+	// shards they write are recorded as opted out (distinct from a count
+	// that is merely unknown) and no record is read to count them —
+	// create and compact then read each shard once, not twice.
+	DisableShardDistinct bool
+
 	// DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
 	// Area/Location name such as "Europe/Berlin") that zone-capable
 	// request slots inherit when neither the slot's `tz` nor the
@@ -810,6 +828,9 @@ func New(opts Options) (*Pulse, error) {
 	if opts.DecodeWorkers < 0 {
 		return nil, argumentError("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
+	if opts.ShardDistinctLimit < 0 {
+		return nil, argumentError("pulse: ShardDistinctLimit must be >= 0 (0 means the default 4,194,304 keys per field per shard)")
+	}
 	effectiveLimits, err := resolveLimits(opts, featureProfile)
 	if err != nil {
 		return nil, err
@@ -878,6 +899,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
+	svc.SetShardDistinct(opts.ShardDistinctLimit, opts.DisableShardDistinct)
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)

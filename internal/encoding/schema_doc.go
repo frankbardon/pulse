@@ -51,6 +51,18 @@ type SchemaDoc struct {
 // where records would otherwise begin and a header-only reader
 // (`Inspect`) ignores them.
 func WriteSchemaDoc(w io.Writer, schema *encoding.Schema, agg uint64, shardCount uint16) error {
+	return WriteSchemaDocDistinct(w, schema, agg, shardCount, nil)
+}
+
+// WriteSchemaDocDistinct is WriteSchemaDoc followed by the DIST trailer
+// (shard_distinct.go) when dist is non-nil; a nil dist writes exactly
+// WriteSchemaDoc's bytes. dist must list shardCount shards.
+func WriteSchemaDocDistinct(w io.Writer, schema *encoding.Schema, agg uint64, shardCount uint16, dist *ArchiveDistinct) error {
+	if dist != nil && len(dist.Shards) != int(shardCount) {
+		return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"schema-doc distinct trailer lists a different shard count than SHRD",
+			map[string]any{"shard_count": shardCount, "trailer_shards": len(dist.Shards)})
+	}
 	// The canonical schema carries the version its content requires, like
 	// any shard payload — the SHRD trailer follows the (possibly
 	// extension-bearing) schema block either way.
@@ -69,6 +81,9 @@ func WriteSchemaDoc(w io.Writer, schema *encoding.Schema, agg uint64, shardCount
 		return errors.WrapCodedError(err, errors.ENCODING_IO,
 			"writing schema-doc shard count")
 	}
+	if dist != nil {
+		return writeDistinctTrailer(w, dist)
+	}
 	return nil
 }
 
@@ -78,14 +93,47 @@ func WriteSchemaDoc(w io.Writer, schema *encoding.Schema, agg uint64, shardCount
 // and silently skipped when absent — older `_schema.pulse` artifacts
 // or single-file cohorts addressed by mistake still parse cleanly,
 // returning AggregateRecordCount=0 and ShardCount=0.
+//
+// It never reads past SHRD: the DIST trailer (per-shard distinct counts)
+// that follows is invisible to it, as to every reader that predates the
+// trailer. ReadSchemaDocDistinct reads both.
 func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
+	doc, _, err := readSchemaDoc(r)
+	return doc, err
+}
+
+// ReadSchemaDocDistinct is ReadSchemaDoc plus the DIST trailer: the
+// per-shard, per-field distinct counts every archive writer records
+// (shard_distinct.go). A nil *ArchiveDistinct means the trailer is
+// absent — an archive written before it existed, a doc without SHRD, or
+// a trailer of a newer version than this reader. A truncated or
+// inconsistent trailer is ENCODING_INVALID; the schema doc itself is
+// unaffected (ReadSchemaDoc, which every data read path uses, never
+// looks at it), so a caller that only wants a bound may treat that error
+// as absent.
+func ReadSchemaDocDistinct(r io.Reader) (*SchemaDoc, *ArchiveDistinct, error) {
+	doc, hasSHRD, err := readSchemaDoc(r)
+	if err != nil || !hasSHRD {
+		return doc, nil, err
+	}
+	dist, err := readDistinctTrailer(r)
+	if err != nil {
+		return nil, nil, err
+	}
+	if dist != nil && len(dist.Shards) != int(doc.ShardCount) {
+		return nil, nil, distinctInvalid("shard count differs from SHRD", nil)
+	}
+	return doc, dist, nil
+}
+
+func readSchemaDoc(r io.Reader) (*SchemaDoc, bool, error) {
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	schema, err := encoding.ReadSchema(r, pulseVersion)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	// A grouped canonical schema is legal: every shard of the archive
 	// shares its group layout (ValidateGroupCohesion) and its row indices
@@ -102,26 +150,26 @@ func ReadSchemaDoc(r io.Reader) (*SchemaDoc, error) {
 	if perr != nil {
 		// Short tail is fine — metadata block is optional.
 		if perr == io.EOF || perr == io.ErrUnexpectedEOF {
-			return doc, nil
+			return doc, false, nil
 		}
-		return nil, errors.WrapCodedError(perr, errors.ENCODING_INVALID,
+		return nil, false, errors.WrapCodedError(perr, errors.ENCODING_INVALID,
 			"reading schema-doc extension marker")
 	}
 	if n != len(SchemaDocMagic) || !bytes.Equal(probe[:], SchemaDocMagic[:]) {
 		// Unknown trailing bytes — treat as absent metadata. Anything
 		// past the schema block in a sharding-naïve `_schema.pulse`
 		// belongs to records, which a header-only doc has none of.
-		return doc, nil
+		return doc, false, nil
 	}
 	if err := binary.Read(r, binary.LittleEndian, &doc.AggregateRecordCount); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+		return nil, false, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema-doc aggregate record count")
 	}
 	if err := binary.Read(r, binary.LittleEndian, &doc.ShardCount); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+		return nil, false, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema-doc shard count")
 	}
-	return doc, nil
+	return doc, true, nil
 }
 
 // PeekShardRecordCount opens the named entry, reads its Pulse header

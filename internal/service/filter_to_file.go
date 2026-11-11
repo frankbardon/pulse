@@ -690,7 +690,21 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 
 	// Rebuild the archive: refreshed _schema.pulse trailer (aggregate +
 	// shard_count), then each filtered shard streamed off the spool.
-	if err := w.writeSchemaDoc(canonicalSchema, uint64(totalWritten), len(out)); err != nil {
+	// Distinct counts (U73 #500): every filtered shard is new bytes, so
+	// each is counted fresh off the spool.
+	pass := s.newDistinctPass(canonicalSchema)
+	names := make([]string, len(out))
+	fresh := make(map[string][]encx.DistinctCount, len(out))
+	for i, sh := range out {
+		names[i] = sh.name
+		counts, err := pass.count(io.NewSectionReader(spool.f, sh.off, sh.len), sh.name)
+		if err != nil {
+			return 0, err
+		}
+		fresh[sh.name] = counts
+	}
+	dist := encx.NextArchiveDistinct(canonicalSchema, names, nil, fresh)
+	if err := w.writeSchemaDoc(canonicalSchema, uint64(totalWritten), len(out), dist); err != nil {
 		return 0, err
 	}
 	for _, sh := range out {

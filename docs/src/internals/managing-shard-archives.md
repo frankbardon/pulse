@@ -264,6 +264,31 @@ The writer is `internal/encoding/archive_append.go`; its bytes are the
 ones `zip.Writer` writes for the same entries. Layout contract:
 `.claude/reference/byte-layout/archive-append.md`.
 
+## Per-shard distinct counts
+
+Every write — create, add, remove, compact and `cohort filter` to an
+archive — records in `_schema.pulse`, after the SHRD trailer, the exact
+number of distinct values per shard for each `u32`, `u64`, `date`,
+`datetime`, `f32` and `f64` field (on the stored bit pattern, so `+0` /
+`−0` and distinct NaN payloads count separately; nulls excluded). Predict
+reads them to bound a grouper's keys without touching a record. Older
+readers ignore the trailer, and single-file cohorts carry nothing.
+
+- **Fresh vs carried.** Create counts every include (each is read twice:
+  once to count, once to copy). Add counts the arriving shard and carries
+  every stored shard's counts; remove carries the kept shards'. A shard
+  from an archive written before the counts existed stays *absent* (no
+  bound) until `pulse shard compact`, which counts every shard whose
+  counts are absent.
+- **Cap and opt-out.** `pulse.Options.ShardDistinctLimit` caps the keys
+  held per field per shard (default 4,194,304 — up to 64 MiB per counted
+  field, for one shard at a time); past it the shard records "more than
+  the cap". `Options.DisableShardDistinct` records new shards as opted
+  out and reads nothing to count them.
+
+Layout contract: `.claude/reference/byte-layout/archive-append.md`
+("Per-shard distinct counts").
+
 ## The rewrite contract
 
 `create`, a widening, promoting, dead-byte-fallback or `--rewrite`

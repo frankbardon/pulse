@@ -302,9 +302,11 @@ func sweepStagedArchives(fsys afero.Fs, dst string) {
 	}
 }
 
-// writeSchemaDoc writes the reserved `_schema.pulse` entry.
-func (w *archiveWriter) writeSchemaDoc(schema *encoding.Schema, aggregate uint64, shardCount int) error {
-	payload, err := buildSchemaDocPayload(schema, aggregate, shardCount, w.dst)
+// writeSchemaDoc writes the reserved `_schema.pulse` entry, its DIST
+// trailer carrying dist (the per-shard distinct counts, one entry per
+// shard the archive will hold).
+func (w *archiveWriter) writeSchemaDoc(schema *encoding.Schema, aggregate uint64, shardCount int, dist *encx.ArchiveDistinct) error {
+	payload, err := buildSchemaDocPayload(schema, aggregate, shardCount, dist, w.dst)
 	if err != nil {
 		return err
 	}

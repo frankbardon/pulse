@@ -44,6 +44,12 @@ type Service struct {
 	// regardless of this knob.
 	shardWorkers int
 
+	// distinctLimit / distinctDisabled steer the per-shard distinct
+	// counts every archive writer records (shard_distinct.go): the
+	// per-field key cap (0 = encx.DefaultDistinctLimit) and the opt-out.
+	distinctLimit    int
+	distinctDisabled bool
+
 	// limits is the instance's effective resource limits, installed by
 	// pulse.New through SetLimits. Nil: the built-in defaults.
 	limits *limits.Limits
