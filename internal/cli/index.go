@@ -193,7 +193,7 @@ func indexListCmd() *cli.Command {
 // indexVerifyOutput is the JSON-envelope shape for a successful
 // `pulse index verify`. Reason is the string form of
 // service.IndexFreshnessReason ("stat_mismatch" / "fingerprint_match" /
-// "fingerprint_mismatch" / archive-only "range_mismatch"); FastPath mirrors
+// "fingerprint_mismatch" / archive-only "range_mismatch" / "bloom_stale"); FastPath mirrors
 // service.VerifyIndexResult.FastPath — true only when Reason ==
 // "stat_mismatch" (the size comparison alone was conclusive).
 // ModTimeDrift mirrors service.VerifyIndexResult.ModTimeDrift and is
@@ -207,11 +207,13 @@ type indexVerifyOutput struct {
 	Reason       string   `json:"reason"`
 	FastPath     bool     `json:"fast_path"`
 	ModTimeDrift bool     `json:"modtime_drift,omitempty"`
-	// ShardsUncovered / ShardsMismatched / ShardsRangeMismatched mirror the archive-only
+	// ShardsUncovered / ShardsMismatched / ShardsRangeMismatched /
+	// ShardsBloomStale mirror the archive-only
 	// service.VerifyIndexResult fields (additive, omitempty).
 	ShardsUncovered       []string `json:"shards_uncovered,omitempty"`
 	ShardsMismatched      []string `json:"shards_mismatched,omitempty"`
 	ShardsRangeMismatched []string `json:"shards_range_mismatched,omitempty"`
+	ShardsBloomStale      []string `json:"shards_bloom_stale,omitempty"`
 }
 
 func indexVerifyCmd() *cli.Command {
@@ -263,6 +265,7 @@ func indexVerifyCmd() *cli.Command {
 				ShardsUncovered:       res.ShardsUncovered,
 				ShardsMismatched:      res.ShardsMismatched,
 				ShardsRangeMismatched: res.ShardsRangeMismatched,
+				ShardsBloomStale:      res.ShardsBloomStale,
 			}
 
 			if jsonOut {

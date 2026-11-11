@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -59,6 +60,20 @@ const (
 	// `pulse index build` rewrites the manifest. Never reached for a
 	// single-file cohort.
 	IndexFreshnessReasonRangeMismatch IndexFreshnessReason = "range_mismatch"
+
+	// IndexFreshnessReasonBloomStale indicates, for a shard archive
+	// whose every shard is covered, hashes to its sidecar's fingerprint
+	// and records a matching key range, that a shard's Bloom sidecar
+	// (".bloom" beside its ".idx") is not byte for byte the filter its
+	// sidecar's keys build for the covered shard's identity — damaged,
+	// left over from other shard bytes, or written by another build. A
+	// lookup re-checks the identity and probes on a mismatch, but a
+	// damaged filter stamped with the right identity could hide a match,
+	// so the index is reported stale and VerifyIndexResult.ShardsBloomStale
+	// names the shards. A missing Bloom is never stale (it prunes
+	// nothing). `pulse index build` rewrites it. Never reached for a
+	// single-file cohort.
+	IndexFreshnessReasonBloomStale IndexFreshnessReason = "bloom_stale"
 )
 
 // VerifyIndexResult is the outcome of Service.VerifyIndex: whether the
@@ -114,6 +129,13 @@ type VerifyIndexResult struct {
 	// outranks it. A shard record with no range is never listed. Nil
 	// for a single-file cohort.
 	ShardsRangeMismatched []string
+
+	// ShardsBloomStale names, for a shard archive, every covered shard
+	// whose Bloom sidecar is present but differs from the filter its
+	// sidecar's keys build (IndexFreshnessReasonBloomStale, outranked by
+	// a fingerprint or range mismatch), in archive order. A shard with
+	// no Bloom sidecar is never listed. Nil for a single-file cohort.
+	ShardsBloomStale []string
 }
 
 // VerifyIndex reports whether the sidecar point-lookup index built for
@@ -267,7 +289,7 @@ func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []
 			Reason: IndexFreshnessReasonStatMismatch, FastPath: true, ShardsUncovered: uncovered}, nil
 	}
 
-	var mismatched, rangeMismatched []string
+	var mismatched, rangeMismatched, bloomStale []string
 	for k, cov := range covered {
 		sect, err := a.storedShard(cov.Name)
 		if err != nil {
@@ -280,12 +302,15 @@ func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []
 		if fp != metas[k].Fingerprint {
 			mismatched = append(mismatched, cov.Name)
 		}
-		ok, err := shardKeyRangeMatches(fsys, filepath.Join(dir, cov.IndexPath), cov)
+		rangeOK, bloomOK, err := shardPruneDataMatches(fsys, filepath.Join(dir, cov.IndexPath), cov)
 		if err != nil {
 			return nil, err
 		}
-		if !ok {
+		if !rangeOK {
 			rangeMismatched = append(rangeMismatched, cov.Name)
+		}
+		if !bloomOK {
+			bloomStale = append(bloomStale, cov.Name)
 		}
 	}
 	reason := IndexFreshnessReasonFingerprintMatch
@@ -294,24 +319,47 @@ func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []
 		reason = IndexFreshnessReasonFingerprintMismatch
 	case len(rangeMismatched) > 0:
 		reason = IndexFreshnessReasonRangeMismatch
+	case len(bloomStale) > 0:
+		reason = IndexFreshnessReasonBloomStale
 	}
-	return &VerifyIndexResult{IndexPath: indexPath, Fresh: len(mismatched) == 0 && len(rangeMismatched) == 0,
-		Reason: reason, ShardsMismatched: mismatched, ShardsRangeMismatched: rangeMismatched}, nil
+	return &VerifyIndexResult{IndexPath: indexPath, Fresh: len(mismatched) == 0 && len(rangeMismatched) == 0 && len(bloomStale) == 0,
+		Reason: reason, ShardsMismatched: mismatched, ShardsRangeMismatched: rangeMismatched, ShardsBloomStale: bloomStale}, nil
 }
 
-// shardKeyRangeMatches reports whether the key range a shard's manifest
-// record carries (key_min / key_max) is exactly the range of the keys
-// in its sidecar. A record with no range matches trivially: it prunes
+// shardPruneDataMatches checks a covered shard's lookup prune data
+// against its sidecar: rangeOK when the key range its manifest record
+// carries (key_min / key_max) is exactly the range of the sidecar's
+// keys, bloomOK when its Bloom sidecar is byte for byte the filter
+// those keys build for the record's identity. A record with no range,
+// or a shard with no Bloom sidecar, matches trivially: it prunes
 // nothing, so it cannot cause a miss. Reading the whole sidecar is the
 // price of the check; a lookup never pays it.
-func shardKeyRangeMatches(fsys afero.Fs, sidecar string, cov encx.IndexManifestShard) (bool, error) {
-	if len(cov.KeyMin) == 0 && len(cov.KeyMax) == 0 {
-		return true, nil
+func shardPruneDataMatches(fsys afero.Fs, sidecar string, cov encx.IndexManifestShard) (rangeOK, bloomOK bool, err error) {
+	bloomPath := encx.ShardBloomPathFor(sidecar)
+	bloomRaw, err := afero.ReadFile(fsys, bloomPath)
+	hasBloom := err == nil
+	if !hasBloom {
+		if exists, xerr := afero.Exists(fsys, bloomPath); xerr != nil || exists {
+			return false, false, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("reading shard Bloom sidecar: %s", bloomPath))
+		}
+	}
+	hasRange := len(cov.KeyMin) > 0 || len(cov.KeyMax) > 0
+	if !hasRange && !hasBloom {
+		return true, true, nil
 	}
 	idx, err := encx.ReadIndexFile(fsys, sidecar)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
-	keyMin, keyMax := encx.IndexKeyRange(idx.Keys, idx.Buckets)
-	return slices.Equal(keyMin, cov.KeyMin) && slices.Equal(keyMax, cov.KeyMax), nil
+	rangeOK, bloomOK = true, true
+	if hasRange {
+		keyMin, keyMax := encx.IndexKeyRange(idx.Keys, idx.Buckets)
+		rangeOK = slices.Equal(keyMin, cov.KeyMin) && slices.Equal(keyMax, cov.KeyMax)
+	}
+	if hasBloom {
+		e := encx.ArchiveEntry{Name: cov.Name, Size: cov.Size, CRC32: cov.CRC32}
+		bloomOK = bytes.Equal(bloomRaw, encx.MarshalShardBloom(encx.ShardBloomFromBuckets(e, idx.Keys, idx.Buckets)))
+	}
+	return rangeOK, bloomOK, nil
 }

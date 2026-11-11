@@ -1353,6 +1353,7 @@ pulse: type VerifyIndexResult field Fresh bool
 pulse: type VerifyIndexResult field IndexPath string
 pulse: type VerifyIndexResult field ModTimeDrift bool
 pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshnessReason
+pulse: type VerifyIndexResult field ShardsBloomStale []string
 pulse: type VerifyIndexResult field ShardsMismatched []string
 pulse: type VerifyIndexResult field ShardsRangeMismatched []string
 pulse: type VerifyIndexResult field ShardsUncovered []string
@@ -6791,4 +6792,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0978561fa25d4e1bd382a58cb8c18b71f44ac94194c3d30ea22387290d277595
+// golden-hash: 788cc6926501e01bf13555c765078990f83167b98461d0a6794e3c00b9135201

@@ -185,6 +185,19 @@ sidecar, and also checks each recorded range against its sidecar's
 keys (`ShardsRangeMismatched`, reason `range_mismatch`) — a wrong
 range could hide a match.
 
+**Bloom pruning.** Beside each shard sidecar the build also writes a
+Bloom filter (`archive.pulse#shard.pulse.<keyhash>.bloom`, about 10
+bits per distinct key, ~1% false positives) stamped with the shard's
+name, size and CRC32. After the range check, a lookup skips a shard
+whose filter says the key is not there — again without opening its
+sidecar — so a key that falls inside many shards' ranges but lives in
+few opens only those few (or one in a hundred extra). A filter never
+hides a key that is present. A missing filter, a damaged one, or one
+stamped with other shard bytes is ignored and the shard is probed.
+`VerifyIndex` rebuilds each filter from its sidecar and reports one
+that differs (`ShardsBloomStale`, reason `bloom_stale`); `DropIndex`
+removes the filters; shard add and remove keep them in step.
+
 `AddShard` and `RemoveShard` keep every archive index in step. An add
 builds the new shard's sidecar for each index and the updated manifest
 (the new shard's record carries its key range)

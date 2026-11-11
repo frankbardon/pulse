@@ -18,9 +18,10 @@ import (
 //
 //   - an ordinary add (stored shards copied raw) builds the NEW shard's
 //     sidecar for every archive index — O(new shard), one scan for all
-//     indexes — and appends its record to each entry;
+//     indexes, each with its Bloom sidecar — and appends its record to
+//     each entry;
 //   - a remove drops the removed shard's record from each entry and
-//     deletes its sidecar, touching no other file;
+//     deletes its sidecar and Bloom sidecar, touching no other file;
 //   - an add that re-encodes the stored shards (an archive-level set
 //     widen, a constant-group promotion) maintains nothing: every stored
 //     shard's CRC32 moves, so each per-shard sidecar is reported
@@ -205,6 +206,14 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 		if err := encx.WriteIndexFile(fsys, sf.stage, idx); err != nil {
 			return nil, err
 		}
+		// The shard's Bloom sidecar rides the same stage / publish as its
+		// index sidecar, renamed right after it.
+		bloomFinal := encx.ShardBloomPathFor(final)
+		bf := stagedFile{stage: upkeepStagePath(bloomFinal), final: bloomFinal}
+		u.sidecars = append(u.sidecars, bf)
+		if err := encx.WriteShardBloomFile(fsys, bf.stage, encx.ShardBloomFromBuckets(e, keys[j], buckets)); err != nil {
+			return nil, err
+		}
 		rec := shardManifestRecord(e, filepath.Base(final), keys[j], buckets)
 		// A record already under this name (a shard removed by a path
 		// that did not keep the index) describes other bytes: replace it.
@@ -255,9 +264,9 @@ func stageRemoveUpkeep(fsys afero.Fs, archivePath, shard string, manifest *encx.
 			continue
 		}
 		sidecar := filepath.Join(dir, gone.IndexPath)
-		u.remove = append(u.remove, sidecar)
+		u.remove = append(u.remove, sidecar, encx.ShardBloomPathFor(sidecar))
 		if derived := encx.ArchiveShardIndexPath(archivePath, shard, entry.KeyNames()); derived != sidecar {
-			u.remove = append(u.remove, derived)
+			u.remove = append(u.remove, derived, encx.ShardBloomPathFor(derived))
 		}
 		entry.DistinctKeys -= gone.DistinctKeys
 		entry.IndexedRecords -= gone.IndexedRecords

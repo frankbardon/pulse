@@ -84,7 +84,7 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 **Shard archive variant.** A `.pulse` path may instead be an uncompressed Zip64 **shard archive** (zip magic `PK\x03\x04`, dispatched at `pulse.Open`; a reserved `_schema.pulse` entry + N ≤ 65535 shards, more is `PULSE_SHARD_COUNT_LIMIT`); `.pulse.zst` is transport-only. Set fields WIDEN across shards; nullability never does (`dimension: "nullable"` refusals). Every archive rewrite is atomic with a MANDATORY warning.
 
-**Contract: `.claude/reference/byte-layout.md` — load first; its "The always-load half, long form" paragraph is this section's long form. Each fails SILENTLY when got wrong:** the sidecar point-lookup index + manifest + shard key ranges, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
+**Contract: `.claude/reference/byte-layout.md` — load first; its "The always-load half, long form" paragraph is this section's long form. Each fails SILENTLY when got wrong:** the point-lookup index + manifest + shard ranges / Blooms, the SPSS metadata sidecar (`cohort.pulse.spss.json`), SPSS derived columns / export / convert, target-aware export predict, default-on projected buffered decode.
 
 ### Smart defaults
 

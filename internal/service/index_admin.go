@@ -193,7 +193,7 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 // On a shard archive the drop removes the manifest entry and every
 // per-shard sidecar: the ones the entry names plus the derived sidecar
 // path of every current shard (so a sidecar an earlier build left for a
-// shard is not orphaned). PULSE_INDEX_MISSING only when there was
+// shard is not orphaned), each with its Bloom sidecar. PULSE_INDEX_MISSING only when there was
 // neither an entry nor any such file.
 func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string) error {
 	if len(keyFields) == 0 {
@@ -321,6 +321,10 @@ func dropArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []st
 	}
 	for _, sh := range cohort.Shards() {
 		add(encx.ArchiveShardIndexPath(path, sh.Filename, keyFields))
+	}
+	// Every sidecar's Bloom sidecar goes with it.
+	for _, p := range append([]string(nil), sidecars...) {
+		add(encx.ShardBloomPathFor(p))
 	}
 
 	removed := false

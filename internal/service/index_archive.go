@@ -26,12 +26,16 @@ import (
 //     listing every COVERED shard by name + size + zip-central-directory
 //     CRC32 (encx.IndexManifestShard). The identity is never a bare
 //     name: a same-name replacement moves its CRC32. Each record also
-//     carries the shard's indexed-key range (key_min / key_max).
+//     carries the shard's indexed-key range (key_min / key_max);
+//   - one Bloom sidecar per shard beside its sidecar (".idx" -> ".bloom",
+//     encx.ArchiveShardBloomPath) over the keys that sidecar holds,
+//     stamped with the same name + size + CRC32 identity.
 //
 // Nothing is stored inside the zip. A lookup reads the central
 // directory, refuses any shard the manifest does not cover
 // (PULSE_INDEX_STALE, details.shards_uncovered — never a silent miss),
-// skips every shard whose recorded key range excludes the key, fans
+// skips every shard whose recorded key range or fresh Bloom sidecar
+// excludes the key, fans
 // the probe out across the rest, unions the hits in archive
 // order and decodes each hit through its shard's section.
 
@@ -95,6 +99,9 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 		}
 		shardPath := encx.ArchiveShardIndexPath(path, name, keyFields)
 		if err := encx.WriteIndexFile(fsys, shardPath, idx); err != nil {
+			return err
+		}
+		if err := encx.WriteShardBloomFile(fsys, encx.ShardBloomPathFor(shardPath), encx.ShardBloomFromBuckets(e, keys, buckets)); err != nil {
 			return err
 		}
 		cover = append(cover, shardManifestRecord(e, filepath.Base(shardPath), keys, buckets))
@@ -285,9 +292,13 @@ type archiveHit struct {
 // recorded key range (manifest key_min / key_max) excludes the key is
 // skipped before its sidecar is opened — it cannot hold the key, so
 // skipping it never loses a match; a shard with no recorded range is
-// probed. A skipped shard's sidecar is therefore not checked here
-// (VerifyIndex checks every one, and checks each recorded range
-// against its sidecar).
+// probed. Then the shard's Bloom sidecar (encx.ShardBloomExcludes): a
+// present, well-formed filter stamped with the covered shard's exact
+// identity that answers "not present" skips the shard too — a Bloom
+// has no false negatives; a missing, damaged or stale filter means
+// probe. A skipped shard's sidecar is therefore not checked here
+// (VerifyIndex checks every one, and checks each recorded range and
+// Bloom against its sidecar).
 func lookupArchiveHits(fsys afero.Fs, a *archiveFile, cohort *Cohort, path string, keyFieldNames []string, keyFields []*encoding.Field, literals []string) ([]archiveHit, error) {
 	entry, err := archiveIndexEntry(fsys, path, keyFieldNames)
 	if err != nil {
@@ -322,6 +333,9 @@ func lookupArchiveHits(fsys afero.Fs, a *archiveFile, cohort *Cohort, path strin
 	var hits []archiveHit
 	for k, cov := range covered {
 		if rangeOK && cov.KeyRangeExcludes(keyOrder) {
+			continue
+		}
+		if encx.ShardBloomExcludes(fsys, filepath.Join(dir, encx.ShardBloomPathFor(cov.IndexPath)), cov, keyBytes) {
 			continue
 		}
 		rows, stale, err := probeShardSidecar(fsys, filepath.Join(dir, cov.IndexPath), cov.Size, len(literals), keyBytes)

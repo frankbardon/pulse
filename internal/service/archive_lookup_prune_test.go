@@ -21,7 +21,10 @@ import (
 // shard's indexed-key range, a lookup never opens the sidecar of a
 // shard whose range excludes the key and never loses a match by it, a
 // manifest without the ranges probes every shard, and VerifyIndex
-// checks each recorded range against its sidecar.
+// checks each recorded range against its sidecar. These tests isolate
+// the RANGE prune: setupPruneArchive deletes every per-shard Bloom
+// sidecar (a missing Bloom means probe); archive_lookup_bloom_test.go
+// pins the Bloom prune on top of it.
 
 // sidecarOpenFs counts Opens of archive shard sidecars.
 type sidecarOpenFs struct {
@@ -71,6 +74,32 @@ func (c *sidecarOpenFs) take(keys []string) []string {
 }
 
 func setupPruneArchive(t *testing.T) (*Service, afero.Fs, *sidecarOpenFs) {
+	t.Helper()
+	svc, fsys, counter := setupBloomArchive(t)
+	removeShardBlooms(t, fsys)
+	return svc, fsys, counter
+}
+
+// removeShardBlooms deletes every shard Bloom sidecar under the root.
+func removeShardBlooms(t *testing.T, fsys afero.Fs) {
+	t.Helper()
+	n := 0
+	for p := range snapshotFiles(t, fsys) {
+		if strings.HasSuffix(p, encx.ShardBloomSuffix) {
+			if err := fsys.Remove(p); err != nil {
+				t.Fatal(err)
+			}
+			n++
+		}
+	}
+	if n == 0 {
+		t.Fatal("fixture: no Bloom sidecar to remove")
+	}
+}
+
+// setupBloomArchive is the prune fixture with every Bloom sidecar the
+// build wrote left in place.
+func setupBloomArchive(t *testing.T) (*Service, afero.Fs, *sidecarOpenFs) {
 	t.Helper()
 	counter := &sidecarOpenFs{Fs: afero.NewMemMapFs()}
 	cfg, err := fs.New(fs.WithFs(counter))
