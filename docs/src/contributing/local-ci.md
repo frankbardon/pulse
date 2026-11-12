@@ -450,9 +450,13 @@ does not include the nested `internal/embeddersmoke` module. Fix a
 dependency finding with `go get <module>@<fixed>` and `go mod tidy`
 (in the root and in `internal/embeddersmoke`). Standard-library
 findings are judged against the running toolchain. CI's `"1.26"`
-floats to the latest patch, so locally run it under that patch too,
-for example `GOTOOLCHAIN=go1.26.10 make vulncheck`. A toolchain that
-is not the latest patch of its minor can report standard-library
+floats to the latest patch the `actions/go-versions` manifest lists,
+which can lag a Go security release by days; the `toolchain` line in
+`go.mod` (currently `go1.26.11`) is the floor, since `GOTOOLCHAIN=auto`
+switches any older 1.26 patch up to it. Fix a standard-library finding
+by raising that line to the fixed patch. Locally, run under the same
+patch, for example `GOTOOLCHAIN=go1.26.11 make vulncheck`. A toolchain
+that is not the latest patch of its minor can report standard-library
 findings that CI does not.
 
 **The release gate.** A tag push scans again. `release.yml` has its own
