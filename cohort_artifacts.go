@@ -20,6 +20,10 @@ import (
 //   - cohort.pulse.<keyhash>.idx — each sidecar point-lookup index
 //   - cohort.pulse.<keyhash>.blooms — a shard archive index's Bloom set
 //     (every shard's lookup filter, encx.ArchiveBloomSetPath)
+//   - cohort.pulse#<shard>.<keyhash>.idx — a shard archive index's
+//     per-shard sidecar (encx.ArchiveShardIndexPath), and
+//     cohort.pulse#<shard>.<keyhash>.bloom — the per-shard Bloom an
+//     index built before the Bloom set carries (encx.ArchiveShardBloomPath)
 //   - cohort.pulse.indexes.json  — the index discovery manifest
 //   - cohort.pulse.spss.json     — the SPSS metadata sidecar
 //   - cohort.pulse.meta.json     — the managed-import handle metadata
@@ -64,6 +68,9 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 		filepath.Base(encx.AppendJournalPath(cohort)): true, // .append
 	}
 	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}(\.idx|` + regexp.QuoteMeta(encx.ArchiveBloomSetSuffix) + `)$`)
+	// A shard archive's per-shard files: "<base>#<shard>.<keyhash>.idx"
+	// (and a legacy ".bloom"); the shard name is never empty.
+	shardName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `#.+\.[0-9a-f]{16}(\.idx|` + regexp.QuoteMeta(encx.ShardBloomSuffix) + `)$`)
 
 	entries, err := afero.ReadDir(p.fsys, dir)
 	if err != nil {
@@ -76,7 +83,7 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 			continue
 		}
 		name := e.Name()
-		if exact[name] || idxName.MatchString(name) {
+		if exact[name] || idxName.MatchString(name) || shardName.MatchString(name) {
 			// Every match starts with base: re-spell it as cohort + suffix
 			// (filepath.Join would rewrite a caller's a/c.pulse as a\c.pulse…
 			// on Windows and clean ./c.pulse to c.pulse…).

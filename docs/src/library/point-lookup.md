@@ -193,7 +193,7 @@ single read (one GET on object storage) however many shards are in
 play. An index built before that file existed keeps one
 `archive.pulse#shard.pulse.<keyhash>.bloom` per shard; a lookup still
 uses those when no `.blooms` file is present, and a rebuild (or the
-next shard add) moves them into one. After the range check, a lookup skips a shard
+next shard add) moves them into one and deletes them. After the range check, a lookup skips a shard
 whose filter says the key is not there — again without opening its
 sidecar — so a key that falls inside many shards' ranges but lives in
 few opens only those few (or one in a hundred extra). A filter never
@@ -203,7 +203,8 @@ stamped with other shard bytes is ignored and the shard is probed.
 that differs (`ShardsBloomStale`, reason `bloom_stale`; a `.blooms`
 file whose header is unreadable names every shard); `DropIndex`
 removes the filters; shard add and remove keep them in step;
-`CohortArtifacts` lists the `.blooms` file.
+`CohortArtifacts` lists the `.blooms` file and every per-shard sidecar
+(`archive.pulse#shard.pulse.<keyhash>.idx`, and a legacy `.bloom`).
 
 **Distinct keys across shards.** On an archive, `DistinctKeys` is the
 sum of the per-shard counts, so a key present in three shards counts

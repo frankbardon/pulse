@@ -219,8 +219,17 @@ func TestCohortArtifacts_ListsEveryKindSortedAndNothingElse(t *testing.T) {
 		"d/c.pulse.00112233aabbccdd.idx",
 		"d/c.pulse.ffffffffffffffff.idx",
 		"d/c.pulse.00112233aabbccdd.blooms",
+		// a shard archive's per-shard sidecar and a legacy per-shard Bloom
+		"d/c.pulse#s1.pulse.00112233aabbccdd.idx",
+		"d/c.pulse#s1.pulse.00112233aabbccdd.bloom",
 		// decoys
 		"d/c.pulse.0011.blooms",
+		"d/c.pulse#.00112233aabbccdd.idx",
+		"d/c.pulse#s1.pulse.0011.idx",
+		"d/c.pulse#s1.pulse.00112233aabbccdd.blooms",
+		"d/c.pulse#s1.pulse.00112233aabbccdd.idx.bak",
+		"d/c.pulse2#s1.pulse.00112233aabbccdd.idx",
+		"d/c.pulse#s1.pulse",
 		"d/c.pulse.00112233aabbccdd.bloom",
 		"d/c.pulse.bak",
 		"d/c.pulse.notahexhash00000.idx",
@@ -236,6 +245,8 @@ func TestCohortArtifacts_ListsEveryKindSortedAndNothingElse(t *testing.T) {
 		t.Fatalf("CohortArtifacts: %v", err)
 	}
 	want := []string{
+		"d/c.pulse#s1.pulse.00112233aabbccdd.bloom",
+		"d/c.pulse#s1.pulse.00112233aabbccdd.idx",
 		"d/c.pulse.00112233aabbccdd.blooms",
 		"d/c.pulse.00112233aabbccdd.idx",
 		"d/c.pulse.ffffffffffffffff.idx",

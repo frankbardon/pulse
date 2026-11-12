@@ -230,6 +230,14 @@ func stageAddUpkeep(fsys, src afero.Fs, archivePath, staged string, schema *enco
 		if err := u.stageBloomSet(setFinal, append(filters, encx.ShardBloomFromBuckets(e, keys[j], buckets))); err != nil {
 			return nil, err
 		}
+		// Once the set is published every per-shard ".bloom" (migrated
+		// above, or left by an older build) is superseded: deleted after
+		// the set and the manifest are renamed, best effort, as a
+		// rebuild does. A failed publish keeps them.
+		for _, sh := range kept {
+			u.remove = append(u.remove, encx.ArchiveShardBloomPath(archivePath, sh.Name, entry.KeyNames()))
+		}
+		u.remove = append(u.remove, encx.ArchiveShardBloomPath(archivePath, shard, entry.KeyNames()))
 		entry.Shards = append(kept, rec)
 		entry.DistinctKeys += rec.DistinctKeys
 		entry.IndexedRecords += rec.IndexedRecords

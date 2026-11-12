@@ -393,8 +393,9 @@ func TestArchiveLookupBloom_AddWritesBloomAndPrunes(t *testing.T) {
 // TestArchiveLookupBloom_LegacySidecarsStillPrune: an index built before
 // the set (per-shard ".bloom" sidecars only) prunes exactly as the set
 // does and answers as the twin; a shard-add migrates it into a set
-// carrying every kept shard's filter, and a rebuild supersedes the
-// per-shard sidecars.
+// carrying every kept shard's filter, deletes the migrated per-shard
+// sidecars and still answers as a twin holding the new shard's rows;
+// a rebuild supersedes any per-shard sidecar left.
 func TestArchiveLookupBloom_LegacySidecarsStillPrune(t *testing.T) {
 	t.Parallel()
 
@@ -425,6 +426,38 @@ func TestArchiveLookupBloom_LegacySidecarsStillPrune(t *testing.T) {
 	}
 	if opened := counter.take([]string{"id"}); len(opened) != 0 {
 		t.Errorf("after migration id 2 opened sidecars of %v, want none (a's migrated filter says no)", opened)
+	}
+	for _, keys := range bloomKeySets {
+		for _, sh := range []string{"a.pulse", "b.pulse", "c.pulse", "d.pulse", "e.pulse"} {
+			if ok, _ := afero.Exists(fsys, encx.ArchiveShardBloomPath("arch.pulse", sh, keys)); ok {
+				t.Errorf("migrating add left %s's per-shard Bloom sidecar for %v", sh, keys)
+			}
+		}
+	}
+	// The twin of the grown archive: every shard's rows, archive order.
+	arch, err := svc.Open(ctx, "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var all []archiveLookupRow
+	for _, sh := range archiveLookupShards {
+		all = append(all, sh.rows...)
+	}
+	all = append(all, archiveLookupRow{9, "west", 80}, archiveLookupRow{5, "north", 81})
+	writeArchiveLookupCohort(t, fsys, "twin2.pulse", arch.Schema(), all)
+	for _, keys := range bloomKeySets {
+		if _, err := svc.BuildIndex(ctx, "twin2.pulse", keys); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, r := range all {
+		v := strconv.FormatUint(r.id, 10)
+		for _, keys := range [][]types.LookupKey{lk("id", v), lk("region", r.region), lk("region", r.region, "id", v)} {
+			twin := lookupOutcome(t, svc, "twin2.pulse", keys, types.LookupMultiplicityAll)
+			if got := lookupOutcome(t, svc, "arch.pulse", keys, types.LookupMultiplicityAll); got != twin {
+				t.Errorf("after migration %v: archive = %s, twin = %s", keys, got, twin)
+			}
+		}
 	}
 
 	if _, err := svc.BuildIndex(ctx, "arch.pulse", []string{"id"}); err != nil {
