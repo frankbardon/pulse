@@ -452,8 +452,11 @@ dependency finding with `go get <module>@<fixed>` and `go mod tidy`
 findings are judged against the running toolchain. CI's `"1.26"`
 floats to the latest patch the `actions/go-versions` manifest lists,
 which can lag a Go security release by days; the `toolchain` line in
-`go.mod` (currently `go1.26.11`) is the floor, since `GOTOOLCHAIN=auto`
-switches any older 1.26 patch up to it. Fix a standard-library finding
+`go.mod` (currently `go1.26.11`) is the scan's toolchain: both
+`vulncheck` jobs (`ci.yml`, `release.yml`) install it with
+`go-version-file: go.mod`, because setup-go pins `GOTOOLCHAIN=local`
+and never auto-switches; locally `GOTOOLCHAIN=auto` switches any older
+1.26 patch up to it. Fix a standard-library finding
 by raising that line to the fixed patch. Locally, run under the same
 patch, for example `GOTOOLCHAIN=go1.26.11 make vulncheck`. A toolchain
 that is not the latest patch of its minor can report standard-library
