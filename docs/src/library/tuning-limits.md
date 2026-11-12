@@ -448,9 +448,12 @@ embedder's behalf and `pulse.Options` has no field for it:
   the process holds.
 - **The CLI** takes the global `--memory-limit` flag on every leaf,
   `pulse mcp` included, and applies it before the leaf runs: a byte size
-  as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`) or a share of physical
-  RAM (`85%`, read on darwin and linux; it is the host's RAM, not a
-  container's cgroup limit, so give a byte size inside a container). The
+  as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`) or a share of the
+  memory ceiling (`85%`, read on darwin and linux): physical RAM, lowered
+  on linux to the cgroup v2 `memory.max` (`/sys/fs/cgroup/memory.max`)
+  when that holds a byte count below it — so inside a 16 GiB container
+  on a larger host `85%` is 85% of 16 GiB; `max`, no cgroup v2 file or
+  a cgroup v1 host leave the RAM. The
   flag wins over `GOMEMLIMIT` when both are set. Unset, the runtime is
   untouched: no default, no RAM-derived value. Zero, a negative, more
   than `100%` or an unknown unit is a usage error (exit 2) carrying

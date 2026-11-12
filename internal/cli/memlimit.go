@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"math"
+	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -26,18 +28,50 @@ func MemoryLimitFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name: flagMemoryLimit,
 			Usage: "Go soft memory limit for the process (debug.SetMemoryLimit): a byte size as GOMEMLIMIT spells it " +
-				"(14GiB, 14000MiB; units B, KiB, MiB, GiB, TiB) or N% of physical RAM (85%). " +
+				"(14GiB, 14000MiB; units B, KiB, MiB, GiB, TiB) or N% of the memory ceiling (85%): physical RAM, " +
+				"or the cgroup v2 memory.max when that is smaller (a container's limit). " +
 				"Wins over GOMEMLIMIT; unset leaves the runtime untouched; a bad value is a usage error (CLI_INPUT).",
 		},
 	}
 }
 
 // setMemoryLimit and physicalMemory are the runtime seams
-// memoryLimitBefore uses.
+// memoryLimitBefore uses; cgroupMemoryMax is the cgroup limit reader
+// physicalMemory consults.
 var (
-	setMemoryLimit = debug.SetMemoryLimit
-	physicalMemory = hostPhysicalMemory
+	setMemoryLimit  = debug.SetMemoryLimit
+	physicalMemory  = func() (uint64, error) { return memoryCeiling(hostPhysicalMemory, cgroupMemoryMax) }
+	cgroupMemoryMax = func() ([]byte, error) { return os.ReadFile(cgroupMemoryMaxPath) }
 )
+
+// cgroupMemoryMaxPath is the cgroup v2 hard memory limit of the
+// process's own cgroup as a container sees it (the cgroup namespace
+// mounts it at the root). Absent off linux, on a cgroup v1 host and
+// outside a cgroup v2 mount.
+const cgroupMemoryMaxPath = "/sys/fs/cgroup/memory.max"
+
+// memoryCeiling is the base the --memory-limit N% form takes its share
+// of: the physical RAM ram reports, lowered to the cgroup v2 memory.max
+// cgroup reads when that file holds a byte count below it. "max" (no
+// limit), an unreadable or absent file and anything that is not a
+// byte count leave the RAM — inside a 16 GiB container on a larger
+// host, 85% is 85% of 16 GiB, not of the host. An unreadable RAM size
+// is an error (the cgroup alone never answers).
+func memoryCeiling(ram func() (uint64, error), cgroup func() ([]byte, error)) (uint64, error) {
+	total, err := ram()
+	if err != nil {
+		return 0, err
+	}
+	raw, err := cgroup()
+	if err != nil {
+		return total, nil
+	}
+	limit, err := strconv.ParseUint(string(bytes.TrimSpace(raw)), 10, 64)
+	if err != nil || limit >= total {
+		return total, nil
+	}
+	return limit, nil
+}
 
 // memoryLimitBefore applies --memory-limit. GlobalBefore runs it last,
 // so a refused run (this flag or any other global flag) never moves the
@@ -64,7 +98,7 @@ var memoryUnits = []struct {
 
 // parseMemoryLimit turns a --memory-limit value into a byte count: a
 // positive integer with an optional GOMEMLIMIT unit suffix, or N% (0 <
-// N <= 100) of the physical RAM ram reports. Anything else — zero, a
+// N <= 100) of the memory ceiling ram reports (memoryCeiling). Anything else — zero, a
 // negative, over 100%, an unknown unit, an overflow, an unreadable RAM
 // size — is CLI_INPUT {flag, value}.
 func parseMemoryLimit(s string, ram func() (uint64, error)) (int64, error) {
@@ -83,7 +117,7 @@ func parseMemoryLimit(s string, ram func() (uint64, error)) (int64, error) {
 			return math.MaxInt64, nil
 		}
 		if b < 1 {
-			return 0, memoryLimitError(s, "the percentage of physical RAM rounds to zero bytes")
+			return 0, memoryLimitError(s, "the percentage of the memory ceiling rounds to zero bytes")
 		}
 		return int64(b), nil
 	}
@@ -96,7 +130,7 @@ func parseMemoryLimit(s string, ram func() (uint64, error)) (int64, error) {
 	}
 	n, err := strconv.ParseInt(num, 10, 64)
 	if err != nil || n <= 0 || num[0] == '+' {
-		return 0, memoryLimitError(s, "want a positive byte size with an optional unit B, KiB, MiB, GiB or TiB (e.g. 14GiB), or N% of physical RAM")
+		return 0, memoryLimitError(s, "want a positive byte size with an optional unit B, KiB, MiB, GiB or TiB (e.g. 14GiB), or N% of the memory ceiling")
 	}
 	if n > math.MaxInt64>>shift {
 		return 0, memoryLimitError(s, "byte size overflows int64")

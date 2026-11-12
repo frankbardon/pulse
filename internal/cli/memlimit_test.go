@@ -3,8 +3,10 @@ package cli
 import (
 	stderrors "errors"
 	"math"
+	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"testing"
 
 	perrors "github.com/frankbardon/pulse/errors"
@@ -148,5 +150,64 @@ func TestMemoryLimitFlag_UnsetLeavesTheRuntimeAlone(t *testing.T) {
 		if got := debug.SetMemoryLimit(-1); got != math.MaxInt64 {
 			t.Errorf("%v: a refused run set the soft limit to %d", args, got)
 		}
+	}
+}
+
+// TestMemoryCeiling (memory-bounds E2-S2): the N% base is physical RAM,
+// lowered to a numeric cgroup v2 memory.max below it; "max", a missing
+// or unreadable file, junk, or a cgroup limit at or above the RAM leave
+// the RAM; an unreadable RAM size is an error even with a cgroup limit.
+func TestMemoryCeiling(t *testing.T) {
+	t.Parallel()
+
+	const host = 23<<30 + 440<<20 // a 23.4 GiB VM
+	ram := func() (uint64, error) { return host, nil }
+	file := func(s string) func() ([]byte, error) {
+		return func() ([]byte, error) { return []byte(s), nil }
+	}
+	missing := func() ([]byte, error) { return nil, os.ErrNotExist }
+	for _, c := range []struct {
+		name   string
+		cgroup func() ([]byte, error)
+		want   uint64
+	}{
+		{"16 GiB container", file("17179869184\n"), 16 << 30},
+		{"no limit", file("max\n"), host},
+		{"no cgroup v2 file", missing, host},
+		{"junk", file("lots\n"), host},
+		{"empty", file(""), host},
+		{"limit above RAM", file("99999999999999\n"), host},
+		{"limit equal to RAM", file(strconv.FormatUint(host, 10)), host},
+	} {
+		got, err := memoryCeiling(ram, c.cgroup)
+		if err != nil || got != c.want {
+			t.Errorf("%s: memoryCeiling = %d, %v; want %d", c.name, got, err, uint64(c.want))
+		}
+	}
+	noRAM := func() (uint64, error) { return 0, stderrors.New("unsupported") }
+	if _, err := memoryCeiling(noRAM, file("17179869184\n")); err == nil {
+		t.Error("an unreadable RAM size with a cgroup limit: no error")
+	}
+}
+
+// TestMemoryLimitPercent_ReadsTheCgroupLimit (memory-bounds E2-S2): the
+// N% form the flag parses is a share of the cgroup v2 memory.max when it
+// is below the host RAM — 50% inside a 1 GiB cgroup is 512 MiB, not half
+// the host. Darwin and linux only (elsewhere the RAM is unreadable and
+// the % form refused).
+//
+// Falsified by wiring physicalMemory back to hostPhysicalMemory.
+//
+// serial: swaps the package-level cgroupMemoryMax seam.
+func TestMemoryLimitPercent_ReadsTheCgroupLimit(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		return
+	}
+	orig := cgroupMemoryMax
+	t.Cleanup(func() { cgroupMemoryMax = orig })
+	cgroupMemoryMax = func() ([]byte, error) { return []byte("1073741824\n"), nil }
+	got, err := parseMemoryLimit("50%", physicalMemory)
+	if err != nil || got != 512<<20 {
+		t.Fatalf(`parseMemoryLimit("50%%") in a 1 GiB cgroup = %d, %v; want %d`, got, err, int64(512<<20))
 	}
 }
