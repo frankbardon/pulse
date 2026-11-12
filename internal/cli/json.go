@@ -213,9 +213,10 @@ func withRuntimeWarnings(env *descriptor.Envelope, result any) *descriptor.Envel
 
 // writeResultEnvelope is writeEnvelopeWithRequest for a result that
 // carries run-time warnings: they are promoted onto the envelope's
-// top-level `warnings` (withRuntimeWarnings).
+// top-level `warnings` (withRuntimeWarnings). The envelope is written
+// row by row (writeEnvelopeStreamed), byte-identical to writeJSON.
 func writeResultEnvelope(w io.Writer, result, request any) error {
-	return writeJSON(w, withRuntimeWarnings(descriptor.NewEnvelopeWithRequest(result, request), result))
+	return writeEnvelopeStreamed(w, withRuntimeWarnings(descriptor.NewEnvelopeWithRequest(result, request), result))
 }
 
 // writeStreamWarnings ends an NDJSON stream with one

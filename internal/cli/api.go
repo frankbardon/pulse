@@ -135,7 +135,7 @@ func apiProcessCmd() *cli.Command {
 				if echoRequest {
 					env.WithRequest(req)
 				}
-				return writeJSON(cmd.Writer, env)
+				return writeEnvelopeStreamed(cmd.Writer, env)
 			}
 
 			return writeJSON(cmd.Writer, resp)
