@@ -184,31 +184,38 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 // off its file, one that does is replayed through them (loadShard).
 func (s *Service) countCreateDistinct(ctx context.Context, sources *createShards, canonical *encoding.Schema) (*encx.ArchiveDistinct, error) {
 	pass := s.newDistinctPass(canonical)
-	names := make([]string, len(sources.src))
+	refs := make([]encx.DistinctShardRef, len(sources.src))
 	fresh := make(map[string][]encx.DistinctCount, len(sources.src))
 	for i, src := range sources.src {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		names[i] = src.name
+		// The identity recorded is the stored bytes' (U73 #720): the
+		// source's own when it is copied verbatim, learnt in the counting
+		// read; the replayed payload's otherwise. Opted out, nothing is
+		// read and the identity stays unknown (an opted-out entry claims
+		// nothing, so it needs none).
 		var (
 			counts []encx.DistinctCount
+			id     encx.ShardIdentity
 			err    error
 		)
 		if len(src.ops) == 0 || pass.disabled {
-			counts, err = pass.file(sources.fsys, src.path, src.name)
+			counts, id, err = pass.file(sources.fsys, src.path, src.name)
 		} else {
 			var payload []byte
 			if payload, err = sources.loadShard(i); err == nil {
+				id = encx.PayloadIdentity(payload)
 				counts, err = pass.count(bytes.NewReader(payload), src.name)
 			}
 		}
 		if err != nil {
 			return nil, err
 		}
+		refs[i] = encx.KeptShard(src.name, id)
 		fresh[src.name] = counts
 	}
-	return encx.NextArchiveDistinct(canonical, names, nil, fresh), nil
+	return encx.NextArchiveDistinct(canonical, refs, nil, fresh), nil
 }
 
 // createSource is one source of a streaming create: where it is, its

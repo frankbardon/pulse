@@ -3,6 +3,7 @@ package encoding
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"math"
 	"reflect"
 	"testing"
@@ -135,7 +136,8 @@ func sampleDistinct() *ArchiveDistinct {
 	return &ArchiveDistinct{
 		Fields: []DistinctField{{Name: "id", Type: encoding.FieldTypeU32}, {Name: "ts", Type: encoding.FieldTypeDateTime}},
 		Shards: []ShardDistinct{
-			{Name: "a.pulse", Counts: []DistinctCount{{DistinctExact, 3}, {DistinctOverLimit, 4 << 20}}},
+			{Name: "a.pulse", Identity: ShardIdentity{Known: true, Size: 1234, CRC32: 0xdeadbeef},
+				Counts: []DistinctCount{{DistinctExact, 3}, {DistinctOverLimit, 4 << 20}}},
 			{Name: "b.pulse", Counts: []DistinctCount{{DistinctOptedOut, 0}, {DistinctAbsent, 0}}},
 		},
 	}
@@ -279,21 +281,172 @@ func TestArchiveDistinct_FieldBoundAndCarry(t *testing.T) {
 		{Name: "ts", Type: encoding.FieldTypeDate},
 		{Name: "label", Type: encoding.FieldTypeU8},
 	}}
-	next := NextArchiveDistinct(canonical, []string{"b", "c", "a"}, d,
+	idA, idB := ShardIdentity{Known: true, Size: 10, CRC32: 1}, ShardIdentity{Known: true, Size: 20, CRC32: 2}
+	d.Shards[0].Identity, d.Shards[1].Identity = idA, idB
+	idC := ShardIdentity{Known: true, Size: 30, CRC32: 3}
+	moved := ShardIdentity{Known: true, Size: 10, CRC32: 9}
+	next := NextArchiveDistinct(canonical,
+		[]DistinctShardRef{KeptShard("b", idB), KeptShard("c", idC), {Name: "a", Current: idA, Stored: moved}}, d,
 		map[string][]DistinctCount{"c": {{DistinctExact, 1}, {DistinctExact, 2}}})
 	want := &ArchiveDistinct{
 		Fields: []DistinctField{{Name: "id", Type: encoding.FieldTypeU32}, {Name: "ts", Type: encoding.FieldTypeDate}},
 		Shards: []ShardDistinct{
-			{Name: "b", Counts: []DistinctCount{{DistinctExact, 5}, {}}},
-			{Name: "c", Counts: []DistinctCount{{DistinctExact, 1}, {DistinctExact, 2}}},
-			{Name: "a", Counts: []DistinctCount{{DistinctExact, 3}, {}}},
+			{Name: "b", Identity: idB, Counts: []DistinctCount{{DistinctExact, 5}, {}}},
+			{Name: "c", Identity: idC, Counts: []DistinctCount{{DistinctExact, 1}, {DistinctExact, 2}}},
+			// Carried from a's CURRENT identity, stamped with the STORED one.
+			{Name: "a", Identity: moved, Counts: []DistinctCount{{DistinctExact, 3}, {}}},
 		},
 	}
 	if !reflect.DeepEqual(next, want) {
 		t.Errorf("NextArchiveDistinct = %+v, want %+v", next, want)
 	}
 	canonical.Fields[0].Type = encoding.FieldTypeU64
-	if got := NextArchiveDistinct(canonical, []string{"a"}, d, nil).Shards[0].Counts[0]; got.Status != DistinctAbsent {
+	if got := NextArchiveDistinct(canonical, []DistinctShardRef{KeptShard("a", idA)}, d, nil).Shards[0].Counts[0]; got.Status != DistinctAbsent {
 		t.Errorf("a retyped field carried %+v", got)
 	}
 }
+
+// U73 #720: a carry is keyed on the shard's identity (size + CRC-32),
+// never its name alone. An entry whose identity differs from the bytes
+// the shard holds now (replaced outside Pulse under the same name), or
+// was never recorded (a version-1 trailer), is Stale: never carried,
+// never Known, never vouched for — while an absent or opted-out entry
+// claims nothing and stays carriable.
+func TestArchiveDistinct_IdentityGatesTheCarry(t *testing.T) {
+	t.Parallel()
+	id := ShardIdentity{Known: true, Size: 100, CRC32: 0xabc}
+	replaced := ShardIdentity{Known: true, Size: 100, CRC32: 0xabd}
+	fields := []DistinctField{{Name: "id", Type: encoding.FieldTypeU32}}
+	canonical := &encoding.Schema{Fields: []encoding.Field{{Name: "id", Type: encoding.FieldTypeU32}}}
+	d := &ArchiveDistinct{Fields: fields, Shards: []ShardDistinct{
+		{Name: "exact", Identity: id, Counts: []DistinctCount{{DistinctExact, 7}}},
+		{Name: "noid", Counts: []DistinctCount{{DistinctExact, 7}}},
+		{Name: "over", Identity: id, Counts: []DistinctCount{{DistinctOverLimit, 4}}},
+		{Name: "opted", Counts: []DistinctCount{{DistinctOptedOut, 0}}},
+	}}
+
+	for _, c := range []struct {
+		shard string
+		cur   ShardIdentity
+		stale bool
+	}{
+		{"exact", id, false},
+		{"exact", replaced, true},
+		{"exact", ShardIdentity{}, true},
+		{"noid", id, true},
+		{"over", replaced, true},
+		{"opted", replaced, false},
+		{"missing", id, false},
+	} {
+		if got := d.Stale(c.shard, c.cur); got != c.stale {
+			t.Errorf("Stale(%s, %+v) = %v, want %v", c.shard, c.cur, got, c.stale)
+		}
+		if c.shard != "missing" && c.shard != "opted" {
+			if got := d.Known(c.shard, c.cur, fields); got != !c.stale {
+				t.Errorf("Known(%s, %+v) = %v, want %v", c.shard, c.cur, got, !c.stale)
+			}
+		}
+	}
+
+	next := NextArchiveDistinct(canonical, []DistinctShardRef{
+		KeptShard("exact", replaced), KeptShard("noid", id), KeptShard("over", replaced), KeptShard("opted", replaced),
+	}, d, nil)
+	for i, want := range []DistinctStatus{DistinctAbsent, DistinctAbsent, DistinctAbsent, DistinctOptedOut} {
+		if got := next.Shards[i].Counts[0].Status; got != want {
+			t.Errorf("%s: carried %s, want %s", next.Shards[i].Name, got, want)
+		}
+		if next.Shards[i].Identity != replaced && next.Shards[i].Name != "noid" {
+			t.Errorf("%s: stamped %+v, want the stored identity", next.Shards[i].Name, next.Shards[i].Identity)
+		}
+	}
+
+	ids := map[string]ShardIdentity{"exact": id, "noid": id, "over": id, "opted": replaced}
+	lookup := func(m map[string]ShardIdentity) func(string) (ShardIdentity, bool) {
+		return func(n string) (ShardIdentity, bool) { v, ok := m[n]; return v, ok }
+	}
+	if d.VouchedBy(lookup(ids)) {
+		t.Error("a trailer with an identity-less count is vouched for")
+	}
+	d.Shards[1].Identity = id
+	if !d.VouchedBy(lookup(ids)) {
+		t.Error("a trailer whose every claim matches is not vouched for")
+	}
+	ids["exact"] = replaced
+	if d.VouchedBy(lookup(ids)) {
+		t.Error("a trailer naming a replaced shard is vouched for")
+	}
+}
+
+// The identity is the payload's size and IEEE CRC-32 — what the zip
+// central directory records — whether hashed whole or streamed.
+func TestShardIdentity_PayloadAndStream(t *testing.T) {
+	t.Parallel()
+	payload := []byte("a stored shard payload")
+	want := ShardIdentity{Known: true, Size: uint64(len(payload)), CRC32: crc32IEEE(payload)}
+	if got := PayloadIdentity(payload); got != want {
+		t.Errorf("PayloadIdentity = %+v, want %+v", got, want)
+	}
+	h := NewIdentityHasher()
+	_, _ = h.Write(payload[:5])
+	_, _ = h.Write(payload[5:])
+	if got := h.Identity(); got != want {
+		t.Errorf("IdentityHasher = %+v, want %+v", got, want)
+	}
+	if got := EntryIdentity(ArchiveEntry{Name: "x", Size: int64(len(payload)), CRC32: want.CRC32}); got != want {
+		t.Errorf("EntryIdentity = %+v, want %+v", got, want)
+	}
+}
+
+// OLD-TRAILER compatibility: a version-1 trailer (no identities) still
+// reads — every count intact, every identity unknown, so each claiming
+// entry is Stale (recounted by a writer, refused by a bound) and an
+// opted-out one is not. A version-2 identity flag other than 0 / 1 is
+// malformed.
+func TestDistinctTrailer_Version1ReadsAsIdentityUnknown(t *testing.T) {
+	t.Parallel()
+	want := sampleDistinct()
+	without := docBytes(t, nil)
+	var v1 bytes.Buffer
+	v1.Write(without)
+	if err := writeDistinctTrailerVersion(&v1, want, distinctTrailerV1); err != nil {
+		t.Fatal(err)
+	}
+	if v1.Bytes()[len(without)+4] != 1 {
+		t.Fatalf("version byte = %d, want 1", v1.Bytes()[len(without)+4])
+	}
+	_, got, err := ReadSchemaDocDistinct(bytes.NewReader(v1.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || len(got.Shards) != 2 {
+		t.Fatalf("v1 trailer read as %+v", got)
+	}
+	for i, sh := range got.Shards {
+		if sh.Identity.Known {
+			t.Errorf("%s: v1 identity read as known: %+v", sh.Name, sh.Identity)
+		}
+		if !reflect.DeepEqual(sh.Counts, want.Shards[i].Counts) {
+			t.Errorf("%s: counts %+v, want %+v", sh.Name, sh.Counts, want.Shards[i].Counts)
+		}
+	}
+	if !got.Stale("a.pulse", want.Shards[0].Identity) {
+		t.Error("a v1 exact entry is not stale at its true identity")
+	}
+	if got.Stale("b.pulse", want.Shards[0].Identity) {
+		t.Error("a v1 opted-out entry is stale")
+	}
+
+	v2 := docBytes(t, want)
+	// The first shard's identity flag: after the fields block and the
+	// shard count and name.
+	at := bytes.Index(v2[len(without):], []byte("a.pulse")) + len(without) + len("a.pulse")
+	if v2[at] != 1 {
+		t.Fatalf("identity flag = %d, want 1", v2[at])
+	}
+	v2[at] = 2
+	if _, _, err := ReadSchemaDocDistinct(bytes.NewReader(v2)); !errors.HasCode(err, errors.ENCODING_INVALID) {
+		t.Errorf("identity flag 2: err = %v, want ENCODING_INVALID", err)
+	}
+}
+
+func crc32IEEE(b []byte) uint32 { return crc32.ChecksumIEEE(b) }

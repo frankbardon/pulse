@@ -284,6 +284,16 @@ Older readers ignore the trailer, and single-file cohorts carry nothing.
   from an archive written before the counts existed stays *absent* (no
   bound) until `pulse shard compact`, which counts every shard whose
   counts are absent.
+- **Identity, not name.** Each shard's counts record the size and CRC-32
+  of the bytes they describe — the values in the shard's zip directory
+  record. A shard replaced outside Pulse under the same name no longer
+  matches, so predict ignores the archive's counts until the next write,
+  and add, remove and compact recount that shard instead of carrying its
+  old figures (unchanged shards are still carried without a read). An add
+  that widens or regroups the archive re-encodes every stored shard twice:
+  once to learn the bytes' identity before `_schema.pulse` is written,
+  once to store them. Counts written before identities existed are
+  recounted the same way.
 - **Cap and opt-out.** `pulse.Options.ShardDistinctLimit` caps the keys
   held per field per shard (default 4,194,304 — up to 64 MiB per counted
   field, for one shard at a time); past it the shard records "more than

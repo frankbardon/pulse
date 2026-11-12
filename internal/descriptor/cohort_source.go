@@ -142,9 +142,12 @@ func readArchiveHead(src archiveSource, distinct bool) (*encoding.Schema, Cohort
 // trailer is absent (an archive written before it existed, a newer
 // trailer version), malformed (encx.ReadSchemaDocDistinct's
 // ENCODING_INVALID: a bound is advisory, so a damaged trailer never
-// fails predict or the run), or does not name exactly the archive's
+// fails predict or the run), does not name exactly the archive's
 // shards (an entry added or renamed outside Pulse would otherwise go
-// uncounted and the sum would fall below the union).
+// uncounted and the sum would fall below the union), or holds a count
+// its shard's central-directory identity does not vouch for (an entry
+// replaced outside Pulse under the same name, or a version-1 trailer
+// that recorded no identity — encx.ArchiveDistinct.VouchedBy).
 func ArchiveDistinctOf(arch *encx.Archive) *encx.ArchiveDistinct {
 	rc, err := arch.Open(encx.ReservedSchemaName)
 	if err != nil {
@@ -161,20 +164,26 @@ func archiveDistinctFrom(doc io.Reader, arch *encx.Archive) *encx.ArchiveDistinc
 	if err != nil || dist == nil {
 		return nil
 	}
-	shards := make(map[string]bool)
+	shards := make(map[string]encx.ShardIdentity)
 	for _, e := range arch.Entries() {
 		if e.Name != encx.ReservedSchemaName {
-			shards[e.Name] = true
+			shards[e.Name] = encx.EntryIdentity(e)
 		}
 	}
 	if len(dist.Shards) != len(shards) {
 		return nil
 	}
-	for _, sh := range dist.Shards {
-		if !shards[sh.Name] {
-			return nil
-		}
-		delete(shards, sh.Name) // a repeated name leaves an entry uncounted
+	// Every counted entry must be vouched for by its shard's
+	// central-directory identity (U73 #720): a shard replaced outside
+	// Pulse under the same name, or counts recorded without an identity,
+	// lend nothing to a bound.
+	vouched := dist.VouchedBy(func(name string) (encx.ShardIdentity, bool) {
+		id, ok := shards[name]
+		delete(shards, name) // a repeated name leaves an entry uncounted
+		return id, ok
+	})
+	if !vouched {
+		return nil
 	}
 	return dist
 }

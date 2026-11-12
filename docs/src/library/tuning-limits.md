@@ -268,7 +268,8 @@ multiply their bounds, capped by the records. The bound falls back to
 the record or width bound in these cases: a shard whose count is
 unknown (written by an older Pulse), past the writer's
 `ShardDistinctLimit`, or opted out (`DisableShardDistinct`); an archive
-whose shards differ from the ones the counts name; a damaged count
+whose shards differ from the ones the counts name, or a shard replaced
+outside Pulse since it was counted (its size and CRC-32 moved); a damaged count
 block; or a join. A damaged count block never fails predict.
 
 **Extension aggregators.** An extension aggregator is priced as a

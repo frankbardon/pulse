@@ -174,16 +174,32 @@ func distinctArchiveBytes(t *testing.T, schema *encoding.Schema, shardCount int,
 // otherwise nil — the estimate falls back to today's bound and predict
 // never fails over an advisory stat: no trailer, a newer trailer
 // version, a truncated (malformed) trailer, a trailer naming a shard the
-// archive lacks, and an archive carrying a shard the trailer does not
-// count (added outside Pulse — its keys would go uncounted).
+// archive lacks, an archive carrying a shard the trailer does not
+// count (added outside Pulse — its keys would go uncounted), a shard
+// whose central-directory identity no longer matches its entry's
+// (replaced outside Pulse under the same name — its old counts could sit
+// below its keys) and a count recorded without an identity (U73 #720).
 func TestArchiveDistinctOf_Fallbacks(t *testing.T) {
 	t.Parallel()
 
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "big", Type: encoding.FieldTypeU32}}}
+	// Every shard entry distinctArchiveBytes writes holds the same
+	// payload, so the same identity (size + CRC-32).
+	id := encx.PayloadIdentity(writeShardPayload(t, schema, 0))
 	dist := &encx.ArchiveDistinct{
 		Fields: []encx.DistinctField{{Name: "big", Type: encoding.FieldTypeU32}},
-		Shards: []encx.ShardDistinct{{Name: "s0.pulse", Counts: []encx.DistinctCount{exact(3)}}, {Name: "s1.pulse", Counts: []encx.DistinctCount{exact(4)}}},
+		Shards: []encx.ShardDistinct{
+			{Name: "s0.pulse", Identity: id, Counts: []encx.DistinctCount{exact(3)}},
+			{Name: "s1.pulse", Identity: id, Counts: []encx.DistinctCount{exact(4)}},
+		},
 	}
+	// U73 #720: an entry whose recorded identity is not the shard's
+	// current one (replaced outside Pulse under the same name), or that
+	// recorded none (a version-1 trailer).
+	replaced := &encx.ArchiveDistinct{Fields: dist.Fields,
+		Shards: []encx.ShardDistinct{dist.Shards[0], {Name: "s1.pulse", Identity: encx.ShardIdentity{Known: true, Size: id.Size, CRC32: id.CRC32 ^ 1}, Counts: dist.Shards[1].Counts}}}
+	unidentified := &encx.ArchiveDistinct{Fields: dist.Fields,
+		Shards: []encx.ShardDistinct{dist.Shards[0], {Name: "s1.pulse", Counts: dist.Shards[1].Counts}}}
 	renamed := &encx.ArchiveDistinct{Fields: dist.Fields,
 		Shards: []encx.ShardDistinct{dist.Shards[0], {Name: "gone.pulse", Counts: dist.Shards[1].Counts}}}
 	repeated := &encx.ArchiveDistinct{Fields: dist.Fields,
@@ -209,6 +225,8 @@ func TestArchiveDistinctOf_Fallbacks(t *testing.T) {
 		{"trailer names a shard the archive lacks", distinctArchiveBytes(t, schema, 2, renamed, nil, "s0.pulse", "s1.pulse")},
 		{"trailer repeats a shard", distinctArchiveBytes(t, schema, 2, repeated, nil, "s0.pulse", "s1.pulse")},
 		{"archive carries an uncounted shard", distinctArchiveBytes(t, schema, 2, dist, nil, "s0.pulse", "s1.pulse", "extra.pulse")},
+		{"a shard was replaced under its name", distinctArchiveBytes(t, schema, 2, replaced, nil, "s0.pulse", "s1.pulse")},
+		{"a count recorded no identity", distinctArchiveBytes(t, schema, 2, unidentified, nil, "s0.pulse", "s1.pulse")},
 	} {
 		if got := ArchiveDistinctOf(c.arch); got != nil {
 			t.Errorf("%s: read counts %+v, want none", c.name, got)

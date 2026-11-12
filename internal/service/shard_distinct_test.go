@@ -111,6 +111,9 @@ func TestShardDistinct_CreateCountsEveryShard(t *testing.T) {
 	if got, ok := d.FieldBound("id"); !ok || got != 14 {
 		t.Errorf("FieldBound(id) = %d, %v; want 14, true", got, ok)
 	}
+	// Each entry records the identity of the bytes stored (U73 #720),
+	// learnt in the counting read.
+	wantIdentitiesMatchDirectory(t, "create", fsys, "arch.pulse")
 }
 
 func TestShardDistinct_AddCountsTheArrivalAndCarriesTheRest(t *testing.T) {
@@ -128,6 +131,7 @@ func TestShardDistinct_AddCountsTheArrivalAndCarriesTheRest(t *testing.T) {
 		wantDistinct(t, what, readDistinct(t, fsys, "arch.pulse"),
 			map[string][2]encx.DistinctCount{"a.pulse": distA, "b.pulse": distB, "c.pulse": distC},
 			"a.pulse", "b.pulse", "c.pulse")
+		wantIdentitiesMatchDirectory(t, what, fsys, "arch.pulse")
 	}
 }
 
@@ -270,6 +274,7 @@ func TestShardDistinct_FilterToFileCountsTheFilteredShards(t *testing.T) {
 	wantDistinct(t, "filter-to-file", readDistinct(t, fsys, "out.pulse"),
 		map[string][2]encx.DistinctCount{"a.pulse": {exact(1), exact(4)}, "c.pulse": {exact(1), exact(1)}},
 		"a.pulse", "c.pulse")
+	wantIdentitiesMatchDirectory(t, "filter-to-file", fsys, "out.pulse")
 }
 
 func TestShardDistinct_OptOutAndLimitAreDistinguishable(t *testing.T) {
@@ -348,6 +353,8 @@ func TestShardDistinct_GroupedArchiveMatchesFlatTwin(t *testing.T) {
 		t.Fatal(err)
 	}
 	flat, grouped := readDistinct(t, fsys, "flat.pulse"), readDistinct(t, fsys, "grouped.pulse")
+	wantIdentitiesMatchDirectory(t, "flat create", fsys, "flat.pulse")
+	wantIdentitiesMatchDirectory(t, "grouped create", fsys, "grouped.pulse")
 	for _, f := range []string{"id", "parent", "weight", "amount"} {
 		for _, sh := range []string{"a.pulse", "b.pulse"} {
 			fc, gc := flat.Lookup(sh, f), grouped.Lookup(sh, f)

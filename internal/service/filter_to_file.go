@@ -692,18 +692,19 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	// shard_count), then each filtered shard streamed off the spool.
 	// Distinct counts (U73 #500): every filtered shard is new bytes, so
 	// each is counted fresh off the spool.
+	// The counting read also learns each shard's identity (U73 #720).
 	pass := s.newDistinctPass(canonicalSchema)
-	names := make([]string, len(out))
+	refs := make([]encx.DistinctShardRef, len(out))
 	fresh := make(map[string][]encx.DistinctCount, len(out))
 	for i, sh := range out {
-		names[i] = sh.name
-		counts, err := pass.count(io.NewSectionReader(spool.f, sh.off, sh.len), sh.name)
+		counts, id, err := pass.countIdentified(io.NewSectionReader(spool.f, sh.off, sh.len), sh.name)
 		if err != nil {
 			return 0, err
 		}
+		refs[i] = encx.KeptShard(sh.name, id)
 		fresh[sh.name] = counts
 	}
-	dist := encx.NextArchiveDistinct(canonicalSchema, names, nil, fresh)
+	dist := encx.NextArchiveDistinct(canonicalSchema, refs, nil, fresh)
 	if err := w.writeSchemaDoc(canonicalSchema, uint64(totalWritten), len(out), dist); err != nil {
 		return 0, err
 	}

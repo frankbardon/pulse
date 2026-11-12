@@ -191,14 +191,16 @@ func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPat
 	// prior trailer's entry (its words did not change — a widen or
 	// promotion re-lays-out records, never an eligible field's words),
 	// and a stored shard the prior trailer does not cover (an archive
-	// written before it) is recorded absent, never recounted here: the
-	// append reads no stored shard.
-	newCounts, err := s.newDistinctPass(m.canonical).count(bytes.NewReader(m.incoming), base)
+	// written before it) is recorded absent, never recounted here.
+	// A carry is identity-checked (U73 #720): a stored shard whose entry
+	// its central-directory identity no longer vouches for — replaced
+	// outside Pulse under the same name, or recorded without an identity
+	// — is recounted, and every entry is stamped with the identity of the
+	// bytes the new archive stores (addDistinct).
+	dist, err := s.addDistinct(ctx, a, stored, m, base)
 	if err != nil {
 		return nil, err
 	}
-	dist := encx.NextArchiveDistinct(m.canonical, append(append([]string(nil), stored.names...), base),
-		readPriorDistinct(a.arch), map[string][]encx.DistinctCount{base: newCounts})
 
 	// An ordinary add keeps every stored shard's bytes, so it appends to
 	// the archive's tail in place (shard_append.go); a tail the appender
@@ -277,6 +279,58 @@ func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPat
 	}
 	result.ShardCount = shardCount
 	return result, nil
+}
+
+// addDistinct is the DIST trailer an add writes. Every entry records
+// the identity of the bytes the new archive stores for its shard, and
+// `_schema.pulse` is written FIRST, so each identity is known before any
+// shard is: a kept shard's off the central directory (append, raw copy
+// and re-store all keep its uncompressed bytes), the arrival's off its
+// held bytes — and, when the archive moves (m.rewrite: a widen or a
+// group promotion re-encodes every stored shard), a PRE-PASS re-encodes
+// each stored shard once to learn the identity of the bytes the write
+// then re-encodes again (the owner-accepted double read, U73 #720). A
+// stale stored shard is recounted from the bytes the archive will store.
+func (s *Service) addDistinct(ctx context.Context, a *archiveFile, stored *archiveShards, m *shardMerge, base string) (*encx.ArchiveDistinct, error) {
+	prior := readPriorDistinct(a.arch)
+	pass := s.newDistinctPass(m.canonical)
+	refs := keptShardRefs(a, stored.names)
+	var fresh map[string][]encx.DistinctCount
+	if m.rewrite == nil {
+		var err error
+		if fresh, err = pass.recountKept(ctx, a, refs, prior, false); err != nil {
+			return nil, err
+		}
+	} else {
+		fresh = map[string][]encx.DistinctCount{}
+		for i := range refs {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			payload, err := stored.loadShard(i)
+			if err != nil {
+				return nil, err
+			}
+			if payload, err = m.rewrite(refs[i].Name, payload); err != nil {
+				return nil, err
+			}
+			refs[i].Stored = encx.PayloadIdentity(payload)
+			if prior.Stale(refs[i].Name, refs[i].Current) {
+				counts, err := pass.count(bytes.NewReader(payload), refs[i].Name)
+				if err != nil {
+					return nil, err
+				}
+				fresh[refs[i].Name] = counts
+			}
+		}
+	}
+	counts, err := pass.count(bytes.NewReader(m.incoming), base)
+	if err != nil {
+		return nil, err
+	}
+	fresh[base] = counts
+	refs = append(refs, encx.KeptShard(base, encx.PayloadIdentity(m.incoming)))
+	return encx.NextArchiveDistinct(m.canonical, refs, prior, fresh), nil
 }
 
 // appendDeadByteLimit is the share of the archive the dead bytes an
@@ -425,8 +479,17 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 		defer upkeep.abort()
 	}
 	// The kept shards' bytes are copied raw: their distinct counts carry,
-	// the removed shard's entry drops with it.
-	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, kept.names, readPriorDistinct(a.arch), nil)
+	// the removed shard's entry drops with it — except a kept shard whose
+	// entry its central-directory identity no longer vouches for (U73
+	// #720), which is recounted off its stored bytes.
+	prior := readPriorDistinct(a.arch)
+	refs := keptShardRefs(a, kept.names)
+	pass := s.newDistinctPass(canonicalDoc.Schema)
+	fresh, err := pass.recountKept(ctx, a, refs, prior, false)
+	if err != nil {
+		return nil, err
+	}
+	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, refs, prior, fresh)
 	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept, dist); err != nil {
 		return nil, err
 	}

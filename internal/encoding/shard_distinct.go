@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"hash"
+	"hash/crc32"
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -29,7 +31,15 @@ import (
 //	  field_count u32
 //	  field_count × { name_len u16, name, type u8 }
 //	  shard_count u32
-//	  shard_count × { name_len u16, name, field_count × { status u8, count u64 } }
+//	  shard_count × { name_len u16, name, identity, field_count × { status u8, count u64 } }
+//	identity (version 2 only):
+//	  known u8 (0 / 1), size u64, crc32 u32 — the stored payload's
+//	  uncompressed size and CRC-32, the values its central-directory
+//	  record carries; zero when known = 0
+//
+// Version 1 (no identity) is still read: its shards' identities are
+// unknown, so their counts are never trusted for a carry or a bound
+// (ShardIdentity, Stale).
 //
 // Distinctness is on the STORED WORD (the raw 4- or 8-byte bit
 // pattern), with no canonicalisation: +0 and −0 count as two values, and
@@ -44,8 +54,14 @@ import (
 var DistinctTrailerMagic = [4]byte{'D', 'I', 'S', 'T'}
 
 // DistinctTrailerVersion is the DIST trailer's own version byte —
-// independent of the `.pulse` format version.
-const DistinctTrailerVersion byte = 1
+// independent of the `.pulse` format version. Version 2 added the
+// per-shard identity (U73 #720); version 1 still reads, identity
+// unknown.
+const DistinctTrailerVersion byte = 2
+
+// distinctTrailerV1 is the identity-less layout every writer emitted
+// before per-shard identities.
+const distinctTrailerV1 byte = 1
 
 // DefaultDistinctLimit is the default per-field, per-shard key cap
 // (4,194,304 = 4 Mi keys): past it a shard's field is recorded
@@ -97,10 +113,80 @@ type DistinctField struct {
 	Type encoding.FieldType
 }
 
-// ShardDistinct is one shard's counts, parallel to ArchiveDistinct.Fields.
+// ShardIdentity names the exact bytes a shard's counts were taken
+// from: the stored payload's uncompressed size and CRC-32 — the values
+// the shard's zip central-directory record carries (EntryIdentity), the
+// identity an archive point-lookup index keys a shard by too. A count is
+// only ever trusted for bytes of the same identity: a shard entry
+// replaced outside Pulse under the same name moves its CRC-32. Known is
+// false when the writer never saw the bytes (an opted-out create) or the
+// trailer predates identities (version 1).
+type ShardIdentity struct {
+	Known bool
+	Size  uint64
+	CRC32 uint32
+}
+
+// EntryIdentity is the identity of an archive entry, read from its
+// central-directory record (never recomputed from the payload).
+func EntryIdentity(e ArchiveEntry) ShardIdentity {
+	return ShardIdentity{Known: true, Size: uint64(e.Size), CRC32: e.CRC32}
+}
+
+// PayloadIdentity is the identity an archive storing payload records
+// for it.
+func PayloadIdentity(payload []byte) ShardIdentity {
+	return ShardIdentity{Known: true, Size: uint64(len(payload)), CRC32: crc32.ChecksumIEEE(payload)}
+}
+
+// IdentityHasher accumulates a payload's identity as it is written
+// through (an io.TeeReader's sink), so a writer that streams a shard
+// learns its identity in the same read.
+type IdentityHasher struct {
+	h hash.Hash32
+	n uint64
+}
+
+// NewIdentityHasher returns an empty hasher.
+func NewIdentityHasher() *IdentityHasher {
+	return &IdentityHasher{h: crc32.NewIEEE()}
+}
+
+// Write hashes p.
+func (h *IdentityHasher) Write(p []byte) (int, error) {
+	h.n += uint64(len(p))
+	return h.h.Write(p)
+}
+
+// Identity is the identity of every byte written so far.
+func (h *IdentityHasher) Identity() ShardIdentity {
+	return ShardIdentity{Known: true, Size: h.n, CRC32: h.h.Sum32()}
+}
+
+// vouches reports whether a recorded identity proves its counts
+// describe bytes of identity cur: both known and equal.
+func (id ShardIdentity) vouches(cur ShardIdentity) bool {
+	return id.Known && cur.Known && id == cur
+}
+
+// ShardDistinct is one shard's counts, parallel to ArchiveDistinct.Fields,
+// and the identity of the bytes they were taken from.
 type ShardDistinct struct {
-	Name   string
-	Counts []DistinctCount
+	Name     string
+	Identity ShardIdentity
+	Counts   []DistinctCount
+}
+
+// claims reports whether any of the shard's counts says something about
+// its bytes — exact, or over the limit. An absent or opted-out entry
+// claims nothing, so it can never be stale.
+func (s *ShardDistinct) claims() bool {
+	for _, c := range s.Counts {
+		if c.Status == DistinctExact || c.Status == DistinctOverLimit {
+			return true
+		}
+	}
+	return false
 }
 
 // ArchiveDistinct is the decoded DIST trailer: per-shard counts in
@@ -145,25 +231,65 @@ func OptedOutCounts(n int) []DistinctCount {
 }
 
 // Known reports whether the trailer holds a non-absent entry for shard
-// on every one of fields (matched by name and type): what a carry would
+// on every one of fields (matched by name and type) that is not Stale at
+// cur, the identity of the bytes the shard holds now: what a carry would
 // keep without leaving a gap. False on a nil trailer.
-func (d *ArchiveDistinct) Known(shard string, fields []DistinctField) bool {
+func (d *ArchiveDistinct) Known(shard string, cur ShardIdentity, fields []DistinctField) bool {
+	sh := d.shard(shard)
+	if sh == nil || d.Stale(shard, cur) {
+		return false
+	}
+	for _, f := range fields {
+		fi := d.fieldIndex(f.Name)
+		if fi < 0 || d.Fields[fi].Type != f.Type || sh.Counts[fi].Status == DistinctAbsent {
+			return false
+		}
+	}
+	return true
+}
+
+// Stale reports whether the trailer holds an entry for shard whose
+// counts claim something (exact, over the limit) that its recorded
+// identity cannot vouch for at cur — the identity of the bytes the shard
+// holds now: the identity was never recorded (a version-1 trailer) or
+// differs (the entry was replaced outside Pulse under the same name). A
+// writer RECOUNTS a stale shard; NextArchiveDistinct never carries one.
+// An absent or opted-out entry claims nothing and is never stale. False
+// on a nil trailer or an unknown shard.
+func (d *ArchiveDistinct) Stale(shard string, cur ShardIdentity) bool {
+	sh := d.shard(shard)
+	return sh != nil && sh.claims() && !sh.Identity.vouches(cur)
+}
+
+// VouchedBy reports whether every shard entry is vouched for by the
+// identity cur returns for its name (false = no such entry): no entry
+// claims a count its recorded identity cannot prove describes the
+// shard's current bytes. The bound readers (predict, the run's
+// pre-flight) take counts only from a trailer it accepts, so a shard
+// replaced outside Pulse never lends its old counts to a bound.
+func (d *ArchiveDistinct) VouchedBy(cur func(shard string) (ShardIdentity, bool)) bool {
 	if d == nil {
 		return false
 	}
-	for _, sh := range d.Shards {
-		if sh.Name != shard {
-			continue
+	for i := range d.Shards {
+		id, ok := cur(d.Shards[i].Name)
+		if !ok || (d.Shards[i].claims() && !d.Shards[i].Identity.vouches(id)) {
+			return false
 		}
-		for _, f := range fields {
-			fi := d.fieldIndex(f.Name)
-			if fi < 0 || d.Fields[fi].Type != f.Type || sh.Counts[fi].Status == DistinctAbsent {
-				return false
-			}
-		}
-		return true
 	}
-	return false
+	return true
+}
+
+func (d *ArchiveDistinct) shard(name string) *ShardDistinct {
+	if d == nil {
+		return nil
+	}
+	for i := range d.Shards {
+		if d.Shards[i].Name == name {
+			return &d.Shards[i]
+		}
+	}
+	return nil
 }
 
 // Lookup returns the (shard, field) entry; DistinctAbsent when either
@@ -222,42 +348,64 @@ func (d *ArchiveDistinct) fieldIndex(name string) int {
 	return -1
 }
 
+// DistinctShardRef is one shard of an archive about to be written, as
+// NextArchiveDistinct sees it.
+type DistinctShardRef struct {
+	Name string
+	// Current is the identity of the bytes the shard holds in the archive
+	// being rewritten — what prev's entry must be vouched for at before
+	// it carries. Unused for a shard counted fresh.
+	Current ShardIdentity
+	// Stored is the identity of the bytes the written archive stores for
+	// the shard — recorded in the new trailer. It differs from Current
+	// only when the write re-encodes the shard (an add's archive widen or
+	// group promotion).
+	Stored ShardIdentity
+}
+
+// KeptShard is the ref of a shard whose bytes the write keeps (a raw
+// copy): Current and Stored are both id.
+func KeptShard(name string, id ShardIdentity) DistinctShardRef {
+	return DistinctShardRef{Name: name, Current: id, Stored: id}
+}
+
 // NextArchiveDistinct builds the trailer an archive about to be written
-// carries: one entry per shard in names (archive order) over canonical's
-// eligible fields. A shard in fresh takes those counts (aligned to
+// carries: one entry per shard in shards (archive order) over
+// canonical's eligible fields, each stamped with its Stored identity. A
+// shard in fresh takes those counts (aligned to
 // EligibleDistinctFields(canonical)) — the shard was just counted. Any
 // other shard CARRIES prev's entry, matched by shard name and field name
 // AND type — its stored words did not change (remove, compact's carry,
 // an add's stored shards; a set widen or group promotion re-lays-out
-// records but never changes an eligible field's words). Whatever prev
-// does not hold is DistinctAbsent: an archive written without the
-// trailer never gets counts fabricated for its old shards.
-func NextArchiveDistinct(canonical *encoding.Schema, names []string, prev *ArchiveDistinct, fresh map[string][]DistinctCount) *ArchiveDistinct {
+// records but never changes an eligible field's words) — unless that
+// entry is Stale at the shard's Current identity (the entry was replaced
+// outside Pulse, or the trailer predates identities): a stale entry
+// never carries, and a shard the caller did not recount is then
+// DistinctAbsent. Whatever prev does not hold is DistinctAbsent too: an
+// archive written without the trailer never gets counts fabricated for
+// its old shards.
+func NextArchiveDistinct(canonical *encoding.Schema, shards []DistinctShardRef, prev *ArchiveDistinct, fresh map[string][]DistinctCount) *ArchiveDistinct {
 	fields := EligibleDistinctFields(canonical)
-	out := &ArchiveDistinct{Fields: fields, Shards: make([]ShardDistinct, len(names))}
-	prevShard := map[string]int{}
+	out := &ArchiveDistinct{Fields: fields, Shards: make([]ShardDistinct, len(shards))}
 	prevField := map[string]int{}
 	if prev != nil {
-		for i, sh := range prev.Shards {
-			prevShard[sh.Name] = i
-		}
 		for i, f := range prev.Fields {
 			prevField[f.Name] = i
 		}
 	}
-	for i, name := range names {
+	for i, ref := range shards {
 		counts := make([]DistinctCount, len(fields))
-		if fc, ok := fresh[name]; ok {
+		if fc, ok := fresh[ref.Name]; ok {
 			copy(counts, fc)
-		} else if si, ok := prevShard[name]; ok {
+		} else if ps := prev.shard(ref.Name); ps != nil && !prev.Stale(ref.Name, ref.Current) {
 			for j, f := range fields {
 				pf, ok := prevField[f.Name]
 				if ok && prev.Fields[pf].Type == f.Type {
-					counts[j] = prev.Shards[si].Counts[pf]
+					counts[j] = ps.Counts[pf]
 				}
 			}
 		}
-		out.Shards[i] = ShardDistinct{Name: name, Counts: counts}
+		out.Shards[i] = ShardDistinct{Name: ref.Name, Identity: ref.Stored, Counts: counts}
 	}
 	return out
 }
@@ -485,8 +633,15 @@ func mixKey(k uint64) uint64 {
 	return k
 }
 
-// writeDistinctTrailer emits the DIST trailer for d.
+// writeDistinctTrailer emits the DIST trailer for d at
+// DistinctTrailerVersion.
 func writeDistinctTrailer(w io.Writer, d *ArchiveDistinct) error {
+	return writeDistinctTrailerVersion(w, d, DistinctTrailerVersion)
+}
+
+// writeDistinctTrailerVersion emits d in the given trailer layout
+// (version 1 drops the identities — kept for the compatibility tests).
+func writeDistinctTrailerVersion(w io.Writer, d *ArchiveDistinct, version byte) error {
 	var body bytes.Buffer
 	le := binary.LittleEndian
 	_ = binary.Write(&body, le, uint32(len(d.Fields)))
@@ -506,6 +661,18 @@ func writeDistinctTrailer(w io.Writer, d *ArchiveDistinct) error {
 		if err := writeShortName(&body, sh.Name); err != nil {
 			return err
 		}
+		if version >= DistinctTrailerVersion {
+			// An unknown identity writes all zeros: its size and CRC
+			// carry nothing.
+			var id ShardIdentity
+			var known byte
+			if sh.Identity.Known {
+				id, known = sh.Identity, 1
+			}
+			body.WriteByte(known)
+			_ = binary.Write(&body, le, id.Size)
+			_ = binary.Write(&body, le, id.CRC32)
+		}
 		for _, c := range sh.Counts {
 			body.WriteByte(byte(c.Status))
 			_ = binary.Write(&body, le, c.Count)
@@ -513,7 +680,7 @@ func writeDistinctTrailer(w io.Writer, d *ArchiveDistinct) error {
 	}
 	var head [13]byte
 	copy(head[:4], DistinctTrailerMagic[:])
-	head[4] = DistinctTrailerVersion
+	head[4] = version
 	le.PutUint64(head[5:], uint64(body.Len()))
 	if _, err := w.Write(head[:]); err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_IO, "writing schema-doc distinct trailer")
@@ -537,8 +704,10 @@ func writeShortName(w *bytes.Buffer, name string) error {
 
 // readDistinctTrailer reads a DIST trailer from r, positioned right after
 // SHRD. Nothing there, or another magic: (nil, nil). A trailer of a
-// newer version: (nil, nil) — skipped, never misread. A truncated or
-// inconsistent trailer: ENCODING_INVALID.
+// newer version: (nil, nil) — skipped, never misread. A version-1
+// trailer reads with every shard's identity unknown. A truncated or
+// inconsistent trailer (including an identity flag other than 0 / 1):
+// ENCODING_INVALID.
 func readDistinctTrailer(r io.Reader) (*ArchiveDistinct, error) {
 	var head [13]byte
 	if _, err := io.ReadFull(r, head[:4]); err != nil {
@@ -553,7 +722,8 @@ func readDistinctTrailer(r io.Reader) (*ArchiveDistinct, error) {
 	if _, err := io.ReadFull(r, head[4:]); err != nil {
 		return nil, distinctInvalid("truncated header", err)
 	}
-	if head[4] != DistinctTrailerVersion {
+	version := head[4]
+	if version != DistinctTrailerVersion && version != distinctTrailerV1 {
 		return nil, nil
 	}
 	bodyLen := binary.LittleEndian.Uint64(head[5:])
@@ -586,6 +756,17 @@ func readDistinctTrailer(r io.Reader) (*ArchiveDistinct, error) {
 	d.Shards = make([]ShardDistinct, 0, ns)
 	for range ns {
 		sh := ShardDistinct{Name: p.name(), Counts: make([]DistinctCount, 0, nf)}
+		if version >= DistinctTrailerVersion {
+			known := p.u8()
+			size, crc := p.u64(), p.u32()
+			switch known {
+			case 0:
+			case 1:
+				sh.Identity = ShardIdentity{Known: true, Size: size, CRC32: crc}
+			default:
+				p.bad = true
+			}
+		}
 		for range nf {
 			st := p.u8()
 			c := p.u64()
