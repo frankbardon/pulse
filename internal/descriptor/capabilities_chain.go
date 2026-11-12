@@ -30,8 +30,9 @@ func processChainCapability() descriptor.ProcessChainCapability {
 		// Every built-in attribute the shared merge gate
 		// (internal/mergegate) admits on its own spec, sorted
 		// (TestProcessChainCapability_RowLocalAttributesMatchGate);
-		// ATTR_FORMULA, ATTR_PROFILE_SIMILARITY and ATTR_VEC_DISTANCE
-		// carry the rejection rules below.
+		// ATTR_PROFILE_SIMILARITY and ATTR_VEC_DISTANCE carry the
+		// rejection rules below; ATTR_FORMULA is admitted with total(expr)
+		// too — a stage runs it two-phase (U74 E3-S3, #494).
 		RowLocalAttributes: []string{
 			"ATTR_CODE_IN", "ATTR_DATE_PART", "ATTR_FORMULA", "ATTR_PROFILE_SIMILARITY",
 			"ATTR_REG_PREDICT", "ATTR_SCALE_SCORE", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
@@ -40,7 +41,6 @@ func processChainCapability() descriptor.ProcessChainCapability {
 		RejectionRules: []string{
 			"chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
 			"chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
-			"chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
 			"chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
 			"chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
 			"chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",

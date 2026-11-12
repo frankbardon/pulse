@@ -474,7 +474,7 @@ func TestChainRefusal_Crosstab(t *testing.T) {
 // later one (a total() argument reading an earlier total, directly,
 // through a row-local, a default label or a slot whose inputs cannot be
 // proven) — and the refused shapes (crosstab, a nil slot) keep the
-// row-local reason; the chain stage gate refuses every total() formula.
+// row-local reason; the chain stage gate admits exactly the same.
 func TestParallelTotals(t *testing.T) {
 	t.Parallel()
 
@@ -540,10 +540,15 @@ func TestParallelTotals(t *testing.T) {
 			if !admitted && reason != "attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
 				t.Fatalf("refused shape reason = %q, want the row-local reason", reason)
 			}
+			// The chain stage gate is the same rule (U74 E3-S3, #494):
+			// a stage runs the two-phase drive too.
+			if admitted && chainErr != nil {
+				t.Fatalf("chain gate refused an admitted shape: %v", chainErr)
+			}
 			var ce *errors.CodedError
-			if !stderrors.As(chainErr, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
-				ce.Message != "chain stage is not mergeable: attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
-				t.Fatalf("chain gate = %v, want PULSE_CHAIN_NOT_MERGEABLE with the row-local reason", chainErr)
+			if !admitted && (!stderrors.As(chainErr, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
+				ce.Message != "chain stage is not mergeable: "+reason) {
+				t.Fatalf("chain gate = %v, want PULSE_CHAIN_NOT_MERGEABLE with %q", chainErr, reason)
 			}
 		})
 	}

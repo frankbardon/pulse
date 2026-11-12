@@ -286,8 +286,8 @@ func TestFormulaTotal_Routing(t *testing.T) {
 // total() formula merges through the reducers' two-phase drive (U51
 // E3-S1, #399), grouped too (U74 E3-S1, #494: a total() is cohort-wide,
 // so the one published value binds every partition whatever its
-// buckets); none passes the ProcessChain stage gate, which has no
-// two-phase runtime.
+// buckets); the ProcessChain stage gate admits the same (U74 E3-S3,
+// #494: a stage runs the two-phase drive too).
 func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	t.Parallel()
 
@@ -309,11 +309,11 @@ func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	if !CanMergeRequest(grouped, s) {
 		t.Fatal("a grouped one-layer total() formula must merge (two-phase)")
 	}
-	if CanChainRequest(grouped, s) {
-		t.Fatal("a grouped total() formula must not pass the chain stage gate")
+	if !CanChainRequest(grouped, s) {
+		t.Fatal("a grouped total() formula must pass the chain stage gate")
 	}
-	if CanChainRequest(req("x / total(x)"), s) {
-		t.Fatal("a total() formula must not pass the chain stage gate")
+	if !CanChainRequest(req("x / total(x)"), s) {
+		t.Fatal("a total() formula must pass the chain stage gate")
 	}
 }
 

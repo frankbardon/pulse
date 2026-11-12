@@ -41,7 +41,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | Parallel Compose; Compose banner; Compose base; Item fan-out (`for_each`) | `execution-modes/compose-parallel-banner.md` |
 | Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |
-| Two-phase `total()` on the parallel reducers (grouped, multi-layer: one pre-pass per layer) | `execution-modes/parallel-totals.md` |
+| Two-phase `total()` on the parallel reducers (grouped, multi-layer: one pre-pass per layer) and on ProcessChain stages | `execution-modes/parallel-totals.md` |
 | Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Post-window attributes (transformed predictors, U57); Windows-first (mmm-followups E4); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/filters-and-expressions.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |

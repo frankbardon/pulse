@@ -80,6 +80,33 @@ func (s *Service) reduceParallelBuffered(
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"reduceParallelBuffered: nil decode context")
 	}
+	return s.reducePartitions(ctx, req, schema, workers, partitionSource{
+		prepass: func(req *types.Request) (*processing.PublishedTotals, error) {
+			return s.decodeTotalsPrepass(ctx, req, schema, pctx, workers)
+		},
+		scan: func(factory DecodeCallbackFactory) error {
+			return parallelDecodeMmap(ctx, pctx, workers, factory)
+		},
+	})
+}
+
+// partitionSource is where a partition reduce reads its records:
+// prepass is phase 1 of a total() request (handed the resolved
+// request; it publishes the totals phase 2 binds), scan drives every
+// partition's records through the factory's callbacks (worker i gets
+// factory(i, start, count) and sees exactly count records). The
+// parallel-decode arm scans mmap'd segments; a ProcessChain stage >= 1
+// carrying total() scans the previous stage's rows as one partition
+// (chainTotalsSource).
+type partitionSource struct {
+	prepass func(req *types.Request) (*processing.PublishedTotals, error)
+	scan    func(factory DecodeCallbackFactory) error
+}
+
+// reducePartitions is reduceParallelBuffered over any partitionSource:
+// per-worker partial state, folded in worker-index order, finalized
+// once.
+func (s *Service) reducePartitions(ctx context.Context, req *types.Request, schema *encoding.Schema, workers int, src partitionSource) (*types.Response, error) {
 	// The run's ComputePlan — resolved once by Service.process; this arm
 	// bypasses newProcessor, so it reads the plan itself.
 	compute := s.computePlanFor(ctx, req)
@@ -127,7 +154,7 @@ func (s *Service) reduceParallelBuffered(
 	// cohort totals, bound below into every worker's formula.
 	var totals *processing.PublishedTotals
 	if processing.HasFormulaTotals(req.Attributes) {
-		if totals, err = s.decodeTotalsPrepass(ctx, req, schema, pctx, workers); err != nil {
+		if totals, err = src.prepass(req); err != nil {
 			return nil, err
 		}
 	}
@@ -262,7 +289,7 @@ func (s *Service) reduceParallelBuffered(
 		}
 	}
 
-	if err := parallelDecodeMmap(ctx, pctx, workers, factory); err != nil {
+	if err := src.scan(factory); err != nil {
 		return nil, err
 	}
 	// The workers decoded, filtered and folded their segments: scan.

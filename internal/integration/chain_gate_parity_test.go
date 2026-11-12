@@ -61,6 +61,9 @@ func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
 		}
 	}
 	ok0 := &types.Request{Aggregations: sum("qty"), Groups: region}
+	// q0 names its sum q: a later stage's total(q) (a column named
+	// total would shadow the total() call).
+	q0 := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "qty", Label: "q"}}, Groups: region}
 
 	cases := []struct {
 		name   string
@@ -75,10 +78,21 @@ func TestChainGate_ValidatorMatchesRuntime(t *testing.T) {
 		{"mode on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE, Field: "region"}}, Groups: region}), "", 0},
 		{"frequency on a later stage", chain(ok0, &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MODE_COUNT, Field: "region"}}, Groups: region}), "", 0},
 		{"two-pass attribute", chain(&types.Request{Aggregations: sum("qty"), Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "qty", Label: "z"}}}), "attribute ATTR_ZSCORE is not row-local", 0},
-		// total(expr) is a cohort total: per-stage merge would fold
-		// partition-local sums, so the per-attribute predicate refuses it
-		// while a plain formula stays row-local.
-		{"total formula", chain(&types.Request{Aggregations: sum("share"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty / total(qty)", Label: "share"}}}), "attribute ATTR_FORMULA is not row-local", 0},
+		// total(expr) is a cohort total: a stage runs it two-phase (U74
+		// E3-S3, #494) — stage 0 on Process's parallel reducers, a later
+		// stage over the previous stage's rows — grouped and across
+		// pre-pass layers, so both sides admit it; beside a two-pass
+		// attribute the stage still refuses, on both sides.
+		{"total formula", chain(&types.Request{Aggregations: sum("share"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty / total(qty)", Label: "share"}}}), "", 0},
+		{"grouped total formula", chain(&types.Request{Aggregations: sum("share"), Groups: region, Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty / total(qty)", Label: "share"}}}), "", 0},
+		{"multi-layer total on a later stage", chain(q0, &types.Request{Aggregations: sum("b"), Groups: region, Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Expression: "q / total(q)", Label: "a"},
+			{Type: types.ATTR_FORMULA, Expression: "a - total(a * 2)", Label: "b"},
+		}}), "", 0},
+		{"total beside a two-pass attribute", chain(q0, &types.Request{Aggregations: sum("share"), Attributes: []*types.Attribute{
+			{Type: types.ATTR_ZSCORE, Field: "q", Label: "z"},
+			{Type: types.ATTR_FORMULA, Expression: "q / total(q)", Label: "share"},
+		}}), "attribute ATTR_ZSCORE is not row-local", 1},
 		{"plain formula", chain(&types.Request{Aggregations: sum("dbl"), Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "qty * 2", Label: "dbl"}}}), "", 0},
 		// U51 E3-S2: the tally attributes fold their per-run counts
 		// across partitions, so a chain stage admits them; a centroid
