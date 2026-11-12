@@ -16,12 +16,16 @@ import (
 // otherwise the archive was truncated from SizeBefore to ArchiveSize —
 // its bytes before the interrupted append — and the journal removed.
 // Shard names the shard whose append was rolled back, when journalled.
+// Warnings carries ONE mandatory PULSE_SHARD_APPEND_ROLLED_BACK when the
+// repair truncated bytes (it rewrote the archive) and is empty, never
+// nil, otherwise.
 type ShardRepairResult struct {
-	Archive     string `json:"archive"`
-	Repaired    bool   `json:"repaired"`
-	Shard       string `json:"shard,omitempty"`
-	SizeBefore  int64  `json:"size_before,omitempty"`
-	ArchiveSize int64  `json:"archive_size,omitempty"`
+	Archive     string                 `json:"archive"`
+	Repaired    bool                   `json:"repaired"`
+	Shard       string                 `json:"shard,omitempty"`
+	SizeBefore  int64                  `json:"size_before,omitempty"`
+	ArchiveSize int64                  `json:"archive_size,omitempty"`
+	Warnings    []encx.CohesionWarning `json:"warnings"`
 }
 
 // RepairShardArchive rolls back an interrupted in-place `shard add`
@@ -33,13 +37,16 @@ type ShardRepairResult struct {
 // PULSE_SHARD_REPAIR_REFUSED with nothing truncated and the journal
 // kept — it never truncates blindly. Without a journal it changes
 // nothing and reports Repaired false. It is the ONLY path that clears a
-// journal: every open refuses a journalled archive.
+// journal: every open refuses a journalled archive. A repair that
+// truncates reports the mandatory PULSE_SHARD_APPEND_ROLLED_BACK
+// warning (U73 E5-S1): like every unasked archive rewrite it is never
+// silent.
 func (s *Service) RepairShardArchive(ctx context.Context, archivePath string) (*ShardRepairResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	fsys := s.fs.Fs()
-	result := &ShardRepairResult{Archive: archivePath}
+	result := &ShardRepairResult{Archive: archivePath, Warnings: []encx.CohesionWarning{}}
 	j, err := encx.ReadAppendJournal(fsys, archivePath)
 	if err != nil {
 		return nil, err
@@ -112,5 +119,28 @@ func (s *Service) RepairShardArchive(ctx context.Context, archivePath string) (*
 	result.Shard = j.Shard
 	result.SizeBefore = size
 	result.ArchiveSize = j.ArchiveSize
+	if size != j.ArchiveSize {
+		result.Warnings = append(result.Warnings, appendRolledBackWarning(archivePath, j.Shard, size, j.ArchiveSize))
+	}
 	return result, nil
+}
+
+// appendRolledBackWarning is the mandatory warning of a repair that
+// truncated an interrupted append's tail: the archive was rewritten (cut
+// from sizeBefore back to archiveSize) and the shard the append carried
+// is gone from it.
+func appendRolledBackWarning(archivePath, shard string, sizeBefore, archiveSize int64) encx.CohesionWarning {
+	return encx.CohesionWarning{
+		Code: string(errors.PULSE_SHARD_APPEND_ROLLED_BACK),
+		Message: fmt.Sprintf("shard verify --repair truncated %s from %d to %d bytes, rolling back the interrupted append of %s; re-run that shard add",
+			archivePath, sizeBefore, archiveSize, shard),
+		Details: map[string]any{
+			"archive":         archivePath,
+			"journal":         encx.AppendJournalPath(archivePath),
+			"shard":           shard,
+			"size_before":     sizeBefore,
+			"archive_size":    archiveSize,
+			"truncated_bytes": sizeBefore - archiveSize,
+		},
+	}
 }

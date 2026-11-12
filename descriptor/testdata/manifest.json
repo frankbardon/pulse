@@ -11879,7 +11879,7 @@
         ]
       }
     ],
-    "error_codes_count": 469,
+    "error_codes_count": 470,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12208,6 +12208,7 @@
       "PULSE_SEM_SCORE_LEVEL_UNSEEN",
       "PULSE_SHARD_APPEND_INCOMPLETE",
       "PULSE_SHARD_APPEND_REFUSED",
+      "PULSE_SHARD_APPEND_ROLLED_BACK",
       "PULSE_SHARD_COUNT_LIMIT",
       "PULSE_SHARD_DEAD_BYTES_RECLAIMED",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
@@ -21346,4 +21347,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: efb2ad2d8696a21e5adc57a236afdb52c5f80e32b8a00559f619e2dd097e9a8f
+// golden-hash: 150735d468409a88784a24789f50becd5e2a6d1f1c1e571bfd3912e1ac123697

@@ -1664,6 +1664,18 @@ const (
 	// the marker stays. details: archive, journal, reason, cause.
 	PULSE_SHARD_REPAIR_REFUSED Code = "PULSE_SHARD_REPAIR_REFUSED"
 
+	// PULSE_SHARD_APPEND_ROLLED_BACK is emitted as a WARNING (not an
+	// error) when `pulse shard verify --repair` (RepairShardArchive)
+	// truncated an archive back to its journalled length, rolling an
+	// interrupted in-place `shard add` back: the archive was rewritten
+	// and the shard that append carried is no longer in it. Mandatory
+	// for the reason PULSE_SHARD_DEAD_BYTES_RECLAIMED is: an archive
+	// rewrite is never silent. A repair that truncates nothing (no
+	// journal, or no byte past the journalled length) emits none.
+	// details: archive, journal, shard, size_before, archive_size,
+	// truncated_bytes.
+	PULSE_SHARD_APPEND_ROLLED_BACK Code = "PULSE_SHARD_APPEND_ROLLED_BACK"
+
 	// PULSE_SHARD_DEAD_BYTES_RECLAIMED is emitted as a WARNING (not an
 	// error) when an ordinary `pulse shard add` that would have appended
 	// in place took the whole-archive rewrite instead, because the dead
@@ -4997,6 +5009,7 @@ var allCodes = []Code{
 	PULSE_SHARD_APPEND_REFUSED,
 	PULSE_SHARD_APPEND_INCOMPLETE,
 	PULSE_SHARD_REPAIR_REFUSED,
+	PULSE_SHARD_APPEND_ROLLED_BACK,
 	PULSE_SHARD_DEAD_BYTES_RECLAIMED,
 	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,

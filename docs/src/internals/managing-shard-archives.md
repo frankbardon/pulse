@@ -238,9 +238,11 @@ uncompressed) writes only past the archive's old end:
   `PULSE_SHARD_APPEND_INCOMPLETE`, since the tail may be torn or read as
   the pre-append view. `pulse shard verify --repair` (library:
   `RepairShardArchive`) truncates the archive back to its pre-append
-  bytes and removes the journal; it refuses with
-  `PULSE_SHARD_REPAIR_REFUSED`, changing nothing, when the journal does
-  not match the archive. A binary older than the journal ignores it, so
+  bytes and removes the journal, with one mandatory
+  `PULSE_SHARD_APPEND_ROLLED_BACK` warning whenever it truncated (re-run
+  the add it names; none when there was nothing to roll back); it
+  refuses with `PULSE_SHARD_REPAIR_REFUSED`, changing nothing, when the
+  journal does not match the archive. A binary older than the journal ignores it, so
   repair with a current build before any older one touches the archive.
 - An archive whose tail the appender does not extend (data prepended to
   the zip, bytes after its end record, a multi-disk layout) or that

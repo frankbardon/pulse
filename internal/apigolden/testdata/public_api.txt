@@ -1189,6 +1189,7 @@ pulse: type ShardRepairResult field ArchiveSize int64 "json:\"archive_size,omite
 pulse: type ShardRepairResult field Repaired bool "json:\"repaired\""
 pulse: type ShardRepairResult field Shard string "json:\"shard,omitempty\""
 pulse: type ShardRepairResult field SizeBefore int64 "json:\"size_before,omitempty\""
+pulse: type ShardRepairResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type ShardSplit struct
 pulse: type ShardSplit field MaxRecords int
 pulse: type SidecarIndex = pulse/internal/encoding.Index
@@ -3028,6 +3029,7 @@ pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETUR
 pulse/errors: const PULSE_SEM_SCORE_LEVEL_UNSEEN pulse/errors.Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
 pulse/errors: const PULSE_SHARD_APPEND_INCOMPLETE pulse/errors.Code = "PULSE_SHARD_APPEND_INCOMPLETE"
 pulse/errors: const PULSE_SHARD_APPEND_REFUSED pulse/errors.Code = "PULSE_SHARD_APPEND_REFUSED"
+pulse/errors: const PULSE_SHARD_APPEND_ROLLED_BACK pulse/errors.Code = "PULSE_SHARD_APPEND_ROLLED_BACK"
 pulse/errors: const PULSE_SHARD_COUNT_LIMIT pulse/errors.Code = "PULSE_SHARD_COUNT_LIMIT"
 pulse/errors: const PULSE_SHARD_DEAD_BYTES_RECLAIMED pulse/errors.Code = "PULSE_SHARD_DEAD_BYTES_RECLAIMED"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
@@ -6814,4 +6816,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 619fab2a95d12a1bfe240fc9dc939549c8c6dd6b166fd6d5f2c41f8effa7b321
+// golden-hash: fbd09bb7a9fdd8f81a16ec3d05a5a1a220d50c03af3eb69184455d2957e8f79b

@@ -2421,6 +2421,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_APPEND_ROLLED_BACK: {
+		Message: "`shard verify --repair` truncated the archive back to its length before an interrupted in-place `shard add`, rolling that append back: the archive is again byte-identical to its pre-append bytes and the shard the append carried is not in it. The archive is correct; the warning exists because a repair that rewrites the archive must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-run the interrupted `pulse shard add <archive> <shard>` — `details.shard` names the shard it carried. `details.size_before` / `details.archive_size` / `details.truncated_bytes` record the rollback.",
+			},
+		},
+	},
 	PULSE_SHARD_COUNT_LIMIT: {
 		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
 		Fixups: []Fixup{

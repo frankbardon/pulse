@@ -344,6 +344,9 @@ func shardVerifyCmd() *cli.Command {
 				} else {
 					writeText(cmd.Writer, "Repair: %s has no interrupted append\n", archive)
 				}
+				for _, w := range repair.Warnings {
+					writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+				}
 			}
 
 			writeText(cmd.Writer, "Verified %s: %d error(s), %d warning(s)\n",
@@ -420,6 +423,9 @@ func shardExtractCmd() *cli.Command {
 //
 // repair (non-nil only under --repair) rides under data.repair, so a
 // plain verify's envelope is byte-identical to before the flag existed.
+// The repair's warnings (PULSE_SHARD_APPEND_ROLLED_BACK when it
+// truncated) are lifted into the envelope's warnings ahead of the
+// verify's; data.repair keeps them and warning_n stays the verify's own.
 func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult, repair *pulse.ShardRepairResult) *descriptor.Envelope {
 	data := map[string]any{
 		"archive":            archive,
@@ -441,6 +447,11 @@ func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult, repair *
 	env := descriptor.NewEnvelope(data)
 	for _, e := range result.Errors {
 		env.AddError(string(e.Code), e.Message, e.Details)
+	}
+	if repair != nil {
+		for _, w := range repair.Warnings {
+			env.AddWarning(w.Code, w.Message, w.Details)
+		}
 	}
 	for _, w := range result.Warnings {
 		env.AddWarning(w.Code, w.Message, w.Details)

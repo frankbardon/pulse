@@ -3323,8 +3323,10 @@ func (p *Pulse) verifyShardArchive(ctx context.Context, archivePath string) (*Ve
 // tail CRC-32, the journalled prefix parses as an archive), truncates
 // the archive back to its pre-append bytes and removes the journal; a
 // mismatch is PULSE_SHARD_REPAIR_REFUSED with nothing changed. Without
-// a journal it changes nothing (Repaired false). `pulse shard verify
-// --repair` runs it before verifying.
+// a journal it changes nothing (Repaired false). A repair that truncates
+// reports one mandatory PULSE_SHARD_APPEND_ROLLED_BACK on
+// ShardRepairResult.Warnings. `pulse shard verify --repair` runs it
+// before verifying.
 func (p *Pulse) RepairShardArchive(ctx context.Context, archivePath string) (*ShardRepairResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpShardVerify, path: archivePath}, func(ctx context.Context) (*ShardRepairResult, error) {
 		return p.svc.RepairShardArchive(ctx, archivePath)
@@ -3332,8 +3334,8 @@ func (p *Pulse) RepairShardArchive(ctx context.Context, archivePath string) (*Sh
 }
 
 // ShardRepairResult is RepairShardArchive's outcome: whether a journal
-// was rolled back, the shard whose append it was, and the archive's
-// size before and after the truncation.
+// was rolled back, the shard whose append it was, the archive's size
+// before and after the truncation, and its warnings.
 type ShardRepairResult = service.ShardRepairResult
 
 // VerifyResult carries the structured outcome of VerifyShardArchive.
