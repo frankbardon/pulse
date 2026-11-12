@@ -254,6 +254,8 @@ func readSchemaExtension(r io.Reader, s *Schema, layoutOnly bool) error {
 			"schema extension length is implausible",
 			map[string]any{"extension_length": extLen, "version": FormatVersionV2})
 	}
+	// The whole extension block belongs to the schema (schemaReader).
+	schemaAhead(r, int64(extLen))
 	lr := &io.LimitedReader{R: r, N: int64(extLen)}
 	x := &extReader{r: lr}
 	sections, err := x.u16("section count")

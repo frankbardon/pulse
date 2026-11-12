@@ -470,12 +470,14 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 }
 
 // OpenExact is Open for a no-execute caller (predict's schema loader):
-// a single file's header + schema are decoded straight off the handle,
-// so not one byte past the schema end is read — the predict contract
-// "header + schema, never records". Open instead decodes through
-// headReader, which over-reads up to one chunk into the payload to
-// collapse the per-dictionary-entry reads. The decoded Cohort is the
-// same either way.
+// headReader's over-reading buffer is off, so not one byte past the
+// schema end is read — the predict contract "header + schema, never
+// records". The decode is still buffered: encoding.ReadSchema fetches
+// only the bytes the lengths decoded so far prove belong to the schema
+// block, so a huge inline dictionary costs a few hundred reads, not two
+// per entry. Open instead decodes through headReader, which over-reads
+// up to one chunk into the payload for fewer reads still. The decoded
+// Cohort is the same either way.
 func (s *Service) OpenExact(ctx context.Context, path string) (*Cohort, error) {
 	return s.open(ctx, path, true)
 }
@@ -532,7 +534,8 @@ func (s *Service) open(ctx context.Context, path string, exact bool) (*Cohort, e
 	// cost two reads off the handle (~0.45 s at 600k entries). The
 	// over-read past the schema end is at most one chunk (headReader),
 	// and the handle is closed on return. exact (OpenExact) disables the
-	// buffer: every read then goes straight to the handle.
+	// buffer: every read then goes straight to the handle, through
+	// ReadSchema's own buffer, which stops exactly at the schema end.
 	r := newHeadReader(f, magic[:n], exact)
 
 	pulseVersion, err := encoding.ReadHeader(r)

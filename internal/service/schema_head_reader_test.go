@@ -230,9 +230,14 @@ func TestOpen_SchemaReadsCollapse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenExact: %v", err)
 	}
-	_, both := cfs.snapshot()
+	bothCalls, both := cfs.snapshot()
 	if exact.payloadOffset != head || both-read != head {
 		t.Fatalf("OpenExact: payloadOffset %d, read %d bytes; want exactly the %d-byte head", exact.payloadOffset, both-read, head)
+	}
+	// ...yet is buffered too (E5-S4): ReadSchema's bounded buffer, a few
+	// hundred reads, never two per entry.
+	if exactCalls := bothCalls - calls; exactCalls > 512 {
+		t.Fatalf("OpenExact made %d reads for a %d-entry dictionary; want O(log entries)", exactCalls, entries)
 	}
 	// head is ~9 MB: ~14 doubling fills to the 1 MiB cap, then one
 	// per MiB. 64 leaves room for short reads, not for one per entry.
