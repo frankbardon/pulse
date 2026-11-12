@@ -353,16 +353,19 @@ parallel arm (`ShardWorkers` other than 1, two or more shards, a
 mergeable request) each shard's partial keeps its own group buckets
 until it is merged. The merge is incremental: shard i is merged as
 soon as shards 0 to i are done, in shard order, and is then released.
-No shard is handed to a worker until it is within twice the worker
-count of the first unmerged shard. So at most 2 x `ShardWorkers`
-partials are alive beside the merged result, however many shards the
-archive has. The estimate charges that window: the bucket state of the
-2 x workers shards with the largest bucket bounds, and the per-value
-state of the 2 x workers largest shards. Predict reads the instance's
-`ShardWorkers` to pick the arm, as the run does.
+No shard is handed to a worker until it is within the worker count of
+the first unmerged shard. So at most `ShardWorkers` partials are alive
+beside the merged result, however many shards the archive has. The
+estimate charges that window: the bucket state of the `ShardWorkers`
+shards with the largest bucket bounds, and the per-value state of the
+`ShardWorkers` largest shards. Predict reads the instance's
+`ShardWorkers` to pick the arm, as the run does. A fanned-out run only
+folds rows into the partials, so it is charged no buffered records,
+even for a request whose serial run would buffer them (a `total()`
+formula beside a matrix).
 
 When `MaxEstimatedMemory` is set, the window shrinks to fit it. If the
-whole-run estimate at 2 x workers live partials exceeds the limit, the
+whole-run estimate at `ShardWorkers` live partials exceeds the limit, the
 run takes the largest window, down to one partial, whose estimate fits,
 and the limit refuses the request only when even one live partial does
 not fit (the refusal reports that one-partial estimate). A smaller
@@ -371,7 +374,7 @@ workers busy, so it trades speed for memory. It never changes an
 answer: shards still merge in shard order. Predict applies the same
 rule, so a request it reports as fitting runs at the window predict
 assumed. With the default (`Unlimited`) the window is always
-2 x workers. Measured on archives,
+the worker count. Measured on archives,
 the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
 On a single file the parallel-decode arm (`DecodeWorkers` other than 1,

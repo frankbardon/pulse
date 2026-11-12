@@ -249,8 +249,8 @@ func shardWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 
 // ShardMergeWindow is the merge window req's per-shard parallel run
 // keeps — the runtime's scanAndMergeShards reads exactly this, from the
-// pre-flight's own inputs: limits.ShardMergeWindow(workers) (2 x
-// workers), shrunk by limits.ShardMergeWindowWithin while the whole-run
+// pre-flight's own inputs: limits.ShardMergeWindow(workers) (the
+// worker count), shrunk by limits.ShardMergeWindowWithin while the whole-run
 // estimate at that window exceeds a set MaxEstimatedMemory (U51 E5-S4).
 // 0 when req does not take the per-shard arm (ShardFanOut false). The
 // window changes only how many shards are in flight, never the merge
@@ -414,6 +414,11 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		records = rows
 	}
 	if workers := shardWorkers(req, schema, inst, in); workers >= 2 {
+		// Both parallel reducers fold each row into a partial and never
+		// materialise the records, so a fanned-out request is charged
+		// the streaming arm even where the serial run would buffer (a
+		// two-pass total() formula, mergegate.ParallelTotals).
+		mi.Arm = limits.ArmStreaming
 		// The live partials: at most the merge window's shards beside
 		// the merged state (ShardMergeWindow, the runtime's
 		// scanAndMergeShards), charged as the window's largest.
@@ -427,6 +432,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 			return memoryGroupBound(req.Groups, schema, inst, n, kb)
 		})
 	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
+		mi.Arm = limits.ArmStreaming // folds rows, as the per-shard arm
 		// One partial per worker, live until the merge; a worker's
 		// segment is whole merge blocks (the runtime's
 		// blockAlignedSegments), at most ceil(blocks / workers) of them.

@@ -210,8 +210,8 @@ type shardResult struct {
 // never came from it (the shared grouped tail orders the rows).
 //
 // The live partials are bounded by the dispatch window (window:
-// descx.ShardMergeWindow — limits.ShardMergeWindow(workers) = 2 x
-// workers, shrunk to fit a set MaxEstimatedMemory; 0 or less is the
+// descx.ShardMergeWindow — limits.ShardMergeWindow(workers) = the
+// worker count (U74 #502), shrunk to fit a set MaxEstimatedMemory; 0 or less is the
 // unshrunk window): shard j is handed to a worker
 // only once j < next + window, where next is the first shard not yet
 // merged, so at most window partials (scanning, or done and waiting

@@ -177,7 +177,15 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		}},
 		{name: "archive serial", fs: afs, path: arch, shardWorkers: 1, req: func() *types.Request { return archiveRanged(arch) }},
 		{name: "archive per-shard", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(arch) }},
-		// U51 E2-S4: more shards than the merge window (2 workers: 4) —
+		// U74: a two-pass total() beside a matrix buffers serially but
+		// FOLDS on the per-shard arm (mergegate.ParallelTotals), so both
+		// sides charge the streaming arm there, never buffered records.
+		{name: "archive per-shard total() matrix", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: arch}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}},
+				Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "a / total(a)", Label: "share"}},
+				Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"a", "b"}}}}
+		}},
+		// U51 E2-S4: more shards than the merge window (2 workers: 2) —
 		// both sides charge only the window's largest shards' partials.
 		// U51 E5-S4: under a budget both shrink the window to fit, so the
 		// probe's estimate is one live partial's and the run at it fans
@@ -322,8 +330,8 @@ func TestLimits_ShardMergeWindowShrinksToBudget(t *testing.T) {
 	// The estimate charges ONE live partial — the largest shard's 40
 	// buckets (an unknown grouper is bounded by records) at 256 + 128
 	// state each (AGG_SUM's per-aggregator entry, U51 E5-S7) — over the
-	// serial arm's; the unshrunk window (4) would
-	// charge the four largest shards' 40 + 31 + 25 + 12.
+	// serial arm's; the unshrunk window (2, the worker count) would
+	// charge the two largest shards' 40 + 31.
 	sp, err := pulse.New(pulse.Options{FS: afs, ShardWorkers: 1, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
 	if err != nil {
 		t.Fatal(err)
@@ -507,7 +515,7 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 	// shard's 4,097 records (U51 E5-S6, the value-width bound). Only that
 	// shard: a 1-byte budget shrinks the merge window to one live partial
 	// on both sides (U51 E5-S4, limits.ShardMergeWindowWithin), where the
-	// unbudgeted window (4) would charge both shards' 256 + 5.
+	// unbudgeted window (2) would charge both shards' 256 + 5.
 	if d, want := fanned-serial, int64(256*(256+128)); d != want {
 		t.Fatalf("the per-shard arm adds %d bytes, want %d (the u8 width bound of the window's shard)", d, want)
 	}
