@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -551,33 +552,58 @@ func TestRecord_LayoutResolvedOncePerSchema(t *testing.T) {
 // TestRecord_LayoutCacheReleasesCollectedSchemas pins that the layout
 // cache does not pin schemas: once a schema is unreachable its cache
 // entry is dropped.
+//
+// It follows the test's OWN schemas through weak pointers rather than
+// counting the process-wide cache, and retries runtime.GC() a bounded
+// number of times: the weak pointer clears at the first GC that finds
+// the schema unreachable, but the cleanup that deletes the cache entry
+// runs later on the runtime's cleanup goroutine, which a loaded machine
+// (parallel packages, -race) can delay by several cycles.
 func TestRecord_LayoutCacheReleasesCollectedSchemas(t *testing.T) {
-	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate; resets the package-level processing.lastLayout cache
+	// serial: forces runtime.GC() in a loop (process-wide stop-the-world) and resets the package-level processing.lastLayout cache
 
-	count := func() int {
-		n := 0
-		layoutCache.Range(func(_, _ any) bool { n++; return true })
-		return n
-	}
-	before := count()
-	func() {
-		for i := 0; i < 8; i++ {
-			s := positionalTestSchema()
-			_ = NewReusableRecord(s)
-		}
-	}()
-	if count() < before+1 {
-		t.Fatalf("layouts not cached: before %d after %d", before, count())
-	}
+	keys := cacheThrowawayLayouts(t, 8)
 	lastLayout.Store(nil)
-	deadline := time.Now().Add(5 * time.Second)
-	for count() > before {
-		if time.Now().After(deadline) {
-			t.Fatalf("layout cache still holds %d entries (baseline %d) after the schemas were collected", count(), before)
+	const maxGCs = 500
+	for i := 0; ; i++ {
+		live := 0
+		for _, k := range keys {
+			if k.Value() != nil {
+				live++
+				continue
+			}
+			if _, ok := layoutCache.Load(k); ok {
+				live++
+			}
+		}
+		if live == 0 {
+			return
+		}
+		if i == maxGCs {
+			t.Fatalf("%d of %d schemas still alive or cached after %d GCs", live, len(keys), maxGCs)
 		}
 		runtime.GC()
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(time.Millisecond)
 	}
+}
+
+// cacheThrowawayLayouts builds n schemas, caches a layout for each and
+// returns weak pointers to them; no strong reference outlives the call.
+//
+//go:noinline
+func cacheThrowawayLayouts(t *testing.T, n int) []weak.Pointer[encoding.Schema] {
+	t.Helper()
+	keys := make([]weak.Pointer[encoding.Schema], 0, n)
+	for i := 0; i < n; i++ {
+		s := positionalTestSchema()
+		_ = NewReusableRecord(s)
+		k := weak.Make(s)
+		if _, ok := layoutCache.Load(k); !ok {
+			t.Fatalf("schema %d: layout not cached", i)
+		}
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // TestRecord_ReuseDecodeStaysPositional pins that a record populated by
