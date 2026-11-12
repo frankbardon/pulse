@@ -325,19 +325,17 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 
 // ParallelTotals reports, per req.Attributes slot, whether it is a
 // total-bearing ATTR_FORMULA the parallel reducers' two-phase drive
-// runs (U51 E3-S1, #399; grouped U74 E3-S1, #494): the request carries
-// no Crosstab — Groups are fine, a total() is the cohort-wide
-// post-filter sum the pre-pass publishes before any grouper reads a
-// row — and the formula sits in pre-pass layer 0 — none of its
-// inputs is, directly or through row-local attributes, the label of an
-// earlier total() formula. That is processing's two-pass planner rule
-// (twoPassPlan) over the same inputs (vectors.AttributeInputNames,
-// labels by vectors.DefaultAttributeLabel), except that a slot whose
-// inputs cannot be proven — an ATTR_REG_PREDICT, a fit-referenced slot,
-// an extension attribute (its FieldInputs are not visible here) —
-// depends on every earlier slot, so the gate never admits a formula the
-// planner would put in a later layer. Every other slot reports false.
-// nil ext is None.
+// runs (U51 E3-S1, #399; U74 E3-S1 / E3-S2, #494): every one, when the
+// request carries no Crosstab and no nil attribute slot. Groups are
+// fine — a total() is the cohort-wide post-filter sum the pre-pass
+// publishes before any grouper reads a row — and so is a formula in a
+// later pre-pass layer (an input reading, directly or through row-local
+// attributes, an earlier total() formula's label): phase 1 runs one
+// parallel pre-pass per layer of processing's two-pass plan, binding
+// the earlier layers' published totals first. Every other slot reports
+// false; the request's other attributes are judged by MergeRefusal as
+// ever (a non-row-local one keeps the whole request serial). nil ext
+// is None.
 func ParallelTotals(req *types.Request, ext Extensions) []bool {
 	out, _ := totalLayers(req, ext)
 	return out
@@ -345,7 +343,10 @@ func ParallelTotals(req *types.Request, ext Extensions) []bool {
 
 // totalLayers is ParallelTotals plus, per slot, whether its output
 // depends on a published total (a total() formula, or a slot reading
-// one through earlier slots) — nil on a crosstab request.
+// one through earlier slots; the inputs by vectors.AttributeInputNames,
+// labels by vectors.DefaultAttributeLabel, a slot whose inputs cannot
+// be proven — an ATTR_REG_PREDICT, a fit-referenced slot, an extension
+// attribute — reading every earlier one) — nil on a crosstab request.
 func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	if ext == nil {
 		ext = None{}
@@ -391,7 +392,7 @@ func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 			_, reads = inputs[labels[j]]
 		}
 		tainted[i] = isTotal || reads
-		out[i] = isTotal && !reads
+		out[i] = isTotal
 	}
 	return out, tainted
 }

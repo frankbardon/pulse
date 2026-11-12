@@ -468,11 +468,13 @@ func TestChainRefusal_Crosstab(t *testing.T) {
 	}
 }
 
-// TestParallelTotals (U51 E3-S1, #399): the reducers' two-phase total()
-// admits an ungrouped total() formula in pre-pass layer 0 — its inputs
-// are source fields or row-local labels — and nothing else; the refused
-// shapes keep the row-local reason, and the chain stage gate refuses
-// every total() formula.
+// TestParallelTotals (U51 E3-S1, #399; U74 E3-S1 / E3-S2, #494): the
+// reducers' two-phase total() admits every total() formula of a request
+// without a crosstab — ungrouped or grouped, in pre-pass layer 0 or a
+// later one (a total() argument reading an earlier total, directly,
+// through a row-local, a default label or a slot whose inputs cannot be
+// proven) — and the refused shapes (crosstab, a nil slot) keep the
+// row-local reason; the chain stage gate refuses every total() formula.
 func TestParallelTotals(t *testing.T) {
 	t.Parallel()
 
@@ -491,17 +493,19 @@ func TestParallelTotals(t *testing.T) {
 		{"total over a row-local label", &types.Request{Attributes: []*types.Attribute{f("d", "n * 2"), f("t", "total(d)")}}, nil, []bool{false, true}},
 		{"two independent totals share layer 0", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / total(n * 3)")}}, nil, []bool{true, true}},
 		{"a row-local reading a total is fine", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / a")}}, nil, []bool{true, false}},
-		{"total reading a total is layer 1", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, false}},
-		{"total reading a total through a row-local", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n - a"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
-		{"total reading a total in its row expression", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "a / total(n)")}}, nil, []bool{true, false}},
-		{"default label read", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "n", Expression: "total(n)"}, f("b", "total(ATTR_FORMULA_n)")}}, nil, []bool{true, false}},
-		{"unknown inputs after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{true, false, false}},
+		{"total reading a total is layer 1", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, true}},
+		{"total reading a total through a row-local", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n - a"), f("b", "total(c)")}}, nil, []bool{true, false, true}},
+		{"total reading a total in its row expression", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "a / total(n)")}}, nil, []bool{true, true}},
+		{"default label read", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "n", Expression: "total(n)"}, f("b", "total(ATTR_FORMULA_n)")}}, nil, []bool{true, true}},
+		{"unknown inputs after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{true, false, true}},
 		{"unknown inputs before any total", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{false, true}},
-		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, false}},
-		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
+		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, true}},
+		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, true}},
 		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{true}},
 		{"grouped over the total's label", &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 0.1}}, Attributes: []*types.Attribute{f("t", "n / total(n)")}}, nil, []bool{true}},
-		{"grouped total reading a total is layer 1", &types.Request{Groups: region, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, false}},
+		{"grouped total reading a total is layer 1", &types.Request{Groups: region, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, true}},
+		{"three layers", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)"), f("c", "n / 3"), f("d", "c / total(b * c)")}}, nil, []bool{true, true, false, true}},
+		{"crosstab multi-layer", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{false, false}},
 		{"crosstab", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
 		{"nil slot", &types.Request{Attributes: []*types.Attribute{f("t", "total(n)"), nil}}, nil, []bool{false, false}},
 	}

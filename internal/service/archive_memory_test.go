@@ -174,7 +174,8 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x0", "x1"}}}}
 		},
 		// U51 E3-S1: a one-layer total() fans out (two-phase), grouped
-		// too since U74 E3-S1 (#494); a multi-layer one stays serial.
+		// too since U74 E3-S1 (#494), multi-layer (grouped too) since
+		// U74 E3-S2 (#494): one parallel pre-pass per layer.
 		"total": func(p string) *types.Request {
 			return totalArchiveRequest(p, false, "x0 / total(x0)")
 		},
@@ -199,7 +200,14 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 			req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x0 - sh)", Label: "t2"})
 			return req
 		},
+		"grouped multi-layer total": func(p string) *types.Request {
+			req := totalArchiveRequest(p, true, "total(x0)")
+			req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x0 - sh)", Label: "t2"})
+			return req
+		},
 	}
+	// Shapes that must take the parallel arm when it is on offer.
+	fansOut := map[string]bool{"rounded": true, "grouped total": true, "multi-layer total": true, "grouped multi-layer total": true}
 	ctx := context.Background()
 	for _, path := range []string{"multi.pulse", "one.pulse"} {
 		for name, mk := range reqs {
@@ -222,7 +230,7 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 				if got := descx.ShardFanOut(req, cohort.Schema(), svc.instance, in); got != runtimeFans {
 					t.Errorf("%s / %s / ShardWorkers %d: predict fan-out %v, runtime %v", path, name, workers, got, runtimeFans)
 				}
-				if (name == "rounded" || name == "grouped total") && path == "multi.pulse" && workers >= 2 && !runtimeFans {
+				if fansOut[name] && path == "multi.pulse" && workers >= 2 && !runtimeFans {
 					t.Errorf("%s / ShardWorkers %d: stayed serial on a multi-shard archive", name, workers)
 				}
 			}

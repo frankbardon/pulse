@@ -37,11 +37,20 @@ import (
 //     (PublishedTotals.Bind → PublishTotals), so Row reads the same
 //     total the serial Row reads.
 //
-// The merge gate admits only the first cut (mergegate.ParallelTotals):
-// one pre-pass layer, no crosstab, never a ProcessChain stage. Groups
+// The merge gate (mergegate.ParallelTotals) admits every total() formula
+// of a request without a crosstab, never on a ProcessChain stage. Groups
 // are admitted (U74 E3-S1, #494): a total() is the cohort-wide
 // post-filter sum, so the one published value binds every partition
 // before its first row, whatever buckets the partition's groupers make.
+// So are later pre-pass layers (U74 E3-S2, #494): a total() whose
+// argument reads an earlier total (directly or through row-local slots)
+// sits in layer L > 0 of the serial two-pass plan, and phase 1 runs one
+// parallel pre-pass per layer, in order — layer L's partitions are built
+// with every earlier layer's published values bound (so the stages a
+// layer-L argument reads score exactly as on the serial layer-L scan),
+// fold only the layer-L formulas' PrePass, and merge and publish them;
+// the published values accumulate across layers, and phase 2 binds them
+// all.
 
 // TotalsPartial is one total-bearing formula's pre-pass state: per
 // distinct total() argument (Keys, totalcall.Args order), the binned
@@ -152,26 +161,38 @@ type totalsStage struct {
 	nullable bool
 }
 
-// TotalsPrepass is one partition's phase-1 state: the request's
-// attributes built and bound like the reducers' row-local set, planned
-// by the serial two-pass planner (planTwoPassStages), so each record
-// evaluates exactly the layer-0 stages a total() argument reads and
-// folds every formula's PrePass at its declared position — the record
-// state the serial pre-pass scan observes.
+// TotalsPrepass is one partition's phase-1 state for one pre-pass
+// layer: the request's attributes built and bound like the reducers'
+// row-local set, planned by the serial two-pass planner
+// (planTwoPassStages), so each record evaluates exactly the stages a
+// layer-L total() argument reads and folds every layer-L formula's
+// PrePass at its declared position — the record state the serial
+// layer-L pre-pass scan observes.
 type TotalsPrepass struct {
 	stages []totalsStage
 	needed []int // declared-order indices evaluated (Row + Set)
 	plan   twoPassPlan
+	layer  int               // the pre-pass layer this state folds
+	prior  map[int][]float64 // earlier layers' published values
+}
+
+// TotalsPrepassLayers is the number of parallel pre-pass layers attrs
+// need (the serial two-pass plan's layer count, read from the
+// registry): phase 1 runs NewTotalsPrepass for layers 0..n-1 in order.
+func TotalsPrepassLayers(attrs []*types.Attribute, exts *ExtensionRegistry) int {
+	return planTwoPassLayers(attrs, exts).layers
 }
 
 // NewTotalsPrepass builds one partition's phase-1 operators for attrs
-// over schema, bound to the registry, the bound models and the
-// resolved named vectors (the reducers' buildRowLocalAttrSpecs
-// binding). Every attribute must be row-local or a total-bearing
-// formula, in one pre-pass layer — the shape mergegate admits;
-// anything else is PROCESSING_INTERNAL.
-func NewTotalsPrepass(attrs []*types.Attribute, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) (*TotalsPrepass, error) {
-	p := &TotalsPrepass{stages: make([]totalsStage, 0, len(attrs))}
+// over schema and pre-pass layer layer, bound to the registry, the
+// bound models and the resolved named vectors (the reducers'
+// buildRowLocalAttrSpecs binding) and to prior — the values every
+// earlier layer published (nil for layer 0). Every attribute must be
+// row-local or a total-bearing formula — the shape mergegate admits;
+// anything else, a layer past the plan or an earlier-layer formula
+// prior does not carry, is PROCESSING_INTERNAL.
+func NewTotalsPrepass(attrs []*types.Attribute, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, layer int, prior *PublishedTotals) (*TotalsPrepass, error) {
+	p := &TotalsPrepass{stages: make([]totalsStage, 0, len(attrs)), layer: layer}
 	twoPass := make([]bool, len(attrs))
 	aliases := prevstate.U64Aliases(attrs, schema)
 	for i, attr := range attrs {
@@ -204,17 +225,46 @@ func NewTotalsPrepass(attrs []*types.Attribute, schema *encoding.Schema, exts *E
 		p.stages = append(p.stages, st)
 	}
 	p.plan = planTwoPassStages(attrs, twoPass, exts)
-	if p.plan.layers != 1 {
+	if layer < 0 || layer >= p.plan.layers {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-			fmt.Sprintf("parallel total() pre-pass needs exactly one layer, the plan has %d (mergegate.ParallelTotals admitted it)", p.plan.layers))
+			fmt.Sprintf("parallel total() pre-pass layer %d is outside the plan's %d layers", layer, p.plan.layers))
 	}
-	p.needed = p.plan.needed[0]
+	p.needed = p.plan.needed[layer]
+	// An earlier layer's formula is a finished total here: bind its
+	// published values, so a stage reading it scores as on the serial
+	// layer-L scan (its own Finalize'd values, the same bits).
+	if prior != nil {
+		p.prior = prior.values
+	}
+	for i := range p.stages {
+		st := &p.stages[i]
+		if st.totals == nil || p.plan.layer[i] >= layer {
+			continue
+		}
+		values, ok := p.prior[i]
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("parallel total() pre-pass layer %d: attribute slot %d (layer %d) has no published total() values", layer, i, p.plan.layer[i]))
+		}
+		if err := st.totals.PublishTotals(values); err != nil {
+			return nil, err
+		}
+	}
 	return p, nil
 }
 
+// Layers is the plan's pre-pass layer count.
+func (p *TotalsPrepass) Layers() int { return p.plan.layers }
+
+// folds reports whether stage i is a total() formula this layer folds.
+func (p *TotalsPrepass) folds(i int) bool {
+	return p.stages[i].totals != nil && p.plan.layer[i] == p.layer
+}
+
 // Fold folds one filter-passing record: each needed stage writes its
-// output in declared order, and each total-bearing formula folds its
-// pre-pass at its own position.
+// output in declared order, and each total-bearing formula of this
+// layer folds its pre-pass at its own position (an earlier layer's is
+// finished, a later layer's inputs are not available yet).
 func (p *TotalsPrepass) Fold(r *Record) error {
 	k := 0
 	for i := range p.stages {
@@ -228,7 +278,7 @@ func (p *TotalsPrepass) Fold(r *Record) error {
 			SetAttributeOutput(r, st.label, val, st.nullable)
 			continue
 		}
-		if st.totals != nil {
+		if p.folds(i) {
 			if err := st.totals.PrePass(r, st.attr.Field); err != nil {
 				return err
 			}
@@ -238,7 +288,8 @@ func (p *TotalsPrepass) Fold(r *Record) error {
 }
 
 // Merge folds another partition's pre-pass into p (AbsorbTotals per
-// total-bearing formula). Order-free: the binned sums merge exactly.
+// total-bearing formula of the layer). Order-free: the binned sums
+// merge exactly.
 func (p *TotalsPrepass) Merge(o *TotalsPrepass) error {
 	if o == nil {
 		return nil
@@ -247,8 +298,12 @@ func (p *TotalsPrepass) Merge(o *TotalsPrepass) error {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"parallel total() pre-pass partitions disagree on the attribute count")
 	}
+	if o.layer != p.layer {
+		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("parallel total() pre-pass partitions disagree on the layer: %d merged into %d", o.layer, p.layer))
+	}
 	for i := range p.stages {
-		if p.stages[i].totals == nil {
+		if !p.folds(i) {
 			continue
 		}
 		part, err := o.stages[i].totals.PartialTotals()
@@ -262,13 +317,18 @@ func (p *TotalsPrepass) Merge(o *TotalsPrepass) error {
 	return nil
 }
 
-// Publish finalizes every total-bearing formula of the merged pre-pass
-// and returns the values phase 2 binds.
+// Publish finalizes every total-bearing formula of the layer's merged
+// pre-pass and returns them beside every earlier layer's values: the
+// next layer's prior, and after the last layer the values phase 2
+// binds.
 func (p *TotalsPrepass) Publish() (*PublishedTotals, error) {
-	out := &PublishedTotals{values: make(map[int][]float64)}
+	out := &PublishedTotals{values: make(map[int][]float64, len(p.prior)+1)}
+	for i, v := range p.prior {
+		out.values[i] = v
+	}
 	for i := range p.stages {
 		st := &p.stages[i]
-		if st.totals == nil {
+		if !p.folds(i) {
 			continue
 		}
 		if err := st.totals.Finalize(); err != nil {
@@ -309,32 +369,33 @@ func (p *PublishedTotals) Bind(i int, computer AttributeComputer) error {
 	return mt.PublishTotals(values)
 }
 
-// TotalsPrepassRequest is req narrowed to what the parallel total()
-// pre-pass reads — its filters, weights, zones and vectors, and only
-// the attributes the pre-pass evaluates (the layer-0 stages a total()
-// argument reads, then each total-bearing formula reduced to its
-// total() arguments, totalArgumentsOnly; declared order) — so the
-// reducers project the pre-pass decode to the filter and total()
+// TotalsPrepassRequest is req narrowed to what pre-pass layer layer
+// reads — its filters, weights, zones and vectors, and only the
+// attributes that layer evaluates (the stages a layer-L total()
+// argument reads — an earlier layer's formula among them whole, it
+// scores the row — then each layer-L formula reduced to its total()
+// arguments, totalArgumentsOnly; declared order) — so the reducers
+// project each pre-pass decode to the filter and that layer's total()
 // argument fields (Service.decodeProjection over it). The narrowed
 // request is a PROJECTION input only: the pre-pass itself runs the
 // request's own attributes (NewTotalsPrepass).
 // Aggregations, groups and matrices are dropped: phase 1 folds none of
-// them. A plan with other than one layer returns req itself (the full
+// them. A layer outside the plan returns req itself (the full
 // projection: correct, only wider; NewTotalsPrepass refuses it).
-func TotalsPrepassRequest(req *types.Request, exts *ExtensionRegistry) *types.Request {
+func TotalsPrepassRequest(req *types.Request, exts *ExtensionRegistry, layer int) *types.Request {
 	plan := planTwoPassLayers(req.Attributes, exts)
-	if plan.layers != 1 {
+	if layer < 0 || layer >= plan.layers {
 		return req
 	}
 	var attrs []*types.Attribute
-	k, needed := 0, plan.needed[0]
+	k, needed := 0, plan.needed[layer]
 	for i, a := range req.Attributes {
 		if k < len(needed) && needed[k] == i {
 			k++
 			attrs = append(attrs, a)
 			continue
 		}
-		if plan.twoPass[i] {
+		if plan.twoPass[i] && plan.layer[i] == layer {
 			attrs = append(attrs, totalArgumentsOnly(a))
 		}
 	}

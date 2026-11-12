@@ -103,7 +103,8 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}}
 		},
 		// U51 E3-S1: a one-layer total() fans out (two-phase), grouped
-		// too since U74 E3-S1 (#494).
+		// too since U74 E3-S1 (#494), multi-layer (grouped too) since
+		// U74 E3-S2 (#494).
 		"total": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p},
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "sh"}},
@@ -113,6 +114,23 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 			return &types.Request{Cohort: &types.Cohort{Filename: p},
 				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "k", Interval: 2}},
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "sh"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
+		},
+		"multi-layer total": func(p string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: p},
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "t1"},
+					{Type: types.ATTR_FORMULA, Expression: "x / total(x - t1 / 7)", Label: "sh"},
+				},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
+		},
+		"grouped multi-layer total": func(p string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: p},
+				Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "k", Interval: 2}},
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "t1"},
+					{Type: types.ATTR_FORMULA, Expression: "x / total(x - t1 / 7)", Label: "sh"},
+				},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
 		},
 		"crosstab": func(p string) *types.Request {
@@ -165,7 +183,7 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 					if got != runtimeFans {
 						t.Errorf("predict fan-out %v, runtime %v", got, runtimeFans)
 					}
-					if (name == "rounded" || name == "grouped total") && c.name == "mappable" && workers >= 2 && !runtimeFans {
+					if (name == "rounded" || name == "grouped total" || name == "multi-layer total" || name == "grouped multi-layer total") && c.name == "mappable" && workers >= 2 && !runtimeFans {
 						t.Errorf("%s stayed serial on a mappable file past the threshold", name)
 					}
 					// Predict's own probe answers what the run's inputs say.

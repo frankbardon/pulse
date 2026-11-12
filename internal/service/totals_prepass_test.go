@@ -155,3 +155,109 @@ func TestTotalsPrepass_ProjectionNarrowsToTotalInputs(t *testing.T) {
 		}
 	}
 }
+
+// TestTotalsPrepass_MultiLayerProjectsPerLayer (U74 E3-S2, #494): a
+// total() whose argument reads an earlier total runs one phase-1
+// pre-pass per layer on both parallel arms, each under its own
+// projection — layer 0 the filter and x (through x2), layer 1 also a
+// (the layer-0 formula scores the row whole) and b (its argument),
+// never pw, which only the layer-1 formula's row expression reads —
+// and the answer equals the serial run's, bit for bit.
+func TestTotalsPrepass_MultiLayerProjectsPerLayer(t *testing.T) {
+	// serial: swaps the package-level service.prepassProjectionHook test hook
+
+	ctx := context.Background()
+	schema := prepassSchema()
+	mem := afero.NewMemMapFs()
+	archive := buildShardArchive(t, schema, []struct {
+		Name    string
+		Records [][]uint64
+	}{{"s0.pulse", prepassRecords(0, 40)}, {"s1.pulse", prepassRecords(40, 90)}, {"s2.pulse", prepassRecords(90, 120)}})
+	if err := afero.WriteFile(mem, "arch.pulse", archive, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	memCfg, err := fs.New(fs.WithFs(mem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	osFs := afero.NewOsFs()
+	if err := afero.WriteFile(osFs, filepath.Join(dir, "big.pulse"),
+		writeSinglePulse(t, schema, prepassRecords(0, parallelDecodeRecordThreshold+4096)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	osCfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := func(path string, grouped bool) *types.Request {
+		req := prepassRequest(path, false)
+		req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_FORMULA, Expression: "pw + total(sh * b)", Label: "m"})
+		req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: "m", Label: "sm"})
+		if grouped {
+			req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "k"}}
+		}
+		return req
+	}
+	arms := []struct {
+		name string
+		cfg  *fs.Config
+		svc  func(cfg *fs.Config, workers int) *Service
+		path string
+	}{
+		{"shard_parallel", memCfg, func(cfg *fs.Config, w int) *Service {
+			s := New(cfg)
+			s.SetShardWorkers(w)
+			s.SetProjectBufferedFields(true)
+			return s
+		}, "arch.pulse"},
+		{"parallel_decode", osCfg, func(cfg *fs.Config, w int) *Service {
+			s := New(cfg)
+			s.SetDecodeWorkers(w)
+			s.SetProjectBufferedFields(true)
+			return s
+		}, filepath.Join(dir, "big.pulse")},
+	}
+	defer func() { prepassProjectionHook = nil }()
+	for _, arm := range arms {
+		// The decode arm runs the grouped form only (the 1 s budget;
+		// the bit-exactness family covers both forms on both arms).
+		groupings := []bool{false, true}
+		if arm.name == "parallel_decode" {
+			groupings = groupings[1:]
+		}
+		for _, grouped := range groupings {
+			t.Run(fmt.Sprintf("%s/grouped=%v", arm.name, grouped), func(t *testing.T) {
+				var calls [][]string
+				prepassProjectionHook = func(keep encx.FieldFilter, projected int) {
+					calls = append(calls, retainedNames(schema, keep))
+				}
+				got, err := arm.svc(arm.cfg, 3).Process(ctx, request(arm.path, grouped))
+				if err != nil {
+					t.Fatalf("Process: %v", err)
+				}
+				want := [][]string{{"k", "x"}, {"a", "b", "k", "x"}}
+				if fmt.Sprint(calls) != fmt.Sprint(want) {
+					t.Fatalf("pre-pass projections %v, want one per layer %v (the run did not take the per-layer two-phase arm)", calls, want)
+				}
+				prepassProjectionHook = nil
+				ref, err := arm.svc(arm.cfg, 1).Process(ctx, request(arm.path, grouped))
+				if err != nil {
+					t.Fatalf("serial Process: %v", err)
+				}
+				if len(got.Data) == 0 || len(got.Data) != len(ref.Data) {
+					t.Fatalf("rows %d, serial %d", len(got.Data), len(ref.Data))
+				}
+				for i := range got.Data {
+					for _, k := range []string{"ssh", "sb", "sm"} {
+						g, _ := got.Data[i][k].(float64)
+						w, _ := ref.Data[i][k].(float64)
+						if math.Float64bits(g) != math.Float64bits(w) || g == 0 {
+							t.Fatalf("row %d %s = %v, serial %v", i, k, g, w)
+						}
+					}
+				}
+			})
+		}
+	}
+}
