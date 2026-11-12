@@ -268,6 +268,7 @@ var flagValues = map[string]valueSource{
 	"log-format":     cliOwned(logFormatNames),
 	"shard-workers":  freeValue,
 	"decode-workers": freeValue,
+	"memory-limit":   freeValue,
 
 	// closed vocabularies
 	"float":        vocab(pio.FloatWidths),

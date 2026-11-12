@@ -418,11 +418,51 @@ grouped `AGG_SUM` + `AGG_AVERAGE` over two members
 A request that reads every member (a 50 × 50 pairwise covariance) scales
 almost linearly: 6.1 s at 1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8 on
 the archive, with the peak heap 48–69 MB. Each extra worker adds one
-read window and up to two unmerged partials (their group buckets) to
+read window and one unmerged partial (its group buckets) to
 the peak, so a high-cardinality grouping costs more memory per worker
 than these four-bucket runs. The shard count does not: merged partials
 are released. Beyond the number of shards, extra shard workers sit
 idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
+
+## Large archive runs
+
+Two different knobs bound memory on a large run, and they do different
+things.
+
+`MaxEstimatedMemory` (`--limit max_estimated_memory=N`) is a refusal. Predict and
+the pre-flight check compare the estimate above with the budget before
+any record decodes, and an over-budget run fails up front with
+`PULSE_LIMIT_EXCEEDED` instead of running out of memory part way. Over a
+shard archive it first shrinks the merge window to fit, as described
+above.
+
+The Go runtime's soft memory limit is pacing, not a refusal. Near the
+limit the garbage collector runs more often, so a run whose live heap
+fits but whose garbage would not finishes inside the cap, at some CPU
+cost. It never refuses a request, and a live heap above it still grows.
+The limit belongs to the whole process, so Pulse never sets it on an
+embedder's behalf and `pulse.Options` has no field for it:
+
+- **Embedders** call `debug.SetMemoryLimit` themselves (or set
+  `GOMEMLIMIT`), once for the process, leaving room for everything else
+  the process holds.
+- **The CLI** takes the global `--memory-limit` flag on every leaf,
+  `pulse mcp` included, and applies it before the leaf runs: a byte size
+  as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`) or a share of physical
+  RAM (`85%`, read on darwin and linux; it is the host's RAM, not a
+  container's cgroup limit, so give a byte size inside a container). The
+  flag wins over `GOMEMLIMIT` when both are set. Unset, the runtime is
+  untouched: no default, no RAM-derived value. Zero, a negative, more
+  than `100%` or an unknown unit is a usage error (exit 2) carrying
+  `CLI_INPUT`.
+
+```bash
+pulse api process --request big.json --json --memory-limit 14GiB --limit max_estimated_memory=12000000000
+```
+
+Use both on a machine with a hard memory ceiling: the estimate refuses
+what cannot fit, and the soft limit keeps garbage from pushing a run
+that does fit over the ceiling.
 
 ## Memory-mapped reads and rewrites (Windows)
 

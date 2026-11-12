@@ -33,13 +33,14 @@ Persistent on **every** leaf (accepted before or after the leaf name):
 | `--log-format text\|json` | Log record encoding (default `text`); ignored while `--log-level` is `off` |
 | `--shard-workers N` | Per-shard parallel workers over a shard archive (`Options.ShardWorkers`): `0` (default) one per CPU, `1` serial |
 | `--decode-workers N` | Parallel decode workers over one large `.pulse` file (`Options.DecodeWorkers`): `0` (default) one per CPU, `1` serial |
+| `--memory-limit SIZE\|N%` | Go soft memory limit for the whole process (`debug.SetMemoryLimit`), set before the leaf runs: a byte size as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`; units `B`, `KiB`, `MiB`, `GiB`, `TiB`) or `N%` of physical RAM (`85%`, darwin and linux). Wins over `GOMEMLIMIT`; unset leaves the runtime untouched (no default). Zero, a negative, over `100%` or an unknown unit is a usage error carrying `CLI_INPUT` (details `{flag, value}`). See [Tuning Limits](../library/tuning-limits.md#large-archive-runs) |
 | `--limit NAME=VALUE` | Instance resource limit (`Options.Limits`), repeatable: a positive integer, a Go duration for `request_timeout` (`30s`), `unlimited` (or `-1`), or `0` for the default; a later flag for the same name wins (names and grammar: [Tuning Limits](../library/tuning-limits.md)) |
 
 Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
 carry identifiers, counts, timings, enums and error codes only — never
 row data, filter values or error messages. An unknown value is
-`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `--limit` likewise reaches every instance a leaf builds — `pulse api compose --limit max_compose_slots=2000` runs a 2,000-slot batch — and under `pulse mcp` wins over the feature profile's `limits` per key; an unknown name or bad value is a usage error carrying `CLI_INPUT` (details `{flag, value, limit?}`). Limits are instance-level only: no request carries one. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
+`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `--limit` likewise reaches every instance a leaf builds — `pulse api compose --limit max_compose_slots=2000` runs a 2,000-slot batch — and under `pulse mcp` wins over the feature profile's `limits` per key; an unknown name or bad value is a usage error carrying `CLI_INPUT` (details `{flag, value, limit?}`). Limits are instance-level only: no request carries one. `--memory-limit` is different: the Go runtime's soft limit is process-global, so it has no `pulse.Options` field and no `PULSE_*` form (`GOMEMLIMIT` is the environment variable), and it only makes the garbage collector work harder near the cap — it never refuses a request (`--limit max_estimated_memory` does). `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
 
 ## Environment variables
 
@@ -95,7 +96,7 @@ codes; branch on `errors[0].code` for the reason.
 |---|---|
 | 0 | Success. Warnings and advisories are allowed: they ride the envelope's `warnings` (stderr lines in text mode) and never move the status |
 | 1 | A fatal error. Under `--json` the envelope's `errors` carries it (a warning `--strict` escalated included) and stdout is that envelope alone, with nothing added to stderr; in text mode it is printed to stderr as `error: ...` |
-| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, an unknown `--log-level` / `--log-format`, a negative `--shard-workers` / `--decode-workers`, or a bad `--limit`. The usage text goes to the terminal; no envelope is written |
+| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, an unknown `--log-level` / `--log-format`, a negative `--shard-workers` / `--decode-workers`, a bad `--limit`, or a bad `--memory-limit`. The usage text goes to the terminal; no envelope is written |
 
 The rule follows the envelope: an envelope with a non-empty `errors`
 always exits 1, one with only `warnings` exits 0. A leaf's own argument
