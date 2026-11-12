@@ -2,6 +2,8 @@ module github.com/frankbardon/pulse
 
 go 1.26.1
 
+toolchain go1.26.11
+
 require (
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/expr-lang/expr v1.17.8

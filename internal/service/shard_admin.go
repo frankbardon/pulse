@@ -32,32 +32,67 @@ import (
 // a cheap append. A union above the widest rung has nowhere to go and
 // stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
 //
-// Streaming rewrite: the archive is opened by random access (central
-// directory + `_schema.pulse`), the aggregate is summed header-only
-// (PeekShardRecordCount), and a new archive is streamed into a staged
-// file beside the original (archiveWriter) — the refreshed
-// `_schema.pulse`, every stored shard copied RAW with zip CreateRaw
-// from a SectionReader (no decode), then the new shard — and renamed
-// over it. Memory is O(the new shard), I/O O(the archive). Only when the
-// archive itself moves (an archive-level set widen, a constant-group
-// promotion) is each stored shard read, one at a time, and re-encoded
-// on its way into the stage. The rename is what makes the widen safe
-// without locking — concurrency is caller-owned by contract, and a
-// failure (or a crash) at any point before it leaves the original
-// archive byte-identical and openable rather than half-widened (which
-// would open, and decode every post-widen field at the wrong offset).
-// True in-place tail append is not done: it would give up exactly that
-// guarantee.
+// Tail append (shard_append.go, U73 #492): an ORDINARY add — no
+// archive-level widen, no constant-group promotion, so every stored
+// shard keeps its bytes — appends the new shard, a refreshed
+// `_schema.pulse` and a new zip64 central directory to the archive's
+// tail in place: bytes written are O(the new shard + the directory),
+// whatever the archive's size, and the superseded `_schema.pulse` and
+// directory stay behind as dead bytes (CompactShardArchive reclaims
+// them). A write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED,
+// nothing written; a crash mid-append is journalled (shard_append.go)
+// and rolled back by RepairShardArchive.
+//
+// Streaming rewrite: when the archive itself moves (an archive-level set
+// widen, a constant-group promotion) — or its tail is a layout the
+// appender does not extend — the archive is opened by random access
+// (central directory + `_schema.pulse`), the aggregate is summed
+// header-only (PeekShardRecordCount), and a new archive is streamed into
+// a staged file beside the original (archiveWriter) — the refreshed
+// `_schema.pulse`, every stored shard (re-encoded one at a time on its
+// way into the stage when the archive moves, otherwise copied RAW with
+// zip CreateRaw from a SectionReader), then the new shard — and renamed
+// over it. Memory is O(the new shard), I/O O(the archive). The rename is
+// what makes the widen safe without locking — concurrency is
+// caller-owned by contract, and a failure (or a crash) at any point
+// before it leaves the original archive byte-identical and openable
+// rather than half-widened (which would open, and decode every
+// post-widen field at the wrong offset). That is why a widen or a
+// promotion never appends.
 //
 // Point-lookup indexes (index_upkeep.go): an ordinary add builds the new
 // shard's sidecar for every archive index and the updated index
 // manifest BEFORE the archive is published — any failure aborts the
 // whole add with the archive, every sidecar and the manifest untouched
-// — then renames the archive, the sidecars and the manifest, in that
-// order, with the mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
+// — then publishes the archive (the tail append, or the rename), then
+// renames the sidecars and the manifest, in that order, with the
+// mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
 // that re-encodes the stored shards keeps nothing and reports the
 // sidecars it invalidated (AddShardResult.InvalidatedSidecars).
+//
+// Dead bytes (U73 E2-S3): every append leaves the superseded
+// `_schema.pulse` and directory behind, so an ordinary add whose append
+// would leave dead bytes past HALF the archive (appendDeadByteLimit)
+// takes the rewrite instead — reclaiming them all — with ONE mandatory
+// PULSE_SHARD_DEAD_BYTES_RECLAIMED warning. AddShardWithOptions'
+// Rewrite forces the rewrite outright.
 func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
+	return s.AddShardWithOptions(ctx, archivePath, shardPath, AddShardOptions{})
+}
+
+// AddShardOptions tunes AddShardWithOptions. The zero value is AddShard.
+type AddShardOptions struct {
+	// Rewrite forces the whole-archive streaming rewrite (staged file +
+	// rename) for an add that would otherwise append in place: the
+	// archive is never opened for writing (the answer to
+	// PULSE_SHARD_APPEND_REFUSED) and its dead bytes are reclaimed. No
+	// warning: the caller asked for it.
+	Rewrite bool
+}
+
+// AddShardWithOptions is AddShard with options (`pulse shard add
+// --rewrite`).
+func (s *Service) AddShardWithOptions(ctx context.Context, archivePath, shardPath string, opts AddShardOptions) (*AddShardResult, error) {
 	fsys := s.fs.Fs()
 
 	base := filepath.Base(shardPath)
@@ -151,12 +186,57 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	aggregate += uint64(n)
 	shardCount := stored.shardCount() + 1
 
+	// Per-shard distinct counts (U73 #500): the arrival is counted from
+	// the bytes the archive will store; every stored shard CARRIES the
+	// prior trailer's entry (its words did not change — a widen or
+	// promotion re-lays-out records, never an eligible field's words),
+	// and a stored shard the prior trailer does not cover (an archive
+	// written before it) is recorded absent, never recounted here.
+	// A carry is identity-checked (U73 #720): a stored shard whose entry
+	// its central-directory identity no longer vouches for — replaced
+	// outside Pulse under the same name, or recorded without an identity
+	// — is recounted, and every entry is stamped with the identity of the
+	// bytes the new archive stores (addDistinct).
+	dist, err := s.addDistinct(ctx, a, stored, m, base)
+	if err != nil {
+		return nil, err
+	}
+
+	// An ordinary add keeps every stored shard's bytes, so it appends to
+	// the archive's tail in place (shard_append.go); a tail the appender
+	// does not extend (prepended data, a multi-disk or trailing-bytes
+	// layout) takes the rewrite below, as does an archive holding a
+	// deflated entry (a third-party zip tool's), which the rewrite
+	// re-stores.
+	// An append that would leave the archive more than half dead bytes,
+	// or a caller's Rewrite, takes the rewrite too.
+	if m.rewrite == nil && allEntriesStored(a) && !opts.Rewrite {
+		dir, err := encx.ReadArchiveDirectory(a.ra, a.size)
+		switch {
+		case err == nil:
+			schemaDoc, err := buildSchemaDocPayload(m.canonical, aggregate, shardCount, dist, archivePath)
+			if err != nil {
+				return nil, err
+			}
+			reclaim, err := appendDeadBytesFallback(a, dir, archivePath, base, len(m.incoming), len(schemaDoc))
+			if err != nil {
+				return nil, err
+			}
+			if reclaim == nil {
+				return s.appendShard(fsys, archivePath, a, dir, m, base, schemaDoc, shardCount, manifest, indexEntries, result)
+			}
+			result.Warnings = append(result.Warnings, *reclaim)
+		case !encx.IsNotAppendable(err):
+			return nil, err
+		}
+	}
+
 	w, err := newArchiveWriter(fsys, archivePath)
 	if err != nil {
 		return nil, err
 	}
 	defer w.abort()
-	if err := w.writeSchemaDoc(m.canonical, aggregate, shardCount); err != nil {
+	if err := w.writeSchemaDoc(m.canonical, aggregate, shardCount, dist); err != nil {
 		return nil, err
 	}
 	if err := writeStoredShards(w, a, stored, m.rewrite); err != nil {
@@ -182,7 +262,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	var upkeep *indexUpkeep
 	if manifest != nil {
 		if m.rewrite == nil {
-			upkeep, err = stageAddUpkeep(fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
+			upkeep, err = stageAddUpkeep(fsys, fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
 			if err != nil {
 				return nil, err
 			}
@@ -199,6 +279,107 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	}
 	result.ShardCount = shardCount
 	return result, nil
+}
+
+// addDistinct is the DIST trailer an add writes. Every entry records
+// the identity of the bytes the new archive stores for its shard, and
+// `_schema.pulse` is written FIRST, so each identity is known before any
+// shard is: a kept shard's off the central directory (append, raw copy
+// and re-store all keep its uncompressed bytes), the arrival's off its
+// held bytes — and, when the archive moves (m.rewrite: a widen or a
+// group promotion re-encodes every stored shard), a PRE-PASS re-encodes
+// each stored shard once to learn the identity of the bytes the write
+// then re-encodes again (the owner-accepted double read, U73 #720). A
+// stale stored shard is recounted from the bytes the archive will store.
+func (s *Service) addDistinct(ctx context.Context, a *archiveFile, stored *archiveShards, m *shardMerge, base string) (*encx.ArchiveDistinct, error) {
+	prior := readPriorDistinct(a.arch)
+	pass := s.newDistinctPass(m.canonical)
+	refs := keptShardRefs(a, stored.names)
+	var fresh map[string][]encx.DistinctCount
+	if m.rewrite == nil {
+		var err error
+		if fresh, err = pass.recountKept(ctx, a, refs, prior, false); err != nil {
+			return nil, err
+		}
+	} else {
+		fresh = map[string][]encx.DistinctCount{}
+		for i := range refs {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			payload, err := stored.loadShard(i)
+			if err != nil {
+				return nil, err
+			}
+			if payload, err = m.rewrite(refs[i].Name, payload); err != nil {
+				return nil, err
+			}
+			refs[i].Stored = encx.PayloadIdentity(payload)
+			if prior.Stale(refs[i].Name, refs[i].Current) {
+				counts, err := pass.count(bytes.NewReader(payload), refs[i].Name)
+				if err != nil {
+					return nil, err
+				}
+				fresh[refs[i].Name] = counts
+			}
+		}
+	}
+	counts, err := pass.count(bytes.NewReader(m.incoming), base)
+	if err != nil {
+		return nil, err
+	}
+	fresh[base] = counts
+	refs = append(refs, encx.KeptShard(base, encx.PayloadIdentity(m.incoming)))
+	return encx.NextArchiveDistinct(m.canonical, refs, prior, fresh), nil
+}
+
+// appendDeadByteLimit is the share of the archive the dead bytes an
+// append leaves may reach: past dead*appendDeadByteLimit > size (more
+// than half the file dead), AddShard rewrites instead.
+const appendDeadByteLimit = 2
+
+// appendDeadBytesFallback measures the dead bytes the tail append of a
+// shard of shardSize bytes (and a `_schema.pulse` of schemaSize) would
+// leave — the dead bytes already there plus the live `_schema.pulse` and
+// directory tail the append supersedes — against the archive's size
+// after that append. Over half: the mandatory
+// PULSE_SHARD_DEAD_BYTES_RECLAIMED warning the rewrite reports; at or
+// under: nil, append.
+func appendDeadBytesFallback(a *archiveFile, dir *encx.ArchiveDirectory, archivePath, base string, shardSize, schemaSize int) (*encx.CohesionWarning, error) {
+	sp, err := encx.MeasureArchiveSpace(a.ra, dir)
+	if err != nil {
+		return nil, err
+	}
+	dead := sp.DeadAfterAppend()
+	size := dir.Size + encx.AppendLength(dir, encx.ReservedSchemaName,
+		[]string{base, encx.ReservedSchemaName}, []uint64{uint64(shardSize), uint64(schemaSize)})
+	if dead*appendDeadByteLimit <= size {
+		return nil, nil
+	}
+	return &encx.CohesionWarning{
+		Code: string(errors.PULSE_SHARD_DEAD_BYTES_RECLAIMED),
+		Message: fmt.Sprintf("shard add rewrote %s instead of appending %s in place: the append would have left %d of %d bytes dead (over half); the rewrite reclaimed them",
+			archivePath, base, dead, size),
+		Details: map[string]any{
+			"archive":            archivePath,
+			"shard":              base,
+			"dead_bytes":         dead,
+			"archive_size":       size,
+			"dead_schema_copies": sp.DeadSchemaCopies + 1,
+			"threshold":          0.5,
+		},
+	}, nil
+}
+
+// allEntriesStored reports whether every entry of the archive is
+// store-only (Method 0).
+func allEntriesStored(a *archiveFile) bool {
+	for _, e := range a.arch.Entries() {
+		if !a.arch.IsStored(e.Name) {
+			return false
+		}
+	}
+	return true
 }
 
 // writeStoredShards streams every stored shard into w in archive order:
@@ -297,7 +478,19 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 		}
 		defer upkeep.abort()
 	}
-	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept); err != nil {
+	// The kept shards' bytes are copied raw: their distinct counts carry,
+	// the removed shard's entry drops with it — except a kept shard whose
+	// entry its central-directory identity no longer vouches for (U73
+	// #720), which is recounted off its stored bytes.
+	prior := readPriorDistinct(a.arch)
+	refs := keptShardRefs(a, kept.names)
+	pass := s.newDistinctPass(canonicalDoc.Schema)
+	fresh, err := pass.recountKept(ctx, a, refs, prior, false)
+	if err != nil {
+		return nil, err
+	}
+	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, refs, prior, fresh)
+	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept, dist); err != nil {
 		return nil, err
 	}
 	if upkeep != nil {
@@ -331,7 +524,7 @@ type RemoveShardResult struct {
 // share it. It closes a before the rename. Raw copies keep every stored
 // shard's bytes, size and CRC32, so the archive's point-lookup sidecars
 // stay valid for every kept shard.
-func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards) error {
+func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards, dist *encx.ArchiveDistinct) error {
 	aggregate, err := sumStoredRecords(kept)
 	if err != nil {
 		return err
@@ -341,7 +534,7 @@ func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canoni
 		return err
 	}
 	defer w.abort()
-	if err := w.writeSchemaDoc(canonical, aggregate, kept.shardCount()); err != nil {
+	if err := w.writeSchemaDoc(canonical, aggregate, kept.shardCount(), dist); err != nil {
 		return err
 	}
 	if err := writeStoredShards(w, a, kept, nil); err != nil {
@@ -588,12 +781,16 @@ func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 // encoding.ReservedSchemaName. A shard count past the u16 trailer field
 // is refused (PULSE_SHARD_COUNT_LIMIT), never truncated — the last line
 // of defence behind each writer's own up-front check.
-func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, archivePath string) ([]byte, error) {
+//
+// dist is the DIST trailer (per-shard distinct counts, U73 #500) every
+// Pulse archive writer records; this is the one place a `_schema.pulse`
+// is serialised, so every writer path carries one.
+func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, dist *encx.ArchiveDistinct, archivePath string) ([]byte, error) {
 	if err := checkArchiveShardCount(shardCount, archivePath); err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
-	if err := encx.WriteSchemaDoc(&buf, schema, agg, uint16(shardCount)); err != nil {
+	if err := encx.WriteSchemaDocDistinct(&buf, schema, agg, uint16(shardCount), dist); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

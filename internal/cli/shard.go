@@ -12,8 +12,10 @@ import (
 
 // ShardCommand returns the `pulse shard` command group covering
 // archive create / add / remove / list / compact / verify / extract.
-// Shard mutations use the atomic temp+rename pattern so partial writes
-// never appear at the canonical archive path.
+// An ordinary `shard add` appends to the archive's tail in place (a
+// failed write is truncated back); every other mutation uses the atomic
+// temp+rename pattern so partial writes never appear at the canonical
+// archive path.
 func ShardCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "shard",
@@ -99,6 +101,7 @@ func shardAddCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE SHARD",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "rewrite", Usage: "Rewrite the whole archive (staged file + rename) instead of appending in place; never opens the archive for writing and reclaims dead bytes"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -113,7 +116,7 @@ func shardAddCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
-			result, err := p.AddShard(ctx, archive, shard)
+			result, err := p.AddShardWithOptions(ctx, archive, shard, pulse.AddShardOptions{Rewrite: cmd.Bool("rewrite")})
 			if err != nil {
 				return cliCodedError(cmd, jsonOut, "SHARD_ADD_ERROR", err)
 			}
@@ -134,9 +137,6 @@ func shardAddCmd() *cli.Command {
 				}
 				if len(result.Regrouped) > 0 {
 					data["regrouped"] = result.Regrouped
-				}
-				if len(result.InvalidatedSidecars) > 0 {
-					data["invalidated_sidecars"] = result.InvalidatedSidecars
 				}
 				if len(result.InvalidatedSidecars) > 0 {
 					data["invalidated_sidecars"] = result.InvalidatedSidecars
@@ -305,6 +305,7 @@ func shardVerifyCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "repair", Usage: "First roll back an interrupted in-place shard add (truncate to the journalled length, remove the journal); refuses when the journal does not match the archive"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -318,6 +319,13 @@ func shardVerifyCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
+			var repair *pulse.ShardRepairResult
+			if cmd.Bool("repair") {
+				repair, err = p.RepairShardArchive(ctx, archive)
+				if err != nil {
+					return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
+				}
+			}
 			result, err := p.VerifyShardArchive(ctx, archive)
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
@@ -326,8 +334,19 @@ func shardVerifyCmd() *cli.Command {
 			if jsonOut {
 				// Re-shape into the envelope's structured {errors, warnings}
 				// list so it merges cleanly with the standard envelope.
-				env := newEnvelopeShardVerify(archive, result)
-				return writeJSON(cmd.Writer, env)
+				return writeJSON(cmd.Writer, newEnvelopeShardVerify(archive, result, repair))
+			}
+
+			if repair != nil {
+				if repair.Repaired {
+					writeText(cmd.Writer, "Repaired %s: rolled back the interrupted append of %s (%d -> %d bytes)\n",
+						archive, repair.Shard, repair.SizeBefore, repair.ArchiveSize)
+				} else {
+					writeText(cmd.Writer, "Repair: %s has no interrupted append\n", archive)
+				}
+				for _, w := range repair.Warnings {
+					writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+				}
 			}
 
 			writeText(cmd.Writer, "Verified %s: %d error(s), %d warning(s)\n",
@@ -346,6 +365,10 @@ func shardVerifyCmd() *cli.Command {
 				writeText(cmd.Writer,
 					"  SET    %s (%s): %d/%d members used, %d headroom, next rung %s\n",
 					h.Field, h.Type, h.Used, h.Capacity, h.Headroom, next)
+			}
+			if result.DeadSchemaCopies > 0 || result.DeadBytes > 0 {
+				writeText(cmd.Writer, "  DEAD   %d superseded _schema.pulse cop(ies), %d dead byte(s); `pulse shard compact` reclaims them\n",
+					result.DeadSchemaCopies, result.DeadBytes)
 			}
 			for _, h := range result.GroupIndexHeadroom {
 				writeText(cmd.Writer,
@@ -397,22 +420,38 @@ func shardExtractCmd() *cli.Command {
 // errors/warnings flattened into the envelope's slots. The CLI never
 // builds JSON via fmt.Sprintf — descriptor.NewEnvelope wraps the
 // payload deterministically.
-func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult) *descriptor.Envelope {
+//
+// repair (non-nil only under --repair) rides under data.repair, so a
+// plain verify's envelope is byte-identical to before the flag existed.
+// The repair's warnings (PULSE_SHARD_APPEND_ROLLED_BACK when it
+// truncated) are lifted into the envelope's warnings ahead of the
+// verify's; data.repair keeps them and warning_n stays the verify's own.
+func newEnvelopeShardVerify(archive string, result *pulse.VerifyResult, repair *pulse.ShardRepairResult) *descriptor.Envelope {
 	data := map[string]any{
 		"archive":            archive,
 		"verified":           len(result.Errors) == 0,
 		"error_n":            len(result.Errors),
 		"warning_n":          len(result.Warnings),
 		"set_width_headroom": result.SetWidthHeadroom,
+		"dead_schema_copies": result.DeadSchemaCopies,
+		"dead_bytes":         result.DeadBytes,
 	}
 	// Grouped archives only, so an ungrouped archive's envelope is
 	// byte-identical to before parent groups existed.
 	if len(result.GroupIndexHeadroom) > 0 {
 		data["group_index_headroom"] = result.GroupIndexHeadroom
 	}
+	if repair != nil {
+		data["repair"] = repair
+	}
 	env := descriptor.NewEnvelope(data)
 	for _, e := range result.Errors {
 		env.AddError(string(e.Code), e.Message, e.Details)
+	}
+	if repair != nil {
+		for _, w := range repair.Warnings {
+			env.AddWarning(w.Code, w.Message, w.Details)
+		}
 	}
 	for _, w := range result.Warnings {
 		env.AddWarning(w.Code, w.Message, w.Details)

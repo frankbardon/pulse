@@ -18,9 +18,11 @@ import (
 //
 //   - an ordinary add (stored shards copied raw) builds the NEW shard's
 //     sidecar for every archive index — O(new shard), one scan for all
-//     indexes — and appends its record to each entry;
+//     indexes — and appends its record to each entry and its Bloom
+//     filter to each index's archive Bloom set (keepArchiveBloomSet);
 //   - a remove drops the removed shard's record from each entry and
-//     deletes its sidecar, touching no other file;
+//     its filter from each existing Bloom set, and deletes its sidecar
+//     (and any legacy per-shard Bloom sidecar), touching no other file;
 //   - an add that re-encodes the stored shards (an archive-level set
 //     widen, a constant-group promotion) maintains nothing: every stored
 //     shard's CRC32 moves, so each per-shard sidecar is reported
@@ -142,12 +144,15 @@ func upkeepKeyFields(archivePath string, schema *encoding.Schema, e encx.IndexMa
 }
 
 // stageAddUpkeep builds, for every archive index in manifest, the new
-// shard's sidecar from the FINISHED BUT UNPUBLISHED archive at staged
-// (its central directory carries the identity the published archive
-// will) and the manifest with the shard's record appended, all into
-// stages. One scan of the new shard feeds every index. On error every
-// stage written so far is removed.
-func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.Schema, shard string, manifest *encx.IndexManifest, entries []int) (_ *indexUpkeep, err error) {
+// shard's sidecar from an UNPUBLISHED archive at staged on src that
+// holds the new shard exactly as the published archive will — the
+// rewrite's finished stage, or the tail append's in-memory twin
+// (appendUpkeepSource) — so its central directory carries the identity
+// (name, size, CRC32) the published archive will; and the manifest with
+// the shard's record appended. Every output is a stage on fsys. One scan
+// of the new shard feeds every index. On error every stage written so
+// far is removed.
+func stageAddUpkeep(fsys, src afero.Fs, archivePath, staged string, schema *encoding.Schema, shard string, manifest *encx.IndexManifest, entries []int) (_ *indexUpkeep, err error) {
 	u := &indexUpkeep{fsys: fsys, archive: archivePath, shard: shard, action: "added"}
 	defer func() {
 		if err != nil {
@@ -164,7 +169,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 		}
 	}
 
-	iter := newShardIter(fsys, staged, schema, []ShardEntry{{Filename: shard}})
+	iter := newShardIter(src, staged, schema, []ShardEntry{{Filename: shard}})
 	for iter.Next() {
 		for j := range entries {
 			if key, ok := processing.CompositeKeyFieldOnWireBytes(iter.Record(), fields[j]); ok {
@@ -179,7 +184,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 			fmt.Sprintf("scanning shard %q for index upkeep: %s", shard, archivePath))
 	}
 
-	a, err := openArchiveFile(fsys, staged)
+	a, err := openArchiveFile(src, staged)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +210,7 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 		if err := encx.WriteIndexFile(fsys, sf.stage, idx); err != nil {
 			return nil, err
 		}
-		distinct, records := indexBucketCounts(buckets)
+		rec := shardManifestRecord(e, filepath.Base(final), keys[j], buckets)
 		// A record already under this name (a shard removed by a path
 		// that did not keep the index) describes other bytes: replace it.
 		kept := entry.Shards[:0:0]
@@ -217,12 +222,25 @@ func stageAddUpkeep(fsys afero.Fs, archivePath, staged string, schema *encoding.
 			}
 			kept = append(kept, old)
 		}
-		entry.Shards = append(kept, encx.IndexManifestShard{
-			Name: shard, Size: e.Size, CRC32: e.CRC32,
-			IndexPath: filepath.Base(final), DistinctKeys: distinct, IndexedRecords: records,
-		})
-		entry.DistinctKeys += distinct
-		entry.IndexedRecords += records
+		// The index's Bloom set — the kept shards' filters plus the new
+		// one — rides the same stage / publish, renamed right after the
+		// index sidecar.
+		setFinal := encx.ArchiveBloomSetPath(archivePath, entry.KeyNames())
+		filters := keptBloomFilters(fsys, setFinal, archivePath, entry.KeyNames(), kept, keys[j])
+		if err := u.stageBloomSet(setFinal, append(filters, encx.ShardBloomFromBuckets(e, keys[j], buckets))); err != nil {
+			return nil, err
+		}
+		// Once the set is published every per-shard ".bloom" (migrated
+		// above, or left by an older build) is superseded: deleted after
+		// the set and the manifest are renamed, best effort, as a
+		// rebuild does. A failed publish keeps them.
+		for _, sh := range kept {
+			u.remove = append(u.remove, encx.ArchiveShardBloomPath(archivePath, sh.Name, entry.KeyNames()))
+		}
+		u.remove = append(u.remove, encx.ArchiveShardBloomPath(archivePath, shard, entry.KeyNames()))
+		entry.Shards = append(kept, rec)
+		entry.DistinctKeys += rec.DistinctKeys
+		entry.IndexedRecords += rec.IndexedRecords
 		u.touched = append(u.touched, map[string]any{
 			"keys":             entry.KeyNames(),
 			"index_path":       filepath.Join(dir, entry.IndexPath),
@@ -258,9 +276,20 @@ func stageRemoveUpkeep(fsys afero.Fs, archivePath, shard string, manifest *encx.
 			continue
 		}
 		sidecar := filepath.Join(dir, gone.IndexPath)
-		u.remove = append(u.remove, sidecar)
+		u.remove = append(u.remove, sidecar, encx.ShardBloomPathFor(sidecar))
 		if derived := encx.ArchiveShardIndexPath(archivePath, shard, entry.KeyNames()); derived != sidecar {
-			u.remove = append(u.remove, derived)
+			u.remove = append(u.remove, derived, encx.ShardBloomPathFor(derived))
+		}
+		// An existing Bloom set drops the shard's filter; a remove never
+		// creates one (an index with no set keeps its per-shard Blooms).
+		setFinal := encx.ArchiveBloomSetPath(archivePath, entry.KeyNames())
+		if ok, _ := afero.Exists(fsys, setFinal); ok {
+			if len(kept) == 0 {
+				u.remove = append(u.remove, setFinal)
+			} else if err := u.stageBloomSet(setFinal, keptBloomFilters(fsys, setFinal, archivePath, entry.KeyNames(), kept, nil)); err != nil {
+				u.abort()
+				return nil, err
+			}
 		}
 		entry.DistinctKeys -= gone.DistinctKeys
 		entry.IndexedRecords -= gone.IndexedRecords
@@ -285,6 +314,50 @@ func stageRemoveUpkeep(fsys afero.Fs, archivePath, shard string, manifest *encx.
 		return nil, err
 	}
 	return u, nil
+}
+
+// keptBloomFilters is the Bloom filter of each kept shard record, in
+// record (archive) order, for an upkeep's new Bloom set: from the
+// existing set at setPath when it exists, else — migrating an index
+// built before the set — from each shard's per-shard ".bloom" sidecar.
+// Only a filter that decodes and is stamped with the record's exact
+// identity is kept (key width checked when keys is non-nil); any other
+// shard simply has no filter in the new set, so a lookup probes it.
+func keptBloomFilters(fsys afero.Fs, setPath, archivePath string, keyNames []string, kept []encx.IndexManifestShard, keys []encx.IndexKeySpec) []*encx.ShardBloom {
+	width := -1
+	if keys != nil {
+		width = 0
+		for _, k := range keys {
+			width += encx.IndexKeyComponentWidth(k.Type)
+		}
+	}
+	fresh := func(f *encx.ShardBloom, sh encx.IndexManifestShard) bool {
+		return f != nil && f.Shard == sh.Name && f.Size == sh.Size && f.CRC32 == sh.CRC32 &&
+			(width < 0 || int(f.KeyWidth) == width)
+	}
+	set, present, err := encx.ReadArchiveBloomSetFile(fsys, setPath)
+	out := make([]*encx.ShardBloom, 0, len(kept))
+	for _, sh := range kept {
+		var f *encx.ShardBloom
+		switch {
+		case present && err == nil:
+			f = set.Filters[sh.Name]
+		case !present && err == nil:
+			f, _, _ = encx.ReadShardBloomFile(fsys, encx.ArchiveShardBloomPath(archivePath, sh.Name, keyNames))
+		}
+		if fresh(f, sh) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// stageBloomSet writes an index's new Bloom set to its stage; publish
+// renames it with the sidecars.
+func (u *indexUpkeep) stageBloomSet(final string, filters []*encx.ShardBloom) error {
+	sf := stagedFile{stage: upkeepStagePath(final), final: final}
+	u.sidecars = append(u.sidecars, sf)
+	return encx.WriteArchiveBloomSetFile(u.fsys, sf.stage, filters)
 }
 
 // stageManifest renders the updated manifest into its stage.

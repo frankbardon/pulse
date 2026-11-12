@@ -382,6 +382,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_RESERVED_NAME:          shared,
 	errors.PULSE_SHARD_NAME_COLLISION:         own(featShard),
 	errors.PULSE_SHARD_COUNT_LIMIT:            own(featShard),
+	errors.PULSE_SHARD_APPEND_REFUSED:         own(featShard),
+	errors.PULSE_SHARD_DEAD_BYTES_RECLAIMED:   own(featShard),
+	errors.PULSE_SHARD_APPEND_INCOMPLETE:      own(featShard),
+	errors.PULSE_SHARD_REPAIR_REFUSED:         own(featShard),
+	errors.PULSE_SHARD_APPEND_ROLLED_BACK:     own(featShard),
 	errors.PULSE_SHARD_INDEXES_UPDATED:        own(featShard),
 
 	errors.PULSE_CHAIN_NOT_MERGEABLE:     own(featProcessChain),

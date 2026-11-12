@@ -69,9 +69,14 @@ type cohortHeadFault struct {
 // counts and its central-directory bytes — the figures the runtime pre-flight reads off the
 // cohort Open returns. Never a record. A fault carries the code and
 // message Predict reports for the same bytes.
-func readCohortHead(fileData io.ReadSeeker) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
+//
+// distinct also reads an archive's recorded per-shard distinct counts
+// (CohortCounts.Distinct) — the caller passes whether the memory
+// estimate they tighten is judged (PredictOptions.memoryBounded), the
+// runtime pre-flight's own gate.
+func readCohortHead(fileData io.ReadSeeker, distinct bool) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
 	if src, ok := sniffArchive(fileData); ok {
-		return readArchiveHead(src)
+		return readArchiveHead(src, distinct)
 	}
 	pulseVersion, err := encoding.ReadHeader(fileData)
 	if err != nil {
@@ -89,7 +94,7 @@ func readCohortHead(fileData io.ReadSeeker) (*encoding.Schema, CohortCounts, *co
 }
 
 // readArchiveHead is readCohortHead over a shard archive.
-func readArchiveHead(src archiveSource) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
+func readArchiveHead(src archiveSource, distinct bool) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
 	arch, err := encx.OpenArchive(src.r, src.size)
 	if err != nil {
 		return nil, CohortCounts{}, &cohortHeadFault{code: errors.PULSE_ARCHIVE_CORRUPT, message: "invalid pulse shard archive: " + err.Error()}
@@ -118,9 +123,67 @@ func readArchiveHead(src archiveSource) (*encoding.Schema, CohortCounts, *cohort
 				counts.Records += n
 				counts.ShardRecords = append(counts.ShardRecords, n)
 			}
+			if distinct {
+				counts.Distinct = ArchiveDistinctOf(arch)
+			}
 			return schema, counts, nil
 		}
 	}
 	return nil, CohortCounts{}, &cohortHeadFault{code: errors.ENCODING_INVALID,
 		message: "reading canonical schema entry " + encx.ReservedSchemaName + ": " + err.Error()}
+}
+
+// ArchiveDistinctOf reads a shard archive's recorded per-shard distinct
+// counts (U73 #500) — the DIST trailer of its `_schema.pulse` entry,
+// header bytes only, never a record. It is the ONE reader predict and
+// the runtime pre-flight (Service.cohortCounts) share, so both judge the
+// memory estimate on the same counts. nil — no tighter bound, the
+// estimate falls back to today's — when the entry cannot be opened, the
+// trailer is absent (an archive written before it existed, a newer
+// trailer version), malformed (encx.ReadSchemaDocDistinct's
+// ENCODING_INVALID: a bound is advisory, so a damaged trailer never
+// fails predict or the run), does not name exactly the archive's
+// shards (an entry added or renamed outside Pulse would otherwise go
+// uncounted and the sum would fall below the union), or holds a count
+// its shard's central-directory identity does not vouch for (an entry
+// replaced outside Pulse under the same name, or a version-1 trailer
+// that recorded no identity — encx.ArchiveDistinct.VouchedBy).
+func ArchiveDistinctOf(arch *encx.Archive) *encx.ArchiveDistinct {
+	rc, err := arch.Open(encx.ReservedSchemaName)
+	if err != nil {
+		return nil
+	}
+	defer rc.Close()
+	return archiveDistinctFrom(rc, arch)
+}
+
+// archiveDistinctFrom is ArchiveDistinctOf over the `_schema.pulse`
+// bytes doc already read (predictArchive holds them).
+func archiveDistinctFrom(doc io.Reader, arch *encx.Archive) *encx.ArchiveDistinct {
+	_, dist, err := encx.ReadSchemaDocDistinct(doc)
+	if err != nil || dist == nil {
+		return nil
+	}
+	shards := make(map[string]encx.ShardIdentity)
+	for _, e := range arch.Entries() {
+		if e.Name != encx.ReservedSchemaName {
+			shards[e.Name] = encx.EntryIdentity(e)
+		}
+	}
+	if len(dist.Shards) != len(shards) {
+		return nil
+	}
+	// Every counted entry must be vouched for by its shard's
+	// central-directory identity (U73 #720): a shard replaced outside
+	// Pulse under the same name, or counts recorded without an identity,
+	// lend nothing to a bound.
+	vouched := dist.VouchedBy(func(name string) (encx.ShardIdentity, bool) {
+		id, ok := shards[name]
+		delete(shards, name) // a repeated name leaves an entry uncounted
+		return id, ok
+	})
+	if !vouched {
+		return nil
+	}
+	return dist
 }

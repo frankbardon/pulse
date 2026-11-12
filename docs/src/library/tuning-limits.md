@@ -243,11 +243,34 @@ bounded by the record count, because a run cannot mint more keys than
 it reads rows. When a `GROUP_SET_PER_ELEMENT` grouper fans a record out,
 the record bound is multiplied by the set's size. A shard's or a
 worker's partial uses the same rule over its own records. So grouping
-50 million rows by a `u32` customer id is charged 50 million buckets
-however few customers there are: predict reads no records, so it cannot
-count them, and no sidecar proves a smaller figure. A point-lookup
-index records a distinct-key count, but nothing proves the index
-matches the cohort without reading it, so the estimate never uses it.
+50 million rows of a single file by a `u32` customer id is charged 50
+million buckets however few customers there are: predict reads no
+records, so it cannot count them, and no sidecar proves a smaller
+figure. A point-lookup index records a distinct-key count, but nothing
+proves the index matches the cohort without reading it, so the estimate
+never uses it.
+
+**Shard archives: recorded distinct counts.** A shard archive written
+by Pulse records, per shard, the exact number of distinct stored values
+of every `u32`, `u64`, `date`, `datetime`, `f32` and `f64` field, in its
+`_schema.pulse` entry beside the schema (see
+[Managing shard archives](../internals/managing-shard-archives.md)).
+Those bytes change whenever the shards do, so the count is provably
+current. When `MaxEstimatedMemory` is set, predict and the run read
+them from the header and charge `GROUP_CATEGORY`, `GROUP_ROUNDED`,
+`GROUP_RANGE` or `GROUP_DATE` on such a field the **sum** of the
+shards' counts, if that is smaller than the bound above. A sum is an
+upper bound on the union, and a value repeated across shards is counted
+once per shard. Null rows mint no key and are not counted.
+`GROUP_DATE` under a per-row zone field (`tz_field`) keeps the record
+bound, because its key also depends on the zone. Several groupers
+multiply their bounds, capped by the records. The bound falls back to
+the record or width bound in these cases: a shard whose count is
+unknown (written by an older Pulse), past the writer's
+`ShardDistinctLimit`, or opted out (`DisableShardDistinct`); an archive
+whose shards differ from the ones the counts name, or a shard replaced
+outside Pulse since it was counted (its size and CRC-32 moved); a damaged count
+block; or a join. A damaged count block never fails predict.
 
 **Extension aggregators.** An extension aggregator is priced as a
 fixed-size accumulator of 256 bytes (512 weighted, and a 576-byte

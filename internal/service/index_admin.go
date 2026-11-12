@@ -26,13 +26,17 @@ import (
 // the index's logical path (SidecarIndexPath over the archive — no file
 // lives there), ShardIndexPaths the per-shard sidecars in archive
 // order, and the counts the per-shard sums (a key present in k shards
-// counts k times).
+// counts k times). DistinctKeysEstimate is the union figure: exact
+// (= DistinctKeys) for a single file, the merged per-shard HyperLogLog
+// sketches for an archive (BuildIndexResult.DistinctKeysEstimate), nil
+// when unknown.
 type IndexInfo struct {
-	IndexPath       string
-	Keys            []string
-	DistinctKeys    int
-	IndexedRecords  int
-	ShardIndexPaths []string
+	IndexPath            string
+	Keys                 []string
+	DistinctKeys         int
+	DistinctKeysEstimate *int
+	IndexedRecords       int
+	ShardIndexPaths      []string
 }
 
 // sidecarIndexNameRegexp matches the basename shape
@@ -153,11 +157,13 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 		if err != nil {
 			return nil, err
 		}
+		distinct := countIndexDistinctKeys(idx)
 		out = append(out, IndexInfo{
-			IndexPath:      full,
-			Keys:           indexKeyNames(idx),
-			DistinctKeys:   countIndexDistinctKeys(idx),
-			IndexedRecords: countIndexIndexedRecords(idx),
+			IndexPath:            full,
+			Keys:                 indexKeyNames(idx),
+			DistinctKeys:         distinct,
+			DistinctKeysEstimate: &distinct,
+			IndexedRecords:       countIndexIndexedRecords(idx),
 		})
 	}
 
@@ -193,7 +199,8 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 // On a shard archive the drop removes the manifest entry and every
 // per-shard sidecar: the ones the entry names plus the derived sidecar
 // path of every current shard (so a sidecar an earlier build left for a
-// shard is not orphaned). PULSE_INDEX_MISSING only when there was
+// shard is not orphaned), each with its legacy Bloom sidecar, plus the
+// index's archive Bloom set. PULSE_INDEX_MISSING only when there was
 // neither an entry nor any such file.
 func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string) error {
 	if len(keyFields) == 0 {
@@ -322,6 +329,12 @@ func dropArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []st
 	for _, sh := range cohort.Shards() {
 		add(encx.ArchiveShardIndexPath(path, sh.Filename, keyFields))
 	}
+	// Every sidecar's legacy per-shard Bloom sidecar goes with it, and
+	// the index's archive Bloom set.
+	for _, p := range append([]string(nil), sidecars...) {
+		add(encx.ShardBloomPathFor(p))
+	}
+	add(encx.ArchiveBloomSetPath(path, keyFields))
 
 	removed := false
 	for _, p := range sidecars {

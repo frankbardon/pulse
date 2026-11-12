@@ -79,7 +79,9 @@ type IndexManifestKey struct {
 // hash — and names no file: the files are Shards[].IndexPath. Its
 // DistinctKeys / IndexedRecords are the per-shard sums (a key present
 // in k shards counts k times; the exact union would need every key of
-// the archive resident at once). A single-file entry has no Shards.
+// the archive resident at once) — the union ESTIMATE merges the shard
+// records' HLL sketches (IndexDistinctKeysEstimate). A single-file
+// entry has no Shards.
 type IndexManifestEntry struct {
 	IndexPath      string               `json:"index_path"`
 	KeyHash        string               `json:"key_hash"`
@@ -98,13 +100,30 @@ type IndexManifestEntry struct {
 // same-name replacement, which a bare name would silently accept.
 // IndexPath is the shard's sidecar BASENAME
 // (ArchiveShardIndexPath); the counts are that sidecar's own.
+//
+// KeyMin / KeyMax are the shard's indexed-key range, one
+// order-preserving hex string per key component (IndexKeyRange;
+// index_key_range.go documents the encoding): a lookup skips the shard
+// without opening its sidecar when the probed key falls outside them.
+// Both are additive and omitempty — absent (an empty shard, or a
+// manifest an older binary wrote or rewrote, dropping fields it did not
+// know) means "probe this shard", never "skip it". Later per-shard
+// prune data joins them here as further omitempty fields.
+//
+// HLL is the shard's distinct-key HyperLogLog sketch (IndexHLL,
+// index_hll.go): the entry's union estimate merges every record's.
+// Additive and omitempty — absent means the estimate is unknown, never
+// 0. Every shard, an empty one included, records a sketch.
 type IndexManifestShard struct {
-	Name           string `json:"name"`
-	Size           int64  `json:"size"`
-	CRC32          uint32 `json:"crc32"`
-	IndexPath      string `json:"index_path"`
-	DistinctKeys   int    `json:"distinct_keys"`
-	IndexedRecords int    `json:"indexed_records"`
+	Name           string   `json:"name"`
+	Size           int64    `json:"size"`
+	CRC32          uint32   `json:"crc32"`
+	IndexPath      string   `json:"index_path"`
+	DistinctKeys   int      `json:"distinct_keys"`
+	IndexedRecords int      `json:"indexed_records"`
+	KeyMin         []string `json:"key_min,omitempty"`
+	KeyMax         []string `json:"key_max,omitempty"`
+	HLL            string   `json:"hll,omitempty"`
 }
 
 // ArchiveShardIndexPath derives the sidecar path of one shard of an

@@ -136,13 +136,22 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 		sources.src = append(sources.src, src)
 	}
 
+	// Distinct counts (U73 #500): `_schema.pulse` leads the archive, so
+	// every source is counted BEFORE pass 2 — the bytes it will store
+	// (a source taking transforms is replayed through them), decoded
+	// against the final canonical schema — one source at a time.
+	dist, err := s.countCreateDistinct(ctx, sources, canonical)
+	if err != nil {
+		return nil, err
+	}
+
 	// Pass 2: stream every source once into the stage.
 	w, err := newArchiveWriter(fsys, archivePath)
 	if err != nil {
 		return nil, err
 	}
 	defer w.abort()
-	if err := w.writeSchemaDoc(canonical, aggregate, len(sources.src)); err != nil {
+	if err := w.writeSchemaDoc(canonical, aggregate, len(sources.src), dist); err != nil {
 		return nil, err
 	}
 	for i, src := range sources.src {
@@ -168,6 +177,45 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 	}
 	result.ShardCount = len(sources.src)
 	return result, nil
+}
+
+// countCreateDistinct counts every create source's stored bytes against
+// the final canonical schema: a source taking no transform is streamed
+// off its file, one that does is replayed through them (loadShard).
+func (s *Service) countCreateDistinct(ctx context.Context, sources *createShards, canonical *encoding.Schema) (*encx.ArchiveDistinct, error) {
+	pass := s.newDistinctPass(canonical)
+	refs := make([]encx.DistinctShardRef, len(sources.src))
+	fresh := make(map[string][]encx.DistinctCount, len(sources.src))
+	for i, src := range sources.src {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// The identity recorded is the stored bytes' (U73 #720): the
+		// source's own when it is copied verbatim, learnt in the counting
+		// read; the replayed payload's otherwise. Opted out, nothing is
+		// read and the identity stays unknown (an opted-out entry claims
+		// nothing, so it needs none).
+		var (
+			counts []encx.DistinctCount
+			id     encx.ShardIdentity
+			err    error
+		)
+		if len(src.ops) == 0 || pass.disabled {
+			counts, id, err = pass.file(sources.fsys, src.path, src.name)
+		} else {
+			var payload []byte
+			if payload, err = sources.loadShard(i); err == nil {
+				id = encx.PayloadIdentity(payload)
+				counts, err = pass.count(bytes.NewReader(payload), src.name)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		refs[i] = encx.KeptShard(src.name, id)
+		fresh[src.name] = counts
+	}
+	return encx.NextArchiveDistinct(canonical, refs, nil, fresh), nil
 }
 
 // createSource is one source of a streaming create: where it is, its

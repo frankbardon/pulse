@@ -364,6 +364,14 @@ func readSchema(r io.Reader, v byte, layoutOnly bool) (*Schema, error) {
 	if !IsSupportedFormatVersion(v) {
 		return nil, unsupportedVersionError(v)
 	}
+	// Buffered, but never past the block's end (schemaReader): r is
+	// still left at the first record byte.
+	maxChunk := int64(schemaReaderMaxChunk)
+	if layoutOnly {
+		maxChunk = schemaReaderLayoutChunk
+	}
+	r = newSchemaReader(r, maxChunk)
+	defer releaseSchemaReader(r)
 	s, err := readFieldDescriptors(r, layoutOnly)
 	if err != nil {
 		return nil, err
@@ -390,6 +398,7 @@ func readFieldDescriptors(r io.Reader, layoutOnly bool) (*Schema, error) {
 	if err := binary.Read(r, binary.LittleEndian, &fieldCount); err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading field count")
 	}
+	schemaAhead(r, int64(fieldCount)*minFieldDescriptorBytes)
 
 	s := &Schema{
 		Fields: make([]Field, 0, fieldCount),
@@ -514,11 +523,14 @@ func skipDictionary(r io.Reader, buf []byte) error {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary count")
 	}
 	count := binary.LittleEndian.Uint32(buf[:4])
-	for range count {
+	for i := range count {
 		if _, err := io.ReadFull(r, buf[:2]); err != nil {
 			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
 		}
-		if err := discard(r, int(binary.LittleEndian.Uint16(buf[:2])), buf); err != nil {
+		slen := binary.LittleEndian.Uint16(buf[:2])
+		// This label, then at least a u16 length per entry still to come.
+		schemaAhead(r, int64(slen)+2*int64(count-i-1))
+		if err := discard(r, int(slen), buf); err != nil {
 			return errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string")
 		}
 	}

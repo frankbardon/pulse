@@ -35,11 +35,17 @@ type archiveFile struct {
 }
 
 // openArchiveFile opens path on fsys and parses its central directory.
-// Errors keep the codes the slurping callers raised: SERVICE_RESOURCE
+// A journalled (interrupted) append is PULSE_SHARD_APPEND_INCOMPLETE.
+// Other errors keep the codes the slurping callers raised: SERVICE_RESOURCE
 // for an unopenable file, the encx.OpenArchive codes
 // (PULSE_ARCHIVE_MAGIC_INVALID, PULSE_ARCHIVE_CORRUPT,
 // PULSE_COHORT_COMPRESSED) for a file that is not a readable archive.
 func openArchiveFile(fsys afero.Fs, path string) (*archiveFile, error) {
+	// An interrupted in-place append is refused before the archive is
+	// read (PULSE_SHARD_APPEND_INCOMPLETE): its tail may be torn.
+	if err := encx.RefuseIncompleteAppend(fsys, path); err != nil {
+		return nil, err
+	}
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,

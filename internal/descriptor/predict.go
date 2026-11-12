@@ -218,6 +218,14 @@ func (o *PredictOptions) boundModels() model.Catalog {
 	return o.models
 }
 
+// memoryBounded reports whether the instance sets MaxEstimatedMemory —
+// the only rule an archive's recorded distinct counts tighten, so they
+// are read only then (the runtime pre-flight's Service.memoryBounded
+// gate). Nil-receiver-safe.
+func (o *PredictOptions) memoryBounded() bool {
+	return !limits.IsUnlimited(limits.Value(o.instance().Limits(), limits.MaxEstimatedMemory))
+}
+
 // instance returns the options' instance feature set (nil — hide
 // nothing — on a nil receiver). Nil-receiver-safe.
 func (o *PredictOptions) instance() *InstanceSnapshot {
@@ -317,7 +325,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if src, ok := sniffArchive(fileData); ok {
 		env = predictArchive(src, expanded, opts)
 	} else {
-		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
+		env = predictSingle(fileData, expanded, opts, nil, nil, 0, nil)
 	}
 	if result, ok := env.Data.(*descriptor.PredictResult); ok {
 		if len(fan) > 0 {
@@ -340,9 +348,11 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // and the matrix state estimate — RecordCount stays the archive-only
 // figure it documents. shardRecords are an archive's per-shard counts
 // (merge blocks restart per shard) and directoryBytes its
-// central-directory bytes (the memory estimate's archive terms); nil
-// and 0 for a single file and an anchor-extracted shard.
-func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, directoryBytes int64) *descriptor.Envelope {
+// central-directory bytes (the memory estimate's archive terms), dist
+// its recorded per-shard distinct counts (the memory estimate's
+// grouper bound, LimitInputs.Distinct); nil, 0 and nil for a single
+// file and an anchor-extracted shard.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, directoryBytes int64, dist *encx.ArchiveDistinct) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -532,7 +542,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if sizeIn.recordsKnown {
 		limitRecords = sizeIn.records
 	}
-	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords, directoryBytes)
+	predictLimits(env, result, req, schema, opts, CohortCounts{Records: limitRecords, ShardRecords: shardRecords, DirectoryBytes: directoryBytes, Distinct: dist})
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With
@@ -1099,7 +1109,14 @@ func predictArchive(src archiveSource, req *types.Request, opts *PredictOptions)
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, arch.DirectoryBytes())
+	// The recorded distinct counts ride the same canonical bytes (the
+	// DIST trailer after SHRD) — parsed only when the memory estimate
+	// they tighten is judged.
+	var dist *encx.ArchiveDistinct
+	if opts.memoryBounded() {
+		dist = archiveDistinctFrom(bytes.NewReader(canonical), arch)
+	}
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, arch.DirectoryBytes(), dist)
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env

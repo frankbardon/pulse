@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -45,6 +46,14 @@ type LimitInputs struct {
 	// (`archive.pulse#shard.pulse`) carries none: its run reads only its
 	// own shard, as a single file's does.
 	DirectoryBytes int64
+	// Distinct is a shard archive's per-shard distinct counts (the DIST
+	// trailer of its `_schema.pulse`, U73 #500; ArchiveDistinctOf — the
+	// one reader predict and the runtime pre-flight share), nil for a
+	// single file, an anchor-opened shard, an archive written before the
+	// trailer, or one whose trailer is malformed or does not name exactly
+	// the archive's shards. It tightens a value-keyed grouper's bucket
+	// bound in the memory estimate (memoryGroupBound, distinctKeyBound).
+	Distinct *encx.ArchiveDistinct
 	// ShardWorkers is the instance's per-shard worker cap
 	// (Options.ShardWorkers: 0 = runtime.NumCPU, 1 = serial) — with the
 	// shard count and the merge gate it decides whether an archive run
@@ -397,6 +406,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		Buckets:     1,
 	}
 	archiveTerms(&mi, schema, in)
+	kb := in.keyBounds(req)
 	matrixIn := in
 	if rows != records {
 		mi.JoinedRows = rows
@@ -414,7 +424,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 			if len(req.Groups) == 0 {
 				return 1
 			}
-			return memoryGroupBound(req.Groups, schema, inst, n)
+			return memoryGroupBound(req.Groups, schema, inst, n, kb)
 		})
 	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
 		// One partial per worker, live until the merge; a worker's
@@ -425,7 +435,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		seg := min(records, (blocks+workers-1)/workers*block)
 		b := int64(1)
 		if len(req.Groups) > 0 {
-			b = memoryGroupBound(req.Groups, schema, inst, seg)
+			b = memoryGroupBound(req.Groups, schema, inst, seg, kb)
 		}
 		mi.PartitionRecords = records
 		mi.PartitionBuckets = mulSaturating(b, workers)
@@ -434,7 +444,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		mi.JoinRightRows = in.JoinRightRows
 	}
 	if len(req.Groups) > 0 {
-		mi.Buckets = memoryGroupBound(req.Groups, schema, inst, records)
+		mi.Buckets = memoryGroupBound(req.Groups, schema, inst, records, kb)
 	}
 	mi.ComponentsOff = EffectiveDisableComponents(req, in.DisableComponents)
 	mi.ExtraGroupers = int64(max(len(req.Groups)-1, 0))
@@ -563,7 +573,8 @@ func (c crosstabCharge) element(a *types.Aggregation) bool { return c.elementSet
 // A vector element slot reads one member.
 func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, records int64, off, fused bool) crosstabCharge {
 	spec := req.Crosstab
-	rows, cols := memoryGroupBound(spec.Rows, schema, inst, records), memoryGroupBound(spec.Columns, schema, inst, records)
+	kb := in.keyBounds(req)
+	rows, cols := memoryGroupBound(spec.Rows, schema, inst, records, kb), memoryGroupBound(spec.Columns, schema, inst, records, kb)
 	grid := mulSaturating(rows, cols)
 	if limit := in.crosstabCellCap; limit > 0 {
 		grid = min(grid, limit)
@@ -1032,13 +1043,15 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 // charges over records (the run's, a shard's, a decode segment's):
 // EstimateGroups when every grouper's keys are schema-known; else the
 // product of each grouper's bound — its groupEstimate, else its
-// value-width bound (valueKeyBound), else unbounded — clamped by the
-// records (a run cannot mint more keys than it reads rows). A fan-out
-// position (GROUP_SET_PER_ELEMENT) lands one record in up to
-// FanOutMultiplicity keys, so with one the clamp is records x that
-// multiplicity (U51 E5-S6: it was records, below the composite keys a
-// fan-out run can mint).
-func memoryGroupBound(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64) int64 {
+// value-width bound (valueKeyBound), either tightened by a shard
+// archive's recorded distinct count (distinctKeyBound), else that count
+// alone, else unbounded — clamped by the records (a run cannot mint
+// more keys than it reads rows). A fan-out position
+// (GROUP_SET_PER_ELEMENT) lands one record in up to FanOutMultiplicity
+// keys, so with one the clamp is records x that multiplicity (U51
+// E5-S6: it was records, below the composite keys a fan-out run can
+// mint).
+func memoryGroupBound(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64, kb keyBounds) int64 {
 	if n, ok := EstimateGroups(groups, schema, inst, records); ok {
 		return n
 	}
@@ -1047,13 +1060,88 @@ func memoryGroupBound(groups []*types.Group, schema *encoding.Schema, inst *Inst
 	for _, g := range groups {
 		b, ok := groupEstimate(g, schema, inst)
 		if !ok {
-			if b, ok = valueKeyBound(g, schema, inst); !ok {
-				return clamp
+			b, ok = valueKeyBound(g, schema, inst)
+		}
+		if d, dok := distinctKeyBound(g, schema, inst, kb); dok {
+			if !ok || d < b {
+				b = d
 			}
+			ok = true
+		}
+		if !ok {
+			return clamp
 		}
 		n = mulSaturating(n, b)
 	}
 	return min(n, clamp)
+}
+
+// keyBounds are the run facts beyond the schema that bound a grouper's
+// keys: a shard archive's recorded per-shard distinct counts and the
+// request's per-row zone field (which makes a GROUP_DATE key depend on
+// a second column). The zero value bounds nothing.
+type keyBounds struct {
+	dist    *encx.ArchiveDistinct
+	tzField string
+}
+
+// keyBounds is in's key-bound facts for req: none on a join (the
+// processor reads joined rows whose columns the left archive's counts
+// do not describe) or without recorded counts.
+func (in LimitInputs) keyBounds(req *types.Request) keyBounds {
+	if in.Join || in.Distinct == nil || req == nil {
+		return keyBounds{}
+	}
+	return keyBounds{dist: in.Distinct, tzField: req.TimeZoneField}
+}
+
+// distinctKeyBound is a grouper's key-count bound from a shard
+// archive's recorded distinct counts (U73 #500): a built-in grouper
+// whose key is a function of one field's stored value alone —
+// GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, and GROUP_DATE unless a
+// per-row zone field is in force (slot tz_field, or the request's with
+// no slot tz) — mints at most one key per distinct stored word, and the
+// SUM of every shard's exact count bounds the distinct words of their
+// union (encx.ArchiveDistinct.FieldBound). A null row mints no key, and
+// the counts exclude nulls, so no null bucket is added. False — today's
+// bound stands — when no counts were recorded, the field is untracked or
+// recorded under another type, or any shard's entry is absent, over the
+// counting limit or opted out.
+func distinctKeyBound(g *types.Group, schema *encoding.Schema, inst *InstanceSnapshot, kb keyBounds) (int64, bool) {
+	if g == nil || schema == nil || kb.dist == nil {
+		return 0, false
+	}
+	f := schema.Field(g.Field)
+	if f == nil {
+		return 0, false
+	}
+	switch opRoute(inst, g.Type) {
+	case types.GROUP_CATEGORY, types.GROUP_ROUNDED, types.GROUP_RANGE:
+	case types.GROUP_DATE:
+		if g.TimeZone == "" && (g.TimeZoneField != "" || kb.tzField != "") {
+			return 0, false
+		}
+	default:
+		return 0, false
+	}
+	recorded := false
+	for _, df := range kb.dist.Fields {
+		if df.Name == f.Name {
+			recorded = df.Type == f.Type
+			break
+		}
+	}
+	if !recorded {
+		return 0, false
+	}
+	n, ok := kb.dist.FieldBound(f.Name)
+	if !ok {
+		return 0, false
+	}
+	if n > math.MaxInt64 {
+		return math.MaxInt64, true
+	}
+	return max(int64(n), 1), true
 }
 
 // valueKeyBound is a grouper's key-count bound from its field's value
@@ -1379,6 +1467,9 @@ type CohortCounts struct {
 	Records        int64
 	ShardRecords   []int64
 	DirectoryBytes int64
+	// Distinct is an archive's recorded per-shard distinct counts
+	// (LimitInputs.Distinct); nil when none are read or recorded.
+	Distinct *encx.ArchiveDistinct
 }
 
 // unknownCounts is CohortCounts with no record count — a chain stage
@@ -1422,6 +1513,7 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 		Records:        counts.Records,
 		ShardRecords:   counts.ShardRecords,
 		DirectoryBytes: counts.DirectoryBytes,
+		Distinct:       counts.Distinct,
 		ShardWorkers:   opts.ShardWorkers,
 		DecodeWorkers:  opts.DecodeWorkers,
 		JoinRightRows:  -1,
@@ -1510,12 +1602,13 @@ func limitRefusalFinding(err error) (descriptor.LimitFinding, bool) {
 // A Possible finding is reported only. Findings follow limit
 // declaration order: the request-level rules, then MaxJoinBuildRows.
 //
-// records is the cohort's header record count (-1 when unknown),
-// shardRecords an archive's per-shard counts (nil for a single file)
-// and directoryBytes its central-directory bytes (0 for a single file);
-// they clamp the group-bucket estimate and drive the memory estimate.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, directoryBytes int64) {
-	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, DirectoryBytes: directoryBytes})
+// counts are the cohort's header facts: its record count (-1 when
+// unknown), an archive's per-shard counts (nil for a single file), its
+// central-directory bytes (0 for a single file) and its recorded
+// distinct counts (nil when none); they clamp the group-bucket estimate
+// and drive the memory estimate.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, counts CohortCounts) {
+	fs := requestFindings(req, schema, opts, counts)
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {

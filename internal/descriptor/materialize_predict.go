@@ -261,7 +261,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	if !rewind() {
 		return expanded
 	}
-	schema, counts, fault := readCohortHead(fileData)
+	schema, counts, fault := readCohortHead(fileData, false)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false

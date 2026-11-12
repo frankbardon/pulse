@@ -163,14 +163,19 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 			t.Errorf("Compact did not reclaim orphan bytes: pre=%d post=%d",
 				len(corrupt), len(postBytes))
 		}
-		if len(postBytes) > len(realBytes)+64 {
+		// The baseline has no DIST trailer (buildSimpleArchive writes the
+		// pre-trailer `_schema.pulse`); compact backfills one, so the
+		// baseline grows by exactly the trailer's bytes.
+		trailer := len(streamEntryBytes(t, fsys, archive, encx.ReservedSchemaName)) -
+			len(entryBytesOf(t, realBytes, encx.ReservedSchemaName))
+		if len(postBytes) > len(realBytes)+trailer+64 {
 			// realBytes is the canonical no-orphan baseline; the
 			// post-Compact bytes should be roughly the same size.
 			// 64-byte slack allows for zip-writer alignment / extra-
 			// field differences without flaking on minor encoding
 			// quirks.
-			t.Errorf("post-Compact archive larger than canonical baseline: post=%d baseline=%d",
-				len(postBytes), len(realBytes))
+			t.Errorf("post-Compact archive larger than canonical baseline: post=%d baseline=%d (+%d trailer bytes)",
+				len(postBytes), len(realBytes), trailer)
 		}
 	})
 }
@@ -294,4 +299,18 @@ func buildSimpleArchive(t *testing.T, schema *encoding.Schema, shards struct {
 		t.Fatalf("zip.Close: %v", err)
 	}
 	return buf.Bytes()
+}
+
+// entryBytesOf reads one entry of an in-memory archive.
+func entryBytesOf(t *testing.T, archive []byte, entry string) []byte {
+	t.Helper()
+	arch, err := encx.OpenArchive(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := readEntryBytes(arch, entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

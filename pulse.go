@@ -371,6 +371,24 @@ type Options struct {
 	// --decode-workers flag.
 	DecodeWorkers int
 
+	// ShardDistinctLimit caps the keys a shard archive writer holds per
+	// field per shard while counting the exact distinct values it
+	// records in `_schema.pulse` (U73 #500; the DIST trailer: create,
+	// add, remove, compact and filter-to-file all write one). Counted
+	// fields are u32, u64, date, datetime, f32 and f64, on the stored
+	// bit pattern, nulls excluded. A shard's field with more distinct
+	// values than the cap is recorded as "more than the cap". Zero
+	// means the default, 4,194,304 (up to 64 MiB of keys per counted
+	// field, for the one shard being counted); negative values are
+	// rejected at New() time. Single-file cohorts never carry counts.
+	ShardDistinctLimit int
+
+	// DisableShardDistinct opts archive writers out of counting: the
+	// shards they write are recorded as opted out (distinct from a count
+	// that is merely unknown) and no record is read to count them —
+	// create and compact then read each shard once, not twice.
+	DisableShardDistinct bool
+
 	// DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
 	// Area/Location name such as "Europe/Berlin") that zone-capable
 	// request slots inherit when neither the slot's `tz` nor the
@@ -810,6 +828,9 @@ func New(opts Options) (*Pulse, error) {
 	if opts.DecodeWorkers < 0 {
 		return nil, argumentError("pulse: DecodeWorkers must be >= 0 (0 means runtime.NumCPU() above threshold, 1 forces serial)")
 	}
+	if opts.ShardDistinctLimit < 0 {
+		return nil, argumentError("pulse: ShardDistinctLimit must be >= 0 (0 means the default 4,194,304 keys per field per shard)")
+	}
 	effectiveLimits, err := resolveLimits(opts, featureProfile)
 	if err != nil {
 		return nil, err
@@ -878,6 +899,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetLimits(effectiveLimits)
 	svc.SetShardWorkers(opts.ShardWorkers)
 	svc.SetDecodeWorkers(opts.DecodeWorkers)
+	svc.SetShardDistinct(opts.ShardDistinctLimit, opts.DisableShardDistinct)
 	svc.SetStrict(opts.Strict)
 	svc.SetAutoLabels(autoLabelPtrs(opts.AutoLabels))
 	svc.SetEchoRequest(opts.EchoRequest)
@@ -1909,7 +1931,9 @@ func (p *Pulse) ClassifyPostWindow(ctx context.Context, req *Request, schema *en
 // builds. Only the header and schema of a single-file cohort are read.
 func (p *Pulse) predictSchemaLoader(ctx context.Context) func(string) (*encoding.Schema, error) {
 	return func(path string) (*encoding.Schema, error) {
-		c, err := p.svc.Open(ctx, path)
+		// OpenExact: Open's buffered schema read over-reads into the
+		// payload, and predict reads no record byte.
+		c, err := p.svc.OpenExact(ctx, path)
 		if err != nil {
 			return nil, err
 		}
@@ -2466,7 +2490,8 @@ type VerifyIndexResult = service.VerifyIndexResult
 
 // IndexFreshnessReason re-exports internal/service.IndexFreshnessReason — why
 // VerifyIndex reached its Fresh/stale verdict
-// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch").
+// ("stat_mismatch"/"fingerprint_match"/"fingerprint_mismatch", and for a
+// shard archive "range_mismatch" / "bloom_stale").
 type IndexFreshnessReason = service.IndexFreshnessReason
 
 // VerifyIndex reports whether the sidecar point-lookup index built for
@@ -2476,7 +2501,7 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // comment for the full fast-path decision tree. Returns
 // PULSE_INDEX_MISSING when no sidecar exists for keyFields; a shard
 // archive is verified shard by shard (VerifyIndexResult.ShardsUncovered
-// / ShardsMismatched).
+// / ShardsMismatched / ShardsRangeMismatched / ShardsBloomStale).
 func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexVerify, path: path}, func(ctx context.Context) (*VerifyIndexResult, error) {
 		return p.verifyIndex(ctx, path, keyFields)
@@ -3102,11 +3127,21 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // archive's canonical schema and appends it. Dict growth that the
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
-// The new archive is streamed into a staged file beside the original
-// (stored shards copied raw, never decoded; memory O(the new shard)) and
-// published by fsync + rename + directory fsync, so the original stays
-// byte-identical until the rename and a crashed stage is swept by the
-// next mutation.
+// An ordinary add appends in place: the new shard, a refreshed
+// `_schema.pulse` and a new Zip64 central directory are written past the
+// archive's old end (bytes written O(the new shard + the directory); the
+// superseded entries stay as dead bytes until CompactShardArchive). A
+// write-open the platform refuses is PULSE_SHARD_APPEND_REFUSED with
+// nothing written; a failed write truncates the archive back. A crash
+// mid-append leaves the `<archive>.append` journal, and every open then
+// refuses the archive (PULSE_SHARD_APPEND_INCOMPLETE) until
+// RepairShardArchive rolls it back. A reader
+// opened before the append keeps reading every shard it saw. An add
+// that moves the archive (below) instead streams a new archive into a
+// staged file beside the original (memory O(the new shard)) and
+// publishes it by fsync + rename + directory fsync, so the original
+// stays byte-identical until the rename and a crashed stage is swept by
+// the next mutation.
 //
 // A merged dictionary that outgrows a set_* field's bitmask WIDENS the
 // field across the canonical schema and every shard payload instead of
@@ -3145,6 +3180,24 @@ func (p *Pulse) AddShard(ctx context.Context, archivePath, shardPath string) (*A
 func (p *Pulse) addShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	return p.svc.AddShard(ctx, archivePath, shardPath)
 }
+
+// AddShardWithOptions is AddShard with options; the zero AddShardOptions
+// is AddShard. An ordinary add appends in place unless the dead bytes
+// the append would leave (every superseded `_schema.pulse` copy and old
+// central directory) would exceed half the archive — then it rewrites,
+// reclaiming them, with a mandatory PULSE_SHARD_DEAD_BYTES_RECLAIMED
+// warning. AddShardOptions.Rewrite forces that rewrite (`pulse shard
+// add --rewrite`): the archive is never opened for writing, the answer
+// to PULSE_SHARD_APPEND_REFUSED.
+func (p *Pulse) AddShardWithOptions(ctx context.Context, archivePath, shardPath string, opts AddShardOptions) (*AddShardResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardAdd, path: archivePath}, func(ctx context.Context) (*AddShardResult, error) {
+		return p.svc.AddShardWithOptions(ctx, archivePath, shardPath, opts)
+	})
+}
+
+// AddShardOptions tunes AddShardWithOptions: Rewrite forces the
+// whole-archive streaming rewrite over the in-place append.
+type AddShardOptions = service.AddShardOptions
 
 // AddShardResult carries the outcome of AddShard: the archive's new
 // shard count, any set-field widenings the add forced, the non-fatal
@@ -3224,13 +3277,12 @@ func (p *Pulse) extractShard(ctx context.Context, archivePath, shardBasename str
 	return p.svc.ExtractShard(ctx, archivePath, shardBasename)
 }
 
-// CompactShardArchive rewrites the archive to eliminate orphaned bytes
-// from prior in-place mutations and refreshes the canonical metadata
-// (aggregate_record_count + shard_count). v1 AddShard / RemoveShard
-// already use temp+rename (no orphan bytes in v1 archives), so Compact
-// primarily serves to refresh canonical metadata that may have drifted
-// if the archive was edited outside Pulse. The whole-archive rewrite
-// pattern is the explicit reclaim path per the design contract §7.1.
+// CompactShardArchive rewrites the archive to eliminate the dead bytes
+// in-place `AddShard` appends leave (every superseded `_schema.pulse`
+// copy and old central directory; VerifyResult.DeadBytes reports them)
+// and refreshes the canonical metadata (aggregate_record_count +
+// shard_count), including metadata that drifted when the archive was
+// edited outside Pulse. The result has zero dead bytes.
 func (p *Pulse) CompactShardArchive(ctx context.Context, archivePath string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpShardCompact, path: archivePath}, func(ctx context.Context) error {
 		return p.compactShardArchive(ctx, archivePath)
@@ -3261,6 +3313,30 @@ func (p *Pulse) VerifyShardArchive(ctx context.Context, archivePath string) (*Ve
 func (p *Pulse) verifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
 	return p.svc.VerifyShardArchive(ctx, archivePath)
 }
+
+// RepairShardArchive rolls back an interrupted in-place `shard add`.
+// An append journals the archive's length and a checksum of its old
+// tail in `<archive>.append` before writing, and removes the journal
+// once the append is synced; a journal that survives (a crash) makes
+// every open of the archive refuse it with PULSE_SHARD_APPEND_INCOMPLETE.
+// RepairShardArchive checks the journal against the archive (length,
+// tail CRC-32, the journalled prefix parses as an archive), truncates
+// the archive back to its pre-append bytes and removes the journal; a
+// mismatch is PULSE_SHARD_REPAIR_REFUSED with nothing changed. Without
+// a journal it changes nothing (Repaired false). A repair that truncates
+// reports one mandatory PULSE_SHARD_APPEND_ROLLED_BACK on
+// ShardRepairResult.Warnings. `pulse shard verify --repair` runs it
+// before verifying.
+func (p *Pulse) RepairShardArchive(ctx context.Context, archivePath string) (*ShardRepairResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardVerify, path: archivePath}, func(ctx context.Context) (*ShardRepairResult, error) {
+		return p.svc.RepairShardArchive(ctx, archivePath)
+	})
+}
+
+// ShardRepairResult is RepairShardArchive's outcome: whether a journal
+// was rolled back, the shard whose append it was, the archive's size
+// before and after the truncation, and its warnings.
+type ShardRepairResult = service.ShardRepairResult
 
 // VerifyResult carries the structured outcome of VerifyShardArchive.
 // Errors aggregate every fatal cohesion failure discovered while

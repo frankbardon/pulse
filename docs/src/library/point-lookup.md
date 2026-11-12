@@ -154,8 +154,8 @@ held by two shards counts twice: an exact union count would need every
 key in memory, which the streaming build avoids (a known limit).
 
 `Lookup` against the archive resolves the key literal once against the
-archive's canonical dictionary, probes every shard, and returns the
-hits in archive order — the same rows, in the same order, as the
+archive's canonical dictionary, probes every shard whose recorded key
+range admits the key, and returns the hits in archive order — the same rows, in the same order, as the
 single-file cohort holding the archive's rows. Multiplicity applies
 across shards: `assert_unique` refuses a key held by two shards, and
 `first` takes the earliest row in archive order. A shard the index
@@ -166,8 +166,64 @@ reports the same shards (`ShardsUncovered`) and hashes every shard
 against its sidecar (`ShardsMismatched`); `ListIndexes` and
 `DropIndex` work on the archive path.
 
+**Key-range pruning.** The build records each shard's indexed-key
+minimum and maximum on its manifest record (`key_min` / `key_max`, one
+string per key column). A lookup skips a shard whose range excludes the
+key without opening that shard's sidecar, so a lookup over shards
+clustered by key (one shard per period, say) opens only the shards
+that can hold it. A composite key is pruned per column: one column out
+of range is enough. The bounds are order-preserving hex — the
+column's value big-endian, with the sign bit flipped for `date`,
+`datetime` and `decimal128` and the IEEE-754 total-order transform for
+floats — so `u64` keys above 2^53 stay exact; a categorical range is a
+dictionary-id range. Pruning only skips work: an empty shard, or a
+manifest written or rewritten by an older Pulse (which drops the
+fields), records no range and every such shard is probed. A skipped
+shard's sidecar is not read, so a stale sidecar there does not refuse
+a lookup that shard cannot answer; `VerifyIndex` still checks every
+sidecar, and also checks each recorded range against its sidecar's
+keys (`ShardsRangeMismatched`, reason `range_mismatch`) — a wrong
+range could hide a match.
+
+**Bloom pruning.** The build also writes one Bloom filter per shard
+(about 10 bits per distinct key, ~1% false positives), each stamped
+with the shard's name, size and CRC32, all in ONE file per index —
+`archive.pulse.<keyhash>.blooms` — so a lookup reads its filters in a
+single read (one GET on object storage) however many shards are in
+play. An index built before that file existed keeps one
+`archive.pulse#shard.pulse.<keyhash>.bloom` per shard; a lookup still
+uses those when no `.blooms` file is present, and a rebuild (or the
+next shard add) moves them into one and deletes them. After the range check, a lookup skips a shard
+whose filter says the key is not there — again without opening its
+sidecar — so a key that falls inside many shards' ranges but lives in
+few opens only those few (or one in a hundred extra). A filter never
+hides a key that is present. A missing filter, a damaged one, or one
+stamped with other shard bytes is ignored and the shard is probed.
+`VerifyIndex` rebuilds each filter from its sidecar and reports one
+that differs (`ShardsBloomStale`, reason `bloom_stale`; a `.blooms`
+file whose header is unreadable names every shard); `DropIndex`
+removes the filters; shard add and remove keep them in step;
+`CohortArtifacts` lists the `.blooms` file and every per-shard sidecar
+(`archive.pulse#shard.pulse.<keyhash>.idx`, and a legacy `.bloom`).
+
+**Distinct keys across shards.** On an archive, `DistinctKeys` is the
+sum of the per-shard counts, so a key present in three shards counts
+three times (`IndexedRecords` is exact either way). Each shard's
+manifest record therefore also carries a HyperLogLog sketch of its
+keys (`hll`, 1024 registers, about 1 KB of base64), and
+`BuildIndexResult.DistinctKeysEstimate` / `IndexInfo.DistinctKeysEstimate`
+(`--json` `distinct_keys_estimate`) merge them into a union estimate —
+about 3.25% relative standard error, clamped between the largest
+shard's count and the sum, so a one-shard archive is exact. On a
+single file the field equals `DistinctKeys`. It is `nil` when any
+covered shard's record has no sketch (built before the sketch existed,
+or rewritten by an older Pulse) — unknown, never 0; rebuild the index
+to restore it. Shard add and remove keep the sketches in step; the
+sketch never affects a lookup and `VerifyIndex` does not check it.
+
 `AddShard` and `RemoveShard` keep every archive index in step. An add
 builds the new shard's sidecar for each index and the updated manifest
+(the new shard's record carries its key range)
 before the archive is renamed: if any of that fails, the add returns
 the error and the archive, the sidecars and the manifest are left as
 they were. A remove drops the removed shard's sidecar and manifest

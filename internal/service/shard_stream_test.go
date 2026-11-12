@@ -260,8 +260,13 @@ func TestShardStream_CompactIsByteIdentity(t *testing.T) {
 	if _, err := svc.AddShard(ctx, "arch.pulse", "c.pulse"); err != nil {
 		t.Fatal(err)
 	}
+	// The add appended in place (dead bytes behind it); compacting
+	// reclaims them and lands on the created archive's bytes.
+	if err := svc.CompactShardArchive(ctx, "arch.pulse"); err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(before, gReadFile(t, fsys, "arch.pulse")) {
-		t.Fatal("remove + add of the last shard did not reproduce the created archive")
+		t.Fatal("remove + add + compact of the last shard did not reproduce the created archive")
 	}
 	gVerifyClean(t, svc, "arch.pulse")
 }
@@ -342,7 +347,9 @@ func TestShardStream_CrashBeforeRenameLeavesOriginalAndIsSwept(t *testing.T) {
 		name string
 		run  func(svc *Service) error
 	}{
-		{"add", func(svc *Service) error { _, err := svc.AddShard(ctx, "arch.pulse", "c.pulse"); return err }},
+		// An ordinary add appends in place and never stages
+		// (shard_append_test.go pins its failure rollback); the widening
+		// add still rewrites through the stage.
 		{"add_widen", func(svc *Service) error { _, err := svc.AddShard(ctx, "arch.pulse", "wide.pulse"); return err }},
 		{"remove", func(svc *Service) error { return removeShardErr(svc.RemoveShard(ctx, "arch.pulse", "a.pulse")) }},
 		{"compact", func(svc *Service) error { return svc.CompactShardArchive(ctx, "arch.pulse") }},
@@ -467,7 +474,8 @@ func (d *syncSpyDir) Sync() error {
 
 // TestShardStream_DirectorySyncedAfterRename: every archive mutation
 // fsyncs the archive's directory AFTER the rename, so the published name
-// itself survives a crash.
+// itself survives a crash; the in-place tail append renames only its
+// journal, syncing the directory after publishing and after removing it.
 func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 	t.Parallel()
 
@@ -484,16 +492,17 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 	}
 	svc := New(cfg)
 	steps := []struct {
-		name string
-		run  func() error
+		name   string
+		run    func() error
+		append bool // an in-place tail append renames only its journal
 	}{
 		{"create", func() error {
 			_, err := svc.CreateShardArchive(ctx, "d/arch.pulse", []string{"d/a.pulse"})
 			return err
-		}},
-		{"add", func() error { _, err := svc.AddShard(ctx, "d/arch.pulse", "d/b.pulse"); return err }},
-		{"remove", func() error { return removeShardErr(svc.RemoveShard(ctx, "d/arch.pulse", "a.pulse")) }},
-		{"compact", func() error { return svc.CompactShardArchive(ctx, "d/arch.pulse") }},
+		}, false},
+		{"add", func() error { _, err := svc.AddShard(ctx, "d/arch.pulse", "d/b.pulse"); return err }, true},
+		{"remove", func() error { return removeShardErr(svc.RemoveShard(ctx, "d/arch.pulse", "a.pulse")) }, false},
+		{"compact", func() error { return svc.CompactShardArchive(ctx, "d/arch.pulse") }, false},
 	}
 	for _, st := range steps {
 		spy.events = nil
@@ -501,6 +510,11 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 			t.Fatalf("%s: %v", st.name, err)
 		}
 		want := []string{"rename d/arch.pulse", "syncdir d"}
+		if st.append {
+			// The journal is published (renamed, directory synced) before
+			// the first archive byte, and its removal synced after.
+			want = []string{"rename d/arch.pulse.append", "syncdir d", "syncdir d"}
+		}
 		if !slices.Equal(spy.events, want) {
 			t.Errorf("%s: events %v, want %v", st.name, spy.events, want)
 		}

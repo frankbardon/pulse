@@ -17,15 +17,12 @@ import (
 // is one copy buffer and a Pulse-written archive whose metadata is
 // already current re-emits byte-identically.
 //
-// v1 note: AddShard / RemoveShard already use temp+rename for the
-// whole-archive rewrite, so v1 archives never accumulate orphan bytes
-// from Pulse-issued mutations. Compact still has a job in v1: it
-// refreshes the canonical _schema.pulse metadata that may have drifted
-// (for example, if the archive was edited by a third-party zip tool
-// outside Pulse) and is the explicit reclaim path for archives
-// containing orphan bytes from any source. Future PRs may introduce
-// true in-place AddShard atop lower-level zip primitives; Compact's
-// contract remains identical — produce a clean archive byte-for-byte.
+// Dead bytes: an in-place `shard add` (shard_append.go) leaves every
+// superseded `_schema.pulse` copy and old central directory behind;
+// Compact is the explicit reclaim path (the add's own dead-byte fallback
+// is the automatic one), so its result has zero dead bytes
+// (VerifyResult.DeadBytes). It also refreshes canonical metadata that
+// drifted when the archive was edited outside Pulse.
 //
 // Errors:
 //   - PULSE_ARCHIVE_MAGIC_INVALID / PULSE_ARCHIVE_CORRUPT — surfaced
@@ -62,5 +59,22 @@ func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) e
 		}
 		kept.names = append(kept.names, e.Name)
 	}
-	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept)
+	// Distinct counts (U73 #500): every shard the prior trailer knows
+	// CARRIES its entry (its bytes are copied raw, unchanged), and every
+	// shard with an absent entry — an archive written before the DIST
+	// trailer, a shard an append carried from one, a field that became
+	// eligible — is counted now, off its raw stored bytes: compact is the
+	// BACKFILL. So is every shard whose entry its central-directory
+	// identity no longer vouches for (U73 #720: replaced outside Pulse
+	// under the same name, or recorded without an identity).
+	// Opted out, an uncovered shard is recorded opted out instead.
+	prior := readPriorDistinct(a.arch)
+	pass := s.newDistinctPass(canonicalDoc.Schema)
+	refs := keptShardRefs(a, kept.names)
+	fresh, err := pass.recountKept(ctx, a, refs, prior, true)
+	if err != nil {
+		return err
+	}
+	dist := encx.NextArchiveDistinct(canonicalDoc.Schema, refs, prior, fresh)
+	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept, dist)
 }

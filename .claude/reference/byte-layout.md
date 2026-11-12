@@ -48,6 +48,14 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 34. Memory-mapped reads — platforms (U77 E2-S1)
 35. Pulse's own mappings never block its rewrites
 36. A view another reader holds — the recorded decision (U77 E2-S1, owner decision #4)
+37. Archive key-range prune — `key_min` / `key_max` (U73 #493)
+38. Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493)
+39. Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498)
+40. Shard add tail append — in place (U73 #492)
+41. Append journal — `<archive>.append` (U73 E2-S2)
+42. Dead bytes — superseded copies, the rewrite fallback, `--rewrite` (U73 E2-S3)
+43. Per-shard distinct counts — the `_schema.pulse` DIST trailer (U73 #500)
+44. Archive Bloom set — `<archive>.<keyhash>.blooms` (U73 #721)
 
 ## Section map
 
@@ -55,7 +63,9 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 |---|---|
 | `byte-layout/format-and-groups.md` | The contract; Format version — `0x01` / `0x02`; Parent groups — the `0x02` group descriptor; Global-constant elision — opt-in, full-pass detection; Import-time group declaration — `--group` / `ImportJob.Groups`; Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`; Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup` |
 | `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3); Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
-| `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS…; Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage |
+| `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS… |
+| `byte-layout/archive-index.md` | Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage; Archive key-range prune — `key_min` / `key_max` (U73 #493); Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493); Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498); Archive Bloom set — `<archive>.<keyhash>.blooms` (U73 #721) |
+| `byte-layout/archive-append.md` | Shard add tail append — in place (U73 #492): the appended entries and directory, Zip64, which adds rewrite instead, concurrent readers, `PULSE_SHARD_APPEND_REFUSED`, failure rollback, index upkeep from the in-memory twin; Append journal — `<archive>.append` (U73 E2-S2): the crash marker, `PULSE_SHARD_APPEND_INCOMPLETE`, `RepairShardArchive` / `shard verify --repair`, `PULSE_SHARD_REPAIR_REFUSED`, `PULSE_SHARD_APPEND_ROLLED_BACK`; Dead bytes — superseded copies, the rewrite fallback, `--rewrite` (U73 E2-S3): the gap measure, `PULSE_SHARD_DEAD_BYTES_RECLAIMED`, `AddShardOptions.Rewrite`, verify's `dead_schema_copies` / `dead_bytes`; Per-shard distinct counts — the `_schema.pulse` DIST trailer (U73 #500): wire layout, statuses, reader API, fresh vs carried per writer, knobs, memory |
 | `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran… |
 | `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, sidecar skip, collisions, the populations directory) |
 | `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |

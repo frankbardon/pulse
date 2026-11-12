@@ -76,7 +76,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          # go.mod's `toolchain` line: the go-versions manifest can lag a Go
+          # security patch, and setup-go pins GOTOOLCHAIN=local (no auto-switch).
+          go-version-file: go.mod
           cache: false
 
       - name: govulncheck (GOOS linux, windows)

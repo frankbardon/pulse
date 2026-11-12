@@ -2,7 +2,6 @@ package service
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -45,6 +44,12 @@ type Service struct {
 	// regardless of this knob.
 	shardWorkers int
 
+	// distinctLimit / distinctDisabled steer the per-shard distinct
+	// counts every archive writer records (shard_distinct.go): the
+	// per-field key cap (0 = encx.DefaultDistinctLimit) and the opt-out.
+	distinctLimit    int
+	distinctDisabled bool
+
 	// limits is the instance's effective resource limits, installed by
 	// pulse.New through SetLimits. Nil: the built-in defaults.
 	limits *limits.Limits
@@ -53,6 +58,11 @@ type Service struct {
 	// the ctx every RequestTimeout entry hands its run — bounded or not
 	// — so a test can wait out a tiny deadline deterministically.
 	entryHook func(ctx context.Context)
+
+	// appendSeam, when set (tests only), observes the in-place tail
+	// append of AddShard (shard_append.go) so a crash test can snapshot
+	// the files at every phase.
+	appendSeam *appendSeam
 
 	// decodeWorkers caps the per-cohort parallel decode worker pool
 	// the buffered Process path spawns when the cohort exceeds
@@ -456,6 +466,23 @@ func (s *Service) applyDefaults(req *types.Request, schema *encoding.Schema) {
 // is unreadable, and PULSE_SHARD_MISSING when an archive lacks the
 // reserved `_schema.pulse` entry.
 func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
+	return s.open(ctx, path, false)
+}
+
+// OpenExact is Open for a no-execute caller (predict's schema loader):
+// headReader's over-reading buffer is off, so not one byte past the
+// schema end is read — the predict contract "header + schema, never
+// records". The decode is still buffered: encoding.ReadSchema fetches
+// only the bytes the lengths decoded so far prove belong to the schema
+// block, so a huge inline dictionary costs a few hundred reads, not two
+// per entry. Open instead decodes through headReader, which over-reads
+// up to one chunk into the payload for fewer reads still. The decoded
+// Cohort is the same either way.
+func (s *Service) OpenExact(ctx context.Context, path string) (*Cohort, error) {
+	return s.open(ctx, path, true)
+}
+
+func (s *Service) open(ctx context.Context, path string, exact bool) (*Cohort, error) {
 	// Anchor syntax: "archive.pulse#shard.pulse" opens one shard inside
 	// the archive as a single-shard cohort. Recognised before the magic
 	// dispatch so anchored facades (Process, Sample, Facet, ...) reach
@@ -489,6 +516,10 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 	if n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
 		// Shard archive: random access over this handle. The deferred
 		// Close above releases it once the directory and headers are read.
+		// An interrupted append is refused first; Open never repairs.
+		if jerr := encx.RefuseIncompleteAppend(s.fs.Fs(), path); jerr != nil {
+			return nil, jerr
+		}
 		a, aerr := archiveFromFile(f, path)
 		if aerr != nil {
 			return nil, aerr
@@ -496,11 +527,16 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 		return s.openArchive(path, a)
 	}
 
-	// Single-file branch: feed the already-consumed magic bytes back to
-	// ReadHeader via a MultiReader so it sees the full 9-byte prefix.
-	// ReadSchema then streams field descriptors + inline dictionary
-	// blocks directly off the file handle.
-	r := io.MultiReader(bytes.NewReader(magic[:n]), f)
+	// Single-file branch: headReader replays the already-consumed magic
+	// bytes so ReadHeader sees the full 9-byte prefix, then ReadSchema
+	// decodes field descriptors + inline dictionary blocks through its
+	// bounded chunked buffer: unbuffered, every inline dictionary entry
+	// cost two reads off the handle (~0.45 s at 600k entries). The
+	// over-read past the schema end is at most one chunk (headReader),
+	// and the handle is closed on return. exact (OpenExact) disables the
+	// buffer: every read then goes straight to the handle, through
+	// ReadSchema's own buffer, which stops exactly at the schema end.
+	r := newHeadReader(f, magic[:n], exact)
 
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
@@ -522,21 +558,17 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 			fmt.Sprintf("reading schema from: %s", path))
 	}
 
-	// Nothing above reads ahead, so the handle sits where the payload
-	// starts: recorded so the parallel-decode dispatch counts records
-	// from the file length without decoding the schema — and every
-	// inline dictionary — a second time (openedRecordCount). A handle
-	// that cannot report its offset records 0 (the dispatch then falls
-	// back to CountRecords).
-	payloadOffset, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		payloadOffset = 0
-	}
+	// The payload starts where the parse stopped: the bytes headReader
+	// handed the parser (counted ABOVE its buffer, from the file's first
+	// byte), never the handle's position, which the buffer has moved up
+	// to one chunk further. Recorded so the parallel-decode dispatch
+	// counts records from the file length without decoding the schema —
+	// and every inline dictionary — a second time (openedRecordCount).
 	return &Cohort{
 		path:          path,
 		schema:        schema,
 		fs:            s.fs.Fs(),
-		payloadOffset: payloadOffset,
+		payloadOffset: r.consumed,
 	}, nil
 }
 

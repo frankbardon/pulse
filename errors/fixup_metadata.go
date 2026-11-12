@@ -2392,6 +2392,44 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_APPEND_REFUSED: {
+		Message: "`shard add` could not open the archive for writing to append the new shard in place, or the archive changed between the add's read and its write; nothing was written and the archive is byte-identical.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"--rewrite"},
+				Hint:   "Re-run `pulse shard add --rewrite`: it streams a new archive into a staged file beside the original and renames it over, so it never opens the archive for writing. Or make the archive writable — clear a read-only flag or mount, or close the other process holding it (on Windows a reader that opened it without write sharing refuses the append). `details.reason` is `open_for_write` or `archive_changed`, `details.cause` the underlying error.",
+			},
+		},
+	},
+	PULSE_SHARD_APPEND_INCOMPLETE: {
+		Message: "The shard archive's in-place `shard add` did not finish: its append journal marker is still beside it, so the archive is refused rather than read as a torn or pre-append view.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"--repair"},
+				Hint:   "Run `pulse shard verify --repair <archive>` (library: RepairShardArchive): it checks the journalled length and tail checksum, truncates the archive back to its pre-append bytes and removes the marker; then re-run the `shard add`. `details.journal` is the marker path. Never delete the marker by hand — that publishes whatever torn tail the crash left.",
+			},
+		},
+	},
+	PULSE_SHARD_REPAIR_REFUSED: {
+		Message: "The append journal does not describe the archive on disk, so the repair truncated nothing and kept the marker.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "`details.reason` says what disagreed: journal_invalid (the marker does not decode), archive_shorter_than_journal, tail_checksum_mismatch or tail_not_an_archive (the archive was changed after the interrupted append). Restore the archive from a copy, or rebuild it with `pulse shard create` from its source shards, then remove `details.journal`.",
+			},
+		},
+	},
+	PULSE_SHARD_APPEND_ROLLED_BACK: {
+		Message: "`shard verify --repair` truncated the archive back to its length before an interrupted in-place `shard add`, rolling that append back: the archive is again byte-identical to its pre-append bytes and the shard the append carried is not in it. The archive is correct; the warning exists because a repair that rewrites the archive must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-run the interrupted `pulse shard add <archive> <shard>` — `details.shard` names the shard it carried. `details.size_before` / `details.archive_size` / `details.truncated_bytes` record the rollback.",
+			},
+		},
+	},
 	PULSE_SHARD_COUNT_LIMIT: {
 		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
 		Fixups: []Fixup{
@@ -2404,6 +2442,15 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Output", "Shards", "MaxRecords"},
 				Hint:   "A materialize run with output.shards: raise max_records so the written rows fit 65535 shards (`details.row` is the first row past the limit), or filter the rows written.",
+			},
+		},
+	},
+	PULSE_SHARD_DEAD_BYTES_RECLAIMED: {
+		Message: "An ordinary `shard add` rewrote the whole archive instead of appending in place, because the dead bytes an append leaves behind (superseded `_schema.pulse` copies and old central directories) would have exceeded half the archive. The rewrite reclaimed them: the archive holds one `_schema.pulse` and no dead bytes. The archive is correct; the warning exists because the rewrite is expensive and must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — the next adds append in place again. `details.dead_bytes` / `details.archive_size` are what the append would have left. Adding many small shards one at a time is what accumulates dead bytes (each append supersedes the directory); batch them into one `pulse shard create`, or run `pulse shard compact` on your own schedule. `pulse shard verify --json` reports the dead bytes (`data.dead_bytes`, `data.dead_schema_copies`).",
 			},
 		},
 	},

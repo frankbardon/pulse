@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
@@ -66,7 +67,7 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 	if err != nil {
 		return in, err
 	}
-	in.Records, in.ShardRecords, in.DirectoryBytes = c.Records, c.ShardRecords, c.DirectoryBytes
+	in.Records, in.ShardRecords, in.DirectoryBytes, in.Distinct = c.Records, c.ShardRecords, c.DirectoryBytes, c.Distinct
 	return in, nil
 }
 
@@ -87,9 +88,9 @@ func decodeMappable(cohort *Cohort) bool {
 // parallel-decode reducer could map it (decodeMappable) — predict's
 // PredictOptions.DecodeMappable, so the memory estimate picks the arm
 // the run picks. An open failure answers false; the pass that loads the
-// schema reports it. No record is read.
+// schema reports it. No record is read (OpenExact).
 func (s *Service) DecodeMappable(ctx context.Context, path string) bool {
-	cohort, err := s.Open(ctx, path)
+	cohort, err := s.OpenExact(ctx, path)
 	if err != nil {
 		return false
 	}
@@ -97,8 +98,9 @@ func (s *Service) DecodeMappable(ctx context.Context, path string) bool {
 }
 
 // cohortCounts are the header facts of cohort (opened from path) the
-// limit rules read: an archive's per-shard counts from its manifest and
-// its central-directory bytes (what Open parsed), a single file's — or
+// limit rules read: an archive's per-shard counts from its manifest, its
+// central-directory bytes (what Open parsed) and its recorded per-shard
+// distinct counts (archiveDistinct), a single file's — or
 // an anchor-opened shard's — header-only count (CountRecords, never
 // Cohort.RecordCount).
 func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string) (descx.CohortCounts, error) {
@@ -109,6 +111,7 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 			c.Records += sh.RecordCount
 		}
 		c.DirectoryBytes = cohort.directoryBytes
+		c.Distinct = s.archiveDistinct(cohort)
 		return c, nil
 	}
 	n, err := s.CountRecords(ctx, path)
@@ -123,9 +126,9 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 // the limit pre-flight reads for it (cohortCounts) whether or not a
 // memory limit is set — predict's PredictOptions.CohortCounter, so a
 // Compose slot's limit findings carry the runtime's own figures. No
-// record is read.
+// record is read (OpenExact).
 func (s *Service) CohortCounts(ctx context.Context, path string) (descx.CohortCounts, error) {
-	cohort, err := s.Open(ctx, path)
+	cohort, err := s.OpenExact(ctx, path)
 	if err != nil {
 		return descx.CohortCounts{Records: -1}, err
 	}
@@ -153,4 +156,23 @@ func (s *Service) composeSlotsPreflight(slots int) error {
 		return err
 	}
 	return nil
+}
+
+// archiveDistinct is an archive cohort's recorded per-shard distinct
+// counts (U73 #500) — descx.ArchiveDistinctOf, the reader predict uses,
+// over the archive's `_schema.pulse` entry (header bytes, never a
+// record) — read only when MaxEstimatedMemory is set, the one rule they
+// tighten (predict's PredictOptions.memoryBounded gate). Any fault reads
+// as none: the bound is advisory, so the estimate falls back to the
+// value-width / record bound rather than failing the run.
+func (s *Service) archiveDistinct(cohort *Cohort) *encx.ArchiveDistinct {
+	if !s.memoryBounded() || cohort.fs == nil {
+		return nil
+	}
+	a, err := openArchiveFile(cohort.fs, cohort.path)
+	if err != nil {
+		return nil
+	}
+	defer a.Close()
+	return descx.ArchiveDistinctOf(a.arch)
 }

@@ -57,12 +57,21 @@ pulse index build --input sales.pulse --key region,date
     "manifest_path": "sales.pulse.indexes.json",
     "keys": ["region", "date"],
     "distinct_keys": 480,
+    "distinct_keys_estimate": 480,
     "indexed_records": 50000
   },
   "errors": [],
   "warnings": []
 }
 ```
+
+`distinct_keys_estimate` is the index's union distinct-key count:
+equal to `distinct_keys` on a single file (exact), and on a shard
+archive — where `distinct_keys` is a per-shard sum that counts a key in
+k shards k times — the merge of each shard's HyperLogLog sketch
+(about 3.25% relative standard error). It is absent when unknown (an
+archive index built before the sketches existed, or one whose catalog
+an older Pulse rewrote), never 0. `list` carries it too.
 
 `manifest_path` is the keyless catalog this build upserted its entry
 into — the one path that can be read to recover this index's key tuple
@@ -136,7 +145,13 @@ pulse index verify --input sales.pulse --key region,date --json
 ```
 
 `reason` is one of `stat_mismatch` (the **size** alone was conclusive —
-`fast_path: true`), `fingerprint_match`, or `fingerprint_mismatch`.
+`fast_path: true`), `fingerprint_match`, or `fingerprint_mismatch` —
+and, for a shard archive only, `range_mismatch`: every shard hashes
+clean but a shard's recorded key range disagrees with its sidecar
+(`shards_range_mismatched`), or `bloom_stale`: a shard's Bloom filter
+(its record in the index's `.blooms` file, or a pre-`.blooms` index's
+per-shard `.bloom`) is not the one its sidecar's keys build
+(`shards_bloom_stale`). A missing filter is never stale.
 
 An additive `modtime_drift: true` (omitted when false) means the
 cohort's modification time no longer matches the snapshot taken at
@@ -182,8 +197,15 @@ pulse index drop --input sales.pulse --key region,date
 
 - **Shard archives are indexed per shard.** `build` writes one sidecar
   per shard (`data.shard_index_paths`) plus the archive manifest's
-  coverage (name, size and zip CRC32 per shard); `verify` adds
-  `shards_uncovered` / `shards_mismatched`; `list` adds
+  coverage (name, size and zip CRC32 per shard, plus each shard's
+  key range — `key_min` / `key_max` — and distinct-key sketch, `hll`)
+  and one `.blooms` file holding every
+  shard's Bloom filter; `pulse api lookup` uses both to skip shards that
+  cannot hold the key, and `drop` removes the filters with the
+  sidecars; `verify` adds
+  `shards_uncovered` / `shards_mismatched` / `shards_range_mismatched` /
+  `shards_bloom_stale`;
+  `list` adds
   `shard_index_paths`. A shard the index does not cover makes `verify`
   stale and `pulse api lookup` refuse with `PULSE_INDEX_STALE` —
   rebuild.

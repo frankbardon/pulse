@@ -175,11 +175,12 @@ func TestNewFaults_Coded(t *testing.T) {
 		code       perr.Code
 		path, kind string
 	}{
-		"ShardWorkers negative":  {opts: pulse.Options{ShardWorkers: -1}, code: perr.SERVICE_VALIDATION},
-		"DecodeWorkers negative": {opts: pulse.Options{DecodeWorkers: -1}, code: perr.SERVICE_VALIDATION},
-		"label dir is a file":    {opts: pulse.Options{LabelTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "label_table"},
-		"range dir is a file":    {opts: pulse.Options{RangeTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "range_table"},
-		"lookup dir is a file":   {opts: pulse.Options{LookupTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "lookup_table"},
+		"ShardWorkers negative":       {opts: pulse.Options{ShardWorkers: -1}, code: perr.SERVICE_VALIDATION},
+		"DecodeWorkers negative":      {opts: pulse.Options{DecodeWorkers: -1}, code: perr.SERVICE_VALIDATION},
+		"ShardDistinctLimit negative": {opts: pulse.Options{ShardDistinctLimit: -1}, code: perr.SERVICE_VALIDATION},
+		"label dir is a file":         {opts: pulse.Options{LabelTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "label_table"},
+		"range dir is a file":         {opts: pulse.Options{RangeTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "range_table"},
+		"lookup dir is a file":        {opts: pulse.Options{LookupTablesDir: file}, code: perr.DATA_FILE, path: file, kind: "lookup_table"},
 		"populations dir is a file": {
 			opts: pulse.Options{PopulationsDir: file}, code: perr.DATA_FILE, path: file, kind: "population",
 		},

@@ -147,13 +147,19 @@ func (d *Dictionary) ReadFrom(r io.Reader) (int64, error) {
 	values := make([]string, 0, min(count, dictPreallocCap))
 	var scratch []byte
 	var lenBuf [2]byte
-	for range count {
+	// A schema-block decode (schemaReader) is told what the block still
+	// holds: this label, then at least a u16 length per entry to come.
+	sr, _ := r.(*schemaReader)
+	for i := range count {
 		ln, err := io.ReadFull(r, lenBuf[:])
 		read += int64(ln)
 		if err != nil {
 			return read, errors.WrapCodedError(err, errors.ENCODING_INVALID, "reading dictionary string length")
 		}
 		slen := int(binary.LittleEndian.Uint16(lenBuf[:]))
+		if sr != nil {
+			sr.ahead(int64(slen) + 2*int64(count-i-1))
+		}
 		if cap(scratch) < slen {
 			scratch = make([]byte, max(cap(scratch)*2, slen, dictScratchMin))
 		}

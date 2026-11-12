@@ -188,6 +188,9 @@ func TestIndexBuildCLI_ShardArchiveBuildsPerShardSidecars(t *testing.T) {
 			DistinctKeys    int      `json:"distinct_keys"`
 			IndexedRecords  int      `json:"indexed_records"`
 			ShardIndexPaths []string `json:"shard_index_paths"`
+			// The two shards hold the same three ids: the union
+			// estimate is 3 where the per-shard sum is 6.
+			DistinctKeysEstimate *int `json:"distinct_keys_estimate"`
 		} `json:"data"`
 		Errors []any `json:"errors"`
 	}
@@ -196,6 +199,29 @@ func TestIndexBuildCLI_ShardArchiveBuildsPerShardSidecars(t *testing.T) {
 	}
 	if len(env.Errors) != 0 || len(env.Data.ShardIndexPaths) != 2 || env.Data.DistinctKeys != 6 || env.Data.IndexedRecords != 6 {
 		t.Errorf("archive build envelope = %+v, want two shard sidecars and per-shard sums 6/6", env)
+	}
+	if e := env.Data.DistinctKeysEstimate; e == nil || *e != 3 {
+		t.Errorf("build distinct_keys_estimate = %v, want 3", e)
+	}
+
+	buf.Reset()
+	if err := runIndexCLI(t, &buf, "list", "--input", archive, "--json"); err != nil {
+		t.Fatalf("index list on an archive: %v\n%s", err, buf.String())
+	}
+	var list struct {
+		Data struct {
+			Indexes []struct {
+				DistinctKeys         int  `json:"distinct_keys"`
+				DistinctKeysEstimate *int `json:"distinct_keys_estimate"`
+			} `json:"indexes"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &list); err != nil {
+		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
+	}
+	if len(list.Data.Indexes) != 1 || list.Data.Indexes[0].DistinctKeys != 6 ||
+		list.Data.Indexes[0].DistinctKeysEstimate == nil || *list.Data.Indexes[0].DistinctKeysEstimate != 3 {
+		t.Errorf("list envelope = %s, want distinct_keys 6 and distinct_keys_estimate 3", buf.String())
 	}
 }
 

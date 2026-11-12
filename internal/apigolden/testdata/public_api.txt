@@ -1,4 +1,7 @@
 pulse: package pulse
+pulse: type AddShardOptions = pulse/internal/service.AddShardOptions
+pulse: type AddShardOptions underlying struct
+pulse: type AddShardOptions field Rewrite bool
 pulse: type AddShardResult = pulse/internal/service.AddShardResult
 pulse: type AddShardResult underlying struct
 pulse: type AddShardResult field Added string "json:\"added\""
@@ -62,6 +65,7 @@ pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
 pulse: type BuildIndexResult field DistinctKeys int
+pulse: type BuildIndexResult field DistinctKeysEstimate *int
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
 pulse: type BuildIndexResult field IndexedRecords int
@@ -619,6 +623,7 @@ pulse: type IndexFreshnessReason underlying string
 pulse: type IndexInfo = pulse/internal/service.IndexInfo
 pulse: type IndexInfo underlying struct
 pulse: type IndexInfo field DistinctKeys int
+pulse: type IndexInfo field DistinctKeysEstimate *int
 pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
@@ -756,6 +761,7 @@ pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
 pulse: type Options field DisablePanicRecovery bool
 pulse: type Options field DisableProjection bool
+pulse: type Options field DisableShardDistinct bool
 pulse: type Options field EchoRequest bool
 pulse: type Options field Extensions pulse.Extensions
 pulse: type Options field FS github.com/spf13/afero.Fs
@@ -775,6 +781,7 @@ pulse: type Options field PopulationsDir string
 pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
+pulse: type Options field ShardDistinctLimit int
 pulse: type Options field ShardWorkers int
 pulse: type Options field Strict bool
 pulse: type Options field SuppressAdvisories []string
@@ -841,6 +848,7 @@ pulse: type ProfileOptions field SuggestRules bool
 pulse: type ProfileOptions field TopK int
 pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
+pulse: type Pulse method (*Pulse) AddShardWithOptions(ctx context.Context, archivePath string, shardPath string, opts pulse.AddShardOptions) (*pulse.AddShardResult, error)
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
 pulse: type Pulse method (*Pulse) ClassifyPostWindow(ctx context.Context, req *pulse.Request, schema *pulse/encoding.Schema) (*pulse/descriptor.PostWindowPlan, error)
@@ -917,6 +925,7 @@ pulse: type Pulse method (*Pulse) ReloadTemplates() error
 pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) (*pulse.RemoveShardResult, error)
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
 pulse: type Pulse method (*Pulse) RenderTemplateRequest(name string, vars map[string]any) (*pulse.Request, error)
+pulse: type Pulse method (*Pulse) RepairShardArchive(ctx context.Context, archivePath string) (*pulse.ShardRepairResult, error)
 pulse: type Pulse method (*Pulse) RequestReads(doc []byte, root pulse/descriptor.ReadsRoot) (pulse/descriptor.RequestReads, error)
 pulse: type Pulse method (*Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*pulse/encoding.Schema, error)
 pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle string) (string, error)
@@ -1173,6 +1182,14 @@ pulse: type ShardInfo = pulse/descriptor.ShardInfo
 pulse: type ShardInfo underlying struct
 pulse: type ShardInfo field Filename string "json:\"filename\""
 pulse: type ShardInfo field RecordCount int64 "json:\"record_count\""
+pulse: type ShardRepairResult = pulse/internal/service.ShardRepairResult
+pulse: type ShardRepairResult underlying struct
+pulse: type ShardRepairResult field Archive string "json:\"archive\""
+pulse: type ShardRepairResult field ArchiveSize int64 "json:\"archive_size,omitempty\""
+pulse: type ShardRepairResult field Repaired bool "json:\"repaired\""
+pulse: type ShardRepairResult field Shard string "json:\"shard,omitempty\""
+pulse: type ShardRepairResult field SizeBefore int64 "json:\"size_before,omitempty\""
+pulse: type ShardRepairResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type ShardSplit struct
 pulse: type ShardSplit field MaxRecords int
 pulse: type SidecarIndex = pulse/internal/encoding.Index
@@ -1353,10 +1370,14 @@ pulse: type VerifyIndexResult field Fresh bool
 pulse: type VerifyIndexResult field IndexPath string
 pulse: type VerifyIndexResult field ModTimeDrift bool
 pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshnessReason
+pulse: type VerifyIndexResult field ShardsBloomStale []string
 pulse: type VerifyIndexResult field ShardsMismatched []string
+pulse: type VerifyIndexResult field ShardsRangeMismatched []string
 pulse: type VerifyIndexResult field ShardsUncovered []string
 pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
+pulse: type VerifyResult field DeadBytes int64 "json:\"dead_bytes\""
+pulse: type VerifyResult field DeadSchemaCopies int "json:\"dead_schema_copies\""
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
 pulse: type VerifyResult field GroupIndexHeadroom []pulse/internal/encoding.GroupIndexHeadroom "json:\"group_index_headroom,omitempty\""
 pulse: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroom "json:\"set_width_headroom,omitempty\""
@@ -3006,7 +3027,11 @@ pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVAL
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
 pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
 pulse/errors: const PULSE_SEM_SCORE_LEVEL_UNSEEN pulse/errors.Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
+pulse/errors: const PULSE_SHARD_APPEND_INCOMPLETE pulse/errors.Code = "PULSE_SHARD_APPEND_INCOMPLETE"
+pulse/errors: const PULSE_SHARD_APPEND_REFUSED pulse/errors.Code = "PULSE_SHARD_APPEND_REFUSED"
+pulse/errors: const PULSE_SHARD_APPEND_ROLLED_BACK pulse/errors.Code = "PULSE_SHARD_APPEND_ROLLED_BACK"
 pulse/errors: const PULSE_SHARD_COUNT_LIMIT pulse/errors.Code = "PULSE_SHARD_COUNT_LIMIT"
+pulse/errors: const PULSE_SHARD_DEAD_BYTES_RECLAIMED pulse/errors.Code = "PULSE_SHARD_DEAD_BYTES_RECLAIMED"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DICT_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
@@ -3015,6 +3040,7 @@ pulse/errors: const PULSE_SHARD_HEADER_INVALID pulse/errors.Code = "PULSE_SHARD_
 pulse/errors: const PULSE_SHARD_INDEXES_UPDATED pulse/errors.Code = "PULSE_SHARD_INDEXES_UPDATED"
 pulse/errors: const PULSE_SHARD_MISSING pulse/errors.Code = "PULSE_SHARD_MISSING"
 pulse/errors: const PULSE_SHARD_NAME_COLLISION pulse/errors.Code = "PULSE_SHARD_NAME_COLLISION"
+pulse/errors: const PULSE_SHARD_REPAIR_REFUSED pulse/errors.Code = "PULSE_SHARD_REPAIR_REFUSED"
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
 pulse/errors: const PULSE_SHARD_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SHARD_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SHARD_SET_WIDENED pulse/errors.Code = "PULSE_SHARD_SET_WIDENED"
@@ -6790,4 +6816,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6f03f63b23dbe85d47b755311b7e32c4d73f51bbdc9b387d52a38cc383c6ebc8
+// golden-hash: fbd09bb7a9fdd8f81a16ec3d05a5a1a220d50c03af3eb69184455d2957e8f79b

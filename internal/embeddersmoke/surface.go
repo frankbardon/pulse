@@ -146,6 +146,8 @@ var (
 	_ pulse.RemoveShardResult
 	_ pulse.GroupReconciliation
 	_ pulse.VerifyResult
+	_ pulse.ShardRepairResult
+	_ pulse.AddShardOptions
 	_ pulse.ShardEntry
 	_ pulse.VerifyIndexResult
 	_ pulse.IndexFreshnessReason

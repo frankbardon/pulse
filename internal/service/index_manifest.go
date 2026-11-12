@@ -137,11 +137,12 @@ func listIndexesFromManifest(fsys afero.Fs, cohortPath string, manifest *encx.In
 			}
 		}
 		out = append(out, IndexInfo{
-			IndexPath:       full,
-			Keys:            entry.KeyNames(),
-			DistinctKeys:    entry.DistinctKeys,
-			IndexedRecords:  entry.IndexedRecords,
-			ShardIndexPaths: shardPaths,
+			IndexPath:            full,
+			Keys:                 entry.KeyNames(),
+			DistinctKeys:         entry.DistinctKeys,
+			DistinctKeysEstimate: entryDistinctKeysEstimate(entry),
+			IndexedRecords:       entry.IndexedRecords,
+			ShardIndexPaths:      shardPaths,
 		})
 	}
 	return out, nil

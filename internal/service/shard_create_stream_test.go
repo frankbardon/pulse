@@ -452,7 +452,14 @@ func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
 
 	t.Run("verbatim", func(t *testing.T) {
 		shardBytes := uint64(recs * 12)
-		fixed := uint64(2 << 20)
+		// The DIST pass (U73 #500) counts each source's two eligible
+		// fields (u32 id, f64 score — recs distinct values each) before
+		// the stream: one reused key set per field, sized by ONE source's
+		// distinct values (65,536 slots for 40,000 keys at load <= 3/4),
+		// its growth chain at most doubling that. Reused across sources,
+		// so it never grows with them (the second check below).
+		distinctSets := uint64(2 * 2 * 65_536 * 8)
+		fixed := uint64(2<<20) + distinctSets
 		var got [2]uint64
 		for i, n := range []int{4, 32} {
 			svc, fsys, dir := streamOsEnv(t)

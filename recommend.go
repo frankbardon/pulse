@@ -129,6 +129,15 @@ func (a *anchorFault) Unwrap() error { return a.err }
 // (the code the predict roots' openGuideCohort raises), message
 // "<prefix>: <fs error>", details.path, the fs error kept as Cause.
 func cohortOpenError(prefix, path string, err error) *errors.CodedError {
+	// A coded refusal (an interrupted shard append's
+	// PULSE_SHARD_APPEND_INCOMPLETE) keeps its own code and details, as
+	// Open reports it; a bare filesystem error is DATA_FILE.
+	var coded *errors.CodedError
+	if stderrors.As(err, &coded) {
+		ce := errors.NewCodedErrorWithDetails(coded.Code, prefix+": "+coded.Message, coded.Details)
+		ce.Cause = err
+		return ce
+	}
 	ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE, prefix+": "+err.Error(), map[string]any{"path": path})
 	ce.Cause = err
 	return ce
@@ -162,6 +171,11 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
 	if archivePath, e, ok := service.SplitAnchorPath(path); ok {
 		readPath, entry = archivePath, e
+	}
+	// An archive with an interrupted in-place append is refused before
+	// it is read — the same PULSE_SHARD_APPEND_INCOMPLETE Open raises.
+	if err := encx.RefuseIncompleteAppend(p.fsys, readPath); err != nil {
+		return nil, err
 	}
 	f, err := p.fsys.Open(readPath)
 	if err != nil {

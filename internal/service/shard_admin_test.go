@@ -255,16 +255,16 @@ func TestShardArchiveAnchorSyntax(t *testing.T) {
 	}
 }
 
-// AddShard's atomic temp+rename contract: a successful Add leaves no
-// residual temp file at the canonical archive's directory, the archive
-// is well-formed, and the prior bytes are not corrupted during the
-// write. The complementary half — a failed mid-write leaving the prior
-// archive intact — is exercised via an afero overlay that fails the
-// Rename step.
+// AddShard's failure contract: a successful Add leaves no residual temp
+// file at the canonical archive's directory and the archive is
+// well-formed. The complementary half — a failed mid-write leaving the
+// prior archive intact — is exercised via an afero overlay that tears
+// the in-place tail append after a few bytes: the add truncates the
+// archive back to its prior length. (The rewrite path's rename failure
+// is pinned by TestAddShard_WidenIsAtomicUnderRenameFailure.)
 //
-// Uses a real OsFs against t.TempDir() so the Rename codepath is
-// exercised end-to-end. Then re-runs the prior-state invariant against
-// a memfs with an injected Rename failure.
+// Uses a real OsFs against t.TempDir() for the success half, a memfs
+// with the injected write failure for the other.
 func TestShardArchiveAddCrashRecovery(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +319,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("rename failure preserves prior archive", func(t *testing.T) {
+	t.Run("append write failure preserves prior archive", func(t *testing.T) {
 		base := afero.NewMemMapFs()
 		schema := adminScoreSchema()
 		shardA := "a.pulse"
@@ -343,30 +343,29 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 		}
 
 		// Capture the pre-Add archive bytes so we can verify they are
-		// unchanged after the simulated rename failure.
+		// unchanged after the simulated write failure.
 		priorBytes, err := afero.ReadFile(base, archive)
 		if err != nil {
 			t.Fatalf("ReadFile prior: %v", err)
 		}
 
-		// Inject a failing Rename: wrap the base fs in an overlay that
-		// errors on Rename only. The temp file write succeeds; the
-		// rename fails; AddShard surfaces the error, the temp file is
-		// best-effort cleaned, and the canonical archive is unchanged.
-		failing := &failingRenameFs{Fs: base}
+		// The in-place append writes part of its tail and then fails:
+		// AddShard surfaces the error and truncates the archive back to
+		// its prior length, so its old EOCD is the last record again.
+		failing := &tornAppendFs{Fs: base, name: archive, after: 40}
 		failCfg, err := fs.New(fs.WithFs(failing))
 		if err != nil {
 			t.Fatalf("fs.New failing: %v", err)
 		}
-		failSvc := New(failCfg)
-
-		_, err = failSvc.AddShard(context.Background(), archive, shardB)
+		_, err = New(failCfg).AddShard(context.Background(), archive, shardB)
 		if err == nil {
-			t.Fatal("AddShard with failing Rename: expected error")
+			t.Fatal("AddShard with a failing append: expected error")
 		}
-		// The error wraps the underlying Rename failure with SERVICE_RESOURCE.
-		if !errors.HasCode(err, errors.SERVICE_RESOURCE) {
-			t.Errorf("expected SERVICE_RESOURCE, got: %v", err)
+		if !errors.HasCode(err, errors.SERVICE_RESOURCE) && !errors.HasCode(err, errors.ENCODING_IO) {
+			t.Errorf("expected SERVICE_RESOURCE / ENCODING_IO, got: %v", err)
+		}
+		if failing.wrote == 0 {
+			t.Fatal("fixture: the append failed before writing any byte")
 		}
 
 		// Canonical archive must be byte-identical to its prior state.
@@ -375,7 +374,7 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 			t.Fatalf("ReadFile post: %v", err)
 		}
 		if string(postBytes) != string(priorBytes) {
-			t.Errorf("archive bytes changed despite failed rename (prior=%d bytes, post=%d bytes)",
+			t.Errorf("archive bytes changed despite the failed append (prior=%d bytes, post=%d bytes)",
 				len(priorBytes), len(postBytes))
 		}
 
@@ -388,6 +387,41 @@ func TestShardArchiveAddCrashRecovery(t *testing.T) {
 			t.Errorf("post-failure shard count = %d, want 1", len(shards))
 		}
 	})
+}
+
+// tornAppendFs opens name for writing as a file that accepts `after`
+// bytes and then fails every write: an append torn by an I/O error.
+type tornAppendFs struct {
+	afero.Fs
+	name  string
+	after int
+	wrote int
+}
+
+func (f *tornAppendFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	file, err := f.Fs.OpenFile(name, flag, perm)
+	if err != nil || name != f.name || flag&(os.O_WRONLY|os.O_RDWR) == 0 {
+		return file, err
+	}
+	return &tornFile{File: file, fs: f}, nil
+}
+
+type tornFile struct {
+	afero.File
+	fs *tornAppendFs
+}
+
+func (t *tornFile) Write(p []byte) (int, error) {
+	room := t.fs.after - t.fs.wrote
+	if room <= 0 {
+		return 0, io.ErrShortWrite
+	}
+	n, err := t.File.Write(p[:min(room, len(p))])
+	t.fs.wrote += n
+	if err == nil && n < len(p) {
+		err = io.ErrShortWrite
+	}
+	return n, err
 }
 
 // listDirNames returns the basenames of every entry directly inside

@@ -49,6 +49,9 @@ var typeOnlyWidthAllowed = map[string]map[string]string{
 	// scalar type, and its unknown-type check. TestOnWireWidthMatchesByteSize
 	// (internal/encoding) pins fixedWidthBytes == Schema.FieldWidth for
 	// every type it answers, so the arm's cursor and the stride agree.
+	"internal/encoding/index_key_range.go": {
+		"IndexKeyComponentWidth": "scalar index-key component width (keyable scalars only, never a stride)",
+	},
 	"internal/encoding/reader_fast.go": {
 		"decodeStrideIndexed": "scalar decode arm (decodeFixed width)",
 		"decodeGroupBytes":    "scalar decode arm (decodeFixed width)",

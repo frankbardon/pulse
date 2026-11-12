@@ -297,6 +297,10 @@ func obsCalls() []obsCall {
 			_, err := p.AddShard(ctx, "arch.pulse", obsCohort)
 			return err
 		}},
+		{"AddShardWithOptions", observe.OpShardAdd, func(ctx context.Context, p *Pulse) error {
+			_, err := p.AddShardWithOptions(ctx, "arch.pulse", obsCohort, AddShardOptions{Rewrite: true})
+			return err
+		}},
 		{"RemoveShard", observe.OpShardRemove, func(ctx context.Context, p *Pulse) error {
 			_, err := p.RemoveShard(ctx, "arch.pulse", "nope.pulse")
 			return err
@@ -312,6 +316,10 @@ func obsCalls() []obsCall {
 		{"CompactShardArchive", observe.OpShardCompact, func(ctx context.Context, p *Pulse) error { return p.CompactShardArchive(ctx, "arch.pulse") }},
 		{"VerifyShardArchive", observe.OpShardVerify, func(ctx context.Context, p *Pulse) error {
 			_, err := p.VerifyShardArchive(ctx, "arch.pulse")
+			return err
+		}},
+		{"RepairShardArchive", observe.OpShardVerify, func(ctx context.Context, p *Pulse) error {
+			_, err := p.RepairShardArchive(ctx, "arch.pulse")
 			return err
 		}},
 		{"RenderTemplate", observe.OpTemplateRender, func(ctx context.Context, p *Pulse) error { _, err := p.RenderTemplate("none", nil); return err }},

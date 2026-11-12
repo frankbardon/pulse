@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -37,12 +38,17 @@ func IndexCommand() *cli.Command {
 // index's key tuple WITHOUT already knowing the tuple, which
 // IndexPath's hash-derived name makes impossible.
 type indexBuildOutput struct {
-	Cohort         string   `json:"cohort"`
-	IndexPath      string   `json:"index_path"`
-	ManifestPath   string   `json:"manifest_path,omitempty"`
-	Keys           []string `json:"keys"`
-	DistinctKeys   int      `json:"distinct_keys"`
-	IndexedRecords int      `json:"indexed_records"`
+	Cohort       string   `json:"cohort"`
+	IndexPath    string   `json:"index_path"`
+	ManifestPath string   `json:"manifest_path,omitempty"`
+	Keys         []string `json:"keys"`
+	DistinctKeys int      `json:"distinct_keys"`
+	// DistinctKeysEstimate is the union distinct-key figure
+	// (pulse.BuildIndexResult.DistinctKeysEstimate): exact for a single
+	// file, a merged HyperLogLog estimate for a shard archive, absent
+	// when unknown.
+	DistinctKeysEstimate *int `json:"distinct_keys_estimate,omitempty"`
+	IndexedRecords       int  `json:"indexed_records"`
 	// ShardIndexPaths lists a shard archive's per-shard sidecars, in
 	// archive order (absent for a single-file cohort, whose index is
 	// the one file at IndexPath).
@@ -88,13 +94,14 @@ func indexBuildCmd() *cli.Command {
 			}
 
 			out := indexBuildOutput{
-				Cohort:          input,
-				IndexPath:       res.IndexPath,
-				ManifestPath:    res.ManifestPath,
-				Keys:            keyFields,
-				DistinctKeys:    res.DistinctKeys,
-				IndexedRecords:  res.IndexedRecords,
-				ShardIndexPaths: res.ShardIndexPaths,
+				Cohort:               input,
+				IndexPath:            res.IndexPath,
+				ManifestPath:         res.ManifestPath,
+				Keys:                 keyFields,
+				DistinctKeys:         res.DistinctKeys,
+				DistinctKeysEstimate: res.DistinctKeysEstimate,
+				IndexedRecords:       res.IndexedRecords,
+				ShardIndexPaths:      res.ShardIndexPaths,
 			}
 
 			if jsonOut {
@@ -102,6 +109,7 @@ func indexBuildCmd() *cli.Command {
 			}
 			writeText(cmd.Writer, "Built index for %s (keys: %s) -> %s (%d distinct key(s), %d indexed record(s))\n",
 				out.Cohort, strings.Join(out.Keys, ","), out.IndexPath, out.DistinctKeys, out.IndexedRecords)
+			writeArchiveDistinctEstimate(cmd.Writer, out.ShardIndexPaths, out.DistinctKeysEstimate)
 			if out.ManifestPath != "" {
 				writeText(cmd.Writer, "Key tuple published in %s\n", out.ManifestPath)
 			}
@@ -115,11 +123,13 @@ func indexBuildCmd() *cli.Command {
 // (pulse.IndexInfo itself carries no tags — it is a service-layer
 // value type, not part of the wire contract).
 type indexListEntry struct {
-	IndexPath       string   `json:"index_path"`
-	Keys            []string `json:"keys"`
-	DistinctKeys    int      `json:"distinct_keys"`
-	IndexedRecords  int      `json:"indexed_records"`
-	ShardIndexPaths []string `json:"shard_index_paths,omitempty"`
+	IndexPath    string   `json:"index_path"`
+	Keys         []string `json:"keys"`
+	DistinctKeys int      `json:"distinct_keys"`
+	// DistinctKeysEstimate: see indexBuildOutput.
+	DistinctKeysEstimate *int     `json:"distinct_keys_estimate,omitempty"`
+	IndexedRecords       int      `json:"indexed_records"`
+	ShardIndexPaths      []string `json:"shard_index_paths,omitempty"`
 }
 
 // indexListOutput is the JSON-envelope shape for a successful
@@ -164,11 +174,12 @@ func indexListCmd() *cli.Command {
 			entries := make([]indexListEntry, len(indexes))
 			for i, info := range indexes {
 				entries[i] = indexListEntry{
-					IndexPath:       info.IndexPath,
-					Keys:            info.Keys,
-					DistinctKeys:    info.DistinctKeys,
-					IndexedRecords:  info.IndexedRecords,
-					ShardIndexPaths: info.ShardIndexPaths,
+					IndexPath:            info.IndexPath,
+					Keys:                 info.Keys,
+					DistinctKeys:         info.DistinctKeys,
+					DistinctKeysEstimate: info.DistinctKeysEstimate,
+					IndexedRecords:       info.IndexedRecords,
+					ShardIndexPaths:      info.ShardIndexPaths,
 				}
 			}
 			out := indexListOutput{Cohort: input, Indexes: entries}
@@ -184,16 +195,28 @@ func indexListCmd() *cli.Command {
 			for _, e := range entries {
 				writeText(cmd.Writer, "  %s (keys: %s) -> %d distinct key(s), %d indexed record(s))\n",
 					e.IndexPath, strings.Join(e.Keys, ","), e.DistinctKeys, e.IndexedRecords)
+				writeArchiveDistinctEstimate(cmd.Writer, e.ShardIndexPaths, e.DistinctKeysEstimate)
 			}
 			return nil
 		},
 	}
 }
 
+// writeArchiveDistinctEstimate adds, for a shard archive index, the
+// union distinct-key estimate beside the per-shard-sum count the
+// summary line printed (nothing for a single file, whose count is
+// exact, or when the estimate is unknown).
+func writeArchiveDistinctEstimate(w io.Writer, shardPaths []string, estimate *int) {
+	if len(shardPaths) == 0 || estimate == nil {
+		return
+	}
+	writeText(w, "    distinct keys are a per-shard sum; union estimate ~%d\n", *estimate)
+}
+
 // indexVerifyOutput is the JSON-envelope shape for a successful
 // `pulse index verify`. Reason is the string form of
 // service.IndexFreshnessReason ("stat_mismatch" / "fingerprint_match" /
-// "fingerprint_mismatch"); FastPath mirrors
+// "fingerprint_mismatch" / archive-only "range_mismatch" / "bloom_stale"); FastPath mirrors
 // service.VerifyIndexResult.FastPath — true only when Reason ==
 // "stat_mismatch" (the size comparison alone was conclusive).
 // ModTimeDrift mirrors service.VerifyIndexResult.ModTimeDrift and is
@@ -207,10 +230,13 @@ type indexVerifyOutput struct {
 	Reason       string   `json:"reason"`
 	FastPath     bool     `json:"fast_path"`
 	ModTimeDrift bool     `json:"modtime_drift,omitempty"`
-	// ShardsUncovered / ShardsMismatched mirror the archive-only
+	// ShardsUncovered / ShardsMismatched / ShardsRangeMismatched /
+	// ShardsBloomStale mirror the archive-only
 	// service.VerifyIndexResult fields (additive, omitempty).
-	ShardsUncovered  []string `json:"shards_uncovered,omitempty"`
-	ShardsMismatched []string `json:"shards_mismatched,omitempty"`
+	ShardsUncovered       []string `json:"shards_uncovered,omitempty"`
+	ShardsMismatched      []string `json:"shards_mismatched,omitempty"`
+	ShardsRangeMismatched []string `json:"shards_range_mismatched,omitempty"`
+	ShardsBloomStale      []string `json:"shards_bloom_stale,omitempty"`
 }
 
 func indexVerifyCmd() *cli.Command {
@@ -252,15 +278,17 @@ func indexVerifyCmd() *cli.Command {
 			}
 
 			out := indexVerifyOutput{
-				Cohort:           input,
-				IndexPath:        res.IndexPath,
-				Keys:             keyFields,
-				Fresh:            res.Fresh,
-				Reason:           string(res.Reason),
-				FastPath:         res.FastPath,
-				ModTimeDrift:     res.ModTimeDrift,
-				ShardsUncovered:  res.ShardsUncovered,
-				ShardsMismatched: res.ShardsMismatched,
+				Cohort:                input,
+				IndexPath:             res.IndexPath,
+				Keys:                  keyFields,
+				Fresh:                 res.Fresh,
+				Reason:                string(res.Reason),
+				FastPath:              res.FastPath,
+				ModTimeDrift:          res.ModTimeDrift,
+				ShardsUncovered:       res.ShardsUncovered,
+				ShardsMismatched:      res.ShardsMismatched,
+				ShardsRangeMismatched: res.ShardsRangeMismatched,
+				ShardsBloomStale:      res.ShardsBloomStale,
 			}
 
 			if jsonOut {

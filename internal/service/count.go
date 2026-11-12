@@ -56,6 +56,9 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 				fmt.Sprintf("reading magic bytes from %s", path))
 		}
 		if magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
+			if jerr := encx.RefuseIncompleteAppend(s.fs.Fs(), path); jerr != nil {
+				return 0, jerr
+			}
 			a, aerr := archiveFromFile(f, path)
 			if aerr != nil {
 				return 0, aerr

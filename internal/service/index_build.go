@@ -35,6 +35,15 @@ type BuildIndexResult struct {
 	DistinctKeys   int
 	IndexedRecords int
 
+	// DistinctKeysEstimate is the index's UNION distinct-key figure: the
+	// exact DistinctKeys for a single-file cohort, and for a shard
+	// archive the merge of every shard's HyperLogLog sketch
+	// (encoding.IndexHLL, p = 10, ≈3.25% relative standard error),
+	// clamped to [the largest per-shard count, DistinctKeys]. Nil when
+	// it is unknown (an archive shard record carrying no sketch) — never
+	// 0 for unknown.
+	DistinctKeysEstimate *int
+
 	// ShardIndexPaths lists, for a shard archive, every per-shard
 	// sidecar the build wrote, in archive order. Nil for a single-file
 	// cohort. An archive index has no single file: IndexPath is then its
@@ -169,7 +178,7 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 
 	distinct, records := indexBucketCounts(buckets)
 	return &BuildIndexResult{IndexPath: indexPath, Index: idx, ManifestPath: manifestPath,
-		DistinctKeys: distinct, IndexedRecords: records}, nil
+		DistinctKeys: distinct, DistinctKeysEstimate: &distinct, IndexedRecords: records}, nil
 }
 
 // computeCohortFingerprint reads the whole cohort file at path back
