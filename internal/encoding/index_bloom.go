@@ -45,6 +45,10 @@ import (
 // (magic, version, CRC, length), another shard identity or another key
 // width all mean "probe this shard" (ShardBloomExcludes) — a stale or
 // damaged filter costs speed, never a match.
+//
+// Since #721 a build writes these records into ONE archive Bloom set per
+// index (index_bloom_set.go) rather than one file per shard; the
+// per-shard file is read only for an index built before the set.
 
 // ShardBloomMagic opens every shard Bloom sidecar.
 const ShardBloomMagic = "PULSEBLM"

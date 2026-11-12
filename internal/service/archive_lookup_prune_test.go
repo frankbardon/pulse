@@ -22,9 +22,9 @@ import (
 // shard whose range excludes the key and never loses a match by it, a
 // manifest without the ranges probes every shard, and VerifyIndex
 // checks each recorded range against its sidecar. These tests isolate
-// the RANGE prune: setupPruneArchive deletes every per-shard Bloom
-// sidecar (a missing Bloom means probe); archive_lookup_bloom_test.go
-// pins the Bloom prune on top of it.
+// the RANGE prune: setupPruneArchive deletes every Bloom file — the
+// archive Bloom sets and any per-shard sidecar (no Bloom means probe);
+// archive_lookup_bloom_test.go pins the Bloom prune on top of it.
 
 // sidecarOpenFs counts Opens of archive shard sidecars.
 type sidecarOpenFs struct {
@@ -80,12 +80,13 @@ func setupPruneArchive(t *testing.T) (*Service, afero.Fs, *sidecarOpenFs) {
 	return svc, fsys, counter
 }
 
-// removeShardBlooms deletes every shard Bloom sidecar under the root.
+// removeShardBlooms deletes every Bloom file under the root: archive
+// Bloom sets and legacy per-shard Bloom sidecars.
 func removeShardBlooms(t *testing.T, fsys afero.Fs) {
 	t.Helper()
 	n := 0
 	for p := range snapshotFiles(t, fsys) {
-		if strings.HasSuffix(p, encx.ShardBloomSuffix) {
+		if strings.HasSuffix(p, encx.ShardBloomSuffix) || strings.HasSuffix(p, encx.ArchiveBloomSetSuffix) {
 			if err := fsys.Remove(p); err != nil {
 				t.Fatal(err)
 			}

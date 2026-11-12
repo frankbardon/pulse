@@ -326,8 +326,8 @@ func TestShardAppend_WriteOpenRefusedIsCoded(t *testing.T) {
 }
 
 // TestShardAppend_IndexUpkeepAfterAppend: the append keeps every
-// archive index in step — the new shard's sidecar and Bloom sidecar
-// built from the bytes the append stores, identical to a fresh build —
+// archive index in step — the new shard's sidecar and Bloom filter
+// (in the index's Bloom set) built from the bytes the append stores, identical to a fresh build —
 // and lookups stay fresh after the archive's size and bytes moved.
 func TestShardAppend_IndexUpkeepAfterAppend(t *testing.T) {
 	t.Parallel()

@@ -18,6 +18,8 @@ import (
 // exists beside the cohort, sorted, excluding the cohort itself:
 //
 //   - cohort.pulse.<keyhash>.idx — each sidecar point-lookup index
+//   - cohort.pulse.<keyhash>.blooms — a shard archive index's Bloom set
+//     (every shard's lookup filter, encx.ArchiveBloomSetPath)
 //   - cohort.pulse.indexes.json  — the index discovery manifest
 //   - cohort.pulse.spss.json     — the SPSS metadata sidecar
 //   - cohort.pulse.meta.json     — the managed-import handle metadata
@@ -61,7 +63,7 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 		base + imports.SidecarSuffix:                  true, // .meta.json
 		filepath.Base(encx.AppendJournalPath(cohort)): true, // .append
 	}
-	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}\.idx$`)
+	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}(\.idx|` + regexp.QuoteMeta(encx.ArchiveBloomSetSuffix) + `)$`)
 
 	entries, err := afero.ReadDir(p.fsys, dir)
 	if err != nil {

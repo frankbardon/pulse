@@ -70,15 +70,15 @@ func diffSnapshots(before, after map[string]string) []string {
 }
 
 // archiveIndexFiles is the archive's manifest plus every per-shard
-// sidecar and Bloom sidecar of the upkeep key sets, read back.
+// sidecar and archive Bloom set of the upkeep key sets, read back.
 func archiveIndexFiles(t *testing.T, fsys afero.Fs, shards []string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	paths := []string{encx.IndexManifestPath("arch.pulse")}
 	for _, keys := range upkeepKeySets {
+		paths = append(paths, encx.ArchiveBloomSetPath("arch.pulse", keys))
 		for _, sh := range shards {
-			paths = append(paths, encx.ArchiveShardIndexPath("arch.pulse", sh, keys),
-				encx.ArchiveShardBloomPath("arch.pulse", sh, keys))
+			paths = append(paths, encx.ArchiveShardIndexPath("arch.pulse", sh, keys))
 		}
 	}
 	for _, p := range paths {
@@ -214,7 +214,7 @@ func TestArchiveIndexUpkeep_RemovePrunesOnlyTheOrphan(t *testing.T) {
 	var want []string
 	for _, keys := range upkeepKeySets {
 		want = append(want, "-"+encx.ArchiveShardIndexPath("arch.pulse", "b.pulse", keys),
-			"-"+encx.ArchiveShardBloomPath("arch.pulse", "b.pulse", keys))
+			"~"+encx.ArchiveBloomSetPath("arch.pulse", keys))
 	}
 	want = append(want, "~arch.pulse", "~"+encx.IndexManifestPath("arch.pulse"))
 	sort.Strings(want)
@@ -296,7 +296,9 @@ func TestArchiveIndexUpkeep_BuildFailureAbortsTheAdd(t *testing.T) {
 		fail func(string) bool
 	}{
 		{"second index's sidecar", func(n string) bool { return n == upkeepStagePath(second) }},
-		{"second index's Bloom sidecar", func(n string) bool { return n == upkeepStagePath(encx.ShardBloomPathFor(second)) }},
+		{"second index's Bloom set", func(n string) bool {
+			return n == upkeepStagePath(encx.ArchiveBloomSetPath("arch.pulse", upkeepKeySets[1]))
+		}},
 		{"manifest", func(n string) bool { return n == upkeepStagePath(encx.IndexManifestPath("arch.pulse")) }},
 	} {
 		t.Run(c.name, func(t *testing.T) {

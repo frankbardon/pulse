@@ -185,18 +185,25 @@ sidecar, and also checks each recorded range against its sidecar's
 keys (`ShardsRangeMismatched`, reason `range_mismatch`) — a wrong
 range could hide a match.
 
-**Bloom pruning.** Beside each shard sidecar the build also writes a
-Bloom filter (`archive.pulse#shard.pulse.<keyhash>.bloom`, about 10
-bits per distinct key, ~1% false positives) stamped with the shard's
-name, size and CRC32. After the range check, a lookup skips a shard
+**Bloom pruning.** The build also writes one Bloom filter per shard
+(about 10 bits per distinct key, ~1% false positives), each stamped
+with the shard's name, size and CRC32, all in ONE file per index —
+`archive.pulse.<keyhash>.blooms` — so a lookup reads its filters in a
+single read (one GET on object storage) however many shards are in
+play. An index built before that file existed keeps one
+`archive.pulse#shard.pulse.<keyhash>.bloom` per shard; a lookup still
+uses those when no `.blooms` file is present, and a rebuild (or the
+next shard add) moves them into one. After the range check, a lookup skips a shard
 whose filter says the key is not there — again without opening its
 sidecar — so a key that falls inside many shards' ranges but lives in
 few opens only those few (or one in a hundred extra). A filter never
 hides a key that is present. A missing filter, a damaged one, or one
 stamped with other shard bytes is ignored and the shard is probed.
 `VerifyIndex` rebuilds each filter from its sidecar and reports one
-that differs (`ShardsBloomStale`, reason `bloom_stale`); `DropIndex`
-removes the filters; shard add and remove keep them in step.
+that differs (`ShardsBloomStale`, reason `bloom_stale`; a `.blooms`
+file whose header is unreadable names every shard); `DropIndex`
+removes the filters; shard add and remove keep them in step;
+`CohortArtifacts` lists the `.blooms` file.
 
 **Distinct keys across shards.** On an archive, `DistinctKeys` is the
 sum of the per-shard counts, so a key present in three shards counts

@@ -27,14 +27,18 @@ import (
 //     CRC32 (encx.IndexManifestShard). The identity is never a bare
 //     name: a same-name replacement moves its CRC32. Each record also
 //     carries the shard's indexed-key range (key_min / key_max);
-//   - one Bloom sidecar per shard beside its sidecar (".idx" -> ".bloom",
-//     encx.ArchiveShardBloomPath) over the keys that sidecar holds,
-//     stamped with the same name + size + CRC32 identity.
+//   - one archive Bloom SET per index beside the archive (the logical
+//     index path, ".idx" -> ".blooms", encx.ArchiveBloomSetPath): every
+//     shard's Bloom filter over the keys its sidecar holds, each stamped
+//     with the same name + size + CRC32 identity, read ONCE per lookup.
+//     An index built before the set existed carries per-shard ".bloom"
+//     sidecars instead (encx.ArchiveShardBloomPath); a lookup reads them
+//     only when the set is absent.
 //
 // Nothing is stored inside the zip. A lookup reads the central
 // directory, refuses any shard the manifest does not cover
 // (PULSE_INDEX_STALE, details.shards_uncovered — never a silent miss),
-// skips every shard whose recorded key range or fresh Bloom sidecar
+// skips every shard whose recorded key range or fresh Bloom filter
 // excludes the key, fans
 // the probe out across the rest, unions the hits in archive
 // order and decodes each hit through its shard's section.
@@ -83,6 +87,7 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 	shards := cohort.Shards()
 	cover := make([]encx.IndexManifestShard, 0, len(shards))
 	paths := make([]string, 0, len(shards))
+	blooms := make([]*encx.ShardBloom, 0, len(shards))
 	var b indexBucketBuilder
 	flush := func(k int) error {
 		name := shards[k].Filename
@@ -101,9 +106,7 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 		if err := encx.WriteIndexFile(fsys, shardPath, idx); err != nil {
 			return err
 		}
-		if err := encx.WriteShardBloomFile(fsys, encx.ShardBloomPathFor(shardPath), encx.ShardBloomFromBuckets(e, keys, buckets)); err != nil {
-			return err
-		}
+		blooms = append(blooms, encx.ShardBloomFromBuckets(e, keys, buckets))
 		cover = append(cover, shardManifestRecord(e, filepath.Base(shardPath), keys, buckets))
 		paths = append(paths, shardPath)
 		return nil
@@ -130,6 +133,17 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 		if err := flush(next); err != nil {
 			return nil, err
 		}
+	}
+
+	// Every shard's Bloom in one set file, read once per lookup. A
+	// per-shard ".bloom" an older build left is superseded (a lookup
+	// reads those only when no set exists): remove it, best effort — a
+	// leftover is ignored beside the set.
+	if err := encx.WriteArchiveBloomSetFile(fsys, encx.ArchiveBloomSetPath(path, keyFields), blooms); err != nil {
+		return nil, err
+	}
+	for _, sh := range shards {
+		_ = fsys.Remove(encx.ArchiveShardBloomPath(path, sh.Filename, keyFields))
 	}
 
 	indexPath := encx.SidecarIndexPath(path, keyFields)
@@ -311,11 +325,13 @@ type archiveHit struct {
 // recorded key range (manifest key_min / key_max) excludes the key is
 // skipped before its sidecar is opened — it cannot hold the key, so
 // skipping it never loses a match; a shard with no recorded range is
-// probed. Then the shard's Bloom sidecar (encx.ShardBloomExcludes): a
+// probed. Then the shard's Bloom filter (archiveBloomPrune): a
 // present, well-formed filter stamped with the covered shard's exact
 // identity that answers "not present" skips the shard too — a Bloom
 // has no false negatives; a missing, damaged or stale filter means
-// probe. A skipped shard's sidecar is therefore not checked here
+// probe. The filters come from the index's archive Bloom set, read
+// ONCE per lookup (and only if some shard survives the range check);
+// only an index with no set falls back to per-shard ".bloom" sidecars. A skipped shard's sidecar is therefore not checked here
 // (VerifyIndex checks every one, and checks each recorded range and
 // Bloom against its sidecar).
 func lookupArchiveHits(fsys afero.Fs, a *archiveFile, cohort *Cohort, path string, keyFieldNames []string, keyFields []*encoding.Field, literals []string) ([]archiveHit, error) {
@@ -349,12 +365,13 @@ func lookupArchiveHits(fsys afero.Fs, a *archiveFile, cohort *Cohort, path strin
 	keyOrder, rangeOK := encx.IndexKeyOrderComponents(keyTypes, keyBytes)
 
 	dir := filepath.Dir(path)
+	bloom := archiveBloomPrune{fsys: fsys, dir: dir, setPath: filepath.Join(dir, encx.ArchiveBloomSetPathFor(entry.IndexPath))}
 	var hits []archiveHit
 	for k, cov := range covered {
 		if rangeOK && cov.KeyRangeExcludes(keyOrder) {
 			continue
 		}
-		if encx.ShardBloomExcludes(fsys, filepath.Join(dir, encx.ShardBloomPathFor(cov.IndexPath)), cov, keyBytes) {
+		if bloom.excludes(cov, keyBytes) {
 			continue
 		}
 		rows, stale, err := probeShardSidecar(fsys, filepath.Join(dir, cov.IndexPath), cov.Size, len(literals), keyBytes)
@@ -377,6 +394,39 @@ func lookupArchiveHits(fsys afero.Fs, a *archiveFile, cohort *Cohort, path strin
 		return nil, archiveIndexStale(path, keyFieldNames, uncovered)
 	}
 	return hits, nil
+}
+
+// archiveBloomPrune is one lookup's Bloom check. The archive Bloom set
+// is read lazily, ONCE, on the first shard that needs it. A set file
+// that exists decides alone — a shard with no fresh record in it (or
+// every shard, when the set is unreadable) is probed, and no per-shard
+// sidecar is read. Only when NO set exists (an index built before it)
+// does each shard consult its per-shard ".bloom" sidecar.
+type archiveBloomPrune struct {
+	fsys    afero.Fs
+	dir     string
+	setPath string
+
+	loaded  bool
+	present bool
+	set     *encx.ArchiveBloomSet
+}
+
+func (p *archiveBloomPrune) excludes(cov encx.IndexManifestShard, key []byte) bool {
+	if !p.loaded {
+		p.loaded = true
+		set, present, err := encx.ReadArchiveBloomSetFile(p.fsys, p.setPath)
+		// A read failure that is not "no file" cannot tell whether a set
+		// exists: probe everything rather than trust per-shard files.
+		p.present = present || err != nil
+		if err == nil {
+			p.set = set
+		}
+	}
+	if p.present {
+		return p.set.Excludes(cov, key)
+	}
+	return encx.ShardBloomExcludes(p.fsys, filepath.Join(p.dir, encx.ShardBloomPathFor(cov.IndexPath)), cov, key)
 }
 
 // probeShardSidecar reads one shard sidecar's prefix and the ONE bucket
