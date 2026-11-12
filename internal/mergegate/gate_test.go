@@ -499,7 +499,9 @@ func TestParallelTotals(t *testing.T) {
 		{"unknown inputs before any total", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{false, true}},
 		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, false}},
 		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
-		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
+		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{true}},
+		{"grouped over the total's label", &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 0.1}}, Attributes: []*types.Attribute{f("t", "n / total(n)")}}, nil, []bool{true}},
+		{"grouped total reading a total is layer 1", &types.Request{Groups: region, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, false}},
 		{"crosstab", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
 		{"nil slot", &types.Request{Attributes: []*types.Attribute{f("t", "total(n)"), nil}}, nil, []bool{false, false}},
 	}
@@ -581,12 +583,11 @@ func TestMergeRefusal_MatrixTotalMember(t *testing.T) {
 	}
 }
 
-// TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute: under
-// Groups no total() formula is a two-phase parallel total, so the
-// matrix-member check stands aside (it has no tainted slots to name)
-// and the refusal names the attribute itself — the reason the request
-// stays serial is the formula, not the matrix.
-func TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute(t *testing.T) {
+// TestMergeRefusal_GroupedMatrixTotalMember: under Groups a layer-0
+// total() formula is a two-phase parallel total (U74 E3-S1, #494), so a
+// matrix reading it as a computed member is refused by the member rule
+// exactly as on an ungrouped request — the formula itself merges.
+func TestMergeRefusal_GroupedMatrixTotalMember(t *testing.T) {
 	t.Parallel()
 
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "g", Type: encoding.FieldTypeU8}}}
@@ -595,11 +596,12 @@ func TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute(t *testing.T) {
 		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "share", Expression: "x / total(x)"}},
 		Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "share"}}},
 	}
-	if got := matrixTotalMemberRefusal(req, schema, nil); got != "" {
-		t.Errorf("grouped matrix-member check = %q, want \"\"", got)
+	const want = "a matrix reads computed member share, which a two-pass attribute computes"
+	if got := MergeRefusal(req, schema, nil); got != want {
+		t.Errorf("grouped refusal = %q, want %q", got, want)
 	}
-	got := MergeRefusal(req, schema, nil)
-	if !strings.Contains(got, "attribute ATTR_FORMULA is not row-local") || strings.Contains(got, "computed member") {
-		t.Errorf("grouped refusal = %q, want the attribute named, not the matrix member", got)
+	req.Matrices[0].Fields = []string{"x", "g"}
+	if got := MergeRefusal(req, schema, nil); got != "" {
+		t.Errorf("grouped matrix beside a total() formula refused: %q", got)
 	}
 }

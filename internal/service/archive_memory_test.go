@@ -173,8 +173,8 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 		"matrix": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x0", "x1"}}}}
 		},
-		// U51 E3-S1: an ungrouped one-layer total() fans out (two-phase);
-		// grouped and multi-layer ones stay serial.
+		// U51 E3-S1: a one-layer total() fans out (two-phase), grouped
+		// too since U74 E3-S1 (#494); a multi-layer one stays serial.
 		"total": func(p string) *types.Request {
 			return totalArchiveRequest(p, false, "x0 / total(x0)")
 		},
@@ -222,8 +222,8 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 				if got := descx.ShardFanOut(req, cohort.Schema(), svc.instance, in); got != runtimeFans {
 					t.Errorf("%s / %s / ShardWorkers %d: predict fan-out %v, runtime %v", path, name, workers, got, runtimeFans)
 				}
-				if name == "rounded" && path == "multi.pulse" && workers >= 2 && !runtimeFans {
-					t.Errorf("GROUP_ROUNDED / ShardWorkers %d: stayed serial on a multi-shard archive", workers)
+				if (name == "rounded" || name == "grouped total") && path == "multi.pulse" && workers >= 2 && !runtimeFans {
+					t.Errorf("%s / ShardWorkers %d: stayed serial on a multi-shard archive", name, workers)
 				}
 			}
 		}

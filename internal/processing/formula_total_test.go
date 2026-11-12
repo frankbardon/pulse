@@ -282,11 +282,12 @@ func TestFormulaTotal_Routing(t *testing.T) {
 	}
 }
 
-// TestFormulaTotal_MergeAdmission: a plain formula merges; an
-// ungrouped, one-layer total() formula merges through the reducers'
-// two-phase drive (U51 E3-S1, #399); a grouped one does not (each
-// partition would need per-bucket publication), and no total() formula
-// passes the ProcessChain stage gate, which has no two-phase runtime.
+// TestFormulaTotal_MergeAdmission: a plain formula merges; a one-layer
+// total() formula merges through the reducers' two-phase drive (U51
+// E3-S1, #399), grouped too (U74 E3-S1, #494: a total() is cohort-wide,
+// so the one published value binds every partition whatever its
+// buckets); none passes the ProcessChain stage gate, which has no
+// two-phase runtime.
 func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	t.Parallel()
 
@@ -305,8 +306,11 @@ func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	}
 	grouped := req("x / total(x)")
 	grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "x"}}
-	if CanMergeRequest(grouped, s) {
-		t.Fatal("a grouped total() formula must not merge")
+	if !CanMergeRequest(grouped, s) {
+		t.Fatal("a grouped one-layer total() formula must merge (two-phase)")
+	}
+	if CanChainRequest(grouped, s) {
+		t.Fatal("a grouped total() formula must not pass the chain stage gate")
 	}
 	if CanChainRequest(req("x / total(x)"), s) {
 		t.Fatal("a total() formula must not pass the chain stage gate")

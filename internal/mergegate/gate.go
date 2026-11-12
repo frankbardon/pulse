@@ -325,8 +325,10 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 
 // ParallelTotals reports, per req.Attributes slot, whether it is a
 // total-bearing ATTR_FORMULA the parallel reducers' two-phase drive
-// runs (U51 E3-S1, #399): the request is ungrouped (no Groups, no
-// Crosstab) and the formula sits in pre-pass layer 0 — none of its
+// runs (U51 E3-S1, #399; grouped U74 E3-S1, #494): the request carries
+// no Crosstab — Groups are fine, a total() is the cohort-wide
+// post-filter sum the pre-pass publishes before any grouper reads a
+// row — and the formula sits in pre-pass layer 0 — none of its
 // inputs is, directly or through row-local attributes, the label of an
 // earlier total() formula. That is processing's two-pass planner rule
 // (twoPassPlan) over the same inputs (vectors.AttributeInputNames,
@@ -343,7 +345,7 @@ func ParallelTotals(req *types.Request, ext Extensions) []bool {
 
 // totalLayers is ParallelTotals plus, per slot, whether its output
 // depends on a published total (a total() formula, or a slot reading
-// one through earlier slots) — nil when the request is grouped.
+// one through earlier slots) — nil on a crosstab request.
 func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	if ext == nil {
 		ext = None{}
@@ -353,7 +355,7 @@ func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	}
 	n := len(req.Attributes)
 	out := make([]bool, n)
-	if len(req.Groups) > 0 || req.Crosstab != nil {
+	if req.Crosstab != nil {
 		return out, nil
 	}
 	labels := make([]string, n)

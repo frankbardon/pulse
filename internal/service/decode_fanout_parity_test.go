@@ -102,8 +102,8 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 				Groups:       []*types.Group{{Type: types.GROUP_ROUNDED, Field: "x", Interval: 2.5}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}}
 		},
-		// U51 E3-S1: an ungrouped one-layer total() fans out (two-phase);
-		// a grouped one stays serial.
+		// U51 E3-S1: a one-layer total() fans out (two-phase), grouped
+		// too since U74 E3-S1 (#494).
 		"total": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p},
 				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "sh"}},
@@ -165,8 +165,8 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 					if got != runtimeFans {
 						t.Errorf("predict fan-out %v, runtime %v", got, runtimeFans)
 					}
-					if name == "rounded" && c.name == "mappable" && workers >= 2 && !runtimeFans {
-						t.Error("GROUP_ROUNDED stayed serial on a mappable file past the threshold")
+					if (name == "rounded" || name == "grouped total") && c.name == "mappable" && workers >= 2 && !runtimeFans {
+						t.Errorf("%s stayed serial on a mappable file past the threshold", name)
 					}
 					// Predict's own probe answers what the run's inputs say.
 					if svc.DecodeMappable(ctx, c.path) != in.Mappable {

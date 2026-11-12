@@ -36,7 +36,7 @@ A `frequency` weight in force on the slot weights it: Σw·expr, the expanded-ro
 A `total` formula is **two-pass**, like the z-score attribute: a pre-pass sums, the main pass scores.
 
 - It streams alone and buffers beside groups or features.
-- `ShardWorkers` / `DecodeWorkers` run it two-phase (a parallel pre-pass, same bits) when ungrouped and no `total()` argument reads another total; otherwise sequentially.
+- `ShardWorkers` / `DecodeWorkers` run it two-phase (a parallel pre-pass, same bits), grouped or not, when no `total()` argument reads another total and there is no crosstab; otherwise sequentially.
 - `ProcessChain` refuses it (`PULSE_CHAIN_NOT_MERGEABLE`).
 - Predict adds one `PULSE_ADVISORY_EXTRA_PASS` per such formula (`added_scans`; [`predict-advisories`](predict-advisories.md)).
 

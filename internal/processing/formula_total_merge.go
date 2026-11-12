@@ -38,7 +38,10 @@ import (
 //     total the serial Row reads.
 //
 // The merge gate admits only the first cut (mergegate.ParallelTotals):
-// ungrouped, one pre-pass layer, never a ProcessChain stage.
+// one pre-pass layer, no crosstab, never a ProcessChain stage. Groups
+// are admitted (U74 E3-S1, #494): a total() is the cohort-wide
+// post-filter sum, so the one published value binds every partition
+// before its first row, whatever buckets the partition's groupers make.
 
 // TotalsPartial is one total-bearing formula's pre-pass state: per
 // distinct total() argument (Keys, totalcall.Args order), the binned
