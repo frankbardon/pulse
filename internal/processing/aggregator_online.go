@@ -77,22 +77,17 @@ func (a *minAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	if !a.seen || v < a.min {
-		a.min = v
-		a.seen = true
+	if cur, seen := a.x.value(); !seen || v < cur {
+		a.x = encodeExtremum(v)
 	}
 	return nil
 }
 
+// Finalize returns the minimum (NaN when no value was seen) and keeps
+// the state: Components reads it after Finalize, so a reset would need
+// a second, frozen copy in every bucket's slot.
 func (a *minAggregator) Finalize() (float64, error) {
-	if !a.seen {
-		a.frozenMin = math.NaN()
-		return math.NaN(), nil
-	}
-	out := a.min
-	a.frozenMin = out
-	a.min, a.seen = 0, false
-	return out, nil
+	return a.x.result(), nil
 }
 
 func (a *maxAggregator) UpdateRow(r *Record, field string) error {
@@ -100,22 +95,16 @@ func (a *maxAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	if !a.seen || v > a.max {
-		a.max = v
-		a.seen = true
+	if cur, seen := a.x.value(); !seen || v > cur {
+		a.x = encodeExtremum(v)
 	}
 	return nil
 }
 
+// Finalize returns the maximum (NaN when no value was seen) and keeps
+// the state, as minAggregator.Finalize.
 func (a *maxAggregator) Finalize() (float64, error) {
-	if !a.seen {
-		a.frozenMax = math.NaN()
-		return math.NaN(), nil
-	}
-	out := a.max
-	a.frozenMax = out
-	a.max, a.seen = 0, false
-	return out, nil
+	return a.x.result(), nil
 }
 
 func (a *rangeAggregator) UpdateRow(r *Record, field string) error {
@@ -482,12 +471,12 @@ func (a *minAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_MIN")
 	}
-	if !b.seen {
+	bv, bseen := b.x.value()
+	if !bseen {
 		return nil
 	}
-	if !a.seen || b.min < a.min {
-		a.min = b.min
-		a.seen = true
+	if av, aseen := a.x.value(); !aseen || bv < av {
+		a.x = b.x
 	}
 	return nil
 }
@@ -497,12 +486,12 @@ func (a *maxAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_MAX")
 	}
-	if !b.seen {
+	bv, bseen := b.x.value()
+	if !bseen {
 		return nil
 	}
-	if !a.seen || b.max > a.max {
-		a.max = b.max
-		a.seen = true
+	if av, aseen := a.x.value(); !aseen || bv > av {
+		a.x = b.x
 	}
 	return nil
 }

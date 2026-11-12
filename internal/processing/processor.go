@@ -1126,6 +1126,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 		return oa, nil
 	}
+	minter := NewBucketMinter(len(specs), mint, bucketFloorTmpl)
 	// route folds r into key's bucket, minting the bucket (and its
 	// floors and matrix slots) on the key's first record.
 	route := func(key string, r *Record) error {
@@ -1137,7 +1138,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return err
 			}
 			var err error
-			if b, err = NewGroupBucket(len(specs), mint, bucketFloorTmpl); err != nil {
+			if b, err = minter.Mint(); err != nil {
 				return err
 			}
 			buckets[key] = b
