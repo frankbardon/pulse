@@ -8,7 +8,7 @@ status: done
 depends_on: [U77, U78]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [492, 493, 495, 496, 498, 500]
+todo_items: [492, 493, 495, 496, 498, 500, 720, 721, 722]
 branch: archive-storage
 ---
 
@@ -40,8 +40,4 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 
 ## Handed-on
 
-| Item | To | Why |
-|---|---|---|
-| #720 a shard replaced outside Pulse keeps its carried distinct counts | [U74](U74-memory-bounds.md) | the per-shard CRC fix is blocked on the add rewrite arm's ordering; U74 owns the archive memory estimate |
-| #721 one archive-level Bloom / range read instead of a `.bloom` GET per in-range shard | [U74](U74-memory-bounds.md) | archive-path cost at scale; no unit owns lookup after U73 |
-| #722 predict's `OpenExact` readers still decode a huge-dictionary single file unbuffered | [U74](U74-memory-bounds.md) | the same buffering under the predict byte gates; U74 owns the scale acceptance runs |
+None. #720–#722 were first handed to U74, then closed here in E5 (owner call 2026-11-12): #720 identity-keyed distinct carry, #721 one Bloom set read per lookup, #722 bounded buffered schema decode.
