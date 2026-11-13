@@ -27,11 +27,13 @@ import (
 // operator (scaling, transforms, Jacobians, MAP start, back-mapping to
 // original units); the comparison is within Monte Carlo error.
 //
-// The limit holds under every adstock kernel (params.adstock): the
-// pinned kernel parameters (geometric's decay, delayed's decay and peak,
-// a Weibull kernel's shape and scale) make h a fixed column whichever
-// kernel built it, so each kernel's subtest pins that kernel's adstock
-// into the likelihood against the same closed form.
+// The limit holds under every adstock kernel (params.adstock) and every
+// saturation curve (params.saturation): the pinned kernel parameters
+// (geometric's decay, delayed's decay and peak, a Weibull kernel's
+// shape and scale) and curve parameters (Hill's k and s, the logistic
+// λ, Michaelis–Menten's k) make h a fixed column whichever kernel and
+// curve built it, so each subtest pins its adstock and curve into the
+// likelihood against the same closed form.
 //
 // The limit, as requested of each operator:
 //   - REG_MMM_BAYES: every kernel parameter, k and s each under a truncnormal whose
@@ -70,7 +72,7 @@ const mcZ = 4.0
 // conjugateCohort is the small cohort plus h, the pinned curve over the
 // adstocked spend, computed here independently of the model (math, not
 // detmath; the bits need not match, only the figures).
-func conjugateCohort(t *testing.T, p *pulse.Pulse, file string, weight func(l int) float64, rows []regmmm.BayesRow, kScaled, s float64) {
+func conjugateCohort(t *testing.T, p *pulse.Pulse, file string, weight func(l int) float64, rows []regmmm.BayesRow, curve func(a float64) float64) {
 	t.Helper()
 	fields := []encoding.Field{
 		{Name: "week", Type: encoding.FieldTypeU16},
@@ -102,7 +104,7 @@ func conjugateCohort(t *testing.T, p *pulse.Pulse, file string, weight func(l in
 		}
 		h := 0.0
 		if ad > 0 {
-			h = 1 / (1 + math.Pow(kScaled/(ad/peak), s))
+			h = curve(ad / peak)
 		}
 		if err := b.Append(pulse.CohortRow{uint64(r.Week), r.TV, r.Price, h, r.Sales}); err != nil {
 			t.Fatal(err)
@@ -143,10 +145,34 @@ var conjugateKernels = []conjugateKernel{
 	}},
 }
 
+// conjugateCurve is one curve's pinned point: its params.saturation
+// ("" the default, hill, sent without the key), its pinned parameters on
+// the scaled adstock with their original-unit coefficients at the
+// cohort's peak spend, and its value on the scaled adstock with math.*.
+type conjugateCurve struct {
+	name   string
+	pinned func(peak float64) (scaled, raw map[string]float64)
+	h      func(peak, a float64) float64
+}
+
+var conjugateCurves = []conjugateCurve{
+	// Hill at the cohort's own curve (k 120 raw, s 1.5).
+	{"", func(peak float64) (map[string]float64, map[string]float64) {
+		return map[string]float64{"k": 120 / peak, "s": 1.5}, map[string]float64{"k:tv": 120, "s:tv": 1.5}
+	}, func(peak, a float64) float64 { return 1 / (1 + math.Pow(120/peak/a, 1.5)) }},
+	{"logistic", func(peak float64) (map[string]float64, map[string]float64) {
+		return map[string]float64{"lam": 1.4}, map[string]float64{"lam:tv": 1.4 / peak}
+	}, func(_, a float64) float64 { return math.Tanh(1.4 * a / 2) }},
+	{"michaelis_menten", func(peak float64) (map[string]float64, map[string]float64) {
+		return map[string]float64{"k": 0.8}, map[string]float64{"k:tv": 0.8 * peak}
+	}, func(_, a float64) float64 { return a / (0.8 + a) }},
+}
+
 // TestMMMBayes_ConjugateLimitMatchesBayesLinear: REG_MMM_BAYES with the
 // adstock and curve pinned and flat priors reproduces REG_BAYES_LINEAR's
 // posterior (means, SDs and σ) within Monte Carlo error, under every
-// adstock kernel.
+// adstock kernel with the Hill curve and under the logistic and
+// Michaelis–Menten curves with the geometric kernel.
 func TestMMMBayes_ConjugateLimitMatchesBayesLinear(t *testing.T) {
 	t.Parallel()
 
@@ -157,24 +183,32 @@ func TestMMMBayes_ConjugateLimitMatchesBayesLinear(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			conjugateLimit(t, ck)
+			conjugateLimit(t, ck, conjugateCurves[0])
+		})
+	}
+	for _, cc := range conjugateCurves[1:] {
+		t.Run("geometric_"+cc.name, func(t *testing.T) {
+			t.Parallel()
+			conjugateLimit(t, conjugateKernels[0], cc)
 		})
 	}
 }
 
-// conjugateLimit is one kernel's conjugate-limit check.
-func conjugateLimit(t *testing.T, ck conjugateKernel) {
+// conjugateLimit is one kernel × curve's conjugate-limit check.
+func conjugateLimit(t *testing.T, ck conjugateKernel, cc conjugateCurve) {
 	rows := regmmm.BayesRows(11)
 	peak := 0.0
 	for _, r := range rows {
 		peak = math.Max(peak, r.TV)
 	}
-	const kRaw, s = 120.0, 1.5 // the cohort's own curve
-	kScaled := kRaw / peak
+	scaled, raw := cc.pinned(peak)
 	p := instance(t, afero.NewMemMapFs(), nil)
-	conjugateCohort(t, p, "conjugate.pulse", ck.weight, rows, kScaled, s)
+	conjugateCohort(t, p, "conjugate.pulse", ck.weight, rows, func(a float64) float64 { return cc.h(peak, a) })
 
-	tv := map[string]any{"beta": map[string]any{"family": "halfnormal", "sigma": 100}, "k": pinned(kScaled), "s": pinned(s)}
+	tv := map[string]any{"beta": map[string]any{"family": "halfnormal", "sigma": 100}}
+	for key, v := range scaled {
+		tv[key] = pinned(v)
+	}
 	for key, v := range ck.pinned {
 		tv[key] = pinned(v)
 	}
@@ -188,6 +222,9 @@ func conjugateLimit(t *testing.T, ck conjugateKernel) {
 	}
 	if ck.name != "" {
 		body["adstock"], body["max_lag"] = ck.name, regmmm.DefaultMaxLag
+	}
+	if cc.name != "" {
+		body["saturation"] = cc.name
 	}
 	params, _ := json.Marshal(body)
 	mmm := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Name: "mmm", Target: "sales",
@@ -242,7 +279,10 @@ func conjugateLimit(t *testing.T, ck conjugateKernel) {
 	// within a few percent of it.
 	check("sd sigma", m.StdErrors["sigma"], sdSigma, sdSigma*math.Sqrt(1/(2*e)))
 	// The pinned parameters stayed pinned.
-	pins := map[string]float64{"k:tv": kRaw, "s:tv": s}
+	pins := map[string]float64{}
+	for name, v := range raw {
+		pins[name] = v
+	}
 	for key, v := range ck.pinned {
 		pins[key+":tv"] = v
 	}

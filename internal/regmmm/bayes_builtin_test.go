@@ -71,7 +71,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 	if row.streamable {
 		t.Error("manifest: REG_MMM_BAYES listed as streamable")
 	}
-	wantParams := []string{"channels", "time", "max_lag", "adstock", "priors", "intercept_prior", "control_prior", "sigma_prior",
+	wantParams := []string{"channels", "time", "max_lag", "adstock", "saturation", "priors", "intercept_prior", "control_prior", "sigma_prior",
 		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from"}
 	if !slices.Equal(row.params, wantParams) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
@@ -158,6 +158,10 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 		"kernel without max_lag":  `{"channels":["tv"],"time":"week","adstock":"weibull_pdf"}`,
 		"prior not in kernel":     `{"channels":["tv"],"time":"week","priors":{"tv":{"scale":{"family":"halfnormal","sigma":1}}}}`,
 		"peak prior unbounded":    `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"halfnormal","sigma":1}}}}`,
+		"saturation":              `{"channels":["tv"],"time":"week","saturation":"gompertz"}`,
+		"prior not in curve":      `{"channels":["tv"],"time":"week","saturation":"michaelis_menten","priors":{"tv":{"s":{"family":"halfnormal","sigma":1}}}}`,
+		"lam prior under hill":    `{"channels":["tv"],"time":"week","priors":{"tv":{"lam":{"family":"lognormal","mu":0,"sigma":1}}}}`,
+		"lam prior support":       `{"channels":["tv"],"time":"week","saturation":"logistic","priors":{"tv":{"lam":{"family":"normal","mu":0,"sigma":1}}}}`,
 		"chains over cap":         `{"channels":["tv"],"time":"week","chains":17}`,
 		"credible_level":          `{"channels":["tv"],"time":"week","credible_level":1}`,
 		"prior family":            `{"channels":["tv"],"time":"week","sigma_prior":{"family":"cauchy","sigma":1}}`,

@@ -400,7 +400,8 @@ func checkAdstock(a Adstock) string {
 }
 
 // adstockRule is the `adstock` section's rule: a media-mix fit's, every
-// key a channel — a predictor with a k:<channel> coefficient — and every
+// key a channel — a predictor with its curve's first coefficient
+// (k:<channel>; lam:<channel> under a logistic `saturation`) — and every
 // record a valid kernel.
 func adstockRule(f *File) string {
 	if f.Type != types.REG_MMM_HILL && f.Type != types.REG_MMM_BAYES {
@@ -409,13 +410,29 @@ func adstockRule(f *File) string {
 	if len(f.Adstock) == 0 {
 		return "has an empty adstock (a record names at least one channel)"
 	}
+	curve := MMMHalfSaturationPrefix
+	if prefixes, ok := MMMBayesCurvePrefixes(f.Saturation); ok {
+		curve = prefixes[0]
+	}
 	for _, ch := range slices.Sorted(maps.Keys(f.Adstock)) {
-		if _, ok := f.Coefficients[MMMHalfSaturationPrefix+ch]; !ok || !slices.Contains(f.Predictors, ch) {
-			return fmt.Sprintf("has an adstock for %q, which is not a channel (a predictor with a %s%s coefficient)", ch, MMMHalfSaturationPrefix, ch)
+		if _, ok := f.Coefficients[curve+ch]; !ok || !slices.Contains(f.Predictors, ch) {
+			return fmt.Sprintf("has an adstock for %q, which is not a channel (a predictor with a %s%s coefficient)", ch, curve, ch)
 		}
 		if msg := checkAdstock(f.Adstock[ch]); msg != "" {
 			return fmt.Sprintf("has an adstock for %q that is not a valid kernel: %s", ch, msg)
 		}
+	}
+	return ""
+}
+
+// saturationRule is the `saturation` section's rule: a REG_MMM_BAYES
+// fit's, naming one of its curves (MMMBayesSaturations).
+func saturationRule(f *File) string {
+	if f.Type != types.REG_MMM_BAYES {
+		return fmt.Sprintf("carries a saturation, which only a REG_MMM_BAYES fit has, but its type is %s", f.Type)
+	}
+	if !slices.Contains(MMMBayesSaturations(), f.Saturation) {
+		return fmt.Sprintf("has saturation %q, which is not one of %v", f.Saturation, MMMBayesSaturations())
 	}
 	return ""
 }

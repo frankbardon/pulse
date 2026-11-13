@@ -73,8 +73,10 @@ func randomPoint(m *bayesModel, rng *rand.Rand, spread float64) []float64 {
 // TestMMMBayes_GradientMatchesFiniteDifferences: at random points the
 // analytic gradient matches a fourth-order central difference to a
 // relative 1e-6, under the default (all-ROI) priors, the mixed set
-// (a β channel and every prior family) and each non-geometric adstock
-// kernel's defaults — so every kernel's dw/dφ is chained right.
+// (a β channel and every prior family), each non-geometric adstock
+// kernel's defaults and the logistic and Michaelis–Menten curves (alone,
+// beside a non-geometric kernel and on the mixed set) — so every
+// kernel's dw/dφ and every curve's ∂h/∂q are chained right.
 func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +89,12 @@ func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
 		{"delayed", kernelPriorSets()["delayed"]},
 		{"weibull_cdf", kernelPriorSets()["weibull_cdf"]},
 		{"weibull_pdf", kernelPriorSets()["weibull_pdf"]},
+		{"logistic", curvePriorSets()["geometric_logistic"]},
+		{"michaelis_menten", curvePriorSets()["geometric_michaelis_menten"]},
+		{"delayed_logistic", curvePriorSets()["delayed_logistic"]},
+		{"weibull_pdf_michaelis_menten", curvePriorSets()["weibull_pdf_michaelis_menten"]},
+		{"logistic_mixed", curveMixedPriors("logistic")},
+		{"michaelis_menten_mixed", curveMixedPriors("michaelis_menten")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -200,9 +208,16 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 		for i, kp := range kernel.Params() {
 			ad[i] = val(*kp.prior(&cp), 1+nz+i*nc+c)
 		}
-		k := val(cp.K, 1+nz+np*nc+c)
-		s := val(cp.S, 1+nz+(np+1)*nc+c)
-		e := val(cp.Effect, 1+nz+(np+2)*nc+c)
+		curve := pr.Curve
+		if curve == nil {
+			curve = hillCurveModel{}
+		}
+		nq := len(curve.Params())
+		q := make([]float64, nq)
+		for i, cq := range curve.Params() {
+			q[i] = val(*cq.prior(&cp), 1+nz+(np+i)*nc+c)
+		}
+		e := val(cp.Effect, 1+nz+(np+nq)*nc+c)
 		xmax, total := 0.0, 0.0
 		for _, v := range x {
 			xmax = math.Max(xmax, v)
@@ -217,7 +232,14 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 			}
 			if a > 0 {
 				a /= xmax
-				h[t] = math.Pow(a, s) / (math.Pow(a, s) + math.Pow(k, s))
+				switch curve.Name() {
+				case "hill":
+					h[t] = math.Pow(a, q[1]) / (math.Pow(a, q[1]) + math.Pow(q[0], q[1]))
+				case "logistic":
+					h[t] = math.Tanh(q[0] * a / 2)
+				case "michaelis_menten":
+					h[t] = a / (q[0] + a)
+				}
 			}
 			hsum += h[t]
 		}
@@ -229,7 +251,11 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 			mu[t] += float64(beta * h[t])
 		}
 	}
-	sigma := val(pr.Sigma, 1+nz+(np+3)*nc)
+	nq := 2
+	if pr.Curve != nil {
+		nq = len(pr.Curve.Params())
+	}
+	sigma := val(pr.Sigma, 1+nz+(np+nq+1)*nc)
 	for t := range mu {
 		r := y[t]/ymax - mu[t]
 		lp += float64(-0.5*r*r)/(sigma*sigma) - math.Log(sigma)
@@ -266,10 +292,36 @@ func kernelPriorSets() map[string]bayesPriors {
 	return out
 }
 
+// curvePriorSets are the default priors under every kernel × the
+// logistic and Michaelis–Menten curves, keyed kernel_curve, at the
+// joint fixture's channel count and the default max_lag.
+func curvePriorSets() map[string]bayesPriors {
+	out := map[string]bayesPriors{}
+	for _, kernel := range kernelNames() {
+		for _, curve := range []string{"logistic", "michaelis_menten"} {
+			p := defaultKernelPriors(kernelByName(kernel), len(mmmfixture.JointChannels), defaultMaxLag)
+			p.Curve = curveByName(curve)
+			out[kernel+"_"+curve] = p
+		}
+	}
+	return out
+}
+
+// curveMixedPriors is mixedPriors under curve, with the curve's own
+// parameters on other families (a truncnormal k, a halfnormal λ).
+func curveMixedPriors(curve string) bayesPriors {
+	p := mixedPriors()
+	p.Curve = curveByName(curve)
+	p.Channels[0].Lam = halfNormalPrior(3)
+	p.Channels[1].Lam = truncNormalPrior(1, 1, 0.05, 8)
+	return p
+}
+
 // TestMMMBayes_DensityMatchesOracle: the model's log density equals the
 // oracle's (both drop the likelihood's n·½·log 2π) at random points,
-// under the default and mixed prior sets and every non-geometric
-// kernel — so the Jacobians, the derived
+// under the default and mixed prior sets, every non-geometric
+// kernel and every kernel × the logistic and Michaelis–Menten curves —
+// so the curves, the Jacobians, the derived
 // ROI β, the scaling and every family's density are what the doc says.
 func TestMMMBayes_DensityMatchesOracle(t *testing.T) {
 	t.Parallel()
@@ -279,6 +331,10 @@ func TestMMMBayes_DensityMatchesOracle(t *testing.T) {
 	for _, name := range slices.Sorted(maps.Keys(kernelPriorSets())) {
 		sets = append(sets, kernelPriorSets()[name])
 	}
+	for _, name := range slices.Sorted(maps.Keys(curvePriorSets())) {
+		sets = append(sets, curvePriorSets()[name])
+	}
+	sets = append(sets, curveMixedPriors("logistic"), curveMixedPriors("michaelis_menten"))
 	for _, pr := range sets {
 		m := jointModel(t, pr)
 		rng := rand.New(rand.NewPCG(11, 11^0x9E3779B97F4A7C15))
@@ -318,7 +374,7 @@ func TestMMMBayes_BackTransforms(t *testing.T) {
 		}
 	}
 	for c := range m.nc {
-		st := m.curve(c, []float64{val(m.iDecay(c))}, val(m.iK(c)), val(m.iS(c)), false)
+		st := m.curve(c, []float64{val(m.iDecay(c))}, []float64{val(m.iK(c)), val(m.iS(c))}, false)
 		b := val(m.iEffect(c))
 		if !m.isBeta[c] {
 			b = b * m.spendShare[c] / st.hSum

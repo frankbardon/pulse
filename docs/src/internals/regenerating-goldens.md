@@ -640,14 +640,15 @@ change meant to move.
 `REG_MMM_BAYES`'s posterior is cross-checked against Stan, not
 `make reference`: `scripts/reference/gen_mmm_bayes_stan.R` samples the
 model written independently in `scripts/reference/mmm_bayes.stan`
-(Pulse's scaling and default priors, one case per adstock kernel with
-the Hill curve, rows simulated, seeded and stored) and writes
-`internal/regmmm/testdata/mmm_bayes_stan.json`; `make reference-stan`
-runs it (a few minutes) and appends the footer.
+(Pulse's scaling and default priors, one case per adstock kernel ×
+saturation curve cell — 4 × 3 — rows simulated, seeded and stored) and
+writes `internal/regmmm/testdata/mmm_bayes_stan.json`; `make
+reference-stan` runs it (about fifteen minutes) and appends the footer.
 `TestMMMBayes_PosteriorMatchesStan` (heavy, `internal/regmmm`) fits the
 stored rows through the operator and holds every coefficient's
-posterior mean and each channel's ROI within 4.5 combined Monte Carlo
-standard errors of Stan's. The script refuses any version but R 4.6.1,
+posterior mean and each channel's ROI within its cell's stated
+tolerance (`stanCellZ`; 4.5 combined Monte Carlo standard errors in
+every cell) of Stan's. The script refuses any version but R 4.6.1,
 cmdstanr 0.9.0, CmdStan 2.40.0, posterior 1.7.1 and jsonlite 2.0.0, and
 stops unless the Stan run mixed (R-hat < 1.01, bulk ESS > 2000, at most
 0.5% divergent transitions). Install:

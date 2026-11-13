@@ -19,10 +19,11 @@ import (
 )
 
 // bayes_stan_oracle_heavy_test.go holds REG_MMM_BAYES's posterior to
-// Stan (U70 E1-S2): scripts/reference/gen_mmm_bayes_stan.R samples the
-// same model and default priors, written independently in
+// Stan (U70 E1-S2, E1-S3): scripts/reference/gen_mmm_bayes_stan.R
+// samples the same model and default priors, written independently in
 // scripts/reference/mmm_bayes.stan, with CmdStan 2.40.0 on rows it
-// simulates and stores, per adstock kernel (Hill curve). This test fits
+// simulates and stores, in every cell of the adstock kernel ×
+// saturation curve matrix (4 × 3). This test fits
 // those very rows through REG_MMM_BAYES with each case's stored params
 // and seed and compares every coefficient's posterior mean, and each
 // channel's ROI, with Stan's.
@@ -32,8 +33,17 @@ import (
 // ESS) from the fit's own diagnostics and MCSE_Stan posterior's
 // mcse_mean. Both runs are seeded, so the verdict is fixed; stanZ = 4.5
 // keeps an honest pair of samplers inside with probability ≥ 0.999
-// across the ~40 comparisons.
+// across the ~90 comparisons of the twelve cells. The tolerance is
+// stated per cell (stanCellZ); every cell holds the same 4.5.
 const stanZ = 4.5
+
+// stanCellZ is each kernel × curve cell's tolerance in combined MCSEs.
+var stanCellZ = map[string]float64{
+	"geometric_hill": stanZ, "delayed_hill": stanZ, "weibull_cdf_hill": stanZ, "weibull_pdf_hill": stanZ,
+	"geometric_logistic": stanZ, "delayed_logistic": stanZ, "weibull_cdf_logistic": stanZ, "weibull_pdf_logistic": stanZ,
+	"geometric_michaelis_menten": stanZ, "delayed_michaelis_menten": stanZ, "weibull_cdf_michaelis_menten": stanZ,
+	"weibull_pdf_michaelis_menten": stanZ,
+}
 
 // stanFigure is one Stan posterior summary.
 type stanFigure struct {
@@ -90,31 +100,37 @@ func loadStanOracle(t *testing.T) []stanCase {
 	return doc.Cases
 }
 
-// TestMMMBayes_PosteriorMatchesStan: under every kernel in the golden,
-// REG_MMM_BAYES's posterior means match Stan's within stanZ combined
-// Monte Carlo standard errors.
+// TestMMMBayes_PosteriorMatchesStan: in every kernel × curve cell of
+// the golden, REG_MMM_BAYES's posterior means match Stan's within the
+// cell's stanCellZ combined Monte Carlo standard errors.
 func TestMMMBayes_PosteriorMatchesStan(t *testing.T) {
 	t.Parallel()
 
 	cases := loadStanOracle(t)
-	var kernels []string
+	var cells []string
 	for _, c := range cases {
-		kernels = append(kernels, c.Kernel)
+		cells = append(cells, c.Kernel+"_"+c.Curve)
 	}
-	for _, k := range []string{"geometric", "delayed", "weibull_cdf", "weibull_pdf"} {
-		if !slices.Contains(kernels, k) {
-			t.Errorf("the golden has no %s case", k)
+	for _, k := range kernelNames() {
+		for _, cv := range curveNames() {
+			if !slices.Contains(cells, k+"_"+cv) {
+				t.Errorf("the golden has no %s × %s case", k, cv)
+			}
 		}
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			stanCaseCheck(t, c)
+			z, ok := stanCellZ[c.Kernel+"_"+c.Curve]
+			if !ok {
+				t.Fatalf("no stated tolerance for cell %s × %s", c.Kernel, c.Curve)
+			}
+			stanCaseCheck(t, c, z)
 		})
 	}
 }
 
-func stanCaseCheck(t *testing.T, c stanCase) {
+func stanCaseCheck(t *testing.T, c stanCase, bound float64) {
 	rows := make(probeRows, len(c.Rows.Week))
 	for i := range rows {
 		rows[i] = probeRow{"week": c.Rows.Week[i], "tv": c.Rows.TV[i], "price": c.Rows.Price[i], "sales": c.Rows.Sales[i]}
@@ -145,8 +161,8 @@ func stanCaseCheck(t *testing.T, c stanCase) {
 		z := math.Abs(got-want.Mean) / se
 		worst = max(worst, z)
 		t.Logf("%-12s Pulse %.6g, Stan %.6g (sd %.3g), z %.2f", name, got, want.Mean, want.SD, z)
-		if !(z <= stanZ) {
-			t.Errorf("%s: REG_MMM_BAYES %.8g, Stan %.8g: %.2f combined MCSEs apart (> %v)", name, got, want.Mean, z, stanZ)
+		if !(z <= bound) {
+			t.Errorf("%s: REG_MMM_BAYES %.8g, Stan %.8g: %.2f combined MCSEs apart (> %v)", name, got, want.Mean, z, bound)
 		}
 	}
 	if len(c.Coefficients) != len(est) {
@@ -168,5 +184,5 @@ func stanCaseCheck(t *testing.T, c stanCase) {
 	}
 	roi := out.Outputs["roi"].(map[string]any)["tv"]
 	check("roi:tv", roi.(map[string]float64)["mean"], mcse(roi, diag["roi"].(map[string]any)["tv"]), c.ROI)
-	t.Logf("%s: worst |z| %.2f (bound %v)", c.Name, worst, stanZ)
+	t.Logf("%s: worst |z| %.2f (bound %v)", c.Name, worst, bound)
 }

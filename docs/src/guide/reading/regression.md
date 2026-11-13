@@ -316,7 +316,7 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 
 #### `coefficients.*`
 
-Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; the adstock kernel's terms are each channel's carry-over — decay:&lt;channel&gt; (geometric), decay: and peak:&lt;channel&gt; (delayed, peak the lag of greatest effect) or shape: and scale:&lt;channel&gt; (Weibull, scale in periods) — k:&lt;channel&gt; and s:&lt;channel&gt; its half-saturation spend and curve shape, and sigma the noise SD.
+Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; the adstock kernel's terms are each channel's carry-over — decay:&lt;channel&gt; (geometric), decay: and peak:&lt;channel&gt; (delayed, peak the lag of greatest effect) or shape: and scale:&lt;channel&gt; (Weibull, scale in periods) — the saturation curve's terms its response shape — k:&lt;channel&gt; and s:&lt;channel&gt; the Hill half-saturation spend and curve shape, lam:&lt;channel&gt; the logistic rate (half-saturated at log 3 / lam), k:&lt;channel&gt; alone the Michaelis–Menten half-saturation — and sigma the noise SD.
 
 **Sign:**
 
@@ -327,7 +327,7 @@ Each coefficient's posterior mean in original units: a channel's coefficient is 
 
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - An experiment-measured prior on a channel's ROI anchors its effect.
-- k and s trade off against each other on a channel whose spend never reaches its k: judge it by its ROI and contribution, not by k or s.
+- k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.
 - (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
 
 #### `std_errors.*`

@@ -689,12 +689,12 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		Means: "Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) " +
 			"and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; " +
 			"the adstock kernel's terms are each channel's carry-over — decay:<channel> (geometric), decay: and peak:<channel> (delayed, peak the lag of greatest effect) or shape: and scale:<channel> (Weibull, scale in periods) — " +
-			"k:<channel> and s:<channel> its half-saturation spend and curve shape, and sigma the noise SD.",
+			"the saturation curve's terms its response shape — k:<channel> and s:<channel> the Hill half-saturation spend and curve shape, lam:<channel> the logistic rate (half-saturated at log 3 / lam), k:<channel> alone the Michaelis–Menten half-saturation — and sigma the noise SD.",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
 			"An experiment-measured prior on a channel's ROI anchors its effect.",
-			"k and s trade off against each other on a channel whose spend never reaches its k: judge it by its ROI and contribution, not by k or s.",
+			"k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.",
 			regInterceptAtZero,
 		},
 	},

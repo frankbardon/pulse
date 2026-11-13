@@ -75,6 +75,7 @@
     - [materialize-container](skills/materialize-container.md)
     - [materialize-recode](skills/materialize-recode.md)
     - [matrix-results](skills/matrix-results.md)
+    - [mmm-bayes-model](skills/mmm-bayes-model.md)
     - [mmm-workflow](skills/mmm-workflow.md)
     - [multiplicity-correction](skills/multiplicity-correction.md)
     - [multivariate-design](skills/multivariate-design.md)

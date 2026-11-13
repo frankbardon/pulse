@@ -23,6 +23,7 @@ func TestMMMSkills_ServedOnStockInstance(t *testing.T) {
 		"op-reg-mmm-hill":  {"k:<channel>", "## Params"},
 		"op-reg-mmm-bayes": {"## Params", "time_gap", "holdout_from"},
 		"mmm-workflow":     {"lift test"},
+		"mmm-bayes-model":  {"michaelis_menten", "lam:<ch>", "prior_not_in_curve"},
 	} {
 		body, ok := p.Skill(name)
 		if !ok {

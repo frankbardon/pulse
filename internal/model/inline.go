@@ -304,11 +304,22 @@ func inlineBayesKernel(f *File, channels []string) string {
 	return distlagparams.KernelGeometric
 }
 
+// inlineSaturation is the saturation curve whose coefficient names an
+// inline REG_MMM_BAYES model's terms follow: its `saturation` section
+// (feature saturation), hill when absent. Every other type reads hill.
+func inlineSaturation(f *File) string {
+	if f.Saturation == "" {
+		return MMMSaturationHill
+	}
+	return f.Saturation
+}
+
 // checkInline judges a decoded inline body: its type is one InlineTypes
 // lists, and its coefficients name exactly the terms the model reports
 // — the intercept and every predictor, plus, for a media-mix model,
 // ModelRegressionTerms' curve terms of its channels (a predictor with a
-// k:, s: or decay: coefficient is a channel). std_errors, ci_lower and
+// k:, s:, decay: or lam: coefficient is a channel; a REG_MMM_BAYES body's
+// curve is its `saturation`, hill when absent). std_errors, ci_lower and
 // ci_upper may name only those terms.
 func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 	if !slices.Contains(inlineTypes, f.Type) {
@@ -324,7 +335,7 @@ func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 	if ModelRegression(f.Type) {
 		var channels []string
 		for _, p := range f.Predictors {
-			for _, prefix := range []string{MMMHalfSaturationPrefix, MMMShapePrefix, MMMDecayPrefix} {
+			for _, prefix := range []string{MMMHalfSaturationPrefix, MMMShapePrefix, MMMDecayPrefix, MMMLogisticLambdaPrefix} {
 				if _, ok := f.Coefficients[prefix+p]; ok {
 					channels = append(channels, p)
 					break
@@ -336,7 +347,7 @@ func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 				fmt.Sprintf("is a %s model with no channel: give at least one predictor its %s<channel> and %s<channel> coefficients", f.Type, MMMHalfSaturationPrefix, MMMShapePrefix),
 				map[string]any{"term": MMMHalfSaturationPrefix + "<channel>"})
 		}
-		params, _ := json.Marshal(map[string]any{"channels": channels, "adstock": inlineBayesKernel(f, channels)})
+		params, _ := json.Marshal(map[string]any{"channels": channels, "adstock": inlineBayesKernel(f, channels), "saturation": inlineSaturation(f)})
 		terms, _ := ModelRegressionTerms(&types.RegressionSpec{Type: f.Type, Params: params})
 		expected = append(expected, terms...)
 	}

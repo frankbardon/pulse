@@ -32,8 +32,9 @@ import (
 const BayesName = types.REG_MMM_BAYES
 
 // DecayPrefix names a channel's adstock decay coefficient in
-// REG_MMM_BAYES's table: "decay:" + channel. Its Hill curve rides
-// HalfSaturationPrefix and ShapePrefix as in REG_MMM_HILL.
+// REG_MMM_BAYES's table: "decay:" + channel. Its default Hill curve
+// rides HalfSaturationPrefix and ShapePrefix as in REG_MMM_HILL; the
+// logistic and Michaelis–Menten curves are bayes_curve.go's.
 const DecayPrefix = pmodel.MMMDecayPrefix
 
 // defaultMaxLag is the adstock window when params.max_lag is absent: 13
@@ -83,14 +84,17 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // BayesFactory is REG_MMM_BAYES's factory: a Bayesian media-mix model
 // sampled by NUTS (the public mcmc package) from a MAP warm start,
 //
-//	y_t ~ Normal(α + Σ_j γ_j·z_jt + Σ_c β_c·hill(adstock_c(spend_c)_t, k_c, s_c), σ),
+//	y_t ~ Normal(α + Σ_j γ_j·z_jt + Σ_c β_c·curve(adstock_c(spend_c)_t, q_c), σ),
 //
 // with each channel's raw spend adstocked inside the model
 // (params.adstock: geometric by default, delayed, weibull_cdf or
 // weibull_pdf — WIN_DISTRIBUTED_LAG's kernel with normalize false,
 // params.max_lag weeks, required for every kernel but geometric; one
 // kernel for every channel, bayes_adstock.go), so the kernel's
-// parameters are posterior parameters rather than sweep axes. A channel's effect is sampled as its ROI (the default,
+// parameters are posterior parameters rather than sweep axes. The
+// curve is params.saturation: hill (the default, k and s), logistic
+// (λ) or michaelis_menten (k) — one curve for every channel,
+// bayes_curve.go. A channel's effect is sampled as its ROI (the default,
 // LogNormal(0.2, 0.9)) or, with a "beta" prior, as β. The model is
 // bayes_model.go's: internal max-abs scaling, every figure reported in
 // original units.
@@ -103,12 +107,15 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // (pmodel.ModelRegressionFieldInputs, which the projection decodes).
 //
 // The coefficient table is "(intercept)", each channel's β on the raw
-// outcome (contribution_t = β·hill(raw adstock_t, k, s); predictor
+// outcome (contribution_t = β·curve(raw adstock_t); predictor
 // order), the controls (predictor order), then the kernel's parameters
 // per channel ("decay:<channel>"; with delayed also "peak:<channel>";
 // under a Weibull kernel "shape:<channel>" and "scale:<channel>"
-// instead — pmodel.MMMBayesAdstockPrefixes), "k:<channel>" (raw adstock
-// units), "s:<channel>" for each channel, and "sigma": Estimate the posterior mean, StdErr the posterior
+// instead — pmodel.MMMBayesAdstockPrefixes), the curve's parameters per
+// channel ("k:<channel>" in raw adstock units and "s:<channel>" for
+// Hill; "lam:<channel>" per raw adstock unit for logistic; "k:<channel>"
+// for michaelis_menten — pmodel.MMMBayesCurvePrefixes), and "sigma":
+// Estimate the posterior mean, StdErr the posterior
 // standard deviation, over every retained draw of every chain. Vcov is
 // the posterior covariance of the same draws. The engine's Wald
 // ci_lower / ci_upper ride the posterior SD (a normal approximation);
@@ -182,7 +189,8 @@ type priorWire struct {
 
 // channelPriorWire is one channel's priors; roi and beta are exclusive;
 // decay, peak, shape and scale are the adstock kernel's parameters, each
-// accepted only under a kernel that has it.
+// accepted only under a kernel that has it; k, s and lam the saturation
+// curve's, each accepted only under a curve that has it.
 type channelPriorWire struct {
 	ROI   *priorWire `json:"roi"`
 	Beta  *priorWire `json:"beta"`
@@ -192,6 +200,20 @@ type channelPriorWire struct {
 	Scale *priorWire `json:"scale"`
 	K     *priorWire `json:"k"`
 	S     *priorWire `json:"s"`
+	Lam   *priorWire `json:"lam"`
+}
+
+// curvePrior is the wire prior of curve parameter key, nil when unset.
+func (c channelPriorWire) curvePrior(key string) *priorWire {
+	switch key {
+	case "k":
+		return c.K
+	case "s":
+		return c.S
+	case "lam":
+		return c.Lam
+	}
+	return nil
 }
 
 // kernelPrior is the wire prior of kernel parameter key, nil when unset.
@@ -215,6 +237,7 @@ type bayesParamsWire struct {
 	Time           string                      `json:"time"`
 	MaxLag         *int                        `json:"max_lag"`
 	Adstock        *string                     `json:"adstock"`
+	Saturation     *string                     `json:"saturation"`
 	Priors         map[string]channelPriorWire `json:"priors"`
 	InterceptPrior *priorWire                  `json:"intercept_prior"`
 	ControlPrior   *priorWire                  `json:"control_prior"`
@@ -235,6 +258,7 @@ type bayesConfig struct {
 	time               string
 	maxLag             int
 	kernel             adstockKernel
+	curve              saturationCurve
 	priors             bayesPriors
 	chains, warmup     int
 	draws              int
@@ -336,6 +360,21 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 	} else {
 		kernelPrefixes = []string{DecayPrefix}
 	}
+	// Likewise the curve: an unknown name is refused after the kernel and
+	// collides as Hill until then.
+	saturationName := ""
+	if w.Saturation != nil {
+		saturationName = *w.Saturation
+	}
+	curve := curveByName(saturationName)
+	curvePrefixes := []string{HalfSaturationPrefix, ShapePrefix}
+	if curve != nil {
+		curvePrefixes = curvePrefixes[:0]
+		for _, cq := range curve.Params() {
+			curvePrefixes = append(curvePrefixes, cq.prefix)
+		}
+	}
+	reserved := slices.Concat(kernelPrefixes, curvePrefixes)
 	isChannel := map[string]bool{}
 	for _, c := range w.Channels {
 		if !slices.Contains(spec.Predictors, c) || isChannel[c] {
@@ -352,10 +391,9 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 				map[string]any{"predictor": x})
 		}
 		seen[x] = true
-		if x == interceptName || x == sigmaName || hasAnyPrefix(x, kernelPrefixes) ||
-			strings.HasPrefix(x, HalfSaturationPrefix) || strings.HasPrefix(x, ShapePrefix) {
+		if x == interceptName || x == sigmaName || hasAnyPrefix(x, reserved) {
 			return nil, bayesSlotError(spec, "predictors",
-				fmt.Sprintf("predictor %q collides with a coefficient name ((intercept), sigma, %sk:/s:)", x, strings.Join(kernelPrefixes, "/")+"/"),
+				fmt.Sprintf("predictor %q collides with a coefficient name ((intercept), sigma, %s)", x, strings.Join(reserved, "/")),
 				map[string]any{"predictor": x})
 		}
 		if isChannel[x] {
@@ -381,6 +419,11 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 		return nil, bayesSlotError(spec, "params.max_lag", fmt.Sprintf("params.adstock %q needs params.max_lag (an integer ≥ 1); only geometric defaults it", kernel.Name()),
 			map[string]any{"adstock": kernel.Name(), "reason": "max_lag_required"})
 	}
+	if curve == nil {
+		return nil, bayesSlotError(spec, "params.saturation", fmt.Sprintf("params.saturation %q is not one of: %s", saturationName, strings.Join(curveNames(), ", ")),
+			map[string]any{"saturation": saturationName, "valid": curveNames()})
+	}
+	cfg.curve = curve
 	if w.Sampler != nil && *w.Sampler != "nuts" {
 		return nil, bayesSlotError(spec, "params.sampler", fmt.Sprintf("params.sampler %q is not one of: nuts", *w.Sampler), nil)
 	}
@@ -461,8 +504,9 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 			dst *prior
 			sup support
 		}
-		// roi, beta, the kernel's parameters (decay by default), k, s: the
-		// geometric order of old, so the first refusal is unchanged.
+		// roi, beta, the kernel's parameters (decay by default), the
+		// curve's (k, s by default): the geometric Hill order of old, so
+		// the first refusal is unchanged.
 		specs := []priorSlot{
 			{"roi", cw.ROI, &cp.Effect, supportPositive},
 			{"beta", cw.Beta, &cp.Effect, supportPositive},
@@ -472,11 +516,20 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 			reads[kp.key] = true
 			specs = append(specs, priorSlot{kp.key, cw.kernelPrior(kp.key), kp.prior(cp), kp.sup})
 		}
-		specs = append(specs, priorSlot{"k", cw.K, &cp.K, supportPositive}, priorSlot{"s", cw.S, &cp.S, supportPositive})
+		for _, cq := range curve.Params() {
+			reads[cq.key] = true
+			specs = append(specs, priorSlot{cq.key, cw.curvePrior(cq.key), cq.prior(cp), supportPositive})
+		}
 		for _, key := range []string{"decay", "peak", "shape", "scale"} {
 			if cw.kernelPrior(key) != nil && !reads[key] {
 				return nil, bayesSlotError(spec, "params.priors", fmt.Sprintf("params.priors.%s.%s: the %s adstock kernel has no %s parameter", name, key, kernel.Name(), key),
 					map[string]any{"channel": name, "adstock": kernel.Name(), "reason": "prior_not_in_kernel"})
+			}
+		}
+		for _, key := range curveKeys {
+			if cw.curvePrior(key) != nil && !reads[key] {
+				return nil, bayesSlotError(spec, "params.priors", fmt.Sprintf("params.priors.%s.%s: the %s saturation curve has no %s parameter", name, key, curve.Name(), key),
+					map[string]any{"channel": name, "saturation": curve.Name(), "reason": "prior_not_in_curve"})
 			}
 		}
 		for _, s := range specs {
@@ -604,7 +657,7 @@ type bayesData struct {
 func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (extend.RegressionOutput, error) {
 	cfg := r.cfg
 	n, nc, nz := rows.Len(), len(cfg.channels), len(cfg.controls)
-	per := len(cfg.kernel.Params()) + 3
+	per := len(cfg.kernel.Params()) + len(cfg.curve.Params()) + 1
 	if dim := 2 + nz + per*nc; n <= dim {
 		return extend.RegressionOutput{}, r.slotError(perr.NewCodedErrorWithDetails(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			fmt.Sprintf("needs more than %d rows (2 + controls + %d·channels), got %d", dim, per, n),
@@ -626,7 +679,7 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 		fitControls[j] = z[:nf]
 	}
 	pr := cfg.priors
-	pr.Kernel = cfg.kernel
+	pr.Kernel, pr.Curve = cfg.kernel, cfg.curve
 	m, err := newBayesModel(data.y[:nf], fitSpend, fitControls, cfg.maxLag, pr)
 	if err != nil {
 		return extend.RegressionOutput{}, r.slotError(err)
@@ -859,7 +912,7 @@ func (r *bayesRegression) samplerError(err error) error {
 
 // coefRow is one draw in the coefficient table's order: (intercept), the
 // channel betas, the controls, each kernel parameter (decay: by
-// default), k:, s: per channel, sigma.
+// default), each curve parameter (k:, s: by default) per channel, sigma.
 func (r *bayesRegression) coefRow(m *bayesModel, con, beta []float64) []float64 {
 	row := make([]float64, 0, m.Dim())
 	row = append(row, con[m.iIntercept()])
@@ -872,11 +925,10 @@ func (r *bayesRegression) coefRow(m *bayesModel, con, beta []float64) []float64 
 			row = append(row, con[m.iAdstock(i, c)])
 		}
 	}
-	for c := range m.nc {
-		row = append(row, con[m.iK(c)])
-	}
-	for c := range m.nc {
-		row = append(row, con[m.iS(c)])
+	for q := range m.nq {
+		for c := range m.nc {
+			row = append(row, con[m.iCurve(q, c)])
+		}
 	}
 	return append(row, con[m.iSigma()])
 }
@@ -884,16 +936,19 @@ func (r *bayesRegression) coefRow(m *bayesModel, con, beta []float64) []float64 
 // coefNames is the coefficient table's names, coefRow's order.
 func (r *bayesRegression) coefNames() []string {
 	cfg := r.cfg
-	kp := cfg.kernel.Params()
-	names := make([]string, 0, 2+len(cfg.controls)+(len(kp)+3)*len(cfg.channels))
+	kp, cq := cfg.kernel.Params(), cfg.curve.Params()
+	names := make([]string, 0, 2+len(cfg.controls)+(len(kp)+len(cq)+1)*len(cfg.channels))
 	names = append(names, interceptName)
 	names = append(names, cfg.channels...)
 	names = append(names, cfg.controls...)
-	prefixes := make([]string, 0, len(kp)+2)
+	prefixes := make([]string, 0, len(kp)+len(cq))
 	for _, p := range kp {
 		prefixes = append(prefixes, p.prefix)
 	}
-	for _, prefix := range append(prefixes, HalfSaturationPrefix, ShapePrefix) {
+	for _, p := range cq {
+		prefixes = append(prefixes, p.prefix)
+	}
+	for _, prefix := range prefixes {
 		for _, c := range cfg.channels {
 			names = append(names, prefix+c)
 		}

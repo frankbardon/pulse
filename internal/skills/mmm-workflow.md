@@ -23,7 +23,7 @@ Run order: the sweep slots, the rank, the bound fit, then optimize and the contr
 
 ## Steady-state response
 
-`response(fit, channel, spend)` = `beta · hill(m · spend, k, s)`: `beta`, `k`, `s` the fit's `<ch>`, `k:<ch>`, `s:<ch>` coefficients (Bayes: posterior means), `m` the sum of the channel's adstock kernel weights over lags `0..max_lag` — the level a constant spend of 1 settles to (geometric: `(1 - d^(max_lag+1)) / (1 - d)`; normalised: 1). It reads the fit's own adstock record, never a default: a channel that is one `WIN_DISTRIBUTED_LAG` column (Hill, sweep winner included), every Bayes channel, or an inline model's declared `adstock`. Any other channel is `PULSE_MODEL_TERM_UNKNOWN` `adstock_unknown` (`details.channel`; predict too when the fit and channel are literals, except on a `from_sweep` fit, judged at run). Works in optimize objectives, constraints and bounds and in formulas.
+`response(fit, channel, spend)` = `beta · hill(m · spend, k, s)`: `beta`, `k`, `s` the fit's `<ch>`, `k:<ch>`, `s:<ch>` coefficients (Bayes: posterior means, on the fit's own `saturation` curve, `mmm-bayes-model`), `m` the sum of the channel's adstock kernel weights over lags `0..max_lag` — the level a constant spend of 1 settles to (geometric: `(1 - d^(max_lag+1)) / (1 - d)`; normalised: 1). It reads the fit's own adstock record, never a default: a channel that is one `WIN_DISTRIBUTED_LAG` column (Hill, sweep winner included), every Bayes channel, or an inline model's declared `adstock`. Any other channel is `PULSE_MODEL_TERM_UNKNOWN` `adstock_unknown` (`details.channel`; predict too when the fit and channel are literals, except on a `from_sweep` fit, judged at run). Works in optimize objectives, constraints and bounds and in formulas. `hill()` is the Hill formula only: read a logistic or Michaelis–Menten fit through `response()`.
 
 ## Contribution by quarter
 
@@ -54,4 +54,4 @@ Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measur
 
 ## See
 
-`op-reg-mmm-hill` · `op-reg-mmm-bayes` · `compose-sweep-sampling` · `compose-sweep-bind` · `compose-optimize` · `item-fan-out` · `regression-model-options` · `windows-first`
+`op-reg-mmm-hill` · `op-reg-mmm-bayes` · `mmm-bayes-model` · `compose-sweep-sampling` · `compose-sweep-bind` · `compose-optimize` · `item-fan-out` · `regression-model-options` · `windows-first`

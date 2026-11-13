@@ -24,11 +24,14 @@ import (
 // kernel's params (MMMBayesAdstockPrefixes): the decay MMMDecayPrefix + c
 // (geometric, delayed), the peak MMMPeakPrefix + c (delayed), the
 // Weibull shape MMMAdstockShapePrefix + c and scale
-// MMMAdstockScalePrefix + c (weibull_cdf, weibull_pdf); REG_MMM_BAYES's
-// noise SD is MMMSigmaName.
+// MMMAdstockScalePrefix + c (weibull_cdf, weibull_pdf), and its
+// saturation curve's params (MMMBayesCurvePrefixes): Hill's k: and s:,
+// Michaelis–Menten's half-saturation k:, the logistic curve's rate
+// MMMLogisticLambdaPrefix + c; REG_MMM_BAYES's noise SD is MMMSigmaName.
 const (
 	MMMHalfSaturationPrefix = "k:"
 	MMMShapePrefix          = "s:"
+	MMMLogisticLambdaPrefix = "lam:"
 	MMMDecayPrefix          = "decay:"
 	MMMPeakPrefix           = "peak:"
 	MMMAdstockShapePrefix   = "shape:"
@@ -51,6 +54,57 @@ func MMMBayesAdstockPrefixes(kernel string) (prefixes []string, ok bool) {
 		return []string{MMMAdstockShapePrefix, MMMAdstockScalePrefix}, true
 	}
 	return nil, false
+}
+
+// REG_MMM_BAYES's saturation curves (params.saturation; absent is
+// hill): one curve for every channel, on the channel's adstock.
+const (
+	// MMMSaturationHill is 1 / (1 + (k/a)^s), the default.
+	MMMSaturationHill = "hill"
+	// MMMSaturationLogistic is (1 − e^(−λa)) / (1 + e^(−λa)).
+	MMMSaturationLogistic = "logistic"
+	// MMMSaturationMichaelisMenten is a / (k + a).
+	MMMSaturationMichaelisMenten = "michaelis_menten"
+)
+
+// MMMBayesSaturations are the params.saturation values, in manifest
+// order (a fresh slice).
+func MMMBayesSaturations() []string {
+	return []string{MMMSaturationHill, MMMSaturationLogistic, MMMSaturationMichaelisMenten}
+}
+
+// MMMBayesCurvePrefixes is the coefficient prefixes of REG_MMM_BAYES's
+// saturation curve params, in the coefficient table's order, for
+// saturation (params.saturation; "" is the default, hill): k: then s:
+// for hill, lam: for logistic, k: for michaelis_menten. ok is false for
+// any other curve name.
+func MMMBayesCurvePrefixes(saturation string) (prefixes []string, ok bool) {
+	switch saturation {
+	case "", MMMSaturationHill:
+		return []string{MMMHalfSaturationPrefix, MMMShapePrefix}, true
+	case MMMSaturationLogistic:
+		return []string{MMMLogisticLambdaPrefix}, true
+	case MMMSaturationMichaelisMenten:
+		return []string{MMMHalfSaturationPrefix}, true
+	}
+	return nil, false
+}
+
+// MMMBayesSaturation is a REG_MMM_BAYES spec's params.saturation as its
+// curve record carries it: "" for the default (absent or hill), the
+// name as written otherwise (the factory refuses an unknown one). Any
+// other type, or params that do not decode, read "".
+func MMMBayesSaturation(spec *types.RegressionSpec) string {
+	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		Saturation *string `json:"saturation"`
+	}
+	if paramread.Probe(spec.Params, &p) != nil || p.Saturation == nil || *p.Saturation == MMMSaturationHill {
+		return ""
+	}
+	return *p.Saturation
 }
 
 // modelRegressions are the model regressions, in AllRegressionTypes
@@ -87,7 +141,9 @@ func ModelRegressions() []types.RegressionType {
 // "s:<channel>" for each; REG_MMM_BAYES names its params.adstock
 // kernel's params per channel (MMMBayesAdstockPrefixes: "decay:<channel>"
 // for the default geometric kernel; an unknown kernel reports false),
-// then "k:<channel>", then "s:<channel>" for each, then "sigma"; REG_ORDINAL
+// then its params.saturation curve's (MMMBayesCurvePrefixes: "k:<channel>"
+// then "s:<channel>" for the default Hill curve; an unknown curve
+// reports false) for each, then "sigma"; REG_ORDINAL
 // names its thresholds "<level>|<next level>", known only when
 // params.levels fixes the levels (otherwise the data does). A spec whose
 // params do not decode (its factory refuses it), or a type that is no
@@ -101,8 +157,9 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 		return nil, false
 	}
 	var p struct {
-		Channels []string `json:"channels"`
-		Adstock  *string  `json:"adstock"`
+		Channels   []string `json:"channels"`
+		Adstock    *string  `json:"adstock"`
+		Saturation *string  `json:"saturation"`
 	}
 	// A lenient look: the model's factory decodes (and records) params.
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || len(p.Channels) == 0 {
@@ -118,7 +175,15 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 		if !ok {
 			return nil, false
 		}
-		prefixes = append(ad, prefixes...)
+		saturation := ""
+		if p.Saturation != nil {
+			saturation = *p.Saturation
+		}
+		curve, ok := MMMBayesCurvePrefixes(saturation)
+		if !ok {
+			return nil, false
+		}
+		prefixes = append(ad, curve...)
 	}
 	out := make([]string, 0, len(prefixes)*len(p.Channels)+1)
 	for _, prefix := range prefixes {

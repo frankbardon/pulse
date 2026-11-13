@@ -9015,7 +9015,7 @@
       },
       {
         "name": "REG_MMM_BAYES",
-        "description": "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+        "description": "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
         "accepts_types": [
           "date",
           "datetime",
@@ -9103,10 +9103,17 @@
             "description": "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:\u003cch\u003e), delayed (decay^((l − peak)²): decay:\u003cch\u003e, peak:\u003cch\u003e), weibull_cdf or weibull_pdf (shape:\u003cch\u003e, scale:\u003cch\u003e, in lags)."
           },
           {
+            "name": "saturation",
+            "type": "string",
+            "required": false,
+            "default": "hill",
+            "description": "Saturation curve, one for every channel, on the adstock: hill (1/(1 + (k/a)^s): k:\u003cch\u003e, s:\u003cch\u003e), logistic ((1 − e^(−λa))/(1 + e^(−λa)): lam:\u003cch\u003e, per raw adstock unit) or michaelis_menten (a/(k + a): k:\u003cch\u003e); k is in raw adstock units."
+          },
+          {
             "name": "priors",
             "type": "object",
             "required": false,
-            "description": "Per-channel priors keyed by channel: {roi | beta, k, s} plus the kernel's own (decay; decay, peak; shape, scale — another kernel's key is refused), each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock; a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."
+            "description": "Per-channel priors keyed by channel: {roi | beta} plus the kernel's own (decay; decay, peak; shape, scale) and the curve's (k, s; lam; k) — another kernel's or curve's key is refused —, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k and lam are on the channel's adstock in peak-week units (lam per peak week); a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."
           },
           {
             "name": "intercept_prior",
@@ -13951,6 +13958,10 @@
       {
         "name": "matrix-results",
         "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
+      },
+      {
+        "name": "mmm-bayes-model",
+        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, and how response() and hill() read a Bayesian fit."
       },
       {
         "name": "mmm-workflow",
@@ -21354,4 +21365,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f4891930a2953c7e20613e45b851b7a74ae1ac70f558c522b944a2591ebbb124
+// golden-hash: f30aeccd4a8a91609f00092e21403641ea594572236caa6287565c13c32b0e15

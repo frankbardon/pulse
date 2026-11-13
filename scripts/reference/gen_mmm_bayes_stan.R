@@ -1,6 +1,7 @@
-# gen_mmm_bayes_stan.R — Stan oracle for REG_MMM_BAYES (U70 E1-S2, #562):
-# posterior means of the Bayesian media-mix model under each adstock
-# kernel, sampled by CmdStan from the model written independently in
+# gen_mmm_bayes_stan.R — Stan oracle for REG_MMM_BAYES (U70 E1-S2, #562;
+# E1-S3, #563): posterior means of the Bayesian media-mix model in every
+# cell of the adstock kernel x saturation curve matrix (4 x 3), sampled
+# by CmdStan from the model written independently in
 # scripts/reference/mmm_bayes.stan.
 #
 # Writes <out_dir>/mmm_bayes_stan.json. Run by `make reference-stan`,
@@ -31,9 +32,12 @@
 # below 1.01 and bulk ESS above 2000, and no more than 0.5% divergent
 # transitions — a Stan run that did not mix is no oracle.
 #
-# Extending (E1-S3, the kernel x curve matrix): add a curve to
-# mmm_bayes.stan (data `curve`) and a row to `cases` below; the Go test
-# reads every case generically (its params, rows and expected means).
+# Extending: add a kernel or curve to mmm_bayes.stan (data `kernel`,
+# `curve`) and a row to `cases` below; the Go test reads every case
+# generically (its params, rows and expected means). Each case's truth
+# saturates clearly inside its own spend range (a curve the data barely
+# bend leaves the curve parameter weakly identified, which Stan reports
+# as divergences and the self-checks refuse).
 
 suppressPackageStartupMessages({
   library(jsonlite)
@@ -64,7 +68,7 @@ if (!file.exists(stan_file)) stan_file <- "scripts/reference/mmm_bayes.stan"
 mod <- cmdstan_model(stan_file, dir = tempdir(), quiet = TRUE) # the binary stays out of the tree
 
 kernel_code <- c(geometric = 0L, delayed = 1L, weibull_cdf = 2L, weibull_pdf = 3L)
-curve_code <- c(hill = 0L)
+curve_code <- c(hill = 0L, logistic = 1L, michaelis_menten = 2L)
 
 # kernel_weights is lag l's raw weight (normalize false), the kernel's
 # closed form (distlagparams).
@@ -82,34 +86,64 @@ adstock <- function(x, w) {
   vapply(seq_len(n), function(t) sum(w[1:min(t, L + 1)] * x[t - 0:min(t - 1, L)]), 0)
 }
 
+# curve_value is the saturation curve at raw adstock a and the curve's
+# raw parameters q (k, s; lam; k), 0 at a = 0.
+curve_value <- function(curve, a, q) {
+  switch(curve,
+    hill = ifelse(a > 0, 1 / (1 + (q$k / a)^q$s), 0),
+    logistic = (1 - exp(-q$lam * a)) / (1 + exp(-q$lam * a)),
+    michaelis_menten = a / (q$k + a))
+}
+
 # simulate is one case's series: bursty spend (dark weeks), a price
-# control, the kernel's adstock, a Hill curve and Gaussian noise.
-simulate <- function(seed, n, kernel, phi, L, k_raw, s, beta) {
+# control, the kernel's adstock, the case's curve and Gaussian noise.
+simulate <- function(seed, n, kernel, phi, L, curve, q, beta) {
   set.seed(seed)
   spend <- ifelse(runif(n) < 0.65, 20 + 150 * runif(n), 0)
   price <- 2 * (runif(n) - 0.5)
   a <- adstock(spend, kernel_weights(kernel, phi, L))
-  h <- ifelse(a > 0, 1 / (1 + (k_raw / a)^s), 0)
+  h <- curve_value(curve, a, q)
   y <- 200 + beta * h - 5 * price + rnorm(n, 0, 1.5)
   list(week = seq_len(n), tv = r4(spend), price = r4(price), sales = r4(y))
 }
 
+# The truths: each kernel's adstock reaches about 2x (geometric,
+# delayed), 3x (weibull_cdf) and 1x (weibull_pdf) the peak spend, so each
+# curve's half-saturation sits inside that range.
 cases <- list(
   list(name = "geometric_hill", kernel = "geometric", curve = "hill", seed = 7001, n = 104, L = 8,
-       phi = list(decay = 0.5), k = 120, s = 1.5, beta = 40),
+       phi = list(decay = 0.5), q = list(k = 120, s = 1.5), beta = 40),
   list(name = "delayed_hill", kernel = "delayed", curve = "hill", seed = 7002, n = 104, L = 8,
-       phi = list(decay = 0.5, peak = 2), k = 120, s = 1.5, beta = 40),
+       phi = list(decay = 0.5, peak = 2), q = list(k = 120, s = 1.5), beta = 40),
   list(name = "weibull_cdf_hill", kernel = "weibull_cdf", curve = "hill", seed = 7003, n = 104, L = 8,
-       phi = list(shape = 1.5, scale = 2.5), k = 150, s = 1.5, beta = 40),
+       phi = list(shape = 1.5, scale = 2.5), q = list(k = 150, s = 1.5), beta = 40),
   list(name = "weibull_pdf_hill", kernel = "weibull_pdf", curve = "hill", seed = 7004, n = 104, L = 8,
-       phi = list(shape = 2, scale = 3), k = 15, s = 2, beta = 60)
+       phi = list(shape = 2, scale = 3), q = list(k = 15, s = 2), beta = 60),
+  list(name = "geometric_logistic", kernel = "geometric", curve = "logistic", seed = 7011, n = 104, L = 8,
+       phi = list(decay = 0.5), q = list(lam = 0.012), beta = 40),
+  list(name = "delayed_logistic", kernel = "delayed", curve = "logistic", seed = 7012, n = 104, L = 8,
+       phi = list(decay = 0.5, peak = 2), q = list(lam = 0.012), beta = 40),
+  list(name = "weibull_cdf_logistic", kernel = "weibull_cdf", curve = "logistic", seed = 7013, n = 104, L = 8,
+       phi = list(shape = 1.5, scale = 2.5), q = list(lam = 0.008), beta = 40),
+  list(name = "weibull_pdf_logistic", kernel = "weibull_pdf", curve = "logistic", seed = 7014, n = 104, L = 8,
+       phi = list(shape = 2, scale = 3), q = list(lam = 0.03), beta = 60),
+  list(name = "geometric_michaelis_menten", kernel = "geometric", curve = "michaelis_menten", seed = 7021, n = 104, L = 8,
+       phi = list(decay = 0.5), q = list(k = 60), beta = 50),
+  list(name = "delayed_michaelis_menten", kernel = "delayed", curve = "michaelis_menten", seed = 7022, n = 104, L = 8,
+       phi = list(decay = 0.5, peak = 2), q = list(k = 60), beta = 50),
+  list(name = "weibull_cdf_michaelis_menten", kernel = "weibull_cdf", curve = "michaelis_menten", seed = 7023, n = 104, L = 8,
+       phi = list(shape = 1.5, scale = 2.5), q = list(k = 100), beta = 50),
+  list(name = "weibull_pdf_michaelis_menten", kernel = "weibull_pdf", curve = "michaelis_menten", seed = 7024, n = 104, L = 8,
+       phi = list(shape = 2, scale = 3), q = list(k = 25), beta = 60)
 )
 
 # The coefficient names Pulse reports (REG_MMM_BAYES's table) mapped to
 # the Stan quantity whose posterior mean is the same figure.
-coef_map <- function(kernel) {
-  m <- list("(intercept)" = "intercept_raw", "tv" = "beta_raw[1]", "price" = "gamma_raw[1]",
-            "k:tv" = "k_raw[1]", "s:tv" = "s[1]", "sigma" = "sigma_raw")
+coef_map <- function(kernel, curve) {
+  m <- list("(intercept)" = "intercept_raw", "tv" = "beta_raw[1]", "price" = "gamma_raw[1]", "sigma" = "sigma_raw")
+  if (curve %in% c("hill", "michaelis_menten")) m[["k:tv"]] <- "k_raw[1]"
+  if (curve == "hill") m[["s:tv"]] <- "s[1]"
+  if (curve == "logistic") m[["lam:tv"]] <- "lam_raw[1]"
   if (kernel %in% c("geometric", "delayed")) m[["decay:tv"]] <- "decay[1]"
   if (kernel == "delayed") m[["peak:tv"]] <- "peak[1]"
   if (kernel %in% c("weibull_cdf", "weibull_pdf")) {
@@ -125,7 +159,7 @@ if (length(args) >= 2) cases <- Filter(function(cs) cs$name %in% strsplit(args[[
 
 out_cases <- list()
 for (cs in cases) {
-  d <- simulate(cs$seed, cs$n, cs$kernel, cs$phi, cs$L, cs$k, cs$s, cs$beta)
+  d <- simulate(cs$seed, cs$n, cs$kernel, cs$phi, cs$L, cs$curve, cs$q, cs$beta)
   ymax <- max(abs(d$sales))
   xmax <- max(d$tv)
   zmean <- mean(d$price)
@@ -135,7 +169,7 @@ for (cs in cases) {
                zs = list((d$price - zmean) / zscale), yscale = ymax, zmean = array(zmean), zscale = array(zscale))
   fit <- mod$sample(data = data, seed = cs$seed, chains = 4, parallel_chains = 4, iter_warmup = 2000,
                     iter_sampling = 10000, adapt_delta = 0.95, refresh = 0, show_messages = FALSE)
-  m <- coef_map(cs$kernel)
+  m <- coef_map(cs$kernel, cs$curve)
   vars <- c(unlist(m), "roi[1]")
   sm <- summarise_draws(fit$draws(variables = vars), mean, sd, mcse_mean, rhat, ess_bulk)
   if (any(sm$rhat > 1.01)) stop("self-check failed: ", cs$name, " R-hat ", max(sm$rhat))
@@ -150,10 +184,11 @@ for (cs in cases) {
   for (nm in names(m)) coefs[[nm]] <- row(m[[nm]])
   params <- list(channels = list("tv"), time = "week", adstock = cs$kernel, max_lag = cs$L,
                  chains = 4L, warmup = 1000L, draws = 2500L)
+  if (cs$curve != "hill") params$saturation <- cs$curve
   message(sprintf("%s: %d divergences, min ESS %.0f", cs$name, div, min(sm$ess_bulk)))
   out_cases[[length(out_cases) + 1]] <- list(
     name = cs$name, kernel = cs$kernel, curve = cs$curve, rng_seed = cs$seed, params = params,
-    truth = c(lapply(cs$phi, num), list(k = num(cs$k), s = num(cs$s), beta = num(cs$beta))),
+    truth = c(lapply(cs$phi, num), lapply(cs$q, num), list(beta = num(cs$beta))),
     rows = list(week = d$week, tv = lapply(d$tv, num), price = lapply(d$price, num), sales = lapply(d$sales, num)),
     stan = list(chains = 4L, warmup = 2000L, draws = 10000L, adapt_delta = 0.95, seed = cs$seed, divergences = div),
     coefficients = coefs, roi = row("roi[1]"))

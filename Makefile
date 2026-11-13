@@ -257,12 +257,13 @@ reference-optimize:
 
 # reference-stan regenerates REG_MMM_BAYES's Stan oracle
 # (internal/regmmm/testdata/mmm_bayes_stan.json: posterior means per
-# adstock kernel, sampled by CmdStan from scripts/reference/mmm_bayes.stan)
+# adstock kernel x saturation curve cell, sampled by CmdStan from
+# scripts/reference/mmm_bayes.stan)
 # with scripts/reference/gen_mmm_bayes_stan.R, then appends the
 # `// golden-hash:` footer TestMMMBayes_PosteriorMatchesStan checks.
 # Needs R 4.6.1 + cmdstanr 0.9.0 + CmdStan 2.40.0 + posterior 1.7.1
 # (install lines: docs/src/internals/regenerating-goldens.md, The Stan
-# toolchain). Manual target: CI never runs R or Stan; a few minutes.
+# toolchain). Manual target: CI never runs R or Stan; about 15 minutes.
 STAN_REFERENCE_DIR=internal/regmmm/testdata
 reference-stan:
 	Rscript scripts/reference/gen_mmm_bayes_stan.R $(STAN_REFERENCE_DIR)

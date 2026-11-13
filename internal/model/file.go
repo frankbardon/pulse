@@ -72,6 +72,10 @@ const (
 	// records (Adstock, AdstockLineage) — what response() reads off the
 	// loaded model.
 	FeatureAdstock = "adstock"
+	// FeatureSaturation: `saturation`, a REG_MMM_BAYES fit's curve
+	// record — its params.saturation when not the default Hill curve —
+	// what response() evaluates on the loaded model.
+	FeatureSaturation = "saturation"
 )
 
 // fileFeature is one optional model-file section: the registry entry a
@@ -157,6 +161,11 @@ var fileFeatures = []fileFeature{
 		name: FeatureAdstock, key: "adstock",
 		present: func(f *File) bool { return f.Adstock != nil },
 		rule:    adstockRule,
+	},
+	{
+		name: FeatureSaturation, key: "saturation",
+		present: func(f *File) bool { return f.Saturation != "" },
+		rule:    saturationRule,
 	},
 }
 
@@ -281,6 +290,11 @@ type File struct {
 	// written by lineage (AdstockLineage) or declared by an inline
 	// model. File.Bind restores it as Bound.Adstocks.
 	Adstock map[string]Adstock `json:"adstock,omitempty"`
+	// Saturation (feature saturation) is a REG_MMM_BAYES fit's curve
+	// record (Bound.Saturation): logistic or michaelis_menten, absent
+	// for the default Hill curve (a file may spell hill out). File.Bind
+	// restores it.
+	Saturation string `json:"saturation,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -432,6 +446,7 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 		}
 		f.Outputs = outs
 	}
+	f.Saturation = b.Saturation
 	// The list is derived from the sections, never set by hand: the
 	// writer lists exactly what is present.
 	f.Features = f.presentFeatures()
@@ -652,7 +667,8 @@ func (f *File) check() string {
 // saved figures only (no R² or deviance). A file carrying sweep_axes
 // binds sweep-bound (SweepBound + SweepAxes), so sweep_axis() reads the
 // saved winner's axes; one carrying adstock binds its records
-// (Bound.Adstocks).
+// (Bound.Adstocks), and one carrying saturation its curve record
+// (Bound.Saturation; "hill" binds as the default "").
 func (f *File) Bind(name string) (*Bound, error) {
 	spec := &types.RegressionSpec{
 		Type:       f.Type,
@@ -672,6 +688,9 @@ func (f *File) Bind(name string) (*Bound, error) {
 		b.SweepBound, b.SweepAxes = true, f.sweepAxisValues()
 	}
 	b.Adstocks = cloneAdstocks(f.Adstock)
+	if f.Saturation != MMMSaturationHill {
+		b.Saturation = f.Saturation
+	}
 	return b, nil
 }
 

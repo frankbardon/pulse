@@ -62,7 +62,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 	},
 	types.REG_MMM_BAYES: {
 		SpecRefusal: regmmm.BayesSpecRefusal,
-		Description: "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+		Description: "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
 		Decl: ExtensionRegression{
 			Vcov: true,
 			// No scorer (an adstocked prediction needs the history:
@@ -76,7 +76,8 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
 				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13, geometric only — every other kernel requires it)."},
 				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:<ch>), delayed (decay^((l − peak)²): decay:<ch>, peak:<ch>), weibull_cdf or weibull_pdf (shape:<ch>, scale:<ch>, in lags)."},
-				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta, k, s} plus the kernel's own (decay; decay, peak; shape, scale — another kernel's key is refused), each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock; a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."},
+				{Name: "saturation", Type: "string", Default: "hill", Description: "Saturation curve, one for every channel, on the adstock: hill (1/(1 + (k/a)^s): k:<ch>, s:<ch>), logistic ((1 − e^(−λa))/(1 + e^(−λa)): lam:<ch>, per raw adstock unit) or michaelis_menten (a/(k + a): k:<ch>); k is in raw adstock units."},
+				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta} plus the kernel's own (decay; decay, peak; shape, scale) and the curve's (k, s; lam; k) — another kernel's or curve's key is refused —, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k and lam are on the channel's adstock in peak-week units (lam per peak week); a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."},
 				{Name: "intercept_prior", Type: "object", Description: "Intercept prior on the max-scaled outcome (default normal 0, 2)."},
 				{Name: "control_prior", Type: "object", Description: "Prior of every control's coefficient on the centred, scaled control (default normal 0, 1)."},
 				{Name: "sigma_prior", Type: "object", Description: "Noise SD prior on the max-scaled outcome (default halfnormal 1)."},
