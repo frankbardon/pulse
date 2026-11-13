@@ -33,11 +33,12 @@ import (
 // AGG_FREQUENCY's Σw, AGG_SET_FREQUENCY / CARDINALITY_SUM / AVG,
 // AGG_DISTINCT_SUM), GROUP_ROUNDED alone and beside a categorical
 // grouper, ATTR_FORMULA total() — two-phase on the parallel reducers,
-// plain, weighted, and a filtered share over a label beside a matrix
+// plain, weighted, a filtered share over a label beside a matrix
 // (matrices fold by merge-block position, so they compare within a
-// cohort only: the decode group and an archive-only group) — and the
-// grouped / multi-layer total() the merge gate keeps sequential (every
-// cell on its serial arm), and a crosstab cell (AGG_SUM, a weighted
+// cohort only: the decode group and an archive-only group) and grouped
+// (weighted, nulls, a grouper over the share) and multi-layer (three
+// pre-pass layers, ungrouped and grouped) — and a crosstab cell
+// (AGG_SUM, a weighted
 // AGG_AVERAGE) on the fused and the buffered crosstab arm (the crosstab
 // path reads an archive serially, never on the shard reducer).
 
@@ -209,25 +210,80 @@ func bitInvShapes() []bitInvShape {
 				// blocked merge (the serial arm runs it buffered).
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x", "y"}}}}
 		}, check: bitInvNonIntegral("s")},
-		{name: "formula_total_grouped", serial: observe.ArmBuffered, build: func(cohort string) *types.Request {
+		// Grouped total() runs two-phase on the parallel reducers too
+		// (U74 E3-S1, #494): the cohort-wide totals publish before any
+		// grouper reads a row. Nulls (x), a frequency-weighted total and
+		// a probability-weighted fold over the share, a filter, and a
+		// second grouper over the share's own label.
+		{name: "formula_total_grouped", build: func(cohort string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
-				Attributes:   []*types.Attribute{total("sh", "(x ?? 0) / total(x)", nil)},
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
-		}, check: bitInvNonIntegral("s")},
-		{name: "formula_total_multilayer", serial: observe.ArmStreaming, build: func(cohort string) *types.Request {
-			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
-				Attributes:   []*types.Attribute{total("t1", "total(x)", nil), total("t2", "(x ?? 0) / total(x - t1 / 7)", nil)},
-				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "t2", Label: "s"}}}
-		}, check: bitInvNonIntegral("s")},
+				Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "y > 5"}},
+				Attributes: []*types.Attribute{
+					total("sh", "x == nil ? nil : x / total(x)", nil),
+					total("wsh", "(x ?? 0) * 1000 / total(x)", &fw),
+				},
+				Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_ROUNDED, Field: "wsh", Interval: 0.25}},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "sh", Label: "s"},
+					{Type: types.AGG_AVERAGE, Field: "sh", Label: "a"},
+					{Type: types.AGG_COUNT, Field: "sh", Label: "n"},
+					{Type: types.AGG_SUM, Field: "wsh", Label: "ws", Weight: bitExactPW()},
+				}}
+		}, check: func(t *testing.T, resp *types.Response) {
+			bitInvNonIntegral("s", "ws")(t, resp)
+			if len(resp.Data) <= 5 {
+				t.Fatalf("%d rows: the grouper over the share does not split a region", len(resp.Data))
+			}
+		}},
+		// Multi-layer total() runs on the parallel reducers too (U74
+		// E3-S2, #494): one parallel pre-pass per layer of the two-pass
+		// plan. Three layers — a total over x, a total over a row-local
+		// reading it (weighted), a total over that one beside an
+		// independent layer-0 total — under a filter, with nulls.
+		{name: "formula_total_multilayer", build: func(cohort string) *types.Request {
+			return bitInvMultiLayer(cohort, total, &fw, nil)
+		}, check: bitInvNonIntegral("s", "s1", "s2")},
+		{name: "formula_total_multilayer_grouped", build: func(cohort string) *types.Request {
+			return bitInvMultiLayer(cohort, total, &fw, []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_ROUNDED, Field: "t2", Interval: 0.5}})
+		}, check: func(t *testing.T, resp *types.Response) {
+			bitInvNonIntegral("s", "s1", "s2")(t, resp)
+			if len(resp.Data) <= 5 {
+				t.Fatalf("%d rows: the grouper over the layer-2 share does not split a region", len(resp.Data))
+			}
+		}},
 		bitInvCrosstab("crosstab_sum", types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s"}),
 		bitInvCrosstab("crosstab_weighted_average", types.Aggregation{Type: types.AGG_AVERAGE, Field: "x", Label: "wa", Weight: bitExactPW()}),
 	}
 }
 
+// bitInvMultiLayer is the multi-layer total() request (layers 0, 1
+// and 2), grouped by groups.
+func bitInvMultiLayer(cohort string, total func(label, expr string, w *types.SlotWeight) *types.Attribute, fw *types.SlotWeight, groups []*types.Group) *types.Request {
+	return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+		Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "y > 5"}},
+		Attributes: []*types.Attribute{
+			total("t0", "x == nil ? nil : x / total(x)", nil),
+			total("d", "t0 == nil ? nil : t0 * 1000 - y / 7", nil),
+			total("i0", "y / total(y * 0.3)", nil),
+			total("t1", "d == nil ? nil : d / total(d)", fw),
+			total("t2", "(t1 ?? 0) * 1000 + total((t1 ?? 0) - i0 / 11)", nil),
+		},
+		Groups: groups,
+		Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "t0", Label: "s"},
+			{Type: types.AGG_SUM, Field: "t1", Label: "s1"},
+			{Type: types.AGG_SUM, Field: "t2", Label: "s2"},
+			{Type: types.AGG_AVERAGE, Field: "t2", Label: "a2"},
+			{Type: types.AGG_COUNT, Field: "t1", Label: "n1"},
+		}}
+}
+
 // bitInvSmoke run in the fast tier: the grouped sums (with the forced
-// buffered arm), the share-over-label total() and the weighted crosstab.
-var bitInvSmoke = map[string]bool{"sums_grouped": true, "formula_total_share": true, "crosstab_weighted_average": true}
+// buffered arm), the share-over-label and grouped total() and the
+// weighted crosstab. The multi-layer total() shapes run heavy only (the
+// 1 s budget); the fast tier pins them through
+// TestTotalsPrepass_MultiLayerProjectsPerLayer (service).
+var bitInvSmoke = map[string]bool{"sums_grouped": true, "formula_total_share": true, "formula_total_grouped": true, "crosstab_weighted_average": true}
 
 // bitInvSmokeRows is the fast tier's cohort (the heavy one is
 // bitExactRows, past the parallel-decode threshold).

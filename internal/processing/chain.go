@@ -117,8 +117,8 @@ func (f registryMergeFacts) Matrix(name string) (bool, bool) {
 // a built-in answers (false, false) so mergegate.MergeRefusal decides
 // it per attribute — ATTR_FORMULA is row-local only without a
 // total(expr) call (totalcall.Contains), or with one the reducers' two-
-// phase drive covers (mergegate.ParallelTotals; never on a chain
-// stage). The type-keyed two-pass check below is therefore sufficient:
+// phase drive covers (mergegate.ParallelTotals; on a chain stage
+// too). The type-keyed two-pass check below is therefore sufficient:
 // no extension attribute carries an expression-dependent tier. Pinned
 // by TestFormulaTotal_MergeAdmission and
 // TestChainGate_ValidatorMatchesRuntime ("total formula").

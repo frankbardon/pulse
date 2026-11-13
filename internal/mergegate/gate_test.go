@@ -468,11 +468,13 @@ func TestChainRefusal_Crosstab(t *testing.T) {
 	}
 }
 
-// TestParallelTotals (U51 E3-S1, #399): the reducers' two-phase total()
-// admits an ungrouped total() formula in pre-pass layer 0 — its inputs
-// are source fields or row-local labels — and nothing else; the refused
-// shapes keep the row-local reason, and the chain stage gate refuses
-// every total() formula.
+// TestParallelTotals (U51 E3-S1, #399; U74 E3-S1 / E3-S2, #494): the
+// reducers' two-phase total() admits every total() formula of a request
+// without a crosstab — ungrouped or grouped, in pre-pass layer 0 or a
+// later one (a total() argument reading an earlier total, directly,
+// through a row-local, a default label or a slot whose inputs cannot be
+// proven) — and the refused shapes (crosstab, a nil slot) keep the
+// row-local reason; the chain stage gate admits exactly the same.
 func TestParallelTotals(t *testing.T) {
 	t.Parallel()
 
@@ -491,15 +493,19 @@ func TestParallelTotals(t *testing.T) {
 		{"total over a row-local label", &types.Request{Attributes: []*types.Attribute{f("d", "n * 2"), f("t", "total(d)")}}, nil, []bool{false, true}},
 		{"two independent totals share layer 0", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / total(n * 3)")}}, nil, []bool{true, true}},
 		{"a row-local reading a total is fine", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / a")}}, nil, []bool{true, false}},
-		{"total reading a total is layer 1", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, false}},
-		{"total reading a total through a row-local", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n - a"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
-		{"total reading a total in its row expression", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "a / total(n)")}}, nil, []bool{true, false}},
-		{"default label read", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "n", Expression: "total(n)"}, f("b", "total(ATTR_FORMULA_n)")}}, nil, []bool{true, false}},
-		{"unknown inputs after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{true, false, false}},
+		{"total reading a total is layer 1", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, true}},
+		{"total reading a total through a row-local", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n - a"), f("b", "total(c)")}}, nil, []bool{true, false, true}},
+		{"total reading a total in its row expression", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "a / total(n)")}}, nil, []bool{true, true}},
+		{"default label read", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "n", Expression: "total(n)"}, f("b", "total(ATTR_FORMULA_n)")}}, nil, []bool{true, true}},
+		{"unknown inputs after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{true, false, true}},
 		{"unknown inputs before any total", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{false, true}},
-		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, false}},
-		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
-		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
+		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, true}},
+		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, true}},
+		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{true}},
+		{"grouped over the total's label", &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 0.1}}, Attributes: []*types.Attribute{f("t", "n / total(n)")}}, nil, []bool{true}},
+		{"grouped total reading a total is layer 1", &types.Request{Groups: region, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, true}},
+		{"three layers", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)"), f("c", "n / 3"), f("d", "c / total(b * c)")}}, nil, []bool{true, true, false, true}},
+		{"crosstab multi-layer", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{false, false}},
 		{"crosstab", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
 		{"nil slot", &types.Request{Attributes: []*types.Attribute{f("t", "total(n)"), nil}}, nil, []bool{false, false}},
 	}
@@ -534,10 +540,15 @@ func TestParallelTotals(t *testing.T) {
 			if !admitted && reason != "attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
 				t.Fatalf("refused shape reason = %q, want the row-local reason", reason)
 			}
+			// The chain stage gate is the same rule (U74 E3-S3, #494):
+			// a stage runs the two-phase drive too.
+			if admitted && chainErr != nil {
+				t.Fatalf("chain gate refused an admitted shape: %v", chainErr)
+			}
 			var ce *errors.CodedError
-			if !stderrors.As(chainErr, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
-				ce.Message != "chain stage is not mergeable: attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
-				t.Fatalf("chain gate = %v, want PULSE_CHAIN_NOT_MERGEABLE with the row-local reason", chainErr)
+			if !admitted && (!stderrors.As(chainErr, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
+				ce.Message != "chain stage is not mergeable: "+reason) {
+				t.Fatalf("chain gate = %v, want PULSE_CHAIN_NOT_MERGEABLE with %q", chainErr, reason)
 			}
 		})
 	}
@@ -581,12 +592,11 @@ func TestMergeRefusal_MatrixTotalMember(t *testing.T) {
 	}
 }
 
-// TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute: under
-// Groups no total() formula is a two-phase parallel total, so the
-// matrix-member check stands aside (it has no tainted slots to name)
-// and the refusal names the attribute itself — the reason the request
-// stays serial is the formula, not the matrix.
-func TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute(t *testing.T) {
+// TestMergeRefusal_GroupedMatrixTotalMember: under Groups a layer-0
+// total() formula is a two-phase parallel total (U74 E3-S1, #494), so a
+// matrix reading it as a computed member is refused by the member rule
+// exactly as on an ungrouped request — the formula itself merges.
+func TestMergeRefusal_GroupedMatrixTotalMember(t *testing.T) {
 	t.Parallel()
 
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "g", Type: encoding.FieldTypeU8}}}
@@ -595,11 +605,30 @@ func TestMergeRefusal_GroupedMatrixTotalMemberNamesTheAttribute(t *testing.T) {
 		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "share", Expression: "x / total(x)"}},
 		Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "share"}}},
 	}
-	if got := matrixTotalMemberRefusal(req, schema, nil); got != "" {
-		t.Errorf("grouped matrix-member check = %q, want \"\"", got)
+	const want = "a matrix reads computed member share, which a two-pass attribute computes"
+	if got := MergeRefusal(req, schema, nil); got != want {
+		t.Errorf("grouped refusal = %q, want %q", got, want)
 	}
-	got := MergeRefusal(req, schema, nil)
-	if !strings.Contains(got, "attribute ATTR_FORMULA is not row-local") || strings.Contains(got, "computed member") {
-		t.Errorf("grouped refusal = %q, want the attribute named, not the matrix member", got)
+	req.Matrices[0].Fields = []string{"x", "g"}
+	if got := MergeRefusal(req, schema, nil); got != "" {
+		t.Errorf("grouped matrix beside a total() formula refused: %q", got)
+	}
+}
+
+// TestMatrixTotalMemberRefusal_NoTaintedLayers: when totalLayers reports
+// no tainted slots (a Crosstab request returns nil), a matrix reading a
+// computed member is not refused by the member rule — without the
+// tainted == nil guard the loop would index a nil slice and panic.
+func TestMatrixTotalMemberRefusal_NoTaintedLayers(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
+	req := &types.Request{
+		Crosstab:   &types.CrosstabSpec{},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "sum", Expression: "x + y"}},
+		Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "sum"}}},
+	}
+	if got := matrixTotalMemberRefusal(req, schema, nil); got != "" {
+		t.Errorf("refusal = %q, want none", got)
 	}
 }

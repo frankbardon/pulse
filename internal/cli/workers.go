@@ -40,9 +40,12 @@ type workersKey struct{}
 type workerCaps struct{ shard, decode int }
 
 // GlobalBefore is the root command's Before: the log flags (LogBefore),
-// the worker flags, then the --limit flags (limitsBefore). A negative
-// worker count or a bad --limit is refused before any leaf runs — a usage error (exit 2) carrying CLI_INPUT, the rule
-// pulse.New applies to the Options fields.
+// the worker flags, the --limit flags (limitsBefore), then
+// --memory-limit (memoryLimitBefore), last so a refused run never moves
+// the process soft memory limit. A negative worker count, a bad --limit
+// or a bad --memory-limit is refused before any leaf runs — a usage
+// error (exit 2) carrying CLI_INPUT, the rule pulse.New applies to the
+// Options fields.
 //
 // A shell-completion request skips both: completion must stay silent
 // and exit 0 whatever the persistent flags typed so far say, and no
@@ -59,7 +62,11 @@ func GlobalBefore(ctx context.Context, cmd *cli.Command) (context.Context, error
 	if err != nil {
 		return ctx, err
 	}
-	return limitsBefore(ctx, cmd)
+	ctx, err = limitsBefore(ctx, cmd)
+	if err != nil {
+		return ctx, err
+	}
+	return memoryLimitBefore(ctx, cmd)
 }
 
 func workersBefore(ctx context.Context, cmd *cli.Command) (context.Context, error) {

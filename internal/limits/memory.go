@@ -190,11 +190,14 @@ const ValueEntryBytes = valueEntryBytes
 // scanAndMergeShards). The window bounds the live partials — at most
 // window of them beside the merged state, whatever the shard count —
 // and predict charges exactly that many per-shard partitions
-// (descriptor EstimateMemory). Twice the workers leaves a finished
-// worker a shard to take while an earlier, slower shard holds the merge
-// back. At least 1.
+// (descriptor EstimateMemory). The window is the worker count — one
+// in-flight partial a worker (U74 #502; it was twice the workers, which
+// on a large archive made the waiting partials the peak): a worker that
+// finishes ahead of an earlier, slower shard idles until the merge
+// catches up, trading a little wall time for half the live partials.
+// At least 1.
 func ShardMergeWindow(workers int) int {
-	return max(2*workers, 1)
+	return max(workers, 1)
 }
 
 // ShardMergeWindowWithin is ShardMergeWindow(workers) shrunk to fit a

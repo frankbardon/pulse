@@ -85,21 +85,15 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // None.
 //
 // A total-bearing ATTR_FORMULA merges through the reducers' two-phase
-// drive (U51 E3-S1, #399): a parallel pre-pass folds each total()
-// argument into a binned {sum, count} per partition, the partitions
-// merge exactly and the published totals bind into every partition's
-// formula before the ordinary reduce. Only the first cut is admitted —
-// ParallelTotals: an ungrouped request whose total() formulas sit in
-// one pre-pass layer. Any other total() formula is refused with the
-// row-local reason, as before; so is every total() formula on a
-// ProcessChain stage (ChainRefusal), which has no two-phase runtime.
+// drive (U51 E3-S1, #399; U74 E3-S1 / E3-S2 / E3-S3, #494): a parallel
+// pre-pass per layer folds each total() argument into a binned {sum,
+// count} per partition, the partitions merge exactly and the published
+// totals bind into every partition's formula before the ordinary
+// reduce. ParallelTotals says which: every total() formula of a request
+// without a crosstab or a nil slot, grouped or not, in any pre-pass
+// layer. A refused one keeps the row-local reason. ProcessChain stages
+// share the rule (ChainRefusal).
 func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) string {
-	return mergeRefusal(req, schema, ext, true)
-}
-
-// mergeRefusal is MergeRefusal; admitTotals=false keeps every
-// total-bearing formula off (the chain stage rule).
-func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, admitTotals bool) string {
 	if ext == nil {
 		ext = None{}
 	}
@@ -149,9 +143,9 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 				// Row-local unless it calls total(expr): a cohort total
 				// folded per partition would be partition-local. A
 				// total() formula the two-phase drive covers merges
-				// (ParallelTotals) — never on a chain stage.
+				// (ParallelTotals) — on a chain stage too.
 				rowLocal = !totalcall.Contains(attr.Expression)
-				if !rowLocal && admitTotals {
+				if !rowLocal {
 					if totals == nil {
 						totals = ParallelTotals(req, ext)
 					}
@@ -250,7 +244,7 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 // the row), so its matrix folds on the buffered serial path — the one
 // route materialize-then-fit takes. "" when no matrix reads one. The
 // windows-first decision (vectors.WindowsOverRecords) takes the zero
-// classifier here (no catalog, no extension hooks): mergeRefusal
+// classifier here (no catalog, no extension hooks): MergeRefusal
 // excluded every request with windows above, so no window label is a
 // computed member of a request that reaches this check — with or
 // without a bound model or an extension aggregator's FieldInputs.
@@ -276,10 +270,12 @@ func matrixTotalMemberRefusal(req *types.Request, schema *encoding.Schema, ext E
 }
 
 // ChainRefusal is the v1 ProcessChain stage gate: nil when req passes
-// MergeRefusal — with every total-bearing ATTR_FORMULA refused as
-// not row-local, since a chain stage has no two-phase total() runtime
-// (the reducers' ParallelTotals admission stops at the chain) —, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not
-// mergeable: <reason>" with details {stage_index, stage_name}. Every
+// MergeRefusal — a total-bearing ATTR_FORMULA included wherever
+// ParallelTotals admits it (U74 E3-S3, #494): stage 0 runs Process,
+// whose reducers run it two-phase, and a later stage runs the same
+// two-phase drive over the previous stage's rows (the service's
+// chainTotalsSource) —, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage
+// is not mergeable: <reason>" with details {stage_index, stage_name}. Every
 // mergeable scalar built-in aggregator emits one float64 per output row the
 // next stage's f64 column reads — AGG_MODE's modal value (on a
 // categorical field, the dictionary index, not the label),
@@ -314,7 +310,7 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 		stripped.Matrices = nil
 		req = &stripped
 	}
-	reason := mergeRefusal(req, schema, ext, false)
+	reason := MergeRefusal(req, schema, ext)
 	if reason == "" {
 		return nil
 	}
@@ -325,17 +321,17 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 
 // ParallelTotals reports, per req.Attributes slot, whether it is a
 // total-bearing ATTR_FORMULA the parallel reducers' two-phase drive
-// runs (U51 E3-S1, #399): the request is ungrouped (no Groups, no
-// Crosstab) and the formula sits in pre-pass layer 0 — none of its
-// inputs is, directly or through row-local attributes, the label of an
-// earlier total() formula. That is processing's two-pass planner rule
-// (twoPassPlan) over the same inputs (vectors.AttributeInputNames,
-// labels by vectors.DefaultAttributeLabel), except that a slot whose
-// inputs cannot be proven — an ATTR_REG_PREDICT, a fit-referenced slot,
-// an extension attribute (its FieldInputs are not visible here) —
-// depends on every earlier slot, so the gate never admits a formula the
-// planner would put in a later layer. Every other slot reports false.
-// nil ext is None.
+// runs (U51 E3-S1, #399; U74 E3-S1 / E3-S2, #494): every one, when the
+// request carries no Crosstab and no nil attribute slot. Groups are
+// fine — a total() is the cohort-wide post-filter sum the pre-pass
+// publishes before any grouper reads a row — and so is a formula in a
+// later pre-pass layer (an input reading, directly or through row-local
+// attributes, an earlier total() formula's label): phase 1 runs one
+// parallel pre-pass per layer of processing's two-pass plan, binding
+// the earlier layers' published totals first. Every other slot reports
+// false; the request's other attributes are judged by MergeRefusal as
+// ever (a non-row-local one keeps the whole request serial). nil ext
+// is None.
 func ParallelTotals(req *types.Request, ext Extensions) []bool {
 	out, _ := totalLayers(req, ext)
 	return out
@@ -343,7 +339,10 @@ func ParallelTotals(req *types.Request, ext Extensions) []bool {
 
 // totalLayers is ParallelTotals plus, per slot, whether its output
 // depends on a published total (a total() formula, or a slot reading
-// one through earlier slots) — nil when the request is grouped.
+// one through earlier slots; the inputs by vectors.AttributeInputNames,
+// labels by vectors.DefaultAttributeLabel, a slot whose inputs cannot
+// be proven — an ATTR_REG_PREDICT, a fit-referenced slot, an extension
+// attribute — reading every earlier one) — nil on a crosstab request.
 func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	if ext == nil {
 		ext = None{}
@@ -353,7 +352,7 @@ func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	}
 	n := len(req.Attributes)
 	out := make([]bool, n)
-	if len(req.Groups) > 0 || req.Crosstab != nil {
+	if req.Crosstab != nil {
 		return out, nil
 	}
 	labels := make([]string, n)
@@ -389,7 +388,7 @@ func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 			_, reads = inputs[labels[j]]
 		}
 		tainted[i] = isTotal || reads
-		out[i] = isTotal && !reads
+		out[i] = isTotal
 	}
 	return out, tainted
 }

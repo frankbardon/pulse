@@ -353,16 +353,19 @@ parallel arm (`ShardWorkers` other than 1, two or more shards, a
 mergeable request) each shard's partial keeps its own group buckets
 until it is merged. The merge is incremental: shard i is merged as
 soon as shards 0 to i are done, in shard order, and is then released.
-No shard is handed to a worker until it is within twice the worker
-count of the first unmerged shard. So at most 2 x `ShardWorkers`
-partials are alive beside the merged result, however many shards the
-archive has. The estimate charges that window: the bucket state of the
-2 x workers shards with the largest bucket bounds, and the per-value
-state of the 2 x workers largest shards. Predict reads the instance's
-`ShardWorkers` to pick the arm, as the run does.
+No shard is handed to a worker until it is within the worker count of
+the first unmerged shard. So at most `ShardWorkers` partials are alive
+beside the merged result, however many shards the archive has. The
+estimate charges that window: the bucket state of the `ShardWorkers`
+shards with the largest bucket bounds, and the per-value state of the
+`ShardWorkers` largest shards. Predict reads the instance's
+`ShardWorkers` to pick the arm, as the run does. A fanned-out run only
+folds rows into the partials, so it is charged no buffered records,
+even for a request whose serial run would buffer them (a `total()`
+formula beside a matrix).
 
 When `MaxEstimatedMemory` is set, the window shrinks to fit it. If the
-whole-run estimate at 2 x workers live partials exceeds the limit, the
+whole-run estimate at `ShardWorkers` live partials exceeds the limit, the
 run takes the largest window, down to one partial, whose estimate fits,
 and the limit refuses the request only when even one live partial does
 not fit (the refusal reports that one-partial estimate). A smaller
@@ -371,7 +374,7 @@ workers busy, so it trades speed for memory. It never changes an
 answer: shards still merge in shard order. Predict applies the same
 rule, so a request it reports as fitting runs at the window predict
 assumed. With the default (`Unlimited`) the window is always
-2 x workers. Measured on archives,
+the worker count. Measured on archives,
 the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
 On a single file the parallel-decode arm (`DecodeWorkers` other than 1,
@@ -415,11 +418,54 @@ grouped `AGG_SUM` + `AGG_AVERAGE` over two members
 A request that reads every member (a 50 × 50 pairwise covariance) scales
 almost linearly: 6.1 s at 1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8 on
 the archive, with the peak heap 48–69 MB. Each extra worker adds one
-read window and up to two unmerged partials (their group buckets) to
+read window and one unmerged partial (its group buckets) to
 the peak, so a high-cardinality grouping costs more memory per worker
 than these four-bucket runs. The shard count does not: merged partials
 are released. Beyond the number of shards, extra shard workers sit
 idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
+
+## Large archive runs
+
+Two different knobs bound memory on a large run, and they do different
+things.
+
+`MaxEstimatedMemory` (`--limit max_estimated_memory=N`) is a refusal. Predict and
+the pre-flight check compare the estimate above with the budget before
+any record decodes, and an over-budget run fails up front with
+`PULSE_LIMIT_EXCEEDED` instead of running out of memory part way. Over a
+shard archive it first shrinks the merge window to fit, as described
+above.
+
+The Go runtime's soft memory limit is pacing, not a refusal. Near the
+limit the garbage collector runs more often, so a run whose live heap
+fits but whose garbage would not finishes inside the cap, at some CPU
+cost. It never refuses a request, and a live heap above it still grows.
+The limit belongs to the whole process, so Pulse never sets it on an
+embedder's behalf and `pulse.Options` has no field for it:
+
+- **Embedders** call `debug.SetMemoryLimit` themselves (or set
+  `GOMEMLIMIT`), once for the process, leaving room for everything else
+  the process holds.
+- **The CLI** takes the global `--memory-limit` flag on every leaf,
+  `pulse mcp` included, and applies it before the leaf runs: a byte size
+  as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`) or a share of the
+  memory ceiling (`85%`, read on darwin and linux): physical RAM, lowered
+  on linux to the cgroup v2 `memory.max` (`/sys/fs/cgroup/memory.max`)
+  when that holds a byte count below it — so inside a 16 GiB container
+  on a larger host `85%` is 85% of 16 GiB; `max`, no cgroup v2 file or
+  a cgroup v1 host leave the RAM. The
+  flag wins over `GOMEMLIMIT` when both are set. Unset, the runtime is
+  untouched: no default, no RAM-derived value. Zero, a negative, more
+  than `100%` or an unknown unit is a usage error (exit 2) carrying
+  `CLI_INPUT`.
+
+```bash
+pulse api process --request big.json --json --memory-limit 14GiB --limit max_estimated_memory=12000000000
+```
+
+Use both on a machine with a hard memory ceiling: the estimate refuses
+what cannot fit, and the soft limit keeps garbage from pushing a run
+that does fit over the ceiling.
 
 ## Memory-mapped reads and rewrites (Windows)
 

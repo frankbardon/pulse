@@ -17,7 +17,7 @@ func runWorkersBefore(t *testing.T, args ...string) (context.Context, error) {
 	var got context.Context
 	root := &cli.Command{
 		Name:   "pulse",
-		Flags:  append(append(LogFlags(), WorkerFlags()...), LimitFlags()...),
+		Flags:  append(append(append(LogFlags(), WorkerFlags()...), LimitFlags()...), MemoryLimitFlags()...),
 		Before: GlobalBefore,
 		Action: func(ctx context.Context, _ *cli.Command) error { got = ctx; return nil },
 	}

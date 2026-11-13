@@ -46,6 +46,9 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 	}{
 		{"dictionary archive", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", false) }},
 		{"dictionary archive grouped", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", true) }},
+		// A grouped total() (U74 E3-S1, #494): ShardWorkers 4 runs the
+		// two-phase pre-pass, then the grouped reduce.
+		{"dictionary archive grouped total", memCfg, func() *types.Request { return totalArchiveRequest("dict.pulse", true, "x0 / total(x0)") }},
 		{"matrix scale archive", osCfg, func() *types.Request { return matrixScaleRequest(scale, p, "pairwise", false) }},
 		// The buffered arm (an order statistic): every record is
 		// materialised, so the payload term's headroom over the largest

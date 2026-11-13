@@ -69,19 +69,110 @@ type GroupBucket struct {
 	Floors []SlotFloor
 }
 
-// NewGroupBucket mints a key's bucket: one fresh instance per spec
-// through mint, plus floors shaped like floorTmpl (NewSlotFloorsLike —
-// nil when floorTmpl is nil, i.e. the plan does not compute Groups).
-func NewGroupBucket(n int, mint func(i int) (OnlineAggregator, error), floorTmpl []SlotFloor) (*GroupBucket, error) {
-	aggs := make([]OnlineAggregator, n)
+// BucketMinter mints a run's group buckets: one fresh aggregator
+// instance per spec through mint, plus floors shaped like floorTmpl
+// (NewSlotFloorsLike — nil when floorTmpl is nil, i.e. the plan does not
+// compute Groups). Built once per run (or partition); Mint is called once
+// per new key.
+//
+// A bucket's AGG_MIN / AGG_MAX slots are not minted one heap object
+// each: their state is an 8-byte extremum whose zero value is a fresh
+// instance, so the minter carves them from one slab per bucket per type
+// (memory-bounds E2-S2 — a twelve-AGG_MAX bucket costs one allocation
+// for its extrema instead of twelve). Which slots qualify is learned by
+// minting each slot once, on the first Mint (whose bucket keeps those
+// instances); every other slot goes through mint on every bucket.
+type BucketMinter struct {
+	n         int
+	mint      func(i int) (OnlineAggregator, error)
+	floorTmpl []SlotFloor
+	probed    bool
+	kinds     []bucketSlotKind
+	nMax      int
+	nMin      int
+}
+
+// bucketSlotKind is how BucketMinter fills one slot.
+type bucketSlotKind uint8
+
+const (
+	slotMinted bucketSlotKind = iota
+	slotMaxSlab
+	slotMinSlab
+)
+
+// NewBucketMinter is a minter of n-slot buckets — a value, so a run
+// holding it inline allocates nothing for it.
+func NewBucketMinter(n int, mint func(i int) (OnlineAggregator, error), floorTmpl []SlotFloor) BucketMinter {
+	return BucketMinter{n: n, mint: mint, floorTmpl: floorTmpl}
+}
+
+// probe mints the first bucket's slots one by one and records which
+// slots the slabs carry from then on.
+func (m *BucketMinter) probe() (*GroupBucket, error) {
+	aggs := make([]OnlineAggregator, m.n)
 	for i := range aggs {
-		oa, err := mint(i)
+		oa, err := m.mint(i)
 		if err != nil {
 			return nil, err
 		}
+		kind := slotMinted
+		switch oa.(type) {
+		case *maxAggregator:
+			kind = slotMaxSlab
+			m.nMax++
+		case *minAggregator:
+			kind = slotMinSlab
+			m.nMin++
+		}
+		if kind != slotMinted && m.kinds == nil {
+			// Only a run with an extremum slot pays for the plan.
+			m.kinds = make([]bucketSlotKind, m.n)
+		}
+		if m.kinds != nil {
+			m.kinds[i] = kind
+		}
 		aggs[i] = oa
 	}
-	return &GroupBucket{Aggs: aggs, Floors: NewSlotFloorsLike(floorTmpl)}, nil
+	m.probed = true
+	return &GroupBucket{Aggs: aggs, Floors: NewSlotFloorsLike(m.floorTmpl)}, nil
+}
+
+// Mint is a new key's bucket.
+func (m *BucketMinter) Mint() (*GroupBucket, error) {
+	if !m.probed {
+		return m.probe()
+	}
+	var maxes []maxAggregator
+	if m.nMax > 0 {
+		maxes = make([]maxAggregator, m.nMax)
+	}
+	var mins []minAggregator
+	if m.nMin > 0 {
+		mins = make([]minAggregator, m.nMin)
+	}
+	aggs := make([]OnlineAggregator, m.n)
+	for i := range aggs {
+		kind := slotMinted
+		if m.kinds != nil {
+			kind = m.kinds[i]
+		}
+		switch kind {
+		case slotMaxSlab:
+			aggs[i] = &maxes[0]
+			maxes = maxes[1:]
+		case slotMinSlab:
+			aggs[i] = &mins[0]
+			mins = mins[1:]
+		default:
+			oa, err := m.mint(i)
+			if err != nil {
+				return nil, err
+			}
+			aggs[i] = oa
+		}
+	}
+	return &GroupBucket{Aggs: aggs, Floors: NewSlotFloorsLike(m.floorTmpl)}, nil
 }
 
 // GroupedTail is everything a streaming grouped run has once the

@@ -351,18 +351,18 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 		t.Errorf("value-state fan-out adds %d bytes, want 2 buckets + 1,000 x 96", d)
 	}
 	// U51 E2-S4: the incremental merge holds at most the merge window's
-	// shards (limits.ShardMergeWindow: 2 x workers) beside the merged
-	// state, so on 12 shards under 2 workers only the 4 LARGEST shards'
-	// partials are charged — bucket bounds and per-value records alike
-	// — never all 12.
+	// shards (limits.ShardMergeWindow: the worker count, U74 #502)
+	// beside the merged state, so on 12 shards under 2 workers only the
+	// 2 LARGEST shards' partials are charged — bucket bounds and
+	// per-value records alike — never all 12.
 	wide := LimitInputs{Records: 1000, ShardRecords: []int64{50, 300, 10, 90, 40, 200, 60, 70, 20, 80, 30, 50}, ShardWorkers: 2, JoinRightRows: -1}
 	wideSerial := wide
 	wideSerial.ShardWorkers = 1
-	if d, want := est(ranged, wide)-est(ranged, wideSerial), int64((300+200+90+80)*partitionBucket1); d != want {
-		t.Errorf("12 shards under 2 workers add %d bytes, want the window's 4 largest shards' buckets (%d)", d, want)
+	if d, want := est(ranged, wide)-est(ranged, wideSerial), int64((300+200)*partitionBucket1); d != want {
+		t.Errorf("12 shards under 2 workers add %d bytes, want the window's 2 largest shards' buckets (%d)", d, want)
 	}
-	if d, want := est(distinct, wide)-est(distinct, wideSerial), 4*partitionBucketOf(types.AGG_DISTINCT_COUNT)+(300+200+90+80)*96; d != want {
-		t.Errorf("12-shard value state adds %d bytes, want 4 partial buckets + the 4 largest shards' records x 96 (%d)", d, want)
+	if d, want := est(distinct, wide)-est(distinct, wideSerial), 2*partitionBucketOf(types.AGG_DISTINCT_COUNT)+(300+200)*96; d != want {
+		t.Errorf("12-shard value state adds %d bytes, want 2 partial buckets + the 2 largest shards' records x 96 (%d)", d, want)
 	}
 	// A request the merge gate refuses stays serial at any cap.
 	median := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}
@@ -959,5 +959,62 @@ func TestEstimateMemory_CrosstabGrid(t *testing.T) {
 	}
 	if diff, wantDiff := uncapped-want, (n*n-5_000)*pos(true, false, false); diff != wantDiff {
 		t.Errorf("cap lowers the estimate by %d, want %d", diff, wantDiff)
+	}
+}
+
+// TestEstimateMemory_FannedTwoPassChargesStreaming: a two-pass
+// total() formula beside a matrix is not streamable, so the SERIAL run
+// buffers every record (MemoryArm: buffered) — but once it fans out
+// across shard or decode workers (mergegate.ParallelTotals admits the
+// ungrouped form, U51 #399) both reducers only fold rows into
+// partials, never materialising them, so the estimate charges the
+// streaming arm: the same figure as the row-local twin, whose formula
+// carries no total().
+func TestEstimateMemory_FannedTwoPassChargesStreaming(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "num", Type: encoding.FieldTypeF64},
+		{Name: "num2", Type: encoding.FieldTypeF64},
+	}}
+	withFormula := func(expr string) *types.Request {
+		return &types.Request{Aggregations: sumOf("num"),
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: expr, Label: "share"}},
+			Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"num", "num2"}}}}
+	}
+	twoPass, rowLocal := withFormula("num / total(num)"), withFormula("num * 2")
+	est := func(req *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(req, schema, nil, in)
+		if !ok {
+			t.Fatalf("no estimate for %+v", in)
+		}
+		return n
+	}
+	archive := func(workers int) LimitInputs {
+		return LimitInputs{Records: 1000, ShardRecords: []int64{600, 400}, ShardWorkers: workers, JoinRightRows: -1}
+	}
+	file := func(workers int) LimitInputs {
+		return LimitInputs{Records: 2 * limits.ParallelDecodeRecordThreshold, Mappable: true, DecodeWorkers: workers, JoinRightRows: -1}
+	}
+	for _, c := range []struct {
+		name             string
+		serial, fannedIn LimitInputs
+	}{
+		{"shard workers", archive(1), archive(2)},
+		{"decode workers", file(1), file(2)},
+	} {
+		if MemoryArm(twoPass, schema, nil, c.serial) != limits.ArmBuffered || MemoryArm(rowLocal, schema, nil, c.serial) != limits.ArmStreaming {
+			t.Fatalf("%s: want the total() formula buffered and its row-local twin streaming serially", c.name)
+		}
+		if !ShardFanOut(twoPass, schema, nil, c.fannedIn) && !DecodeFanOut(twoPass, schema, nil, c.fannedIn) {
+			t.Fatalf("%s: the total() formula does not fan out", c.name)
+		}
+		if s, r := est(twoPass, c.serial), est(rowLocal, c.serial); s <= r {
+			t.Errorf("%s: serial two-pass %d not above the streaming twin %d (buffered records)", c.name, s, r)
+		}
+		if f, r := est(twoPass, c.fannedIn), est(rowLocal, c.fannedIn); f != r {
+			t.Errorf("%s: fanned two-pass charges %d, want the streaming twin's %d", c.name, f, r)
+		}
 	}
 }

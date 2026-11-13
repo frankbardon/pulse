@@ -354,8 +354,8 @@ func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema,
 // single-file parallel decode reducer consult before fanning out work
 // across a worker pool. Returns true iff every aggregator, grouper,
 // and filterer is mergeable AND the request contains no windows, no
-// features, no regressions, no tests, no two-pass attributes (save an
-// ungrouped one-layer total() formula, which the reducers run two-phase:
+// features, no regressions, no tests, no two-pass attributes (save a
+// total() formula, grouped or not, in any pre-pass layer, which the reducers run two-phase:
 // mergegate.ParallelTotals, formula_total_merge.go — though not when a
 // matrix reads it as a computed member), and no decimal-typed built-in
 // aggregation targets. A nil/empty aggregation
@@ -1126,6 +1126,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		}
 		return oa, nil
 	}
+	minter := NewBucketMinter(len(specs), mint, bucketFloorTmpl)
 	// route folds r into key's bucket, minting the bucket (and its
 	// floors and matrix slots) on the key's first record.
 	route := func(key string, r *Record) error {
@@ -1137,7 +1138,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return err
 			}
 			var err error
-			if b, err = NewGroupBucket(len(specs), mint, bucketFloorTmpl); err != nil {
+			if b, err = minter.Mint(); err != nil {
 				return err
 			}
 			buckets[key] = b

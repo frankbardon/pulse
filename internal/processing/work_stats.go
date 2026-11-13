@@ -158,7 +158,7 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 // grouped arm — the serial streaming scan and both parallel reducers —
 // switches its floors on through it, and only when the plan computes
 // Groups; each bucket then carries its floors in GroupBucket.Floors
-// (minted by NewGroupBucket), not in a second per-key table.
+// (minted by BucketMinter.Mint), not in a second per-key table.
 func GroupFloorsOn() bool {
 	workGroupFloorBuilds.Add(1)
 	return true

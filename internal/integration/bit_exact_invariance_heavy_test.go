@@ -12,8 +12,8 @@ import (
 // (bit_exact_invariance_test.go): the archive groups of every shape the
 // fast tier's smoke leaves out, and every shape's decode group over the
 // 120,000-record file — DecodeWorkers 2/3/7/8 ≡
-// serial on the parallel-decode arm (the sequential total() shapes on
-// their serial arm; a crosstab's fused arm serial, its buffered arm
+// serial on the parallel-decode arm (every total() shape, multi-layer
+// included, fanned out; a crosstab's fused arm serial, its buffered arm
 // fanned out).
 func TestBitExact_Heavy(t *testing.T) {
 	t.Parallel()

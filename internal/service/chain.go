@@ -23,7 +23,9 @@ import (
 //
 // All stages must pass processing.ChainRefusal (mergeable +
 // scalar-emitting aggregators only — internal/mergegate, the rule the
-// chain validator shares). The executor returns
+// chain validator shares). A total() formula passes it: stage 0's runs
+// on Process's parallel reducers, a later stage's two-phase over the
+// previous stage's rows (runChainStageTotals). The executor returns
 // PULSE_CHAIN_NOT_MERGEABLE with the offending stage index in details
 // on first failure, allowing callers to fall back to per-stage
 // Process; a stage >= 1 carrying Joins is PULSE_CHAIN_STAGE_JOIN. Stage 0's Request.Cohort is replaced with req.Cohort; any
@@ -412,7 +414,14 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	ei := execInfoFrom(ctx)
 	ei.Lap(observe.PhasePlan)
 	stageCtx := withComputePlan(ctx, s.resolveComputePlan(ctx, stage, ret, plan))
-	resp, err = s.runChainStage(stageCtx, s.zoned(stage, zones), plan, synthSchema, records)
+	zoned := s.zoned(stage, zones)
+	if chainStageTwoPhase(zoned, records) {
+		// A total() formula runs two-phase over the rows, lazily
+		// (chain_totals.go) — never buffering a record a row.
+		resp, err = s.runChainStageTotals(stageCtx, zoned, plan, synthSchema, records)
+	} else {
+		resp, err = s.runChainStage(stageCtx, zoned, plan, synthSchema, records)
+	}
 	if err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}

@@ -21,6 +21,13 @@ import (
 // The pre-pass decode is projected to the pre-pass request
 // (processing.TotalsPrepassRequest: the filters and the total()
 // argument fields).
+//
+// A request whose total() arguments read an earlier total (U74 E3-S2,
+// #494) runs one such parallel pre-pass per layer of the serial
+// two-pass plan, in order (prepassLayers): layer L's workers bind every
+// earlier layer's published values before their first row, fold the
+// layer-L formulas only, and the publication carries the earlier
+// layers' values on, so the last one is everything phase 2 binds.
 
 // prepassProjectionHook, when set (tests only — never in production),
 // receives each phase-1 pre-pass's decode shape as the arm installs
@@ -30,9 +37,9 @@ var prepassProjectionHook func(keep encx.FieldFilter, projected int)
 // newPrepassWorker builds one pre-pass worker's operators: its
 // accumulator, its filter chain and scratch filter counters (the
 // reduce counts the filters; the pre-pass only asks pass / fail).
-func (s *Service) newPrepassWorker(ctx context.Context, req *types.Request, schema *encoding.Schema) (*prepassWorker, error) {
+func (s *Service) newPrepassWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, layer int, prior *processing.PublishedTotals) (*prepassWorker, error) {
 	vecs := processing.ExprVectors(req, schema, s.extensions.Classifier(catalogOf(model.SetFrom(ctx))))
-	acc, err := processing.NewTotalsPrepass(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
+	acc, err := processing.NewTotalsPrepass(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, layer, prior)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +67,26 @@ func (w *prepassWorker) fold(rec *processing.Record) error {
 	return w.acc.Fold(rec)
 }
 
+// prepassLayers runs phase 1 layer by layer (processing.TotalsPrepassLayers):
+// run folds one layer over every partition given the earlier layers'
+// publication. A layer no worker folded (no partition reached a worker)
+// publishes nothing, and there is then no row for a later layer or
+// phase 2 to score: the loop stops with what it has.
+func (s *Service) prepassLayers(req *types.Request, run func(layer int, prior *processing.PublishedTotals) (*processing.PublishedTotals, error)) (*processing.PublishedTotals, error) {
+	var pub *processing.PublishedTotals
+	for layer, n := 0, processing.TotalsPrepassLayers(req.Attributes, s.extensions); layer < n; layer++ {
+		next, err := run(layer, pub)
+		if err != nil {
+			return nil, err
+		}
+		if next == nil {
+			break
+		}
+		pub = next
+	}
+	return pub, nil
+}
+
 // publishPrepass merges the workers' accumulators (any order: the
 // binned sums merge exactly) and publishes the totals.
 func publishPrepass(workers []*prepassWorker) (*processing.PublishedTotals, error) {
@@ -82,11 +109,18 @@ func publishPrepass(workers []*prepassWorker) (*processing.PublishedTotals, erro
 	return merged.Publish()
 }
 
-// shardTotalsPrepass is the shard-parallel arm's phase 1: workers
-// goroutines take the archive's shards in turn and fold every one into
-// their own accumulator.
+// shardTotalsPrepass is the shard-parallel arm's phase 1: per pre-pass
+// layer, workers goroutines take the archive's shards in turn and fold
+// every one into their own accumulator.
 func (s *Service) shardTotalsPrepass(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, shards []ShardEntry, workers int) (*processing.PublishedTotals, error) {
-	dec := s.shardDecodeFor(ctx, processing.TotalsPrepassRequest(req, s.extensions), schema)
+	return s.prepassLayers(req, func(layer int, prior *processing.PublishedTotals) (*processing.PublishedTotals, error) {
+		return s.shardTotalsPrepassLayer(ctx, req, schema, arch, shards, workers, layer, prior)
+	})
+}
+
+// shardTotalsPrepassLayer is one layer of shardTotalsPrepass.
+func (s *Service) shardTotalsPrepassLayer(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, shards []ShardEntry, workers, layer int, prior *processing.PublishedTotals) (*processing.PublishedTotals, error) {
+	dec := s.shardDecodeFor(ctx, processing.TotalsPrepassRequest(req, s.extensions, layer), schema)
 	if prepassProjectionHook != nil {
 		prepassProjectionHook(dec.keep, dec.projected)
 	}
@@ -100,7 +134,7 @@ func (s *Service) shardTotalsPrepass(ctx context.Context, req *types.Request, sc
 	for w := 0; w < workers; w++ {
 		g.Go(func() (err error) {
 			defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
-			pw, err := s.newPrepassWorker(gctx, req, schema)
+			pw, err := s.newPrepassWorker(gctx, req, schema, layer, prior)
 			if err != nil {
 				return err
 			}
@@ -153,11 +187,18 @@ func (s *Service) prepassShard(ctx context.Context, schema *encoding.Schema, dec
 	}
 }
 
-// decodeTotalsPrepass is the parallel-decode arm's phase 1: the same
-// segments the reduce decodes, each worker folding its segment, under
-// the pre-pass projection.
+// decodeTotalsPrepass is the parallel-decode arm's phase 1: per
+// pre-pass layer, the same segments the reduce decodes, each worker
+// folding its segment, under that layer's pre-pass projection.
 func (s *Service) decodeTotalsPrepass(ctx context.Context, req *types.Request, schema *encoding.Schema, pctx *parallelDecodeContext, workers int) (*processing.PublishedTotals, error) {
-	keep, plan, projected := s.decodeProjection(ctx, processing.TotalsPrepassRequest(req, s.extensions), schema)
+	return s.prepassLayers(req, func(layer int, prior *processing.PublishedTotals) (*processing.PublishedTotals, error) {
+		return s.decodeTotalsPrepassLayer(ctx, req, schema, pctx, workers, layer, prior)
+	})
+}
+
+// decodeTotalsPrepassLayer is one layer of decodeTotalsPrepass.
+func (s *Service) decodeTotalsPrepassLayer(ctx context.Context, req *types.Request, schema *encoding.Schema, pctx *parallelDecodeContext, workers, layer int, prior *processing.PublishedTotals) (*processing.PublishedTotals, error) {
+	keep, plan, projected := s.decodeProjection(ctx, processing.TotalsPrepassRequest(req, s.extensions, layer), schema)
 	if prepassProjectionHook != nil {
 		prepassProjectionHook(keep, projected)
 	}
@@ -170,7 +211,7 @@ func (s *Service) decodeTotalsPrepass(ctx context.Context, req *types.Request, s
 	pre.binding = recordBindingFor(schema, plan, keep, attributeLabels(req)...)
 	states := make([]*prepassWorker, workers)
 	factory := func(workerIdx, _, _ int) DecodeCallback {
-		pw, buildErr := s.newPrepassWorker(ctx, req, schema)
+		pw, buildErr := s.newPrepassWorker(ctx, req, schema, layer, prior)
 		states[workerIdx] = pw
 		return func(rec *processing.Record) error {
 			if buildErr != nil {

@@ -210,8 +210,8 @@ type shardResult struct {
 // never came from it (the shared grouped tail orders the rows).
 //
 // The live partials are bounded by the dispatch window (window:
-// descx.ShardMergeWindow — limits.ShardMergeWindow(workers) = 2 x
-// workers, shrunk to fit a set MaxEstimatedMemory; 0 or less is the
+// descx.ShardMergeWindow — limits.ShardMergeWindow(workers) = the
+// worker count (U74 #502), shrunk to fit a set MaxEstimatedMemory; 0 or less is the
 // unshrunk window): shard j is handed to a worker
 // only once j < next + window, where next is the first shard not yet
 // merged, so at most window partials (scanning, or done and waiting
@@ -451,12 +451,12 @@ type shardPartial struct {
 	keySets [][]string
 	cur     *processing.Record
 	emit    func(key string) error
-	// specs and schema mint a new bucket's aggregators, through mint
+	// specs and schema mint a new bucket's aggregators, through minter
 	// (built once by initGrouped, so a bucket mint allocates nothing
 	// beyond the bucket itself).
 	specs  []aggSpec
 	schema *encoding.Schema
-	mint   func(i int) (processing.OnlineAggregator, error)
+	minter processing.BucketMinter
 }
 
 // shardDecode is the per-shard parallel reducer's decode shape, built
@@ -833,7 +833,7 @@ func (sp *shardPartial) initGrouped(groups []*types.Group, groupers []processing
 	}
 	sp.groupSpecs, sp.groupers = groups, groupers
 	sp.specs, sp.schema = specs, schema
-	sp.mint = func(i int) (processing.OnlineAggregator, error) {
+	sp.minter = processing.NewBucketMinter(len(specs), func(i int) (processing.OnlineAggregator, error) {
 		spec := sp.specs[i]
 		inst, err := spec.factory(spec.agg, sp.schema)
 		if err != nil {
@@ -845,7 +845,7 @@ func (sp *shardPartial) initGrouped(groups []*types.Group, groupers []processing
 				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
 		}
 		return online, nil
-	}
+	}, sp.groupFloorTmpl)
 	sp.keyers = make([]*processing.GroupKeyer, len(groupers))
 	for i, g := range groupers {
 		k, err := processing.NewGroupKeyer(g)
@@ -918,7 +918,7 @@ func (sp *shardPartial) route(key string, rec *processing.Record) error {
 			return err
 		}
 		var err error
-		if bucket, err = processing.NewGroupBucket(len(sp.specs), sp.mint, sp.groupFloorTmpl); err != nil {
+		if bucket, err = sp.minter.Mint(); err != nil {
 			return err
 		}
 		sp.groups[key] = bucket

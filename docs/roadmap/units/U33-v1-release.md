@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723]
 branch: v1-release
 ---
 
@@ -187,3 +187,9 @@ Filed from [U37 handed on](U37-shell-completion.md#handed-on); tick in [`TODO.md
 Filed from [U77 handed on](U77-ci-platform.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#684** — **Path messages quote with `%q`.** On Windows every backslash of a path in an error or warning message reads doubled (`"C:\\Users\\…"`). Sweep the ~137 engine sites to one path-quoting helper (Unix output unchanged) and repoint the four tests that match `strconv.Quote(path)`.
+
+## Inherited from U74
+
+Filed from [U74 handed-on](U74-memory-bounds.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it.

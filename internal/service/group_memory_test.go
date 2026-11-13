@@ -227,91 +227,109 @@ func TestGroupMemory_ManyShardsWorkerInvariant(t *testing.T) {
 	}
 }
 
-// TestGroupMemory_MergeWindowFitsBudget (U51 E5-S4): under a set
-// MaxEstimatedMemory the per-shard reducer shrinks its merge window to
-// the largest one whose whole-run estimate fits
+// TestGroupMemory_MergeWindowFitsBudget (U51 E5-S4, U74 #502): under a
+// set MaxEstimatedMemory the per-shard reducer shrinks its merge window
+// to the largest one whose whole-run estimate fits
 // (limits.ShardMergeWindowWithin), and predict's rule
 // (descx.ShardMergeWindow, whose estimate RequestLimitFindings judges)
-// is the window the run takes — at every budget from the unshrunk
-// estimate down to below one live partial. A run under a shrunk window
-// answers byte-identically to the unbudgeted run (same merge order); a
-// budget below one partial is refused on both sides with the same
-// figure.
+// is the window the run takes — at every worker count, and at every
+// budget from the unshrunk estimate down to below one live partial.
+// Unbudgeted, the window IS the worker count (#502: one in-flight
+// partial a worker, not two). A run under a shrunk window answers
+// byte-identically to the unbudgeted run (same merge order); a budget
+// below one partial is refused on both sides with the same figure.
 func TestGroupMemory_MergeWindowFitsBudget(t *testing.T) {
 	// serial: swaps the package-level service.shardWindowHook test hook
 
 	cfg := manyShardArchive(t)
-	const workers = 3
-	full := limits.ShardMergeWindow(workers)
 	ctx := context.Background()
-	open := func(budget int64) *Service {
-		svc := New(cfg)
-		svc.SetShardWorkers(workers)
-		l := limits.Defaults()
-		l.MaxEstimatedMemory = budget
-		svc.SetLimits(l)
-		return svc
-	}
-	run := func(svc *Service) (resp *types.Response, window int, err error) {
-		shardWindowHook = func(w int) { window = w }
-		defer func() { shardWindowHook = nil }()
-		resp, err = svc.Process(ctx, manyShardRequest())
-		return resp, window, err
-	}
-	// The unbudgeted answer and the estimate at every window.
-	base, w0, err := run(open(0))
-	if err != nil || w0 != full {
-		t.Fatalf("unbudgeted run: window %d (want %d), %v", w0, full, err)
-	}
-	probe := open(1)
-	cohort := mustOpen(t, probe, "many.pulse")
-	lin, err := probe.limitInputs(ctx, cohort, "many.pulse")
-	if err != nil {
-		t.Fatal(err)
-	}
-	estFull, ok := descx.EstimateMemory(manyShardRequest(), cohort.Schema(), probe.instance, lin)
-	if !ok {
-		t.Fatal("no estimate")
-	}
-	est1 := archiveMemoryEstimate(t, probe, manyShardRequest()) // refused at window 1
-	if est1 >= estFull {
-		t.Fatalf("one live partial (%d) costs no less than %d (%d)", est1, full, estFull)
-	}
-	mid := (est1 + estFull) / 2
-	for _, c := range []struct {
-		name   string
-		budget int64
-		window int // 0: refused
-	}{
-		{"unshrunk estimate", estFull, full},
-		{"between", mid, -1},
-		{"one partial", est1, 1},
-		{"below one partial", est1 - 1, 0},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			svc := open(c.budget)
-			l := svc.Limits()
-			predicted := descx.ShardMergeWindow(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
-			findings := descx.RequestLimitFindings(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
-			resp, window, err := run(svc)
-			if c.window == 0 {
-				d := requireCodedLimit(t, err)
-				if len(findings) != 1 || d["observed"] != findings[0].Estimated || findings[0].Estimated != est1 {
-					t.Fatalf("refusal observed %v, predict findings %+v, want estimate %d", d["observed"], findings, est1)
-				}
-				return
+	for _, workers := range []int{2, 3, 5} {
+		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
+			full := limits.ShardMergeWindow(workers)
+			if full != workers {
+				t.Fatalf("limits.ShardMergeWindow(%d) = %d, want the worker count", workers, full)
 			}
-			if err != nil || len(findings) != 0 {
-				t.Fatalf("budget %d: run %v, predict findings %+v", c.budget, err, findings)
+			open := func(budget int64) *Service {
+				svc := New(cfg)
+				svc.SetShardWorkers(workers)
+				l := limits.Defaults()
+				l.MaxEstimatedMemory = budget
+				svc.SetLimits(l)
+				return svc
 			}
-			if window != predicted {
-				t.Fatalf("budget %d: run window %d, predict window %d", c.budget, window, predicted)
+			run := func(svc *Service) (resp *types.Response, window int, err error) {
+				shardWindowHook = func(w int) { window = w }
+				defer func() { shardWindowHook = nil }()
+				resp, err = svc.Process(ctx, manyShardRequest())
+				return resp, window, err
 			}
-			if c.window > 0 && window != c.window || c.window < 0 && (window <= 1 || window >= full) {
-				t.Fatalf("budget %d: window %d (full %d)", c.budget, window, full)
+			// The unbudgeted answer and the estimate at every window.
+			unbudgeted := open(0)
+			base, w0, err := run(unbudgeted)
+			if err != nil || w0 != full {
+				t.Fatalf("unbudgeted run: window %d (want %d), %v", w0, full, err)
 			}
-			if !reflect.DeepEqual(resp.Data, base.Data) || !reflect.DeepEqual(resp.Components, base.Components) {
-				t.Fatalf("budget %d (window %d): answer differs from the unbudgeted run", c.budget, window)
+			probe := open(1)
+			cohort := mustOpen(t, probe, "many.pulse")
+			lin, err := probe.limitInputs(ctx, cohort, "many.pulse")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p := descx.ShardMergeWindow(manyShardRequest(), cohort.Schema(), unbudgeted.instance, unbudgeted.Limits(), lin); p != w0 {
+				t.Fatalf("unbudgeted: predict window %d, run window %d", p, w0)
+			}
+			estFull, ok := descx.EstimateMemory(manyShardRequest(), cohort.Schema(), probe.instance, lin)
+			if !ok {
+				t.Fatal("no estimate")
+			}
+			est1 := archiveMemoryEstimate(t, probe, manyShardRequest()) // refused at window 1
+			if est1 >= estFull {
+				t.Fatalf("one live partial (%d) costs no less than %d (%d)", est1, full, estFull)
+			}
+			mid := (est1 + estFull) / 2
+			cases := []struct {
+				name   string
+				budget int64
+				window int // 0: refused; -1: strictly between 1 and full
+			}{
+				{"unshrunk estimate", estFull, full},
+				{"one partial", est1, 1},
+				{"below one partial", est1 - 1, 0},
+			}
+			if full > 2 {
+				cases = append(cases, struct {
+					name   string
+					budget int64
+					window int
+				}{"between", mid, -1})
+			}
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					svc := open(c.budget)
+					l := svc.Limits()
+					predicted := descx.ShardMergeWindow(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
+					findings := descx.RequestLimitFindings(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
+					resp, window, err := run(svc)
+					if c.window == 0 {
+						d := requireCodedLimit(t, err)
+						if len(findings) != 1 || d["observed"] != findings[0].Estimated || findings[0].Estimated != est1 {
+							t.Fatalf("refusal observed %v, predict findings %+v, want estimate %d", d["observed"], findings, est1)
+						}
+						return
+					}
+					if err != nil || len(findings) != 0 {
+						t.Fatalf("budget %d: run %v, predict findings %+v", c.budget, err, findings)
+					}
+					if window != predicted {
+						t.Fatalf("budget %d: run window %d, predict window %d", c.budget, window, predicted)
+					}
+					if c.window > 0 && window != c.window || c.window < 0 && (window <= 1 || window >= full) {
+						t.Fatalf("budget %d: window %d (full %d)", c.budget, window, full)
+					}
+					if !reflect.DeepEqual(resp.Data, base.Data) || !reflect.DeepEqual(resp.Components, base.Components) {
+						t.Fatalf("budget %d (window %d): answer differs from the unbudgeted run", c.budget, window)
+					}
+				})
 			}
 		})
 	}

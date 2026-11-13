@@ -14,8 +14,10 @@ import (
 // to 317: a bucket's aggregators and floors now ride one *GroupBucket
 // map entry (one more allocation per bucket, four buckets here) in
 // place of a second per-key floor table — fewer bytes a group, one
-// allocation more.
-const singleGrouperStreamAllocCeiling = 317
+// allocation more. memory-bounds E2-S2 re-based it to 318: the run's
+// BucketMinter (it learns which slots its per-bucket extremum slabs
+// carry) is one per-run object; nothing per bucket or per record.
+const singleGrouperStreamAllocCeiling = 318
 
 // TestStreamingGrouped_SingleGrouperAllocCeiling: the one-grouper
 // streaming arm allocates no more than it did before composite keys —

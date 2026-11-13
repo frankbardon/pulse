@@ -365,11 +365,11 @@ func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
 // TestFormulaTotal_PartitionedRouting: on each parallel arm — the
 // per-shard reducer (shard archive, ShardWorkers > 1) and the parallel
 // buffered decode (single file over the threshold, DecodeWorkers > 1)
-// — a plain formula takes the parallel arm, and so does an ungrouped,
-// one-layer total() formula (U51 E3-S1, #399: a two-phase pre-pass
-// publishes the cohort total) — equal to the sequential single-file run
-// bit for bit (a partition-local total would differ). A GROUPED total()
-// formula falls back to the sequential arm (mergegate.ParallelTotals).
+// — a plain formula takes the parallel arm, and so does a one-layer
+// total() formula (U51 E3-S1, #399: a two-phase pre-pass publishes the
+// cohort total), ungrouped and grouped (U74 E3-S1, #494) — equal to the
+// sequential single-file run bit for bit (a partition- or group-local
+// total would differ).
 // Each arm is falsified on its own gate: shard_reduce.go's and
 // parallel_decode.go's CanMergeRequestWithExtensions checks.
 func TestFormulaTotal_PartitionedRouting(t *testing.T) {
@@ -462,13 +462,42 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 				t.Fatalf("advisories %+v, want one EXTRA_PASS adding 1 scan", pred.Advisories)
 			}
 
-			grouped := ftReq(path, total)
-			grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
-			if _, err := p.Process(ctx, grouped); err != nil {
+			// Grouped (U74 E3-S1, #494): the same two-phase arm, every
+			// group reading the cohort-wide total — the ungrouped bits,
+			// never a group- or partition-local sum.
+			grouped := func(path string) *types.Request {
+				r := ftReq(path, total)
+				r.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+				return r
+			}
+			gresp, err := p.Process(ctx, grouped(path))
+			if err != nil {
 				t.Fatalf("grouped total Process: %v", err)
 			}
-			if got := lastArm(); got == a.parallel {
-				t.Fatalf("grouped total() formula took the parallel arm %q", got)
+			if got := lastArm(); got != a.parallel {
+				t.Fatalf("grouped total() formula took arm %q, want %q (two-phase)", got, a.parallel)
+			}
+			gwant, err := ref.Process(ctx, grouped(refPath))
+			if err != nil {
+				t.Fatalf("grouped reference Process: %v", err)
+			}
+			if len(gresp.Data) < 2 || len(gresp.Data) != len(gwant.Data) {
+				t.Fatalf("grouped rows %d, reference %d (want >= 2, equal)", len(gresp.Data), len(gwant.Data))
+			}
+			for i, row := range gresp.Data {
+				if row["region"] != gwant.Data[i]["region"] {
+					t.Fatalf("row %d region %v, reference %v", i, row["region"], gwant.Data[i]["region"])
+				}
+				ftBits(t, "grouped reference max", gwant.Data[i]["max"], wv)
+				ftBits(t, "grouped partitioned max", row["max"], wv)
+				ftBits(t, "grouped partitioned min", row["min"], wv)
+			}
+			gpred, err := p.Predict(ctx, grouped(path))
+			if err != nil {
+				t.Fatalf("grouped Predict: %v", err)
+			}
+			if len(gpred.Advisories) != 1 || gpred.Advisories[0].Details["added_scans"] != 1 {
+				t.Fatalf("grouped advisories %+v, want one EXTRA_PASS adding 1 scan", gpred.Advisories)
 			}
 		})
 	}

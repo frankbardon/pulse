@@ -557,7 +557,7 @@ func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapsh
 			Code: string(errors.PULSE_ADVISORY_EXTRA_PASS),
 			Message: "ATTR_FORMULA at " + slot + " (" + label + ") calls total() over " + strconv.Itoa(totals) + " " + noun +
 				", so the run adds " + strconv.Itoa(extraPassAddedScans) + " pre-pass over the filtered rows to sum them before any row is evaluated; " +
-				"a two-pass attribute scheduled in the same pass shares it, the parallel reducers (ShardWorkers / DecodeWorkers) run it as a parallel pre-pass when the request is ungrouped and no total() argument reads another total, and with groupers or features the request runs buffered.",
+				"a two-pass attribute scheduled in the same pass shares it, the parallel reducers (ShardWorkers / DecodeWorkers) run it as a parallel pre-pass (grouped too, one per layer when a total() argument reads another total) when the request has no crosstab, and otherwise with groupers or features the request runs buffered.",
 			Details: map[string]any{
 				"slot":        slot,
 				"operator":    string(types.ATTR_FORMULA),

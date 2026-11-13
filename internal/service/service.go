@@ -929,7 +929,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	// The per-shard arm's merge window, from the pre-flight's own
-	// inputs: 2 x workers, shrunk to fit a set MaxEstimatedMemory
+	// inputs: the worker count, shrunk to fit a set MaxEstimatedMemory
 	// (descx.ShardMergeWindow — predict's rule).
 	window := descx.ShardMergeWindow(req, cohort.Schema(), s.instance, s.Limits(), lin)
 

@@ -283,13 +283,13 @@ func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
 	return sum / float64(len(vals)), nil
 }
 
-// frozenMin survives Finalize's reset so Components() returns the same
-// value an immediately-prior Finalize emitted; the buffered path
-// populates it via aggregateValues.
+// minAggregator is AGG_MIN's state: one 8-byte extremum (see the
+// type), the running minimum doubling as the value Components reads —
+// Finalize does not reset it, so Components after Finalize reports the
+// value Finalize returned without a frozen mirror. Eight bytes because a
+// grouped run holds one per slot per bucket (memory-bounds E2-S2).
 type minAggregator struct {
-	min       float64
-	seen      bool
-	frozenMin float64
+	x extremum
 }
 
 func newMinAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -303,7 +303,7 @@ func (a *minAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
-		a.frozenMin = math.NaN()
+		a.x = 0
 		return math.NaN(), nil
 	}
 	m := vals[0]
@@ -312,15 +312,14 @@ func (a *minAggregator) aggregateValues(vals []float64) (float64, error) {
 			m = v
 		}
 	}
-	a.frozenMin = m
-	return m, nil
+	a.x = encodeExtremum(m)
+	return a.x.result(), nil
 }
 
-// frozenMax mirrors max post-Finalize for Components().
+// maxAggregator is AGG_MAX's state: minAggregator's layout, the running
+// maximum.
 type maxAggregator struct {
-	max       float64
-	seen      bool
-	frozenMax float64
+	x extremum
 }
 
 func newMaxAggregator(_ *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
@@ -334,7 +333,7 @@ func (a *maxAggregator) Aggregate(records []*Record, field string) (float64, err
 
 func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 	if len(vals) == 0 {
-		a.frozenMax = math.NaN()
+		a.x = 0
 		return math.NaN(), nil
 	}
 	m := vals[0]
@@ -343,8 +342,47 @@ func (a *maxAggregator) aggregateValues(vals []float64) (float64, error) {
 			m = v
 		}
 	}
-	a.frozenMax = m
-	return m, nil
+	a.x = encodeExtremum(m)
+	return a.x.result(), nil
+}
+
+// extremum is AGG_MIN / AGG_MAX running state in eight bytes: the zero
+// value is "no value seen", anything else is a seen value's float64 bits
+// XORed with extremumKey. The key is a quiet NaN with a payload no
+// arithmetic produces, so the one bit pattern given up to "unseen" is
+// that NaN: a seen input carrying exactly those bits is stored as
+// math.NaN() instead (still NaN — the figure is NaN, JSON null, either
+// way; only that payload's bits are not kept). Every other value,
+// including ±0, ±Inf and every other NaN, round-trips bit for bit.
+type extremum uint64
+
+// extremumKey: a quiet NaN (exponent all ones, top mantissa bit set)
+// with the payload "PULSEX".
+const extremumKey = 0x7FF8_5055_4C53_4558
+
+// encodeExtremum is v's seen state.
+func encodeExtremum(v float64) extremum {
+	b := math.Float64bits(v)
+	if b == extremumKey {
+		b = math.Float64bits(math.NaN())
+	}
+	return extremum(b ^ extremumKey)
+}
+
+// value is the seen value, ok=false when none was seen.
+func (e extremum) value() (float64, bool) {
+	if e == 0 {
+		return 0, false
+	}
+	return math.Float64frombits(uint64(e) ^ extremumKey), true
+}
+
+// result is the aggregate: the seen value, NaN (JSON null) when none.
+func (e extremum) result() float64 {
+	if v, ok := e.value(); ok {
+		return v
+	}
+	return math.NaN()
 }
 
 // stdDevAggregator tracks Welford's running mean and M2 for streaming
@@ -1056,20 +1094,20 @@ func (a *averageAggregator) Components() (map[string]any, error) {
 }
 
 // Components returns {min} — the smallest contributing value. Empty
-// input yields NaN (JSON null), mirroring the undefined scalar. Reads
-// frozenMin so streaming Finalize-reset does not erase the value.
+// input yields NaN (JSON null), mirroring the undefined scalar. Finalize
+// keeps the state, so this is the value Finalize returned.
 func (a *minAggregator) Components() (map[string]any, error) {
 	return map[string]any{
-		"min": a.frozenMin,
+		"min": a.x.result(),
 	}, nil
 }
 
 // Components returns {max} — the largest contributing value. Empty
-// input yields NaN (JSON null), mirroring the undefined scalar. Reads
-// frozenMax so streaming Finalize-reset does not erase the value.
+// input yields NaN (JSON null), mirroring the undefined scalar. Finalize
+// keeps the state, so this is the value Finalize returned.
 func (a *maxAggregator) Components() (map[string]any, error) {
 	return map[string]any{
-		"max": a.frozenMax,
+		"max": a.x.result(),
 	}, nil
 }
 
