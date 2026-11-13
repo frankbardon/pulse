@@ -688,7 +688,8 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		Field: "coefficients.*",
 		Means: "Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) " +
 			"and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; " +
-			"decay:<channel>, k:<channel> and s:<channel> are each channel's carry-over, half-saturation spend and curve shape, and sigma the noise SD.",
+			"the adstock kernel's terms are each channel's carry-over — decay:<channel> (geometric), decay: and peak:<channel> (delayed, peak the lag of greatest effect) or shape: and scale:<channel> (Weibull, scale in periods) — " +
+			"k:<channel> and s:<channel> its half-saturation spend and curve shape, and sigma the noise SD.",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
@@ -734,7 +735,7 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		},
 	},
 }, append(regCI("the posterior mean minus (lower) or plus (upper) a normal critical value times the posterior SD, a normal approximation to the posterior.",
-	"For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.",
+	"For a skewed posterior (a decay near 0 or 1, a peak or k on its bound) it can leave the parameter's range: read the credible intervals in outputs.params instead.",
 	regCIOneAtATime,
 ), regConfLevel, descriptor.Interpretation{
 	Field: "n_obs",

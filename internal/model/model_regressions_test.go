@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -95,7 +96,18 @@ func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
 	if want := []string{"decay:tv", "decay:search", "k:tv", "k:search", "s:tv", "s:search", "sigma"}; !ok || !slices.Equal(got, want) {
 		t.Fatalf("terms %v (%v), want %v", got, ok, want)
 	}
-	for _, params := range []string{``, `{}`, `{"channels":[]}`, `not json`} {
+	for _, tc := range []struct{ kernel, want string }{
+		{"geometric", "decay:tv decay:search k:tv k:search s:tv s:search sigma"},
+		{"delayed", "decay:tv decay:search peak:tv peak:search k:tv k:search s:tv s:search sigma"},
+		{"weibull_cdf", "shape:tv shape:search scale:tv scale:search k:tv k:search s:tv s:search sigma"},
+		{"weibull_pdf", "shape:tv shape:search scale:tv scale:search k:tv k:search s:tv s:search sigma"},
+	} {
+		got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, `{"channels":["tv","search"],"time":"week","adstock":"`+tc.kernel+`"}`))
+		if want := strings.Fields(tc.want); !ok || !slices.Equal(got, want) {
+			t.Errorf("adstock %s: terms %v (%v), want %v", tc.kernel, got, ok, want)
+		}
+	}
+	for _, params := range []string{``, `{}`, `{"channels":[]}`, `not json`, `{"channels":["tv"],"adstock":"hyperbolic"}`} {
 		if got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, params)); ok {
 			t.Errorf("params %q: terms %v known, want unknown", params, got)
 		}

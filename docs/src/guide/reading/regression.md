@@ -316,7 +316,7 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 
 #### `coefficients.*`
 
-Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; decay:&lt;channel&gt;, k:&lt;channel&gt; and s:&lt;channel&gt; are each channel's carry-over, half-saturation spend and curve shape, and sigma the noise SD.
+Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; the adstock kernel's terms are each channel's carry-over — decay:&lt;channel&gt; (geometric), decay: and peak:&lt;channel&gt; (delayed, peak the lag of greatest effect) or shape: and scale:&lt;channel&gt; (Weibull, scale in periods) — k:&lt;channel&gt; and s:&lt;channel&gt; its half-saturation spend and curve shape, and sigma the noise SD.
 
 **Sign:**
 
@@ -369,7 +369,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 
 **Caveats:**
 
-- For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.
+- For a skewed posterior (a decay near 0 or 1, a peak or k on its bound) it can leave the parameter's range: read the credible intervals in outputs.params instead.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 
 #### `ci_upper.*`
@@ -378,7 +378,7 @@ Upper bound of the coefficient's two-sided confidence interval at conf_level: th
 
 **Caveats:**
 
-- For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.
+- For a skewed posterior (a decay near 0 or 1, a peak or k on its bound) it can leave the parameter's range: read the credible intervals in outputs.params instead.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 
 #### `conf_level`

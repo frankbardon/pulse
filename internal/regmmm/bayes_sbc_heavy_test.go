@@ -29,7 +29,11 @@ import (
 // The priors are REG_MMM_BAYES's defaults (ROI mode: decay Beta(1, 1),
 // k TruncNormal(1, 1, 0.02, 10), s LogNormal(0.3, 0.5), ROI
 // LogNormal(0.2, 0.9), intercept Normal(0, 2), control Normal(0, 1), σ
-// HalfNormal(1)). They are stated on the max-scaled outcome, so in a fit
+// HalfNormal(1)), and per non-geometric adstock kernel the same with
+// that kernel's default parameter priors (defaultKernelPriors: delayed's
+// decay Beta(1, 1) and peak TruncNormal(1, 2, 0, max_lag); a Weibull
+// kernel's shape LogNormal(0, 0.5) and scale LogNormal(1, 0.75)) — every
+// kernel is calibrated on its own. They are stated on the max-scaled outcome, so in a fit
 // they scale with the data (max|y|), an empirical-Bayes choice no
 // generative prior reproduces; SBC is then run with that scale fixed at
 // 1 (sbcModel), which calibrates everything the scale does not touch —
@@ -69,12 +73,16 @@ func sbcDesign() (spend, controls [][]float64) {
 	return [][]float64{x}, [][]float64{z}
 }
 
-// sbcModel is newBayesModel over y with the outcome scale fixed at 1:
-// the scaled outcome is y itself and an ROI channel's β conversion uses
-// the raw spend total.
-func sbcModel(t *testing.T, y []float64, spend, controls [][]float64) *bayesModel {
+// sbcModel is newBayesModel over y under adstock kernel k with the
+// outcome scale fixed at 1: the scaled outcome is y itself and an ROI
+// channel's β conversion uses the raw spend total.
+func sbcModel(t *testing.T, k adstockKernel, y []float64, spend, controls [][]float64) *bayesModel {
 	t.Helper()
-	m, err := newBayesModel(y, spend, controls, sbcMaxLag, defaultBayesPriors(len(spend)))
+	pr := defaultBayesPriors(len(spend))
+	if k.Name() != "geometric" {
+		pr = defaultKernelPriors(k, len(spend), sbcMaxLag)
+	}
+	m, err := newBayesModel(y, spend, controls, sbcMaxLag, pr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +134,7 @@ func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesMo
 	for w := range y {
 		y[w] = mu[w] + float64(truth[ref.iSigma()]*detmath.NormFloat64(rng))
 	}
-	m := sbcModel(t, y, spend, controls)
+	m := sbcModel(t, ref.kernel, y, spend, controls)
 	init, _ := m.mapStart(mapMaxIter)
 	res, err := mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
 		mcmc.Options{Chains: 1, Warmup: sbcWarmup, Draws: sbcKept * sbcThin, Init: init})
@@ -148,10 +156,21 @@ func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesMo
 }
 
 // TestMMMBayes_SimulationBasedCalibration: on REG_MMM_BAYES's default
-// priors, every parameter's SBC rank histogram is uniform.
+// priors, under every adstock kernel, every parameter's SBC rank
+// histogram is uniform.
 func TestMMMBayes_SimulationBasedCalibration(t *testing.T) {
 	t.Parallel()
 
+	for _, kernel := range kernelNames() {
+		t.Run(kernel, func(t *testing.T) {
+			t.Parallel()
+			sbcKernel(t, kernelByName(kernel))
+		})
+	}
+}
+
+// sbcKernel is one kernel's calibration run.
+func sbcKernel(t *testing.T, k adstockKernel) {
 	spend, controls := sbcDesign()
 	// The reference model reads only the design (its outcome, all ones,
 	// is unused): the priors, the control centring and the spend scale.
@@ -159,9 +178,13 @@ func TestMMMBayes_SimulationBasedCalibration(t *testing.T) {
 	for i := range ones {
 		ones[i] = 1
 	}
-	ref := sbcModel(t, ones, spend, controls)
+	ref := sbcModel(t, k, ones, spend, controls)
 	dim := ref.Dim()
-	names := []string{"intercept", "control", "decay", "k", "s", "roi", "sigma"}
+	names := []string{"intercept", "control"}
+	for _, kp := range k.Params() {
+		names = append(names, kp.key)
+	}
+	names = append(names, "k", "s", "roi", "sigma")
 	if len(names) != dim {
 		t.Fatalf("dim %d, names %v", dim, names)
 	}

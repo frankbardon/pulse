@@ -3,6 +3,7 @@ package model
 import (
 	"slices"
 
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,13 +21,37 @@ import (
 // The curve-coefficient prefixes of the media-mix models: channel c's
 // Hill half-saturation is the coefficient MMMHalfSaturationPrefix + c,
 // its shape MMMShapePrefix + c, and under REG_MMM_BAYES its adstock
-// decay MMMDecayPrefix + c; REG_MMM_BAYES's noise SD is MMMSigmaName.
+// kernel's params (MMMBayesAdstockPrefixes): the decay MMMDecayPrefix + c
+// (geometric, delayed), the peak MMMPeakPrefix + c (delayed), the
+// Weibull shape MMMAdstockShapePrefix + c and scale
+// MMMAdstockScalePrefix + c (weibull_cdf, weibull_pdf); REG_MMM_BAYES's
+// noise SD is MMMSigmaName.
 const (
 	MMMHalfSaturationPrefix = "k:"
 	MMMShapePrefix          = "s:"
 	MMMDecayPrefix          = "decay:"
+	MMMPeakPrefix           = "peak:"
+	MMMAdstockShapePrefix   = "shape:"
+	MMMAdstockScalePrefix   = "scale:"
 	MMMSigmaName            = "sigma"
 )
+
+// MMMBayesAdstockPrefixes is the coefficient prefixes of REG_MMM_BAYES's
+// adstock kernel params, in the coefficient table's order, for kernel
+// (params.adstock; "" is the default, geometric): decay: for geometric,
+// decay: then peak: for delayed, shape: then scale: for weibull_cdf and
+// weibull_pdf. ok is false for any other kernel name.
+func MMMBayesAdstockPrefixes(kernel string) (prefixes []string, ok bool) {
+	switch kernel {
+	case "", distlagparams.KernelGeometric:
+		return []string{MMMDecayPrefix}, true
+	case distlagparams.KernelDelayed:
+		return []string{MMMDecayPrefix, MMMPeakPrefix}, true
+	case distlagparams.KernelWeibullCDF, distlagparams.KernelWeibullPDF:
+		return []string{MMMAdstockShapePrefix, MMMAdstockScalePrefix}, true
+	}
+	return nil, false
+}
 
 // modelRegressions are the model regressions, in AllRegressionTypes
 // order.
@@ -59,8 +84,10 @@ func ModelRegressions() []types.RegressionType {
 // coefficient names its fit reports beyond the intercept and the
 // predictors, derived from the spec alone, and whether they are known.
 // REG_MMM_HILL names "k:<channel>" for every params.channels entry, then
-// "s:<channel>" for each; REG_MMM_BAYES names "decay:<channel>", then
-// "k:<channel>", then "s:<channel>" for each, then "sigma"; REG_ORDINAL
+// "s:<channel>" for each; REG_MMM_BAYES names its params.adstock
+// kernel's params per channel (MMMBayesAdstockPrefixes: "decay:<channel>"
+// for the default geometric kernel; an unknown kernel reports false),
+// then "k:<channel>", then "s:<channel>" for each, then "sigma"; REG_ORDINAL
 // names its thresholds "<level>|<next level>", known only when
 // params.levels fixes the levels (otherwise the data does). A spec whose
 // params do not decode (its factory refuses it), or a type that is no
@@ -75,6 +102,7 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 	}
 	var p struct {
 		Channels []string `json:"channels"`
+		Adstock  *string  `json:"adstock"`
 	}
 	// A lenient look: the model's factory decodes (and records) params.
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || len(p.Channels) == 0 {
@@ -82,7 +110,15 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 	}
 	prefixes := []string{MMMHalfSaturationPrefix, MMMShapePrefix}
 	if spec.Type == types.REG_MMM_BAYES {
-		prefixes = []string{MMMDecayPrefix, MMMHalfSaturationPrefix, MMMShapePrefix}
+		kernel := ""
+		if p.Adstock != nil {
+			kernel = *p.Adstock
+		}
+		ad, ok := MMMBayesAdstockPrefixes(kernel)
+		if !ok {
+			return nil, false
+		}
+		prefixes = append(ad, prefixes...)
 	}
 	out := make([]string, 0, len(prefixes)*len(p.Channels)+1)
 	for _, prefix := range prefixes {

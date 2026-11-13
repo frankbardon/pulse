@@ -136,11 +136,12 @@ var slots = []Slot{
 	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "upper"}, Scalar: true},
 	{Name: SlotOptimizeBound, Owners: []string{"OptimizeVariable"}, Tail: []string{"optimize", "variables", "start"}, Scalar: true},
 	// A built-in window's scalar params (internal/windowscalar):
-	// WIN_EWMA alpha / decay, WIN_DISTRIBUTED_LAG decay / shape /
+	// WIN_EWMA alpha / decay, WIN_DISTRIBUTED_LAG decay / peak / shape /
 	// scale / max_lag — a number or a scalar expression, resolved before
 	// the window's own reading. Rooted at the `windows` list.
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "alpha"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "decay"}, Scalar: true},
+	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "peak"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "shape"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "scale"}, Scalar: true},
 	{Name: SlotWindowParam, Owners: []string{"Window"}, Tail: []string{"windows", ParamsKey, "max_lag"}, Scalar: true},
@@ -177,6 +178,7 @@ var slots = []Slot{
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "vcov", "values"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "decay"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "max_lag"}, Scalar: true},
+	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "peak"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "scale"}, Scalar: true},
 	{Name: SlotInlineModelNumber, Owners: []string{"ModelRef"}, Tail: []string{"models", "inline", "adstock", Wildcard, "shape"}, Scalar: true},
 }

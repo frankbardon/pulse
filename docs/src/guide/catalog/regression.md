@@ -155,7 +155,7 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 **Assumptions:**
 
 - The rows are one market's series, one row per period with contiguous integer times: a gap or a repeated period is refused. Each period's noise is independent of the others once the carry-over is modelled: leftover dependence over time makes the intervals too narrow.
-- Each channel is raw spend, carried over geometrically inside the model over max_lag periods, so the decay is estimated with everything else.
+- Each channel is raw spend, carried over inside the model over max_lag periods by one adstock kernel (geometric by default; delayed or Weibull when the effect peaks later), so its shape is estimated with everything else.
 - Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.
 - The priors shape the answer where the data are thin: an experiment's ROI is the honest prior to set.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
@@ -169,8 +169,9 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 
 **Validated against:**
 
-- `REG_BAYES_LINEAR`'s closed-form conjugate posterior (R 4.6.1 matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ) — tolerance within 4 Monte Carlo standard errors, seeded; `internal/regmmm/bayes_conjugate_heavy_test.go`
-- simulation-based calibration (Talts et al. 2018) on the default priors: 200 seeded replicates, rank of the truth among 99 thinned draws — tolerance uniform rank histogram per parameter (χ² test, p ≥ 0.001 / 7); `internal/regmmm/bayes_sbc_heavy_test.go`
+- `REG_BAYES_LINEAR`'s closed-form conjugate posterior (R 4.6.1 matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ), under each adstock kernel (geometric, delayed, weibull_cdf, weibull_pdf) — tolerance within 4 Monte Carlo standard errors, seeded; `internal/regmmm/bayes_conjugate_heavy_test.go`
+- simulation-based calibration (Talts et al. 2018) on the default priors of each adstock kernel: 200 seeded replicates per kernel, rank of the truth among 99 thinned draws — tolerance uniform rank histogram per parameter (χ² test, p ≥ 0.001 / parameters); `internal/regmmm/bayes_sbc_heavy_test.go`
+- `WIN_DISTRIBUTED_LAG`'s kernel weights (R 4.6.1 `decay^((l − peak)^2)`, `pweibull`, `dweibull` via its oracle) for the in-model adstock; a closed-form log posterior and a finite-difference gradient for each kernel — tolerance bit-equal weights; density 1e-9 relative; gradient 1e-6 relative; `internal/regmmm/bayes_adstock_test.go`, `internal/regmmm/bayes_model_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance parameter recovery; `internal/regmmm/bayes_test.go`
 
 **Validation gap:** No external MCMC implementation (Stan, PyMC-Marketing) is compared on the full nonlinear model. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.

@@ -24,7 +24,9 @@ import (
 //     column of exactly one WIN_DISTRIBUTED_LAG window of the fit's
 //     request, with that window's RESOLVED params (a decay written as
 //     sweep_axis() or params.d records the number it read);
-//   - REG_MMM_BAYES: geometric, the decay:<ch> posterior mean, the fit's
+//   - REG_MMM_BAYES: its params.adstock kernel (default geometric) at
+//     the posterior means of the kernel's coefficients (decay:<ch>;
+//     decay:<ch> and peak:<ch>; shape:<ch> and scale:<ch>), the fit's
 //     params.max_lag (default MMMBayesDefaultMaxLag), unnormalised — the
 //     kernel the model adstocks raw spend with;
 //   - an inline model: declared in its `adstock` section.
@@ -38,14 +40,17 @@ const MMMBayesDefaultMaxLag = 13
 
 // Adstock is one channel's adstock record: a WIN_DISTRIBUTED_LAG kernel
 // (internal/distlagparams) with its resolved params. Decay is set for
-// the geometric kernel, Shape and Scale for the Weibull kernels. Its
+// the geometric kernel, Decay and Peak for the delayed kernel, Shape and
+// Scale for the Weibull kernels. Its
 // JSON form is the model file's `adstock.<channel>` entry, e.g.
 // {"kernel": "geometric", "decay": 0.6, "max_lag": 8, "normalize": true}.
 type Adstock struct {
-	// Kernel is geometric, weibull_cdf or weibull_pdf.
+	// Kernel is geometric, delayed, weibull_cdf or weibull_pdf.
 	Kernel string `json:"kernel"`
-	// Decay is the geometric kernel's decay in [0, 1).
+	// Decay is the geometric or delayed kernel's decay in [0, 1).
 	Decay *float64 `json:"decay,omitempty"`
+	// Peak is the delayed kernel's peak lag in [0, MaxLag].
+	Peak *float64 `json:"peak,omitempty"`
 	// Shape and Scale are a Weibull kernel's params (each > 0).
 	Shape *float64 `json:"shape,omitempty"`
 	Scale *float64 `json:"scale,omitempty"`
@@ -83,7 +88,7 @@ func (a Adstock) clone() Adstock {
 		v := *p
 		return &v
 	}
-	a.Decay, a.Shape, a.Scale = cp(a.Decay), cp(a.Shape), cp(a.Scale)
+	a.Decay, a.Peak, a.Shape, a.Scale = cp(a.Decay), cp(a.Peak), cp(a.Shape), cp(a.Scale)
 	return a
 }
 
@@ -123,7 +128,7 @@ func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.R
 	if res == nil || res.Error != nil {
 		return nil
 	}
-	channels, maxLag := lineageChannels(spec)
+	channels, maxLag, kernel := lineageChannels(spec)
 	out := map[string]Adstock{}
 	for _, ch := range channels {
 		var a Adstock
@@ -132,7 +137,7 @@ func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.R
 		case types.REG_MMM_HILL:
 			a, ok = windowAdstock(req, ch)
 		case types.REG_MMM_BAYES:
-			a, ok = bayesAdstock(res, ch, maxLag)
+			a, ok = bayesAdstock(res, ch, maxLag, kernel)
 		}
 		if ok {
 			out[ch] = a
@@ -155,7 +160,7 @@ func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.R
 // REG_MMM_BAYES channel's decay posterior.
 func StaticAdstockChannels(req *types.Request, spec *types.RegressionSpec) []string {
 	out := []string{}
-	channels, _ := lineageChannels(spec)
+	channels, _, _ := lineageChannels(spec)
 	for _, ch := range channels {
 		ok := false
 		switch spec.Type {
@@ -173,18 +178,24 @@ func StaticAdstockChannels(req *types.Request, spec *types.RegressionSpec) []str
 }
 
 // lineageChannels are spec's media-mix channels that may carry a record
-// — its params.channels that are predictors, in params order — and
-// params.max_lag; none for any other type or params that do not decode.
-func lineageChannels(spec *types.RegressionSpec) ([]string, *int) {
+// — its params.channels that are predictors, in params order —,
+// params.max_lag and params.adstock ("" when absent); none for any
+// other type or params that do not decode.
+func lineageChannels(spec *types.RegressionSpec) ([]string, *int, string) {
 	if spec == nil || (spec.Type != types.REG_MMM_HILL && spec.Type != types.REG_MMM_BAYES) {
-		return nil, nil
+		return nil, nil, ""
 	}
 	var p struct {
 		Channels []string `json:"channels"`
 		MaxLag   *int     `json:"max_lag"`
+		Adstock  *string  `json:"adstock"`
 	}
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil {
-		return nil, nil
+		return nil, nil, ""
+	}
+	kernel := ""
+	if p.Adstock != nil {
+		kernel = *p.Adstock
 	}
 	var out []string
 	for _, ch := range p.Channels {
@@ -192,7 +203,7 @@ func lineageChannels(spec *types.RegressionSpec) ([]string, *int) {
 			out = append(out, ch)
 		}
 	}
-	return out, p.MaxLag
+	return out, p.MaxLag, kernel
 }
 
 // windowAdstock is channel ch's record from req's windows: the one
@@ -342,18 +353,38 @@ func AttributeMayWrite(a *types.Attribute, ch string) bool {
 	return strings.HasPrefix(ch, string(a.Type)+"_")
 }
 
-// bayesAdstock is a REG_MMM_BAYES channel's record: geometric at its
-// decay:<ch> posterior mean over lags 0..max_lag, unnormalised.
-func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int) (Adstock, bool) {
-	d, ok := res.Coefficients[MMMDecayPrefix+ch]
-	if !ok || math.IsNaN(d) || math.IsInf(d, 0) {
+// bayesAdstock is a REG_MMM_BAYES channel's record: its kernel (""
+// is geometric) at the posterior means of the kernel's coefficients
+// (MMMBayesAdstockPrefixes) over lags 0..max_lag, unnormalised.
+func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel string) (Adstock, bool) {
+	prefixes, ok := MMMBayesAdstockPrefixes(kernel)
+	if !ok {
 		return Adstock{}, false
+	}
+	if kernel == "" {
+		kernel = distlagparams.KernelGeometric
 	}
 	l := MMMBayesDefaultMaxLag
 	if maxLag != nil {
 		l = *maxLag
 	}
-	a := Adstock{Kernel: distlagparams.KernelGeometric, Decay: &d, MaxLag: l}
+	a := Adstock{Kernel: kernel, MaxLag: l}
+	for _, prefix := range prefixes {
+		v, ok := res.Coefficients[prefix+ch]
+		if !ok || math.IsNaN(v) || math.IsInf(v, 0) {
+			return Adstock{}, false
+		}
+		switch prefix {
+		case MMMDecayPrefix:
+			a.Decay = &v
+		case MMMPeakPrefix:
+			a.Peak = &v
+		case MMMAdstockShapePrefix:
+			a.Shape = &v
+		case MMMAdstockScalePrefix:
+			a.Scale = &v
+		}
+	}
 	return a, checkAdstock(a) == ""
 }
 

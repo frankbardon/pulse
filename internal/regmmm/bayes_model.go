@@ -19,15 +19,17 @@ import (
 // data:
 //
 //	ỹ_t = y_t / max|y|
-//	ã_ct = adstock(spend_c, decay_c)_t / max(spend_c)
+//	ã_ct = adstock(spend_c, φ_c)_t / max(spend_c)
 //	h_ct = hill(ã_ct, k_c, s_c) = 1 / (1 + (k_c/ã_ct)^s_c)
 //	z̃_jt = (z_jt − mean z_j) / max|z_j − mean z_j|
 //	ỹ_t ~ Normal(α + Σ_j γ_j·z̃_jt + Σ_c β_c·h_ct, σ)
 //
-// adstock is WIN_DISTRIBUTED_LAG's geometric kernel with normalize
-// false — Σ_{l=0..maxLag} decay^l·spend_{t−l}, lag 0 first, the same
-// weights and the same products, so the model's adstock is bit-equal to
-// the window's. The adstock runs on the raw spend and is scaled after,
+// adstock is a WIN_DISTRIBUTED_LAG kernel with normalize false — by
+// default geometric, Σ_{l=0..maxLag} decay^l·spend_{t−l}; params.adstock
+// picks delayed or a Weibull kernel (bayes_adstock.go), whose
+// parameters φ_c (decay; decay and peak; shape and scale) the posterior
+// samples — lag 0 first, the same weights and the same products, so
+// the model's adstock is bit-equal to the window's. The adstock runs on the raw spend and is scaled after,
 // so the scaled ã is the window column over the channel's peak spend.
 // The controls are centred as well as scaled: a control far from zero
 // (a price near 10) would otherwise make it and the intercept a ridge
@@ -39,15 +41,18 @@ import (
 //
 //	β_c = ROI_c · Σ_t spend_ct / (max|y| · Σ_t h_ct),
 //
-// so the gradient with respect to decay, k and s flows through β_c as
+// so the gradient with respect to φ, k and s flows through β_c as
 // well as through h. No Jacobian is owed for β: it is a deterministic
-// function of the sampled ROI, decay, k and s.
+// function of the sampled ROI, φ, k and s.
 //
 // The parameter vector θ (the unconstrained space) is
 //
-//	[α, γ_1…γ_J, decay_1…decay_C, k_1…k_C, s_1…s_C, e_1…e_C, σ]
+//	[α, γ_1…γ_J, φ1_1…φ1_C, (φ2_1…φ2_C,) k_1…k_C, s_1…s_C, e_1…e_C, σ]
 //
-// with e_c the channel's ROI or β; each coordinate maps onto its
+// with φ1 the kernel's first parameter (the geometric kernel's decay —
+// its only one, so the default layout is [α, γ, decay, k, s, e, σ]) and
+// φ2 its second (the delayed kernel's peak, a Weibull kernel's scale),
+// and e_c the channel's ROI or β; each coordinate maps onto its
 // prior's support through the prior's transform (logit for a beta,
 // bounded logit for a truncnormal, log for a lognormal or halfnormal,
 // the identity for a normal), whose log-Jacobian is part of the density.
@@ -62,16 +67,21 @@ import (
 
 // bayesChannelPriors is one channel's priors; beta selects β mode
 // (Effect is then β's prior on the scaled outcome) over ROI mode
-// (Effect is the ROI's prior in original units).
+// (Effect is the ROI's prior in original units). Decay, Peak, WShape
+// and WScale are the adstock kernel's parameters' (each read only by
+// the kernels that have the parameter: kernelParam.prior).
 type bayesChannelPriors struct {
-	Decay, K, S, Effect prior
-	Beta                bool
+	Decay, K, S, Effect  prior
+	Peak, WShape, WScale prior
+	Beta                 bool
 }
 
-// bayesPriors is every prior of one model.
+// bayesPriors is every prior of one model, with the adstock kernel
+// (nil is the geometric default).
 type bayesPriors struct {
 	Intercept, Control, Sigma prior
 	Channels                  []bayesChannelPriors
+	Kernel                    adstockKernel
 }
 
 // The default priors, all on the scaled data except the ROI.
@@ -122,11 +132,36 @@ func defaultBayesPriors(channels int) bayesPriors {
 	return p
 }
 
+// defaultKernelPriors is defaultBayesPriors under adstock kernel k with
+// window maxLag: every channel's kernel parameters at their default
+// priors (kernelParam.def) — the geometric default's decay stays
+// Beta(1, 1). The defaults of the other kernels' parameters:
+//
+//   - peak (delayed): TruncNormal(1, 2, 0, max_lag) (defaultPeakPrior);
+//   - shape (Weibull): LogNormal(0, 0.5), median 1 — the survival kernel
+//     at shape 1 is geometric with decay exp(−1/scale) — 95% of the mass
+//     on [0.38, 2.7];
+//   - scale (Weibull, in lags): LogNormal(1, 0.75), median e ≈ 2.7 lags,
+//     95% of the mass on [0.6, 12] — a weekly carry-over of up to a
+//     quarter.
+func defaultKernelPriors(k adstockKernel, channels, maxLag int) bayesPriors {
+	p := defaultBayesPriors(channels)
+	p.Kernel = k
+	for c := range p.Channels {
+		for _, kp := range k.Params() {
+			*kp.prior(&p.Channels[c]) = kp.def(maxLag)
+		}
+	}
+	return p
+}
+
 // bayesModel is one fit's posterior. Build it with newBayesModel; it is
 // read-only afterwards.
 type bayesModel struct {
 	n, nc, nz int
 	maxLag    int
+	kernel    adstockKernel
+	np        int         // the kernel's parameter count
 	ys        []float64   // scaled outcome
 	spend     [][]float64 // raw spend per channel, time order
 	zs        [][]float64 // centred, scaled controls
@@ -165,13 +200,17 @@ func newBayesModel(y []float64, spend, controls [][]float64, maxLag int, pr baye
 	if len(pr.Channels) != nc {
 		return nil, bayesConfigError(fmt.Sprintf("REG_MMM_BAYES: %d channel priors for %d channels", len(pr.Channels), nc), nil)
 	}
-	m := &bayesModel{n: n, nc: nc, nz: nz, maxLag: maxLag, spend: spend,
+	kernel := pr.Kernel
+	if kernel == nil {
+		kernel = geometricKernel{}
+	}
+	m := &bayesModel{n: n, nc: nc, nz: nz, maxLag: maxLag, kernel: kernel, np: len(kernel.Params()), spend: spend,
 		ys: make([]float64, n), zs: make([][]float64, nz), xScale: make([]float64, nc),
 		zMean: make([]float64, nz), zScale: make([]float64, nz), spendShare: make([]float64, nc),
 		spendTotal: make([]float64, nc), isBeta: make([]bool, nc)}
 	if dim := m.Dim(); n <= dim {
 		return nil, perr.NewCodedErrorWithDetails(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-			fmt.Sprintf("REG_MMM_BAYES needs more than %d rows (2 + controls + 4·channels), got %d", dim, n),
+			fmt.Sprintf("REG_MMM_BAYES needs more than %d rows (2 + controls + %d·channels), got %d", dim, m.np+3, n),
 			map[string]any{"n": n, "required": dim + 1})
 	}
 	for _, v := range y {
@@ -251,13 +290,17 @@ func newBayesModel(y []float64, spend, controls [][]float64, maxLag int, pr baye
 	}
 	for c, cp := range pr.Channels {
 		m.isBeta[c] = cp.Beta
+		for i, kp := range kernel.Params() {
+			if err := set(m.iAdstock(i, c), *kp.prior(&cp), kp.sup, fmt.Sprintf("channel %d %s", c, kp.key)); err != nil {
+				return nil, err
+			}
+		}
 		for _, s := range []struct {
 			i    int
 			p    prior
 			sup  support
 			what string
 		}{
-			{m.iDecay(c), cp.Decay, supportUnit, "decay"},
 			{m.iK(c), cp.K, supportPositive, "k"},
 			{m.iS(c), cp.S, supportPositive, "s"},
 			{m.iEffect(c), cp.Effect, supportPositive, "effect"},
@@ -273,17 +316,28 @@ func newBayesModel(y []float64, spend, controls [][]float64, maxLag int, pr baye
 	return m, nil
 }
 
-// The θ layout.
-func (m *bayesModel) iIntercept() int    { return 0 }
-func (m *bayesModel) iControl(j int) int { return 1 + j }
-func (m *bayesModel) iDecay(c int) int   { return 1 + m.nz + c }
-func (m *bayesModel) iK(c int) int       { return 1 + m.nz + m.nc + c }
-func (m *bayesModel) iS(c int) int       { return 1 + m.nz + 2*m.nc + c }
-func (m *bayesModel) iEffect(c int) int  { return 1 + m.nz + 3*m.nc + c }
-func (m *bayesModel) iSigma() int        { return 1 + m.nz + 4*m.nc }
+// The θ layout: the kernel's np parameters per channel, then k, s and
+// the effect per channel. iDecay is the first kernel parameter (the
+// geometric and delayed kernels' decay).
+func (m *bayesModel) iIntercept() int       { return 0 }
+func (m *bayesModel) iControl(j int) int    { return 1 + j }
+func (m *bayesModel) iAdstock(p, c int) int { return 1 + m.nz + p*m.nc + c }
+func (m *bayesModel) iDecay(c int) int      { return m.iAdstock(0, c) }
+func (m *bayesModel) iK(c int) int          { return 1 + m.nz + m.np*m.nc + c }
+func (m *bayesModel) iS(c int) int          { return 1 + m.nz + (m.np+1)*m.nc + c }
+func (m *bayesModel) iEffect(c int) int     { return 1 + m.nz + (m.np+2)*m.nc + c }
+func (m *bayesModel) iSigma() int           { return 1 + m.nz + (m.np+3)*m.nc }
+func (m *bayesModel) adstockParams(v []float64, c int) []float64 {
+	p := make([]float64, m.np)
+	for i := range p {
+		p[i] = v[m.iAdstock(i, c)]
+	}
+	return p
+}
 
-// Dim is 2 + controls + 4·channels.
-func (m *bayesModel) Dim() int { return 2 + m.nz + 4*m.nc }
+// Dim is 2 + controls + (np + 3)·channels: 4·channels under the
+// geometric default.
+func (m *bayesModel) Dim() int { return 2 + m.nz + (m.np+3)*m.nc }
 
 // geometricWeights returns WIN_DISTRIBUTED_LAG's geometric kernel
 // w_l = decay^l (l = 0..maxLag, normalize false) — the same detmath.Pow
@@ -297,6 +351,27 @@ func geometricWeights(decay float64, maxLag int) (w, dw []float64) {
 		}
 	}
 	return w, dw
+}
+
+// adstockGrad is adstock over every parameter's derivative: a_t as
+// adstock writes it and, per parameter i, da[i]_t = Σ_l dw[i]_l·x_{t−l}
+// (each sum in lag order, so da[0] under the geometric kernel is
+// adstock's da bit for bit).
+func adstockGrad(x, w []float64, dw [][]float64, a []float64, da [][]float64) {
+	for t := range x {
+		acc := 0.0
+		for l := 0; l < len(w) && l <= t; l++ {
+			acc += float64(w[l] * x[t-l])
+		}
+		a[t] = acc
+		for i, d := range dw {
+			dacc := 0.0
+			for l := 0; l < len(d) && l <= t; l++ {
+				dacc += float64(d[l] * x[t-l])
+			}
+			da[i][t] = dacc
+		}
+	}
 }
 
 // adstock writes a_t = Σ_{l=0..min(t, maxLag)} w_l·x_{t−l} into a (lag
@@ -353,32 +428,39 @@ func (m *bayesModel) mapCoordinate(i int, x float64) coordinate {
 
 // channelState is one channel's curve over the rows at one θ.
 type channelState struct {
-	decay, k, s float64
-	h           []float64 // h_t
-	dhd         []float64 // ∂h_t/∂decay
-	dhk, dhs    []float64 // ∂h_t/∂k, ∂h_t/∂s
-	hSum        float64   // Σ_t h_t
-	beta        float64   // β on the scaled outcome (derived in ROI mode)
+	k, s     float64
+	h        []float64   // h_t
+	dhp      [][]float64 // ∂h_t/∂φ_i per kernel parameter i
+	dhk, dhs []float64   // ∂h_t/∂k, ∂h_t/∂s
+	hSum     float64     // Σ_t h_t
+	beta     float64     // β on the scaled outcome (derived in ROI mode)
 }
 
 // curve evaluates channel c's adstock and Hill curve at the given
-// constrained decay, k and s; grad asks for the partials too.
-func (m *bayesModel) curve(c int, decay, k, s float64, grad bool) channelState {
-	st := channelState{decay: decay, k: k, s: s, h: make([]float64, m.n)}
+// constrained kernel parameters ad (the kernel's Params order), k and
+// s; grad asks for the partials too.
+func (m *bayesModel) curve(c int, ad []float64, k, s float64, grad bool) channelState {
+	st := channelState{k: k, s: s, h: make([]float64, m.n)}
 	a := make([]float64, m.n)
-	w, dw := geometricWeights(decay, m.maxLag)
-	var da []float64
+	w, dw := m.kernel.Weights(ad, m.maxLag, grad)
+	var da [][]float64
 	if grad {
-		da = make([]float64, m.n)
-		st.dhd, st.dhk, st.dhs = make([]float64, m.n), make([]float64, m.n), make([]float64, m.n)
+		da = make([][]float64, m.np)
+		st.dhp = make([][]float64, m.np)
+		for i := range da {
+			da[i], st.dhp[i] = make([]float64, m.n), make([]float64, m.n)
+		}
+		st.dhk, st.dhs = make([]float64, m.n), make([]float64, m.n)
 	}
-	adstock(m.spend[c], w, dw, a, da)
+	adstockGrad(m.spend[c], w, dw, a, da)
 	for t := range a {
 		h, dha, dhk, dhs := hillGrad(a[t]/m.xScale[c], k, s)
 		st.h[t] = h
 		st.hSum += h
 		if grad {
-			st.dhd[t] = float64(dha * (da[t] / m.xScale[c]))
+			for i := range da {
+				st.dhp[i][t] = float64(dha * (da[i][t] / m.xScale[c]))
+			}
 			st.dhk[t], st.dhs[t] = dhk, dhs
 		}
 	}
@@ -416,7 +498,11 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 	}
 	chans := make([]channelState, m.nc)
 	for c := range m.nc {
-		st := m.curve(c, coords[m.iDecay(c)].y, coords[m.iK(c)].y, coords[m.iS(c)].y, true)
+		ad := make([]float64, m.np)
+		for i := range ad {
+			ad[i] = coords[m.iAdstock(i, c)].y
+		}
+		st := m.curve(c, ad, coords[m.iK(c)].y, coords[m.iS(c)].y, true)
 		e := coords[m.iEffect(c)].y
 		if m.isBeta[c] {
 			st.beta = e
@@ -485,14 +571,19 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 			shift = gh / st.hSum
 			add(m.iEffect(c), float64(gh*st.beta)/coords[m.iEffect(c)].y)
 		}
-		var dd, dk, ds float64
+		dp := make([]float64, m.np)
+		var dk, ds float64
 		for t, v := range g {
 			u := v - shift
-			dd += float64(u * st.dhd[t])
+			for i := range dp {
+				dp[i] += float64(u * st.dhp[i][t])
+			}
 			dk += float64(u * st.dhk[t])
 			ds += float64(u * st.dhs[t])
 		}
-		add(m.iDecay(c), float64(st.beta*dd))
+		for i, d := range dp {
+			add(m.iAdstock(i, c), float64(st.beta*d))
+		}
 		add(m.iK(c), float64(st.beta*dk))
 		add(m.iS(c), float64(st.beta*ds))
 	}
@@ -503,7 +594,8 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 
 // constrain maps θ to original units, in θ's layout: the intercept and
 // each control's coefficient on the raw outcome and raw control, the
-// decay, k in raw adstock units, s, the ROI (ROI mode) or β on the raw
+// kernel parameters (decay, peak in lags, shape, scale in lags), k in
+// raw adstock units, s, the ROI (ROI mode) or β on the raw
 // outcome (β mode), and σ on the raw outcome. It is safe for concurrent
 // use (an mcmc.Options.Constrain).
 func (m *bayesModel) constrain(theta, out []float64) {
@@ -519,7 +611,9 @@ func (m *bayesModel) constrain(theta, out []float64) {
 	}
 	out[m.iIntercept()] = float64(m.yScale * icpt)
 	for c := range m.nc {
-		out[m.iDecay(c)] = v[m.iDecay(c)]
+		for i := range m.np {
+			out[m.iAdstock(i, c)] = v[m.iAdstock(i, c)]
+		}
 		out[m.iK(c)] = float64(v[m.iK(c)] * m.xScale[c])
 		out[m.iS(c)] = v[m.iS(c)]
 		e := v[m.iEffect(c)]
@@ -547,13 +641,17 @@ func (m *bayesModel) channelEffects(theta []float64) (beta, roi []float64) {
 // the period's spend was. The derivative is analytic: the adstock is
 // linear in spend, so d/dλ Σ_t β·hill(λ·a_t) at λ = 1 is
 // Σ_t β·a_t·∂h/∂a = β·s·Σ_t h_t·(1 − h_t), holding the response curve
-// (β, decay, k, s) fixed. It is 0 for a channel saturated in every row
+// (β, φ, k, s) fixed. It is 0 for a channel saturated in every row
 // and approaches s·ROI for one far below its half-saturation.
 func (m *bayesModel) effects(theta []float64) (beta, roi, mroi []float64) {
 	beta, roi, mroi = make([]float64, m.nc), make([]float64, m.nc), make([]float64, m.nc)
 	val := func(i int) float64 { return m.priors[i].transform().Forward(theta[i]).Y }
 	for c := range m.nc {
-		st := m.curve(c, val(m.iDecay(c)), val(m.iK(c)), val(m.iS(c)), false)
+		ad := make([]float64, m.np)
+		for i := range ad {
+			ad[i] = val(m.iAdstock(i, c))
+		}
+		st := m.curve(c, ad, val(m.iK(c)), val(m.iS(c)), false)
 		e := val(m.iEffect(c))
 		b := e // β on the scaled outcome
 		if m.isBeta[c] {
@@ -602,17 +700,17 @@ func (m *bayesModel) predict(theta []float64, spend, controls [][]float64, from 
 		}
 	}
 	for c := range m.nc {
-		decay, k, s := v[m.iDecay(c)], v[m.iK(c)], v[m.iS(c)]
+		ad, k, s := m.adstockParams(v, c), v[m.iK(c)], v[m.iS(c)]
 		b := v[m.iEffect(c)]
 		if !m.isBeta[c] {
-			st := m.curve(c, decay, k, s, false)
+			st := m.curve(c, ad, k, s, false)
 			if st.hSum > 0 {
 				b = float64(b*m.spendShare[c]) / st.hSum
 			} else {
 				b = math.NaN()
 			}
 		}
-		w, _ := geometricWeights(decay, m.maxLag)
+		w, _ := m.kernel.Weights(ad, m.maxLag, false)
 		a := make([]float64, n)
 		adstock(spend[c], w, nil, a, nil)
 		for t := from; t < n; t++ {
@@ -638,7 +736,8 @@ func (m *bayesModel) toTheta(v []float64) []float64 {
 
 // defaultInit is the fixed, data-derived start: the intercept at the
 // scaled outcome's mean, the controls at 0, each decay at its prior's
-// center, k at the mean positive scaled adstock there (clamped inside a
+// center (every kernel parameter at its prior's center), k at the mean
+// positive scaled adstock there (clamped inside a
 // truncnormal's bounds), s and the effect at their prior's center, σ at
 // the scaled outcome's standard deviation. A coordinate whose value
 // falls outside its prior's support starts at the prior's center.
@@ -657,9 +756,10 @@ func (m *bayesModel) defaultInit() []float64 {
 	v[m.iIntercept()] = mean
 	v[m.iSigma()] = math.Sqrt(ss / float64(m.n))
 	for c := range m.nc {
-		d := m.priors[m.iDecay(c)].center()
-		v[m.iDecay(c)] = d
-		w, _ := geometricWeights(d, m.maxLag)
+		for i := range m.np {
+			v[m.iAdstock(i, c)] = m.priors[m.iAdstock(i, c)].center()
+		}
+		w, _ := m.kernel.Weights(m.adstockParams(v, c), m.maxLag, false)
 		a := make([]float64, m.n)
 		adstock(m.spend[c], w, nil, a, nil)
 		sum, cnt := 0.0, 0

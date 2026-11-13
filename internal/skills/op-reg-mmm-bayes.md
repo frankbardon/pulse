@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ---
 
-`REG_MMM_BAYES` models `y = β0 + Σ βc·hill(adstock(rawc; decay), k, s) + Σ γj·zj + noise`: raw spend is adstocked in the model, so decay is a posterior parameter and every interval includes it.
+`REG_MMM_BAYES` models `y = β0 + Σ βc·hill(adstock(rawc; φ), k, s) + Σ γj·zj + noise`: raw spend is adstocked in the model with posterior φ, so every interval includes them.
 
 <!-- generated: use-when -->
 
@@ -19,11 +19,11 @@ examples_tags: [regression, time-series, buffered-pipeline]
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Raw spend predictors (≥ 0); other predictors are linear controls. |
-| `time` | string | (required) | Integer time field, one row per period, contiguous with step 1. |
-| `max_lag` | number | 13 | Adstock window in periods. |
-| `adstock` | string | `geometric` | The only kernel. |
-| `priors` | object | — | `priors.<channel>.{roi\|beta, decay, k, s}`; a `beta` prior switches that channel to β mode. |
+| `channels` | array | (required) | Raw spend (≥ 0); other predictors are controls. |
+| `time` | string | (required) | Contiguous integer time, one row per period. |
+| `max_lag` | number | 13 | Adstock window; set it unless geometric. |
+| `adstock` | string | `geometric` | φ: geometric `decay`; delayed `decay`, `peak`; weibull_cdf/_pdf `shape`, `scale`. |
+| `priors` | object | — | `priors.<channel>.{roi\|beta, k, s}` + the kernel's φ; `beta` = β mode. |
 | `intercept_prior` | object | — | Default normal(0, 2). |
 | `control_prior` | object | — | Default normal(0, 1). |
 | `sigma_prior` | object | — | Default halfnormal(1). |
@@ -33,12 +33,12 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `credible_level` | number | 0.9 | Interval level in (0, 1). |
 | `sampler` | string | `nuts` | The only sampler. |
 | `target_accept` | number | 0.8 | Raise on divergence. |
-| `holdout_from` | number | — | Time from which rows are held out; adstock still runs over the full history. |
+| `holdout_from` | number | — | Rows from this time are held out; adstock spans all history. |
 | `conf_level` | float | `0.95` | Wald CI on the posterior SD. |
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Prior object: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal). Defaults: decay Beta(1,1), s LogNormal(0.3, 0.5), k TruncNormal(1, 1, 0.02, 10), ROI LogNormal(0.2, 0.9). `rng_seed` 0 derives a seed from the request, key order ignored.
+Prior: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal). Defaults: decay Beta(1,1), peak TruncNormal(1,2,0,max_lag) (in `[0, max_lag]`), shape LogNormal(0,0.5), scale LogNormal(1,0.75), s LogNormal(0.3,0.5), k TruncNormal(1,1,0.02,10), ROI LogNormal(0.2,0.9). `rng_seed` 0 derives one from the request.
 
 ## Inputs
 
@@ -48,7 +48,7 @@ One market, one row per period. A weekly `date` column is `time_gap`; several ro
 
 Coefficients are posterior means<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel), `params`, `diagnostics`, `holdout`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
-The bound fit records each channel's adstock for `response()`: geometric, `decay:<ch>` mean, `max_lag`, unnormalised.
+φ coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`. `response()` reads the kernel at their means.
 
 <!-- generated: reading-the-output -->
 
@@ -59,7 +59,7 @@ The bound fit records each channel's adstock for `response()`: geometric, `decay
 - No `save`, scoring, engine `holdout`, `resample` or other shared slot (`rng_seed` excepted): use `params.holdout_from`.
 - k and s trade off; judge ROI, not k.
 - mROI holds the curve fixed.
-- Health is reported, not refused: `PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`. `Strict` fails the slot with that code. 2×100 draws always warn `ess_low`.
+- Health is reported, not refused: `PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`. `Strict` fails the slot with that code.
 - A default fit takes ~35 s.
 
 ## See

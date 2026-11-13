@@ -1,6 +1,7 @@
 package regmmm
 
 import (
+	"maps"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -71,8 +72,9 @@ func randomPoint(m *bayesModel, rng *rand.Rand, spread float64) []float64 {
 
 // TestMMMBayes_GradientMatchesFiniteDifferences: at random points the
 // analytic gradient matches a fourth-order central difference to a
-// relative 1e-6, under the default (all-ROI) priors and the mixed set
-// (a β channel and every prior family).
+// relative 1e-6, under the default (all-ROI) priors, the mixed set
+// (a β channel and every prior family) and each non-geometric adstock
+// kernel's defaults — so every kernel's dw/dφ is chained right.
 func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
 	t.Parallel()
 
@@ -82,6 +84,9 @@ func TestMMMBayes_GradientMatchesFiniteDifferences(t *testing.T) {
 	}{
 		{"roi", defaultBayesPriors(len(mmmfixture.JointChannels))},
 		{"mixed", mixedPriors()},
+		{"delayed", kernelPriorSets()["delayed"]},
+		{"weibull_cdf", kernelPriorSets()["weibull_cdf"]},
+		{"weibull_pdf", kernelPriorSets()["weibull_pdf"]},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -184,12 +189,20 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 			mu[t] += g * (z[t] - mean) / scale
 		}
 	}
+	kernel := pr.Kernel
+	if kernel == nil {
+		kernel = geometricKernel{}
+	}
+	np := len(kernel.Params())
 	for c, x := range spend {
 		cp := pr.Channels[c]
-		decay := val(cp.Decay, 1+nz+c)
-		k := val(cp.K, 1+nz+nc+c)
-		s := val(cp.S, 1+nz+2*nc+c)
-		e := val(cp.Effect, 1+nz+3*nc+c)
+		ad := make([]float64, np)
+		for i, kp := range kernel.Params() {
+			ad[i] = val(*kp.prior(&cp), 1+nz+i*nc+c)
+		}
+		k := val(cp.K, 1+nz+np*nc+c)
+		s := val(cp.S, 1+nz+(np+1)*nc+c)
+		e := val(cp.Effect, 1+nz+(np+2)*nc+c)
 		xmax, total := 0.0, 0.0
 		for _, v := range x {
 			xmax = math.Max(xmax, v)
@@ -200,7 +213,7 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 		for t := range n {
 			a := 0.0
 			for l := 0; l <= maxLag && l <= t; l++ {
-				a += float64(math.Pow(decay, float64(l)) * x[t-l])
+				a += float64(oracleKernelWeight(kernel.Name(), ad, l) * x[t-l])
 			}
 			if a > 0 {
 				a /= xmax
@@ -216,7 +229,7 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 			mu[t] += float64(beta * h[t])
 		}
 	}
-	sigma := val(pr.Sigma, 1+nz+4*nc)
+	sigma := val(pr.Sigma, 1+nz+(np+3)*nc)
 	for t := range mu {
 		r := y[t]/ymax - mu[t]
 		lp += float64(-0.5*r*r)/(sigma*sigma) - math.Log(sigma)
@@ -224,15 +237,49 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 	return lp
 }
 
+// oracleKernelWeight is lag l's weight of the named kernel at params p,
+// written from its closed form with math.*: decay^l; decay^((l −
+// peak)²); exp(−(l/scale)^shape); the Weibull density
+// (shape/scale)·z^(shape−1)·exp(−z^shape) at z = (l + 1)/scale.
+func oracleKernelWeight(kernel string, p []float64, l int) float64 {
+	switch kernel {
+	case "geometric":
+		return math.Pow(p[0], float64(l))
+	case "delayed":
+		return math.Pow(p[0], (float64(l)-p[1])*(float64(l)-p[1]))
+	case "weibull_cdf":
+		return math.Exp(-math.Pow(float64(l)/p[1], p[0]))
+	case "weibull_pdf":
+		z := float64(l+1) / p[1]
+		return p[0] / p[1] * math.Pow(z, p[0]-1) * math.Exp(-math.Pow(z, p[0]))
+	}
+	panic(kernel)
+}
+
+// kernelPriorSets are the default priors under each non-geometric
+// kernel at the joint fixture's channel count and the default max_lag.
+func kernelPriorSets() map[string]bayesPriors {
+	out := map[string]bayesPriors{}
+	for _, name := range []string{"delayed", "weibull_cdf", "weibull_pdf"} {
+		out[name] = defaultKernelPriors(kernelByName(name), len(mmmfixture.JointChannels), defaultMaxLag)
+	}
+	return out
+}
+
 // TestMMMBayes_DensityMatchesOracle: the model's log density equals the
 // oracle's (both drop the likelihood's n·½·log 2π) at random points,
-// under both prior sets — so the Jacobians, the derived
+// under the default and mixed prior sets and every non-geometric
+// kernel — so the Jacobians, the derived
 // ROI β, the scaling and every family's density are what the doc says.
 func TestMMMBayes_DensityMatchesOracle(t *testing.T) {
 	t.Parallel()
 
 	y, spend, controls := jointModelData()
-	for _, pr := range []bayesPriors{defaultBayesPriors(len(spend)), mixedPriors()} {
+	sets := []bayesPriors{defaultBayesPriors(len(spend)), mixedPriors()}
+	for _, name := range slices.Sorted(maps.Keys(kernelPriorSets())) {
+		sets = append(sets, kernelPriorSets()[name])
+	}
+	for _, pr := range sets {
 		m := jointModel(t, pr)
 		rng := rand.New(rand.NewPCG(11, 11^0x9E3779B97F4A7C15))
 		for pt := range 10 {
@@ -271,7 +318,7 @@ func TestMMMBayes_BackTransforms(t *testing.T) {
 		}
 	}
 	for c := range m.nc {
-		st := m.curve(c, val(m.iDecay(c)), val(m.iK(c)), val(m.iS(c)), false)
+		st := m.curve(c, []float64{val(m.iDecay(c))}, val(m.iK(c)), val(m.iS(c)), false)
 		b := val(m.iEffect(c))
 		if !m.isBeta[c] {
 			b = b * m.spendShare[c] / st.hSum

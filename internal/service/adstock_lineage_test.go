@@ -151,7 +151,39 @@ func TestAdstockLineage_BayesFitBinds(t *testing.T) {
 	}
 	d := b.Result.Coefficients["decay:x"]
 	a, ok := b.Adstock("x")
-	if !ok || a.Kernel != "geometric" || a.Decay == nil || *a.Decay != d || a.MaxLag != 4 || a.Normalize || a.Shape != nil || a.Scale != nil {
+	if !ok || a.Kernel != "geometric" || a.Decay == nil || *a.Decay != d || a.MaxLag != 4 || a.Normalize || a.Shape != nil || a.Scale != nil || a.Peak != nil {
 		t.Fatalf("bound adstock %+v %v, want geometric decay %v max_lag 4 unnormalised", a, ok, d)
+	}
+
+	// A delayed and a Weibull fit bind their kernel at the posterior
+	// means of its own coefficients.
+	for _, tc := range []struct {
+		kernel string
+		check  func(a model.Adstock, c map[string]float64) bool
+	}{
+		{"delayed", func(a model.Adstock, c map[string]float64) bool {
+			return a.Decay != nil && *a.Decay == c["decay:x"] && a.Peak != nil && *a.Peak == c["peak:x"] && a.Shape == nil && a.Scale == nil
+		}},
+		{"weibull_pdf", func(a model.Adstock, c map[string]float64) bool {
+			return a.Shape != nil && *a.Shape == c["shape:x"] && a.Scale != nil && *a.Scale == c["scale:x"] && a.Decay == nil && a.Peak == nil
+		}},
+	} {
+		kreq := &types.Request{
+			Cohort: &types.Cohort{Filename: fitsCohort},
+			Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Name: "m", Target: "y", Predictors: []string{"x"},
+				Params: json.RawMessage(`{"channels": ["x"], "time": "week", "max_lag": 4, "adstock": "` + tc.kernel + `", "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
+		}
+		set, _, _, err := svc.runComposeFits(context.Background(), []types.FitSpec{{Name: "bayes", Request: kreq}}, nil, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := set.Lookup("bayes")
+		if err != nil || b.Result.Error != nil {
+			t.Fatalf("%s: %v %+v", tc.kernel, err, b.Result.Error)
+		}
+		a, ok := b.Adstock("x")
+		if !ok || a.Kernel != tc.kernel || a.MaxLag != 4 || a.Normalize || !tc.check(a, b.Result.Coefficients) {
+			t.Fatalf("%s: bound adstock %s %v, coefficients %v", tc.kernel, mustJSON(t, a), ok, b.Result.Coefficients)
+		}
 	}
 }

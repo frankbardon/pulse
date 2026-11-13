@@ -62,7 +62,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 	},
 	types.REG_MMM_BAYES: {
 		SpecRefusal: regmmm.BayesSpecRefusal,
-		Description: "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+		Description: "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
 		Decl: ExtensionRegression{
 			Vcov: true,
 			// No scorer (an adstocked prediction needs the history:
@@ -74,9 +74,9 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
 				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
-				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13)."},
-				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel: geometric (the only one)."},
-				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."},
+				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13, geometric only — every other kernel requires it)."},
+				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:<ch>), delayed (decay^((l − peak)²): decay:<ch>, peak:<ch>), weibull_cdf or weibull_pdf (shape:<ch>, scale:<ch>, in lags)."},
+				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta, k, s} plus the kernel's own (decay; decay, peak; shape, scale — another kernel's key is refused), each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock; a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."},
 				{Name: "intercept_prior", Type: "object", Description: "Intercept prior on the max-scaled outcome (default normal 0, 2)."},
 				{Name: "control_prior", Type: "object", Description: "Prior of every control's coefficient on the centred, scaled control (default normal 0, 1)."},
 				{Name: "sigma_prior", Type: "object", Description: "Noise SD prior on the max-scaled outcome (default halfnormal 1)."},
