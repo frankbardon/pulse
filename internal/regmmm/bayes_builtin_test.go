@@ -72,7 +72,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 		t.Error("manifest: REG_MMM_BAYES listed as streamable")
 	}
 	wantParams := []string{"channels", "time", "max_lag", "adstock", "saturation", "priors", "intercept_prior", "control_prior", "sigma_prior",
-		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from", "geo", "per_geo_curves", "lift_tests"}
+		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from", "geo", "per_geo_curves", "lift_tests", "return_draws", "draws_thin"}
 	if !slices.Equal(row.params, wantParams) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
 	}
@@ -81,7 +81,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 			t.Errorf("manifest lists slot %s", s)
 		}
 	}
-	if want := []string{"seed", "roi", "mroi", "contribution", "params", "diagnostics", "holdout", "hierarchy"}; !slices.Equal(row.outputs, want) {
+	if want := []string{"seed", "roi", "mroi", "contribution", "params", "diagnostics", "holdout", "hierarchy", "draws"}; !slices.Equal(row.outputs, want) {
 		t.Errorf("outputs = %v, want %v", row.outputs, want)
 	}
 	model, err := regmmm.BayesFactory(regmmm.BayesSpec(regmmm.FastParams), nil)

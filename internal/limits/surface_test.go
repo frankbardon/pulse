@@ -22,6 +22,7 @@ func TestUnitAndDefault(t *testing.T) {
 		MaxDerivedColumns:  UnitCount,
 		MaxExpandedItems:   UnitCount,
 		MaxMMMGeos:         UnitCount,
+		MaxMMMDrawValues:   UnitCount,
 	}
 	defs := Defaults()
 	for _, n := range Names() {

@@ -502,6 +502,45 @@ func parityCases(f *limitsFixture) []parityCase {
 			Params: []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5}`)}}}
 	}
 	mmmGeosAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMGeos = n } }
+	// The same tiny fits returning their raw draws (params.return_draws):
+	// MaxMMMDrawValues is predict's POSSIBLE finding on the panel (it
+	// grows with the geos) and CERTAIN on one market (the spec's alone:
+	// the pre-flight refuses), the fit's refusal before any sampling.
+	// The panel: 1 chain x 5 draws x (16 coefficients — 3 intercepts,
+	// tv and decay:tv each with its 3 geos, k:tv, s:tv, sigma, tau:tv,
+	// tau:decay:tv — + 4 roi entries) = 100 values; one market (geo g0
+	// filtered in): 1 x 5 x (6 coefficients + 1 roi entry) = 35.
+	const mmmPanelDraws, mmmOneDraws = 100, 35
+	mmmPanelDrawsReq := func() *types.Request {
+		req := mmmPanel()
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		return req
+	}
+	mmmOne := func() *types.Request {
+		req := mmmPanel()
+		req.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "geo", Values: []string{"g0"}}}
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		return req
+	}
+	mmmDrawsAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMDrawValues = n } }
+	// mmmDrawsFit runs req and, when it is not refused, requires the fit
+	// to have returned its draws.
+	mmmDrawsFit := func(req func() *types.Request) func(context.Context, *Service) error {
+		return func(ctx context.Context, svc *Service) error {
+			resp, err := svc.Process(ctx, req())
+			if err != nil {
+				return err
+			}
+			r := resp.Regressions[0]
+			if r.Error != nil {
+				return fmt.Errorf("the draws fit failed: %s %s", r.Error.Code, r.Error.Message)
+			}
+			if r.Outputs["draws"] == nil {
+				return fmt.Errorf("the draws fit returned no outputs.draws")
+			}
+			return nil
+		}
+	}
 	// mmmFit runs the panel and, when it is not refused, requires the
 	// fit to have sampled the whole panel (a failed slot is an error).
 	mmmFit := func(ctx context.Context, svc *Service) error {
@@ -711,6 +750,18 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "mmm geos at the cap", site: "mmm geos", setup: serialArm,
 			requests: one(mmmPanel), run: mmmFit,
 			limits: mmmGeosAt(mmmGeos)},
+		{name: "mmm draws on a panel", site: "mmm draws", setup: serialArm,
+			requests: one(mmmPanelDrawsReq), run: mmmDrawsFit(mmmPanelDrawsReq),
+			limits: mmmDrawsAt(mmmPanelDraws - 1), wantTrip: limits.MaxMMMDrawValues},
+		{name: "mmm draws on a panel at the cap", site: "mmm draws", setup: serialArm,
+			requests: one(mmmPanelDrawsReq), run: mmmDrawsFit(mmmPanelDrawsReq),
+			limits: mmmDrawsAt(mmmPanelDraws)},
+		{name: "mmm draws on one market", site: "mmm draws (pre-flight)", setup: serialArm,
+			requests: one(mmmOne), run: mmmDrawsFit(mmmOne),
+			limits: mmmDrawsAt(mmmOneDraws - 1), wantTrip: limits.MaxMMMDrawValues},
+		{name: "mmm draws on one market at the cap", site: "mmm draws (pre-flight)", setup: serialArm,
+			requests: one(mmmOne), run: mmmDrawsFit(mmmOne),
+			limits: mmmDrawsAt(mmmOneDraws)},
 		{name: "timeout", site: "timeout", setup: func(t *testing.T, svc *Service) {
 			serialArm(t, svc)
 			svc.entryHook = waitOutShortDeadlines

@@ -136,6 +136,13 @@ func CheckMMMGeos(l Limits, geos int) *errors.CodedError {
 	return Check(l, MaxMMMGeos, int64(geos))
 }
 
+// CheckMMMDrawValues refuses a REG_MMM_BAYES fit whose returned raw
+// draws (params.return_draws) would hold more than MaxMMMDrawValues
+// values.
+func CheckMMMDrawValues(l Limits, values int64) *errors.CodedError {
+	return Check(l, MaxMMMDrawValues, values)
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {

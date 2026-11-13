@@ -19,15 +19,15 @@ examples_tags: [regression, time-series, buffered-pipeline]
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Raw spend (≥ 0); other predictors are controls. |
+| `channels` | array | (required) | Raw spend (≥ 0); the rest are controls. |
 | `time` | string | (required) | Contiguous integer time. |
 | `max_lag` | number | 13 | Adstock window; set it unless geometric. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |
-| `priors` | object | — | `priors.<channel>.{roi\|beta}` + the kernel's and curve's keys; `beta` = β mode. |
-| `intercept_prior` | object | — | Default normal(0, 2). |
-| `control_prior` | object | — | Default normal(0, 1). |
-| `sigma_prior` | object | — | Default halfnormal(1). |
+| `priors` | object | — | Per channel `{roi\|beta}` + kernel/curve keys. |
+| `intercept_prior` | object | — | normal(0, 2). |
+| `control_prior` | object | — | normal(0, 1). |
+| `sigma_prior` | object | — | halfnormal(1). |
 | `chains` | number | 4 | 1–16. |
 | `warmup` | number | 1000 | 1–20000. |
 | `draws` | number | 1000 | 1–20000, per chain. |
@@ -38,11 +38,13 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `geo` | string | — | Market field: a pooled geo panel. |
 | `per_geo_curves` | bool | `false` | Per-geo pooled curves. |
 | `lift_tests` | array | — | Experiments as data. |
-| `conf_level` | float | `0.95` | Wald CI on the posterior SD. |
+| `return_draws` | bool | `false` | Adds `outputs.draws`. |
+| `draws_thin` | number | 1 | Keep every k-th draw. |
+| `conf_level` | float | `0.95` | Wald CI. |
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Formulas, priors, lift tests, geo panels: `mmm-bayes-model`.
+Model detail: `mmm-bayes-model`.
 
 ## Inputs
 
@@ -50,9 +52,9 @@ One row per period (per geo with `geo`; ragged ends allowed). A `date` time is `
 
 ## Output
 
-Coefficients are posterior means<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
+Coefficients are posterior means<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`, `draws`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
-φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads them at their means; `hill()` is Hill only.
+φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads them at their means.
 
 <!-- generated: reading-the-output -->
 
@@ -68,4 +70,4 @@ Coefficients are posterior means<!-- feature: capability:models -->; an `inline`
 
 ## See
 
-`mmm-bayes-model` · `mmm-workflow` · `op-reg-mmm-hill` · `regression-model-options` · `regression-spec`
+`mmm-bayes-model` · `mmm-bayes-posterior` · `mmm-workflow` · `op-reg-mmm-hill` · `regression-model-options` · `regression-spec`

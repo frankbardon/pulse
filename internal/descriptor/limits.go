@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
@@ -137,6 +138,9 @@ type LimitInputs struct {
 //     derives when the right key may repeat (joinFanOutFinding) —
 //     never a refusal here; the runtime refuses the measured fan-out
 //     after the build (JoinFanOutRefusal).
+//   - MaxMMMDrawValues: a REG_MMM_BAYES fit's raw-draws payload
+//     (EstimateMMMDrawValues) — Certain on one market, Possible on a
+//     geo panel.
 //   - MaxMatrixDim (Certain): each matrix's dimension p — its resolved
 //     member count, from vectors.ResolveMatrices, the resolver the
 //     runtime mints its accumulators from. A refused spec yields no
@@ -184,6 +188,12 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 				out = append(out, f)
 			}
 		}
+		// Its raw draws (params.return_draws, MaxMMMDrawValues).
+		if n, grade, ok := EstimateMMMDrawValues(reg, schema, records); ok {
+			if f, ok := limits.Evaluate(l, limits.MaxMMMDrawValues, n, grade); ok {
+				out = append(out, f)
+			}
+		}
 	}
 	if len(req.Matrices) > 0 {
 		plans, err := resolveMatricesFor(req, schema, nil, inst, in.Models)
@@ -223,6 +233,29 @@ func EstimateMMMGeos(reg *types.RegressionSpec, schema *encoding.Schema, records
 		n = records
 	}
 	return n, true
+}
+
+// EstimateMMMDrawValues is a REG_MMM_BAYES fit's raw-draws payload
+// (params.return_draws: chains x kept draws x (coefficients + roi
+// entries), regmmm.BayesDrawValues — the figure the fit checks). On one
+// market it is the spec's alone, so Certain; on a geo panel it grows
+// with the geos, so it is the Possible figure at EstimateMMMGeos' bound
+// (none when that has no bound). False for any other spec, one without
+// return_draws, or a refused spec.
+func EstimateMMMDrawValues(reg *types.RegressionSpec, schema *encoding.Schema, records int64) (int64, limits.Grade, bool) {
+	n, geo, ok := regmmm.BayesDrawValues(reg, 0)
+	if !ok {
+		return 0, "", false
+	}
+	if !geo {
+		return n, limits.Certain, true
+	}
+	geos, ok := EstimateMMMGeos(reg, schema, records)
+	if !ok {
+		return 0, "", false
+	}
+	n, _, _ = regmmm.BayesDrawValues(reg, geos)
+	return n, limits.Possible, true
 }
 
 // LimitRefusal is the process pre-flight: the PULSE_LIMIT_EXCEEDED

@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
-    "limits_digest": "lim1:f2a984f049f3d4c70212d8de89ebcffd782700875492edcdd98208a5e8f4016c",
+    "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
         "name": "process",
@@ -9202,6 +9202,20 @@
             "type": "list",
             "required": false,
             "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
+          },
+          {
+            "name": "return_draws",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add outputs.draws, the raw posterior draws: names (the coefficient table), draws[chain][coefficient][draw] on the constrained scale in original units, roi per outputs.roi entry ([chain][draw]) and thin. At most Limits.MaxMMMDrawValues values (chains x kept draws x (coefficients + roi entries), default 10,000,000) or the fit is refused, never truncated. Never moves the derived seed."
+          },
+          {
+            "name": "draws_thin",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."
           }
         ],
         "intents": [
@@ -9247,6 +9261,11 @@
             "key": "hierarchy",
             "json_type": "object",
             "description": "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:\u003cch\u003e …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry \u003cch\u003e[\u003cgeo\u003e] beside the all-geo one under \u003cch\u003e (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."
+          },
+          {
+            "key": "draws",
+            "json_type": "object",
+            "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]) and thin (params.draws_thin: every thin-th retained draw of each chain is kept). The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
           }
         ]
       },
@@ -13989,6 +14008,10 @@
       {
         "name": "mmm-bayes-model",
         "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, geo panels with partial pooling (params.geo), lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit."
+      },
+      {
+        "name": "mmm-bayes-posterior",
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping."
       },
       {
         "name": "mmm-workflow",
@@ -21392,10 +21415,16 @@
         "value": 50,
         "default": 50,
         "unit": "count"
+      },
+      {
+        "name": "max_mmm_draw_values",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0f0e8d4a822680e368bf64470374dcb78702ac861fb73dfe1da0e020b0c321bd
+// golden-hash: 96b9866e908499e8ad01493b5bb0f4c7f9e754f01963fa8965bc2b16fb6f0f72

@@ -727,6 +727,7 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 			"diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); " +
 			"holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); " +
 			"hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's <channel>[<geo>] beside the all-geo figure (the panel's summed contribution over its summed spend); " +
+			"draws, with params.return_draws, the raw draws params and roi summarise, for a posterior analysis of your own; " +
 			"and seed, the seed the sampler ran with.",
 		Caveats: []string{
 			"A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.",

@@ -168,6 +168,10 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // clock: the same request gives the same draws, bit for bit, on every
 // architecture and for any worker count.
 //
+// params.return_draws adds outputs.draws, the raw posterior draws
+// (every params.draws_thin-th per chain), capped by
+// Limits.MaxMMMDrawValues (bayes_draws.go).
+//
 // No scorer: an adstocked prediction needs the history, so the engine's
 // holdout slot (params.holdout_from replaces it), save and
 // ATTR_REG_PREDICT are refused; NoResample: resample and its knobs are
@@ -265,6 +269,8 @@ type bayesParamsWire struct {
 	LiftTests      []liftTestWire              `json:"lift_tests"`
 	Geo            *string                     `json:"geo"`
 	PerGeoCurves   *bool                       `json:"per_geo_curves"`
+	ReturnDraws    *bool                       `json:"return_draws"`
+	DrawsThin      *int                        `json:"draws_thin"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -294,6 +300,10 @@ type bayesConfig struct {
 	// parameters are pooled across the geos like the kernel's (false:
 	// one curve per channel, shared by every geo).
 	perGeoCurves bool
+	// returnDraws is params.return_draws: outputs.draws carries the raw
+	// posterior draws, every drawsThin-th of each chain (bayes_draws.go).
+	returnDraws bool
+	drawsThin   int
 }
 
 // bayesSlotError is a PROCESSING_CONFIG refusal naming the slot.
@@ -497,6 +507,9 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 		}
 		*s.dst = *s.v
 	}
+	if err := drawsConfig(spec, &w, cfg); err != nil {
+		return nil, err
+	}
 	for _, s := range []struct {
 		key string
 		v   *float64
@@ -657,7 +670,8 @@ func BayesSpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
 // bayesEffectiveSeed is spec.RNGSeed when non-zero, else
 // regresample.DeriveSeed over the spec's wire form with rng_seed cleared
 // (the raw params in regresample.CanonicalJSON form, so their key order
-// never moves it) and a zero row count — the derivation every Pulse
+// never moves it, less the output-only return_draws and draws_thin, so
+// asking for the draws never moves them) and a zero row count — the derivation every Pulse
 // rng_seed-0 draw shares. It reads the spec only, never data or the
 // clock.
 func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
@@ -666,7 +680,7 @@ func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
-	cp.Params = regresample.CanonicalJSON(cp.Params)
+	cp.Params = regresample.CanonicalJSON(withoutOutputOnlyParams(cp.Params))
 	body, err := json.Marshal(&cp)
 	if err != nil {
 		body = nil
@@ -727,6 +741,9 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 	}
 	if cfg.geo != "" {
 		return r.fitGeo(ctx, rows)
+	}
+	if err := r.checkDrawValues(ctx, 0); err != nil {
+		return extend.RegressionOutput{}, err
 	}
 	data, err := r.read(rows)
 	if err != nil {

@@ -53,6 +53,9 @@ type FeatureProfileLimits struct {
 
 	// MaxMMMGeos is Options.Limits.MaxMMMGeos' profile twin.
 	MaxMMMGeos int64 `json:"max_mmm_geos,omitempty"`
+
+	// MaxMMMDrawValues is Options.Limits.MaxMMMDrawValues' profile twin.
+	MaxMMMDrawValues int64 `json:"max_mmm_draw_values,omitempty"`
 }
 
 // featureProfileLimitsValue converts a profile `limits` section into the
@@ -78,6 +81,7 @@ func featureProfileLimitsValue(fl *FeatureProfileLimits) (l limits.Limits, bad l
 	l.MaxDerivedColumns = fl.MaxDerivedColumns
 	l.MaxExpandedItems = fl.MaxExpandedItems
 	l.MaxMMMGeos = fl.MaxMMMGeos
+	l.MaxMMMDrawValues = fl.MaxMMMDrawValues
 	for _, n := range limits.Names() {
 		if v := limits.Value(l, n); v < limits.Unlimited {
 			if n == limits.RequestTimeout {

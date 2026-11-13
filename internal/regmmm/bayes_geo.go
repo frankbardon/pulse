@@ -257,6 +257,9 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
+	if err := r.checkDrawValues(ctx, int64(len(gd.names))); err != nil {
+		return extend.RegressionOutput{}, err
+	}
 	nf, err := r.geoFitRows(gd)
 	if err != nil {
 		return extend.RegressionOutput{}, err

@@ -254,6 +254,7 @@ pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
+pulse: const DefaultMaxMMMDrawValues int64 = 10000000
 pulse: const DefaultMaxMMMGeos int64 = 50
 pulse: const DefaultMaxMatrixDim int64 = 2048
 pulse: const DefaultRequestTimeout time.Duration = -1
@@ -451,6 +452,7 @@ pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_esti
 pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
+pulse: type FeatureProfileLimits field MaxMMMDrawValues int64 "json:\"max_mmm_draw_values,omitempty\""
 pulse: type FeatureProfileLimits field MaxMMMGeos int64 "json:\"max_mmm_geos,omitempty\""
 pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
 pulse: type FeatureProfileLimits field RequestTimeout string "json:\"request_timeout,omitempty\""
@@ -667,6 +669,7 @@ pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
+pulse: type Limits field MaxMMMDrawValues int64
 pulse: type Limits field MaxMMMGeos int64
 pulse: type Limits field MaxMatrixDim int64
 pulse: type Limits field RequestTimeout time.Duration
@@ -6827,4 +6830,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 11ca6cae11a2c8936ef5a3b8d392eaa36bc0a5c455a069f9117c14bc599cbd31
+// golden-hash: 84cb42c107bf2944398e43a338298205fe78ba0a5b010b6c0caed890eae2292b
