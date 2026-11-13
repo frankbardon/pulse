@@ -614,3 +614,21 @@ func TestMergeRefusal_GroupedMatrixTotalMember(t *testing.T) {
 		t.Errorf("grouped matrix beside a total() formula refused: %q", got)
 	}
 }
+
+// TestMatrixTotalMemberRefusal_NoTaintedLayers: when totalLayers reports
+// no tainted slots (a Crosstab request returns nil), a matrix reading a
+// computed member is not refused by the member rule — without the
+// tainted == nil guard the loop would index a nil slice and panic.
+func TestMatrixTotalMemberRefusal_NoTaintedLayers(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
+	req := &types.Request{
+		Crosstab:   &types.CrosstabSpec{},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "sum", Expression: "x + y"}},
+		Matrices:   []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "sum"}}},
+	}
+	if got := matrixTotalMemberRefusal(req, schema, nil); got != "" {
+		t.Errorf("refusal = %q, want none", got)
+	}
+}
