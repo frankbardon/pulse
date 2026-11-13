@@ -42,17 +42,18 @@ Use something else:
 | `chains` | number | 4 | 1–16. |
 | `warmup` | number | 1000 | 1–20000. |
 | `draws` | number | 1000 | 1–20000, per chain. |
-| `credible_level` | number | 0.9 | Interval level in (0, 1). |
-| `sampler` | string | `nuts` | Only one. |
-| `target_accept` | number | 0.8 | Raise on divergences. |
-| `holdout_from` | number | — | Rows from this time are held out. |
+| `credible_level` | number | 0.9 | Interval level. |
+| `sampler` | string | `nuts` | — |
+| `target_accept` | number | 0.8 | Raise if divergent. |
+| `holdout_from` | number | — | Held out from this time. |
 | `geo` | string | — | Market field: a pooled geo panel. |
-| `lift_tests` | array | — | Experiments as data, outcome units. |
+| `per_geo_curves` | bool | `false` | Per-geo pooled curves. |
+| `lift_tests` | array | — | Experiments as data. |
 | `conf_level` | float | `0.95` | Wald CI on the posterior SD. |
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Formulas, priors, lift tests, geo panels: [`mmm-bayes-model`](mmm-bayes-model.md). `rng_seed` 0 is derived.
+Formulas, priors, lift tests, geo panels: [`mmm-bayes-model`](mmm-bayes-model.md).
 
 ## Inputs
 
@@ -62,7 +63,7 @@ One row per period (per geo with `geo`; ragged ends allowed). A `date` time is `
 
 Coefficients are posterior means; an `inline` `models` entry declares them with no fit. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
 
-φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response()` reads the kernel and curve at their means; `hill()` is Hill only.
+φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads them at their means; `hill()` is Hill only.
 
 ## Reading the output
 

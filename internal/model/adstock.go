@@ -374,18 +374,24 @@ func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel st
 		if !ok || math.IsNaN(v) || math.IsInf(v, 0) {
 			return Adstock{}, false
 		}
-		switch prefix {
-		case MMMDecayPrefix:
-			a.Decay = &v
-		case MMMPeakPrefix:
-			a.Peak = &v
-		case MMMAdstockShapePrefix:
-			a.Shape = &v
-		case MMMAdstockScalePrefix:
-			a.Scale = &v
-		}
+		a.setParam(prefix, v)
 	}
 	return a, checkAdstock(a) == ""
+}
+
+// setParam sets the kernel parameter whose REG_MMM_BAYES coefficient
+// prefix is prefix (MMMBayesAdstockPrefixes) to v.
+func (a *Adstock) setParam(prefix string, v float64) {
+	switch prefix {
+	case MMMDecayPrefix:
+		a.Decay = &v
+	case MMMPeakPrefix:
+		a.Peak = &v
+	case MMMAdstockShapePrefix:
+		a.Shape = &v
+	case MMMAdstockScalePrefix:
+		a.Scale = &v
+	}
 }
 
 // checkAdstock is one record's rule ("" when whole): it reads as a

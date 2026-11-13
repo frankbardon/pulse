@@ -327,3 +327,150 @@ func TestCatalog_Adstocks(t *testing.T) {
 		t.Fatalf("loaded: %+v", sig)
 	}
 }
+
+// bayesGeoSet binds the geo-panel REG_MMM_BAYES fit "panel" (geos NE,
+// SW; geometric max_lag 5; Hill) — per-geo curves when perGeoCurves —
+// and the one-market fit "one".
+func bayesGeoSet(t *testing.T, perGeoCurves bool) *Set {
+	t.Helper()
+	coefs := map[string]float64{"(intercept)[NE]": 4, "(intercept)[SW]": 5,
+		"tv": 2.5, "tv[NE]": 2, "tv[SW]": 3, "decay:tv": 0.45, "decay:tv[NE]": 0.3, "decay:tv[SW]": 0.6,
+		"k:tv": 30, "s:tv": 1.2, "sigma": 1, "tau:tv": 0.2, "tau:decay:tv": 0.3}
+	if perGeoCurves {
+		coefs["k:tv[NE]"], coefs["k:tv[SW]"], coefs["s:tv[NE]"], coefs["s:tv[SW]"] = 20, 40, 1.1, 1.4
+	}
+	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
+		Params: json.RawMessage(`{"channels": ["tv"], "max_lag": 5, "geo": "market"}`)}
+	res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: coefs}
+	b, err := Bind("panel", spec, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Adstocks = AdstockLineage(nil, spec, res)
+	s := &Set{}
+	if err := s.Add(b); err != nil {
+		t.Fatal(err)
+	}
+	oneSpec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
+		Params: json.RawMessage(`{"channels": ["tv"], "max_lag": 5}`)}
+	oneRes := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: map[string]float64{InterceptKey: 4,
+		"tv": 2.5, "decay:tv": 0.45, "k:tv": 30, "s:tv": 1.2}}
+	one, err := Bind("one", oneSpec, oneRes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	one.Adstocks = AdstockLineage(nil, oneSpec, oneRes)
+	if err := s.Add(one); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// TestResponse_BayesGeo: on a geo panel response() without a geo is the
+// population's (the bare μ terms), and with one the geo's own β and
+// decay over the channel record's kernel and max_lag, with the shared
+// curve — or the geo's own curve under per-geo curves; ResponseBuiltin
+// reads the four-argument form.
+func TestResponse_BayesGeo(t *testing.T) {
+	t.Parallel()
+
+	m := func(d float64) float64 { return (1 - math.Pow(d, 6)) / (1 - d) }
+	shared := bayesGeoSet(t, false)
+	got, cerr := Response(shared, "panel", "tv", 20)
+	if want := 2.5 * handHill(m(0.45)*20, 30, 1.2); cerr != nil || !near(got, want, 1e-12) {
+		t.Fatalf("population response %v (%v), want %v", got, cerr, want)
+	}
+	got, cerr = ResponseGeo(shared, "panel", "tv", "SW", 20)
+	if want := 3 * handHill(m(0.6)*20, 30, 1.2); cerr != nil || !near(got, want, 1e-12) {
+		t.Fatalf("SW response %v (%v), want %v", got, cerr, want)
+	}
+	v, err := ResponseBuiltin(shared)("panel", "tv", 20, "NE")
+	if want := 2 * handHill(m(0.3)*20, 30, 1.2); err != nil || !near(v.(float64), want, 1e-12) {
+		t.Fatalf("builtin NE response %v (%v), want %v", v, err, want)
+	}
+	if _, err := ResponseBuiltin(shared)("panel", "tv", 20, 7); err == nil {
+		t.Fatal("a numeric geo argument was read")
+	}
+	perGeo := bayesGeoSet(t, true)
+	got, cerr = ResponseGeo(perGeo, "panel", "tv", "NE", 20)
+	if want := 2 * handHill(m(0.3)*20, 20, 1.1); cerr != nil || !near(got, want, 1e-12) {
+		t.Fatalf("per-geo-curve NE response %v (%v), want %v", got, cerr, want)
+	}
+	got, cerr = Response(perGeo, "panel", "tv", 20)
+	if want := 2.5 * handHill(m(0.45)*20, 30, 1.2); cerr != nil || !near(got, want, 1e-12) {
+		t.Fatalf("per-geo-curve population response %v (%v), want %v", got, cerr, want)
+	}
+}
+
+// TestCheckResponseGeo: a geo the panel does not name, and any geo on a
+// fit that is no panel, is PULSE_MODEL_TERM_UNKNOWN reason geo_unknown
+// with the fit's geos — at runtime (ResponseGeo) and from the static
+// catalog of the same fit request (CatalogFromFits) with the same code,
+// message and details; a panel's static geos are the data's, so predict
+// passes any geo there; the channel rule runs first.
+func TestCheckResponseGeo(t *testing.T) {
+	t.Parallel()
+
+	s := bayesGeoSet(t, false)
+	if cerr := CheckResponseGeo(s, "panel", "tv", "NE"); cerr != nil {
+		t.Fatalf("NE: %v", cerr)
+	}
+	for _, tc := range []struct {
+		fit, geo string
+		geos     []string
+	}{
+		{"panel", "XX", []string{"NE", "SW"}},
+		{"one", "NE", []string{}},
+	} {
+		cerr := CheckResponseGeo(s, tc.fit, "tv", tc.geo)
+		if cerr == nil || cerr.Code != errors.PULSE_MODEL_TERM_UNKNOWN || cerr.Details["reason"] != ReasonGeoUnknown ||
+			cerr.Details["geo"] != tc.geo || !reflect.DeepEqual(cerr.Details["geos"], tc.geos) {
+			t.Fatalf("%s/%s: %v", tc.fit, tc.geo, cerr)
+		}
+		if _, rerr := ResponseGeo(s, tc.fit, "tv", tc.geo, 1); rerr == nil || rerr.Message != cerr.Message {
+			t.Fatalf("ResponseGeo %s/%s: %v", tc.fit, tc.geo, rerr)
+		}
+	}
+	if cerr := CheckResponseGeo(s, "panel", "price", "NE"); cerr == nil || cerr.Details["reason"] != ReasonAdstockUnknown {
+		t.Fatalf("channel before geo: %v", cerr)
+	}
+	fitReq := func(params string) *types.Request {
+		return &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
+			Params: json.RawMessage(params)}}}
+	}
+	cat := CatalogFromFits([]types.FitSpec{
+		{Name: "panel", Request: fitReq(`{"channels": ["tv"], "max_lag": 5, "geo": "market"}`)},
+		{Name: "one", Request: fitReq(`{"channels": ["tv"], "max_lag": 5}`)},
+		{Name: "hill", Request: &types.Request{Regressions: []*types.RegressionSpec{hillSpec()}}},
+	})
+	if cerr := CheckResponseGeo(cat, "panel", "tv", "anything"); cerr != nil {
+		t.Fatalf("static panel geo: %v", cerr)
+	}
+	static := CheckResponseGeo(cat, "one", "tv", "NE")
+	runtime := CheckResponseGeo(s, "one", "tv", "NE")
+	if static == nil || runtime == nil || static.Message != runtime.Message || !reflect.DeepEqual(static.Details, runtime.Details) {
+		t.Fatalf("static %v, runtime %v", static, runtime)
+	}
+	if sig := cat["hill"]; !sig.GeosKnown || len(sig.Geos) != 0 {
+		t.Fatalf("hill: geos %v known %v", sig.Geos, sig.GeosKnown)
+	}
+	f := &File{Type: types.REG_MMM_BAYES, Coefficients: map[string]Float{"(intercept)[a]": 1, "(intercept)[b]": 2, "tv": 1}}
+	loaded := CatalogWithModels(nil, []types.ModelRef{{Name: "saved", Path: "x.pulse-model.json"}}, []*File{f})
+	if sig := loaded["saved"]; !sig.GeosKnown || !reflect.DeepEqual(sig.Geos, []string{"a", "b"}) {
+		t.Fatalf("loaded: %+v", sig)
+	}
+}
+
+// TestMMMGeos: the geos are the per-geo intercepts' (sorted), none on a
+// table without one; a bare "(intercept)[]" names no geo.
+func TestMMMGeos(t *testing.T) {
+	t.Parallel()
+
+	got := MMMGeos(map[string]float64{"(intercept)[SW]": 1, "(intercept)[NE]": 1, "tv[NE]": 1, "(intercept)": 1, "(intercept)[]": 1})
+	if !reflect.DeepEqual(got, []string{"NE", "SW"}) {
+		t.Fatalf("geos %v", got)
+	}
+	if got := MMMGeos[float64](nil); got == nil || len(got) != 0 {
+		t.Fatalf("nil table: %v", got)
+	}
+}

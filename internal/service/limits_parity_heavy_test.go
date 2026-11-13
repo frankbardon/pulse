@@ -14,7 +14,8 @@ import (
 // buildWideCohort cohort: on every runtime enforcement site — serial,
 // buffered, the parallel decode and shard reducers, the shard merge,
 // the buffered and fused crosstab, join, matrix, Compose (serial and
-// parallel), ProcessChain, facet and RequestTimeout — a tight limit
+// parallel), ProcessChain, facet, a REG_MMM_BAYES geo panel's
+// MaxMMMGeos and RequestTimeout — a tight limit
 // trips exactly the limit the case names, and
 //
 //   - every certain finding trips at runtime, with the same {code,
@@ -87,7 +88,7 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 		"buffered crosstab", "fused crosstab", "join", "matrix", "compose", "compose (parallel)", "chain", "facet", "timeout",
 		"derived columns", "expanded items", "compose (optimize fan-out)", "materialize (memory pre-flight)", "compose (slot memory pre-flight)",
 		"compose (archive slot memory pre-flight)", "chain (stage 0 memory pre-flight)",
-		"join (build-side memory backstop)", "compose (slot join backstop)", "chain (stage 0 join backstop)"} {
+		"join (build-side memory backstop)", "compose (slot join backstop)", "chain (stage 0 join backstop)", "mmm geos"} {
 		if !sites[s] {
 			t.Errorf("runtime site %q never tripped", s)
 		}

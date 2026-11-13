@@ -2686,7 +2686,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel.",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel. A response(fit, channel, spend, geo) call raises it with `reason` `geo_unknown` when the fit names no such geo (the geo under `geo`, the fit's geos under `geos` — empty on a fit that is no Bayesian geo panel).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2707,6 +2707,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Pass response() a channel under `channels`, or build the channel's adstock with one lag-kernel window over raw spend (or declare it in the inline model's `adstock`) so the fit records one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass response() a geo under `geos` as its fourth argument, or drop it for the population response.",
 			},
 		},
 	},

@@ -643,7 +643,7 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 	// ∂L/∂σ = −n/σ + SSR/σ³.
 	add(m.iSigma(), -float64(m.n)/sigma+ssr/float64(s2*sigma))
 	for _, l := range m.lifts {
-		lp += m.liftTerm(l, chans[l.channel], ads[l.channel], coords[m.iEffect(l.channel)].y, add)
+		lp += m.liftTerm(l, chans[l.channel], ads[l.channel], coords[m.iEffect(l.channel)].y, m.coordSink(l.channel, add))
 	}
 	return lp
 }

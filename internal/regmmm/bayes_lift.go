@@ -29,6 +29,12 @@ import (
 // units, lift the outcome with the change minus the outcome without it
 // (a switch-off lift is negative). The term and its analytic gradient
 // are part of the log density, so the MAP start and NUTS see them.
+//
+// On a geo panel (params.geo) each test names its geo, required there
+// and refused elsewhere: Δ is that geo's own figure — its spend, its
+// pooled β and kernel (and, with params.per_geo_curves, its curve) —
+// and the term's partials reach the geo's pooled values
+// (bayes_geo_model.go).
 
 // liftTestWire is one params.lift_tests entry.
 type liftTestWire struct {
@@ -42,9 +48,11 @@ type liftTestWire struct {
 }
 
 // bayesLiftSpec is one validated lift test, its window still in
-// params.time units.
+// params.time units; geo is the geo it names on a geo panel ("" on one
+// market).
 type bayesLiftSpec struct {
 	channel    int
+	geo        string
 	start, end int64
 	spendDelta float64
 	lift, se   float64
@@ -53,6 +61,8 @@ type bayesLiftSpec struct {
 // The lift-test refusals' details.reason.
 const (
 	reasonLiftGeo              = "lift_geo_unsupported"
+	reasonLiftGeoMissing       = "lift_geo_missing"
+	reasonLiftGeoUnknown       = "lift_geo_unknown"
 	reasonLiftChannel          = "lift_channel_unknown"
 	reasonLiftWindowMissing    = "lift_window_missing"
 	reasonLiftWindowInvalid    = "lift_window_invalid"
@@ -65,13 +75,16 @@ const (
 )
 
 // liftSpecs validates params.lift_tests against the slot's channels:
-// spec-only, so predict raises the same refusal. A test with geo is
-// refused (the model fits one market); a channel outside
+// spec-only, so predict raises the same refusal. On one market (panel
+// false) a test with geo is refused (lift_geo_unsupported); on a geo
+// panel one without it is (lift_geo_missing) — whether it names one of
+// the panel's geos is the data's (the fit's lift_geo_unknown). A channel
+// outside
 // params.channels, a missing or reversed window, a missing or zero
 // spend_delta, a missing lift and an se that is missing or not positive
 // are PROCESSING_CONFIG (slot params.lift_tests, details index and
 // reason).
-func liftSpecs(spec *types.RegressionSpec, tests []liftTestWire, channels []string) ([]bayesLiftSpec, error) {
+func liftSpecs(spec *types.RegressionSpec, tests []liftTestWire, channels []string, panel bool) ([]bayesLiftSpec, error) {
 	var out []bayesLiftSpec
 	for i, w := range tests {
 		refuse := func(reason, msg string, extra map[string]any) error {
@@ -81,8 +94,11 @@ func liftSpecs(spec *types.RegressionSpec, tests []liftTestWire, channels []stri
 			}
 			return bayesSlotError(spec, "params.lift_tests", fmt.Sprintf("params.lift_tests[%d]: %s", i, msg), details)
 		}
-		if w.Geo != nil {
+		if w.Geo != nil && !panel {
 			return nil, refuse(reasonLiftGeo, "geo applies only to a geo model; this model fits one market's series — drop geo", nil)
+		}
+		if w.Geo == nil && panel {
+			return nil, refuse(reasonLiftGeoMissing, "geo is required on a geo panel (params.geo): name the geo the experiment ran in", nil)
 		}
 		c := -1
 		for j, name := range channels {
@@ -111,7 +127,11 @@ func liftSpecs(spec *types.RegressionSpec, tests []liftTestWire, channels []stri
 		if w.SE == nil || !(*w.SE > 0) {
 			return nil, refuse(reasonLiftSE, "se (the lift's standard error, in outcome units) must be > 0", nil)
 		}
-		out = append(out, bayesLiftSpec{channel: c, start: *w.Start, end: *w.End, spendDelta: *w.SpendDelta, lift: *w.Lift, se: *w.SE})
+		geo := ""
+		if w.Geo != nil {
+			geo = *w.Geo
+		}
+		out = append(out, bayesLiftSpec{channel: c, geo: geo, start: *w.Start, end: *w.End, spendDelta: *w.SpendDelta, lift: *w.Lift, se: *w.SE})
 	}
 	return out, nil
 }
@@ -137,9 +157,11 @@ func liftPriorOverlap(lifts []bayesLiftSpec, channels []string, priors map[strin
 // liftTest is one lift test on the fitted rows: the channel, the window
 // as row indices [from, to] (inclusive), the channel's raw spend over
 // rows 0..to with the experiment's change applied, and the measured
-// lift and its standard error in original units.
+// lift and its standard error in original units; geo is its geo's index
+// on a geo panel (0 on one market).
 type liftTest struct {
 	channel  int
+	geo      int
 	from, to int
 	spend    []float64
 	lift, se float64
@@ -185,11 +207,21 @@ func liftSpend(x []float64, from, to int, delta float64) ([]float64, error) {
 // from..to); a window outside the rows or a change below zero spend is
 // PROCESSING_CONFIG.
 func (m *bayesModel) newLiftTest(channel, from, to int, delta, lift, se float64) (liftTest, error) {
-	if channel < 0 || channel >= m.nc || from < 0 || to < from || to >= m.n || !(se > 0) || !finite(lift) {
-		return liftTest{}, bayesConfigError(fmt.Sprintf("REG_MMM_BAYES: lift test on channel %d rows [%d, %d] is outside the model (%d rows, %d channels) or has no positive se",
-			channel, from, to, m.n, m.nc), map[string]any{"reason": reasonLiftWindowRange})
+	var x []float64
+	if channel >= 0 && channel < m.nc {
+		x = m.spend[channel]
 	}
-	sp, err := liftSpend(m.spend[channel], from, to, delta)
+	return makeLiftTest(x, m.n, m.nc, channel, from, to, delta, lift, se)
+}
+
+// makeLiftTest is newLiftTest over one series: x the channel's fitted
+// raw spend (n rows; nil for a channel outside the nc channels).
+func makeLiftTest(x []float64, n, nc, channel, from, to int, delta, lift, se float64) (liftTest, error) {
+	if channel < 0 || channel >= nc || from < 0 || to < from || to >= n || !(se > 0) || !finite(lift) {
+		return liftTest{}, bayesConfigError(fmt.Sprintf("REG_MMM_BAYES: lift test on channel %d rows [%d, %d] is outside the model (%d rows, %d channels) or has no positive se",
+			channel, from, to, n, nc), map[string]any{"reason": reasonLiftWindowRange})
+	}
+	sp, err := liftSpend(x, from, to, delta)
 	if err != nil {
 		return liftTest{}, bayesConfigError("REG_MMM_BAYES: "+err.Error(), map[string]any{"reason": reasonLiftSpendNegative})
 	}
@@ -217,12 +249,32 @@ func (m *bayesModel) liftDelta(l liftTest, st channelState, ad []float64, grad b
 	return d, dp, dq
 }
 
+// liftSink receives a lift term's partials in the channel's constrained
+// parameters: its effect (ROI or β), kernel parameter i and curve
+// parameter i — the one-market model's θ coordinates, or a geo's pooled
+// values on a panel.
+type liftSink struct {
+	effect func(d float64)
+	kernel func(i int, d float64)
+	curve  func(i int, d float64)
+}
+
+// coordSink is the one-market model's liftSink for channel c: each
+// partial added at its θ coordinate through add.
+func (m *bayesModel) coordSink(c int, add func(int, float64)) liftSink {
+	return liftSink{
+		effect: func(d float64) { add(m.iEffect(c), d) },
+		kernel: func(i int, d float64) { add(m.iAdstock(i, c), d) },
+		curve:  func(i int, d float64) { add(m.iCurve(i, c), d) },
+	}
+}
+
 // liftTerm is lift test l's log likelihood, −½·((lift − Δ)/se)² (the
-// −log se constant dropped), with its partials added through add: Δ =
+// −log se constant dropped), with its partials added through sink: Δ =
 // max|y|·β·D on the channel's state st, β derived in ROI mode
 // (β = ROI·share/Σh, so a kernel or curve parameter moves Δ through Σh
 // too) or sampled in β mode; e is the channel's constrained effect.
-func (m *bayesModel) liftTerm(l liftTest, st channelState, ad []float64, e float64, add func(int, float64)) float64 {
+func (m *bayesModel) liftTerm(l liftTest, st channelState, ad []float64, e float64, sink liftSink) float64 {
 	c := l.channel
 	d, dp, dq := m.liftDelta(l, st, ad, true)
 	bd := float64(st.beta * d)
@@ -230,9 +282,9 @@ func (m *bayesModel) liftTerm(l liftTest, st channelState, ad []float64, e float
 	// ∂/∂(β·D) of −½r², on the scaled outcome.
 	g := float64(r*m.yScale) / l.se
 	if m.isBeta[c] {
-		add(m.iEffect(c), float64(g*d))
+		sink.effect(float64(g * d))
 	} else {
-		add(m.iEffect(c), float64(g*bd)/e)
+		sink.effect(float64(g*bd) / e)
 	}
 	// ∂(β·D)/∂φ = β·∂D/∂φ + D·∂β/∂φ, with ∂β/∂φ = −β·Σ_t ∂h_t/∂φ / Σh in
 	// ROI mode and 0 in β mode (likewise for the curve's parameters).
@@ -248,14 +300,14 @@ func (m *bayesModel) liftTerm(l liftTest, st channelState, ad []float64, e float
 		if !m.isBeta[c] {
 			dd -= float64(bd*sum(st.dhp[i])) / st.hSum
 		}
-		add(m.iAdstock(i, c), float64(g*dd))
+		sink.kernel(i, float64(g*dd))
 	}
 	for i, v := range dq {
 		dd := float64(st.beta * v)
 		if !m.isBeta[c] {
 			dd -= float64(bd*sum(st.dhq[i])) / st.hSum
 		}
-		add(m.iCurve(i, c), float64(g*dd))
+		sink.curve(i, float64(g*dd))
 	}
 	return -float64(0.5 * float64(r*r))
 }

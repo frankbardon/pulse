@@ -9186,15 +9186,22 @@
             "name": "geo",
             "type": "string",
             "required": false,
-            "description": "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names.",
+            "description": "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves — unless per_geo_curves —, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names.",
             "example": "market",
             "names_column": true
+          },
+          {
+            "name": "per_geo_curves",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Geo panel only (refused without geo): pool each channel's saturation-curve parameters across the geos like its adstock parameters, so each geo has its own curve — k:tv[NE] (s:, lam:) per geo, k:tv the population value, tau:k:tv the scale. Default false: one curve per channel, shared."
           },
           {
             "name": "lift_tests",
             "type": "list",
             "required": false,
-            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units; geo is refused, and lift_tests is refused on a geo panel. A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
+            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
           }
         ],
         "intents": [
@@ -21391,4 +21398,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3d3bc2753d62f20f9035e903abbfbd5a3856969c7845d5204675d8eb2ddb8277
+// golden-hash: 0f0e8d4a822680e368bf64470374dcb78702ac861fb73dfe1da0e020b0c321bd

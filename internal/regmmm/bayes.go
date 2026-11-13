@@ -153,7 +153,8 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // params.lift_tests enters measured experiments as data: each test adds
 // lift ~ Normal(Δ, se), Δ the model's change in the outcome summed over
 // the window's periods when the channel's spend there changes by
-// spend_delta (bayes_lift.go). Its spec refusals (geo, an unknown
+// spend_delta (bayes_lift.go; on a geo panel the named geo's). Its spec
+// refusals (geo on one market, no geo on a panel, an unknown
 // channel, a missing or reversed window, a missing or zero spend_delta,
 // a missing lift, se ≤ 0) are the factory's; a window outside the
 // fitted periods and a cut below zero spend are the fit's
@@ -263,6 +264,7 @@ type bayesParamsWire struct {
 	HoldoutFrom    *int64                      `json:"holdout_from"`
 	LiftTests      []liftTestWire              `json:"lift_tests"`
 	Geo            *string                     `json:"geo"`
+	PerGeoCurves   *bool                       `json:"per_geo_curves"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -288,6 +290,10 @@ type bayesConfig struct {
 	// geo is params.geo: the panel's market field ("" fits one market's
 	// series, bayes_geo.go otherwise).
 	geo string
+	// perGeoCurves is params.per_geo_curves: on a geo panel the curve's
+	// parameters are pooled across the geos like the kernel's (false:
+	// one curve per channel, shared by every geo).
+	perGeoCurves bool
 }
 
 // bayesSlotError is a PROCESSING_CONFIG refusal naming the slot.
@@ -366,10 +372,17 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 		return nil, bayesSlotError(spec, "params.time", "params.time must name the integer time field", nil)
 	}
 	if w.Geo != nil {
-		if err := geoSpecRefusal(spec, *w.Geo, w.Time, w.LiftTests); err != nil {
+		if err := geoSpecRefusal(spec, *w.Geo, w.Time); err != nil {
 			return nil, err
 		}
 		cfg.geo = *w.Geo
+	}
+	if w.PerGeoCurves != nil && *w.PerGeoCurves {
+		if cfg.geo == "" {
+			return nil, bayesSlotError(spec, "params.per_geo_curves", "params.per_geo_curves pools each geo's curve across a geo panel; it needs params.geo (the market field) — drop it on one market's series",
+				map[string]any{"reason": reasonPerGeoCurvesNoGeo})
+		}
+		cfg.perGeoCurves = true
 	}
 	// The kernel names the coefficients a predictor may collide with; an
 	// unknown name is refused below, where the geometric-only check was,
@@ -584,7 +597,7 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 			*s.dst = p
 		}
 	}
-	lifts, err := liftSpecs(spec, w.LiftTests, cfg.channels)
+	lifts, err := liftSpecs(spec, w.LiftTests, cfg.channels, cfg.geo != "")
 	if err != nil {
 		return nil, err
 	}
@@ -764,19 +777,26 @@ func (r *bayesRegression) addLiftTests(m *bayesModel, data *bayesData, nf int) e
 		}
 		lt, err := m.newLiftTest(l.channel, int(l.start-first), int(l.end-first), l.spendDelta, l.lift, l.se)
 		if err != nil {
-			var ce *perr.CodedError
-			msg, reason := err.Error(), reasonLiftSpendNegative
-			if stderrors.As(err, &ce) {
-				msg = strings.TrimPrefix(ce.Message, string(BayesName)+": ")
-				if v, ok := ce.Details["reason"].(string); ok {
-					reason = v
-				}
-			}
-			return r.slotError(liftConfigError(i, reason, msg, map[string]any{"channel": r.cfg.channels[l.channel]}))
+			return r.liftResolveError(i, err, map[string]any{"channel": r.cfg.channels[l.channel]})
 		}
 		m.lifts = append(m.lifts, lt)
 	}
 	return nil
+}
+
+// liftResolveError is lift test i's refusal by the model's resolution
+// (makeLiftTest): its message and reason (lift_spend_negative when it
+// carries none) on slot params.lift_tests, with extra in the details.
+func (r *bayesRegression) liftResolveError(i int, err error, extra map[string]any) error {
+	var ce *perr.CodedError
+	msg, reason := err.Error(), reasonLiftSpendNegative
+	if stderrors.As(err, &ce) {
+		msg = strings.TrimPrefix(ce.Message, string(BayesName)+": ")
+		if v, ok := ce.Details["reason"].(string); ok {
+			reason = v
+		}
+	}
+	return r.slotError(liftConfigError(i, reason, msg, extra))
 }
 
 // fitRows is the number of leading (time-ordered) rows the likelihood

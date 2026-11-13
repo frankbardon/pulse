@@ -82,13 +82,23 @@ func geoPriorSets() map[string]bayesPriors {
 	}
 }
 
+// oracleGeoLift is one lift test the oracle scores: geo g, channel c,
+// window rows [from, to] of the geo's series, each window period's spend
+// scaled by 1 + frac, and the measured lift and se.
+type oracleGeoLift struct {
+	geo, channel, from, to int
+	frac, lift, se         float64
+}
+
 // oracleGeoLogPosterior is the panel's posterior written out plainly
 // from the model doc, with math.*: the panel-wide scaling, the per-geo
 // intercepts, each pooled value T(μ + τ·η) under the population prior's
 // transform (no density of its own), the τ ~ HalfNormal(geoTauSigma)
-// and η ~ Normal(0, 1) priors with their Jacobians, the shared curves
-// and controls, and one Normal likelihood over every geo's rows.
-func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []float64) float64 {
+// and η ~ Normal(0, 1) priors with their Jacobians, the curves (shared,
+// or each geo's own pooled values under in.perGeoCurves) and controls,
+// one Normal likelihood over every geo's rows, and each lift test's
+// −½((lift − Δ)/se)², Δ the geo's own window-only change.
+func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []float64, lifts []oracleGeoLift) float64 {
 	ng, nc, nz := len(in.y), len(in.spend[0]), len(in.controls[0])
 	kernel := pr.Kernel
 	if kernel == nil {
@@ -100,13 +110,19 @@ func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []floa
 	}
 	np, nq := len(kernel.Params()), len(curve.Params())
 	nk := 1 + np
+	if in.perGeoCurves {
+		nk += nq
+	}
 	iSigma := ng + nz + (np+nq+1)*nc
 	iTau := func(k, c int) int { return iSigma + 1 + k*nc + c }
 	iEta := func(k, c, g int) int { return iSigma + 1 + nk*nc + (k*nc+c)*ng + g }
 	iMu := func(k, c int) int {
-		if k == 0 {
+		switch {
+		case k == 0:
 			return ng + nz + (np+nq)*nc + c
 		}
+		// A kernel parameter's μ (k ≤ np), then a pooled curve
+		// parameter's: the one-market slots, kernel then curve.
 		return ng + nz + (k-1)*nc + c
 	}
 	lp := 0.0
@@ -172,10 +188,31 @@ func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []floa
 	}
 	muPrior := func(k, c int) prior {
 		cp := pr.Channels[c]
-		if k == 0 {
+		switch {
+		case k == 0:
 			return cp.Effect
+		case k <= np:
+			return *kernel.Params()[k-1].prior(&cp)
 		}
-		return *kernel.Params()[k-1].prior(&cp)
+		return *curve.Params()[k-1-np].prior(&cp)
+	}
+	// hOf is the curve at series x's adstock at t (kernel ad, curve qc).
+	hOf := func(x []float64, t, c int, ad, qc []float64) float64 {
+		a := 0.0
+		for l := 0; l <= maxLag && l <= t; l++ {
+			a += float64(oracleKernelWeight(kernel.Name(), ad, l) * x[t-l])
+		}
+		if !(a > 0) {
+			return 0
+		}
+		a /= xmax[c]
+		switch curve.Name() {
+		case "hill":
+			return math.Pow(a, qc[1]) / (math.Pow(a, qc[1]) + math.Pow(qc[0], qc[1]))
+		case "logistic":
+			return math.Tanh(qc[0] * a / 2)
+		}
+		return a / (qc[0] + a)
 	}
 	for g := range ng {
 		n := len(in.y[g])
@@ -194,27 +231,20 @@ func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []floa
 			for i := range ad {
 				ad[i] = geoVal(1 + i)
 			}
+			qc := q[c]
+			if in.perGeoCurves {
+				qc = make([]float64, nq)
+				for i := range qc {
+					qc[i] = geoVal(1 + np + i)
+				}
+			}
 			e := geoVal(0)
 			x := in.spend[g][c]
 			total, hsum := 0.0, 0.0
 			h := make([]float64, n)
 			for t := range n {
 				total += x[t]
-				a := 0.0
-				for l := 0; l <= maxLag && l <= t; l++ {
-					a += float64(oracleKernelWeight(kernel.Name(), ad, l) * x[t-l])
-				}
-				if a > 0 {
-					a /= xmax[c]
-					switch curve.Name() {
-					case "hill":
-						h[t] = math.Pow(a, q[c][1]) / (math.Pow(a, q[c][1]) + math.Pow(q[c][0], q[c][1]))
-					case "logistic":
-						h[t] = math.Tanh(q[c][0] * a / 2)
-					case "michaelis_menten":
-						h[t] = a / (q[c][0] + a)
-					}
-				}
+				h[t] = hOf(x, t, c, ad, qc)
 				hsum += h[t]
 			}
 			beta := e
@@ -223,6 +253,21 @@ func oracleGeoLogPosterior(in geoPanel, maxLag int, pr bayesPriors, theta []floa
 			}
 			for t := range mu {
 				mu[t] += float64(beta * h[t])
+			}
+			for _, l := range lifts {
+				if l.geo != g || l.channel != c {
+					continue
+				}
+				changed := slices.Clone(x)
+				for t := l.from; t <= l.to; t++ {
+					changed[t] = x[t] * (1 + l.frac)
+				}
+				d := 0.0
+				for t := l.from; t <= l.to; t++ {
+					d += hOf(changed, t, c, ad, qc) - h[t]
+				}
+				r := (l.lift - float64(ymax*beta*d)) / l.se
+				lp -= float64(0.5 * r * r)
 			}
 		}
 		for t := range mu {
@@ -246,7 +291,7 @@ func TestMMMBayes_GeoDensityMatchesOracle(t *testing.T) {
 		for pt := range 4 {
 			theta := geoRandomPoint(m, rng, 1)
 			got := m.LogDensityGrad(theta, make([]float64, m.Dim()))
-			want := oracleGeoLogPosterior(in, defaultMaxLag, pr, theta)
+			want := oracleGeoLogPosterior(in, defaultMaxLag, pr, theta, nil)
 			if !(math.Abs(got-want) <= 1e-9*max(1, math.Abs(want))) {
 				t.Errorf("%s point %d: density %.15g, oracle %.15g", name, pt, got, want)
 			}
@@ -542,5 +587,209 @@ func TestMMMBayes_GeoMAPStart(t *testing.T) {
 	scratch := make([]float64, m.Dim())
 	if lpMAP, lp0 := m.LogDensityGrad(theta, scratch), m.LogDensityGrad(m.defaultInit(), scratch); !(lpMAP > lp0) {
 		t.Errorf("MAP density %v not above the default start's %v", lpMAP, lp0)
+	}
+}
+
+// geoTestLifts are two lift tests on geoTestPanel: a switch-off of
+// channel 0 in geo 1 over rows 20–27 and a +50% test of channel 1 in geo
+// 2 over rows 40–45, each with a measured lift near the model's scale.
+func geoTestLifts(yScale float64) []oracleGeoLift {
+	return []oracleGeoLift{
+		{geo: 1, channel: 0, from: 20, to: 27, frac: -1, lift: -0.04 * yScale, se: 0.01 * yScale},
+		{geo: 2, channel: 1, from: 40, to: 45, frac: 0.5, lift: 0.02 * yScale, se: 0.015 * yScale},
+	}
+}
+
+// addGeoLifts resolves lifts onto m (newGeoLiftTest, the change frac of
+// the geo's window spend).
+func addGeoLifts(t *testing.T, m *bayesGeoModel, lifts []oracleGeoLift) {
+	t.Helper()
+	for _, l := range lifts {
+		tot := 0.0
+		for r := l.from; r <= l.to; r++ {
+			tot += m.geos[l.geo].spend[l.channel][r]
+		}
+		lt, err := m.newGeoLiftTest(l.geo, l.channel, l.from, l.to, float64(l.frac*tot), l.lift, l.se)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.lifts = append(m.lifts, lt)
+	}
+}
+
+// geoVariants are the panel variants beyond the shared-curve, lift-free
+// model: per-geo curves, lift tests, and both.
+var geoVariants = []struct {
+	name                string
+	perGeoCurves, lifts bool
+}{
+	{"per_geo_curves", true, false},
+	{"lifts", false, true},
+	{"per_geo_curves+lifts", true, true},
+}
+
+// geoVariantModel is geoTestPanel under pr in variant v, with the lift
+// tests the oracle scores (nil without lifts).
+func geoVariantModel(t *testing.T, pr bayesPriors, perGeoCurves, lifts bool) (geoPanel, *bayesGeoModel, []oracleGeoLift) {
+	t.Helper()
+	in := geoTestPanel()
+	in.perGeoCurves = perGeoCurves
+	m := geoTestModel(t, in, pr)
+	var ls []oracleGeoLift
+	if lifts {
+		ls = geoTestLifts(m.shape.yScale)
+		addGeoLifts(t, m, ls)
+	}
+	return in, m, ls
+}
+
+// TestMMMBayes_GeoVariantsDensityMatchesOracle: with per-geo curves
+// (each geo's curve T(μ + τ·η), the curve's scales and η's after the
+// kernel's), lift tests (each its geo's own Δ) or both, the panel's log
+// density is the oracle's at random points under every geoPriorSets
+// set, and per-geo curves add exactly nq·channels·(G + 1) coordinates.
+func TestMMMBayes_GeoVariantsDensityMatchesOracle(t *testing.T) {
+	t.Parallel()
+
+	for _, v := range geoVariants {
+		for name, pr := range geoPriorSets() {
+			in, m, lifts := geoVariantModel(t, pr, v.perGeoCurves, v.lifts)
+			if v.perGeoCurves {
+				shared := geoTestModel(t, geoTestPanel(), pr)
+				if want := shared.Dim() + m.shape.nq*m.shape.nc*(1+m.ng); m.Dim() != want {
+					t.Errorf("%s %s: dim %d, want %d", v.name, name, m.Dim(), want)
+				}
+			}
+			rng := rand.New(rand.NewPCG(5, 5^0x9E3779B97F4A7C15))
+			for pt := range 2 {
+				theta := geoRandomPoint(m, rng, 1)
+				got := m.LogDensityGrad(theta, make([]float64, m.Dim()))
+				want := oracleGeoLogPosterior(in, defaultMaxLag, pr, theta, lifts)
+				if !(math.Abs(got-want) <= 1e-9*max(1, math.Abs(want))) {
+					t.Errorf("%s %s point %d: density %.15g, oracle %.15g", v.name, name, pt, got, want)
+				}
+			}
+		}
+	}
+}
+
+// TestMMMBayes_GeoVariantsGradientMatchesFiniteDifferences: the analytic
+// gradient matches a fourth-order central difference to a relative 1e-6
+// with per-geo curves, lift tests and both — each geo's curve partials
+// and each lift term's reach the geo's pooled values (and the shared
+// curve without per-geo curves).
+func TestMMMBayes_GeoVariantsGradientMatchesFiniteDifferences(t *testing.T) {
+	t.Parallel()
+
+	sets := geoPriorSets()
+	for _, v := range geoVariants {
+		for _, name := range []string{"mixed", "delayed", "logistic_mixed"} {
+			t.Run(v.name+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				_, m, _ := geoVariantModel(t, sets[name], v.perGeoCurves, v.lifts)
+				dim := m.Dim()
+				rng := rand.New(rand.NewPCG(19, 19^0x9E3779B97F4A7C15))
+				f := func(x []float64) float64 { return m.LogDensityGrad(x, make([]float64, dim)) }
+				theta := geoRandomPoint(m, rng, 1)
+				grad := make([]float64, dim)
+				if lp := m.LogDensityGrad(theta, grad); math.IsInf(lp, 0) || math.IsNaN(lp) {
+					t.Fatalf("density %v", lp)
+				}
+				for i := range dim {
+					h := 1e-3 // the lift terms' larger density: 1e-4 is in the roundoff
+					at := func(k float64) float64 {
+						x := slices.Clone(theta)
+						x[i] += k * h
+						return f(x)
+					}
+					fd := (float64(8*(at(1)-at(-1))) - (at(2) - at(-2))) / (12 * h)
+					if tol := 1e-6 * max(1, math.Abs(grad[i])); math.Abs(grad[i]-fd) > tol {
+						t.Errorf("coord %d: analytic %.12g, finite difference %.12g", i, grad[i], fd)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestMMMBayes_GeoOneGeoLiftIsOneMarket: a one-geo panel carrying the
+// one-market model's lift tests, at η = 0, is that model — its density
+// the one-market density (lift terms included) plus the τ and η priors'
+// own terms, with shared curves and with per-geo curves alike — so a
+// panel lift test reads its geo's spend, β, kernel and curve.
+func TestMMMBayes_GeoOneGeoLiftIsOneMarket(t *testing.T) {
+	t.Parallel()
+
+	for name, pr := range liftSets() {
+		one := liftModel(t, pr)
+		for _, perGeo := range []bool{false, true} {
+			in := geoOneOf()
+			in.perGeoCurves = perGeo
+			geo := geoTestModel(t, in, pr)
+			for _, l := range one.lifts {
+				tot, moved := 0.0, 0.0
+				for r := l.from; r <= l.to; r++ {
+					tot += one.spend[l.channel][r]
+					moved += l.spend[r]
+				}
+				lt, err := geo.newGeoLiftTest(0, l.channel, l.from, l.to, moved-tot, l.lift, l.se)
+				if err != nil {
+					t.Fatal(err)
+				}
+				geo.lifts = append(geo.lifts, lt)
+			}
+			rng := rand.New(rand.NewPCG(6, 6^0x9E3779B97F4A7C15))
+			theta := randomPoint(one, rng, 0.5)
+			gtheta := geoFromOneMarket(one, geo, theta, -1)
+			extra := 0.0
+			for k := range geo.nk {
+				for c := range one.nc {
+					extra += geo.mapCoordinate(geo.iTau(k, c), gtheta[geo.iTau(k, c)]).lp
+					extra += geo.mapCoordinate(geo.iEta(k, c, 0), 0).lp
+				}
+			}
+			lp1 := one.LogDensityGrad(theta, make([]float64, one.Dim()))
+			lpg := geo.LogDensityGrad(gtheta, make([]float64, geo.Dim()))
+			if math.Abs(lpg-(lp1+extra)) > 1e-9*max(1, math.Abs(lp1)) {
+				t.Errorf("%s per_geo_curves=%v: one-geo density %.15g, one-market %.15g + τ, η terms %.15g", name, perGeo, lpg, lp1, extra)
+			}
+		}
+	}
+}
+
+// TestMMMBayes_GeoPerCurveDraw: with per-geo curves the draw's row is the
+// coefficient table's length (bayesRegression.geoCoefNames), each geo's
+// curve entry is its pooled value in original units, the population
+// entry μ's, and the draw's μ for a curve class is that same μ.
+func TestMMMBayes_GeoPerCurveDraw(t *testing.T) {
+	t.Parallel()
+
+	_, m, _ := geoVariantModel(t, mixedPriors(), true, false)
+	rng := rand.New(rand.NewPCG(7, 7^0x9E3779B97F4A7C15))
+	theta := geoRandomPoint(m, rng, 1)
+	d := m.draw(theta)
+	s := m.shape
+	if want := m.ng + (1+s.np+s.nq)*s.nc*(1+m.ng) + s.nz + 1 + m.nk*s.nc; len(d.row) != want {
+		t.Fatalf("row has %d entries, want %d", len(d.row), want)
+	}
+	// The curve block follows the intercepts, the β's, the controls and
+	// the kernel block.
+	at := m.ng + s.nc*(1+m.ng) + s.nz + s.np*s.nc*(1+m.ng)
+	pv := m.pooledValues(theta, func(k, c int) float64 {
+		return m.priors[m.iTau(k, c)].transform().Forward(theta[m.iTau(k, c)]).Y
+	})
+	for i, cq := range s.sat.Params() {
+		for c := range s.nc {
+			mu := cq.raw(m.priors[m.iCurve(i, c)].transform().Forward(theta[m.iCurve(i, c)]).Y, s.xScale[c])
+			if d.row[at] != mu || d.mu[m.kCurve(i)][c] != mu {
+				t.Errorf("curve %s channel %d: population %v, draw μ %v, want %v", cq.key, c, d.row[at], d.mu[m.kCurve(i)][c], mu)
+			}
+			for g := range m.ng {
+				if want := cq.raw(pv[m.kCurve(i)][c][g].y, s.xScale[c]); d.row[at+1+g] != want {
+					t.Errorf("curve %s channel %d geo %d: %v, want %v", cq.key, c, g, d.row[at+1+g], want)
+				}
+			}
+			at += 1 + m.ng
+		}
 	}
 }

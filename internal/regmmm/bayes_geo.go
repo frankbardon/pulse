@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
@@ -36,9 +37,11 @@ import (
 // channel its population β (term c: β_mode's μ, or in ROI mode the β the
 // population ROI and kernel give over the whole panel) then each geo's
 // β ("c[g]"); the controls; per kernel parameter and channel the
-// population value ("decay:c") then each geo's ("decay:c[g]"); the shared
-// curve parameters; "sigma"; then each pooling scale ("tau:c" for the
-// effect, "tau:decay:c" per kernel parameter). outputs.roi / mroi /
+// population value ("decay:c") then each geo's ("decay:c[g]"); the
+// curve parameters — shared ("k:c"), or with params.per_geo_curves the
+// population value then each geo's ("k:c[g]"); "sigma"; then each pooling
+// scale ("tau:c" for the effect, "tau:decay:c" per kernel parameter,
+// "tau:k:c" per pooled curve parameter). outputs.roi / mroi /
 // contribution carry per channel the all-geo figure under the channel's
 // name — the summed contribution over the summed spend, the
 // spend-weighted marginal ROI, the summed contribution — and each geo's
@@ -56,26 +59,23 @@ const geoBrackets = pmodel.MMMGeoOpen + pmodel.MMMGeoClose
 const (
 	reasonBracketReserved = "name_reserved"
 	reasonGeoConflict     = "geo_conflict"
-	reasonGeoLift         = "lift_geo_panel"
 	reasonGeoMissing      = "geo_missing"
 	reasonGeoInvalid      = "geo_not_code"
 	reasonGeoTimeGap      = "geo_time_gap"
+	// reasonPerGeoCurvesNoGeo refuses params.per_geo_curves on one
+	// market's series.
+	reasonPerGeoCurvesNoGeo = "per_geo_curves_without_geo"
 )
 
 // geoSpecRefusal is params.geo's spec rule: a field name that is not the
-// target, the time field or a predictor; and, on a geo panel, no lift
-// test yet (each experiment names one geo's window).
-func geoSpecRefusal(spec *types.RegressionSpec, geo, timeField string, lifts []liftTestWire) error {
+// target, the time field or a predictor.
+func geoSpecRefusal(spec *types.RegressionSpec, geo, timeField string) error {
 	if geo == "" {
 		return bayesSlotError(spec, "params.geo", "params.geo must name the panel's market field (a categorical or an unsigned integer code)", nil)
 	}
 	if geo == spec.Target || geo == timeField || slices.Contains(spec.Predictors, geo) {
 		return bayesSlotError(spec, "params.geo", fmt.Sprintf("params.geo %q is the target, the time field or a predictor; name the panel's market field", geo),
 			map[string]any{"field": geo, "reason": reasonGeoConflict})
-	}
-	if len(lifts) > 0 {
-		return bayesSlotError(spec, "params.lift_tests", "params.lift_tests: a lift test cannot yet name its geo on a geo panel (params.geo) — fit the experiment's geo alone, or drop lift_tests",
-			map[string]any{"index": 0, "reason": reasonGeoLift})
 	}
 	return nil
 }
@@ -261,7 +261,7 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	in := geoPanel{geos: gd.names, channels: cfg.channels}
+	in := geoPanel{geos: gd.names, channels: cfg.channels, perGeoCurves: cfg.perGeoCurves}
 	for g, d := range gd.series {
 		k := nf[g]
 		in.y = append(in.y, d.y[:k])
@@ -281,6 +281,9 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 	if err != nil {
 		return extend.RegressionOutput{}, r.slotError(err)
 	}
+	if err := r.addGeoLiftTests(m, gd, nf); err != nil {
+		return extend.RegressionOutput{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return extend.RegressionOutput{}, err
 	}
@@ -289,6 +292,36 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 		return extend.RegressionOutput{}, err
 	}
 	return r.output(post), nil
+}
+
+// addGeoLiftTests resolves params.lift_tests onto the panel: each test's
+// geo must be one of the panel's (lift_geo_unknown, details.geos the
+// panel's), its window inside that geo's fitted periods
+// (lift_window_out_of_range, details.geo), its change at or above zero
+// spend (lift_spend_negative) — PROCESSING_CONFIG, slot
+// params.lift_tests, before any sampling.
+func (r *bayesRegression) addGeoLiftTests(m *bayesGeoModel, gd *geoData, nf []int) error {
+	for i, l := range r.cfg.lifts {
+		g := slices.Index(gd.names, l.geo)
+		if g < 0 {
+			return r.slotError(liftConfigError(i, reasonLiftGeoUnknown,
+				fmt.Sprintf("geo %q is not one of the panel's geos (params.geo %q: %s)", l.geo, r.cfg.geo, strings.Join(gd.names, ", ")),
+				map[string]any{"geo": l.geo, "geos": slices.Clone(gd.names)}))
+		}
+		d := gd.series[g]
+		first, last := d.time[0], d.time[nf[g]-1]
+		if l.start < first || l.end > last {
+			return r.slotError(liftConfigError(i, reasonLiftWindowRange,
+				fmt.Sprintf("the window [%d, %d] is outside geo %s's fitted periods [%d, %d]", l.start, l.end, l.geo, first, last),
+				map[string]any{"start": l.start, "end": l.end, "first": first, "last": last, "geo": l.geo}))
+		}
+		lt, err := m.newGeoLiftTest(g, l.channel, int(l.start-first), int(l.end-first), l.spendDelta, l.lift, l.se)
+		if err != nil {
+			return r.liftResolveError(i, err, map[string]any{"channel": r.cfg.channels[l.channel], "geo": l.geo})
+		}
+		m.lifts = append(m.lifts, lt)
+	}
+	return nil
 }
 
 // sampleGeo runs MAP → NUTS on the panel's model and maps every draw onto
@@ -378,10 +411,11 @@ func (r *bayesRegression) sampleGeo(ctx context.Context, m *bayesGeoModel, gd *g
 
 // hierarchy is outputs.hierarchy: the geo field, the geos, and per pooled
 // class (keyed by its population term's name) the parameter it pools
-// (roi, beta, or the kernel parameter's key) with the posterior of its
-// population value μ (the effect in its sampled units: ROI, or β on the
-// raw outcome) and of its scale τ (on the parameter's unconstrained
-// scale), each a summary at credible_level.
+// (roi, beta, the kernel parameter's key or, with per_geo_curves, the
+// curve parameter's) with the posterior of its population value μ (the
+// effect in its sampled units: ROI, or β on the raw outcome; a curve
+// parameter in original units) and of its scale τ (on the parameter's
+// unconstrained scale), each a summary at credible_level.
 func (r *bayesRegression) hierarchy(m *bayesGeoModel, gd *geoData, post *bayesPosterior, mus [][][]float64) map[string]any {
 	cfg := r.cfg
 	nc := len(cfg.channels)
@@ -392,7 +426,10 @@ func (r *bayesRegression) hierarchy(m *bayesGeoModel, gd *geoData, post *bayesPo
 			if k == 0 && m.shape.isBeta[c] {
 				param = "beta"
 			}
-			if k > 0 {
+			if np := len(cfg.kernel.Params()); k > np {
+				cq := cfg.curve.Params()[k-1-np]
+				term, param = cq.prefix+ch, cq.key
+			} else if k > 0 {
 				kp := cfg.kernel.Params()[k-1]
 				term, param = kp.prefix+ch, kp.key
 			}
@@ -432,7 +469,11 @@ func (r *bayesRegression) geoCoefNames(geos []string) []string {
 	}
 	for _, cq := range cfg.curve.Params() {
 		for _, c := range cfg.channels {
-			names = append(names, cq.prefix+c)
+			if cfg.perGeoCurves {
+				perGeo(cq.prefix + c)
+			} else {
+				names = append(names, cq.prefix+c)
+			}
 		}
 	}
 	names = append(names, sigmaName)
@@ -442,6 +483,13 @@ func (r *bayesRegression) geoCoefNames(geos []string) []string {
 	for _, kp := range cfg.kernel.Params() {
 		for _, c := range cfg.channels {
 			names = append(names, TauPrefix+kp.prefix+c)
+		}
+	}
+	if cfg.perGeoCurves {
+		for _, cq := range cfg.curve.Params() {
+			for _, c := range cfg.channels {
+				names = append(names, TauPrefix+cq.prefix+c)
+			}
 		}
 	}
 	return names

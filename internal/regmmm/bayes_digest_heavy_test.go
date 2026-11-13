@@ -2,7 +2,15 @@
 
 package regmmm
 
-import "testing"
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"testing"
+
+	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/types"
+)
 
 // TestMMMBayes_LiftAbsentDigest: params.lift_tests empty (or null) is the
 // lift-free fit — the geometric Hill digest of
@@ -18,5 +26,54 @@ func TestMMMBayes_LiftAbsentDigest(t *testing.T) {
 		if got := fitDigest(t, params, 99); got != want {
 			t.Errorf("%s: digest %s, want %s", params, got, want)
 		}
+	}
+}
+
+// geoFitDigest is the SHA-256 of params' geo-panel fit over the
+// simulated panel's first 40 weeks per geo (geoShortRows).
+func geoFitDigest(t *testing.T, params string, seed int64) string {
+	t.Helper()
+	spec := geoSpec(params)
+	spec.RNGSeed = seed
+	reg, err := BayesFactory(spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := reg.(extend.ContextRegression).FitContext(context.Background(), geoShortRows())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := types.MarshalFinite(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(body))
+}
+
+// TestMMMBayes_GeoPerCurvesAbsentDigest: a geo panel with
+// params.per_geo_curves absent, false, or with an empty lift_tests is
+// the shared-curve panel fit measured before per-geo curves and panel
+// lift tests landed (U70 E2-S2), bit for bit under one explicit seed.
+func TestMMMBayes_GeoPerCurvesAbsentDigest(t *testing.T) {
+	t.Parallel()
+
+	const base = geoParams + `,"chains":1,"warmup":20,"draws":10`
+	const want = "c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"
+	for _, params := range []string{base + `}`, base + `,"per_geo_curves":false}`, base + `,"lift_tests":[]}`} {
+		if got := geoFitDigest(t, params, 99); got != want {
+			t.Errorf("%s: digest %s, want %s", params, got, want)
+		}
+	}
+}
+
+// TestMMMBayes_LiftDigest: a one-market fit with a lift test is the fit
+// measured before the lift term's partials were routed through a sink
+// for the geo panel (U70 E2-S2), bit for bit.
+func TestMMMBayes_LiftDigest(t *testing.T) {
+	t.Parallel()
+
+	const params = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30,"lift_tests":[{"channel":"tv","start":10,"end":20,"spend_delta":-300,"lift":-150,"se":20}]}`
+	if got, want := fitDigest(t, params, 99), "ad3550f6aee9904b7d95a34c17b8e27045fbdc5ecca02785aee39c0b2dbc01ee"; got != want {
+		t.Errorf("digest %s, want %s", got, want)
 	}
 }

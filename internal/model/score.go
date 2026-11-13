@@ -151,6 +151,15 @@ type Signature struct {
 	Adstocks      []string
 	AdstocksKnown bool
 
+	// Geos are a regression fit's geos (sorted; MMMGeos) — the geos a
+	// response() geo argument may name — when known (GeosKnown): the
+	// runtime's Set and a loaded model file from the coefficient table;
+	// a static FitCatalog of a `fits` entry knows a fit that is no geo
+	// panel has none, and leaves a REG_MMM_BAYES params.geo panel's (the
+	// data's) and a from_sweep entry's unknown.
+	Geos      []string
+	GeosKnown bool
+
 	// Influence is a regression fit's influence face (fit_design.go):
 	// what a design-reading params.fit slot (ATTR_REG_LEVERAGE,
 	// ATTR_REG_INFLUENCE, a standardized / studentized ATTR_REG_RESIDUAL)
@@ -214,6 +223,11 @@ func (b *Bound) Signature() Signature {
 		sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedAxisNames(b.SweepAxes), true
 	}
 	sig.Adstocks, sig.AdstocksKnown = sortedKeys(b.Adstocks), true
+	var coefs map[string]float64
+	if b.Result != nil {
+		coefs = b.Result.Coefficients
+	}
+	sig.Geos, sig.GeosKnown = MMMGeos(coefs), true
 	return sig
 }
 
@@ -285,6 +299,9 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 			// a from_sweep fit's are its winner's, unknown statically.
 			if f.FromSweep == nil {
 				sig.Adstocks, sig.AdstocksKnown = StaticAdstockChannels(f.Request, reg), true
+				// Its geos: none unless it is a geo panel, whose geos
+				// the data names.
+				sig.Geos, sig.GeosKnown = staticMMMGeos(reg)
 			}
 			out[f.Name] = sig
 		case types.FitKindVector:

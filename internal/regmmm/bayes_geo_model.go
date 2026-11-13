@@ -43,13 +43,23 @@ import (
 // In ROI mode β_gc = ROI_gc · Σ_t spend_gct / (max|y| · Σ_t h_gct), the
 // one-market rule per geo.
 //
+// With params.per_geo_curves the curve's parameters are pooled classes
+// too (after the kernel's, on their prior's log scale): q_gci =
+// T(μ(q_i)_c + τ(q_i)_c·η_gci), μ the shared coordinate's slot, so the
+// curve becomes geo g's own. Without it nothing below moves.
+//
+// A lift test on a panel names its geo: its Δ (bayes_lift.go) runs on
+// that geo's spend, β, kernel and curve, and its partials reach the
+// geo's pooled values.
+//
 // θ is
 //
 //	[α_1…α_G, γ_1…γ_J, μ(φ1)_1…μ(φ1)_C, …, q1_1…q1_C, …, μ(e)_1…μ(e)_C, σ,
 //	 τ(e)_1…τ(e)_C, τ(φ1)_1…τ(φ1)_C, …, η(e)_11…η(e)_1G, …, η(φ1)_11…]
 //
 // — the one-market layout with α per geo, then the scales, then the η's
-// (class, channel, geo order). Every product feeding an add is
+// (class, channel, geo order; per-geo curves add their classes after the
+// kernel's). Every product feeding an add is
 // float64()-barriered, transcendentals are detmath's and every sum runs
 // in index order, so the density's bits are the same on every
 // architecture.
@@ -78,21 +88,28 @@ type bayesGeoModel struct {
 	// each channel's β mode — and holds no rows: curveOn runs a geo's
 	// spend through it.
 	shape  *bayesModel
-	ng, nk int // geos; pooled classes (the effect, then each kernel parameter)
+	ng, nk int // geos; pooled classes (the effect, each kernel parameter, then with perGeoCurves each curve parameter)
 	geos   []geoSeries
 	nObs   int
 	priors []prior // per θ coordinate
+	// perGeoCurves pools the curve's parameters (params.per_geo_curves).
+	perGeoCurves bool
+	// lifts are the panel's lift tests (liftTest.geo names each one's
+	// geo); nil adds no term.
+	lifts []liftTest
 }
 
 // geoPanel is newBayesGeoModel's input: per geo its outcome, each
 // channel's raw spend and each control, all of one length per geo, in
-// time order; the channel and geo names label its refusals.
+// time order; the channel and geo names label its refusals; perGeoCurves
+// pools the curve (params.per_geo_curves).
 type geoPanel struct {
-	y        [][]float64
-	spend    [][][]float64 // [geo][channel][t]
-	controls [][][]float64 // [geo][control][t]
-	geos     []string
-	channels []string
+	y            [][]float64
+	spend        [][][]float64 // [geo][channel][t]
+	controls     [][][]float64 // [geo][control][t]
+	geos         []string
+	channels     []string
+	perGeoCurves bool
 }
 
 // newBayesGeoModel builds the geo panel's posterior. The refusals: rows
@@ -125,7 +142,10 @@ func newBayesGeoModel(in geoPanel, maxLag int, pr bayesPriors) (*bayesGeoModel, 
 	}
 	shape := &bayesModel{nc: nc, nz: nz, maxLag: maxLag, kernel: kernel, np: len(kernel.Params()), sat: curve, nq: len(curve.Params()),
 		xScale: make([]float64, nc), zMean: make([]float64, nz), zScale: make([]float64, nz), isBeta: make([]bool, nc)}
-	m := &bayesGeoModel{shape: shape, ng: ng, nk: 1 + shape.np, geos: make([]geoSeries, ng)}
+	m := &bayesGeoModel{shape: shape, ng: ng, nk: 1 + shape.np, geos: make([]geoSeries, ng), perGeoCurves: in.perGeoCurves}
+	if in.perGeoCurves {
+		m.nk += shape.nq
+	}
 	geoName := func(g int) string {
 		if g < len(in.geos) {
 			return in.geos[g]
@@ -286,7 +306,8 @@ func newBayesGeoModel(in geoPanel, maxLag int, pr bayesPriors) (*bayesGeoModel, 
 }
 
 // The θ layout (see the file comment). A pooled class k is the effect
-// (k = 0) or kernel parameter k − 1; iMu is its population coordinate.
+// (k = 0), kernel parameter k − 1 (k ≤ np) or, with perGeoCurves, curve
+// parameter k − 1 − np; iMu is its population coordinate.
 func (m *bayesGeoModel) iIntercept(g int) int { return g }
 func (m *bayesGeoModel) iControl(j int) int   { return m.ng + j }
 func (m *bayesGeoModel) iAdstock(p, c int) int {
@@ -302,17 +323,24 @@ func (m *bayesGeoModel) iSigma() int {
 	return m.ng + m.shape.nz + (m.shape.np+m.shape.nq+1)*m.shape.nc
 }
 func (m *bayesGeoModel) iMu(k, c int) int {
-	if k == 0 {
+	switch {
+	case k == 0:
 		return m.iEffect(c)
+	case k <= m.shape.np:
+		return m.iAdstock(k-1, c)
 	}
-	return m.iAdstock(k-1, c)
+	return m.iCurve(k-1-m.shape.np, c)
 }
+
+// kCurve is curve parameter i's pooled class (perGeoCurves only).
+func (m *bayesGeoModel) kCurve(i int) int  { return 1 + m.shape.np + i }
 func (m *bayesGeoModel) iTau(k, c int) int { return m.iSigma() + 1 + k*m.shape.nc + c }
 func (m *bayesGeoModel) iEta(k, c, g int) int {
 	return m.iSigma() + 1 + m.nk*m.shape.nc + (k*m.shape.nc+c)*m.ng + g
 }
 
-// Dim is G + controls + (np + nq + 1)·channels + 1 + (np + 1)·channels·(G + 1).
+// Dim is G + controls + (np + nq + 1)·channels + 1 + nk·channels·(G + 1),
+// nk = 1 + np (+ nq with perGeoCurves).
 func (m *bayesGeoModel) Dim() int {
 	return m.iSigma() + 1 + m.nk*m.shape.nc*(1+m.ng)
 }
@@ -356,6 +384,32 @@ func (m *bayesGeoModel) geoKernel(pv [][][]pooled, c, g int) []float64 {
 		ad[i] = pv[1+i][c][g].y
 	}
 	return ad
+}
+
+// geoCurve is geo g's channel-c curve parameters: its pooled values with
+// perGeoCurves, else the shared ones (shared[c]).
+func (m *bayesGeoModel) geoCurve(pv [][][]pooled, shared [][]float64, c, g int) []float64 {
+	if !m.perGeoCurves {
+		return shared[c]
+	}
+	q := make([]float64, m.shape.nq)
+	for i := range q {
+		q[i] = pv[m.kCurve(i)][c][g].y
+	}
+	return q
+}
+
+// newGeoLiftTest resolves one lift test onto geo g's fitted rows
+// (window rows from..to; makeLiftTest's refusals).
+func (m *bayesGeoModel) newGeoLiftTest(g, channel, from, to int, delta, lift, se float64) (liftTest, error) {
+	gs := &m.geos[g]
+	var x []float64
+	if channel >= 0 && channel < m.shape.nc {
+		x = gs.spend[channel]
+	}
+	l, err := makeLiftTest(x, gs.n, m.shape.nc, channel, from, to, delta, lift, se)
+	l.geo = g
+	return l, err
 }
 
 // LogDensityGrad is the panel's log p(θ | data) up to a constant with
@@ -418,7 +472,7 @@ func (m *bayesGeoModel) logDensity(theta, grad []float64) float64 {
 		gs := &m.geos[g]
 		chans := make([]channelState, s.nc)
 		for c := range s.nc {
-			st := s.curveOn(gs.spend[c], c, m.geoKernel(pv, c, g), qs[c], true)
+			st := s.curveOn(gs.spend[c], c, m.geoKernel(pv, c, g), m.geoCurve(pv, qs, c, g), true)
 			e := pv[0][c][g].y
 			if s.isBeta[c] {
 				st.beta = e
@@ -484,8 +538,29 @@ func (m *bayesGeoModel) logDensity(theta, grad []float64) float64 {
 				dv[1+i][c][g] += float64(st.beta * d)
 			}
 			for i, d := range dq {
-				dCurve[c][i] += float64(st.beta * d)
+				if m.perGeoCurves {
+					dv[m.kCurve(i)][c][g] += float64(st.beta * d)
+				} else {
+					dCurve[c][i] += float64(st.beta * d)
+				}
 			}
+		}
+		for _, l := range m.lifts {
+			if l.geo != g {
+				continue
+			}
+			c := l.channel
+			lp += s.liftTerm(l, chans[c], m.geoKernel(pv, c, g), pv[0][c][g].y, liftSink{
+				effect: func(d float64) { dv[0][c][g] += d },
+				kernel: func(i int, d float64) { dv[1+i][c][g] += d },
+				curve: func(i int, d float64) {
+					if m.perGeoCurves {
+						dv[m.kCurve(i)][c][g] += d
+					} else {
+						dCurve[c][i] += d
+					}
+				},
+			})
 		}
 	}
 	lp += -float64(float64(m.nObs)*detmath.Log(sigma)) - float64(0.5*ssr)/s2
@@ -520,8 +595,8 @@ func (m *bayesGeoModel) logDensity(theta, grad []float64) float64 {
 // row (bayesRegression.geoCoefNames' order), per channel its pooled and
 // per-geo ROI, marginal ROI and contribution (entries c·(G + 1): the
 // pooled figure, then each geo's), each pooled class's population value
-// μ (the effect in its sampled units: ROI, or β on the raw outcome) per
-// channel ([k][c]).
+// μ (the effect in its sampled units: ROI, or β on the raw outcome; a
+// curve parameter in original units) per channel ([k][c]).
 type geoDraw struct {
 	row                []float64
 	roi, mroi, contrib []float64
@@ -553,7 +628,8 @@ func (m *bayesGeoModel) draw(theta []float64) geoDraw {
 		spendAll, contribAll, mroiAll := 0.0, 0.0, 0.0
 		for g := range m.ng {
 			gs := &m.geos[g]
-			st := s.curveOn(gs.spend[c], c, m.geoKernel(pv, c, g), qs[c], false)
+			qg := m.geoCurve(pv, qs, c, g)
+			st := s.curveOn(gs.spend[c], c, m.geoKernel(pv, c, g), qg, false)
 			e := pv[0][c][g].y
 			b := e // β on the scaled outcome
 			var roi float64
@@ -565,7 +641,7 @@ func (m *bayesGeoModel) draw(theta []float64) geoDraw {
 				b = float64(e*gs.spendShare[c]) / st.hSum
 				betaGeo[c][g] = float64(s.yScale*float64(e*gs.spendShare[c])) / st.hSum
 			}
-			mroi := float64(b*s.sat.Elasticity(st.a, st.h, qs[c])) / gs.spendShare[c]
+			mroi := float64(b*s.sat.Elasticity(st.a, st.h, qg)) / gs.spendShare[c]
 			contrib := float64(roi * gs.spendTotal[c])
 			d.roi[base+1+g], d.mroi[base+1+g], d.contrib[base+1+g] = roi, mroi, contrib
 			spendAll += gs.spendTotal[c]
@@ -601,8 +677,11 @@ func (m *bayesGeoModel) draw(theta []float64) geoDraw {
 		d.mu[k] = make([]float64, s.nc)
 		for c := range s.nc {
 			mu := v[m.iMu(k, c)]
-			if k == 0 && s.isBeta[c] {
+			switch {
+			case k == 0 && s.isBeta[c]:
 				mu = float64(s.yScale * mu)
+			case k > s.np:
+				mu = s.sat.Params()[k-1-s.np].raw(mu, s.xScale[c])
 			}
 			d.mu[k][c] = mu
 		}
@@ -634,6 +713,11 @@ func (m *bayesGeoModel) draw(theta []float64) geoDraw {
 	for i, cq := range s.sat.Params() {
 		for c := range s.nc {
 			row = append(row, cq.raw(v[m.iCurve(i, c)], s.xScale[c]))
+			if m.perGeoCurves {
+				for g := range m.ng {
+					row = append(row, cq.raw(pv[m.kCurve(i)][c][g].y, s.xScale[c]))
+				}
+			}
 		}
 	}
 	row = append(row, float64(s.yScale*v[m.iSigma()]))
@@ -674,6 +758,9 @@ func (m *bayesGeoModel) predictGeo(theta []float64, g int, spend, controls [][]f
 		q := make([]float64, s.nq)
 		for i := range q {
 			q[i] = v[m.iCurve(i, c)]
+			if m.perGeoCurves {
+				q[i] = pv[m.kCurve(i)][c][g].y
+			}
 		}
 		b := pv[0][c][g].y
 		if !s.isBeta[c] {

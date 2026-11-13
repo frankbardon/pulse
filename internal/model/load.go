@@ -334,6 +334,9 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		// The file's adstock section names the channels response()
 		// reads, exactly as the bound model does.
 		sig.Adstocks, sig.AdstocksKnown = sortedKeys(files[j].Adstock), true
+		// Its coefficient table names its geos (a geo panel's per-geo
+		// intercepts), exactly as the bound model's does.
+		sig.Geos, sig.GeosKnown = MMMGeos(files[j].Coefficients), true
 		out[r.Name] = sig
 	}
 	return out

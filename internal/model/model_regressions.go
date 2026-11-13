@@ -2,6 +2,7 @@ package model
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -52,6 +53,39 @@ const (
 
 // MMMGeoTerm is term's name in geo g: term + "[" + g + "]".
 func MMMGeoTerm(term, geo string) string { return term + MMMGeoOpen + geo + MMMGeoClose }
+
+// MMMGeos are the geos a fit's coefficient table names (sorted,
+// non-nil): g for every per-geo intercept "(intercept)[g]" — a geo
+// panel's (REG_MMM_BAYES params.geo) table carries one per geo, every
+// other fit none.
+func MMMGeos[V any](coefficients map[string]V) []string {
+	out := []string{}
+	prefix := InterceptKey + MMMGeoOpen
+	for name := range coefficients {
+		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, MMMGeoClose) && len(name) > len(prefix)+len(MMMGeoClose) {
+			out = append(out, name[len(prefix):len(name)-len(MMMGeoClose)])
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// staticMMMGeos is a fit spec's geos as predict knows them: none, known,
+// on every fit but a REG_MMM_BAYES geo panel (params.geo set), whose
+// geos are the data's (unknown). Params that do not decode read as no
+// panel (the factory refuses them).
+func staticMMMGeos(spec *types.RegressionSpec) (geos []string, known bool) {
+	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
+		return []string{}, true
+	}
+	var p struct {
+		Geo *string `json:"geo"`
+	}
+	if paramread.Probe(spec.Params, &p) == nil && p.Geo != nil {
+		return nil, false
+	}
+	return []string{}, true
+}
 
 // MMMBayesAdstockPrefixes is the coefficient prefixes of REG_MMM_BAYES's
 // adstock kernel params, in the coefficient table's order, for kernel
