@@ -138,41 +138,7 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 	for _, v := range y {
 		ymax = math.Max(ymax, math.Abs(v))
 	}
-	logistic := func(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
-	type mapped struct{ y, logJac float64 }
-	tr := func(p prior, x float64) mapped {
-		switch p.Family {
-		case familyHalfNormal, familyLogNormal:
-			return mapped{math.Exp(x), x}
-		case familyBeta:
-			u := logistic(x)
-			return mapped{u, math.Log(u * (1 - u))}
-		case familyTruncNormal:
-			u := logistic(x)
-			return mapped{p.Lo + float64((p.Hi-p.Lo)*u), math.Log((p.Hi - p.Lo) * u * (1 - u))}
-		}
-		return mapped{x, 0}
-	}
-	phi := func(z float64) float64 { return float64(0.5 * (1 + math.Erf(z/math.Sqrt2))) }
-	dens := func(p prior, x float64) float64 {
-		switch p.Family {
-		case familyNormal:
-			return float64(-0.5*math.Pow((x-p.A)/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi))
-		case familyHalfNormal:
-			return math.Log(2) - float64(0.5*math.Pow(x/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi))
-		case familyLogNormal:
-			return float64(-0.5*math.Pow((math.Log(x)-p.A)/p.B, 2)) - math.Log(x*p.B*math.Sqrt(2*math.Pi))
-		case familyBeta:
-			la, _ := math.Lgamma(p.A)
-			lb, _ := math.Lgamma(p.B)
-			lab, _ := math.Lgamma(p.A + p.B)
-			return float64((p.A-1)*math.Log(x)) + float64((p.B-1)*math.Log(1-x)) - (la + lb - lab)
-		case familyTruncNormal:
-			return float64(-0.5*math.Pow((x-p.A)/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi)) -
-				math.Log(phi((p.Hi-p.A)/p.B)-phi((p.Lo-p.A)/p.B))
-		}
-		panic(p.Family)
-	}
+	tr, dens := oracleTransform, oracleDensity
 	lp := 0.0
 	val := func(p prior, i int) float64 {
 		m := tr(p, theta[i])
@@ -261,6 +227,48 @@ func oracleLogPosterior(y []float64, spend, controls [][]float64, maxLag int, pr
 		lp += float64(-0.5*r*r)/(sigma*sigma) - math.Log(sigma)
 	}
 	return lp
+}
+
+// oracleMapped is a transform's value and log-Jacobian.
+type oracleMapped struct{ y, logJac float64 }
+
+// oracleTransform is prior p's transform of x written out with math.*.
+func oracleTransform(p prior, x float64) oracleMapped {
+	logistic := func(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
+	switch p.Family {
+	case familyHalfNormal, familyLogNormal:
+		return oracleMapped{math.Exp(x), x}
+	case familyBeta:
+		u := logistic(x)
+		return oracleMapped{u, math.Log(u * (1 - u))}
+	case familyTruncNormal:
+		u := logistic(x)
+		return oracleMapped{p.Lo + float64((p.Hi-p.Lo)*u), math.Log((p.Hi - p.Lo) * u * (1 - u))}
+	}
+	return oracleMapped{x, 0}
+}
+
+// oracleDensity is prior p's full log density at x written out with
+// math.*.
+func oracleDensity(p prior, x float64) float64 {
+	phi := func(z float64) float64 { return float64(0.5 * (1 + math.Erf(z/math.Sqrt2))) }
+	switch p.Family {
+	case familyNormal:
+		return float64(-0.5*math.Pow((x-p.A)/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi))
+	case familyHalfNormal:
+		return math.Log(2) - float64(0.5*math.Pow(x/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi))
+	case familyLogNormal:
+		return float64(-0.5*math.Pow((math.Log(x)-p.A)/p.B, 2)) - math.Log(x*p.B*math.Sqrt(2*math.Pi))
+	case familyBeta:
+		la, _ := math.Lgamma(p.A)
+		lb, _ := math.Lgamma(p.B)
+		lab, _ := math.Lgamma(p.A + p.B)
+		return float64((p.A-1)*math.Log(x)) + float64((p.B-1)*math.Log(1-x)) - (la + lb - lab)
+	case familyTruncNormal:
+		return float64(-0.5*math.Pow((x-p.A)/p.B, 2)) - math.Log(p.B*math.Sqrt(2*math.Pi)) -
+			math.Log(phi((p.Hi-p.A)/p.B)-phi((p.Lo-p.A)/p.B))
+	}
+	panic(p.Family)
 }
 
 // oracleKernelWeight is lag l's weight of the named kernel at params p,

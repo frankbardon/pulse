@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
-    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
+    "limits_digest": "lim1:f2a984f049f3d4c70212d8de89ebcffd782700875492edcdd98208a5e8f4016c",
     "commands": [
       {
         "name": "process",
@@ -9084,7 +9084,7 @@
             "name": "time",
             "type": "string",
             "required": true,
-            "description": "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
+            "description": "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
             "example": "week",
             "names_column": true
           },
@@ -9183,10 +9183,18 @@
             "example": 131
           },
           {
+            "name": "geo",
+            "type": "string",
+            "required": false,
+            "description": "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names.",
+            "example": "market",
+            "names_column": true
+          },
+          {
             "name": "lift_tests",
             "type": "list",
             "required": false,
-            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units; geo is refused (one market). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
+            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units; geo is refused, and lift_tests is refused on a geo panel. A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
           }
         ],
         "intents": [
@@ -9227,6 +9235,11 @@
             "key": "holdout",
             "json_type": "object",
             "description": "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."
+          },
+          {
+            "key": "hierarchy",
+            "json_type": "object",
+            "description": "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:\u003cch\u003e …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry \u003cch\u003e[\u003cgeo\u003e] beside the all-geo one under \u003cch\u003e (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."
           }
         ]
       },
@@ -13968,7 +13981,7 @@
       },
       {
         "name": "mmm-bayes-model",
-        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit."
+        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, geo panels with partial pooling (params.geo), lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit."
       },
       {
         "name": "mmm-workflow",
@@ -15371,7 +15384,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 274,
+    "examples_count": 275,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21366,10 +21379,16 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_mmm_geos",
+        "value": 50,
+        "default": 50,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: e0ed12f726552b09dfb38f84e97ed494cbf5512c06562754ba1609e15def2012
+// golden-hash: 3d3bc2753d62f20f9035e903abbfbd5a3856969c7845d5204675d8eb2ddb8277

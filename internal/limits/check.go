@@ -1,6 +1,10 @@
 package limits
 
-import "github.com/frankbardon/pulse/errors"
+import (
+	"context"
+
+	"github.com/frankbardon/pulse/errors"
+)
 
 // Grade is how sure a predict-time limit finding is that the run would
 // breach the limit.
@@ -126,6 +130,12 @@ func CheckExpandedItems(l Limits, expanded int) *errors.CodedError {
 	return Check(l, MaxExpandedItems, int64(expanded))
 }
 
+// CheckMMMGeos refuses a REG_MMM_BAYES geo panel holding more than
+// MaxMMMGeos distinct geos.
+func CheckMMMGeos(l Limits, geos int) *errors.CodedError {
+	return Check(l, MaxMMMGeos, int64(geos))
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {
@@ -135,4 +145,21 @@ func FirstCertain(fs []Finding) *errors.CodedError {
 		}
 	}
 	return nil
+}
+
+// ctxKey carries the effective limits on a context.
+type ctxKey struct{}
+
+// WithContext returns ctx carrying l: the processor installs the run's
+// effective limits before a model fit, whose own data-dependent check
+// (CheckMMMGeos) reads them back with FromContext.
+func WithContext(ctx context.Context, l Limits) context.Context {
+	return context.WithValue(ctx, ctxKey{}, l)
+}
+
+// FromContext returns the limits WithContext installed on ctx, and
+// false when none were.
+func FromContext(ctx context.Context) (Limits, bool) {
+	l, ok := ctx.Value(ctxKey{}).(Limits)
+	return l, ok
 }

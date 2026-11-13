@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
@@ -175,6 +176,15 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 			}
 		}
 	}
+	for _, reg := range req.Regressions {
+		// A REG_MMM_BAYES geo panel fits one hierarchy over its geos
+		// (MaxMMMGeos, the fit's own count once it has read the rows).
+		if n, ok := EstimateMMMGeos(reg, schema, records); ok {
+			if f, ok := limits.Evaluate(l, limits.MaxMMMGeos, n, limits.Possible); ok {
+				out = append(out, f)
+			}
+		}
+	}
 	if len(req.Matrices) > 0 {
 		plans, err := resolveMatricesFor(req, schema, nil, inst, in.Models)
 		if err == nil {
@@ -186,6 +196,33 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	return out
+}
+
+// EstimateMMMGeos is a REG_MMM_BAYES geo panel's geo-count bound: its
+// params.geo field's dictionary size when the field is a categorical,
+// clamped by records (>= 0) — an upper bound (a filter, or an unused
+// entry, leaves fewer), so a breach is only Possible; the fit refuses on
+// the geos it reads (limits.CheckMMMGeos). False for any other spec, an
+// unsigned integer code (no static bound) or an unknown field.
+func EstimateMMMGeos(reg *types.RegressionSpec, schema *encoding.Schema, records int64) (int64, bool) {
+	if reg == nil || reg.Type != types.REG_MMM_BAYES || schema == nil || len(reg.Params) == 0 {
+		return 0, false
+	}
+	var p struct {
+		Geo string `json:"geo"`
+	}
+	if paramread.Probe(reg.Params, &p) != nil || p.Geo == "" {
+		return 0, false
+	}
+	f := schema.Field(p.Geo)
+	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+		return 0, false
+	}
+	n := int64(f.Dictionary.Count())
+	if records >= 0 && n > records {
+		n = records
+	}
+	return n, true
 }
 
 // LimitRefusal is the process pre-flight: the PULSE_LIMIT_EXCEEDED

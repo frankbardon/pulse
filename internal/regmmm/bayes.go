@@ -262,6 +262,7 @@ type bayesParamsWire struct {
 	TargetAccept   *float64                    `json:"target_accept"`
 	HoldoutFrom    *int64                      `json:"holdout_from"`
 	LiftTests      []liftTestWire              `json:"lift_tests"`
+	Geo            *string                     `json:"geo"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -284,6 +285,9 @@ type bayesConfig struct {
 	// channels that also carry an roi prior (a warning).
 	lifts       []bayesLiftSpec
 	liftOverlap []string
+	// geo is params.geo: the panel's market field ("" fits one market's
+	// series, bayes_geo.go otherwise).
+	geo string
 }
 
 // bayesSlotError is a PROCESSING_CONFIG refusal naming the slot.
@@ -342,7 +346,7 @@ func toPrior(w *priorWire, s support) (prior, error) {
 	return p, nil
 }
 
-func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
+func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.Regression, error) {
 	var w bayesParamsWire
 	if len(spec.Params) > 0 {
 		// Strict: a typo in a prior is refused, never ignored.
@@ -360,6 +364,12 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 	}
 	if w.Time == "" {
 		return nil, bayesSlotError(spec, "params.time", "params.time must name the integer time field", nil)
+	}
+	if w.Geo != nil {
+		if err := geoSpecRefusal(spec, *w.Geo, w.Time, w.LiftTests); err != nil {
+			return nil, err
+		}
+		cfg.geo = *w.Geo
 	}
 	// The kernel names the coefficients a predictor may collide with; an
 	// unknown name is refused below, where the geometric-only check was,
@@ -392,6 +402,10 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 		}
 	}
 	reserved := slices.Concat(kernelPrefixes, curvePrefixes)
+	if cfg.geo != "" {
+		// A geo panel's pooling scales are tau:<term>.
+		reserved = append(reserved, TauPrefix)
+	}
 	isChannel := map[string]bool{}
 	for _, c := range w.Channels {
 		if !slices.Contains(spec.Predictors, c) || isChannel[c] {
@@ -412,6 +426,13 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 			return nil, bayesSlotError(spec, "predictors",
 				fmt.Sprintf("predictor %q collides with a coefficient name ((intercept), sigma, %s)", x, strings.Join(reserved, "/")),
 				map[string]any{"predictor": x})
+		}
+		if strings.ContainsAny(x, geoBrackets) {
+			// "tv[NE]" is channel tv's term in geo NE: a bracket in a
+			// predictor would make that name ambiguous.
+			return nil, bayesSlotError(spec, "predictors",
+				fmt.Sprintf("predictor %q contains [ or ], which name a geo panel's per-geo terms (tv[NE]); rename the column", x),
+				map[string]any{"predictor": x, "reason": reasonBracketReserved})
 		}
 		if isChannel[x] {
 			cfg.channels = append(cfg.channels, x)
@@ -571,6 +592,11 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 	cfg.liftOverlap = liftPriorOverlap(lifts, cfg.channels, w.Priors)
 	cfg.holdoutFrom = w.HoldoutFrom
 	cfg.seed = bayesEffectiveSeed(spec)
+	// Last, so a spec refusal (which predict raises from the spec alone)
+	// comes first: the geo field's type, read off the schema.
+	if cerr := BayesGeoFieldRefusal(spec, schema); cerr != nil {
+		return nil, cerr
+	}
 	return &bayesRegression{cfg: cfg}, nil
 }
 
@@ -686,6 +712,9 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 			fmt.Sprintf("needs more than %d rows (2 + controls + %d·channels), got %d", dim, per, n),
 			map[string]any{"n": n, "required": dim + 1}))
 	}
+	if cfg.geo != "" {
+		return r.fitGeo(ctx, rows)
+	}
 	data, err := r.read(rows)
 	if err != nil {
 		return extend.RegressionOutput{}, err
@@ -772,6 +801,28 @@ func (r *bayesRegression) fitRows(data *bayesData) (int, error) {
 // refusing a time key that is not an integer field, a gap, a repeat
 // and a negative spend.
 func (r *bayesRegression) read(rows extend.Rows) (*bayesData, error) {
+	d, err := r.readRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	cfg := r.cfg
+	for i := 1; i < len(d.time); i++ {
+		switch step := d.time[i] - d.time[i-1]; {
+		case step == 0:
+			return nil, r.configError(fmt.Sprintf("params.time %q repeats %d: without params.geo the model fits one market's series, one row per period; for a panel (several geos or markets per period) name its market field in params.geo, or filter to one market", cfg.time, d.time[i]),
+				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "duplicate_time", "time": d.time[i]})
+		case step != 1:
+			return nil, r.configError(fmt.Sprintf("params.time %q jumps from %d to %d: the periods must be contiguous (a filtered or null row leaves a gap the adstock would carry across)", cfg.time, d.time[i-1], d.time[i]),
+				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "time_gap", "from": d.time[i-1], "to": d.time[i]})
+		}
+	}
+	return d, nil
+}
+
+// readRows copies the rows out in params.time order, refusing a time
+// key that is not an integer field and a negative spend (the grid's
+// checks are the caller's: read, readSeries).
+func (r *bayesRegression) readRows(rows extend.Rows) (*bayesData, error) {
 	cfg := r.cfg
 	n := rows.Len()
 	type obs struct {
@@ -816,16 +867,6 @@ func (r *bayesRegression) read(rows extend.Rows) (*bayesData, error) {
 		}
 		return 0
 	})
-	for i := 1; i < n; i++ {
-		switch d := all[i].t - all[i-1].t; {
-		case d == 0:
-			return nil, r.configError(fmt.Sprintf("params.time %q repeats %d: the model fits one market's series, one row per period; a panel (several geos or markets per period) is refused — filter to one market", cfg.time, all[i].t),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "duplicate_time", "time": all[i].t})
-		case d != 1:
-			return nil, r.configError(fmt.Sprintf("params.time %q jumps from %d to %d: the periods must be contiguous (a filtered or null row leaves a gap the adstock would carry across)", cfg.time, all[i-1].t, all[i].t),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "time_gap", "from": all[i-1].t, "to": all[i].t})
-		}
-	}
 	d := &bayesData{y: make([]float64, n), time: make([]int64, n),
 		spend: make([][]float64, len(cfg.channels)), controls: make([][]float64, len(cfg.controls))}
 	for c := range d.spend {
@@ -864,6 +905,12 @@ type bayesPosterior struct {
 	mapOK bool
 	// hold is the held-out rows' posterior, nil without a holdout.
 	hold *bayesHoldout
+	// names is the coefficient table's names (nil: coefNames, the
+	// one-market table) and effectNames the roi / mroi / contribution
+	// entries (nil: the channels); a geo panel sets both, and extra adds
+	// its own outputs (hierarchy).
+	names, effectNames []string
+	extra              map[string]any
 }
 
 // bayesHoldout is the held-out rows: their times, outcomes and the

@@ -64,6 +64,7 @@ var BayesOutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "params", JSONType: "object", Description: "Per coefficient (the coefficient table's names): its posterior as {mean, median, sd, lower, upper} at credible_level, in original units."},
 	{Key: "diagnostics", JSONType: "object", Description: "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start."},
 	{Key: "holdout", JSONType: "object", Description: "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."},
+	{Key: "hierarchy", JSONType: "object", Description: "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:<ch> …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry <ch>[<geo>] beside the all-geo one under <ch> (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."},
 }
 
 // pool concatenates per-chain draws, chain order.
@@ -190,7 +191,14 @@ func nonNil(s []string) []string {
 func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 	cfg := r.cfg
 	mean, cov := posteriorMoments(post.coefs)
-	names := r.coefNames()
+	names := post.names
+	if names == nil {
+		names = r.coefNames()
+	}
+	effectNames := post.effectNames
+	if effectNames == nil {
+		effectNames = cfg.channels
+	}
 	coefs := make([]extend.RegressionCoefficient, len(names))
 	params, paramConv := map[string]any{}, map[string]any{}
 	h := &health{maxRHat: math.Inf(-1), minBulk: math.Inf(1), minTail: math.Inf(1)}
@@ -203,7 +211,7 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 		h.check(conv, name, false)
 	}
 	roi, mroi, contrib, roiConv := map[string]any{}, map[string]any{}, map[string]any{}, map[string]any{}
-	for c, name := range cfg.channels {
+	for c, name := range effectNames {
 		chains := paramChains(post.roi, c)
 		roi[name] = summarize(pool(chains), cfg.credibleLevel)
 		mroi[name] = summarize(pool(paramChains(post.mroi, c)), cfg.credibleLevel)
@@ -237,6 +245,9 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 	}
 	if post.hold != nil {
 		outputs["holdout"] = r.holdoutScores(post)
+	}
+	for k, v := range post.extra {
+		outputs[k] = v
 	}
 
 	var warnings []*types.ResponseWarning

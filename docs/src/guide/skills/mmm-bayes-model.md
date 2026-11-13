@@ -1,11 +1,11 @@
 ```yaml
 name: mmm-bayes-model
-description: REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit.
+description: REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, geo panels with partial pooling (params.geo), lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit.
 kind: design
 type: guide
 applies_to: process, compose, predict
 requires: [REG_MMM_BAYES]
-covers: [adstock kernel, saturation curve, Hill curve, logistic saturation, Michaelis-Menten, default priors, prior keys, lift test likelihood, response]
+covers: [adstock kernel, saturation curve, Hill curve, logistic saturation, Michaelis-Menten, default priors, prior keys, geo panel, partial pooling, lift test likelihood, response]
 ```
 
 # Bayesian MMM: kernels, curves, priors
@@ -40,6 +40,16 @@ Each curve runs on the channel's adstock `a`, is 0 at zero spend and rises to 1,
 `priors.<channel>` takes `roi` or `beta` (β mode) plus the kernel's and the curve's own keys (`decay`, `peak`, `shape`, `scale`; `k`, `s`, `lam`). Another kernel's or curve's key is `PROCESSING_CONFIG` reason `prior_not_in_kernel` / `prior_not_in_curve`. Each prior is `{family, …}`: normal (mu, sigma), halfnormal (sigma), lognormal (mu, sigma), beta (alpha, beta), truncnormal (mu, sigma, lower, upper). Other defaults: ROI LogNormal(0.2, 0.9), `beta` HalfNormal(1); intercept Normal(0, 2), controls Normal(0, 1) and σ HalfNormal(1), all on the max-scaled outcome.
 
 A predictor starting with the chosen kernel's or curve's prefix (or named `(intercept)` / `sigma`) collides with a coefficient and is refused.
+
+## Geo panels (`params.geo`)
+
+`params.geo` names the market field (a categorical, or an unsigned integer code). Each geo is its own series: contiguous `params.time` (ragged starts and ends fine; an inner gap is `geo_time_gap`, a repeat `duplicate_time`), at most `Limits.MaxMMMGeos` geos (default 50; over it is `PULSE_LIMIT_EXCEEDED`). A channel that never spends in some geo is refused.
+
+The model pools each channel's effect (ROI, or β) and every kernel parameter across geos, non-centred on the prior's unconstrained scale: `geo value = T(μ + τ·η)`, η ~ Normal(0, 1), τ ~ HalfNormal(0.5). The channel's prior is μ's. Curves, controls and σ are shared; each geo has its own intercept.
+
+- Names: the term itself is the population value (`tv` its β, `decay:tv`), `tv[NE]` / `decay:tv[NE]` / `(intercept)[NE]` geo NE's, `tau:tv` / `tau:decay:tv` the spread. `[`/`]` are refused in predictor names, `tau:` on a panel.
+- `outputs.roi` / `mroi` / `contribution` keep `<ch>` as the all-geo figure (summed contribution over summed spend; spend-weighted mROI) and add `<ch>[<geo>]`; `outputs.hierarchy` holds `geos` and per pooled term `mu` and `tau`.
+- `lift_tests` is refused on a panel; `holdout_from` cuts every geo at one period. A panel fit costs more than one market's.
 
 ## Lift tests (`params.lift_tests`)
 

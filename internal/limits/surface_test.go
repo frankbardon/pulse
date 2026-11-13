@@ -21,6 +21,7 @@ func TestUnitAndDefault(t *testing.T) {
 		MaxJoinBuildRows:   UnitCount,
 		MaxDerivedColumns:  UnitCount,
 		MaxExpandedItems:   UnitCount,
+		MaxMMMGeos:         UnitCount,
 	}
 	defs := Defaults()
 	for _, n := range Names() {

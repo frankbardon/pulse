@@ -192,7 +192,7 @@ func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 	return false
 }
 
-// heavyExamples are the library's two multi-second examples, keyed by
+// heavyExamples are the library's multi-second examples, keyed by
 // "<category>/<_meta.name>" with their file under internal/examples.
 // TestExamples_RunEndToEnd is the ONE example pass that executes them
 // (and holds their figures, exampleChecks); every other pass over the
@@ -200,6 +200,7 @@ func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 // them there. TestHeavyExamplesExist keeps the names live.
 var heavyExamples = map[string]string{
 	"regression/mmm_bayes":              "regression/20_mmm_bayes.json",
+	"regression/mmm_bayes_geo":          "regression/23_mmm_bayes_geo.json",
 	"matrices/sem-defined-contribution": "matrices/17_sem_contribution.json",
 }
 
@@ -257,7 +258,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 22
+	const want = 23
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

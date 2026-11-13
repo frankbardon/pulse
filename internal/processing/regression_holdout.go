@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -33,6 +34,9 @@ import (
 // fails it alone (regressionSlotResults); anything else is fatal.
 func (p *Processor) fitRegressions(ctx context.Context, req *types.Request, filtered []*Record) ([]*types.RegressionResult, error) {
 	specs := req.Regressions
+	// A model's own data-dependent limit check (REG_MMM_BAYES's geo
+	// count) reads the run's effective limits off ctx.
+	ctx = limits.WithContext(ctx, p.limits)
 	// An unknown type is refused at its request index before the
 	// holdout split re-slices the specs.
 	if err := regression.CheckTypes(specs, p.exts.LookupRegression); err != nil {

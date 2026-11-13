@@ -80,7 +80,8 @@ func TestCatalogFromFits_ModelRegressionTerms(t *testing.T) {
 // TestModelRegression_BayesTermsAndInputs: REG_MMM_BAYES is a model
 // regression whose term catalog is decay:<channel>, k:<channel>,
 // s:<channel> (each over params.channels, in order) then sigma, and
-// whose only field read beyond its target and predictors is params.time
+// whose fields read beyond its target and predictors are params.time
+// (and params.geo on a geo panel, whose term names are then unknown)
 // (ModelRegressionFieldInputs, the projection's and predict's one
 // source); every other type reads none.
 func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
@@ -114,6 +115,15 @@ func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
 	}
 	if got := ModelRegressionFieldInputs(spec(types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week"}`)); !slices.Equal(got, []string{"week"}) {
 		t.Errorf("Bayes field inputs %v, want [week]", got)
+	}
+	// A geo panel reads its geo field too, and its per-geo term names
+	// are the data's: unknown statically.
+	geo := spec(types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week","geo":"market"}`)
+	if got := ModelRegressionFieldInputs(geo); !slices.Equal(got, []string{"week", "market"}) {
+		t.Errorf("Bayes geo field inputs %v, want [week market]", got)
+	}
+	if got, ok := ModelRegressionTerms(geo); ok {
+		t.Errorf("geo panel terms %v known, want unknown", got)
 	}
 	for _, s := range []*types.RegressionSpec{
 		spec(types.REG_MMM_BAYES, `{"channels":["tv"]}`),

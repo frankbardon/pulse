@@ -34,6 +34,7 @@ const (
 	DefaultMaxJoinBuildRows   int64         = limits.DefaultMaxJoinBuildRows
 	DefaultMaxDerivedColumns  int64         = limits.DefaultMaxDerivedColumns
 	DefaultMaxExpandedItems   int64         = limits.DefaultMaxExpandedItems
+	DefaultMaxMMMGeos         int64         = limits.DefaultMaxMMMGeos
 )
 
 // Limits returns a copy of the instance's effective resource limits:

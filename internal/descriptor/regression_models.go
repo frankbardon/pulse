@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
@@ -31,6 +32,10 @@ type modelRegression struct {
 	// SpecRefusal is the model factory's spec-only refusal (nil: the
 	// factory builds), which predict raises as the runtime does.
 	SpecRefusal func(*types.RegressionSpec) *errors.CodedError
+	// SchemaRefusal is the factory's schema-reading refusal, which it
+	// raises only once SpecRefusal passes (nil: none) — REG_MMM_BAYES's
+	// params.geo type.
+	SchemaRefusal func(*types.RegressionSpec, *encoding.Schema) *errors.CodedError
 	// WeightAware hands the slot's resolved weight to the model (the
 	// adapter's admission and Record.Weight); its class — both kinds or
 	// frequency only — is internal/weighting's regressionClasses row,
@@ -61,8 +66,9 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 		},
 	},
 	types.REG_MMM_BAYES: {
-		SpecRefusal: regmmm.BayesSpecRefusal,
-		Description: "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+		SpecRefusal:   regmmm.BayesSpecRefusal,
+		SchemaRefusal: regmmm.BayesGeoFieldRefusal,
+		Description:   "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
 		Decl: ExtensionRegression{
 			Vcov: true,
 			// No scorer (an adstocked prediction needs the history:
@@ -73,7 +79,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			OutputSchema: slices.Clone(regmmm.BayesOutputSchema),
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
-				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
+				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
 				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13, geometric only — every other kernel requires it)."},
 				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:<ch>), delayed (decay^((l − peak)²): decay:<ch>, peak:<ch>), weibull_cdf or weibull_pdf (shape:<ch>, scale:<ch>, in lags)."},
 				{Name: "saturation", Type: "string", Default: "hill", Description: "Saturation curve, one for every channel, on the adstock: hill (1/(1 + (k/a)^s): k:<ch>, s:<ch>), logistic ((1 − e^(−λa))/(1 + e^(−λa)): lam:<ch>, per raw adstock unit) or michaelis_menten (a/(k + a): k:<ch>); k is in raw adstock units."},
@@ -88,7 +94,8 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "sampler", Type: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
 				{Name: "target_accept", Type: "float", Default: regmmm.BayesDefaultTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."},
 				{Name: "holdout_from", Type: "float", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
-				{Name: "lift_tests", Type: "list", Description: "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (> 0) are in outcome units; geo is refused (one market). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."},
+				{Name: "geo", Type: "string", NamesColumn: true, Example: "market", Description: "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names."},
+				{Name: "lift_tests", Type: "list", Description: "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (> 0) are in outcome units; geo is refused, and lift_tests is refused on a geo panel. A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."},
 			},
 		},
 	},
@@ -210,12 +217,20 @@ var modelResampleKnobs = []descriptor.Param{
 	{Name: "rng_seed", Type: "int", Description: "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.", Slot: true},
 }
 
-// modelRegressionSpecRefusal is model regression t's spec-only factory
-// refusal of reg (nil for any other type, or when the factory builds).
-func modelRegressionSpecRefusal(t types.RegressionType, reg *types.RegressionSpec) *errors.CodedError {
+// modelRegressionSpecRefusal is model regression t's factory refusal of
+// reg — its spec-only checks, then its schema check over schema — nil
+// for any other type, or when the factory builds.
+func modelRegressionSpecRefusal(t types.RegressionType, reg *types.RegressionSpec, schema *encoding.Schema) *errors.CodedError {
 	m, ok := modelRegressionTable[t]
 	if !ok || m.SpecRefusal == nil {
 		return nil
 	}
-	return m.SpecRefusal(reg)
+	if cerr := m.SpecRefusal(reg); cerr != nil {
+		return cerr
+	}
+	// The factory's schema check runs after every spec check passes.
+	if m.SchemaRefusal == nil {
+		return nil
+	}
+	return m.SchemaRefusal(reg, schema)
 }

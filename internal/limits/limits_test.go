@@ -21,6 +21,7 @@ func wantDefaults() Limits {
 		MaxJoinBuildRows:   100_000_000,
 		MaxDerivedColumns:  1_000,
 		MaxExpandedItems:   1_000,
+		MaxMMMGeos:         50,
 	}
 }
 
@@ -49,6 +50,7 @@ func TestNamesAndOptions(t *testing.T) {
 		MaxJoinBuildRows:   "Options.Limits.MaxJoinBuildRows",
 		MaxDerivedColumns:  "Options.Limits.MaxDerivedColumns",
 		MaxExpandedItems:   "Options.Limits.MaxExpandedItems",
+		MaxMMMGeos:         "Options.Limits.MaxMMMGeos",
 	}
 	names := Names()
 	if len(names) != len(want) {

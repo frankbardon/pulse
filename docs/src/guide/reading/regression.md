@@ -316,7 +316,7 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 
 #### `coefficients.*`
 
-Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; the adstock kernel's terms are each channel's carry-over — decay:&lt;channel&gt; (geometric), decay: and peak:&lt;channel&gt; (delayed, peak the lag of greatest effect) or shape: and scale:&lt;channel&gt; (Weibull, scale in periods) — the saturation curve's terms its response shape — k:&lt;channel&gt; and s:&lt;channel&gt; the Hill half-saturation spend and curve shape, lam:&lt;channel&gt; the logistic rate (half-saturated at log 3 / lam), k:&lt;channel&gt; alone the Michaelis–Menten half-saturation — and sigma the noise SD.
+Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; the adstock kernel's terms are each channel's carry-over — decay:&lt;channel&gt; (geometric), decay: and peak:&lt;channel&gt; (delayed, peak the lag of greatest effect) or shape: and scale:&lt;channel&gt; (Weibull, scale in periods) — the saturation curve's terms its response shape — k:&lt;channel&gt; and s:&lt;channel&gt; the Hill half-saturation spend and curve shape, lam:&lt;channel&gt; the logistic rate (half-saturated at log 3 / lam), k:&lt;channel&gt; alone the Michaelis–Menten half-saturation — and sigma the noise SD. On a geo panel (params.geo) a pooled term's own name is its population value, &lt;term&gt;[&lt;geo&gt;] the geo's (each geo has its own (intercept)[&lt;geo&gt;]) and tau:&lt;term&gt; how far the geos spread around the population on the parameter's unconstrained scale (log ROI, logit decay).
 
 **Sign:**
 
@@ -327,6 +327,7 @@ Each coefficient's posterior mean in original units: a channel's coefficient is 
 
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A lift test (params.lift_tests) or an experiment-based roi prior anchors a channel's effect.
+- A geo's term is pulled toward the population value, the more so the less its own rows say: a small tau is the data finding the geos alike, not proof they are equal.
 - k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.
 - (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
 
@@ -352,7 +353,7 @@ Always null: the model reports no test statistic.
 
 #### `outputs.*`
 
-The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); contribution per channel, the outcome it produced over the fitted period; params per coefficient; diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); and seed, the seed the sampler ran with.
+The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); contribution per channel, the outcome it produced over the fitted period; params per coefficient; diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's &lt;channel&gt;[&lt;geo&gt;] beside the all-geo figure (the panel's summed contribution over its summed spend); and seed, the seed the sampler ran with.
 
 **Caveats:**
 

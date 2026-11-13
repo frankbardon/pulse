@@ -866,20 +866,27 @@ const mapMaxIter = 500
 // that errors, stops short or ends below the start's density falls back
 // to defaultInit, reported by ok = false.
 func (m *bayesModel) mapStart(maxIter int) (theta []float64, ok bool) {
-	x0 := m.defaultInit()
-	dim := m.Dim()
+	return mapSearch(m.Dim(), m.LogDensityGrad, m.defaultInit(), maxIter)
+}
+
+// mapSearch is mapStart over any log density lg of dimension dim from
+// the start x0 (the geo panel's model shares it): the mode of lg inside
+// ±mapBound by optimize.Minimize in at most maxIter iterations, or x0
+// (clamped) with ok = false when the search errors, stops short or ends
+// below the start's density.
+func mapSearch(dim int, lg func(theta, grad []float64) float64, x0 []float64, maxIter int) (theta []float64, ok bool) {
 	lower, upper := make([]float64, dim), make([]float64, dim)
 	for i := range lower {
 		lower[i], upper[i] = -mapBound, mapBound
 		x0[i] = min(max(x0[i], -mapBound), mapBound)
 	}
 	scratch := make([]float64, dim)
-	lp0 := m.LogDensityGrad(x0, scratch)
+	lp0 := lg(x0, scratch)
 	// A −Inf density is a large finite objective, so SLSQP's line
 	// search backs off it rather than meeting an infinity.
 	const wall = 1e100
 	f := func(x []float64) float64 {
-		lp := m.LogDensityGrad(x, make([]float64, dim))
+		lp := lg(x, make([]float64, dim))
 		if !finite(lp) {
 			return wall
 		}
@@ -887,7 +894,7 @@ func (m *bayesModel) mapStart(maxIter int) (theta []float64, ok bool) {
 	}
 	g := func(x []float64) []float64 {
 		gr := make([]float64, dim)
-		if !finite(m.LogDensityGrad(x, gr)) {
+		if !finite(lg(x, gr)) {
 			clear(gr)
 			return gr
 		}
@@ -900,7 +907,7 @@ func (m *bayesModel) mapStart(maxIter int) (theta []float64, ok bool) {
 	if err != nil || res == nil {
 		return x0, false
 	}
-	if lp := m.LogDensityGrad(res.X, scratch); !finite(lp) || (finite(lp0) && lp < lp0) {
+	if lp := lg(res.X, scratch); !finite(lp) || (finite(lp0) && lp < lp0) {
 		return x0, false
 	}
 	return res.X, true

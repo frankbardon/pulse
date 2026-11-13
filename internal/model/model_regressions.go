@@ -39,6 +39,20 @@ const (
 	MMMSigmaName            = "sigma"
 )
 
+// REG_MMM_BAYES's geo panel (params.geo) names: a pooled term keeps its
+// name (the population μ), its value in geo g is MMMGeoTerm(term, g) —
+// "tv[NE]", "decay:tv[NE]" — and its pooling scale τ is MMMTauPrefix +
+// term — "tau:tv", "tau:decay:tv". MMMGeoOpen and MMMGeoClose are
+// therefore reserved in a channel's or predictor's name.
+const (
+	MMMTauPrefix = "tau:"
+	MMMGeoOpen   = "["
+	MMMGeoClose  = "]"
+)
+
+// MMMGeoTerm is term's name in geo g: term + "[" + g + "]".
+func MMMGeoTerm(term, geo string) string { return term + MMMGeoOpen + geo + MMMGeoClose }
+
 // MMMBayesAdstockPrefixes is the coefficient prefixes of REG_MMM_BAYES's
 // adstock kernel params, in the coefficient table's order, for kernel
 // (params.adstock; "" is the default, geometric): decay: for geometric,
@@ -143,8 +157,9 @@ func ModelRegressions() []types.RegressionType {
 // for the default geometric kernel; an unknown kernel reports false),
 // then its params.saturation curve's (MMMBayesCurvePrefixes: "k:<channel>"
 // then "s:<channel>" for the default Hill curve; an unknown curve
-// reports false) for each, then "sigma"; REG_ORDINAL
-// names its thresholds "<level>|<next level>", known only when
+// reports false) for each, then "sigma" — unknown (false) under
+// params.geo, whose per-geo terms ("tv[NE]") name the data's geos;
+// REG_ORDINAL names its thresholds "<level>|<next level>", known only when
 // params.levels fixes the levels (otherwise the data does). A spec whose
 // params do not decode (its factory refuses it), or a type that is no
 // model regression, reports false — the caller then treats the names as
@@ -160,9 +175,14 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 		Channels   []string `json:"channels"`
 		Adstock    *string  `json:"adstock"`
 		Saturation *string  `json:"saturation"`
+		Geo        *string  `json:"geo"`
 	}
 	// A lenient look: the model's factory decodes (and records) params.
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || len(p.Channels) == 0 {
+		return nil, false
+	}
+	if spec.Type == types.REG_MMM_BAYES && p.Geo != nil {
+		// A geo panel's table names each geo the data holds.
 		return nil, false
 	}
 	prefixes := []string{MMMHalfSaturationPrefix, MMMShapePrefix}
@@ -217,17 +237,25 @@ func ordinalThresholds(spec *types.RegressionSpec) ([]string, bool) {
 // per record beyond its target and predictors, derived from the spec
 // alone — a built-in's twin of an extension's FieldInputs hook. The
 // runtime projection decodes them and predict's field-reference walk
-// refuses an unknown one. REG_MMM_BAYES reads params.time; every other
-// type, and a spec whose params do not decode, reads none (nil).
+// refuses an unknown one. REG_MMM_BAYES reads params.time and, on a geo
+// panel, params.geo (in that order); every other type, and a spec whose
+// params do not decode, reads none (nil).
 func ModelRegressionFieldInputs(spec *types.RegressionSpec) []string {
 	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
 		return nil
 	}
 	var p struct {
 		Time string `json:"time"`
+		Geo  string `json:"geo"`
 	}
-	if paramread.Probe(spec.Params, &p) != nil || p.Time == "" {
+	if paramread.Probe(spec.Params, &p) != nil {
 		return nil
 	}
-	return []string{p.Time}
+	var out []string
+	for _, f := range []string{p.Time, p.Geo} {
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }
