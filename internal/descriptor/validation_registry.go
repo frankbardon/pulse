@@ -303,9 +303,11 @@ var validationRegistry = map[string]ValidationRecord{
 				Tol: "uniform rank histogram per parameter (χ² test, p ≥ 0.001 / parameters)", Tests: []string{"internal/regmmm/bayes_sbc_heavy_test.go"}},
 			{Against: "`WIN_DISTRIBUTED_LAG`'s kernel weights (" + rPin + " `decay^((l − peak)^2)`, `pweibull`, `dweibull` via its oracle) for the in-model adstock; a closed-form log posterior and a finite-difference gradient for each kernel",
 				Tol: "bit-equal weights; density 1e-9 relative; gradient 1e-6 relative", Tests: []string{"internal/regmmm/bayes_adstock_test.go", "internal/regmmm/bayes_model_test.go"}},
+			{Against: "Stan (CmdStan 2.40.0 via cmdstanr 0.9.0, " + rPin + ") sampling the same model and default priors, written independently, on stored simulated series: one case per adstock kernel (geometric, delayed, weibull_cdf, weibull_pdf) with the Hill curve (posterior means of every coefficient and each channel's ROI)",
+				Tol: "within 4.5 combined Monte Carlo standard errors, seeded", Tests: []string{"internal/regmmm/bayes_stan_oracle_heavy_test.go"}},
 			{Against: mmmSynthSrc, Tol: "parameter recovery", Tests: []string{"internal/regmmm/bayes_test.go"}},
 		},
-		Gap: "No external MCMC implementation (Stan, PyMC-Marketing) is compared on the full nonlinear model. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.",
+		Gap: "The Stan cross-check covers one channel and one control per kernel at the default priors; custom priors, β mode, several channels and the model-owned holdout are covered by the closed-form and calibration checks only. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.",
 	},
 
 	// Matrix operators.

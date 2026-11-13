@@ -1,0 +1,174 @@
+# gen_mmm_bayes_stan.R — Stan oracle for REG_MMM_BAYES (U70 E1-S2, #562):
+# posterior means of the Bayesian media-mix model under each adstock
+# kernel, sampled by CmdStan from the model written independently in
+# scripts/reference/mmm_bayes.stan.
+#
+# Writes <out_dir>/mmm_bayes_stan.json. Run by `make reference-stan`,
+# which appends the `// golden-hash:` footer the Go test checks:
+#
+#   Rscript scripts/reference/gen_mmm_bayes_stan.R internal/regmmm/testdata
+#
+# CI never runs R or Stan: the golden is committed. Pins R 4.6.1,
+# cmdstanr 0.9.0 (stan-dev r-universe), CmdStan 2.40.0, posterior 1.7.1
+# and jsonlite 2.0.0, and refuses any other version. Install:
+#
+#   Rscript -e 'install.packages("cmdstanr", repos = c("https://stan-dev.r-universe.dev", getOption("repos")))'
+#   Rscript -e 'cmdstanr::install_cmdstan(version = "2.40.0")'
+#
+# Each case is one market's weekly series simulated here (seeded, every
+# value rounded to 4 decimals and stored), so the Go test
+# (internal/regmmm/bayes_stan_oracle_heavy_test.go) fits the very rows
+# Stan sampled, through REG_MMM_BAYES with the case's stored params
+# (default priors). The data are scaled exactly as Pulse scales them
+# (max|y|, the channel's peak spend, centred and max-scaled controls),
+# and the Stan program's priors are Pulse's defaults on that scale, so
+# the two posteriors are the same distribution: their means agree within
+# Monte Carlo error. Stan's figure carries its own MCSE (posterior's
+# mcse_mean); the Go test adds Pulse's (sd / sqrt(ESS)) and allows a
+# stated number of combined MCSEs.
+#
+# Self-checks before anything is written: every reported quantity's R-hat
+# below 1.01 and bulk ESS above 2000, and no more than 0.5% divergent
+# transitions — a Stan run that did not mix is no oracle.
+#
+# Extending (E1-S3, the kernel x curve matrix): add a curve to
+# mmm_bayes.stan (data `curve`) and a row to `cases` below; the Go test
+# reads every case generically (its params, rows and expected means).
+
+suppressPackageStartupMessages({
+  library(jsonlite)
+  library(cmdstanr)
+  library(posterior)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+out_dir <- if (length(args) >= 1) args[[1]] else "internal/regmmm/testdata"
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_mmm_bayes_stan.R pins R 4.6.1, got ", R.version.string)
+pins <- c(cmdstanr = "0.9.0", posterior = "1.7.1", jsonlite = "2.0.0")
+for (p in names(pins)) {
+  if (as.character(packageVersion(p)) != pins[[p]]) stop("gen_mmm_bayes_stan.R pins ", p, " ", pins[[p]], ", found ", packageVersion(p))
+}
+if (cmdstan_version() != "2.40.0") stop("gen_mmm_bayes_stan.R pins CmdStan 2.40.0, found ", cmdstan_version())
+
+num <- function(x) {
+  if (length(x) != 1) stop("num() takes a scalar")
+  if (!is.finite(x)) stop("non-finite reference value: ", x)
+  structure(sprintf("%.17g", x), class = "json")
+}
+r4 <- function(x) round(x, 4)
+
+stan_file <- file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])), "mmm_bayes.stan")
+if (!file.exists(stan_file)) stan_file <- "scripts/reference/mmm_bayes.stan"
+mod <- cmdstan_model(stan_file, dir = tempdir(), quiet = TRUE) # the binary stays out of the tree
+
+kernel_code <- c(geometric = 0L, delayed = 1L, weibull_cdf = 2L, weibull_pdf = 3L)
+curve_code <- c(hill = 0L)
+
+# kernel_weights is lag l's raw weight (normalize false), the kernel's
+# closed form (distlagparams).
+kernel_weights <- function(kernel, phi, L) {
+  l <- 0:L
+  switch(kernel,
+    geometric = phi$decay^l,
+    delayed = phi$decay^((l - phi$peak)^2),
+    weibull_cdf = exp(-(l / phi$scale)^phi$shape),
+    weibull_pdf = dweibull(l + 1, shape = phi$shape, scale = phi$scale))
+}
+
+adstock <- function(x, w) {
+  n <- length(x); L <- length(w) - 1
+  vapply(seq_len(n), function(t) sum(w[1:min(t, L + 1)] * x[t - 0:min(t - 1, L)]), 0)
+}
+
+# simulate is one case's series: bursty spend (dark weeks), a price
+# control, the kernel's adstock, a Hill curve and Gaussian noise.
+simulate <- function(seed, n, kernel, phi, L, k_raw, s, beta) {
+  set.seed(seed)
+  spend <- ifelse(runif(n) < 0.65, 20 + 150 * runif(n), 0)
+  price <- 2 * (runif(n) - 0.5)
+  a <- adstock(spend, kernel_weights(kernel, phi, L))
+  h <- ifelse(a > 0, 1 / (1 + (k_raw / a)^s), 0)
+  y <- 200 + beta * h - 5 * price + rnorm(n, 0, 1.5)
+  list(week = seq_len(n), tv = r4(spend), price = r4(price), sales = r4(y))
+}
+
+cases <- list(
+  list(name = "geometric_hill", kernel = "geometric", curve = "hill", seed = 7001, n = 104, L = 8,
+       phi = list(decay = 0.5), k = 120, s = 1.5, beta = 40),
+  list(name = "delayed_hill", kernel = "delayed", curve = "hill", seed = 7002, n = 104, L = 8,
+       phi = list(decay = 0.5, peak = 2), k = 120, s = 1.5, beta = 40),
+  list(name = "weibull_cdf_hill", kernel = "weibull_cdf", curve = "hill", seed = 7003, n = 104, L = 8,
+       phi = list(shape = 1.5, scale = 2.5), k = 150, s = 1.5, beta = 40),
+  list(name = "weibull_pdf_hill", kernel = "weibull_pdf", curve = "hill", seed = 7004, n = 104, L = 8,
+       phi = list(shape = 2, scale = 3), k = 15, s = 2, beta = 60)
+)
+
+# The coefficient names Pulse reports (REG_MMM_BAYES's table) mapped to
+# the Stan quantity whose posterior mean is the same figure.
+coef_map <- function(kernel) {
+  m <- list("(intercept)" = "intercept_raw", "tv" = "beta_raw[1]", "price" = "gamma_raw[1]",
+            "k:tv" = "k_raw[1]", "s:tv" = "s[1]", "sigma" = "sigma_raw")
+  if (kernel %in% c("geometric", "delayed")) m[["decay:tv"]] <- "decay[1]"
+  if (kernel == "delayed") m[["peak:tv"]] <- "peak[1]"
+  if (kernel %in% c("weibull_cdf", "weibull_pdf")) {
+    m[["shape:tv"]] <- "wshape[1]"
+    m[["scale:tv"]] <- "wscale[1]"
+  }
+  m
+}
+
+# A second argument (comma-separated case names) runs only those cases
+# and writes them alone: for developing a case, never for the golden.
+if (length(args) >= 2) cases <- Filter(function(cs) cs$name %in% strsplit(args[[2]], ",")[[1]], cases)
+
+out_cases <- list()
+for (cs in cases) {
+  d <- simulate(cs$seed, cs$n, cs$kernel, cs$phi, cs$L, cs$k, cs$s, cs$beta)
+  ymax <- max(abs(d$sales))
+  xmax <- max(d$tv)
+  zmean <- mean(d$price)
+  zscale <- max(abs(d$price - zmean))
+  data <- list(N = cs$n, C = 1L, J = 1L, L = cs$L, kernel = kernel_code[[cs$kernel]], curve = curve_code[[cs$curve]],
+               ys = d$sales / ymax, spend = list(d$tv), xscale = array(xmax), share = array(sum(d$tv) / ymax),
+               zs = list((d$price - zmean) / zscale), yscale = ymax, zmean = array(zmean), zscale = array(zscale))
+  fit <- mod$sample(data = data, seed = cs$seed, chains = 4, parallel_chains = 4, iter_warmup = 2000,
+                    iter_sampling = 10000, adapt_delta = 0.95, refresh = 0, show_messages = FALSE)
+  m <- coef_map(cs$kernel)
+  vars <- c(unlist(m), "roi[1]")
+  sm <- summarise_draws(fit$draws(variables = vars), mean, sd, mcse_mean, rhat, ess_bulk)
+  if (any(sm$rhat > 1.01)) stop("self-check failed: ", cs$name, " R-hat ", max(sm$rhat))
+  if (any(sm$ess_bulk < 2000)) stop("self-check failed: ", cs$name, " bulk ESS ", min(sm$ess_bulk))
+  div <- sum(fit$diagnostic_summary(quiet = TRUE)$num_divergent)
+  if (div > 0.005 * 4 * 10000) stop("self-check failed: ", cs$name, " ", div, " divergences")
+  row <- function(v) {
+    r <- sm[sm$variable == v, ]
+    list(mean = num(r$mean), sd = num(r$sd), mcse = num(r$mcse_mean))
+  }
+  coefs <- list()
+  for (nm in names(m)) coefs[[nm]] <- row(m[[nm]])
+  params <- list(channels = list("tv"), time = "week", adstock = cs$kernel, max_lag = cs$L,
+                 chains = 4L, warmup = 1000L, draws = 2500L)
+  message(sprintf("%s: %d divergences, min ESS %.0f", cs$name, div, min(sm$ess_bulk)))
+  out_cases[[length(out_cases) + 1]] <- list(
+    name = cs$name, kernel = cs$kernel, curve = cs$curve, rng_seed = cs$seed, params = params,
+    truth = c(lapply(cs$phi, num), list(k = num(cs$k), s = num(cs$s), beta = num(cs$beta))),
+    rows = list(week = d$week, tv = lapply(d$tv, num), price = lapply(d$price, num), sales = lapply(d$sales, num)),
+    stan = list(chains = 4L, warmup = 2000L, draws = 10000L, adapt_delta = 0.95, seed = cs$seed, divergences = div),
+    coefficients = coefs, roi = row("roi[1]"))
+}
+
+doc <- list(
+  generator = "scripts/reference/gen_mmm_bayes_stan.R (make reference-stan)",
+  stan_program = "scripts/reference/mmm_bayes.stan",
+  r_version = R.version.string,
+  packages = list(cmdstanr = as.character(packageVersion("cmdstanr")), cmdstan = cmdstan_version(),
+                  posterior = as.character(packageVersion("posterior")), jsonlite = as.character(packageVersion("jsonlite"))),
+  note = paste(
+    "Posterior means (and SD, MCSE) of REG_MMM_BAYES's coefficient table in original units and of each channel's ROI,",
+    "sampled by CmdStan from an independent Stan program of the same model and default priors on Pulse's scaled data."),
+  cases = out_cases)
+path <- file.path(out_dir, "mmm_bayes_stan.json")
+cat(toJSON(doc, auto_unbox = TRUE, json_verbatim = TRUE, pretty = TRUE), file = path)
+message("wrote ", path, " (", length(out_cases), " cases)")

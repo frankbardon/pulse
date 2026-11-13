@@ -172,9 +172,10 @@ Fits a media-mix model with intervals: each channel's carry-over, response curve
 - `REG_BAYES_LINEAR`'s closed-form conjugate posterior (R 4.6.1 matrix algebra), in the conjugate limit: adstock and curve pinned, flat priors (posterior means, SDs and σ), under each adstock kernel (geometric, delayed, weibull_cdf, weibull_pdf) — tolerance within 4 Monte Carlo standard errors, seeded; `internal/regmmm/bayes_conjugate_heavy_test.go`
 - simulation-based calibration (Talts et al. 2018) on the default priors of each adstock kernel: 200 seeded replicates per kernel, rank of the truth among 99 thinned draws — tolerance uniform rank histogram per parameter (χ² test, p ≥ 0.001 / parameters); `internal/regmmm/bayes_sbc_heavy_test.go`
 - `WIN_DISTRIBUTED_LAG`'s kernel weights (R 4.6.1 `decay^((l − peak)^2)`, `pweibull`, `dweibull` via its oracle) for the in-model adstock; a closed-form log posterior and a finite-difference gradient for each kernel — tolerance bit-equal weights; density 1e-9 relative; gradient 1e-6 relative; `internal/regmmm/bayes_adstock_test.go`, `internal/regmmm/bayes_model_test.go`
+- Stan (CmdStan 2.40.0 via cmdstanr 0.9.0, R 4.6.1) sampling the same model and default priors, written independently, on stored simulated series: one case per adstock kernel (geometric, delayed, weibull_cdf, weibull_pdf) with the Hill curve (posterior means of every coefficient and each channel's ROI) — tolerance within 4.5 combined Monte Carlo standard errors, seeded; `internal/regmmm/bayes_stan_oracle_heavy_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance parameter recovery; `internal/regmmm/bayes_test.go`
 
-**Validation gap:** No external MCMC implementation (Stan, PyMC-Marketing) is compared on the full nonlinear model. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.
+**Validation gap:** The Stan cross-check covers one channel and one control per kernel at the default priors; custom priors, β mode, several channels and the model-owned holdout are covered by the closed-form and calibration checks only. The calibration runs with the outcome scale fixed, because the default priors are stated on the max-scaled outcome and so move with the data.
 
 See [How Pulse is validated](../validation.md).
 
