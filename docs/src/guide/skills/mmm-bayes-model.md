@@ -1,11 +1,11 @@
 ```yaml
 name: mmm-bayes-model
-description: REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, and how response() and hill() read a Bayesian fit.
+description: REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit.
 kind: design
 type: guide
 applies_to: process, compose, predict
 requires: [REG_MMM_BAYES]
-covers: [adstock kernel, saturation curve, Hill curve, logistic saturation, Michaelis-Menten, default priors, prior keys, response]
+covers: [adstock kernel, saturation curve, Hill curve, logistic saturation, Michaelis-Menten, default priors, prior keys, lift test likelihood, response]
 ```
 
 # Bayesian MMM: kernels, curves, priors
@@ -40,6 +40,15 @@ Each curve runs on the channel's adstock `a`, is 0 at zero spend and rises to 1,
 `priors.<channel>` takes `roi` or `beta` (β mode) plus the kernel's and the curve's own keys (`decay`, `peak`, `shape`, `scale`; `k`, `s`, `lam`). Another kernel's or curve's key is `PROCESSING_CONFIG` reason `prior_not_in_kernel` / `prior_not_in_curve`. Each prior is `{family, …}`: normal (mu, sigma), halfnormal (sigma), lognormal (mu, sigma), beta (alpha, beta), truncnormal (mu, sigma, lower, upper). Other defaults: ROI LogNormal(0.2, 0.9), `beta` HalfNormal(1); intercept Normal(0, 2), controls Normal(0, 1) and σ HalfNormal(1), all on the max-scaled outcome.
 
 A predictor starting with the chosen kernel's or curve's prefix (or named `(intercept)` / `sigma`) collides with a coefficient and is refused.
+
+## Lift tests (`params.lift_tests`)
+
+Each `{channel, start, end, spend_delta, lift, se}` adds `lift ~ Normal(Δ, se)` to the likelihood. Δ re-runs the channel's adstock and curve (at every draw's parameters) with its spend changed over periods `start..end` (`params.time`, inclusive) and sums the change in its contribution over those periods only: carry-over past `end` is excluded, as an experiment's readout window excludes it.
+
+- `spend_delta` is the total spend change over the window, spread in proportion to the channel's spend there (evenly if it spent nothing); minus the window spend switches the channel off. Required, never 0; a cut past zero spend is refused.
+- `lift` (outcome with the change minus without: a switch-off lift is negative) and `se > 0` are in outcome units; convert an iROAS yourself (`lift = iROAS × spend_delta`).
+- The window must lie inside the fitted periods (before `holdout_from`): `lift_window_out_of_range`. `geo` is refused (one market). Every refusal is `PROCESSING_CONFIG` slot `params.lift_tests`, `details.index` and `reason`.
+- A channel with an `roi` prior as well warns `PULSE_MMM_LIFT_PRIOR_OVERLAP`: one experiment should enter once ([`mmm-workflow`](mmm-workflow.md)).
 
 ## Reading a fit downstream
 

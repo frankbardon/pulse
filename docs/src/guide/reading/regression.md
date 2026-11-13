@@ -326,7 +326,7 @@ Each coefficient's posterior mean in original units: a channel's coefficient is 
 **Caveats:**
 
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
-- An experiment-measured prior on a channel's ROI anchors its effect.
+- A lift test (params.lift_tests) or an experiment-based roi prior anchors a channel's effect.
 - k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.
 - (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
 

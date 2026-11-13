@@ -19,11 +19,12 @@ import (
 )
 
 // bayes_stan_oracle_heavy_test.go holds REG_MMM_BAYES's posterior to
-// Stan (U70 E1-S2, E1-S3): scripts/reference/gen_mmm_bayes_stan.R
+// Stan (U70 E1-S2, E1-S3, E1-S4): scripts/reference/gen_mmm_bayes_stan.R
 // samples the same model and default priors, written independently in
 // scripts/reference/mmm_bayes.stan, with CmdStan 2.40.0 on rows it
 // simulates and stores, in every cell of the adstock kernel ×
-// saturation curve matrix (4 × 3). This test fits
+// saturation curve matrix (4 × 3), and with a lift test in the
+// likelihood (params.lift_tests) on two cells. This test fits
 // those very rows through REG_MMM_BAYES with each case's stored params
 // and seed and compares every coefficient's posterior mean, and each
 // channel's ROI, with Stan's.
@@ -33,16 +34,18 @@ import (
 // ESS) from the fit's own diagnostics and MCSE_Stan posterior's
 // mcse_mean. Both runs are seeded, so the verdict is fixed; stanZ = 4.5
 // keeps an honest pair of samplers inside with probability ≥ 0.999
-// across the ~90 comparisons of the twelve cells. The tolerance is
-// stated per cell (stanCellZ); every cell holds the same 4.5.
+// across the ~105 comparisons of the fourteen cases. The tolerance is
+// stated per case (stanCellZ); every case holds the same 4.5.
 const stanZ = 4.5
 
-// stanCellZ is each kernel × curve cell's tolerance in combined MCSEs.
+// stanCellZ is each case's tolerance in combined MCSEs: one per kernel
+// × curve cell, and one per lift-test case.
 var stanCellZ = map[string]float64{
 	"geometric_hill": stanZ, "delayed_hill": stanZ, "weibull_cdf_hill": stanZ, "weibull_pdf_hill": stanZ,
 	"geometric_logistic": stanZ, "delayed_logistic": stanZ, "weibull_cdf_logistic": stanZ, "weibull_pdf_logistic": stanZ,
 	"geometric_michaelis_menten": stanZ, "delayed_michaelis_menten": stanZ, "weibull_cdf_michaelis_menten": stanZ,
 	"weibull_pdf_michaelis_menten": stanZ,
+	"geometric_hill_lift":          stanZ, "delayed_logistic_lift": stanZ,
 }
 
 // stanFigure is one Stan posterior summary.
@@ -101,15 +104,23 @@ func loadStanOracle(t *testing.T) []stanCase {
 }
 
 // TestMMMBayes_PosteriorMatchesStan: in every kernel × curve cell of
-// the golden, REG_MMM_BAYES's posterior means match Stan's within the
-// cell's stanCellZ combined Monte Carlo standard errors.
+// the golden, and in each lift-test case, REG_MMM_BAYES's posterior
+// means match Stan's within the case's stanCellZ combined Monte Carlo
+// standard errors.
 func TestMMMBayes_PosteriorMatchesStan(t *testing.T) {
 	t.Parallel()
 
 	cases := loadStanOracle(t)
 	var cells []string
+	lifts := 0
 	for _, c := range cases {
 		cells = append(cells, c.Kernel+"_"+c.Curve)
+		if strings.Contains(string(c.Params), `"lift_tests"`) {
+			lifts++
+		}
+	}
+	if lifts < 2 {
+		t.Errorf("the golden has %d lift-test cases, want 2", lifts)
 	}
 	for _, k := range kernelNames() {
 		for _, cv := range curveNames() {
@@ -121,9 +132,9 @@ func TestMMMBayes_PosteriorMatchesStan(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			z, ok := stanCellZ[c.Kernel+"_"+c.Curve]
+			z, ok := stanCellZ[c.Name]
 			if !ok {
-				t.Fatalf("no stated tolerance for cell %s × %s", c.Kernel, c.Curve)
+				t.Fatalf("no stated tolerance for case %s", c.Name)
 			}
 			stanCaseCheck(t, c, z)
 		})

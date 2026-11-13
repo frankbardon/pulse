@@ -1,7 +1,8 @@
 # gen_mmm_bayes_stan.R — Stan oracle for REG_MMM_BAYES (U70 E1-S2, #562;
-# E1-S3, #563): posterior means of the Bayesian media-mix model in every
-# cell of the adstock kernel x saturation curve matrix (4 x 3), sampled
-# by CmdStan from the model written independently in
+# E1-S3, #563; E1-S4, #564): posterior means of the Bayesian media-mix
+# model in every cell of the adstock kernel x saturation curve matrix
+# (4 x 3), and with the lift-test likelihood (params.lift_tests) on two
+# cells, sampled by CmdStan from the model written independently in
 # scripts/reference/mmm_bayes.stan.
 #
 # Writes <out_dir>/mmm_bayes_stan.json. Run by `make reference-stan`,
@@ -31,6 +32,14 @@
 # Self-checks before anything is written: every reported quantity's R-hat
 # below 1.01 and bulk ESS above 2000, and no more than 0.5% divergent
 # transitions — a Stan run that did not mix is no oracle.
+#
+# A lift case (`lift` in its row) adds one lift test on tv: rows
+# start..end (week = row), spend_delta = frac x the stored window spend
+# (spread in proportion to the spend, as Pulse spreads it), and a
+# measured lift = the TRUE model's window-only change in sales plus
+# Normal(0, se) noise drawn after the series (so the series is the
+# lift-free case's, bit for bit, at the same seed). Stan reads the
+# changed spend and the lift; the Go test reads params.lift_tests.
 #
 # Extending: add a kernel or curve to mmm_bayes.stan (data `kernel`,
 # `curve`) and a row to `cases` below; the Go test reads every case
@@ -134,7 +143,15 @@ cases <- list(
   list(name = "weibull_cdf_michaelis_menten", kernel = "weibull_cdf", curve = "michaelis_menten", seed = 7023, n = 104, L = 8,
        phi = list(shape = 1.5, scale = 2.5), q = list(k = 100), beta = 50),
   list(name = "weibull_pdf_michaelis_menten", kernel = "weibull_pdf", curve = "michaelis_menten", seed = 7024, n = 104, L = 8,
-       phi = list(shape = 2, scale = 3), q = list(k = 25), beta = 60)
+       phi = list(shape = 2, scale = 3), q = list(k = 25), beta = 60),
+  # The lift-test likelihood: a switch-off on the default cell and a +50%
+  # test on a two-parameter kernel with a one-parameter curve.
+  list(name = "geometric_hill_lift", kernel = "geometric", curve = "hill", seed = 7001, n = 104, L = 8,
+       phi = list(decay = 0.5), q = list(k = 120, s = 1.5), beta = 40,
+       lift = list(start = 41L, end = 48L, frac = -1, se = 4)),
+  list(name = "delayed_logistic_lift", kernel = "delayed", curve = "logistic", seed = 7012, n = 104, L = 8,
+       phi = list(decay = 0.5, peak = 2), q = list(lam = 0.012), beta = 40,
+       lift = list(start = 61L, end = 66L, frac = 0.5, se = 3))
 )
 
 # The coefficient names Pulse reports (REG_MMM_BAYES's table) mapped to
@@ -157,16 +174,48 @@ coef_map <- function(kernel, curve) {
 # and writes them alone: for developing a case, never for the golden.
 if (length(args) >= 2) cases <- Filter(function(cs) cs$name %in% strsplit(args[[2]], ",")[[1]], cases)
 
+# lift_spend is x with frac x the window spend spread over start..end in
+# proportion to the spend (bayes_lift.go's liftSpend; frac = -1 is
+# exactly zero spend there).
+lift_spend <- function(x, start, end, delta) {
+  win <- sum(x[start:end])
+  out <- x
+  out[start:end] <- x[start:end] * max(0, 1 + delta / win)
+  out
+}
+
 out_cases <- list()
 for (cs in cases) {
   d <- simulate(cs$seed, cs$n, cs$kernel, cs$phi, cs$L, cs$curve, cs$q, cs$beta)
+  lift <- NULL
+  if (!is.null(cs$lift)) {
+    lf <- cs$lift
+    delta <- lf$frac * sum(d$tv[lf$start:lf$end])
+    changed <- lift_spend(d$tv, lf$start, lf$end, delta)
+    w <- kernel_weights(cs$kernel, cs$phi, cs$L)
+    win <- lf$start:lf$end
+    truth <- cs$beta * sum(curve_value(cs$curve, adstock(changed, w), cs$q)[win] - curve_value(cs$curve, adstock(d$tv, w), cs$q)[win])
+    lift <- list(start = lf$start, end = lf$end, spend_delta = delta, se = lf$se, spend = changed,
+                 truth = truth, obs = r4(truth + rnorm(1, 0, lf$se)))
+  }
   ymax <- max(abs(d$sales))
   xmax <- max(d$tv)
   zmean <- mean(d$price)
   zscale <- max(abs(d$price - zmean))
   data <- list(N = cs$n, C = 1L, J = 1L, L = cs$L, kernel = kernel_code[[cs$kernel]], curve = curve_code[[cs$curve]],
                ys = d$sales / ymax, spend = list(d$tv), xscale = array(xmax), share = array(sum(d$tv) / ymax),
-               zs = list((d$price - zmean) / zscale), yscale = ymax, zmean = array(zmean), zscale = array(zscale))
+               zs = list((d$price - zmean) / zscale), yscale = ymax, zmean = array(zmean), zscale = array(zscale),
+               T = 0L, lift_c = integer(0), lift_from = integer(0), lift_to = integer(0),
+               lift_spend = matrix(numeric(0), nrow = 0, ncol = cs$n), lift_obs = numeric(0), lift_se = numeric(0))
+  if (!is.null(lift)) {
+    data$T <- 1L
+    data$lift_c <- array(1L)
+    data$lift_from <- array(lift$start)
+    data$lift_to <- array(lift$end)
+    data$lift_spend <- list(lift$spend)
+    data$lift_obs <- array(lift$obs)
+    data$lift_se <- array(lift$se)
+  }
   fit <- mod$sample(data = data, seed = cs$seed, chains = 4, parallel_chains = 4, iter_warmup = 2000,
                     iter_sampling = 10000, adapt_delta = 0.95, refresh = 0, show_messages = FALSE)
   m <- coef_map(cs$kernel, cs$curve)
@@ -185,10 +234,15 @@ for (cs in cases) {
   params <- list(channels = list("tv"), time = "week", adstock = cs$kernel, max_lag = cs$L,
                  chains = 4L, warmup = 1000L, draws = 2500L)
   if (cs$curve != "hill") params$saturation <- cs$curve
+  if (!is.null(lift)) {
+    params$lift_tests <- list(list(channel = "tv", start = lift$start, end = lift$end,
+                                   spend_delta = num(lift$spend_delta), lift = num(lift$obs), se = num(lift$se)))
+  }
   message(sprintf("%s: %d divergences, min ESS %.0f", cs$name, div, min(sm$ess_bulk)))
   out_cases[[length(out_cases) + 1]] <- list(
     name = cs$name, kernel = cs$kernel, curve = cs$curve, rng_seed = cs$seed, params = params,
-    truth = c(lapply(cs$phi, num), lapply(cs$q, num), list(beta = num(cs$beta))),
+    truth = c(lapply(cs$phi, num), lapply(cs$q, num), list(beta = num(cs$beta)),
+              if (is.null(lift)) list() else list(lift = num(lift$truth))),
     rows = list(week = d$week, tv = lapply(d$tv, num), price = lapply(d$price, num), sales = lapply(d$sales, num)),
     stan = list(chains = 4L, warmup = 2000L, draws = 10000L, adapt_delta = 0.95, seed = cs$seed, divergences = div),
     coefficients = coefs, roi = row("roi[1]"))

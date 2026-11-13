@@ -257,7 +257,8 @@ reference-optimize:
 
 # reference-stan regenerates REG_MMM_BAYES's Stan oracle
 # (internal/regmmm/testdata/mmm_bayes_stan.json: posterior means per
-# adstock kernel x saturation curve cell, sampled by CmdStan from
+# adstock kernel x saturation curve cell and per lift-test case,
+# sampled by CmdStan from
 # scripts/reference/mmm_bayes.stan)
 # with scripts/reference/gen_mmm_bayes_stan.R, then appends the
 # `// golden-hash:` footer TestMMMBayes_PosteriorMatchesStan checks.

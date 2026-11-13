@@ -46,11 +46,12 @@ Use something else:
 | `sampler` | string | `nuts` | The only sampler. |
 | `target_accept` | number | 0.8 | Raise on divergence. |
 | `holdout_from` | number | — | Rows from this time are held out; adstock spans all history. |
+| `lift_tests` | array | — | Experiments as data, outcome units. |
 | `conf_level` | float | `0.95` | Wald CI on the posterior SD. |
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Formulas, prior keys and default priors: [`mmm-bayes-model`](mmm-bayes-model.md). `rng_seed` 0 derives one from the request.
+Formulas, priors, lift tests: [`mmm-bayes-model`](mmm-bayes-model.md). `rng_seed` 0 derives one from the request.
 
 ## Inputs
 

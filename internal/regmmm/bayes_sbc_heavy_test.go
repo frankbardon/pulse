@@ -121,9 +121,18 @@ func (p prior) draw(rng *rand.Rand) float64 {
 	panic("sbc: no sampler for prior " + p.Family)
 }
 
+// sbcLift is a calibration run's lift test: a change of frac × the
+// window spend over rows from..to, measured with standard error se.
+type sbcLift struct {
+	from, to int
+	frac, se float64
+}
+
 // sbcReplicate draws a truth, simulates, fits and returns each θ
-// coordinate's rank (0..sbcKept) with the run's divergence count.
-func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesModel) ([]int, int) {
+// coordinate's rank (0..sbcKept) with the run's divergence count. With
+// a lift, the measured lift is simulated too — the model's Δ at the
+// truth plus se·ε — and the fit carries the test.
+func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesModel, lift *sbcLift) ([]int, int) {
 	rng := rand.New(rand.NewPCG(sbcSeed, uint64(r)))
 	dim := ref.Dim()
 	truth := make([]float64, dim) // constrained, on the scaled data
@@ -139,6 +148,18 @@ func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesMo
 		y[w] = mu[w] + float64(truth[ref.iSigma()]*detmath.NormFloat64(rng))
 	}
 	m := sbcModel(t, ref.kernel, ref.sat, y, spend, controls)
+	if lift != nil {
+		win := 0.0
+		for w := lift.from; w <= lift.to; w++ {
+			win += spend[0][w]
+		}
+		lt, err := m.newLiftTest(0, lift.from, lift.to, float64(lift.frac*win), 0, lift.se)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.lifts = []liftTest{lt}
+		m.lifts[0].lift = m.liftPrediction(theta, 0) + float64(lift.se*detmath.NormFloat64(rng))
+	}
 	init, _ := m.mapStart(mapMaxIter)
 	res, err := mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
 		mcmc.Options{Chains: 1, Warmup: sbcWarmup, Draws: sbcKept * sbcThin, Init: init})
@@ -173,14 +194,33 @@ func TestMMMBayes_SimulationBasedCalibration(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				sbcKernel(t, kernelByName(kernel), curveByName(curve))
+				sbcKernel(t, kernelByName(kernel), curveByName(curve), nil)
 			})
 		}
 	}
 }
 
-// sbcKernel is one kernel × curve's calibration run.
-func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve) {
+// TestMMMBayes_SimulationBasedCalibrationLift: with a lift test in the
+// likelihood (a switch-off over eight weeks, se 0.5 on the unscaled
+// outcome — informative against the default priors) every parameter's
+// SBC rank histogram stays uniform, on the default cell and on a cell
+// with a two-parameter kernel and a one-parameter curve — so the lift
+// term's density and gradient are those of the generative model.
+func TestMMMBayes_SimulationBasedCalibrationLift(t *testing.T) {
+	t.Parallel()
+
+	lift := &sbcLift{from: 20, to: 27, frac: -1, se: 0.5}
+	for _, cell := range [][2]string{{"geometric", "hill"}, {"delayed", "logistic"}} {
+		t.Run(cell[0]+"_"+cell[1], func(t *testing.T) {
+			t.Parallel()
+			sbcKernel(t, kernelByName(cell[0]), curveByName(cell[1]), lift)
+		})
+	}
+}
+
+// sbcKernel is one kernel × curve's calibration run, with lift's lift
+// test in every replicate when non-nil.
+func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift) {
 	spend, controls := sbcDesign()
 	// The reference model reads only the design (its outcome, all ones,
 	// is unused): the priors, the control centring and the spend scale.
@@ -209,7 +249,7 @@ func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve) {
 	for range runtime.GOMAXPROCS(0) {
 		wg.Go(func() {
 			for r := range jobs {
-				ranks[r], divs[r] = sbcReplicate(t, r, spend, controls, ref)
+				ranks[r], divs[r] = sbcReplicate(t, r, spend, controls, ref, lift)
 			}
 		})
 	}

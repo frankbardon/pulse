@@ -150,6 +150,18 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // contribution are then the fitted rows'. A cutoff that leaves no row
 // on one side is PROCESSING_CONFIG.
 //
+// params.lift_tests enters measured experiments as data: each test adds
+// lift ~ Normal(Δ, se), Δ the model's change in the outcome summed over
+// the window's periods when the channel's spend there changes by
+// spend_delta (bayes_lift.go). Its spec refusals (geo, an unknown
+// channel, a missing or reversed window, a missing or zero spend_delta,
+// a missing lift, se ≤ 0) are the factory's; a window outside the
+// fitted periods and a cut below zero spend are the fit's
+// (PROCESSING_CONFIG, slot params.lift_tests). A channel with an roi
+// prior as well warns PULSE_MMM_LIFT_PRIOR_OVERLAP, first among the
+// result's warnings. No lift test (absent or empty) adds no term: the
+// fit is byte-identical.
+//
 // The seed is rng_seed, or when 0 the FNV-64a of the slot's wire form
 // with rng_seed cleared (Pulse's own rng_seed-0 rule), never data or the
 // clock: the same request gives the same draws, bit for bit, on every
@@ -249,6 +261,7 @@ type bayesParamsWire struct {
 	Sampler        *string                     `json:"sampler"`
 	TargetAccept   *float64                    `json:"target_accept"`
 	HoldoutFrom    *int64                      `json:"holdout_from"`
+	LiftTests      []liftTestWire              `json:"lift_tests"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -267,6 +280,10 @@ type bayesConfig struct {
 	seed               int64
 	// holdoutFrom is params.holdout_from (nil: every row is fitted).
 	holdoutFrom *int64
+	// lifts is params.lift_tests (bayes_lift.go); liftOverlap the
+	// channels that also carry an roi prior (a warning).
+	lifts       []bayesLiftSpec
+	liftOverlap []string
 }
 
 // bayesSlotError is a PROCESSING_CONFIG refusal naming the slot.
@@ -546,6 +563,12 @@ func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 			*s.dst = p
 		}
 	}
+	lifts, err := liftSpecs(spec, w.LiftTests, cfg.channels)
+	if err != nil {
+		return nil, err
+	}
+	cfg.lifts = lifts
+	cfg.liftOverlap = liftPriorOverlap(lifts, cfg.channels, w.Priors)
 	cfg.holdoutFrom = w.HoldoutFrom
 	cfg.seed = bayesEffectiveSeed(spec)
 	return &bayesRegression{cfg: cfg}, nil
@@ -684,6 +707,9 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 	if err != nil {
 		return extend.RegressionOutput{}, r.slotError(err)
 	}
+	if err := r.addLiftTests(m, data, nf); err != nil {
+		return extend.RegressionOutput{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return extend.RegressionOutput{}, err
 	}
@@ -692,6 +718,36 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 		return extend.RegressionOutput{}, err
 	}
 	return r.output(post), nil
+}
+
+// addLiftTests resolves params.lift_tests onto the fitted rows: a
+// window outside them (before the first period, at or past
+// holdout_from or the last period) and a spend change below zero spend
+// are PROCESSING_CONFIG (details.reason lift_window_out_of_range,
+// lift_spend_negative).
+func (r *bayesRegression) addLiftTests(m *bayesModel, data *bayesData, nf int) error {
+	first, last := data.time[0], data.time[nf-1]
+	for i, l := range r.cfg.lifts {
+		if l.start < first || l.end > last {
+			return r.slotError(liftConfigError(i, reasonLiftWindowRange,
+				fmt.Sprintf("the window [%d, %d] is outside the fitted periods [%d, %d]", l.start, l.end, first, last),
+				map[string]any{"start": l.start, "end": l.end, "first": first, "last": last}))
+		}
+		lt, err := m.newLiftTest(l.channel, int(l.start-first), int(l.end-first), l.spendDelta, l.lift, l.se)
+		if err != nil {
+			var ce *perr.CodedError
+			msg, reason := err.Error(), reasonLiftSpendNegative
+			if stderrors.As(err, &ce) {
+				msg = strings.TrimPrefix(ce.Message, string(BayesName)+": ")
+				if v, ok := ce.Details["reason"].(string); ok {
+					reason = v
+				}
+			}
+			return r.slotError(liftConfigError(i, reason, msg, map[string]any{"channel": r.cfg.channels[l.channel]}))
+		}
+		m.lifts = append(m.lifts, lt)
+	}
+	return nil
 }
 
 // fitRows is the number of leading (time-ordered) rows the likelihood

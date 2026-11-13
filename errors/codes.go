@@ -4063,6 +4063,17 @@ const (
 	// returned.
 	PULSE_MCMC_FAILED Code = "PULSE_MCMC_FAILED"
 
+	// PULSE_MMM_LIFT_PRIOR_OVERLAP is the run WARNING that a
+	// REG_MMM_BAYES channel carries both an explicit ROI prior
+	// (params.priors.<channel>.roi) and a lift test
+	// (params.lift_tests): when the prior was built from the same
+	// experiment, its evidence is counted twice and the channel's
+	// interval is too narrow. The fit runs unchanged. One warning per
+	// slot; details carry "channels" (each overlapping channel, in
+	// params.channels order). Promoted to an error under
+	// Options.Strict.
+	PULSE_MMM_LIFT_PRIOR_OVERLAP Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
+
 	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
 	// `optimize` block: no name or a name another block already took, no
 	// variables, an empty objective, a missing or unknown direction, a
@@ -5208,6 +5219,7 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_INFEASIBLE,
 	PULSE_MCMC_INVALID,
 	PULSE_MCMC_FAILED,
+	PULSE_MMM_LIFT_PRIOR_OVERLAP,
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,

@@ -693,7 +693,7 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
-			"An experiment-measured prior on a channel's ROI anchors its effect.",
+			"A lift test (params.lift_tests) or an experiment-based roi prior anchors a channel's effect.",
 			"k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.",
 			regInterceptAtZero,
 		},

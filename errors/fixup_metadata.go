@@ -5109,6 +5109,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MMM_LIFT_PRIOR_OVERLAP: {
+		Message: "A Bayesian media-mix slot gives one channel both an explicit ROI prior (`params.priors.<channel>.roi`) and a lift test (`params.lift_tests`). If the prior was built from the same experiment, that evidence enters twice — once as the prior, once as the lift likelihood — and the channel's interval comes out too narrow. The fit ran unchanged; `channels` lists each overlapping channel. This is a WARNING; under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Params", "priors", "*", "roi"},
+				Hint:   "When the ROI prior restates the lift test, drop the prior and keep the lift test: the likelihood reads the experiment on its own window and spend change.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Params", "lift_tests"},
+				Hint:   "When the prior already carries the experiment, drop that channel's lift test instead; keep both only when they come from independent evidence.",
+			},
+		},
+	},
 	PULSE_OPTIMIZE_SPEC_INVALID: {
 		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{

@@ -1,11 +1,11 @@
 ```yaml
 name: mmm-workflow
-description: Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift-test priors, what to trust.
+description: Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift tests as likelihood or prior, what to trust.
 kind: design
 type: guide
 applies_to: compose
 requires: [REG_MMM_HILL, WIN_DISTRIBUTED_LAG, WIN_LAG, ATTR_FORMULA, capability:for_each, capability:compose_sweep_sampling, capability:compose_sweep_bind, capability:compose_optimize]
-covers: [Bayesian media mix, lift test prior, media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, one-call recipe, sweep_axis, response]
+covers: [Bayesian media mix, lift test prior, lift test likelihood, media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, one-call recipe, sweep_axis, response]
 ```
 
 # Media-mix workflow
@@ -35,9 +35,11 @@ Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and 
 - **`REG_MMM_BAYES`** ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. It has no save, scoring or optimizer: take its ROI intervals to a budget decision by hand. Needs `params.time` as contiguous integers (a date column is refused as `time_gap`).
 - Pick the sweep to allocate budget, Bayes to say how sure you are. Reading an interval: an always-on channel is the hardest to identify and gets a wide interval, so read its width, not its centre. Check `diagnostics` first; `Strict` turns a sampler warning into a failed slot.
 
-## Lift test as a prior
+## Lift tests: likelihood or prior
 
-Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measured ROI)` and `sigma` from the experiment's interval (about `ln(upper/lower)/3.3` for a 90% interval). Widen it, never narrow it. As Meridian's own guidance warns, the prior is only as good as the match between estimands: the experiment's window, geography and definition of incrementality must be the model's ROI (outcome over the fitted period against zero spend). A short geo test is not that, so inflate `sigma` for the mismatch. This is a prior, not a likelihood: the data can overrule it.
+- **Likelihood** (preferred): `params.lift_tests` `[{channel, start, end, spend_delta, lift, se}]` scores the model's change in the outcome over the test's periods (no carry-over past `end`) against the measured `lift`, in outcome units ([`mmm-bayes-model`](mmm-bayes-model.md)): the experiment's own estimand.
+- **Prior**: `priors.<channel>.roi` lognormal, `mu = ln(ROI)`, `sigma ≈ ln(upper/lower)/3.3` (90% interval). Estimands must match: the model's ROI is the whole fitted period against zero spend, a short geo test is not, so widen `sigma`; data can overrule it.
+- One experiment, one route: a channel with both warns `PULSE_MMM_LIFT_PRIOR_OVERLAP` (evidence counted twice).
 
 ## Intervals and trust
 

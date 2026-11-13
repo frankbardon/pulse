@@ -192,6 +192,9 @@ type bayesModel struct {
 	spendTotal []float64 // per channel: Σ_t spend_ct
 	priors     []prior   // per θ coordinate
 	isBeta     []bool    // per channel: β mode
+	// lifts is the lift-test likelihood's tests (bayes_lift.go); nil
+	// adds no term.
+	lifts []liftTest
 }
 
 func bayesConfigError(msg string, details map[string]any) error {
@@ -467,8 +470,16 @@ type channelState struct {
 // constrained kernel parameters ad (the kernel's Params order) and curve
 // parameters q (the curve's); grad asks for the partials too.
 func (m *bayesModel) curve(c int, ad, q []float64, grad bool) channelState {
-	st := channelState{q: q, a: make([]float64, m.n), h: make([]float64, m.n)}
-	a := make([]float64, m.n)
+	return m.curveOn(m.spend[c], c, ad, q, grad)
+}
+
+// curveOn is curve over the raw spend series x (its own length) in
+// place of channel c's fitted spend — c's peak-spend scaling and curve
+// — so a lift test's changed spend reads the fitted curve.
+func (m *bayesModel) curveOn(x []float64, c int, ad, q []float64, grad bool) channelState {
+	n := len(x)
+	st := channelState{q: q, a: make([]float64, n), h: make([]float64, n)}
+	a := make([]float64, n)
 	w, dw := m.kernel.Weights(ad, m.maxLag, grad)
 	var da [][]float64
 	var dq []float64
@@ -476,15 +487,15 @@ func (m *bayesModel) curve(c int, ad, q []float64, grad bool) channelState {
 		da = make([][]float64, m.np)
 		st.dhp = make([][]float64, m.np)
 		for i := range da {
-			da[i], st.dhp[i] = make([]float64, m.n), make([]float64, m.n)
+			da[i], st.dhp[i] = make([]float64, n), make([]float64, n)
 		}
 		st.dhq = make([][]float64, m.nq)
 		for i := range st.dhq {
-			st.dhq[i] = make([]float64, m.n)
+			st.dhq[i] = make([]float64, n)
 		}
 		dq = make([]float64, m.nq)
 	}
-	adstockGrad(m.spend[c], w, dw, a, da)
+	adstockGrad(x, w, dw, a, da)
 	for t := range a {
 		st.a[t] = a[t] / m.xScale[c]
 		h, dha := m.sat.Eval(st.a[t], q, dq)
@@ -532,8 +543,10 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 		return math.Inf(-1)
 	}
 	chans := make([]channelState, m.nc)
+	ads := make([][]float64, m.nc)
 	for c := range m.nc {
 		ad := make([]float64, m.np)
+		ads[c] = ad
 		for i := range ad {
 			ad[i] = coords[m.iAdstock(i, c)].y
 		}
@@ -629,6 +642,9 @@ func (m *bayesModel) logDensity(theta, grad []float64) float64 {
 	}
 	// ∂L/∂σ = −n/σ + SSR/σ³.
 	add(m.iSigma(), -float64(m.n)/sigma+ssr/float64(s2*sigma))
+	for _, l := range m.lifts {
+		lp += m.liftTerm(l, chans[l.channel], ads[l.channel], coords[m.iEffect(l.channel)].y, add)
+	}
 	return lp
 }
 

@@ -641,14 +641,17 @@ change meant to move.
 `make reference`: `scripts/reference/gen_mmm_bayes_stan.R` samples the
 model written independently in `scripts/reference/mmm_bayes.stan`
 (Pulse's scaling and default priors, one case per adstock kernel ×
-saturation curve cell — 4 × 3 — rows simulated, seeded and stored) and
+saturation curve cell — 4 × 3 — plus two with a lift test in the
+likelihood, rows simulated, seeded and stored) and
 writes `internal/regmmm/testdata/mmm_bayes_stan.json`; `make
 reference-stan` runs it (about fifteen minutes) and appends the footer.
 `TestMMMBayes_PosteriorMatchesStan` (heavy, `internal/regmmm`) fits the
 stored rows through the operator and holds every coefficient's
-posterior mean and each channel's ROI within its cell's stated
-tolerance (`stanCellZ`; 4.5 combined Monte Carlo standard errors in
-every cell) of Stan's. The script refuses any version but R 4.6.1,
+posterior mean and each channel's ROI within its case's stated
+tolerance (`stanCellZ`, keyed by case name; 4.5 combined Monte Carlo
+standard errors in every case) of Stan's. The program's lift block is
+inert with no test (`T = 0`), so adding the lift cases left the twelve
+cell cases bit-identical. The script refuses any version but R 4.6.1,
 cmdstanr 0.9.0, CmdStan 2.40.0, posterior 1.7.1 and jsonlite 2.0.0, and
 stops unless the Stan run mixed (R-hat < 1.01, bulk ESS > 2000, at most
 0.5% divergent transitions). Install:
@@ -661,4 +664,5 @@ Rscript -e 'cmdstanr::install_cmdstan(version = "2.40.0")'
 
 To add a model cell (a curve, a hierarchy), extend the Stan program's
 data switches and append a case to the script's `cases` list: the Go
-test reads every case generically.
+test reads every case generically (give the new case a `stanCellZ`
+row).

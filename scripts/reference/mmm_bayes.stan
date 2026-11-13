@@ -20,6 +20,16 @@
 // Michaelis-Menten a / (k + a). A curve's unused parameter vectors have
 // size 0.
 //
+// Lift tests (data `T`, 0 for none — the program is then the lift-free
+// model statement for statement): test i on channel lift_c[i] reads the
+// channel's spend with the experiment's change applied, lift_spend[i]
+// (equal to spend outside rows lift_from[i]..lift_to[i]), and adds
+//
+//   lift_obs[i] ~ Normal(yscale * beta_c * sum_{t=from..to} (h'_ct - h_ct), lift_se[i])
+//
+// with h' the same kernel and curve on the changed spend (the
+// channel's own xscale) and the window-only sum (no carry-over tail).
+//
 // Priors are REG_MMM_BAYES's defaults: decay Beta(1, 1), peak
 // TruncNormal(1, 2, 0, L), shape LogNormal(0, 0.5), scale LogNormal(1,
 // 0.75), k TruncNormal(1, 1, 0.02, 10) (Hill and Michaelis-Menten), s
@@ -43,6 +53,13 @@ data {
   real yscale;
   vector[J] zmean;
   vector[J] zscale;
+  int<lower=0> T;
+  array[T] int<lower=1, upper=C> lift_c;
+  array[T] int<lower=1, upper=N> lift_from;
+  array[T] int<lower=1, upper=N> lift_to;
+  array[T] vector[N] lift_spend;
+  vector[T] lift_obs;
+  vector<lower=0>[T] lift_se;
 }
 transformed data {
   int Cd = (kernel <= 1) ? C : 0;
@@ -117,6 +134,42 @@ model {
   roi ~ lognormal(0.2, 0.9);
   sigma ~ normal(0, 1);
   ys ~ normal(mu, sigma);
+  for (i in 1:T) {
+    int c = lift_c[i];
+    vector[L + 1] w;
+    real d = 0;
+    for (l in 0:L) {
+      if (kernel == 0) {
+        w[l + 1] = decay[c] ^ l;
+      } else if (kernel == 1) {
+        w[l + 1] = decay[c] ^ square(l - peak[c]);
+      } else if (kernel == 2) {
+        w[l + 1] = exp(-((l / wscale[c]) ^ wshape[c]));
+      } else {
+        real zz = (l + 1) / wscale[c];
+        w[l + 1] = wshape[c] / wscale[c] * zz ^ (wshape[c] - 1) * exp(-(zz ^ wshape[c]));
+      }
+    }
+    for (t in lift_from[i]:lift_to[i]) {
+      real a = 0;
+      real hp;
+      for (l in 0:min(t - 1, L)) {
+        a += w[l + 1] * lift_spend[i][t - l];
+      }
+      a /= xscale[c];
+      if (a <= 0) {
+        hp = 0;
+      } else if (curve == 0) {
+        hp = 1 / (1 + (k[c] / a) ^ s[c]);
+      } else if (curve == 1) {
+        hp = (1 - exp(-lam[c] * a)) / (1 + exp(-lam[c] * a));
+      } else {
+        hp = a / (k[c] + a);
+      }
+      d += hp - h[c][t];
+    }
+    lift_obs[i] ~ normal(yscale * beta[c] * d, lift_se[i]);
+  }
 }
 generated quantities {
   // Pulse's coefficient table in original units (bayesModel.constrain,

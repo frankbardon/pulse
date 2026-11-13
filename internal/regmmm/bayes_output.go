@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
@@ -239,6 +240,12 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 	}
 
 	var warnings []*types.ResponseWarning
+	if len(cfg.liftOverlap) > 0 {
+		warnings = append(warnings, &types.ResponseWarning{Code: string(perr.PULSE_MMM_LIFT_PRIOR_OVERLAP),
+			Message: fmt.Sprintf("%s regression %q: channel(s) %s carry both an roi prior and a lift test; a prior built from the same experiment counts its evidence twice — drop one",
+				BayesName, cfg.name, strings.Join(cfg.liftOverlap, ", ")),
+			Details: map[string]any{"channels": slices.Clone(cfg.liftOverlap)}})
+	}
 	warn := func(reason, msg string, details map[string]any) {
 		details["reason"] = reason
 		warnings = append(warnings, &types.ResponseWarning{Code: string(perr.PROCESSING_REGRESSION_DIAGNOSTIC),

@@ -9181,6 +9181,12 @@
             "required": false,
             "description": "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted.",
             "example": 131
+          },
+          {
+            "name": "lift_tests",
+            "type": "list",
+            "required": false,
+            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units; geo is refused (one market). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
           }
         ],
         "intents": [
@@ -11894,7 +11900,7 @@
         ]
       }
     ],
-    "error_codes_count": 470,
+    "error_codes_count": 471,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12133,6 +12139,7 @@
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MCMC_FAILED",
       "PULSE_MCMC_INVALID",
+      "PULSE_MMM_LIFT_PRIOR_OVERLAP",
       "PULSE_MODEL_FILE_INVALID",
       "PULSE_MODEL_FILE_UNREADABLE",
       "PULSE_MODEL_INTERVALS_UNAVAILABLE",
@@ -13961,11 +13968,11 @@
       },
       {
         "name": "mmm-bayes-model",
-        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, and how response() and hill() read a Bayesian fit."
+        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit."
       },
       {
         "name": "mmm-workflow",
-        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift-test priors, what to trust."
+        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift tests as likelihood or prior, what to trust."
       },
       {
         "name": "multiplicity-correction",
@@ -21365,4 +21372,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f30aeccd4a8a91609f00092e21403641ea594572236caa6287565c13c32b0e15
+// golden-hash: e0ed12f726552b09dfb38f84e97ed494cbf5512c06562754ba1609e15def2012

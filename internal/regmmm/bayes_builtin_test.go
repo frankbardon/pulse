@@ -72,7 +72,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 		t.Error("manifest: REG_MMM_BAYES listed as streamable")
 	}
 	wantParams := []string{"channels", "time", "max_lag", "adstock", "saturation", "priors", "intercept_prior", "control_prior", "sigma_prior",
-		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from"}
+		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from", "lift_tests"}
 	if !slices.Equal(row.params, wantParams) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
 	}
@@ -169,6 +169,15 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 		"prior on a control":      `{"channels":["tv"],"time":"week","priors":{"price":{"k":{"family":"halfnormal","sigma":1}}}}`,
 		"roi and beta":            `{"channels":["tv"],"time":"week","priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1},"beta":{"family":"halfnormal","sigma":1}}}}`,
 		"predictor twice":         "twice",
+		"lift geo":                `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","geo":"east","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift channel unknown":    `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"price","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift window missing":     `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift window reversed":    `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":9,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift spend_delta absent": `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"lift":-2,"se":1}]}`,
+		"lift spend_delta zero":   `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":0,"lift":-2,"se":1}]}`,
+		"lift missing":            `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"se":1}]}`,
+		"lift se":                 `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":0}]}`,
+		"lift unknown key":        `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1,"iroas":2}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := regmmm.BayesSpec(params)
@@ -201,6 +210,21 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 	pr, err := p.Predict(ctx, bayesRequest("gap.pulse", regmmm.BayesSpec(regmmm.FastParams)))
 	if err != nil || len(pr.Errors) != 0 {
 		t.Fatalf("predict on a data-only refusal: %v %+v", err, pr)
+	}
+	// A lift window past the series is a data refusal too: the runtime
+	// refuses it (before sampling), predict, which reads no row, cannot.
+	outside := regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":5,"draws":5,"lift_tests":[{"channel":"tv","start":55,"end":70,"spend_delta":-10,"lift":-2,"se":1}]}`)
+	req := bayesRequest(regmmm.BayesCohort, outside)
+	if pr, err := p.Predict(ctx, req); err != nil || len(pr.Errors) != 0 {
+		t.Fatalf("predict on a lift window past the data: %v %+v", err, pr)
+	}
+	_, rerr := p.Process(ctx, req)
+	var ce *perr.CodedError
+	if !stderrors.As(rerr, &ce) || ce.Code != perr.PROCESSING_CONFIG || ce.Details["reason"] != "lift_window_out_of_range" {
+		t.Fatalf("runtime on a lift window past the data: %v", rerr)
+	}
+	if n := c.runs.Load(); n != 0 {
+		t.Errorf("a lift window past the data sampled %d times", n)
 	}
 }
 

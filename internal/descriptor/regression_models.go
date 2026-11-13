@@ -88,6 +88,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "sampler", Type: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
 				{Name: "target_accept", Type: "float", Default: regmmm.BayesDefaultTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."},
 				{Name: "holdout_from", Type: "float", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
+				{Name: "lift_tests", Type: "list", Description: "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (> 0) are in outcome units; geo is refused (one market). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."},
 			},
 		},
 	},
