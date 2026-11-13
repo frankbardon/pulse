@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -437,25 +438,72 @@ func checkSummary(t *testing.T, what string, s any) map[string]float64 {
 	return m
 }
 
-// doctoredSampler runs NUTS, then marks divergences and tree-depth hits
-// on chain 0 and, when split, shifts one chain of the intercept's θ so
-// the chains disagree.
+// doctoredSampler never runs NUTS: it returns constructed draws whose
+// health figures the test controls, so no assertion depends on a seed.
+// Every chain carries the same sequence around the model's start — each
+// half of a chain a different fixed permutation of one evenly spaced
+// grid, so the split halves hold the same values and every parameter's
+// (and every derived channel figure's) R̂ is below 1 and its bulk and
+// tail ESS far above bayesESSMin. Then: divergences and saturated mark
+// chain 0's transitions; sticky holds each grid value for that many
+// draws (a crawling chain: ESS collapses, R̂ stays under 1); split
+// shifts chain 1's intercept θ by +5 (R̂ far above the threshold); rhat,
+// when set, shifts it just enough that the intercept's R̂ is that value.
+// opts.Draws must be even.
 type doctoredSampler struct {
 	divergences, saturated int
+	sticky                 int
 	split                  bool
+	rhat                   float64
 }
 
-func (s doctoredSampler) Sample(ctx context.Context, m mcmc.Model, seed uint64, opts mcmc.Options) (mcmc.Result, error) {
-	res, err := mcmc.NUTS{}.Sample(ctx, m, seed, opts)
-	if err != nil {
-		return res, err
+func (s doctoredSampler) Sample(_ context.Context, m mcmc.Model, _ uint64, opts mcmc.Options) (mcmc.Result, error) {
+	half, hold := opts.Draws/2, max(s.sticky, 1)
+	grid := half / hold
+	seq := make([]float64, 0, opts.Draws)
+	rng := rand.New(rand.NewPCG(578, 1))
+	for range 2 {
+		for _, k := range rng.Perm(grid) {
+			for range hold {
+				seq = append(seq, (float64(k)+0.5)/float64(grid)-0.5)
+			}
+		}
+	}
+	res := mcmc.Result{Draws: make([][][]float64, opts.Chains),
+		Diagnostics: mcmc.Diagnostics{Chains: make([]mcmc.ChainStats, opts.Chains)}}
+	for c := range res.Draws {
+		res.Draws[c] = make([][]float64, m.Dim())
+		for j := range res.Draws[c] {
+			res.Draws[c][j] = make([]float64, opts.Draws)
+			for d, z := range seq {
+				res.Draws[c][j][d] = opts.Init[j] + 0.01*z
+			}
+		}
+		res.Diagnostics.Chains[c] = mcmc.ChainStats{StepSize: 0.1, MeanAcceptStat: 0.8}
 	}
 	res.Diagnostics.Chains[0].Divergences = s.divergences
 	res.Diagnostics.Chains[0].TreeDepthSaturated = s.saturated
-	if s.split {
+	shift := func(by float64) {
 		for d := range res.Draws[1][0] {
-			res.Draws[1][0][d] += 5
+			res.Draws[1][0][d] = opts.Init[0] + 0.01*seq[d] + by
 		}
+	}
+	if s.split {
+		shift(5)
+	}
+	if s.rhat > 0 {
+		// R̂ rises with the shift until the chains separate: bisect it.
+		lo, hi := 0.0, 0.01
+		for range 60 {
+			mid := (lo + hi) / 2
+			shift(mid)
+			if mcmc.RHat(res.Param(0)) < s.rhat {
+				lo = mid
+			} else {
+				hi = mid
+			}
+		}
+		shift(hi)
 	}
 	return res, nil
 }
