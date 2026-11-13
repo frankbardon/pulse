@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/internal/limits"
+	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,7 +15,7 @@ import (
 // params.return_draws adds outputs.draws, every params.draws_thin-th
 // retained draw of each chain (draw 0, k, 2k, …), as
 //
-//	{names, draws[chain][coefficient][kept draw], roi{<entry>: [chain][kept draw]}, thin}
+//	{names, draws[chain][coefficient][kept draw], roi{<entry>: [chain][kept draw]}, thin, credible_level}
 //
 // names is the coefficient table's (the order of draws' middle index),
 // every value on the constrained scale in original units — the draws
@@ -44,10 +45,16 @@ var outputOnlyParams = []string{"return_draws", "draws_thin"}
 
 // drawsConfig validates params.return_draws and params.draws_thin onto
 // cfg: draws_thin an integer in [1, maxBayesDraws], and only beside
-// return_draws true.
+// return_draws true; a spec that saves (spec.Save) must return its
+// draws (model.MMMBayesDrawsRefusal, reason draws_required).
 func drawsConfig(spec *types.RegressionSpec, w *bayesParamsWire, cfg *bayesConfig) error {
 	if w.ReturnDraws != nil && *w.ReturnDraws {
 		cfg.returnDraws, cfg.drawsThin = true, 1
+	}
+	if spec.Save != "" && !cfg.returnDraws {
+		// A saved fit scores over its draws (bayes_score.go): the file
+		// must carry them.
+		return pmodel.MMMBayesDrawsRefusal(spec, "save")
 	}
 	if w.DrawsThin == nil {
 		return nil
@@ -202,5 +209,6 @@ func (r *bayesRegression) drawsOutput(post *bayesPosterior, names, effectNames [
 		}
 		roi[name] = per
 	}
-	return map[string]any{"names": append([]string(nil), names...), "draws": draws, "roi": roi, "thin": k}
+	return map[string]any{"names": append([]string(nil), names...), "draws": draws, "roi": roi, "thin": k,
+		"credible_level": r.cfg.credibleLevel}
 }

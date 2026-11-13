@@ -4078,6 +4078,17 @@ const (
 	// Options.Strict.
 	PULSE_MMM_LIFT_PRIOR_OVERLAP Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
 
+	// PULSE_MMM_GEO_UNSEEN is a WARNING: scoring a REG_MMM_BAYES geo
+	// panel (ATTR_REG_PREDICT, or the engine holdout) met rows whose geo
+	// field holds a geo the fit has no parameters for. They score from
+	// the population: each channel's population β and curve (μ) and the
+	// mean of the fit's geo intercepts, per draw. One warning per slot;
+	// details carry "field", "geos" (the unseen geos, sorted), "rows"
+	// (their row counts, aligned), "fit_geos", and "attribute" / "fit"
+	// (a scoring slot) or "regression" (a holdout). Promoted to an error
+	// under Options.Strict.
+	PULSE_MMM_GEO_UNSEEN Code = "PULSE_MMM_GEO_UNSEEN"
+
 	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
 	// `optimize` block: no name or a name another block already took, no
 	// variables, an empty objective, a missing or unknown direction, a
@@ -5224,6 +5235,7 @@ var allCodes = []Code{
 	PULSE_MCMC_INVALID,
 	PULSE_MCMC_FAILED,
 	PULSE_MMM_LIFT_PRIOR_OVERLAP,
+	PULSE_MMM_GEO_UNSEEN,
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,

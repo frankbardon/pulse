@@ -198,7 +198,8 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 				body["params"] = map[string]any{"channels": []string{"a"}}
 			}
 			if c.Name == string(types.REG_MMM_BAYES) {
-				body["params"] = map[string]any{"channels": []string{"a"}, "time": "g"}
+				// return_draws: a save and a holdout read the draws.
+				body["params"] = map[string]any{"channels": []string{"a"}, "time": "g", "return_draws": true}
 			}
 			var extra map[string]any
 			if err := json.Unmarshal([]byte(frag), &extra); err != nil {

@@ -48,6 +48,12 @@ type RegressionAdapter struct {
 	WeightAware bool
 	Factory     extend.RegressionFactory
 	Scorer      extend.RegressionScorerFactory
+	// BoundScorer, when set (a model regression's only —
+	// internal/regmmm.BoundScorers), builds the scorer for an
+	// ATTR_REG_PREDICT params.bound instead of Scorer: the whole
+	// model's lower / upper bound, which model.CheckScoreFor admits for
+	// that type alone.
+	BoundScorer func(fit extend.FittedRegression, bound string) (extend.RowScorer, error)
 }
 
 // regProbeDetails marks a registration probe's weighted pass on a
@@ -471,12 +477,20 @@ func FittedRegression(b *model.Bound) (extend.FittedRegression, error) {
 
 // AdaptRegressionScorer wraps the registration's Scorer as the engine's
 // model.ScorerFactory. model.CheckScoreFor already refused params.terms
-// and a lower / upper bound on the fit, so p carries only the fit name.
+// and — but for a type with a BoundScorer — a lower / upper bound on the
+// fit, so p carries only the fit name and that bound.
 func AdaptRegressionScorer(reg RegressionAdapter) model.ScorerFactory {
-	return func(b *model.Bound, _ model.ScoreParams) (model.RowScorer, error) {
+	return func(b *model.Bound, p model.ScoreParams) (model.RowScorer, error) {
 		fit, err := FittedRegression(b)
 		if err != nil {
 			return nil, err
+		}
+		if reg.BoundScorer != nil {
+			bound := reg
+			bound.Scorer = func(fit extend.FittedRegression) (extend.RowScorer, error) {
+				return reg.BoundScorer(fit, p.Bound)
+			}
+			return BuildRegressionScorer(bound, fit, false)
 		}
 		return BuildRegressionScorer(reg, fit, false)
 	}
@@ -525,6 +539,15 @@ type regressionRowScorer struct {
 }
 
 func (s regressionRowScorer) Columns() []string { return slices.Clone(s.cols) }
+
+// GeoTally satisfies model.GeoTallier: the wrapped scorer's unseen-geo
+// tally (a REG_MMM_BAYES geo panel's), nil when it keeps none.
+func (s regressionRowScorer) GeoTally() *model.GeoTally {
+	if t, ok := s.rs.(model.GeoTallier); ok {
+		return t.GeoTally()
+	}
+	return nil
+}
 
 func (s regressionRowScorer) Score(row model.Row) (float64, bool) {
 	for _, c := range s.cols {

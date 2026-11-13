@@ -21,7 +21,7 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `predictors` | []field | (required) | Channels and controls. |
 | `channels` | array | (required) | Raw spend (≥ 0); the rest are controls. |
 | `time` | string | (required) | Contiguous integer time. |
-| `max_lag` | number | 13 | Adstock window; set it unless geometric. |
+| `max_lag` | number | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |
 | `priors` | object | — | Per channel `{roi\|beta}` + kernel/curve keys. |
@@ -30,18 +30,20 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `sigma_prior` | object | — | halfnormal(1). |
 | `chains` | number | 4 | 1–16. |
 | `warmup` | number | 1000 | 1–20000. |
-| `draws` | number | 1000 | 1–20000, per chain. |
+| `draws` | number | 1000 | Per chain. |
 | `credible_level` | number | 0.9 | Interval level. |
 | `sampler` | string | `nuts` | — |
 | `target_accept` | number | 0.8 | Raise if divergent. |
-| `holdout_from` | number | — | Held out from this time. |
-| `geo` | string | — | Market field: a pooled geo panel. |
+| `holdout_from` | number | — | History-aware holdout. |
+| `geo` | string | — | Market field (panel). |
 | `per_geo_curves` | bool | `false` | Per-geo pooled curves. |
 | `lift_tests` | array | — | Experiments as data. |
 | `return_draws` | bool | `false` | Adds `outputs.draws`. |
 | `draws_thin` | number | 1 | Keep every k-th draw. |
 | `conf_level` | float | `0.95` | Wald CI. |
 | `vcov` | bool | `false` | Posterior covariance. |
+| `holdout` | string | — | Engine holdout. |
+| `save` | string | — | Model file. |
 | `name` | string | — | Result name. |
 
 Model detail: `mmm-bayes-model`.
@@ -62,11 +64,10 @@ Coefficients are posterior means<!-- feature: capability:models -->; an `inline`
 
 ## Gotchas
 
-- No `save`, scoring, engine `holdout`, `resample` or other shared slot (`rng_seed` excepted): use `params.holdout_from`.
+- `save`, scoring, `holdout` need `return_draws`; scoring reads pre-adstocked channels (`mmm-bayes-posterior`).
 - k and s (or λ) trade off: judge ROI.
 - mROI holds the curve fixed.
 - Health warns, never refuses: `PROCESSING_REGRESSION_DIAGNOSTIC`, `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`; `Strict` fails the slot.
-- A default fit takes ~35 s.
 
 ## See
 

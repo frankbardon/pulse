@@ -59,11 +59,18 @@ type Adstock struct {
 	// Normalize reports whether the weights were divided by their sum
 	// (a REG_MMM_BAYES record is never normalised).
 	Normalize bool `json:"normalize"`
+	// FixedAt is a REG_MMM_BAYES record's "posterior_mean"
+	// (MMMAdstockFixedAtPosteriorMean): its kernel params are the
+	// posterior means, the decay a scoring request pre-adstocks its
+	// channels with — the score fixes the decay there, its uncertainty
+	// left out. Absent on any other record. Not a kernel param.
+	FixedAt string `json:"fixed_at,omitempty"`
 }
 
 // Params is the record as WIN_DISTRIBUTED_LAG params — what
-// distlagparams.Resolve reads.
+// distlagparams.Resolve reads (fixed_at is not one).
 func (a Adstock) Params() json.RawMessage {
+	a.FixedAt = ""
 	b, _ := json.Marshal(a)
 	return b
 }
@@ -368,7 +375,7 @@ func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel st
 	if maxLag != nil {
 		l = *maxLag
 	}
-	a := Adstock{Kernel: kernel, MaxLag: l}
+	a := Adstock{Kernel: kernel, MaxLag: l, FixedAt: MMMAdstockFixedAtPosteriorMean}
 	for _, prefix := range prefixes {
 		v, ok := res.Coefficients[prefix+ch]
 		if !ok || math.IsNaN(v) || math.IsInf(v, 0) {
@@ -426,6 +433,13 @@ func adstockRule(f *File) string {
 		}
 		if msg := checkAdstock(f.Adstock[ch]); msg != "" {
 			return fmt.Sprintf("has an adstock for %q that is not a valid kernel: %s", ch, msg)
+		}
+		switch fa := f.Adstock[ch].FixedAt; {
+		case fa == "":
+		case fa != MMMAdstockFixedAtPosteriorMean:
+			return fmt.Sprintf("has an adstock for %q with fixed_at %q; the only value is %q", ch, fa, MMMAdstockFixedAtPosteriorMean)
+		case f.Type != types.REG_MMM_BAYES:
+			return fmt.Sprintf("has an adstock for %q with fixed_at, which only a REG_MMM_BAYES record carries, but its type is %s", ch, f.Type)
 		}
 	}
 	return ""

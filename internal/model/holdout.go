@@ -17,8 +17,11 @@ const HoldoutKey = "holdout"
 // runtime registry's ScorableRegression, predict's scorableRegression)
 // is PULSE_MODEL_SCORE_INVALID reason no_scorer, details {regression,
 // slot: "holdout", reason[, name]}. The field-reference walk calls it,
-// so predict and the run refuse the same request identically. Nil when
-// spec sets no holdout or its type is scorable.
+// so predict and the run refuse the same request identically. A
+// scorable REG_MMM_BAYES spec without params.return_draws is
+// PROCESSING_CONFIG reason draws_required (MMMBayesDrawsRefusal): its
+// scorer averages over the draws. Nil when spec sets no holdout or its
+// fit can be scored.
 func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *errors.CodedError {
 	if spec == nil || spec.Holdout == "" {
 		return nil
@@ -27,7 +30,8 @@ func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *er
 		scorable = ScorableType
 	}
 	if scorable(spec.Type) {
-		return nil
+		// A REG_MMM_BAYES fit scores over its draws (mmm_score.go).
+		return MMMBayesDrawsRefusal(spec, HoldoutKey)
 	}
 	details := map[string]any{"regression": string(spec.Type), "slot": HoldoutKey, "reason": ReasonNoScorer}
 	if spec.Name != "" {

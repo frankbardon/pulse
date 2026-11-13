@@ -2945,6 +2945,7 @@ pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_M
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MCMC_FAILED pulse/errors.Code = "PULSE_MCMC_FAILED"
 pulse/errors: const PULSE_MCMC_INVALID pulse/errors.Code = "PULSE_MCMC_INVALID"
+pulse/errors: const PULSE_MMM_GEO_UNSEEN pulse/errors.Code = "PULSE_MMM_GEO_UNSEEN"
 pulse/errors: const PULSE_MMM_LIFT_PRIOR_OVERLAP pulse/errors.Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
@@ -6830,4 +6831,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 84cb42c107bf2944398e43a338298205fe78ba0a5b010b6c0caed890eae2292b
+// golden-hash: 0111557b4c9760df7cf78c43fa866f80adf824812cf89c6ca2b8ddd9b33556d5

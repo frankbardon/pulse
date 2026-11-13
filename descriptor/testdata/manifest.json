@@ -4352,7 +4352,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
           "params": [
             {
               "name": "fit",
@@ -4382,7 +4382,7 @@
               "type": "enum",
               "required": false,
               "default": "point",
-              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null. A REG_MMM_BAYES fit alone takes a whole-model lower / upper (no terms): the credible bound of its mean prediction across its draws at the fit's credible_level — an interval for μ, not a predictive interval.",
               "enum_values": [
                 "point",
                 "lower",
@@ -9067,6 +9067,20 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "name",
             "type": "string",
             "required": false,
@@ -9265,7 +9279,7 @@
           {
             "key": "draws",
             "json_type": "object",
-            "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]) and thin (params.draws_thin: every thin-th retained draw of each chain is kept). The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
+            "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
           }
         ]
       },
@@ -11939,7 +11953,7 @@
         ]
       }
     ],
-    "error_codes_count": 471,
+    "error_codes_count": 472,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12178,6 +12192,7 @@
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MCMC_FAILED",
       "PULSE_MCMC_INVALID",
+      "PULSE_MMM_GEO_UNSEEN",
       "PULSE_MMM_LIFT_PRIOR_OVERLAP",
       "PULSE_MODEL_FILE_INVALID",
       "PULSE_MODEL_FILE_UNREADABLE",
@@ -14011,7 +14026,7 @@
       },
       {
         "name": "mmm-bayes-posterior",
-        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping."
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — and saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts)."
       },
       {
         "name": "mmm-workflow",
@@ -21427,4 +21442,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 96b9866e908499e8ad01493b5bb0f4c7f9e754f01963fa8965bc2b16fb6f0f72
+// golden-hash: 3481dad8903d359d08794b5c4ab37dff9b4510ca0866739d5d0c7c7bb9ea3505

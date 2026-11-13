@@ -122,7 +122,8 @@ func TestAdstockLineage_Hill(t *testing.T) {
 
 // TestAdstockLineage_Bayes: a REG_MMM_BAYES channel records geometric at
 // its decay:<ch> posterior mean (bit for bit) over the fit's max_lag —
-// params.max_lag, else MMMBayesDefaultMaxLag — unnormalised; a channel
+// params.max_lag, else MMMBayesDefaultMaxLag — unnormalised, stamped
+// fixed_at posterior_mean; a channel
 // whose decay is absent or undefined records nothing.
 func TestAdstockLineage_Bayes(t *testing.T) {
 	t.Parallel()
@@ -134,7 +135,7 @@ func TestAdstockLineage_Bayes(t *testing.T) {
 		InterceptKey: 1, "tv": 2, "radio": 3, "price": -1, "decay:tv": decay, "decay:radio": math.NaN(),
 		"k:tv": 1, "k:radio": 1, "s:tv": 1, "s:radio": 1, "sigma": 0.5}}
 	got := AdstockLineage(nil, spec, res)
-	want := map[string]Adstock{"tv": {Kernel: "geometric", Decay: &decay, MaxLag: MMMBayesDefaultMaxLag, Normalize: false}}
+	want := map[string]Adstock{"tv": {Kernel: "geometric", Decay: &decay, MaxLag: MMMBayesDefaultMaxLag, Normalize: false, FixedAt: MMMAdstockFixedAtPosteriorMean}}
 	if !reflect.DeepEqual(got, want) || math.Float64bits(*got["tv"].Decay) != math.Float64bits(decay) {
 		t.Fatalf("lineage %s, want %s", mustJSONModel(t, got), mustJSONModel(t, want))
 	}
@@ -166,11 +167,11 @@ func TestAdstockLineage_BayesKernels(t *testing.T) {
 		window string
 		drop   string
 	}{
-		{"delayed", Adstock{Kernel: "delayed", Decay: f64(0.55), Peak: f64(2.3), MaxLag: 6},
+		{"delayed", Adstock{Kernel: "delayed", Decay: f64(0.55), Peak: f64(2.3), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
 			`{"kernel":"delayed","decay":0.55,"peak":2.3,"max_lag":6,"normalize":false}`, "peak:tv"},
-		{"weibull_cdf", Adstock{Kernel: "weibull_cdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6},
+		{"weibull_cdf", Adstock{Kernel: "weibull_cdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
 			`{"kernel":"weibull_cdf","shape":1.4,"scale":2.6,"max_lag":6,"normalize":false}`, "scale:tv"},
-		{"weibull_pdf", Adstock{Kernel: "weibull_pdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6},
+		{"weibull_pdf", Adstock{Kernel: "weibull_pdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
 			`{"kernel":"weibull_pdf","shape":1.4,"scale":2.6,"max_lag":6,"normalize":false}`, "shape:tv"},
 	} {
 		spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},

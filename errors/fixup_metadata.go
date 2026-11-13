@@ -5114,6 +5114,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MMM_GEO_UNSEEN: {
+		Message: "Scoring a Bayesian media-mix geo panel met rows whose geo the fit has no parameters for (the fit never saw that market). Those rows scored from the population instead: each channel's population effect and curve (μ) and, per draw, the mean of the fit's geo intercepts — a new market's expected level, not its own. `geos` lists the unseen geos with their row counts in `rows`; `fit_geos` the geos the fit holds. This is a WARNING; under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "If the geo should be one the fit holds, fix its spelling or code in the scoring cohort (fit_geos lists the fitted ones).",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "To score the new market with its own parameters, refit the panel with its rows included (save the new fit and score from it).",
+			},
+		},
+	},
 	PULSE_MMM_LIFT_PRIOR_OVERLAP: {
 		Message: "A Bayesian media-mix slot gives one channel both an explicit ROI prior (`params.priors.<channel>.roi`) and a lift test (`params.lift_tests`). If the prior was built from the same experiment, that evidence enters twice — once as the prior, once as the lift likelihood — and the channel's interval comes out too narrow. The fit ran unchanged; `channels` lists each overlapping channel. This is a WARNING; under strict mode it is an error.",
 		Fixups: []Fixup{

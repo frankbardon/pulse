@@ -152,6 +152,11 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 		return nil, ferr, nil
 	}
 	res.Holdout = figures
+	// A REG_MMM_BAYES geo panel's held-out rows from a geo the train
+	// fit lacks scored from the population (PULSE_MMM_GEO_UNSEEN).
+	if w := model.ScorerGeoTally(scorer).Warning("regression "+name+" holdout", map[string]any{"regression": name}); w != nil {
+		res.Warnings = append(res.Warnings, w)
+	}
 	return res, nil, nil
 }
 

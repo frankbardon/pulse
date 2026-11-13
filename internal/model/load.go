@@ -337,6 +337,9 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		// Its coefficient table names its geos (a geo panel's per-geo
 		// intercepts), exactly as the bound model's does.
 		sig.Geos, sig.GeosKnown = MMMGeos(files[j].Coefficients), true
+		// Its outputs carry its draws and name its geo field, exactly as
+		// the bound model's do.
+		sig.DrawsMissing, sig.ScoreFields = fileMMMScoreFace(files[j])
 		out[r.Name] = sig
 	}
 	return out

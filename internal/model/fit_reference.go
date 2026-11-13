@@ -270,6 +270,9 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 		}
 		return p, sig, typeUnsupportedFor(t, p.Fit, sig.Type)
 	}
+	if cerr := mmmDrawsRefusal(t, p.Fit, sig); cerr != nil {
+		return p, sig, cerr
+	}
 	if cerr := checkResidualKind(t, p, sig); cerr != nil {
 		return p, sig, cerr
 	}

@@ -214,7 +214,8 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 func errorsAs(err error, ce **perr.CodedError) bool { return stderrors.As(err, ce) }
 
 // sharedSlotValues sets each shared RegressionSpec slot an extension
-// model may refuse; holdout and save ride the Scorer.
+// model may refuse; holdout and save ride the Scorer, which needs the
+// draws (FastParams does not return them: draws_required).
 var sharedSlotValues = map[string]string{
 	"penalty": `"l2"`, "alpha": `0.5`, "l1_ratio": `0.5`, "unpenalized": `["price"]`,
 	"bounds": `{"nonnegative":["tv"]}`, "family": `"gaussian"`, "link": `"identity"`, "theta": `2`, "max_iters": `10`, "tol": `0.001`,
@@ -227,7 +228,8 @@ var sharedSlotValues = map[string]string{
 // TestMMMBayes_SharedSlotsRefusedLikePredict: every shared slot the
 // registration does not declare — penalty, unpenalized, bounds,
 // selection, covariance, family / link / max_iters / tol, prior* and
-// credible_level, resample and its knobs, save, holdout — is refused at
+// credible_level, resample and its knobs — and save and holdout without
+// return_draws (draws_required) are refused at
 // run with the same code, message and details predict's first error
 // carries, and never samples. Every such RegressionSpec key is covered,
 // so a new one fails here until it is.

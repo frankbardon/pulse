@@ -481,6 +481,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 						w.out = append(w.out, model.PredictorNotNumericFor(attr.Type, p.Fit, col, f.Type.String()))
 					}
 				}
+				w.checkScoreFields(attr.Type, p.Fit, sig, schema)
 				if model.FitReadsTarget(attrRoute) && sig.Target != "" {
 					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
 					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
@@ -522,6 +523,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					w.out = append(w.out, model.PredictorNotNumeric(p.Fit, col, f.Type.String()))
 				}
 			}
+			w.checkScoreFields(attr.Type, p.Fit, sig, schema)
 		default:
 			if vectors.IsVectorAttribute(attrRoute) {
 				// A vector-input attribute reads its members (step 9,
@@ -1891,4 +1893,20 @@ func (s filterLateLabelSet) annotateCompile(ce *errors.CodedError) {
 	}
 	name, _, _ := strings.Cut(rest, " ")
 	s.annotate(name, ce)
+}
+
+// checkScoreFields judges the fields a score reads beyond the fit's
+// terms (model.Signature.ScoreFields — a REG_MMM_BAYES geo panel's geo
+// field) on the scoring frame: present (PULSE_MODEL_PREDICTOR_MISSING)
+// and, a schema field, of a type params.geo accepts (the fieldaccept
+// table's geo slot) — the rule the runtime's scorer reads the geo by.
+func (w *fieldRefWalk) checkScoreFields(attr types.AttributeType, fit string, sig model.Signature, schema *encoding.Schema) {
+	for _, col := range sig.ScoreFields {
+		w.check(col, func() *errors.CodedError { return model.PredictorMissingFor(attr, fit, col) })
+		if schema != nil && schema.Field(col) != nil {
+			if cerr := fieldaccept.Check(string(sig.Type), fieldaccept.SlotGeo, col, schema); cerr != nil {
+				w.out = append(w.out, cerr)
+			}
+		}
+	}
 }

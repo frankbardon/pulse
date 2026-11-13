@@ -71,9 +71,11 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 		Description:   "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
 		Decl: ExtensionRegression{
 			Vcov: true,
-			// No scorer (an adstocked prediction needs the history:
-			// params.holdout_from is the model's own holdout), no
-			// engine resample, no p-values.
+			// A scorer over pre-adstocked channels and the fit's draws
+			// (save, engine holdout and ATTR_REG_PREDICT need
+			// return_draws: model.MMMBayesDrawsRefusal); no engine
+			// resample, no p-values.
+			Scorer:       true,
 			NoResample:   true,
 			OutputKeys:   bayesOutputKeys(),
 			OutputSchema: slices.Clone(regmmm.BayesOutputSchema),

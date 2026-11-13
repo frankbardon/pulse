@@ -77,8 +77,15 @@ func TestMMMBayes_Registration(t *testing.T) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
 	}
 	for _, s := range row.slots {
-		if slices.Contains([]string{"resample", "bootstrap_iters", "holdout", "save", "weight", "multiplicity"}, s) {
+		if slices.Contains([]string{"resample", "bootstrap_iters", "weight", "multiplicity"}, s) {
 			t.Errorf("manifest lists slot %s", s)
+		}
+	}
+	// The scorer admits save and the engine holdout (each needing
+	// return_draws).
+	for _, s := range []string{"holdout", "save"} {
+		if !slices.Contains(row.slots, s) {
+			t.Errorf("manifest omits slot %s", s)
 		}
 	}
 	if want := []string{"seed", "roi", "mroi", "contribution", "params", "diagnostics", "holdout", "hierarchy", "draws"}; !slices.Equal(row.outputs, want) {

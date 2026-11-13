@@ -663,6 +663,7 @@ var errorOwners = map[errors.Code][]string{
 	// Fires only on a REG_MMM_BAYES slot with a lift test beside an
 	// ROI prior on the same channel.
 	errors.PULSE_MMM_LIFT_PRIOR_OVERLAP: own("REG_MMM_BAYES"),
+	errors.PULSE_MMM_GEO_UNSEEN:         own("REG_MMM_BAYES"),
 	// The compose `optimize` block's own rules.
 	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),

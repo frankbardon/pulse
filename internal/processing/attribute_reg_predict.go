@@ -42,6 +42,8 @@ type regPredictAttribute struct {
 	// scorable types and scorer factories, built-ins included.
 	exts   *ExtensionRegistry
 	scorer model.RowScorer
+	// fit is the bound fit's name (the unseen-geo warning's).
+	fit string
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
 	unavailable *types.ResponseWarning
@@ -53,6 +55,10 @@ var (
 	_ modelBinder       = (*regPredictAttribute)(nil)
 	_ attributeWarner   = (*regPredictAttribute)(nil)
 	_ ExtensionAware    = (*regPredictAttribute)(nil)
+	// A REG_MMM_BAYES geo panel's unseen-geo tally (model.GeoTally)
+	// folds across partitions and resets per emission scan.
+	_ MergeableAttributeTally = (*regPredictAttribute)(nil)
+	_ attributeTallyResetter  = (*regPredictAttribute)(nil)
 )
 
 // SetExtensions satisfies ExtensionAware: bindAttributeWith injects the
@@ -102,7 +108,7 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	a.scorer = scorer
+	a.scorer, a.fit = scorer, p.Fit
 	return nil
 }
 
@@ -110,12 +116,45 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 func (a *regPredictAttribute) EmitsNull() bool { return true }
 
 // attributeWarnings satisfies attributeWarner: the PULSE_FIT_UNAVAILABLE
-// warning of a slot over a failed fit.
+// warning of a slot over a failed fit, or a REG_MMM_BAYES geo panel's
+// PULSE_MMM_GEO_UNSEEN of the rows scored from the population.
 func (a *regPredictAttribute) attributeWarnings() []*types.ResponseWarning {
-	if a.unavailable == nil {
+	if a.unavailable != nil {
+		return []*types.ResponseWarning{a.unavailable}
+	}
+	return scorerTallyWarnings(a.scorer, regPredictLabel(a.attr), a.attr.Type, a.fit)
+}
+
+// MergeTally satisfies MergeableAttributeTally: the bound scorer's
+// unseen-geo tally (none for any other fit) folds across partitions.
+func (a *regPredictAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*regPredictAttribute)
+	if !ok {
+		return tallyPartnerMismatch(types.ATTR_REG_PREDICT, other)
+	}
+	model.ScorerGeoTally(a.scorer).Merge(model.ScorerGeoTally(o.scorer))
+	return nil
+}
+
+// resetTally satisfies attributeTallyResetter.
+func (a *regPredictAttribute) resetTally() { resetScorerTally(a.scorer) }
+
+// scorerTallyWarnings is a bound scorer's PULSE_MMM_GEO_UNSEEN warning
+// (model.GeoTally) for the scoring slot labelled label, of type attr
+// over fit; nil when the scorer keeps no tally or counted no row.
+func scorerTallyWarnings(scorer model.RowScorer, label string, attr types.AttributeType, fit string) []*types.ResponseWarning {
+	w := model.ScorerGeoTally(scorer).Warning(label, map[string]any{"attribute": label, "type": string(attr), "fit": fit})
+	if w == nil {
 		return nil
 	}
-	return []*types.ResponseWarning{a.unavailable}
+	return []*types.ResponseWarning{w}
+}
+
+// resetScorerTally clears a bound scorer's unseen-geo tally.
+func resetScorerTally(scorer model.RowScorer) {
+	if t := model.ScorerGeoTally(scorer); t != nil {
+		t.Reset()
+	}
 }
 
 // regPredictLabel is the slot's output label: its own, or the default
