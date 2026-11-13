@@ -666,3 +666,16 @@ To add a model cell (a curve, a hierarchy), extend the Stan program's
 data switches and append a case to the script's `cases` list: the Go
 test reads every case generically (give the new case a `stanCellZ`
 row).
+
+The geo-hierarchical model (`params.geo`) has its own pair, so neither
+golden moves when the other is regenerated:
+`scripts/reference/gen_mmm_bayes_geo_stan.R` samples
+`scripts/reference/mmm_bayes_geo.stan` (the non-centred partial pooling,
+HalfNormal(0.5) scales, default priors) on two stored three-geo ×
+two-channel panels — curves shared and `per_geo_curves` — and writes
+`internal/regmmm/testdata/mmm_bayes_geo_stan.json`; `make
+reference-stan-geo` runs it (about thirty minutes) on the same toolchain and self-checks and
+appends the footer. `TestMMMBayes_GeoPosteriorMatchesStan` (heavy) holds
+every coefficient (per-geo terms, population values, every τ), each
+channel's population ROI μ and its all-geo and per-geo ROI within 4.5
+combined Monte Carlo standard errors of Stan's.

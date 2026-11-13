@@ -262,12 +262,21 @@ func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift) 
 		return
 	}
 
+	sbcCheckRanks(t, names, ranks, divs)
+}
+
+// sbcCheckRanks is the calibration verdict on sbcReplicates replicates'
+// ranks (each 0..sbcKept, one per name): per parameter a chi-square test
+// of the sbcBins-binned ranks against uniform, failed below sbcAlpha
+// after a Bonferroni split over the parameters.
+func sbcCheckRanks(t *testing.T, names []string, ranks [][]int, divs []int) {
+	t.Helper()
 	totalDiv := 0
 	for _, d := range divs {
 		totalDiv += d
 	}
-	alpha := sbcAlpha / float64(dim)
-	expected := float64(sbcReplicates) / sbcBins
+	alpha := sbcAlpha / float64(len(names))
+	expected := float64(len(ranks)) / sbcBins
 	for i, name := range names {
 		hist := make([]int, sbcBins)
 		for _, rk := range ranks {
@@ -284,5 +293,5 @@ func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift) 
 			t.Errorf("%s: SBC rank histogram %v is not uniform (χ² = %.2f, p = %.2g < %.2g)", name, hist, chi, p, alpha)
 		}
 	}
-	t.Logf("%d replicates × %d kept draws (thin %d after %d warmup); %d post-warmup divergences in all", sbcReplicates, sbcKept, sbcThin, sbcWarmup, totalDiv)
+	t.Logf("%d replicates × %d kept draws (thin %d after %d warmup); %d post-warmup divergences in all", len(ranks), sbcKept, sbcThin, sbcWarmup, totalDiv)
 }
