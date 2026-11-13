@@ -4105,6 +4105,7 @@ pulse/mcmc: type ChainStats field TreeDepthSaturated int
 pulse/mcmc: const DefaultChains untyped int = 4
 pulse/mcmc: const DefaultDraws untyped int = 1000
 pulse/mcmc: const DefaultMaxTreeDepth untyped int = 10
+pulse/mcmc: const DefaultPathLength untyped float = 314159265358979323846264338327950288419716939937510582097494459/200000000000000000000000000000000000000000000000000000000000000
 pulse/mcmc: const DefaultTargetAccept untyped float = 4/5
 pulse/mcmc: const DefaultWarmup untyped int = 1000
 pulse/mcmc: type Diagnostics struct
@@ -4114,6 +4115,12 @@ pulse/mcmc: type Diagnostics field ESSTail []float64
 pulse/mcmc: type Diagnostics field RHat []float64
 pulse/mcmc: func ESSBulk(chains [][]float64) float64
 pulse/mcmc: func ESSTail(chains [][]float64) float64
+pulse/mcmc: type HMC struct
+pulse/mcmc: type HMC field PathLength float64
+pulse/mcmc: type HMC field StepSize float64
+pulse/mcmc: type HMC field TargetAccept float64
+pulse/mcmc: type HMC field Workers int
+pulse/mcmc: type HMC method (HMC) Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
 pulse/mcmc: type Mapped struct
 pulse/mcmc: type Mapped field DLogJac float64
 pulse/mcmc: type Mapped field DyDx float64
@@ -6817,4 +6824,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ab5a830614fe5ba6fa03f1b6fa4e759ae187a4a43156ddc02dc8694c5aef2c8b
+// golden-hash: df47f1cf36ada005a1545c20843086badc2464a253eb1c484acdb0c192cdcb7c

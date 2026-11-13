@@ -1,6 +1,6 @@
 # Bayesian Sampling (`mcmc`)
 
-`github.com/frankbardon/pulse/mcmc` is Pulse's seeded Markov chain Monte Carlo core: a No-U-Turn sampler (NUTS), change-of-variables helpers and convergence diagnostics. It knows nothing about any particular statistical model. It imports only the standard library and Pulse's `linalg` and deterministic-math packages.
+`github.com/frankbardon/pulse/mcmc` is Pulse's seeded Markov chain Monte Carlo core: a No-U-Turn sampler (NUTS), static Hamiltonian Monte Carlo (HMC), change-of-variables helpers and convergence diagnostics. It knows nothing about any particular statistical model. It imports only the standard library and Pulse's `linalg` and deterministic-math packages.
 
 ```go
 import "github.com/frankbardon/pulse/mcmc"
@@ -45,6 +45,29 @@ res, err := mcmc.NUTS{}.Sample(ctx, model, 42, mcmc.Options{Chains: 4, Warmup: 5
 
 One deliberate departure from Stan's source: when warmup is under 150 iterations, Stan's short-warmup branch never re-initialises the slow adaptation window, so the metric never adapts. Pulse sets the window up as intended, so the metric adapts.
 
+### Static HMC
+
+`HMC` integrates a fixed path of ⌈`PathLength`/`StepSize`⌉ leapfrog steps (at least 1) per transition and accepts the endpoint with probability min(1, exp(H0 − H)). Warmup adapts the diagonal metric exactly as NUTS does. With `StepSize` 0 it also adapts the step size by the same dual averaging towards `TargetAccept`, and the step count follows it; a non-zero `StepSize` is used as given (and `TargetAccept` is unused). Its zero value is usable:
+
+```go
+res, err := mcmc.HMC{}.Sample(ctx, model, 42, mcmc.Options{Chains: 4, Warmup: 500, Draws: 500})
+```
+
+| Field | Zero value means |
+|---|---|
+| `HMC.StepSize` | adapted during warmup |
+| `HMC.PathLength` | `DefaultPathLength` (π/2) |
+| `HMC.TargetAccept` | `DefaultTargetAccept` (0.8) |
+| `HMC.Workers` | `min(Chains, GOMAXPROCS)`; changes wall time only |
+
+π/2 is a quarter period of the unit-scale Gaussian the adapted metric aims at, so one transition carries a draw to a nearly independent point. Stan's static HMC uses 2π, a full period there, which brings each trajectory back near its start. A correlated posterior that a diagonal metric cannot whiten wants a longer `PathLength`; NUTS picks the length per transition instead. A transition whose energy error passes 1000 is a divergence and is rejected.
+
+HMC builds no tree, so its `ChainStats.TreeDepth` is `nil`. That nil marks the tree fields as not applying: `TreeDepthSaturated` is then 0 because there is no depth to saturate, so read it only when `TreeDepth` is non-nil. `Divergences` and `Divergent` are recorded as for NUTS.
+
+A path needing more than 65536 leapfrog steps is refused: `PULSE_MCMC_INVALID` reason `path_length` for a fixed `StepSize`, `PULSE_MCMC_FAILED` reason `path_too_long` for an adapted one. During warmup such a step size runs 65536 steps. A negative or non-finite `StepSize` or `PathLength` is `PULSE_MCMC_INVALID` reason `step_size` / `path_length`.
+
+### Cancellation, panics and refusals
+
 A cancelled `ctx` is honoured at every iteration and returns `ctx.Err()`. A panic in the model or in `Constrain` is re-raised on the caller's goroutine. Invalid options, model shape or `Init` are `PULSE_MCMC_INVALID` (`reason` `nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`); a model the sampler cannot run is `PULSE_MCMC_FAILED` (`reason` `init_not_found`, `step_size_unbounded`, `step_size_zero`, `metric_not_finite`, plus `details.chain`). Both are coded errors carrying `details.reason`, and neither returns a result.
 
 ## Seeding and reproducibility
@@ -61,7 +84,7 @@ That guarantee extends to your model only if the model is deterministic and **FM
 | `ESSBulk(chains)` | effective sample size of the rank-normalised split chains | ≥ 400 |
 | `ESSTail(chains)` | the smaller ESS of the 5% and 95% quantile indicators | ≥ 400 |
 
-All three take `[][]float64` (`[chain][draw]`) and return NaN when undefined (one chain, a constant parameter). `Sample` fills `Diagnostics.RHat`, `ESSBulk` and `ESSTail` per parameter. They match ArviZ on committed fixture chains. Also check `Divergences` (any retained divergence is a warning sign) and `TreeDepthSaturated`.
+All three take `[][]float64` (`[chain][draw]`) and return NaN when undefined (one chain, a constant parameter). `Sample` fills `Diagnostics.RHat`, `ESSBulk` and `ESSTail` per parameter. They match ArviZ on committed fixture chains. Also check `Divergences` (any retained divergence is a warning sign) and, for NUTS, `TreeDepthSaturated`.
 
 ```go
 for j := range res.Diagnostics.RHat {
@@ -81,6 +104,6 @@ type Sampler interface {
 }
 ```
 
-`NUTS` implements it. A different algorithm (another HMC variant, a Metropolis scheme) implements the same method and returns a `Result` in the same `[chain][parameter][draw]` layout; fill `Diagnostics` with `RHat`, `ESSBulk` and `ESSTail` so callers judge every sampler by the same thresholds. Code written against `Sampler` then swaps samplers without change. To keep the reproducibility contract, derive per-chain streams from `(seed, chain index)` and merge chains in order.
+`NUTS` and `HMC` implement it. A different algorithm (another HMC variant, a Metropolis scheme) implements the same method and returns a `Result` in the same `[chain][parameter][draw]` layout; fill `Diagnostics` with `RHat`, `ESSBulk` and `ESSTail` so callers judge every sampler by the same thresholds. Code written against `Sampler` then swaps samplers without change. To keep the reproducibility contract, derive per-chain streams from `(seed, chain index)` and merge chains in order. A sampler without a tree leaves `ChainStats.TreeDepth` nil, as `HMC` does.
 
 A runnable example that samples a 2-D Gaussian and checks R̂ and ESS is in the package's godoc (`Example`).

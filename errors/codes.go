@@ -4046,21 +4046,25 @@ const (
 	// PULSE_MCMC_INVALID indicates a run the public mcmc package refuses
 	// before sampling: a nil model, a model dimension below 1, a negative
 	// Chains / Warmup / Draws / MaxTreeDepth / Workers, a TargetAccept
-	// outside (0, 1), an Init of the wrong length or with a non-finite
-	// value, or an Init at which the log density or its gradient is not
-	// finite. Details carry "reason" (nil_model, dim, chains, warmup,
-	// draws, max_tree_depth, workers, target_accept, init_length,
-	// init_not_finite, init_density_not_finite) plus "chain" / "index" /
-	// "got" / "want" where they apply. No result is returned.
+	// outside (0, 1), a negative or non-finite HMC StepSize / PathLength
+	// (or a fixed StepSize whose path needs more than 65536 leapfrog
+	// steps), an Init of the wrong length or with a non-finite value, or
+	// an Init at which the log density or its gradient is not finite.
+	// Details carry "reason" (nil_model, dim, chains, warmup, draws,
+	// max_tree_depth, step_size, path_length, workers, target_accept,
+	// init_length, init_not_finite, init_density_not_finite) plus
+	// "chain" / "index" / "got" / "want" where they apply. No result is
+	// returned.
 	PULSE_MCMC_INVALID Code = "PULSE_MCMC_INVALID"
 
 	// PULSE_MCMC_FAILED indicates a sampler run that could not proceed on
 	// the model: no Uniform(−2, 2) starting point with a finite log
 	// density and gradient, a step size that grew without bound or
-	// collapsed to zero, or an adapted metric that is not finite.
-	// Details carry "reason" (init_not_found, step_size_unbounded,
-	// step_size_zero, metric_not_finite) and "chain". No result is
-	// returned.
+	// collapsed to zero, an adapted metric that is not finite, or an
+	// adapted HMC step size whose path needs more than 65536 leapfrog
+	// steps. Details carry "reason" (init_not_found, step_size_unbounded,
+	// step_size_zero, metric_not_finite, path_too_long) and "chain". No
+	// result is returned.
 	PULSE_MCMC_FAILED Code = "PULSE_MCMC_FAILED"
 
 	// PULSE_MMM_LIFT_PRIOR_OVERLAP is the run WARNING that a

@@ -101,6 +101,17 @@ func (s NUTS) Sample(ctx context.Context, model Model, seed uint64, opts Options
 	if err != nil {
 		return Result{}, err
 	}
+	return sampleChains(ctx, model, cfg, seed, runChain)
+}
+
+// chainRunner runs chain c of a validated run.
+type chainRunner func(ctx context.Context, model Model, cfg runConfig, seed uint64, c int) chainOut
+
+// sampleChains runs cfg.chains chains of run on cfg.workers goroutines,
+// merges them in chain order and computes the per-parameter diagnostics.
+// Every sampler shares it, so seeding, merge order and ctx handling are
+// one code path.
+func sampleChains(ctx context.Context, model Model, cfg runConfig, seed uint64, run chainRunner) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -112,7 +123,7 @@ func (s NUTS) Sample(ctx context.Context, model Model, seed uint64, opts Options
 		go func() {
 			defer wg.Done()
 			for c := range jobs {
-				outs[c] = runChainRecover(ctx, model, cfg, seed, c)
+				outs[c] = runChainRecover(ctx, model, cfg, seed, c, run)
 			}
 		}()
 	}
@@ -154,10 +165,11 @@ func (s NUTS) Sample(ctx context.Context, model Model, seed uint64, opts Options
 	return res, nil
 }
 
-// nutsConfig is a validated run with every default applied.
-type nutsConfig struct {
+// runConfig is a validated run with every default applied. maxDepth is
+// NUTS's (0 for HMC); stepSize (0 = adapt) and pathLength are HMC's.
+type runConfig struct {
 	dim, chains, warmup, draws, maxDepth, workers int
-	delta                                         float64
+	delta, stepSize, pathLength                   float64
 	init                                          []float64
 	constrain                                     func(theta, out []float64)
 }
@@ -175,8 +187,22 @@ func runtimeErr(reason, msg string, chain int) error {
 		map[string]any{"reason": reason, "chain": chain})
 }
 
-func (s NUTS) resolve(model Model, opts Options) (nutsConfig, error) {
-	var cfg nutsConfig
+// pickCount resolves a count option: negative refuses, 0 takes def.
+func pickCount(name string, v, def int) (int, error) {
+	switch {
+	case v < 0:
+		return 0, configErr(name, fmt.Sprintf("%s is %d; it must be positive (0 takes the default %d)", name, v, def),
+			map[string]any{"got": v})
+	case v == 0:
+		return def, nil
+	}
+	return v, nil
+}
+
+// resolveRun validates the model and the shared counts (chains, warmup,
+// draws), in that order.
+func resolveRun(model Model, opts Options) (runConfig, error) {
+	var cfg runConfig
 	if model == nil {
 		return cfg, configErr("nil_model", "the model is nil", nil)
 	}
@@ -185,39 +211,33 @@ func (s NUTS) resolve(model Model, opts Options) (nutsConfig, error) {
 		return cfg, configErr("dim", fmt.Sprintf("the model has dimension %d; it must be at least 1", cfg.dim),
 			map[string]any{"got": cfg.dim})
 	}
-	pick := func(name string, v, def int) (int, error) {
-		switch {
-		case v < 0:
-			return 0, configErr(name, fmt.Sprintf("%s is %d; it must be positive (0 takes the default %d)", name, v, def),
-				map[string]any{"got": v})
-		case v == 0:
-			return def, nil
-		}
-		return v, nil
-	}
 	var err error
-	if cfg.chains, err = pick("chains", opts.Chains, DefaultChains); err != nil {
+	if cfg.chains, err = pickCount("chains", opts.Chains, DefaultChains); err != nil {
 		return cfg, err
 	}
-	if cfg.warmup, err = pick("warmup", opts.Warmup, DefaultWarmup); err != nil {
+	if cfg.warmup, err = pickCount("warmup", opts.Warmup, DefaultWarmup); err != nil {
 		return cfg, err
 	}
-	if cfg.draws, err = pick("draws", opts.Draws, DefaultDraws); err != nil {
+	if cfg.draws, err = pickCount("draws", opts.Draws, DefaultDraws); err != nil {
 		return cfg, err
 	}
-	if cfg.maxDepth, err = pick("max_tree_depth", s.MaxTreeDepth, DefaultMaxTreeDepth); err != nil {
+	return cfg, nil
+}
+
+// finish validates the settings every sampler shares after its own
+// knobs: Workers, TargetAccept, Init and Constrain, in that order.
+func (cfg runConfig) finish(workers int, targetAccept float64, opts Options) (runConfig, error) {
+	var err error
+	if cfg.workers, err = pickCount("workers", workers, min(cfg.chains, runtime.GOMAXPROCS(0))); err != nil {
 		return cfg, err
 	}
-	if cfg.workers, err = pick("workers", s.Workers, min(cfg.chains, runtime.GOMAXPROCS(0))); err != nil {
-		return cfg, err
-	}
-	cfg.delta = s.TargetAccept
+	cfg.delta = targetAccept
 	if cfg.delta == 0 {
 		cfg.delta = DefaultTargetAccept
 	}
 	if !(cfg.delta > 0 && cfg.delta < 1) {
-		return cfg, configErr("target_accept", fmt.Sprintf("TargetAccept is %g; it must be in (0, 1)", s.TargetAccept),
-			map[string]any{"got": s.TargetAccept})
+		return cfg, configErr("target_accept", fmt.Sprintf("TargetAccept is %g; it must be in (0, 1)", targetAccept),
+			map[string]any{"got": targetAccept})
 	}
 	if opts.Init != nil {
 		if len(opts.Init) != cfg.dim {
@@ -236,6 +256,17 @@ func (s NUTS) resolve(model Model, opts Options) (nutsConfig, error) {
 	return cfg, nil
 }
 
+func (s NUTS) resolve(model Model, opts Options) (runConfig, error) {
+	cfg, err := resolveRun(model, opts)
+	if err != nil {
+		return cfg, err
+	}
+	if cfg.maxDepth, err = pickCount("max_tree_depth", s.MaxTreeDepth, DefaultMaxTreeDepth); err != nil {
+		return cfg, err
+	}
+	return cfg.finish(s.Workers, s.TargetAccept, opts)
+}
+
 // chainOut is one chain's outcome, written by exactly one worker.
 type chainOut struct {
 	draws    [][]float64 // [param][draw]
@@ -245,13 +276,13 @@ type chainOut struct {
 	panicVal any
 }
 
-func runChainRecover(ctx context.Context, model Model, cfg nutsConfig, seed uint64, c int) (out chainOut) {
+func runChainRecover(ctx context.Context, model Model, cfg runConfig, seed uint64, c int, run chainRunner) (out chainOut) {
 	defer func() {
 		if r := recover(); r != nil {
 			out = chainOut{panicked: true, panicVal: r}
 		}
 	}()
-	return runChain(ctx, model, cfg, seed, c)
+	return run(ctx, model, cfg, seed, c)
 }
 
 // chainSeed is the PCG seed chain c draws from under seed: a SplitMix64
@@ -265,7 +296,7 @@ func chainSeed(seed uint64, c int) uint64 {
 	return z ^ (z >> 31)
 }
 
-func runChain(ctx context.Context, model Model, cfg nutsConfig, seed uint64, c int) chainOut {
+func runChain(ctx context.Context, model Model, cfg runConfig, seed uint64, c int) chainOut {
 	s := chainSeed(seed, c)
 	ch := newChain(model, cfg, rand.New(rand.NewPCG(s, s^pcgStream)), c)
 	if err := ch.initPoint(cfg.init); err != nil {
@@ -386,7 +417,7 @@ type chain struct {
 	logPoint8                                    float64
 }
 
-func newChain(model Model, cfg nutsConfig, rng *rand.Rand, index int) *chain {
+func newChain(model Model, cfg runConfig, rng *rand.Rand, index int) *chain {
 	d := cfg.dim
 	v := func() []float64 { return make([]float64, d) }
 	ch := &chain{

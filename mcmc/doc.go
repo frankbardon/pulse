@@ -11,7 +11,7 @@
 //
 // # NUTS
 //
-// NUTS is the package's Sampler: Stan's multinomial No-U-Turn sampler
+// NUTS is the package's default Sampler: Stan's multinomial No-U-Turn sampler
 // with a diagonal metric, dual-averaging step-size adaptation and Stan's
 // windowed metric adaptation during warmup. Each chain draws from its own
 // PCG stream derived from (seed, chain index); chains run on concurrent
@@ -39,6 +39,29 @@
 // details["chain"].
 //
 // See the Example for a complete run.
+//
+// # HMC
+//
+// HMC is static Hamiltonian Monte Carlo: a fixed path of
+// ⌈PathLength/StepSize⌉ leapfrog steps per transition (PathLength
+// defaults to DefaultPathLength, π/2) followed by a Metropolis
+// accept/reject. Its warmup adapts the diagonal metric exactly as NUTS's
+// does and, when StepSize is 0, the step size by the same dual averaging
+// towards TargetAccept; a non-zero StepSize is used as given. Chain
+// seeding, the worker pool, the chain-order merge and the ctx checks are
+// NUTS's own code, so HMC holds the same bit-for-bit guarantee
+// (TestHMC_GoldenHash). A transition whose energy error passes 1000 is a
+// divergence and is rejected. HMC builds no tree, so its ChainStats carry
+// a nil TreeDepth (the marker that the tree fields do not apply) and a
+// TreeDepthSaturated of 0 that means nothing; Divergences and Divergent
+// are recorded as for NUTS. A path that needs more than 65536 leapfrog
+// steps is refused: PULSE_MCMC_INVALID reason path_length for a fixed
+// StepSize, PULSE_MCMC_FAILED reason path_too_long for an adapted one
+// (during warmup such a step size runs 65536 steps). Other refusals are
+// NUTS's, with HMC's step_size and path_length reasons for a negative or
+// non-finite knob. A static path suits a posterior the diagonal metric
+// makes nearly isotropic; a correlated one wants a longer PathLength,
+// and NUTS chooses the length per transition instead.
 //
 // # Transforms
 //
@@ -68,5 +91,6 @@
 // and every sum runs in a fixed order, so the same input gives the same
 // bits on every architecture. A Model must hold to the same rules for its
 // draws to be reproducible across architectures: NUTS's tree decisions
-// compare energies, and one ulp of drift in the density changes a draw.
+// and HMC's accept/reject compare energies, and one ulp of drift in the
+// density changes a draw.
 package mcmc

@@ -5084,11 +5084,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MCMC_INVALID: {
-		Message: "The mcmc package refused the run before sampling: the model is nil or has dimension below 1, Chains, Warmup, Draws, MaxTreeDepth or Workers is negative, TargetAccept is outside (0, 1), Init is not one finite value per dimension, or the log density or its gradient is not finite at Init. Details carry `reason` (`nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and, where they apply, `chain`, `index`, `got` and `want`. No result is returned.",
+		Message: "The mcmc package refused the run before sampling: the model is nil or has dimension below 1, Chains, Warmup, Draws, MaxTreeDepth or Workers is negative, TargetAccept is outside (0, 1), an HMC StepSize or PathLength is negative or not finite (or a fixed StepSize needs more than 65536 leapfrog steps to cover PathLength), Init is not one finite value per dimension, or the log density or its gradient is not finite at Init. Details carry `reason` (`nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `step_size`, `path_length`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and, where they apply, `chain`, `index`, `got` and `want`. No result is returned.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Fix the option named by details.reason: leave a count at 0 for its default or make it positive, keep TargetAccept strictly between 0 and 1, and size Init to the model's Dim() with finite values.",
+				Hint:   "Fix the option named by details.reason: leave a count at 0 for its default or make it positive, keep TargetAccept strictly between 0 and 1, keep StepSize and PathLength finite and not negative (0 adapts or defaults them), and size Init to the model's Dim() with finite values.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -5097,7 +5097,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MCMC_FAILED: {
-		Message: "The mcmc sampler could not run on the model: no Uniform(-2, 2) starting point had a finite log density and gradient (`init_not_found`), the step-size heuristic grew without bound (`step_size_unbounded`, an improper posterior) or collapsed to zero (`step_size_zero`, a discontinuous density or a wrong gradient), or the adapted metric was not finite (`metric_not_finite`). Details carry `reason` and `chain`. No result is returned.",
+		Message: "The mcmc sampler could not run on the model: no Uniform(-2, 2) starting point had a finite log density and gradient (`init_not_found`), the step-size heuristic grew without bound (`step_size_unbounded`, an improper posterior) or collapsed to zero (`step_size_zero`, a discontinuous density or a wrong gradient), the adapted metric was not finite (`metric_not_finite`), or an adapted HMC step size needs more than 65536 leapfrog steps to cover PathLength (`path_too_long`, a badly scaled posterior). Details carry `reason` and `chain`. No result is returned.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5105,7 +5105,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Hint:   "Check the model: give every parameter a proper prior (step_size_unbounded) and verify the gradient against finite differences (step_size_zero, metric_not_finite).",
+				Hint:   "Check the model: give every parameter a proper prior (step_size_unbounded), verify the gradient against finite differences (step_size_zero, metric_not_finite), and rescale the parameters or lengthen warmup so the metric adapts (path_too_long).",
 			},
 		},
 	},
