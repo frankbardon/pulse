@@ -4046,22 +4046,48 @@ const (
 	// PULSE_MCMC_INVALID indicates a run the public mcmc package refuses
 	// before sampling: a nil model, a model dimension below 1, a negative
 	// Chains / Warmup / Draws / MaxTreeDepth / Workers, a TargetAccept
-	// outside (0, 1), an Init of the wrong length or with a non-finite
-	// value, or an Init at which the log density or its gradient is not
-	// finite. Details carry "reason" (nil_model, dim, chains, warmup,
-	// draws, max_tree_depth, workers, target_accept, init_length,
-	// init_not_finite, init_density_not_finite) plus "chain" / "index" /
-	// "got" / "want" where they apply. No result is returned.
+	// outside (0, 1), a negative or non-finite HMC StepSize / PathLength
+	// (or a fixed StepSize whose path needs more than 65536 leapfrog
+	// steps), an Init of the wrong length or with a non-finite value, or
+	// an Init at which the log density or its gradient is not finite.
+	// Details carry "reason" (nil_model, dim, chains, warmup, draws,
+	// max_tree_depth, step_size, path_length, workers, target_accept,
+	// init_length, init_not_finite, init_density_not_finite) plus
+	// "chain" / "index" / "got" / "want" where they apply. No result is
+	// returned.
 	PULSE_MCMC_INVALID Code = "PULSE_MCMC_INVALID"
 
 	// PULSE_MCMC_FAILED indicates a sampler run that could not proceed on
 	// the model: no Uniform(−2, 2) starting point with a finite log
 	// density and gradient, a step size that grew without bound or
-	// collapsed to zero, or an adapted metric that is not finite.
-	// Details carry "reason" (init_not_found, step_size_unbounded,
-	// step_size_zero, metric_not_finite) and "chain". No result is
-	// returned.
+	// collapsed to zero, an adapted metric that is not finite, or an
+	// adapted HMC step size whose path needs more than 65536 leapfrog
+	// steps. Details carry "reason" (init_not_found, step_size_unbounded,
+	// step_size_zero, metric_not_finite, path_too_long) and "chain". No
+	// result is returned.
 	PULSE_MCMC_FAILED Code = "PULSE_MCMC_FAILED"
+
+	// PULSE_MMM_LIFT_PRIOR_OVERLAP is the run WARNING that a
+	// REG_MMM_BAYES channel carries both an explicit ROI prior
+	// (params.priors.<channel>.roi) and a lift test
+	// (params.lift_tests): when the prior was built from the same
+	// experiment, its evidence is counted twice and the channel's
+	// interval is too narrow. The fit runs unchanged. One warning per
+	// slot; details carry "channels" (each overlapping channel, in
+	// params.channels order). Promoted to an error under
+	// Options.Strict.
+	PULSE_MMM_LIFT_PRIOR_OVERLAP Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
+
+	// PULSE_MMM_GEO_UNSEEN is a WARNING: scoring a REG_MMM_BAYES geo
+	// panel (ATTR_REG_PREDICT, or the engine holdout) met rows whose geo
+	// field holds a geo the fit has no parameters for. They score from
+	// the population: each channel's population β and curve (μ) and the
+	// mean of the fit's geo intercepts, per draw. One warning per slot;
+	// details carry "field", "geos" (the unseen geos, sorted), "rows"
+	// (their row counts, aligned), "fit_geos", and "attribute" / "fit"
+	// (a scoring slot) or "regression" (a holdout). Promoted to an error
+	// under Options.Strict.
+	PULSE_MMM_GEO_UNSEEN Code = "PULSE_MMM_GEO_UNSEEN"
 
 	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
 	// `optimize` block: no name or a name another block already took, no
@@ -5208,6 +5234,8 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_INFEASIBLE,
 	PULSE_MCMC_INVALID,
 	PULSE_MCMC_FAILED,
+	PULSE_MMM_LIFT_PRIOR_OVERLAP,
+	PULSE_MMM_GEO_UNSEEN,
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,

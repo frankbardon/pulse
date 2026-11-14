@@ -29,9 +29,9 @@ An **optimize block** answers "what values of these knobs give the best outcome?
 
 - `variables[{name, lower, upper, start?}]`: a bound is a number or a scalar expression read once before the solve: literals, `params.<name>`, `coef()`, `sweep_axis()`, `response()`, `result()`, `lookup()`, built-ins; no variable or field. It must be finite (`bound_not_finite`; else `bound_invalid` / `bound_not_numeric`). `start` defaults to mid-range. A name is an identifier, not `params` / a function.
 - Predict range-checks a params-only or block-loaded-model bound; any other bound-function call is in `unresolved_scalars`, not a warning.
-- `objective`: an expression over the variables, `params.<name>`, `coef()` of a batch fit, `response()` (a channel's steady-state curve, `mmm-workflow`), `hill()`, other expression functions, `lookup()`. `direction` (`maximize` | `minimize`) is required.
+- `objective`: an expression over the variables, `params.<name>`, `coef()` of a batch fit, `response()` (a channel's (or geo's) steady-state curve, `mmm-workflow`), `hill()` (Hill only), other expression functions, `lookup()`. `direction` (`maximize` | `minimize`) is required.
 - `constraints[{expr, type}]`: `eq` means `expr = 0`, `ineq` means `expr >= 0`. A budget is `"a + b + c - params.budget"` as `eq`. At most as many `eq` as variables.
-- `starts` (default 8, 1..1000): `start` plus seeded Latin-hypercube points inside the bounds; the best converged run is reported. `rng_seed` 0 derives the seed from the spec alone; the effective seed comes back. `tolerance` (0 = 1e-6), `max_iterations` (0 = 100).<!-- feature: capability:models --> `models` loads saved model files for `coef()` with no refit (`compose-fits`, Loading).<!-- /feature -->
+- `starts` (default 8, 1..1000): `start` plus seeded Latin-hypercube points inside the bounds; the best converged run wins. `rng_seed` 0 derives the seed from the spec alone; the effective seed comes back. `tolerance` (0 = 1e-6), `max_iterations` (0 = 100).<!-- feature: capability:models --> `models` loads saved model files for `coef()` with no refit (`compose-fits`, Loading).<!-- /feature -->
 <!-- feature: capability:for_each -->
 - `for_each` writes similar blocks once (`item-fan-out`): `name` must carry an `{{axis}}`; other values vary whole as `{"$var": "axis"}` (a bound, `starts`, a constraint `expr`); `{{axis}}` never inside an expression.
 <!-- /feature -->
@@ -55,7 +55,7 @@ A `models` entry may declare the model instead of naming a file — exactly one 
 
 ## Pattern: fits, then optimize
 
-Fit in `fits`, read `coef("<fit>", "<term>")` in `objective`; the answer is on the batch's `optimizations` (a response slot outside `return`; `--stream` ends with one `{"optimizations":[...]}` line). Gradients are finite differences: any smooth expression works.
+Fit in `fits`, read `coef("<fit>", "<term>")` in `objective`; the answer is on the batch's `optimizations` (a response slot outside `return`; `--stream` ends with one `{"optimizations":[...]}` line). Finite-difference gradients: any smooth expression works.
 
 <!-- feature: capability:compose_sweep_bind -->
 With a ranked `sweep`, bind its winner (`fits[].from_sweep`) and read the winning axis values in `objective` with `sweep_axis("<fit>", "<axis>")`, e.g. an adstock steady-state multiplier `(1 - d ^ L) / (1 - d)`: search, fit and optimize in one call (`compose-sweep-bind`).

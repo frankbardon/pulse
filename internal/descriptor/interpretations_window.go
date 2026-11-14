@@ -160,7 +160,7 @@ var interpWinDistributedLag = []descriptor.Interpretation{
 			"The first rows of each partition have fewer earlier rows to draw on, so they read lower than a long series would at the same spend; read them with care.",
 			"A missing value reads null and counts as nothing in later rows: unlike WIN_EWMA, the carry-over still fades across the gap.",
 			"With normalize false a geometric kernel gives the classic adstock sum (current + decay x previous + ...), which can sit well above any single value.",
-			"The kernel is fixed by its params, not fitted: compare several decays or Weibull shapes before reading one column as the true carry-over.",
+			"The kernel is fixed by its params, not fitted: compare several decays, peaks or Weibull shapes before reading one column as the true carry-over.",
 			winRowsNotTimeCaveat,
 		},
 	},

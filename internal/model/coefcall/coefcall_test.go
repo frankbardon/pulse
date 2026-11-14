@@ -157,3 +157,29 @@ func TestStaticRefusal_Response(t *testing.T) {
 		t.Fatalf("LiteralFits %v", got)
 	}
 }
+
+// TestStaticRefusal_ResponseGeo: a response() call's literal geo is
+// judged by model.CheckResponseGeo (a fit whose geos the catalog knows
+// refuses another); a computed geo is the evaluation's, the call judged
+// as a three-argument one.
+func TestStaticRefusal_ResponseGeo(t *testing.T) {
+	t.Parallel()
+
+	cat := model.FitCatalog{
+		"panel": {Name: "panel", Type: types.REG_MMM_BAYES, Adstocks: []string{"tv"}, AdstocksKnown: true, Geos: []string{"NE"}, GeosKnown: true},
+		"open":  {Name: "open", Type: types.REG_MMM_BAYES, Adstocks: []string{"tv"}, AdstocksKnown: true},
+	}
+	if cerr := StaticRefusal(`response("panel", "tv", 1, "NE") + response("open", "tv", 1, "XX") + response("panel", "tv", 1, g)`, cat); cerr != nil {
+		t.Fatalf("valid: %v", cerr)
+	}
+	cerr := StaticRefusal(`response("panel", "tv", 1, "SW")`, cat)
+	if cerr == nil || cerr.Details["reason"] != model.ReasonGeoUnknown || cerr.Details["geo"] != "SW" {
+		t.Fatalf("unknown geo: %v", cerr)
+	}
+	if cerr := SweepAxisRefusal(`response("panel", "tv", 1, "SW")`, cat); cerr == nil || cerr.Details["reason"] != model.ReasonGeoUnknown {
+		t.Fatalf("SweepAxisRefusal: %v", cerr)
+	}
+	if cerr := StaticRefusal(`response("panel", "radio", 1, g)`, cat); cerr == nil || cerr.Details["reason"] != model.ReasonAdstockUnknown {
+		t.Fatalf("computed geo, unknown channel: %v", cerr)
+	}
+}

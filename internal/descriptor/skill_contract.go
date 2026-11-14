@@ -329,7 +329,7 @@ var contractSlots = []fieldaccept.Slot{
 	fieldaccept.SlotField, fieldaccept.SlotField2, fieldaccept.SlotTarget, fieldaccept.SlotPredictor,
 	fieldaccept.SlotSplitBy, fieldaccept.SlotSubject, fieldaccept.SlotOrder, fieldaccept.SlotRows,
 	fieldaccept.SlotCols, fieldaccept.SlotStratify, fieldaccept.SlotPrediction, fieldaccept.SlotNumerator,
-	fieldaccept.SlotDenominator, fieldaccept.SlotOutcome, fieldaccept.SlotBase,
+	fieldaccept.SlotDenominator, fieldaccept.SlotOutcome, fieldaccept.SlotBase, fieldaccept.SlotGeo,
 }
 
 // knownScalarTypes is every registered non-vector field type, in byte

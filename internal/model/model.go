@@ -111,6 +111,13 @@ type Bound struct {
 	// none; read one with Adstock.
 	Adstocks map[string]Adstock
 
+	// Saturation is a REG_MMM_BAYES fit's curve record: its
+	// params.saturation ("" for the default Hill curve; logistic or
+	// michaelis_menten — MMMBayesSaturation), restored from a model
+	// file's or an inline model's `saturation` section. response()
+	// evaluates this curve. "" on every other type.
+	Saturation string
+
 	// Design is the fit's influence face (FitDesign): its result's
 	// figures, plus what only the spec says — `bounds`, `intercept:
 	// false`, and the modifiers as the spec wrote them (Bind reads the
@@ -175,6 +182,7 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 	b.Design.Selection = b.Design.Selection || spec.Selection != ""
 	b.Design.Penalized = b.Design.Penalized || spec.Penalty != ""
 	b.Design.Resample = b.Design.Resample || spec.Resample != ""
+	b.Saturation = MMMBayesSaturation(spec)
 	for i, p := range predictors {
 		c, ok := res.Coefficients[p]
 		if !ok {

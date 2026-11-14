@@ -30,13 +30,13 @@ func wantFeatures(t *testing.T, got *File, data []byte, want ...string) {
 	}
 }
 
-// TestModelFile_FeatureRegistry: the registry names the six sections
+// TestModelFile_FeatureRegistry: the registry names the seven sections
 // in the order the writer lists them, and each governs a real document
 // key of File — the one entry a new section adds.
 func TestModelFile_FeatureRegistry(t *testing.T) {
 	t.Parallel()
 
-	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock}
+	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock, FeatureSaturation}
 	if got := FileFeatures(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileFeatures() = %v, want %v", got, want)
 	}

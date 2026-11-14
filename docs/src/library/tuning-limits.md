@@ -27,6 +27,8 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `MaxJoinBuildRows` | `max_join_build_rows` | `100,000,000` | records | a join's in-memory build side | predict (`certain`, from the right side's header) + the build loop |
 | `MaxDerivedColumns` | `max_derived_columns` | `1,000` | window + feature + attribute items | fan-out through an item `for_each`; counts every plain item plus every EXPANDED one (a multi-output feature counts once) | predict (`certain`) + before any `for_each` item renders, on every request host (Process, each Compose slot, each chain stage, Materialize) |
 | `MaxExpandedItems` | `max_expanded_items` | `1,000` | aggregation + matrix items a `for_each` adds; optimize blocks a Compose call's block `for_each` adds | fan-out through an aggregation or matrix `for_each`, or a Compose `optimize` block's; counts only the items a fan-out ADDS (every combination of every fanned-out aggregation and matrix of a request; separately, every fanned-out optimize block of a Compose call; plain items never count, so a request without one never trips it). Windows, features and attributes count toward `MaxDerivedColumns` instead | predict (`certain`) + before any `for_each` item renders, right after the `MaxDerivedColumns` check, on the same request hosts; for optimize blocks, at the top of the Compose expansion (right after the `base` merge, before `MaxComposeSlots`) |
+| `MaxMMMGeos` | `max_mmm_geos` | `50` | distinct geos | a `REG_MMM_BAYES` geo panel (`params.geo`) whose hierarchy grows with every geo (each adds an intercept and a value per pooled term, and its rows to every gradient) | predict (`possible`, from a categorical geo field's dictionary, clamped by the record count; an unsigned-code field has no static bound) + the fit, once it has read its rows and before any sampling |
+| `MaxMMMDrawValues` | `max_mmm_draw_values` | `10,000,000` | draw values | the raw posterior draws a `REG_MMM_BAYES` fit returns (`params.return_draws`): chains x kept draws per chain (`draws` / `draws_thin`, rounded up) x (coefficients + `roi` entries). Over it the fit is refused, never truncated | predict (`certain` on one market, whose count is the spec's alone; `possible` on a geo panel, at the geo field's dictionary bound) + the fit, before any sampling (on a geo panel once it has read its geos) |
 
 `RequestTimeout` and `MaxEstimatedMemory` are opt-in: their default is
 `Unlimited`. There is no output row cap; output volume is the embedder's
@@ -110,7 +112,9 @@ computed from the request and schema exceeds.
   decodes.
 - `possible`: an upper bound (a group count estimated from dictionary
   sizes, a crosstab grid). Reported only; the request stays `valid` and
-  the runtime decides. `MaxGroups` and `MaxCrosstabCells` are `possible`.
+  the runtime decides. `MaxGroups`, `MaxCrosstabCells` and `MaxMMMGeos`
+  are `possible`, as is `MaxMMMDrawValues` on a geo panel (`certain`
+  on one market).
 
 The other predict roots report the same `limit_findings`, graded the
 same way:

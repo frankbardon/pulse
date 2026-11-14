@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
-    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
+    "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
         "name": "process",
@@ -4352,7 +4352,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
           "params": [
             {
               "name": "fit",
@@ -4382,7 +4382,7 @@
               "type": "enum",
               "required": false,
               "default": "point",
-              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
+              "description": "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null. A REG_MMM_BAYES fit alone takes a whole-model lower / upper (no terms): the credible bound of its mean prediction across its draws at the fit's credible_level — an interval for μ, not a predictive interval.",
               "enum_values": [
                 "point",
                 "lower",
@@ -6501,15 +6501,16 @@
         {
           "name": "WIN_DISTRIBUTED_LAG",
           "category": "window",
-          "description": "Distributed lag (carry-over; media adstock): a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
+          "description": "Distributed lag (carry-over; media adstock): a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), delayed (w_l = decay^((l − peak)²), the geometric kernel peaking peak lags on), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
           "params": [
             {
               "name": "kernel",
               "type": "enum",
               "required": true,
-              "description": "Lag-weight shape: geometric reads decay; weibull_cdf and weibull_pdf read shape and scale.",
+              "description": "Lag-weight shape: geometric reads decay; delayed reads decay and peak; weibull_cdf and weibull_pdf read shape and scale.",
               "enum_values": [
                 "geometric",
+                "delayed",
                 "weibull_cdf",
                 "weibull_pdf"
               ]
@@ -6525,21 +6526,28 @@
               "name": "decay",
               "type": "float",
               "required": false,
-              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel. A number or a scalar expression, e.g. sweep_axis(\"fit\", \"decay\").",
+              "description": "geometric and delayed only: carry-over share in [0, 1); w_l = decay^l (geometric) or decay^((l − peak)²) (delayed). Refused on a Weibull kernel. A number or a scalar expression, e.g. sweep_axis(\"fit\", \"decay\").",
+              "expression": true
+            },
+            {
+              "name": "peak",
+              "type": "float",
+              "required": false,
+              "description": "delayed only: the lag the kernel peaks at, in [0, max_lag] (fractional allowed). Refused on every other kernel. A number or a scalar expression.",
               "expression": true
             },
             {
               "name": "shape",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric. A number or a scalar expression.",
+              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric and delayed. A number or a scalar expression.",
               "expression": true
             },
             {
               "name": "scale",
               "type": "float",
               "required": false,
-              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric. A number or a scalar expression.",
+              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric and delayed. A number or a scalar expression.",
               "expression": true
             },
             {
@@ -9007,7 +9015,7 @@
       },
       {
         "name": "REG_MMM_BAYES",
-        "description": "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+        "description": "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
         "accepts_types": [
           "date",
           "datetime",
@@ -9059,6 +9067,20 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "name",
             "type": "string",
             "required": false,
@@ -9076,7 +9098,7 @@
             "name": "time",
             "type": "string",
             "required": true,
-            "description": "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
+            "description": "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
             "example": "week",
             "names_column": true
           },
@@ -9085,20 +9107,27 @@
             "type": "float",
             "required": false,
             "default": 13,
-            "description": "Adstock window in periods (an integer ≥ 1; default 13)."
+            "description": "Adstock window in periods (an integer ≥ 1; default 13, geometric only — every other kernel requires it)."
           },
           {
             "name": "adstock",
             "type": "string",
             "required": false,
             "default": "geometric",
-            "description": "Adstock kernel: geometric (the only one)."
+            "description": "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:\u003cch\u003e), delayed (decay^((l − peak)²): decay:\u003cch\u003e, peak:\u003cch\u003e), weibull_cdf or weibull_pdf (shape:\u003cch\u003e, scale:\u003cch\u003e, in lags)."
+          },
+          {
+            "name": "saturation",
+            "type": "string",
+            "required": false,
+            "default": "hill",
+            "description": "Saturation curve, one for every channel, on the adstock: hill (1/(1 + (k/a)^s): k:\u003cch\u003e, s:\u003cch\u003e), logistic ((1 − e^(−λa))/(1 + e^(−λa)): lam:\u003cch\u003e, per raw adstock unit) or michaelis_menten (a/(k + a): k:\u003cch\u003e); k is in raw adstock units."
           },
           {
             "name": "priors",
             "type": "object",
             "required": false,
-            "description": "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."
+            "description": "Per-channel priors keyed by channel: {roi | beta} plus the kernel's own (decay; decay, peak; shape, scale) and the curve's (k, s; lam; k) — another kernel's or curve's key is refused —, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k and lam are on the channel's adstock in peak-week units (lam per peak week); a peak prior lies inside [0, max_lag] (beta or a bounded truncnormal)."
           },
           {
             "name": "intercept_prior",
@@ -9158,7 +9187,7 @@
             "type": "float",
             "required": false,
             "default": 0.8,
-            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."
+            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges."
           },
           {
             "name": "holdout_from",
@@ -9166,6 +9195,41 @@
             "required": false,
             "description": "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted.",
             "example": 131
+          },
+          {
+            "name": "geo",
+            "type": "string",
+            "required": false,
+            "description": "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves — unless per_geo_curves —, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names.",
+            "example": "market",
+            "names_column": true
+          },
+          {
+            "name": "per_geo_curves",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Geo panel only (refused without geo): pool each channel's saturation-curve parameters across the geos like its adstock parameters, so each geo has its own curve — k:tv[NE] (s:, lam:) per geo, k:tv the population value, tau:k:tv the scale. Default false: one curve per channel, shared."
+          },
+          {
+            "name": "lift_tests",
+            "type": "list",
+            "required": false,
+            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
+          },
+          {
+            "name": "return_draws",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add outputs.draws, the raw posterior draws: names (the coefficient table), draws[chain][coefficient][draw] on the constrained scale in original units, roi per outputs.roi entry ([chain][draw]) and thin. At most Limits.MaxMMMDrawValues values (chains x kept draws x (coefficients + roi entries), default 10,000,000) or the fit is refused, never truncated. Never moves the derived seed."
+          },
+          {
+            "name": "draws_thin",
+            "type": "float",
+            "required": false,
+            "default": 1,
+            "description": "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."
           }
         ],
         "intents": [
@@ -9206,6 +9270,16 @@
             "key": "holdout",
             "json_type": "object",
             "description": "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."
+          },
+          {
+            "key": "hierarchy",
+            "json_type": "object",
+            "description": "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:\u003cch\u003e …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry \u003cch\u003e[\u003cgeo\u003e] beside the all-geo one under \u003cch\u003e (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."
+          },
+          {
+            "key": "draws",
+            "json_type": "object",
+            "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
           }
         ]
       },
@@ -11879,7 +11953,7 @@
         ]
       }
     ],
-    "error_codes_count": 470,
+    "error_codes_count": 472,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12118,6 +12192,8 @@
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MCMC_FAILED",
       "PULSE_MCMC_INVALID",
+      "PULSE_MMM_GEO_UNSEEN",
+      "PULSE_MMM_LIFT_PRIOR_OVERLAP",
       "PULSE_MODEL_FILE_INVALID",
       "PULSE_MODEL_FILE_UNREADABLE",
       "PULSE_MODEL_INTERVALS_UNAVAILABLE",
@@ -13945,8 +14021,16 @@
         "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
       },
       {
+        "name": "mmm-bayes-model",
+        "description": "REG_MMM_BAYES model choices — the adstock kernels (params.adstock) and saturation curves (params.saturation) with their formulas, coefficient names, prior keys and default priors, geo panels with partial pooling (params.geo), lift tests as likelihood (params.lift_tests), and how response() and hill() read a Bayesian fit."
+      },
+      {
+        "name": "mmm-bayes-posterior",
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — and saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts)."
+      },
+      {
         "name": "mmm-workflow",
-        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift-test priors, what to trust."
+        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift tests as likelihood or prior, what to trust."
       },
       {
         "name": "multiplicity-correction",
@@ -14790,7 +14874,7 @@
       },
       {
         "name": "op-win-distributed-lag",
-        "description": "Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition."
+        "description": "Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, delayed, Weibull CDF or Weibull PDF) convolved over the ordered partition."
       },
       {
         "name": "op-win-ewma",
@@ -15345,7 +15429,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 274,
+    "examples_count": 275,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21340,10 +21424,22 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_mmm_geos",
+        "value": 50,
+        "default": 50,
+        "unit": "count"
+      },
+      {
+        "name": "max_mmm_draw_values",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 502ec23d3a327c1d4912a3d87cf124fbce4529c4480e94e9ae2e0a1c2ec0a4e3
+// golden-hash: 39bb5e306e26a77020a0901033f80f21d05264e9803594c862d13201eb36f902

@@ -22,7 +22,7 @@ import (
 // not drive — runs clean on an instance with the built-in limit
 // defaults. Predict reports no LimitFindings for any Request (a single
 // Request, every Compose slot, a chain's stage 0), and no run trips a
-// limit at runtime (the two heavyExamples run their runtime half in
+// limit at runtime (the heavyExamples run their runtime half in
 // TestExamples_RunEndToEnd). Lowering a default is breaking; this gate
 // is what catches it.
 func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
@@ -45,6 +45,8 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 		MaxJoinBuildRows:   pulse.DefaultMaxJoinBuildRows,
 		MaxDerivedColumns:  pulse.DefaultMaxDerivedColumns,
 		MaxExpandedItems:   pulse.DefaultMaxExpandedItems,
+		MaxMMMGeos:         pulse.DefaultMaxMMMGeos,
+		MaxMMMDrawValues:   pulse.DefaultMaxMMMDrawValues,
 	}
 	if got := p.Limits(); got != want {
 		t.Fatalf("effective limits %+v, want the built-in defaults %+v", got, want)

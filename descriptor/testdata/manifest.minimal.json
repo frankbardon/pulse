@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:83412aeeb1efd5ae9eb4f2dd4f01612514ee69d28a7663364cbdb359fe6b1e34",
-    "limits_digest": "lim1:9354918314b4246defd2a181dd0d759e8a2ebf126febc0d3aedc754c7d234d59",
+    "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
         "name": "process",
@@ -1429,10 +1429,22 @@
         "value": 1000,
         "default": 1000,
         "unit": "count"
+      },
+      {
+        "name": "max_mmm_geos",
+        "value": 50,
+        "default": 50,
+        "unit": "count"
+      },
+      {
+        "name": "max_mmm_draw_values",
+        "value": 10000000,
+        "default": 10000000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd7ee2a657eb100195e3f9f71dc0f891c78b31bde9ce4cc283e431584efafecc
+// golden-hash: 72ef2c38fd1fe7a59a136675cd20136310f2c0c2e60e988cb2edcd3ef7a3c956

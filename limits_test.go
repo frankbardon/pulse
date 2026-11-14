@@ -36,6 +36,8 @@ func TestLimits_DefaultsResolve(t *testing.T) {
 		MaxJoinBuildRows:   100_000_000,
 		MaxDerivedColumns:  1_000,
 		MaxExpandedItems:   1_000,
+		MaxMMMGeos:         50,
+		MaxMMMDrawValues:   10_000_000,
 	}
 	if got := p.Limits(); got != want {
 		t.Fatalf("Limits() = %+v, want %+v", got, want)
@@ -51,6 +53,8 @@ func TestLimits_DefaultsResolve(t *testing.T) {
 		MaxJoinBuildRows:   DefaultMaxJoinBuildRows,
 		MaxDerivedColumns:  DefaultMaxDerivedColumns,
 		MaxExpandedItems:   DefaultMaxExpandedItems,
+		MaxMMMGeos:         DefaultMaxMMMGeos,
+		MaxMMMDrawValues:   DefaultMaxMMMDrawValues,
 	}
 	if exported != want {
 		t.Fatalf("exported default constants = %+v, want %+v", exported, want)
@@ -76,6 +80,8 @@ func TestLimits_OptionsInstalled(t *testing.T) {
 		MaxJoinBuildRows:   Unlimited,
 		MaxDerivedColumns:  12,
 		MaxExpandedItems:   Unlimited,
+		MaxMMMGeos:         7,
+		MaxMMMDrawValues:   9,
 	}
 	p, err := newLimitsInstance(t, in)
 	if err != nil {
@@ -125,6 +131,8 @@ func TestLimits_InvalidRefused(t *testing.T) {
 		"MaxJoinBuildRows":   "max_join_build_rows",
 		"MaxDerivedColumns":  "max_derived_columns",
 		"MaxExpandedItems":   "max_expanded_items",
+		"MaxMMMGeos":         "max_mmm_geos",
+		"MaxMMMDrawValues":   "max_mmm_draw_values",
 	}
 	if v.NumField() != len(snake) {
 		t.Fatalf("Limits has %d fields, test covers %d", v.NumField(), len(snake))

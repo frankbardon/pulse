@@ -42,6 +42,8 @@ type regFitScoreAttribute struct {
 	schema *encoding.Schema
 	exts   *ExtensionRegistry
 	scorer model.RowScorer
+	// fit is the bound fit's name (the unseen-geo warning's).
+	fit string
 	// target is the bound fit's response column (RESIDUAL reads it).
 	target string
 	// residualKind / family: RESIDUAL's params.kind and the bound fit's
@@ -66,6 +68,9 @@ var (
 	_ modelBinder       = (*regFitScoreAttribute)(nil)
 	_ attributeWarner   = (*regFitScoreAttribute)(nil)
 	_ ExtensionAware    = (*regFitScoreAttribute)(nil)
+	// A REG_MMM_BAYES geo panel's unseen-geo tally, as ATTR_REG_PREDICT.
+	_ MergeableAttributeTally = (*regFitScoreAttribute)(nil)
+	_ attributeTallyResetter  = (*regFitScoreAttribute)(nil)
 )
 
 func newRegFitScoreAttribute(attr *types.Attribute, schema *encoding.Schema, kind regressionAttributeKind) AttributeComputer {
@@ -108,7 +113,7 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	a.scorer, a.target, a.residualKind, a.measure, a.residualType = scorer, b.Target, p.Kind, p.Measure, p.ResidualType
+	a.scorer, a.fit, a.target, a.residualKind, a.measure, a.residualType = scorer, p.Fit, b.Target, p.Kind, p.Measure, p.ResidualType
 	if model.FitDesignKind(a.attr.Type, p) {
 		d, err := regression.NewBoundInfluence(b)
 		if err != nil {
@@ -147,13 +152,28 @@ func (a *regFitScoreAttribute) label() string {
 func (a *regFitScoreAttribute) EmitsNull() bool { return true }
 
 // attributeWarnings satisfies attributeWarner: the PULSE_FIT_UNAVAILABLE
-// warning of a slot over a failed fit.
+// warning of a slot over a failed fit, or a REG_MMM_BAYES geo panel's
+// PULSE_MMM_GEO_UNSEEN.
 func (a *regFitScoreAttribute) attributeWarnings() []*types.ResponseWarning {
-	if a.unavailable == nil {
-		return nil
+	if a.unavailable != nil {
+		return []*types.ResponseWarning{a.unavailable}
 	}
-	return []*types.ResponseWarning{a.unavailable}
+	return scorerTallyWarnings(a.scorer, a.label(), a.attr.Type, a.fit)
 }
+
+// MergeTally satisfies MergeableAttributeTally: the bound scorer's
+// unseen-geo tally folds across partitions.
+func (a *regFitScoreAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*regFitScoreAttribute)
+	if !ok {
+		return tallyPartnerMismatch(a.attr.Type, other)
+	}
+	model.ScorerGeoTally(a.scorer).Merge(model.ScorerGeoTally(o.scorer))
+	return nil
+}
+
+// resetTally satisfies attributeTallyResetter.
+func (a *regFitScoreAttribute) resetTally() { resetScorerTally(a.scorer) }
 
 // Row is the row's fitted value (FITTED), target minus it on the kind's
 // scale (RESIDUAL), leverage (LEVERAGE) or influence measure

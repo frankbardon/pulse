@@ -100,3 +100,10 @@ var (
 	GeometricWeights = geometricWeights
 	Adstock          = adstock
 )
+
+// KernelWeights is the named adstock kernel's weights at params p
+// (adstockKernel.Weights, no gradient).
+func KernelWeights(kernel string, p []float64, maxLag int) []float64 {
+	w, _ := kernelByName(kernel).Weights(p, maxLag, false)
+	return w
+}

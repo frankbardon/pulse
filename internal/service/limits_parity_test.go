@@ -5,6 +5,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -51,6 +52,8 @@ type limitsFixture struct {
 	// dictionary bound right - D + 1 holds); single a 1-row cohort (a
 	// provably unique join key).
 	repeat, single string
+	// mmm is a mmmGeos-geo REG_MMM_BAYES geo panel (writeMMMGeoCohort).
+	mmm string
 
 	joinMu        sync.Mutex
 	joinEstimates map[string]int64
@@ -84,6 +87,8 @@ func buildLimitsFixture(t testing.TB, rows, fields int) *limitsFixture {
 	writeCohortFile(t, f.wide, schema, payload)
 	ls, lp := buildWideCohort(t, 10, 16)
 	writeCohortFile(t, f.lookup, ls, lp)
+	f.mmm = filepath.Join(dir, "mmm.pulse")
+	writeMMMGeoCohort(t, f.mmm)
 	f.repeat, f.single = filepath.Join(dir, "repeat.pulse"), filepath.Join(dir, "single.pulse")
 	rs, rp := buildWideCohort(t, 10, 32)
 	writeCohortFile(t, f.repeat, rs, rp)
@@ -120,6 +125,51 @@ func buildLimitsFixture(t testing.TB, rows, fields int) *limitsFixture {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 	return f
+}
+
+// The geo panel's size: mmmGeos geos (a categorical_u8 dictionary of
+// exactly those labels, so predict's dictionary bound is the run's
+// count) of mmmWeeks weeks each.
+const (
+	mmmGeos  = 3
+	mmmWeeks = 30
+)
+
+// writeMMMGeoCohort writes the geo panel: geo (categorical_u8, g0..g2),
+// week (u16, 1..mmmWeeks per geo), tv spend (f64, every week positive)
+// and sales (f64), deterministic integer-derived values.
+func writeMMMGeoCohort(t testing.TB, path string) {
+	t.Helper()
+	dict := encoding.NewDictionary()
+	for g := range mmmGeos {
+		if _, err := dict.Add("g" + strconv.Itoa(g)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "geo", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
+		{Name: "week", Type: encoding.FieldTypeU16},
+		{Name: "tv", Type: encoding.FieldTypeF64},
+		{Name: "sales", Type: encoding.FieldTypeF64},
+	}}
+	off := 0
+	for i := range schema.Fields {
+		schema.Fields[i].ByteOffset, schema.Fields[i].CsvColumnIdx = off, i
+		off += schema.FieldWidth(i)
+	}
+	var payload bytes.Buffer
+	for g := range mmmGeos {
+		for w := 1; w <= mmmWeeks; w++ {
+			tv := float64(20 + (w*37+g*11)%50)
+			sales := float64(100+10*g) + tv/2 + float64((w*13)%7)
+			for i, v := range []uint64{uint64(g), uint64(w), math.Float64bits(tv), math.Float64bits(sales)} {
+				if err := encoding.WriteFieldValue(&payload, schema.Fields[i].Type, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	writeCohortFile(t, path, schema, payload.Bytes())
 }
 
 // parityHost is the entry a case runs through, each predicted by its
@@ -443,6 +493,70 @@ func parityCases(f *limitsFixture) []parityCase {
 	facet := func() *types.FacetRequest {
 		return &types.FacetRequest{Cohort: wideCohort(f), Fields: []string{"brand", "weight"}}
 	}
+	// A tiny REG_MMM_BAYES geo-panel fit (a few draws: under the cap it
+	// samples, cheaply): MaxMMMGeos is predict's POSSIBLE finding on the
+	// geo field's dictionary and the fit's refusal on the geos it reads.
+	mmmPanel := func() *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: f.mmm}, Regressions: []*types.RegressionSpec{{
+			Type: types.REG_MMM_BAYES, Name: "mmm", Target: "sales", Predictors: []string{"tv"}, RNGSeed: 7,
+			Params: []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5}`)}}}
+	}
+	mmmGeosAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMGeos = n } }
+	// The same tiny fits returning their raw draws (params.return_draws):
+	// MaxMMMDrawValues is predict's POSSIBLE finding on the panel (it
+	// grows with the geos) and CERTAIN on one market (the spec's alone:
+	// the pre-flight refuses), the fit's refusal before any sampling.
+	// The panel: 1 chain x 5 draws x (16 coefficients — 3 intercepts,
+	// tv and decay:tv each with its 3 geos, k:tv, s:tv, sigma, tau:tv,
+	// tau:decay:tv — + 4 roi entries) = 100 values; one market (geo g0
+	// filtered in): 1 x 5 x (6 coefficients + 1 roi entry) = 35.
+	const mmmPanelDraws, mmmOneDraws = 100, 35
+	mmmPanelDrawsReq := func() *types.Request {
+		req := mmmPanel()
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		return req
+	}
+	mmmOne := func() *types.Request {
+		req := mmmPanel()
+		req.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "geo", Values: []string{"g0"}}}
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		return req
+	}
+	mmmDrawsAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMDrawValues = n } }
+	// mmmDrawsFit runs req and, when it is not refused, requires the fit
+	// to have returned its draws.
+	mmmDrawsFit := func(req func() *types.Request) func(context.Context, *Service) error {
+		return func(ctx context.Context, svc *Service) error {
+			resp, err := svc.Process(ctx, req())
+			if err != nil {
+				return err
+			}
+			r := resp.Regressions[0]
+			if r.Error != nil {
+				return fmt.Errorf("the draws fit failed: %s %s", r.Error.Code, r.Error.Message)
+			}
+			if r.Outputs["draws"] == nil {
+				return fmt.Errorf("the draws fit returned no outputs.draws")
+			}
+			return nil
+		}
+	}
+	// mmmFit runs the panel and, when it is not refused, requires the
+	// fit to have sampled the whole panel (a failed slot is an error).
+	mmmFit := func(ctx context.Context, svc *Service) error {
+		resp, err := svc.Process(ctx, mmmPanel())
+		if err != nil {
+			return err
+		}
+		r := resp.Regressions[0]
+		if r.Error != nil {
+			return fmt.Errorf("the geo panel fit failed: %s %s", r.Error.Code, r.Error.Message)
+		}
+		if h, _ := r.Outputs["hierarchy"].(map[string]any); h == nil || len(h["geos"].([]string)) != mmmGeos {
+			return fmt.Errorf("the geo panel fit read %v geos, want %d", r.Outputs["hierarchy"], mmmGeos)
+		}
+		return nil
+	}
 
 	return []parityCase{
 		{name: "serial grouped", site: "serial", setup: serialArm,
@@ -630,6 +744,24 @@ func parityCases(f *limitsFixture) []parityCase {
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxEstimatedMemory = 1 << 10 }, wantTrip: limits.MaxEstimatedMemory},
+		{name: "mmm geos", site: "mmm geos", setup: serialArm,
+			requests: one(mmmPanel), run: mmmFit,
+			limits: mmmGeosAt(mmmGeos - 1), wantTrip: limits.MaxMMMGeos},
+		{name: "mmm geos at the cap", site: "mmm geos", setup: serialArm,
+			requests: one(mmmPanel), run: mmmFit,
+			limits: mmmGeosAt(mmmGeos)},
+		{name: "mmm draws on a panel", site: "mmm draws", setup: serialArm,
+			requests: one(mmmPanelDrawsReq), run: mmmDrawsFit(mmmPanelDrawsReq),
+			limits: mmmDrawsAt(mmmPanelDraws - 1), wantTrip: limits.MaxMMMDrawValues},
+		{name: "mmm draws on a panel at the cap", site: "mmm draws", setup: serialArm,
+			requests: one(mmmPanelDrawsReq), run: mmmDrawsFit(mmmPanelDrawsReq),
+			limits: mmmDrawsAt(mmmPanelDraws)},
+		{name: "mmm draws on one market", site: "mmm draws (pre-flight)", setup: serialArm,
+			requests: one(mmmOne), run: mmmDrawsFit(mmmOne),
+			limits: mmmDrawsAt(mmmOneDraws - 1), wantTrip: limits.MaxMMMDrawValues},
+		{name: "mmm draws on one market at the cap", site: "mmm draws (pre-flight)", setup: serialArm,
+			requests: one(mmmOne), run: mmmDrawsFit(mmmOne),
+			limits: mmmDrawsAt(mmmOneDraws)},
 		{name: "timeout", site: "timeout", setup: func(t *testing.T, svc *Service) {
 			serialArm(t, svc)
 			svc.entryHook = waitOutShortDeadlines

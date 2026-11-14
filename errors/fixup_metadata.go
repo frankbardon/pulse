@@ -2686,7 +2686,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel.",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`). A response(fit, channel, spend) call raises it with `reason` `adstock_unknown` when the fit has no adstock record for the channel: the channel under `channel`, the channels that have one under `channels`. A record exists only for a media-mix channel built by one lag-kernel window, a Bayesian media-mix channel, or an inline model's declared `adstock`; there is no default kernel. A response(fit, channel, spend, geo) call raises it with `reason` `geo_unknown` when the fit names no such geo (the geo under `geo`, the fit's geos under `geos` — empty on a fit that is no Bayesian geo panel).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2707,6 +2707,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Pass response() a channel under `channels`, or build the channel's adstock with one lag-kernel window over raw spend (or declare it in the inline model's `adstock`) so the fit records one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass response() a geo under `geos` as its fourth argument, or drop it for the population response.",
 			},
 		},
 	},
@@ -5084,11 +5089,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MCMC_INVALID: {
-		Message: "The mcmc package refused the run before sampling: the model is nil or has dimension below 1, Chains, Warmup, Draws, MaxTreeDepth or Workers is negative, TargetAccept is outside (0, 1), Init is not one finite value per dimension, or the log density or its gradient is not finite at Init. Details carry `reason` (`nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and, where they apply, `chain`, `index`, `got` and `want`. No result is returned.",
+		Message: "The mcmc package refused the run before sampling: the model is nil or has dimension below 1, Chains, Warmup, Draws, MaxTreeDepth or Workers is negative, TargetAccept is outside (0, 1), an HMC StepSize or PathLength is negative or not finite (or a fixed StepSize needs more than 65536 leapfrog steps to cover PathLength), Init is not one finite value per dimension, or the log density or its gradient is not finite at Init. Details carry `reason` (`nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `step_size`, `path_length`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and, where they apply, `chain`, `index`, `got` and `want`. No result is returned.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Fix the option named by details.reason: leave a count at 0 for its default or make it positive, keep TargetAccept strictly between 0 and 1, and size Init to the model's Dim() with finite values.",
+				Hint:   "Fix the option named by details.reason: leave a count at 0 for its default or make it positive, keep TargetAccept strictly between 0 and 1, keep StepSize and PathLength finite and not negative (0 adapts or defaults them), and size Init to the model's Dim() with finite values.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -5097,7 +5102,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MCMC_FAILED: {
-		Message: "The mcmc sampler could not run on the model: no Uniform(-2, 2) starting point had a finite log density and gradient (`init_not_found`), the step-size heuristic grew without bound (`step_size_unbounded`, an improper posterior) or collapsed to zero (`step_size_zero`, a discontinuous density or a wrong gradient), or the adapted metric was not finite (`metric_not_finite`). Details carry `reason` and `chain`. No result is returned.",
+		Message: "The mcmc sampler could not run on the model: no Uniform(-2, 2) starting point had a finite log density and gradient (`init_not_found`), the step-size heuristic grew without bound (`step_size_unbounded`, an improper posterior) or collapsed to zero (`step_size_zero`, a discontinuous density or a wrong gradient), the adapted metric was not finite (`metric_not_finite`), or an adapted HMC step size needs more than 65536 leapfrog steps to cover PathLength (`path_too_long`, a badly scaled posterior). Details carry `reason` and `chain`. No result is returned.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5105,7 +5110,35 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Hint:   "Check the model: give every parameter a proper prior (step_size_unbounded) and verify the gradient against finite differences (step_size_zero, metric_not_finite).",
+				Hint:   "Check the model: give every parameter a proper prior (step_size_unbounded), verify the gradient against finite differences (step_size_zero, metric_not_finite), and rescale the parameters or lengthen warmup so the metric adapts (path_too_long).",
+			},
+		},
+	},
+	PULSE_MMM_GEO_UNSEEN: {
+		Message: "Scoring a Bayesian media-mix geo panel met rows whose geo the fit has no parameters for (the fit never saw that market). Those rows scored from the population instead: each channel's population effect and curve (μ) and, per draw, the mean of the fit's geo intercepts — a new market's expected level, not its own. `geos` lists the unseen geos with their row counts in `rows`; `fit_geos` the geos the fit holds. This is a WARNING; under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "If the geo should be one the fit holds, fix its spelling or code in the scoring cohort (fit_geos lists the fitted ones).",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "To score the new market with its own parameters, refit the panel with its rows included (save the new fit and score from it).",
+			},
+		},
+	},
+	PULSE_MMM_LIFT_PRIOR_OVERLAP: {
+		Message: "A Bayesian media-mix slot gives one channel both an explicit ROI prior (`params.priors.<channel>.roi`) and a lift test (`params.lift_tests`). If the prior was built from the same experiment, that evidence enters twice — once as the prior, once as the lift likelihood — and the channel's interval comes out too narrow. The fit ran unchanged; `channels` lists each overlapping channel. This is a WARNING; under strict mode it is an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Params", "priors", "*", "roi"},
+				Hint:   "When the ROI prior restates the lift test, drop the prior and keep the lift test: the likelihood reads the experiment on its own window and spend change.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Params", "lift_tests"},
+				Hint:   "When the prior already carries the experiment, drop that channel's lift test instead; keep both only when they come from independent evidence.",
 			},
 		},
 	},

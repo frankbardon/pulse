@@ -223,6 +223,8 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			if p, err := model.DecodeScoreParams(a.Params); err == nil {
 				if b, lerr := models.Lookup(p.Fit); lerr == nil {
 					addAllKnown(b.Predictors)
+					// A REG_MMM_BAYES geo panel reads each row's geo.
+					addAllKnown(b.Signature().ScoreFields)
 				}
 			}
 		}
@@ -232,6 +234,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		if name, ok := model.FitReference(a.Type, a); ok {
 			if b, lerr := models.Lookup(name); lerr == nil {
 				addAllKnown(b.Predictors)
+				addAllKnown(b.Signature().ScoreFields)
 				if model.FitReadsTarget(a.Type) {
 					addKnown(b.Target)
 				}

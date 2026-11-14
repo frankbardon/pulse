@@ -33,6 +33,8 @@ func TestFeatureProfile_LimitsResolve(t *testing.T) {
 		MaxJoinBuildRows:   DefaultMaxJoinBuildRows,
 		MaxDerivedColumns:  DefaultMaxDerivedColumns,
 		MaxExpandedItems:   DefaultMaxExpandedItems,
+		MaxMMMGeos:         DefaultMaxMMMGeos,
+		MaxMMMDrawValues:   DefaultMaxMMMDrawValues,
 	}
 	if got != want {
 		t.Fatalf("Limits() = %+v; want %+v", got, want)
@@ -96,6 +98,8 @@ func TestFeatureProfile_LimitsRefused(t *testing.T) {
 		{"max_join_build_rows -9", FeatureProfileLimits{MaxGroups: 3, MaxJoinBuildRows: -9}, "max_join_build_rows", int64(-9)},
 		{"max_derived_columns -3", FeatureProfileLimits{MaxDerivedColumns: -3}, "max_derived_columns", int64(-3)},
 		{"max_expanded_items -4", FeatureProfileLimits{MaxExpandedItems: -4}, "max_expanded_items", int64(-4)},
+		{"max_mmm_geos -5", FeatureProfileLimits{MaxMMMGeos: -5}, "max_mmm_geos", int64(-5)},
+		{"max_mmm_draw_values -6", FeatureProfileLimits{MaxMMMDrawValues: -6}, "max_mmm_draw_values", int64(-6)},
 		{"request_timeout unparseable", FeatureProfileLimits{RequestTimeout: "soon"}, "request_timeout", "soon"},
 		{"request_timeout negative", FeatureProfileLimits{RequestTimeout: "-2s"}, "request_timeout", "-2s"},
 	}

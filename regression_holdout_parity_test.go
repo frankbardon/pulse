@@ -369,16 +369,29 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 		return &types.RegressionSpec{Name: "reg-mmm-hill", Type: types.REG_MMM_HILL, Target: "sales",
 			Predictors: []string{"tv_ad", "radio_lag", "search_ewma", "trend"}, Params: json.RawMessage(`{"channels":["tv_ad"]}`)}
 	},
+	// The Bayesian model regression, on a two-market geo panel over the
+	// raw tv spend (it adstocks in-model), returning its draws (its
+	// scorer averages over them) on a tiny sampler run; a pinned seed,
+	// since the derived one hashes the spec, holdout included.
+	types.REG_MMM_BAYES: func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "reg-mmm-bayes", Type: types.REG_MMM_BAYES, Target: "sales", RNGSeed: 5,
+			Predictors: []string{"tv", "trend"},
+			Params:     json.RawMessage(`{"channels":["tv"],"time":"week","geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true}`)}
+	},
 }
 
+// holdoutBuiltinPreds overrides the holdout predicate per type:
+// REG_MMM_BAYES's train rows must stay contiguous per market (a gap is
+// geo_time_gap), so it holds out each market's tail.
+var holdoutBuiltinPreds = map[types.RegressionType]string{types.REG_MMM_BAYES: "week > 46"}
+
 // TestHoldout_EveryScorableBuiltin: every built-in regression type with
-// a scorer takes a holdout and passes gates A and B; the ones without
-// (REG_MMM_BAYES, whose adstocked prediction needs the history and whose
-// holdout is its own params.holdout_from; REG_ORDINAL and
-// REG_MULTINOMIAL, whose fits predict a distribution over levels, not
-// one score) have no case — their holdout slot is refused alike by
-// predict and the runtime (internal/regmmm
-// TestMMMBayes_SharedSlotsRefusedLikePredict, internal/regordinal
+// a scorer takes a holdout and passes gates A and B (REG_MMM_BAYES
+// through its draws: its held-out rows score their columns as given,
+// params.holdout_from being its history-aware holdout); the ones without
+// (REG_ORDINAL and REG_MULTINOMIAL, whose fits predict a distribution
+// over levels, not one score) have no case — their holdout slot is
+// refused alike by predict and the runtime (internal/regordinal
 // TestRegOrdinal_RefusalsPredictMatchRuntime,
 // TestMultinomial_PredictMatchesRuntime).
 func TestHoldout_EveryScorableBuiltin(t *testing.T) {
@@ -387,8 +400,8 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 	p := windowParityPulse(t, Options{})
 	for _, typ := range types.AllRegressionTypes() {
 		if _, scorable := regression.BuiltinScorer(typ); !scorable {
-			if _, listed := holdoutBuiltinCases[typ]; listed || (typ != types.REG_MMM_BAYES && typ != types.REG_MULTINOMIAL && typ != types.REG_ORDINAL) {
-				t.Errorf("%s has no scorer: only REG_MMM_BAYES, REG_MULTINOMIAL and REG_ORDINAL are expected to, without a holdout parity case", typ)
+			if _, listed := holdoutBuiltinCases[typ]; listed || (typ != types.REG_MULTINOMIAL && typ != types.REG_ORDINAL) {
+				t.Errorf("%s has no scorer: only REG_MULTINOMIAL and REG_ORDINAL are expected to, without a holdout parity case", typ)
 			}
 			continue
 		}
@@ -402,7 +415,7 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 			if spec.Type != typ {
 				t.Fatalf("case builds %s, want %s", spec.Type, typ)
 			}
-			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec})
+			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec, pred: holdoutBuiltinPreds[typ]})
 		})
 	}
 }

@@ -71,17 +71,24 @@ func TestMMMBayes_Registration(t *testing.T) {
 	if row.streamable {
 		t.Error("manifest: REG_MMM_BAYES listed as streamable")
 	}
-	wantParams := []string{"channels", "time", "max_lag", "adstock", "priors", "intercept_prior", "control_prior", "sigma_prior",
-		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from"}
+	wantParams := []string{"channels", "time", "max_lag", "adstock", "saturation", "priors", "intercept_prior", "control_prior", "sigma_prior",
+		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from", "geo", "per_geo_curves", "lift_tests", "return_draws", "draws_thin"}
 	if !slices.Equal(row.params, wantParams) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
 	}
 	for _, s := range row.slots {
-		if slices.Contains([]string{"resample", "bootstrap_iters", "holdout", "save", "weight", "multiplicity"}, s) {
+		if slices.Contains([]string{"resample", "bootstrap_iters", "weight", "multiplicity"}, s) {
 			t.Errorf("manifest lists slot %s", s)
 		}
 	}
-	if want := []string{"seed", "roi", "mroi", "contribution", "params", "diagnostics", "holdout"}; !slices.Equal(row.outputs, want) {
+	// The scorer admits save and the engine holdout (each needing
+	// return_draws).
+	for _, s := range []string{"holdout", "save"} {
+		if !slices.Contains(row.slots, s) {
+			t.Errorf("manifest omits slot %s", s)
+		}
+	}
+	if want := []string{"seed", "roi", "mroi", "contribution", "params", "diagnostics", "holdout", "hierarchy", "draws"}; !slices.Equal(row.outputs, want) {
 		t.Errorf("outputs = %v, want %v", row.outputs, want)
 	}
 	model, err := regmmm.BayesFactory(regmmm.BayesSpec(regmmm.FastParams), nil)
@@ -150,18 +157,38 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 	ctx := context.Background()
 	p := bayesInstance(t, nil)
 	for name, params := range map[string]string{
-		"no channels":             `{"channels":[],"time":"week"}`,
-		"channel not a predictor": `{"channels":["radio"],"time":"week"}`,
-		"channel twice":           `{"channels":["tv","tv"],"time":"week"}`,
-		"max_lag 0":               `{"channels":["tv"],"time":"week","max_lag":0}`,
-		"adstock":                 `{"channels":["tv"],"time":"week","adstock":"weibull"}`,
-		"chains over cap":         `{"channels":["tv"],"time":"week","chains":17}`,
-		"credible_level":          `{"channels":["tv"],"time":"week","credible_level":1}`,
-		"prior family":            `{"channels":["tv"],"time":"week","sigma_prior":{"family":"cauchy","sigma":1}}`,
-		"prior support":           `{"channels":["tv"],"time":"week","priors":{"tv":{"decay":{"family":"lognormal","mu":0,"sigma":1}}}}`,
-		"prior on a control":      `{"channels":["tv"],"time":"week","priors":{"price":{"k":{"family":"halfnormal","sigma":1}}}}`,
-		"roi and beta":            `{"channels":["tv"],"time":"week","priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1},"beta":{"family":"halfnormal","sigma":1}}}}`,
-		"predictor twice":         "twice",
+		"no channels":                     `{"channels":[],"time":"week"}`,
+		"channel not a predictor":         `{"channels":["radio"],"time":"week"}`,
+		"channel twice":                   `{"channels":["tv","tv"],"time":"week"}`,
+		"max_lag 0":                       `{"channels":["tv"],"time":"week","max_lag":0}`,
+		"adstock":                         `{"channels":["tv"],"time":"week","adstock":"weibull"}`,
+		"kernel without max_lag":          `{"channels":["tv"],"time":"week","adstock":"weibull_pdf"}`,
+		"prior not in kernel":             `{"channels":["tv"],"time":"week","priors":{"tv":{"scale":{"family":"halfnormal","sigma":1}}}}`,
+		"peak prior unbounded":            `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"halfnormal","sigma":1}}}}`,
+		"saturation":                      `{"channels":["tv"],"time":"week","saturation":"gompertz"}`,
+		"prior not in curve":              `{"channels":["tv"],"time":"week","saturation":"michaelis_menten","priors":{"tv":{"s":{"family":"halfnormal","sigma":1}}}}`,
+		"lam prior under hill":            `{"channels":["tv"],"time":"week","priors":{"tv":{"lam":{"family":"lognormal","mu":0,"sigma":1}}}}`,
+		"lam prior support":               `{"channels":["tv"],"time":"week","saturation":"logistic","priors":{"tv":{"lam":{"family":"normal","mu":0,"sigma":1}}}}`,
+		"chains over cap":                 `{"channels":["tv"],"time":"week","chains":17}`,
+		"credible_level":                  `{"channels":["tv"],"time":"week","credible_level":1}`,
+		"prior family":                    `{"channels":["tv"],"time":"week","sigma_prior":{"family":"cauchy","sigma":1}}`,
+		"prior support":                   `{"channels":["tv"],"time":"week","priors":{"tv":{"decay":{"family":"lognormal","mu":0,"sigma":1}}}}`,
+		"prior on a control":              `{"channels":["tv"],"time":"week","priors":{"price":{"k":{"family":"halfnormal","sigma":1}}}}`,
+		"roi and beta":                    `{"channels":["tv"],"time":"week","priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1},"beta":{"family":"halfnormal","sigma":1}}}}`,
+		"predictor twice":                 "twice",
+		"lift geo":                        `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","geo":"east","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift channel unknown":            `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"price","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift window missing":             `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift window reversed":            `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":9,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift spend_delta absent":         `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"lift":-2,"se":1}]}`,
+		"lift spend_delta zero":           `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":0,"lift":-2,"se":1}]}`,
+		"lift missing":                    `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"se":1}]}`,
+		"lift se":                         `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":0}]}`,
+		"lift unknown key":                `{"channels":["tv"],"time":"week","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1,"iroas":2}]}`,
+		"geo empty":                       `{"channels":["tv"],"time":"week","geo":""}`,
+		"geo is the time field":           `{"channels":["tv"],"time":"week","geo":"week"}`,
+		"lift without geo on a geo panel": `{"channels":["tv"],"time":"week","geo":"geo","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"per_geo_curves on one market":    `{"channels":["tv"],"time":"week","per_geo_curves":true}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := regmmm.BayesSpec(params)
@@ -194,6 +221,21 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 	pr, err := p.Predict(ctx, bayesRequest("gap.pulse", regmmm.BayesSpec(regmmm.FastParams)))
 	if err != nil || len(pr.Errors) != 0 {
 		t.Fatalf("predict on a data-only refusal: %v %+v", err, pr)
+	}
+	// A lift window past the series is a data refusal too: the runtime
+	// refuses it (before sampling), predict, which reads no row, cannot.
+	outside := regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":5,"draws":5,"lift_tests":[{"channel":"tv","start":55,"end":70,"spend_delta":-10,"lift":-2,"se":1}]}`)
+	req := bayesRequest(regmmm.BayesCohort, outside)
+	if pr, err := p.Predict(ctx, req); err != nil || len(pr.Errors) != 0 {
+		t.Fatalf("predict on a lift window past the data: %v %+v", err, pr)
+	}
+	_, rerr := p.Process(ctx, req)
+	var ce *perr.CodedError
+	if !stderrors.As(rerr, &ce) || ce.Code != perr.PROCESSING_CONFIG || ce.Details["reason"] != "lift_window_out_of_range" {
+		t.Fatalf("runtime on a lift window past the data: %v", rerr)
+	}
+	if n := c.runs.Load(); n != 0 {
+		t.Errorf("a lift window past the data sampled %d times", n)
 	}
 }
 

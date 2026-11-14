@@ -2,7 +2,9 @@ package model
 
 import (
 	"slices"
+	"strings"
 
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,13 +22,138 @@ import (
 // The curve-coefficient prefixes of the media-mix models: channel c's
 // Hill half-saturation is the coefficient MMMHalfSaturationPrefix + c,
 // its shape MMMShapePrefix + c, and under REG_MMM_BAYES its adstock
-// decay MMMDecayPrefix + c; REG_MMM_BAYES's noise SD is MMMSigmaName.
+// kernel's params (MMMBayesAdstockPrefixes): the decay MMMDecayPrefix + c
+// (geometric, delayed), the peak MMMPeakPrefix + c (delayed), the
+// Weibull shape MMMAdstockShapePrefix + c and scale
+// MMMAdstockScalePrefix + c (weibull_cdf, weibull_pdf), and its
+// saturation curve's params (MMMBayesCurvePrefixes): Hill's k: and s:,
+// Michaelis–Menten's half-saturation k:, the logistic curve's rate
+// MMMLogisticLambdaPrefix + c; REG_MMM_BAYES's noise SD is MMMSigmaName.
 const (
 	MMMHalfSaturationPrefix = "k:"
 	MMMShapePrefix          = "s:"
+	MMMLogisticLambdaPrefix = "lam:"
 	MMMDecayPrefix          = "decay:"
+	MMMPeakPrefix           = "peak:"
+	MMMAdstockShapePrefix   = "shape:"
+	MMMAdstockScalePrefix   = "scale:"
 	MMMSigmaName            = "sigma"
 )
+
+// REG_MMM_BAYES's geo panel (params.geo) names: a pooled term keeps its
+// name (the population μ), its value in geo g is MMMGeoTerm(term, g) —
+// "tv[NE]", "decay:tv[NE]" — and its pooling scale τ is MMMTauPrefix +
+// term — "tau:tv", "tau:decay:tv". MMMGeoOpen and MMMGeoClose are
+// therefore reserved in a channel's or predictor's name.
+const (
+	MMMTauPrefix = "tau:"
+	MMMGeoOpen   = "["
+	MMMGeoClose  = "]"
+)
+
+// MMMGeoTerm is term's name in geo g: term + "[" + g + "]".
+func MMMGeoTerm(term, geo string) string { return term + MMMGeoOpen + geo + MMMGeoClose }
+
+// MMMGeos are the geos a fit's coefficient table names (sorted,
+// non-nil): g for every per-geo intercept "(intercept)[g]" — a geo
+// panel's (REG_MMM_BAYES params.geo) table carries one per geo, every
+// other fit none.
+func MMMGeos[V any](coefficients map[string]V) []string {
+	out := []string{}
+	prefix := InterceptKey + MMMGeoOpen
+	for name := range coefficients {
+		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, MMMGeoClose) && len(name) > len(prefix)+len(MMMGeoClose) {
+			out = append(out, name[len(prefix):len(name)-len(MMMGeoClose)])
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// staticMMMGeos is a fit spec's geos as predict knows them: none, known,
+// on every fit but a REG_MMM_BAYES geo panel (params.geo set), whose
+// geos are the data's (unknown). Params that do not decode read as no
+// panel (the factory refuses them).
+func staticMMMGeos(spec *types.RegressionSpec) (geos []string, known bool) {
+	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
+		return []string{}, true
+	}
+	var p struct {
+		Geo *string `json:"geo"`
+	}
+	if paramread.Probe(spec.Params, &p) == nil && p.Geo != nil {
+		return nil, false
+	}
+	return []string{}, true
+}
+
+// MMMBayesAdstockPrefixes is the coefficient prefixes of REG_MMM_BAYES's
+// adstock kernel params, in the coefficient table's order, for kernel
+// (params.adstock; "" is the default, geometric): decay: for geometric,
+// decay: then peak: for delayed, shape: then scale: for weibull_cdf and
+// weibull_pdf. ok is false for any other kernel name.
+func MMMBayesAdstockPrefixes(kernel string) (prefixes []string, ok bool) {
+	switch kernel {
+	case "", distlagparams.KernelGeometric:
+		return []string{MMMDecayPrefix}, true
+	case distlagparams.KernelDelayed:
+		return []string{MMMDecayPrefix, MMMPeakPrefix}, true
+	case distlagparams.KernelWeibullCDF, distlagparams.KernelWeibullPDF:
+		return []string{MMMAdstockShapePrefix, MMMAdstockScalePrefix}, true
+	}
+	return nil, false
+}
+
+// REG_MMM_BAYES's saturation curves (params.saturation; absent is
+// hill): one curve for every channel, on the channel's adstock.
+const (
+	// MMMSaturationHill is 1 / (1 + (k/a)^s), the default.
+	MMMSaturationHill = "hill"
+	// MMMSaturationLogistic is (1 − e^(−λa)) / (1 + e^(−λa)).
+	MMMSaturationLogistic = "logistic"
+	// MMMSaturationMichaelisMenten is a / (k + a).
+	MMMSaturationMichaelisMenten = "michaelis_menten"
+)
+
+// MMMBayesSaturations are the params.saturation values, in manifest
+// order (a fresh slice).
+func MMMBayesSaturations() []string {
+	return []string{MMMSaturationHill, MMMSaturationLogistic, MMMSaturationMichaelisMenten}
+}
+
+// MMMBayesCurvePrefixes is the coefficient prefixes of REG_MMM_BAYES's
+// saturation curve params, in the coefficient table's order, for
+// saturation (params.saturation; "" is the default, hill): k: then s:
+// for hill, lam: for logistic, k: for michaelis_menten. ok is false for
+// any other curve name.
+func MMMBayesCurvePrefixes(saturation string) (prefixes []string, ok bool) {
+	switch saturation {
+	case "", MMMSaturationHill:
+		return []string{MMMHalfSaturationPrefix, MMMShapePrefix}, true
+	case MMMSaturationLogistic:
+		return []string{MMMLogisticLambdaPrefix}, true
+	case MMMSaturationMichaelisMenten:
+		return []string{MMMHalfSaturationPrefix}, true
+	}
+	return nil, false
+}
+
+// MMMBayesSaturation is a REG_MMM_BAYES spec's params.saturation as its
+// curve record carries it: "" for the default (absent or hill), the
+// name as written otherwise (the factory refuses an unknown one). Any
+// other type, or params that do not decode, read "".
+func MMMBayesSaturation(spec *types.RegressionSpec) string {
+	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		Saturation *string `json:"saturation"`
+	}
+	if paramread.Probe(spec.Params, &p) != nil || p.Saturation == nil || *p.Saturation == MMMSaturationHill {
+		return ""
+	}
+	return *p.Saturation
+}
 
 // modelRegressions are the model regressions, in AllRegressionTypes
 // order.
@@ -59,9 +186,14 @@ func ModelRegressions() []types.RegressionType {
 // coefficient names its fit reports beyond the intercept and the
 // predictors, derived from the spec alone, and whether they are known.
 // REG_MMM_HILL names "k:<channel>" for every params.channels entry, then
-// "s:<channel>" for each; REG_MMM_BAYES names "decay:<channel>", then
-// "k:<channel>", then "s:<channel>" for each, then "sigma"; REG_ORDINAL
-// names its thresholds "<level>|<next level>", known only when
+// "s:<channel>" for each; REG_MMM_BAYES names its params.adstock
+// kernel's params per channel (MMMBayesAdstockPrefixes: "decay:<channel>"
+// for the default geometric kernel; an unknown kernel reports false),
+// then its params.saturation curve's (MMMBayesCurvePrefixes: "k:<channel>"
+// then "s:<channel>" for the default Hill curve; an unknown curve
+// reports false) for each, then "sigma" — unknown (false) under
+// params.geo, whose per-geo terms ("tv[NE]") name the data's geos;
+// REG_ORDINAL names its thresholds "<level>|<next level>", known only when
 // params.levels fixes the levels (otherwise the data does). A spec whose
 // params do not decode (its factory refuses it), or a type that is no
 // model regression, reports false — the caller then treats the names as
@@ -74,15 +206,38 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 		return nil, false
 	}
 	var p struct {
-		Channels []string `json:"channels"`
+		Channels   []string `json:"channels"`
+		Adstock    *string  `json:"adstock"`
+		Saturation *string  `json:"saturation"`
+		Geo        *string  `json:"geo"`
 	}
 	// A lenient look: the model's factory decodes (and records) params.
 	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || len(p.Channels) == 0 {
 		return nil, false
 	}
+	if spec.Type == types.REG_MMM_BAYES && p.Geo != nil {
+		// A geo panel's table names each geo the data holds.
+		return nil, false
+	}
 	prefixes := []string{MMMHalfSaturationPrefix, MMMShapePrefix}
 	if spec.Type == types.REG_MMM_BAYES {
-		prefixes = []string{MMMDecayPrefix, MMMHalfSaturationPrefix, MMMShapePrefix}
+		kernel := ""
+		if p.Adstock != nil {
+			kernel = *p.Adstock
+		}
+		ad, ok := MMMBayesAdstockPrefixes(kernel)
+		if !ok {
+			return nil, false
+		}
+		saturation := ""
+		if p.Saturation != nil {
+			saturation = *p.Saturation
+		}
+		curve, ok := MMMBayesCurvePrefixes(saturation)
+		if !ok {
+			return nil, false
+		}
+		prefixes = append(ad, curve...)
 	}
 	out := make([]string, 0, len(prefixes)*len(p.Channels)+1)
 	for _, prefix := range prefixes {
@@ -116,17 +271,25 @@ func ordinalThresholds(spec *types.RegressionSpec) ([]string, bool) {
 // per record beyond its target and predictors, derived from the spec
 // alone — a built-in's twin of an extension's FieldInputs hook. The
 // runtime projection decodes them and predict's field-reference walk
-// refuses an unknown one. REG_MMM_BAYES reads params.time; every other
-// type, and a spec whose params do not decode, reads none (nil).
+// refuses an unknown one. REG_MMM_BAYES reads params.time and, on a geo
+// panel, params.geo (in that order); every other type, and a spec whose
+// params do not decode, reads none (nil).
 func ModelRegressionFieldInputs(spec *types.RegressionSpec) []string {
 	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
 		return nil
 	}
 	var p struct {
 		Time string `json:"time"`
+		Geo  string `json:"geo"`
 	}
-	if paramread.Probe(spec.Params, &p) != nil || p.Time == "" {
+	if paramread.Probe(spec.Params, &p) != nil {
 		return nil
 	}
-	return []string{p.Time}
+	var out []string
+	for _, f := range []string{p.Time, p.Geo} {
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }

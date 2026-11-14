@@ -20,9 +20,11 @@ func TestMMMSkills_ServedOnStockInstance(t *testing.T) {
 		t.Fatalf("pulse.New: %v", err)
 	}
 	for name, want := range map[string][]string{
-		"op-reg-mmm-hill":  {"k:<channel>", "## Params"},
-		"op-reg-mmm-bayes": {"## Params", "time_gap", "holdout_from"},
-		"mmm-workflow":     {"lift test"},
+		"op-reg-mmm-hill":     {"k:<channel>", "## Params"},
+		"op-reg-mmm-bayes":    {"## Params", "time_gap", "holdout_from"},
+		"mmm-workflow":        {"lift test"},
+		"mmm-bayes-model":     {"michaelis_menten", "lam:<ch>", "prior_not_in_curve"},
+		"mmm-bayes-posterior": {"return_draws", "draws_thin_without_return_draws", "max_mmm_draw_values"},
 	} {
 		body, ok := p.Skill(name)
 		if !ok {

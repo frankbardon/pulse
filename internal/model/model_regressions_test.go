@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -79,7 +80,8 @@ func TestCatalogFromFits_ModelRegressionTerms(t *testing.T) {
 // TestModelRegression_BayesTermsAndInputs: REG_MMM_BAYES is a model
 // regression whose term catalog is decay:<channel>, k:<channel>,
 // s:<channel> (each over params.channels, in order) then sigma, and
-// whose only field read beyond its target and predictors is params.time
+// whose fields read beyond its target and predictors are params.time
+// (and params.geo on a geo panel, whose term names are then unknown)
 // (ModelRegressionFieldInputs, the projection's and predict's one
 // source); every other type reads none.
 func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
@@ -95,13 +97,33 @@ func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
 	if want := []string{"decay:tv", "decay:search", "k:tv", "k:search", "s:tv", "s:search", "sigma"}; !ok || !slices.Equal(got, want) {
 		t.Fatalf("terms %v (%v), want %v", got, ok, want)
 	}
-	for _, params := range []string{``, `{}`, `{"channels":[]}`, `not json`} {
+	for _, tc := range []struct{ kernel, want string }{
+		{"geometric", "decay:tv decay:search k:tv k:search s:tv s:search sigma"},
+		{"delayed", "decay:tv decay:search peak:tv peak:search k:tv k:search s:tv s:search sigma"},
+		{"weibull_cdf", "shape:tv shape:search scale:tv scale:search k:tv k:search s:tv s:search sigma"},
+		{"weibull_pdf", "shape:tv shape:search scale:tv scale:search k:tv k:search s:tv s:search sigma"},
+	} {
+		got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, `{"channels":["tv","search"],"time":"week","adstock":"`+tc.kernel+`"}`))
+		if want := strings.Fields(tc.want); !ok || !slices.Equal(got, want) {
+			t.Errorf("adstock %s: terms %v (%v), want %v", tc.kernel, got, ok, want)
+		}
+	}
+	for _, params := range []string{``, `{}`, `{"channels":[]}`, `not json`, `{"channels":["tv"],"adstock":"hyperbolic"}`} {
 		if got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, params)); ok {
 			t.Errorf("params %q: terms %v known, want unknown", params, got)
 		}
 	}
 	if got := ModelRegressionFieldInputs(spec(types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week"}`)); !slices.Equal(got, []string{"week"}) {
 		t.Errorf("Bayes field inputs %v, want [week]", got)
+	}
+	// A geo panel reads its geo field too, and its per-geo term names
+	// are the data's: unknown statically.
+	geo := spec(types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week","geo":"market"}`)
+	if got := ModelRegressionFieldInputs(geo); !slices.Equal(got, []string{"week", "market"}) {
+		t.Errorf("Bayes geo field inputs %v, want [week market]", got)
+	}
+	if got, ok := ModelRegressionTerms(geo); ok {
+		t.Errorf("geo panel terms %v known, want unknown", got)
 	}
 	for _, s := range []*types.RegressionSpec{
 		spec(types.REG_MMM_BAYES, `{"channels":["tv"]}`),

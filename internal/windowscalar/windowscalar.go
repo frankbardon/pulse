@@ -53,6 +53,7 @@ var params = map[types.WindowType][]Param{
 	},
 	types.WIN_DISTRIBUTED_LAG: {
 		{Key: "decay", Kind: scalarslot.Real},
+		{Key: "peak", Kind: scalarslot.Real},
 		{Key: "shape", Kind: scalarslot.Real},
 		{Key: "scale", Kind: scalarslot.Real},
 		{Key: "max_lag", Kind: scalarslot.Integer},

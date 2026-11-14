@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -151,6 +152,9 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 		{"max_lag 0", `{"channels":["tv"],"time":"week","max_lag":0}`, "params.max_lag"},
 		{"max_lag fractional", `{"channels":["tv"],"time":"week","max_lag":1.5}`, "params"},
 		{"adstock weibull", `{"channels":["tv"],"time":"week","adstock":"weibull"}`, "params.adstock"},
+		{"delayed without max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed"}`, "params.max_lag"},
+		{"kernel prior of another kernel", `{"channels":["tv"],"time":"week","adstock":"weibull_cdf","max_lag":6,"priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors"},
+		{"peak prior past max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"truncnormal","mu":1,"sigma":1,"lower":0,"upper":7}}}}`, "params.priors"},
 		{"sampler hmc", `{"channels":["tv"],"time":"week","sampler":"hmc"}`, "params.sampler"},
 		{"chains 0", `{"channels":["tv"],"time":"week","chains":0}`, "params.chains"},
 		{"chains over cap", `{"channels":["tv"],"time":"week","chains":17}`, "params.chains"},
@@ -210,7 +214,8 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 func errorsAs(err error, ce **perr.CodedError) bool { return stderrors.As(err, ce) }
 
 // sharedSlotValues sets each shared RegressionSpec slot an extension
-// model may refuse; holdout and save ride the Scorer.
+// model may refuse; holdout and save ride the Scorer, which needs the
+// draws (FastParams does not return them: draws_required).
 var sharedSlotValues = map[string]string{
 	"penalty": `"l2"`, "alpha": `0.5`, "l1_ratio": `0.5`, "unpenalized": `["price"]`,
 	"bounds": `{"nonnegative":["tv"]}`, "family": `"gaussian"`, "link": `"identity"`, "theta": `2`, "max_iters": `10`, "tol": `0.001`,
@@ -223,7 +228,8 @@ var sharedSlotValues = map[string]string{
 // TestMMMBayes_SharedSlotsRefusedLikePredict: every shared slot the
 // registration does not declare — penalty, unpenalized, bounds,
 // selection, covariance, family / link / max_iters / tol, prior* and
-// credible_level, resample and its knobs, save, holdout — is refused at
+// credible_level, resample and its knobs — and save and holdout without
+// return_draws (draws_required) are refused at
 // run with the same code, message and details predict's first error
 // carries, and never samples. Every such RegressionSpec key is covered,
 // so a new one fails here until it is.
@@ -437,25 +443,72 @@ func checkSummary(t *testing.T, what string, s any) map[string]float64 {
 	return m
 }
 
-// doctoredSampler runs NUTS, then marks divergences and tree-depth hits
-// on chain 0 and, when split, shifts one chain of the intercept's θ so
-// the chains disagree.
+// doctoredSampler never runs NUTS: it returns constructed draws whose
+// health figures the test controls, so no assertion depends on a seed.
+// Every chain carries the same sequence around the model's start — each
+// half of a chain a different fixed permutation of one evenly spaced
+// grid, so the split halves hold the same values and every parameter's
+// (and every derived channel figure's) R̂ is below 1 and its bulk and
+// tail ESS far above bayesESSMin. Then: divergences and saturated mark
+// chain 0's transitions; sticky holds each grid value for that many
+// draws (a crawling chain: ESS collapses, R̂ stays under 1); split
+// shifts chain 1's intercept θ by +5 (R̂ far above the threshold); rhat,
+// when set, shifts it just enough that the intercept's R̂ is that value.
+// opts.Draws must be even.
 type doctoredSampler struct {
 	divergences, saturated int
+	sticky                 int
 	split                  bool
+	rhat                   float64
 }
 
-func (s doctoredSampler) Sample(ctx context.Context, m mcmc.Model, seed uint64, opts mcmc.Options) (mcmc.Result, error) {
-	res, err := mcmc.NUTS{}.Sample(ctx, m, seed, opts)
-	if err != nil {
-		return res, err
+func (s doctoredSampler) Sample(_ context.Context, m mcmc.Model, _ uint64, opts mcmc.Options) (mcmc.Result, error) {
+	half, hold := opts.Draws/2, max(s.sticky, 1)
+	grid := half / hold
+	seq := make([]float64, 0, opts.Draws)
+	rng := rand.New(rand.NewPCG(578, 1))
+	for range 2 {
+		for _, k := range rng.Perm(grid) {
+			for range hold {
+				seq = append(seq, (float64(k)+0.5)/float64(grid)-0.5)
+			}
+		}
+	}
+	res := mcmc.Result{Draws: make([][][]float64, opts.Chains),
+		Diagnostics: mcmc.Diagnostics{Chains: make([]mcmc.ChainStats, opts.Chains)}}
+	for c := range res.Draws {
+		res.Draws[c] = make([][]float64, m.Dim())
+		for j := range res.Draws[c] {
+			res.Draws[c][j] = make([]float64, opts.Draws)
+			for d, z := range seq {
+				res.Draws[c][j][d] = opts.Init[j] + float64(0.01*z)
+			}
+		}
+		res.Diagnostics.Chains[c] = mcmc.ChainStats{StepSize: 0.1, MeanAcceptStat: 0.8}
 	}
 	res.Diagnostics.Chains[0].Divergences = s.divergences
 	res.Diagnostics.Chains[0].TreeDepthSaturated = s.saturated
-	if s.split {
+	shift := func(by float64) {
 		for d := range res.Draws[1][0] {
-			res.Draws[1][0][d] += 5
+			res.Draws[1][0][d] = opts.Init[0] + float64(0.01*seq[d]) + by
 		}
+	}
+	if s.split {
+		shift(5)
+	}
+	if s.rhat > 0 {
+		// R̂ rises with the shift until the chains separate: bisect it.
+		lo, hi := 0.0, 0.01
+		for range 60 {
+			mid := float64((lo + hi) / 2)
+			shift(mid)
+			if mcmc.RHat(res.Param(0)) < s.rhat {
+				lo = mid
+			} else {
+				hi = mid
+			}
+		}
+		shift(hi)
 	}
 	return res, nil
 }
@@ -477,7 +530,8 @@ func warningReasons(t *testing.T, ws []*types.ResponseWarning) []string {
 // TestMMMBayes_AdstockMatchesDistributedLag: the model's adstock of
 // each joint-fixture channel at its true decay is bit-equal to
 // WIN_DISTRIBUTED_LAG geometric with max_lag 13 and normalize false, run
-// by the engine over the same cohort.
+// by the engine over the same cohort — and so is its adstock under the
+// delayed, weibull_cdf and weibull_pdf kernels at a fixed point.
 func TestMMMBayes_AdstockMatchesDistributedLag(t *testing.T) {
 	t.Parallel()
 
@@ -515,6 +569,46 @@ func TestMMMBayes_AdstockMatchesDistributedLag(t *testing.T) {
 			if math.Float64bits(a[i]) != math.Float64bits(want) {
 				t.Fatalf("%s week %d: model adstock %v (%#x), WIN_DISTRIBUTED_LAG %v (%#x)",
 					c.Name, i+1, a[i], math.Float64bits(a[i]), want, math.Float64bits(want))
+			}
+		}
+	}
+
+	// The delayed and Weibull kernels: each channel through every kernel
+	// at a fixed point, the model's weights against the engine's window.
+	kernels := []struct {
+		name   string
+		keys   []string
+		params []float64
+	}{
+		{"delayed", []string{"decay", "peak"}, []float64{0.55, 2.3}},
+		{"weibull_cdf", []string{"shape", "scale"}, []float64{1.4, 2.6}},
+		{"weibull_pdf", []string{"shape", "scale"}, []float64{1.8, 3.1}},
+	}
+	req = &types.Request{Cohort: &types.Cohort{Filename: mmmfixture.JointCohortFile}}
+	for _, k := range kernels {
+		for _, c := range mmmfixture.JointChannels {
+			params := map[string]any{"kernel": k.name, "max_lag": regmmm.DefaultMaxLag, "normalize": false}
+			for i, key := range k.keys {
+				params[key] = k.params[i]
+			}
+			raw, _ := json.Marshal(params)
+			req.Windows = append(req.Windows, &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: c.Name, Label: c.Name + "_" + k.name,
+				OrderBy: []types.OrderKey{{Field: "week"}}, Params: raw})
+		}
+	}
+	resp = process(t, p, req)
+	slices.SortFunc(resp.Data, func(a, b map[string]any) int { return int(toF(a["week"]) - toF(b["week"])) })
+	for _, k := range kernels {
+		w := regmmm.KernelWeights(k.name, k.params, regmmm.DefaultMaxLag)
+		for _, c := range mmmfixture.JointChannels {
+			a := make([]float64, mmmfixture.JointWeeks)
+			regmmm.Adstock(d.Spend[c.Name], w, nil, a, nil)
+			for i, row := range resp.Data {
+				want := toF(row[c.Name+"_"+k.name])
+				if math.Float64bits(a[i]) != math.Float64bits(want) {
+					t.Fatalf("%s %s week %d: model adstock %v (%#x), WIN_DISTRIBUTED_LAG %v (%#x)",
+						k.name, c.Name, i+1, a[i], math.Float64bits(a[i]), want, math.Float64bits(want))
+				}
 			}
 		}
 	}

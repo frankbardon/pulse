@@ -254,6 +254,8 @@ pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
+pulse: const DefaultMaxMMMDrawValues int64 = 10000000
+pulse: const DefaultMaxMMMGeos int64 = 50
 pulse: const DefaultMaxMatrixDim int64 = 2048
 pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
@@ -450,6 +452,8 @@ pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_esti
 pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
+pulse: type FeatureProfileLimits field MaxMMMDrawValues int64 "json:\"max_mmm_draw_values,omitempty\""
+pulse: type FeatureProfileLimits field MaxMMMGeos int64 "json:\"max_mmm_geos,omitempty\""
 pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
 pulse: type FeatureProfileLimits field RequestTimeout string "json:\"request_timeout,omitempty\""
 pulse: type FeatureProfileMissing struct
@@ -665,6 +669,8 @@ pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
+pulse: type Limits field MaxMMMDrawValues int64
+pulse: type Limits field MaxMMMGeos int64
 pulse: type Limits field MaxMatrixDim int64
 pulse: type Limits field RequestTimeout time.Duration
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
@@ -2939,6 +2945,8 @@ pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_M
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MCMC_FAILED pulse/errors.Code = "PULSE_MCMC_FAILED"
 pulse/errors: const PULSE_MCMC_INVALID pulse/errors.Code = "PULSE_MCMC_INVALID"
+pulse/errors: const PULSE_MMM_GEO_UNSEEN pulse/errors.Code = "PULSE_MMM_GEO_UNSEEN"
+pulse/errors: const PULSE_MMM_LIFT_PRIOR_OVERLAP pulse/errors.Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
@@ -4104,6 +4112,7 @@ pulse/mcmc: type ChainStats field TreeDepthSaturated int
 pulse/mcmc: const DefaultChains untyped int = 4
 pulse/mcmc: const DefaultDraws untyped int = 1000
 pulse/mcmc: const DefaultMaxTreeDepth untyped int = 10
+pulse/mcmc: const DefaultPathLength untyped float = 314159265358979323846264338327950288419716939937510582097494459/200000000000000000000000000000000000000000000000000000000000000
 pulse/mcmc: const DefaultTargetAccept untyped float = 4/5
 pulse/mcmc: const DefaultWarmup untyped int = 1000
 pulse/mcmc: type Diagnostics struct
@@ -4113,6 +4122,12 @@ pulse/mcmc: type Diagnostics field ESSTail []float64
 pulse/mcmc: type Diagnostics field RHat []float64
 pulse/mcmc: func ESSBulk(chains [][]float64) float64
 pulse/mcmc: func ESSTail(chains [][]float64) float64
+pulse/mcmc: type HMC struct
+pulse/mcmc: type HMC field PathLength float64
+pulse/mcmc: type HMC field StepSize float64
+pulse/mcmc: type HMC field TargetAccept float64
+pulse/mcmc: type HMC field Workers int
+pulse/mcmc: type HMC method (HMC) Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
 pulse/mcmc: type Mapped struct
 pulse/mcmc: type Mapped field DLogJac float64
 pulse/mcmc: type Mapped field DyDx float64
@@ -6816,4 +6831,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: fbd09bb7a9fdd8f81a16ec3d05a5a1a220d50c03af3eb69184455d2957e8f79b
+// golden-hash: 0111557b4c9760df7cf78c43fa866f80adf824812cf89c6ca2b8ddd9b33556d5

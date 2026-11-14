@@ -3,12 +3,14 @@ package model
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -120,7 +122,8 @@ func TestAdstockLineage_Hill(t *testing.T) {
 
 // TestAdstockLineage_Bayes: a REG_MMM_BAYES channel records geometric at
 // its decay:<ch> posterior mean (bit for bit) over the fit's max_lag —
-// params.max_lag, else MMMBayesDefaultMaxLag — unnormalised; a channel
+// params.max_lag, else MMMBayesDefaultMaxLag — unnormalised, stamped
+// fixed_at posterior_mean; a channel
 // whose decay is absent or undefined records nothing.
 func TestAdstockLineage_Bayes(t *testing.T) {
 	t.Parallel()
@@ -132,7 +135,7 @@ func TestAdstockLineage_Bayes(t *testing.T) {
 		InterceptKey: 1, "tv": 2, "radio": 3, "price": -1, "decay:tv": decay, "decay:radio": math.NaN(),
 		"k:tv": 1, "k:radio": 1, "s:tv": 1, "s:radio": 1, "sigma": 0.5}}
 	got := AdstockLineage(nil, spec, res)
-	want := map[string]Adstock{"tv": {Kernel: "geometric", Decay: &decay, MaxLag: MMMBayesDefaultMaxLag, Normalize: false}}
+	want := map[string]Adstock{"tv": {Kernel: "geometric", Decay: &decay, MaxLag: MMMBayesDefaultMaxLag, Normalize: false, FixedAt: MMMAdstockFixedAtPosteriorMean}}
 	if !reflect.DeepEqual(got, want) || math.Float64bits(*got["tv"].Decay) != math.Float64bits(decay) {
 		t.Fatalf("lineage %s, want %s", mustJSONModel(t, got), mustJSONModel(t, want))
 	}
@@ -143,6 +146,67 @@ func TestAdstockLineage_Bayes(t *testing.T) {
 	delete(res.Coefficients, "decay:tv")
 	if got := AdstockLineage(nil, spec, res); got != nil {
 		t.Fatalf("no posterior decay recorded %v", got)
+	}
+}
+
+// TestAdstockLineage_BayesKernels: a REG_MMM_BAYES fit's record is its
+// params.adstock kernel at the posterior means of that kernel's
+// coefficients (delayed: decay and peak; Weibull: shape and scale),
+// unnormalised over params.max_lag — so its weights are
+// WIN_DISTRIBUTED_LAG's for the same params, bit for bit — and a
+// missing or non-finite kernel coefficient leaves the channel without
+// one.
+func TestAdstockLineage_BayesKernels(t *testing.T) {
+	t.Parallel()
+
+	coefs := map[string]float64{InterceptKey: 1, "tv": 2, "k:tv": 1, "s:tv": 1, "sigma": 0.5,
+		"decay:tv": 0.55, "peak:tv": 2.3, "shape:tv": 1.4, "scale:tv": 2.6}
+	for _, tc := range []struct {
+		kernel string
+		want   Adstock
+		window string
+		drop   string
+	}{
+		{"delayed", Adstock{Kernel: "delayed", Decay: f64(0.55), Peak: f64(2.3), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
+			`{"kernel":"delayed","decay":0.55,"peak":2.3,"max_lag":6,"normalize":false}`, "peak:tv"},
+		{"weibull_cdf", Adstock{Kernel: "weibull_cdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
+			`{"kernel":"weibull_cdf","shape":1.4,"scale":2.6,"max_lag":6,"normalize":false}`, "scale:tv"},
+		{"weibull_pdf", Adstock{Kernel: "weibull_pdf", Shape: f64(1.4), Scale: f64(2.6), MaxLag: 6, FixedAt: MMMAdstockFixedAtPosteriorMean},
+			`{"kernel":"weibull_pdf","shape":1.4,"scale":2.6,"max_lag":6,"normalize":false}`, "shape:tv"},
+	} {
+		spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
+			Params: json.RawMessage(`{"channels":["tv"],"time":"week","max_lag":6,"adstock":"` + tc.kernel + `"}`)}
+		res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: maps.Clone(coefs)}
+		got := AdstockLineage(nil, spec, res)
+		if !reflect.DeepEqual(got, map[string]Adstock{"tv": tc.want}) {
+			t.Fatalf("%s: lineage %s, want %s", tc.kernel, mustJSONModel(t, got), mustJSONModel(t, tc.want))
+		}
+		w, err := got["tv"].Weights()
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec2, ref := distlagparams.Resolve(json.RawMessage(tc.window))
+		if ref != nil {
+			t.Fatal(ref.Message)
+		}
+		for l := range w {
+			if math.Float64bits(w[l]) != math.Float64bits(spec2.Weights[l]) {
+				t.Errorf("%s: record weight[%d] %v, window %v", tc.kernel, l, w[l], spec2.Weights[l])
+			}
+		}
+		res.Coefficients[tc.drop] = math.Inf(1)
+		if got := AdstockLineage(nil, spec, res); got != nil {
+			t.Errorf("%s: a non-finite %s recorded %v", tc.kernel, tc.drop, got)
+		}
+		delete(res.Coefficients, tc.drop)
+		if got := AdstockLineage(nil, spec, res); got != nil {
+			t.Errorf("%s: no %s recorded %v", tc.kernel, tc.drop, got)
+		}
+	}
+	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
+		Params: json.RawMessage(`{"channels":["tv"],"time":"week","adstock":"hyperbolic"}`)}
+	if got := AdstockLineage(nil, spec, &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: coefs}); got != nil {
+		t.Errorf("an unknown kernel recorded %v", got)
 	}
 }
 

@@ -297,7 +297,7 @@ var (
 		Assumptions: []string{
 			"The rows are one market's series, one row per period with contiguous integer times: a gap or a repeated period is refused. " +
 				"Each period's noise is independent of the others once the carry-over is modelled: leftover dependence over time makes the intervals too narrow.",
-			"Each channel is raw spend, carried over geometrically inside the model over max_lag periods, so the decay is estimated with everything else.",
+			"Each channel is raw spend, carried over inside the model over max_lag periods by one adstock kernel (geometric by default; delayed or Weibull when the effect peaks later), so its shape is estimated with everything else.",
 			"Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.",
 			"The priors shape the answer where the data are thin: an experiment's ROI is the honest prior to set.",
 			regAssociationOnly,

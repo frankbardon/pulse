@@ -196,6 +196,10 @@ func CheckFitsIn(fits []types.FitSpec, scope SweepScope) error {
 		} else {
 			if f.Save != "" {
 				cerr = CheckSavePath(f.Save)
+				if cerr == nil {
+					// A saved REG_MMM_BAYES fit scores over its draws.
+					cerr = MMMBayesDrawsRefusal(f.Request.Regressions[0], "save")
+				}
 			}
 			if cerr == nil {
 				cerr = CheckRegressionSaves(f.Request.Regressions)

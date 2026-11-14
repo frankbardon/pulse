@@ -67,6 +67,7 @@ func TestResolve_ParamsExpressionsMatchLiterals(t *testing.T) {
 		weightsEqual bool
 	}{
 		{types.WIN_DISTRIBUTED_LAG, `{"kernel": "geometric", "decay": "params.d", "max_lag": "params.k + 1"}`, `{"kernel": "geometric", "decay": 0.7, "max_lag": 4}`, true},
+		{types.WIN_DISTRIBUTED_LAG, `{"kernel": "delayed", "decay": "params.d", "peak": "params.s", "max_lag": 6}`, `{"kernel": "delayed", "decay": 0.7, "peak": 1.5, "max_lag": 6}`, true},
 		{types.WIN_DISTRIBUTED_LAG, `{"kernel": "weibull_pdf", "shape": "params.s", "scale": "params.c * 2", "max_lag": 6}`, `{"kernel": "weibull_pdf", "shape": 1.5, "scale": 4, "max_lag": 6}`, true},
 		{types.WIN_EWMA, `{"decay": "params.d"}`, `{"decay": 0.7}`, false},
 		{types.WIN_EWMA, `{"alpha": "1 - params.d"}`, `{"alpha": 0.30000000000000004}`, false},

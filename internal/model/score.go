@@ -151,6 +151,27 @@ type Signature struct {
 	Adstocks      []string
 	AdstocksKnown bool
 
+	// Geos are a regression fit's geos (sorted; MMMGeos) — the geos a
+	// response() geo argument may name — when known (GeosKnown): the
+	// runtime's Set and a loaded model file from the coefficient table;
+	// a static FitCatalog of a `fits` entry knows a fit that is no geo
+	// panel has none, and leaves a REG_MMM_BAYES params.geo panel's (the
+	// data's) and a from_sweep entry's unknown.
+	Geos      []string
+	GeosKnown bool
+
+	// DrawsMissing reports a REG_MMM_BAYES fit that carries no posterior
+	// draws (outputs.draws: its params.return_draws was not true), which
+	// nothing can score (reason draws_required, mmm_score.go): the
+	// runtime's Set and a loaded file from the outputs, a static
+	// FitCatalog from the fit request's params.
+	DrawsMissing bool
+	// ScoreFields are the fields a score reads beyond Terms — a
+	// REG_MMM_BAYES geo panel's params.geo field, which picks each
+	// row's geo — so the scoring frame must hold them (predict's walk)
+	// and the projection decodes them. Nil for every other fit.
+	ScoreFields []string
+
 	// Influence is a regression fit's influence face (fit_design.go):
 	// what a design-reading params.fit slot (ATTR_REG_LEVERAGE,
 	// ATTR_REG_INFLUENCE, a standardized / studentized ATTR_REG_RESIDUAL)
@@ -214,6 +235,20 @@ func (b *Bound) Signature() Signature {
 		sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedAxisNames(b.SweepAxes), true
 	}
 	sig.Adstocks, sig.AdstocksKnown = sortedKeys(b.Adstocks), true
+	var coefs map[string]float64
+	if b.Result != nil {
+		coefs = b.Result.Coefficients
+	}
+	sig.Geos, sig.GeosKnown = MMMGeos(coefs), true
+	if b.Type == types.REG_MMM_BAYES {
+		var outs map[string]any
+		if b.Result != nil {
+			outs = b.Result.Outputs
+		}
+		_, has := outs[MMMDrawsKey]
+		sig.DrawsMissing = !has
+		sig.ScoreFields = mmmOutputsGeoField(outs)
+	}
 	return sig
 }
 
@@ -285,6 +320,15 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 			// a from_sweep fit's are its winner's, unknown statically.
 			if f.FromSweep == nil {
 				sig.Adstocks, sig.AdstocksKnown = StaticAdstockChannels(f.Request, reg), true
+				// Its geos: none unless it is a geo panel, whose geos
+				// the data names.
+				sig.Geos, sig.GeosKnown = staticMMMGeos(reg)
+			}
+			if reg.Type == types.REG_MMM_BAYES {
+				sig.DrawsMissing = !MMMBayesReturnsDraws(reg)
+				if geo := MMMBayesGeoField(reg); geo != "" {
+					sig.ScoreFields = []string{geo}
+				}
 			}
 			out[f.Name] = sig
 		case types.FitKindVector:
@@ -412,11 +456,16 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 				fmt.Sprintf("params.terms does not apply to %q, a %s fit: an extension regression's scorer scores the whole model; drop params.terms", p.Fit, sig.Type),
 				map[string]any{"type": string(sig.Type)})
 		}
-		if p.Bound == BoundLower || p.Bound == BoundUpper {
+		if (p.Bound == BoundLower || p.Bound == BoundUpper) && sig.Type != types.REG_MMM_BAYES {
+			// REG_MMM_BAYES alone scores a whole-model bound: the
+			// credible bound of its mean prediction across its draws.
 			return p, sig, scoreInvalid(p.Fit, ReasonBoundUnsupported,
 				fmt.Sprintf("params.bound %q does not apply to %q, a %s fit: an extension regression's scorer scores the whole model at its point estimates; drop params.bound", p.Bound, p.Fit, sig.Type),
 				map[string]any{"type": string(sig.Type), "bound": p.Bound})
 		}
+	}
+	if cerr := mmmDrawsRefusal(types.ATTR_REG_PREDICT, p.Fit, sig); cerr != nil {
+		return p, sig, cerr
 	}
 	if p.Terms != nil {
 		if len(p.Terms) == 0 {
@@ -449,6 +498,10 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	switch p.Bound {
 	case "", BoundPoint:
 	case BoundLower, BoundUpper:
+		if sig.Type == types.REG_MMM_BAYES {
+			// The whole model's credible bound (no terms: refused above).
+			break
+		}
 		if len(p.Terms) != 1 || p.Terms[0] == InterceptKey {
 			terms := p.Terms
 			if terms == nil {
