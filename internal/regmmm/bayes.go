@@ -57,9 +57,14 @@ const (
 	defaultBayesDraws        = mcmc.DefaultDraws
 	defaultCredibleLevel     = 0.9
 	defaultBayesTargetAccept = mcmc.DefaultTargetAccept
-	maxBayesChains           = 16
-	maxBayesWarmup           = 20000
-	maxBayesDraws            = 20000
+	// defaultBayesGeoTargetAccept is a geo panel's (params.geo)
+	// target_accept default: the hierarchy's intercept, ROI and pooling
+	// scales leave ~2.5% of post-warmup transitions divergent at 0.8,
+	// under 1% at 0.95 (bayes_geo_sbc_heavy_test.go).
+	defaultBayesGeoTargetAccept = 0.95
+	maxBayesChains              = 16
+	maxBayesWarmup              = 20000
+	maxBayesDraws               = 20000
 )
 
 // The params defaults the registration declares (the root package's
@@ -72,6 +77,9 @@ const (
 	BayesDefaultDraws        = defaultBayesDraws
 	BayesDefaultCredible     = defaultCredibleLevel
 	BayesDefaultTargetAccept = defaultBayesTargetAccept
+	// BayesDefaultGeoTargetAccept is target_accept's default on a geo
+	// panel (params.geo).
+	BayesDefaultGeoTargetAccept = defaultBayesGeoTargetAccept
 )
 
 // bayesSampler builds the sampler a fit runs (NUTS at the request's
@@ -525,6 +533,9 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 			return nil, bayesSlotError(spec, "params."+s.key, fmt.Sprintf("params.%s must be in (0, 1), got %v", s.key, *s.v), nil)
 		}
 		*s.dst = *s.v
+	}
+	if w.TargetAccept == nil && cfg.geo != "" {
+		cfg.targetAccept = defaultBayesGeoTargetAccept
 	}
 
 	cfg.priors = defaultBayesPriors(len(cfg.channels))

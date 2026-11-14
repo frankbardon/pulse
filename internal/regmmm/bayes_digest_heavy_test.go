@@ -52,16 +52,23 @@ func geoFitDigest(t *testing.T, params string, seed int64) string {
 
 // TestMMMBayes_GeoPerCurvesAbsentDigest: a geo panel with
 // params.per_geo_curves absent, false, or with an empty lift_tests is
-// the shared-curve panel fit measured before per-geo curves and panel
-// lift tests landed (U70 E2-S2), bit for bit under one explicit seed.
+// the shared-curve panel fit, bit for bit under one explicit seed — at
+// the geo target_accept default (0.95, U70 E2-S4) and, with
+// target_accept 0.8, the fit measured before per-geo curves and panel
+// lift tests landed (U70 E2-S2), so an explicit 0.8 restores the old
+// default's sampling exactly.
 func TestMMMBayes_GeoPerCurvesAbsentDigest(t *testing.T) {
 	t.Parallel()
 
 	const base = geoParams + `,"chains":1,"warmup":20,"draws":10`
-	const want = "c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"
-	for _, params := range []string{base + `}`, base + `,"per_geo_curves":false}`, base + `,"lift_tests":[]}`} {
-		if got := geoFitDigest(t, params, 99); got != want {
-			t.Errorf("%s: digest %s, want %s", params, got, want)
+	for _, c := range []struct{ params, want string }{
+		{base, "7a82326b26438942325ab970a912ba1e2be6487a91b55c6a121656eb5a43acc1"},
+		{base + `,"target_accept":0.8`, "c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"},
+	} {
+		for _, params := range []string{c.params + `}`, c.params + `,"per_geo_curves":false}`, c.params + `,"lift_tests":[]}`} {
+			if got := geoFitDigest(t, params, 99); got != c.want {
+				t.Errorf("%s: digest %s, want %s", params, got, c.want)
+			}
 		}
 	}
 }

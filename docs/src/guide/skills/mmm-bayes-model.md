@@ -33,7 +33,7 @@ Each curve runs on the channel's adstock `a`, is 0 at zero spend and rises to 1,
 | `logistic` | (1 − e^(−λa)) / (1 + e^(−λa)) | `lam:<ch>` | λ LogNormal(0, 1) |
 | `michaelis_menten` | a / (k + a) | `k:<ch>` | k as Hill's |
 
-`k` is a half-saturation; the logistic is half-saturated at log 3 / λ. Coefficients are in raw adstock units (`lam:` per raw unit); priors are stated on the adstock scaled by the channel's peak spend (1 = one peak week). Pick `hill` when the response may be S-shaped (s > 1); `logistic` or `michaelis_menten` for a one-parameter concave curve. Michaelis–Menten is Hill at s = 1. A curve the data never bend leaves its parameter weakly identified: read the ROI.
+`k` is a half-saturation; the logistic is half-saturated at log 3 / λ. Coefficients are in raw adstock units (`lam:` per raw unit); priors are stated on the adstock scaled by the channel's peak spend (1 = one peak week). Pick `hill` when the response may be S-shaped (s > 1); `logistic` or `michaelis_menten` for a one-parameter concave curve. A curve the data never bend leaves its parameter weakly identified: read the ROI.
 
 ## Priors
 
@@ -43,9 +43,9 @@ A predictor named `(intercept)` / `sigma` or starting with the kernel's or curve
 
 ## Geo panels (`params.geo`)
 
-`params.geo` names the market field (a categorical, or an unsigned integer code). Each geo is its own series: contiguous `params.time` (ragged starts and ends fine; an inner gap is `geo_time_gap`, a repeat `duplicate_time`), at most `Limits.MaxMMMGeos` geos (default 50; over it is `PULSE_LIMIT_EXCEEDED`). A channel that never spends in some geo is refused.
+`params.geo` names the market field (a categorical, or an unsigned integer code). Each geo is its own series: contiguous `params.time` (ragged ends fine; an inner gap is `geo_time_gap`, a repeat `duplicate_time`), at most `Limits.MaxMMMGeos` geos (default 50, else `PULSE_LIMIT_EXCEEDED`). A channel that never spends in some geo is refused.
 
-The model pools each channel's effect (ROI, or β) and every kernel parameter across geos, non-centred on the prior's unconstrained scale: `geo value = T(μ + τ·η)`, η ~ Normal(0, 1), τ ~ HalfNormal(0.5). The channel's prior is μ's. Controls and σ are shared, and so are curves unless `params.per_geo_curves: true` pools them too (panel only, else `per_geo_curves_without_geo`); each geo has its own intercept.
+The model pools each channel's effect (ROI, or β) and every kernel parameter across geos, non-centred on the prior's unconstrained scale: `geo value = T(μ + τ·η)`, η ~ Normal(0, 1), τ ~ HalfNormal(0.5). The channel's prior is μ's. Controls and σ are shared, and so are curves unless `params.per_geo_curves: true` pools them too (panel only, else `per_geo_curves_without_geo`); each geo has its own intercept. Panels default `target_accept` to 0.95 (one market 0.8).
 
 - Names: the term itself is the population value (`tv` its β, `decay:tv`), `tv[NE]` / `decay:tv[NE]` / `(intercept)[NE]` (per-geo curves: `k:tv[NE]`) geo NE's, `tau:tv` / `tau:decay:tv` / `tau:k:tv` the spread. `coef()` reads each. `[`/`]` are refused in predictor names, `tau:` on a panel.
 - `outputs.roi` / `mroi` / `contribution` keep `<ch>` as the all-geo figure (summed contribution over summed spend; spend-weighted mROI) and add `<ch>[<geo>]`; `outputs.hierarchy` holds `geos` and per pooled term `mu` and `tau`.

@@ -26,10 +26,11 @@ import (
 // its non-centred offsets η ~ Normal(0, 1), the shared curve and σ —
 // simulates every geo's outcome from the model's own mean at that truth
 // plus σ·ε, fits it with the operator's path (the panel's MAP start,
-// then NUTS) and ranks the truth among the thinned draws. A wrong
-// non-centring (a geo's value off T(μ + τ·η)), a missing Jacobian on μ
-// or τ, or a sampler that cannot cross the hierarchy's funnel bends a
-// histogram.
+// then NUTS at a geo panel's default target_accept) and ranks the truth
+// among the thinned draws. A wrong non-centring (a geo's value off
+// T(μ + τ·η)), a missing Jacobian on μ or τ, or a sampler that cannot
+// cross the hierarchy's funnel bends a histogram; a sampler that
+// diverges past sbcGeoMaxDivergent fails the run.
 //
 // The outcome scale is fixed at 1 (sbcGeoModel), as in the one-market
 // run: the default priors are stated on the max-scaled outcome. The
@@ -47,6 +48,15 @@ const (
 	sbcGeoWeeks      = 26
 	sbcGeoReplicates = 100
 	sbcGeoStream     = 0x67656f00 // replicate streams apart from the one-market run's
+	// sbcGeoMaxDivergent caps the post-warmup divergent fraction over
+	// every replicate. At the one-market target_accept (0.8) the panel's
+	// hierarchy diverges in ~2.5% of transitions, concentrated where the
+	// intercepts sit low against a high ROI and its pooling scale — not
+	// at small τ — and the per_geo_curves run's tau:s:c1 histogram took
+	// a bottom-bin excess beyond its truths' own (25 against the 19
+	// truths drawn in the prior's bottom decile). The geo default (0.95)
+	// keeps it near 0.5%, and that bin at 21.
+	sbcGeoMaxDivergent = 0.01
 )
 
 // sbcGeoDesign is the fixed panel design: per geo, two channels' weekly
@@ -150,7 +160,7 @@ func sbcGeoReplicate(t *testing.T, r int, spend, controls [][][]float64, ref *ba
 	}
 	m := sbcGeoModel(t, y, spend, controls, ref.perGeoCurves)
 	init, _ := m.mapStart(mapMaxIter)
-	res, err := mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
+	res, err := mcmc.NUTS{TargetAccept: defaultBayesGeoTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
 		mcmc.Options{Chains: 1, Warmup: sbcWarmup, Draws: sbcKept * sbcThin, Init: init})
 	if err != nil {
 		t.Errorf("replicate %d: %v", r, err)
@@ -222,4 +232,11 @@ func sbcGeo(t *testing.T, perGeoCurves bool) {
 		return
 	}
 	sbcCheckRanks(t, names, ranks, divs)
+	total := 0
+	for _, d := range divs {
+		total += d
+	}
+	if frac := float64(total) / float64(sbcGeoReplicates*sbcKept*sbcThin); !(frac <= sbcGeoMaxDivergent) {
+		t.Errorf("%d post-warmup divergences (%.2f%% of transitions), above the %.0f%% cap", total, 100*frac, 100*sbcGeoMaxDivergent)
+	}
 }

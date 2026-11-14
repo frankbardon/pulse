@@ -30,8 +30,8 @@ Use something else:
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Raw spend (≥ 0); the rest are controls. |
-| `time` | string | (required) | Contiguous integer time. |
+| `channels` | array | (required) | Raw spend (≥ 0); others are controls. |
+| `time` | string | (required) | Contiguous integers. |
 | `max_lag` | number | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |
@@ -44,7 +44,7 @@ Use something else:
 | `draws` | number | 1000 | Per chain. |
 | `credible_level` | number | 0.9 | Interval level. |
 | `sampler` | string | `nuts` | — |
-| `target_accept` | number | 0.8 | Raise if divergent. |
+| `target_accept` | number | 0.8 | Raise if divergent (`geo`: 0.95). |
 | `holdout_from` | number | — | History-aware holdout. |
 | `geo` | string | — | Market field (panel). |
 | `per_geo_curves` | bool | `false` | Per-geo pooled curves. |
@@ -61,7 +61,7 @@ Model detail: [`mmm-bayes-model`](mmm-bayes-model.md).
 
 ## Inputs
 
-One row per period (per geo with `geo`; ragged ends allowed). A `date` time is `time_gap` (`geo_time_gap` in a geo); a repeat `duplicate_time`; negative spend `negative_spend`. No `[`/`]` in predictor names.
+One row per period (per geo with `geo`; ragged ends ok). A `date` time is `time_gap` (`geo_time_gap` in a geo); a repeat `duplicate_time`; negative spend `negative_spend`. No `[`/`]` in predictor names.
 
 ## Output
 

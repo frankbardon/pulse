@@ -9187,7 +9187,7 @@
             "type": "float",
             "required": false,
             "default": 0.8,
-            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."
+            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges."
           },
           {
             "name": "holdout_from",
@@ -21442,4 +21442,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3481dad8903d359d08794b5c4ab37dff9b4510ca0866739d5d0c7c7bb9ea3505
+// golden-hash: 39bb5e306e26a77020a0901033f80f21d05264e9803594c862d13201eb36f902

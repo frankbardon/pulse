@@ -27,7 +27,7 @@ func TestMMMBayes_DrawsAbsentDigest(t *testing.T) {
 		t.Errorf("one market: digest %s, want %s", got, want)
 	}
 	geo := geoParams + `,"chains":1,"warmup":20,"draws":10,"return_draws":false}`
-	if got, want := geoFitDigest(t, geo, 99), "c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"; got != want {
+	if got, want := geoFitDigest(t, geo, 99), "7a82326b26438942325ab970a912ba1e2be6487a91b55c6a121656eb5a43acc1"; got != want {
 		t.Errorf("geo panel: digest %s, want %s", got, want)
 	}
 }
@@ -49,7 +49,7 @@ func TestMMMBayes_DrawsReproduceSummaries(t *testing.T) {
 		{"one market", BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30,"return_draws":true}`), digestRows(),
 			"e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
 		{"geo panel", geoSpec(geoParams + `,"chains":1,"warmup":20,"draws":10,"return_draws":true}`), geoShortRows(),
-			"c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"},
+			"7a82326b26438942325ab970a912ba1e2be6487a91b55c6a121656eb5a43acc1"},
 	} {
 		tc.spec.RNGSeed = 99
 		reg, err := BayesFactory(tc.spec, nil)

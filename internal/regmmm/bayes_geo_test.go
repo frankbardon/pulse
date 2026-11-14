@@ -457,3 +457,29 @@ func TestMMMBayes_GeoLiftResolve(t *testing.T) {
 		t.Error("the lift test left the panel's density unchanged")
 	}
 }
+
+// TestMMMBayes_GeoDefaultTargetAccept: a geo panel without
+// params.target_accept samples at defaultBayesGeoTargetAccept (0.95),
+// with or without per-geo curves; an explicit target_accept wins on a
+// panel, and one market keeps the sampler's default (0.8).
+func TestMMMBayes_GeoDefaultTargetAccept(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		params string
+		want   float64
+	}{
+		{geoParams + `}`, 0.95},
+		{geoParams + `,"per_geo_curves":true}`, 0.95},
+		{geoParams + `,"target_accept":0.8}`, 0.8},
+		{geoParams + `,"target_accept":0.99}`, 0.99},
+		{`{"channels":["tv","search"],"time":"week"}`, 0.8},
+	} {
+		if got := geoRegression(t, c.params).cfg.targetAccept; got != c.want {
+			t.Errorf("%s: target_accept %v, want %v", c.params, got, c.want)
+		}
+	}
+	if defaultBayesGeoTargetAccept != 0.95 || defaultBayesTargetAccept != 0.8 {
+		t.Errorf("defaults %v (geo) and %v, want 0.95 and 0.8", defaultBayesGeoTargetAccept, defaultBayesTargetAccept)
+	}
+}

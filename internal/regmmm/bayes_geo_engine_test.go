@@ -17,7 +17,8 @@ import (
 // bayes_geo_engine_test.go holds REG_MMM_BAYES's geo panel (params.geo)
 // to its contract through the engine on a stock instance: the geo field
 // is decoded by the projection and refused when unknown, at predict and
-// at runtime alike; a two-market panel fits (where without params.geo it
+// at runtime alike; a two-market panel fits (at the geo target_accept
+// default) (where without params.geo it
 // is duplicate_time); and Limits.MaxMMMGeos is a Possible predict
 // finding on the categorical's dictionary and the runtime's refusal on
 // the geos the fit reads.
@@ -55,6 +56,10 @@ func TestMMMBayes_GeoFieldProjected(t *testing.T) {
 	r := process(t, p, bayesRequest("panel.pulse", geoBayesSpec("geo"))).Regressions[0]
 	if r.Error != nil {
 		t.Fatalf("panel fit = %s", mustJSON(t, r))
+	}
+	// A panel without params.target_accept samples at the geo default.
+	if c.targetAccept != regmmm.BayesDefaultGeoTargetAccept {
+		t.Errorf("panel sampled at target_accept %v, want %v", c.targetAccept, regmmm.BayesDefaultGeoTargetAccept)
 	}
 	h, _ := r.Outputs["hierarchy"].(map[string]any)
 	if h == nil || !slices.Equal(h["geos"].([]string), []string{"east", "west"}) {
