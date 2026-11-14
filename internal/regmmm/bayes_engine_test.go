@@ -155,7 +155,14 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 		{"delayed without max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed"}`, "params.max_lag"},
 		{"kernel prior of another kernel", `{"channels":["tv"],"time":"week","adstock":"weibull_cdf","max_lag":6,"priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors"},
 		{"peak prior past max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"truncnormal","mu":1,"sigma":1,"lower":0,"upper":7}}}}`, "params.priors"},
-		{"sampler hmc", `{"channels":["tv"],"time":"week","sampler":"hmc"}`, "params.sampler"},
+		{"sampler unknown", `{"channels":["tv"],"time":"week","sampler":"gibbs"}`, "params.sampler"},
+		{"hmc without path_length", `{"channels":["tv"],"time":"week","sampler":"hmc"}`, "params.path_length"},
+		{"path_length under nuts", `{"channels":["tv"],"time":"week","path_length":1.5}`, "params.path_length"},
+		{"step_size under explicit nuts", `{"channels":["tv"],"time":"week","sampler":"nuts","step_size":0.1}`, "params.step_size"},
+		{"path_length 0", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":0}`, "params.path_length"},
+		{"step_size negative", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":-0.1}`, "params.step_size"},
+		{"path over the step cap", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":65536.5,"step_size":1}`, "params.step_size"},
+		{"target_accept beside a fixed step_size", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":0.1,"target_accept":0.9}`, "params.target_accept"},
 		{"chains 0", `{"channels":["tv"],"time":"week","chains":0}`, "params.chains"},
 		{"chains over cap", `{"channels":["tv"],"time":"week","chains":17}`, "params.chains"},
 		{"warmup over cap", `{"channels":["tv"],"time":"week","warmup":20001}`, "params.warmup"},
@@ -484,7 +491,7 @@ func (s doctoredSampler) Sample(_ context.Context, m mcmc.Model, _ uint64, opts 
 				res.Draws[c][j][d] = opts.Init[j] + float64(0.01*z)
 			}
 		}
-		res.Diagnostics.Chains[c] = mcmc.ChainStats{StepSize: 0.1, MeanAcceptStat: 0.8}
+		res.Diagnostics.Chains[c] = mcmc.ChainStats{StepSize: 0.1, MeanAcceptStat: 0.8, TreeDepth: make([]int, opts.Draws)}
 	}
 	res.Diagnostics.Chains[0].Divergences = s.divergences
 	res.Diagnostics.Chains[0].TreeDepthSaturated = s.saturated

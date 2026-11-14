@@ -72,7 +72,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 		t.Error("manifest: REG_MMM_BAYES listed as streamable")
 	}
 	wantParams := []string{"channels", "time", "max_lag", "adstock", "saturation", "priors", "intercept_prior", "control_prior", "sigma_prior",
-		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from", "geo", "per_geo_curves", "lift_tests", "return_draws", "draws_thin"}
+		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "path_length", "step_size", "holdout_from", "geo", "per_geo_curves", "lift_tests", "return_draws", "draws_thin"}
 	if !slices.Equal(row.params, wantParams) {
 		t.Errorf("params = %v, want %v", row.params, wantParams)
 	}
@@ -189,6 +189,14 @@ func TestMMMBayes_SpecRefusalsPredictMatchRuntime(t *testing.T) {
 		"geo is the time field":           `{"channels":["tv"],"time":"week","geo":"week"}`,
 		"lift without geo on a geo panel": `{"channels":["tv"],"time":"week","geo":"geo","lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
 		"per_geo_curves on one market":    `{"channels":["tv"],"time":"week","per_geo_curves":true}`,
+		"sampler unknown":                 `{"channels":["tv"],"time":"week","sampler":"gibbs"}`,
+		"hmc without path_length":         `{"channels":["tv"],"time":"week","sampler":"hmc"}`,
+		"path_length under nuts":          `{"channels":["tv"],"time":"week","path_length":1.5}`,
+		"step_size under nuts":            `{"channels":["tv"],"time":"week","sampler":"nuts","step_size":0.1}`,
+		"hmc path_length 0":               `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":0}`,
+		"hmc step_size 0":                 `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":0}`,
+		"hmc path over the step cap":      `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":65536.5,"step_size":1}`,
+		"hmc target_accept beside step":   `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":0.1,"target_accept":0.9}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := regmmm.BayesSpec(params)

@@ -9015,7 +9015,7 @@
       },
       {
         "name": "REG_MMM_BAYES",
-        "description": "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+        "description": "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS (or static HMC); coefficients are posterior means with posterior SDs.",
         "accepts_types": [
           "date",
           "datetime",
@@ -9180,14 +9180,27 @@
             "type": "string",
             "required": false,
             "default": "nuts",
-            "description": "Sampler: nuts (the only one)."
+            "description": "Sampler: nuts (the default; No-U-Turn) or hmc (static Hamiltonian Monte Carlo over a fixed path_length, which it requires; no tree, so no tree-depth diagnostics)."
           },
           {
             "name": "target_accept",
             "type": "float",
             "required": false,
             "default": 0.8,
-            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges."
+            "description": "Step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges. Refused beside hmc's fixed step_size."
+          },
+          {
+            "name": "path_length",
+            "type": "float",
+            "required": false,
+            "description": "hmc only (required there, refused under nuts): one trajectory's integration time, \u003e 0, on the adapted unit-scale metric; π/2 (≈ 1.57, a quarter period) moves a draw to a nearly independent point, 2π (Stan's default) brings it back near its start. Leapfrog steps per transition = ceil(path_length / step_size).",
+            "example": 1.5707963267948966
+          },
+          {
+            "name": "step_size",
+            "type": "float",
+            "required": false,
+            "description": "hmc only (refused under nuts): a fixed leapfrog step size \u003e 0 (path_length / step_size at most 65536 steps); absent, warmup adapts it towards target_accept."
           },
           {
             "name": "holdout_from",
@@ -9264,7 +9277,7 @@
           {
             "key": "diagnostics",
             "json_type": "object",
-            "description": "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start."
+            "description": "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start. Under params.sampler hmc there is no treedepth_saturated or max_tree_depth: static HMC builds no tree."
           },
           {
             "key": "holdout",
@@ -14026,7 +14039,7 @@
       },
       {
         "name": "mmm-bayes-posterior",
-        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), and a budget optimised over the draws (optimize posterior)."
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size)."
       },
       {
         "name": "mmm-workflow",
@@ -14670,7 +14683,7 @@
       },
       {
         "name": "op-reg-mmm-bayes",
-        "description": "REG_MMM_BAYES — Bayesian media-mix regression that adstocks raw spend inside the model and samples the posterior with NUTS, returning ROI, marginal ROI and contribution intervals with sampler diagnostics."
+        "description": "REG_MMM_BAYES — Bayesian media-mix regression that adstocks raw spend inside the model and samples the posterior with NUTS (or static HMC), returning ROI, marginal ROI and contribution intervals with sampler diagnostics."
       },
       {
         "name": "op-reg-mmm-hill",
@@ -15429,7 +15442,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 276,
+    "examples_count": 277,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21442,4 +21455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0084fa25565dc92eff9bbc43897563d1467b332665db6dd5e8b0a5703d6d86a4
+// golden-hash: f3c78f9384966e3ae3a79a2c1bc20634483a35d809a7b55847a9e0ac42e5c01d

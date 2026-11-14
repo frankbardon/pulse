@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-mmm-bayes
-description: REG_MMM_BAYES — Bayesian media-mix regression that adstocks raw spend inside the model and samples the posterior with NUTS, returning ROI, marginal ROI and contribution intervals with sampler diagnostics.
+description: REG_MMM_BAYES — Bayesian media-mix regression that adstocks raw spend inside the model and samples the posterior with NUTS (or static HMC), returning ROI, marginal ROI and contribution intervals with sampler diagnostics.
 kind: operator
 category: REG
 operator: REG_MMM_BAYES
@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ```
 
-`REG_MMM_BAYES` models `y = β0 + Σ βc·curve(adstock(rawc; φ); q) + Σ γj·zj + noise`: φ and q are posterior, so every interval includes them.
+`REG_MMM_BAYES` models `y = β0 + Σ βc·curve(adstock(rawc; φ); q) + Σ γj·zj + noise`: φ and q are posterior, inside every interval.
 
 ## Use when
 
@@ -30,7 +30,7 @@ Use something else:
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Raw spend (≥ 0); others are controls. |
+| `channels` | array | (required) | Raw spend (≥ 0). |
 | `time` | string | (required) | Contiguous integers. |
 | `max_lag` | number | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
@@ -43,31 +43,31 @@ Use something else:
 | `warmup` | number | 1000 | 1–20000. |
 | `draws` | number | 1000 | Per chain. |
 | `credible_level` | number | 0.9 | Interval level. |
-| `sampler` | string | `nuts` | — |
+| `sampler` | string | `nuts` | Or `hmc`. |
 | `target_accept` | number | 0.8 | Raise if divergent (`geo`: 0.95). |
-| `holdout_from` | number | — | History-aware holdout. |
-| `geo` | string | — | Market field (panel). |
-| `per_geo_curves` | bool | `false` | Per-geo pooled curves. |
-| `lift_tests` | array | — | Experiments as data. |
-| `return_draws` | bool | `false` | Adds `outputs.draws`. |
-| `draws_thin` | number | 1 | Keep every k-th draw. |
+| `path_length` | number | — | `hmc`: required. |
+| `step_size` | number | — | `hmc`: fixed. |
+| `holdout_from` | number | — | Time holdout. |
+| `geo` | string | — | Panel market field. |
+| `per_geo_curves` | bool | `false` | Per-geo curves. |
+| `lift_tests` | array | — | Lift experiments. |
+| `return_draws` | bool | `false` | `outputs.draws`. |
+| `draws_thin` | number | 1 | Every k-th draw. |
 | `conf_level` | float | `0.95` | Wald CI. |
-| `vcov` | bool | `false` | Posterior covariance. |
+| `vcov` | bool | `false` | Posterior vcov. |
 | `holdout` | string | — | Engine holdout. |
 | `save` | string | — | Model file. |
 | `name` | string | — | Result name. |
 
-Model detail: [`mmm-bayes-model`](mmm-bayes-model.md).
-
 ## Inputs
 
-One row per period (per geo with `geo`; ragged ends ok). A `date` time is `time_gap` (`geo_time_gap` in a geo); a repeat `duplicate_time`; negative spend `negative_spend`. No `[`/`]` in predictor names.
+One row per period (per geo with `geo`; ragged ends ok). Refused: `date` time (`time_gap`; `geo_time_gap`), a repeat (`duplicate_time`), negative spend (`negative_spend`), `[`/`]` in predictors.
 
 ## Output
 
-Coefficients are posterior means; an `inline` `models` entry declares them with no fit. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`, `draws`; each summary is `{mean, median, sd, lower, upper}` at `credible_level`.
+Coefficients are posterior means; an `inline` `models` entry declares them with no fit. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`, `draws`; summaries `{mean, median, sd, lower, upper}` at `credible_level`.
 
-φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads them at their means.
+φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads their means.
 
 ## Reading the output
 
@@ -85,10 +85,11 @@ Coefficients are posterior means; an `inline` `models` entry declares them with 
 
 ## Gotchas
 
-- `save`, scoring, `holdout` need `return_draws`; scoring reads pre-adstocked channels ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
+- `save`, scoring, `holdout` need `return_draws`; scoring reads pre-adstocked channels.
 - k and s (or λ) trade off: judge ROI.
 - mROI holds the curve fixed.
-- Health warns, never refuses: `PROCESSING_REGRESSION_DIAGNOSTIC`, `details.reason` `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`; `Strict` fails the slot.
+- Health warns, never refuses (`PROCESSING_REGRESSION_DIAGNOSTIC`, `rhat_high`, `ess_low`, `divergences`, `treedepth_saturated`); `Strict` fails.
+- `hmc`: no tree depth; `path_length` π/2 ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
 
 ## See
 

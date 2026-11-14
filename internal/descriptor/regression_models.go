@@ -68,7 +68,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 	types.REG_MMM_BAYES: {
 		SpecRefusal:   regmmm.BayesSpecRefusal,
 		SchemaRefusal: regmmm.BayesGeoFieldRefusal,
-		Description:   "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+		Description:   "Bayesian media-mix model: in-model adstock (geometric, delayed or Weibull) and saturation (Hill, logistic or Michaelis–Menten) per channel plus linear controls, sampled by NUTS (or static HMC); coefficients are posterior means with posterior SDs.",
 		Decl: ExtensionRegression{
 			Vcov: true,
 			// A scorer over pre-adstocked channels and the fit's draws
@@ -93,8 +93,10 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "warmup", Type: "float", Default: regmmm.BayesDefaultWarmup, Description: "Adaptation iterations per chain (1–20000; default 1000)."},
 				{Name: "draws", Type: "float", Default: regmmm.BayesDefaultDraws, Description: "Retained draws per chain (1–20000; default 1000)."},
 				{Name: "credible_level", Type: "float", Default: regmmm.BayesDefaultCredible, Description: "Posterior interval level in (0, 1) (default 0.9)."},
-				{Name: "sampler", Type: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
-				{Name: "target_accept", Type: "float", Default: regmmm.BayesDefaultTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges."},
+				{Name: "sampler", Type: "string", Default: "nuts", Description: "Sampler: nuts (the default; No-U-Turn) or hmc (static Hamiltonian Monte Carlo over a fixed path_length, which it requires; no tree, so no tree-depth diagnostics)."},
+				{Name: "target_accept", Type: "float", Default: regmmm.BayesDefaultTargetAccept, Description: "Step-size adaptation target in (0, 1) (default 0.8; 0.95 on a geo panel); raise it when the fit diverges. Refused beside hmc's fixed step_size."},
+				{Name: "path_length", Type: "float", Example: 1.5707963267948966, Description: "hmc only (required there, refused under nuts): one trajectory's integration time, > 0, on the adapted unit-scale metric; π/2 (≈ 1.57, a quarter period) moves a draw to a nearly independent point, 2π (Stan's default) brings it back near its start. Leapfrog steps per transition = ceil(path_length / step_size)."},
+				{Name: "step_size", Type: "float", Description: "hmc only (refused under nuts): a fixed leapfrog step size > 0 (path_length / step_size at most 65536 steps); absent, warmup adapts it towards target_accept."},
 				{Name: "holdout_from", Type: "float", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
 				{Name: "geo", Type: "string", NamesColumn: true, Example: "market", Description: "Geo panel: the market field (a categorical or an unsigned integer code); each geo is its own contiguous series (ragged ends allowed, an inner gap is geo_time_gap), at most Limits.MaxMMMGeos geos (default 50). The model partially pools each channel's effect and adstock parameters across geos (non-centred; curves — unless per_geo_curves —, controls and sigma shared, an intercept per geo): the term keeps its name as the population value, tv[NE] / decay:tv[NE] is geo NE's, tau:tv / tau:decay:tv the pooling scale; outputs.roi / mroi / contribution add each geo's entry beside the all-geo one and outputs.hierarchy the population mu and tau. [ and ] are reserved in predictor names."},
 				{Name: "per_geo_curves", Type: "bool", Default: false, Description: "Geo panel only (refused without geo): pool each channel's saturation-curve parameters across the geos like its adstock parameters, so each geo has its own curve — k:tv[NE] (s:, lam:) per geo, k:tv the population value, tau:k:tv the scale. Default false: one curve per channel, shared."},

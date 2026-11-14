@@ -75,7 +75,25 @@ func BayesSpec(params string) *types.RegressionSpec {
 func SetBayesSampler(t testing.TB, f func(targetAccept float64) mcmc.Sampler) {
 	t.Helper()
 	prev := bayesSampler
-	bayesSampler = f
+	bayesSampler = func(s samplerSettings) mcmc.Sampler { return f(s.targetAccept) }
+	t.Cleanup(func() { bayesSampler = prev })
+}
+
+// SamplerSettings is the sampler a fit asked for (samplerSettings).
+type SamplerSettings struct {
+	HMC                                bool
+	TargetAccept, PathLength, StepSize float64
+}
+
+// WrapBayesSampler wraps the sampler a fit builds for the test's
+// duration: f sees the settings the fit asked for and the sampler the
+// stock hook built from them, and returns the one to run.
+func WrapBayesSampler(t testing.TB, f func(s SamplerSettings, built mcmc.Sampler) mcmc.Sampler) {
+	t.Helper()
+	prev := bayesSampler
+	bayesSampler = func(s samplerSettings) mcmc.Sampler {
+		return f(SamplerSettings{HMC: s.hmc, TargetAccept: s.targetAccept, PathLength: s.pathLength, StepSize: s.stepSize}, prev(s))
+	}
 	t.Cleanup(func() { bayesSampler = prev })
 }
 

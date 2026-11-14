@@ -62,7 +62,7 @@ var BayesOutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "mroi", JSONType: "object", Description: "Per channel: the posterior of its marginal ROI at the fitted spend — the analytic derivative of the summed contribution with respect to a uniform scaling of the channel's spend, over the summed spend — as {mean, median, sd, lower, upper} at credible_level."},
 	{Key: "contribution", JSONType: "object", Description: "Per channel: the posterior of its contribution summed over the fitted rows, in outcome units, as {mean, median, sd, lower, upper} at credible_level."},
 	{Key: "params", JSONType: "object", Description: "Per coefficient (the coefficient table's names): its posterior as {mean, median, sd, lower, upper} at credible_level, in original units."},
-	{Key: "diagnostics", JSONType: "object", Description: "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start."},
+	{Key: "diagnostics", JSONType: "object", Description: "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start. Under params.sampler hmc there is no treedepth_saturated or max_tree_depth: static HMC builds no tree."},
 	{Key: "holdout", JSONType: "object", Description: "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."},
 	{Key: "hierarchy", JSONType: "object", Description: "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:<ch> …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry <ch>[<geo>] beside the all-geo one under <ch> (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."},
 	{Key: "draws", JSONType: "object", Description: "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."},
@@ -226,20 +226,30 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 	steps, accept := make([]float64, len(stats)), make([]float64, len(stats))
 	divergences, saturated := 0, 0
 	perChainDiv := make([]int, len(stats))
+	// A sampler that builds no tree (static HMC) leaves TreeDepth nil:
+	// there is no depth to saturate, so the tree-depth figures and their
+	// health rule are absent rather than a reassuring 0.
+	trees := false
 	for i, st := range stats {
 		steps[i], accept[i] = st.StepSize, st.MeanAcceptStat
 		divergences += st.Divergences
 		saturated += st.TreeDepthSaturated
 		perChainDiv[i] = st.Divergences
+		trees = trees || st.TreeDepth != nil
 	}
 	draws := len(post.coefs[0][0])
 	total := len(post.coefs) * draws
 	diagnostics := map[string]any{
 		"parameters": paramConv, "roi": roiConv,
 		"max_rhat": h.maxRHat, "min_ess_bulk": h.minBulk, "min_ess_tail": h.minTail,
-		"divergences": divergences, "treedepth_saturated": saturated, "max_tree_depth": mcmc.DefaultMaxTreeDepth,
-		"step_size": steps, "accept_stat": accept,
+		"divergences": divergences,
+		"step_size":   steps, "accept_stat": accept,
 		"chains": len(post.coefs), "warmup": cfg.warmup, "draws": draws, "map_start": post.mapOK,
+	}
+	if trees {
+		diagnostics["treedepth_saturated"], diagnostics["max_tree_depth"] = saturated, mcmc.DefaultMaxTreeDepth
+	} else {
+		saturated = 0
 	}
 	outputs := map[string]any{
 		"seed": cfg.seed, "roi": roi, "mroi": mroi, "contribution": contrib, "params": params, "diagnostics": diagnostics,
@@ -278,7 +288,11 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 				"parameters": nonNil(h.essParams), "channels": nonNil(h.essChannels)})
 	}
 	if divergences > 0 {
-		warn(reasonDivergences, fmt.Sprintf("%d of %d post-warmup transitions diverged — raise target_accept or tighten the priors", divergences, total),
+		remedy := "raise target_accept or tighten the priors"
+		if cfg.hmc {
+			remedy = "lower step_size (or raise target_accept when it adapts) or tighten the priors"
+		}
+		warn(reasonDivergences, fmt.Sprintf("%d of %d post-warmup transitions diverged — %s", divergences, total, remedy),
 			map[string]any{"count": divergences, "draws": total, "per_chain": perChainDiv})
 	}
 	if saturated > 0 {

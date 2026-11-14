@@ -19,7 +19,8 @@ import (
 // calibration harness (U64 E4-S2, #620; Talts et al. 2018). Each
 // replicate draws a true θ from the model's own priors, simulates an
 // outcome from the model's likelihood at that θ over a fixed design,
-// fits it with the operator's sampler path (MAP start, then NUTS) and
+// fits it with the operator's sampler path (MAP start, then NUTS; HMC
+// in bayes_hmc_heavy_test.go) and
 // records the rank of the true value among thinned posterior draws. If
 // the density, its transforms and Jacobians, the start and the sampler
 // are right, every parameter's rank is uniform on 0..sbcKept, whatever
@@ -132,7 +133,7 @@ type sbcLift struct {
 // coordinate's rank (0..sbcKept) with the run's divergence count. With
 // a lift, the measured lift is simulated too — the model's Δ at the
 // truth plus se·ε — and the fit carries the test.
-func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesModel, lift *sbcLift) ([]int, int) {
+func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesModel, lift *sbcLift, smp mcmc.Sampler) ([]int, int) {
 	rng := rand.New(rand.NewPCG(sbcSeed, uint64(r)))
 	dim := ref.Dim()
 	truth := make([]float64, dim) // constrained, on the scaled data
@@ -161,7 +162,7 @@ func sbcReplicate(t *testing.T, r int, spend, controls [][]float64, ref *bayesMo
 		m.lifts[0].lift = m.liftPrediction(theta, 0) + float64(lift.se*detmath.NormFloat64(rng))
 	}
 	init, _ := m.mapStart(mapMaxIter)
-	res, err := mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}.Sample(context.Background(), m, uint64(sbcSeed+r),
+	res, err := smp.Sample(context.Background(), m, uint64(sbcSeed+r),
 		mcmc.Options{Chains: 1, Warmup: sbcWarmup, Draws: sbcKept * sbcThin, Init: init})
 	if err != nil {
 		t.Errorf("replicate %d: %v", r, err)
@@ -194,7 +195,7 @@ func TestMMMBayes_SimulationBasedCalibration(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				sbcKernel(t, kernelByName(kernel), curveByName(curve), nil)
+				sbcKernel(t, kernelByName(kernel), curveByName(curve), nil, sbcNUTS)
 			})
 		}
 	}
@@ -213,14 +214,18 @@ func TestMMMBayes_SimulationBasedCalibrationLift(t *testing.T) {
 	for _, cell := range [][2]string{{"geometric", "hill"}, {"delayed", "logistic"}} {
 		t.Run(cell[0]+"_"+cell[1], func(t *testing.T) {
 			t.Parallel()
-			sbcKernel(t, kernelByName(cell[0]), curveByName(cell[1]), lift)
+			sbcKernel(t, kernelByName(cell[0]), curveByName(cell[1]), lift, sbcNUTS)
 		})
 	}
 }
 
-// sbcKernel is one kernel × curve's calibration run, with lift's lift
-// test in every replicate when non-nil.
-func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift) {
+// sbcNUTS is the sampler a calibration run fits with by default: the
+// operator's own (NUTS at the default target_accept).
+var sbcNUTS mcmc.Sampler = mcmc.NUTS{TargetAccept: defaultBayesTargetAccept}
+
+// sbcKernel is one kernel × curve's calibration run under sampler smp,
+// with lift's lift test in every replicate when non-nil.
+func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift, smp mcmc.Sampler) {
 	spend, controls := sbcDesign()
 	// The reference model reads only the design (its outcome, all ones,
 	// is unused): the priors, the control centring and the spend scale.
@@ -249,7 +254,7 @@ func sbcKernel(t *testing.T, k adstockKernel, c saturationCurve, lift *sbcLift) 
 	for range runtime.GOMAXPROCS(0) {
 		wg.Go(func() {
 			for r := range jobs {
-				ranks[r], divs[r] = sbcReplicate(t, r, spend, controls, ref, lift)
+				ranks[r], divs[r] = sbcReplicate(t, r, spend, controls, ref, lift, smp)
 			}
 		})
 	}

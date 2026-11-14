@@ -82,13 +82,6 @@ const (
 	BayesDefaultGeoTargetAccept = defaultBayesGeoTargetAccept
 )
 
-// bayesSampler builds the sampler a fit runs (NUTS at the request's
-// target_accept). It is a variable only so the package's tests can count
-// and fail sampler runs; nothing else sets it.
-var bayesSampler = func(targetAccept float64) mcmc.Sampler {
-	return mcmc.NUTS{TargetAccept: targetAccept}
-}
-
 // BayesFactory is REG_MMM_BAYES's factory: a Bayesian media-mix model
 // sampled by NUTS (the public mcmc package) from a MAP warm start,
 //
@@ -143,8 +136,8 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 //
 // Sampler health is reported, never refused: a reported parameter's R̂
 // above 1.01 (or undefined, with one chain), a bulk or tail ESS below
-// 400, any post-warmup divergence and any transition at the maximum
-// tree depth each add a PROCESSING_REGRESSION_DIAGNOSTIC warning
+// 400, any post-warmup divergence and (NUTS) any transition at the
+// maximum tree depth each add a PROCESSING_REGRESSION_DIAGNOSTIC warning
 // (details.reason rhat_high, ess_low, divergences,
 // treedepth_saturated) to the result and the response; under Strict
 // the first fails the slot, and so the run, with that code.
@@ -170,6 +163,12 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // prior as well warns PULSE_MMM_LIFT_PRIOR_OVERLAP, first among the
 // result's warnings. No lift test (absent or empty) adds no term: the
 // fit is byte-identical.
+//
+// params.sampler picks the sampler: nuts (the default) or hmc, static
+// HMC (mcmc.HMC) over params.path_length (required) at params.step_size
+// (optional; absent, it adapts towards target_accept) — bayes_sampler.go.
+// HMC builds no tree, so its diagnostics carry no tree-depth figures and
+// the treedepth_saturated rule never fires.
 //
 // The seed is rng_seed, or when 0 the FNV-64a of the slot's wire form
 // with rng_seed cleared (Pulse's own rng_seed-0 rule), never data or the
@@ -273,6 +272,8 @@ type bayesParamsWire struct {
 	CredibleLevel  *float64                    `json:"credible_level"`
 	Sampler        *string                     `json:"sampler"`
 	TargetAccept   *float64                    `json:"target_accept"`
+	PathLength     *float64                    `json:"path_length"`
+	StepSize       *float64                    `json:"step_size"`
 	HoldoutFrom    *int64                      `json:"holdout_from"`
 	LiftTests      []liftTestWire              `json:"lift_tests"`
 	Geo            *string                     `json:"geo"`
@@ -294,7 +295,12 @@ type bayesConfig struct {
 	draws              int
 	credibleLevel      float64
 	targetAccept       float64
-	seed               int64
+	// hmc is params.sampler "hmc": static HMC over pathLength
+	// (params.path_length) at stepSize (params.step_size; 0 adapts it)
+	// instead of NUTS (bayes_sampler.go).
+	hmc                  bool
+	pathLength, stepSize float64
+	seed                 int64
 	// holdoutFrom is params.holdout_from (nil: every row is fitted).
 	holdoutFrom *int64
 	// lifts is params.lift_tests (bayes_lift.go); liftOverlap the
@@ -493,8 +499,8 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 			map[string]any{"saturation": saturationName, "valid": curveNames()})
 	}
 	cfg.curve = curve
-	if w.Sampler != nil && *w.Sampler != "nuts" {
-		return nil, bayesSlotError(spec, "params.sampler", fmt.Sprintf("params.sampler %q is not one of: nuts", *w.Sampler), nil)
+	if err := samplerConfig(spec, &w, cfg); err != nil {
+		return nil, err
 	}
 	for _, s := range []struct {
 		key      string
@@ -983,7 +989,7 @@ func (r *bayesRegression) sample(ctx context.Context, m *bayesModel, data *bayes
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	res, err := bayesSampler(cfg.targetAccept).Sample(ctx, m, uint64(cfg.seed),
+	res, err := bayesSampler(cfg.sampler()).Sample(ctx, m, uint64(cfg.seed),
 		mcmc.Options{Chains: cfg.chains, Warmup: cfg.warmup, Draws: cfg.draws, Init: init})
 	if err != nil {
 		return nil, r.samplerError(err)

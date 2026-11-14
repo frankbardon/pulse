@@ -1,11 +1,11 @@
 ```yaml
 name: mmm-bayes-posterior
-description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), and a budget optimised over the draws (optimize posterior).
+description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size).
 kind: design
 type: guide
 applies_to: process, compose, predict
 requires: [REG_MMM_BAYES]
-covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draws limit, save, scoring, pre-adstocked inputs, credible bound, unseen geo, engine holdout, optimize posterior, allocation interval]
+covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draws limit, save, scoring, pre-adstocked inputs, credible bound, unseen geo, engine holdout, optimize posterior, allocation interval, sampler, hmc, path_length, step_size]
 ```
 
 # Bayesian MMM: raw posterior draws
@@ -55,6 +55,14 @@ A Compose `optimize` block's `posterior: {objective, q, draws}` ([`compose-optim
 - The objective and constraints read exactly one fit by literal name: a Compose fit with `return_draws: true`, or a `models` file that kept its draws. Else `PULSE_OPTIMIZE_SPEC_INVALID` reason `posterior_fit_missing`, `posterior_fits_multiple`, `posterior_fit_not_bayes` or `draws_required`, in predict too.
 - Each variable adds `interval`: the `credible_level` range of its optimum when the block is re-solved on each draw alone (one start, at the reported optimum). `posterior` echoes `fit`, `draws`, `draws_available` and `draws_resolved` (re-solves that converged; the interval is over those).
 - Cost grows with the draws: subsample a long run.
+
+## Choosing the sampler
+
+NUTS (`params.sampler` `nuts`, the default) tunes each trajectory itself; keep it unless you need a fixed cost per draw. `hmc` is static HMC: every transition runs ⌈`path_length` / step size⌉ leapfrog steps, so `path_length` is required (refused under `nuts`, as is `step_size`).
+
+- Start at `path_length` π/2 (1.5708): on the adapted unit-scale metric a quarter period moves a draw to a nearly independent point. Stan's 2π brings it back near its start; much shorter paths random-walk. Read `ess_bulk` / `ess_tail` and lengthen the path when they are low.
+- Omit `step_size` to adapt it towards `target_accept`; a fixed `step_size` turns adaptation off (`target_accept` beside it is refused). Divergences: lower it.
+- No tree: `diagnostics` has no `treedepth_saturated` / `max_tree_depth` and that warning never fires.
 
 ## See
 

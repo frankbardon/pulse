@@ -141,7 +141,10 @@ func TestMMMBayes_PosteriorMatchesStan(t *testing.T) {
 	}
 }
 
-func stanCaseCheck(t *testing.T, c stanCase, bound float64) {
+// stanCaseCheck fits c's rows with c's params and seed, compares every
+// posterior mean with Stan's within bound combined MCSEs, and returns
+// the fit.
+func stanCaseCheck(t *testing.T, c stanCase, bound float64) extend.RegressionOutput {
 	rows := make(probeRows, len(c.Rows.Week))
 	for i := range rows {
 		rows[i] = probeRow{"week": c.Rows.Week[i], "tv": c.Rows.TV[i], "price": c.Rows.Price[i], "sales": c.Rows.Sales[i]}
@@ -196,4 +199,5 @@ func stanCaseCheck(t *testing.T, c stanCase, bound float64) {
 	roi := out.Outputs["roi"].(map[string]any)["tv"]
 	check("roi:tv", roi.(map[string]float64)["mean"], mcse(roi, diag["roi"].(map[string]any)["tv"]), c.ROI)
 	t.Logf("%s: worst |z| %.2f (bound %v)", c.Name, worst, bound)
+	return out
 }

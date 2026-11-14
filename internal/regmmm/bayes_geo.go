@@ -337,7 +337,7 @@ func (r *bayesRegression) sampleGeo(ctx context.Context, m *bayesGeoModel, gd *g
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	res, err := bayesSampler(cfg.targetAccept).Sample(ctx, m, uint64(cfg.seed),
+	res, err := bayesSampler(cfg.sampler()).Sample(ctx, m, uint64(cfg.seed),
 		mcmc.Options{Chains: cfg.chains, Warmup: cfg.warmup, Draws: cfg.draws, Init: init})
 	if err != nil {
 		return nil, r.samplerError(err)
