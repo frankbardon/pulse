@@ -32,7 +32,7 @@ Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and 
 ## Bayesian route vs LM/sweep route
 
 - **LM/sweep** (above): fast (seconds per fit), scores holdout, saves and feeds `compose optimize`. Decay is a sweep axis, so betas, k and s are decay-conditional; there is no decay interval.
-- **`REG_MMM_BAYES`** ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. It saves and scores with `return_draws` ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)); no optimizer: budget by hand from its ROIs. Needs `params.time` as contiguous integers (a date is `time_gap`).
+- **`REG_MMM_BAYES`** ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. With `return_draws` it saves, scores and feeds `optimize` over its draws (`posterior`, [`mmm-bayes-posterior`](mmm-bayes-posterior.md)). Needs `params.time` as contiguous integers (a date is `time_gap`).
 - Pick the sweep to allocate budget, Bayes to say how sure you are. Reading an interval: an always-on channel is the hardest to identify and gets a wide interval, so read its width, not its centre. Check `diagnostics` first; `Strict` turns a sampler warning into a failed slot.
 
 ## Lift tests: likelihood or prior

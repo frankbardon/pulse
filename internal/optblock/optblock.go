@@ -77,6 +77,19 @@ const (
 	ReasonMaxIterationsInvalid  = "max_iterations_invalid"
 )
 
+// The PULSE_OPTIMIZE_SPEC_INVALID reasons of a block's `posterior`
+// (field optimize[i].posterior…). A fit without its draws is reason
+// draws_required (model.ReasonDrawsRequired), the reason a save, a
+// holdout and a score of one share.
+const (
+	ReasonPosteriorObjectiveUnknown = "posterior_objective_unknown"
+	ReasonPosteriorQInvalid         = "posterior_q_invalid"
+	ReasonPosteriorDrawsInvalid     = "posterior_draws_invalid"
+	ReasonPosteriorFitMissing       = "posterior_fit_missing"
+	ReasonPosteriorFitsMultiple     = "posterior_fits_multiple"
+	ReasonPosteriorFitNotBayes      = "posterior_fit_not_bayes"
+)
+
 // The PULSE_OPTIMIZE_VARIABLE_INVALID reasons (name_missing and
 // name_duplicate are shared with the block's).
 const (
@@ -169,6 +182,10 @@ type Compiled struct {
 	// could not resolve (NaN in Lower / Upper / Start), in block order;
 	// always nil from Compile, which resolves every one.
 	Unresolved []Unresolved
+	// PosteriorFit is a `posterior` block's draw carrier: the one fit
+	// its objective and constraints read (checkPosteriorFit); "" without
+	// `posterior`.
+	PosteriorFit string
 }
 
 // Unresolved is one bound or start whose expression calls a
@@ -365,7 +382,122 @@ func compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound, run 
 		}
 		out.Constraints = append(out.Constraints, prog)
 	}
+	if spec.Posterior != nil {
+		fit, cerr := checkPosteriorFit(spec, i, at, env.Fits)
+		if cerr != nil {
+			return nil, cerr
+		}
+		out.PosteriorFit = fit
+	}
 	return out, nil
+}
+
+// PosteriorReads are the fits a block's objective and constraints read
+// by a literal fit argument — every all-literal coef() call's and every
+// literal-fit response() call's — each once, in first-read order
+// (objective first, then each constraint).
+func PosteriorReads(spec *types.OptimizeSpec) []string {
+	var out []string
+	add := func(name string) {
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	srcs := []string{spec.Objective}
+	for _, c := range spec.Constraints {
+		srcs = append(srcs, c.Expr)
+	}
+	for _, src := range srcs {
+		for _, c := range coefcall.LiteralCalls(src) {
+			add(c.Fit)
+		}
+		for _, c := range coefcall.LiteralResponseCalls(src) {
+			add(c.Fit)
+		}
+	}
+	return out
+}
+
+// checkPosteriorFit is a `posterior` block's draw-carrier rule, judged
+// once its expressions compiled (every literal read resolved in fits):
+// the objective and constraints read exactly one fit
+// (posterior_fit_missing / posterior_fits_multiple), a REG_MMM_BAYES
+// fit (posterior_fit_not_bayes) carrying its draws (draws_required).
+// It returns that fit. Predict's catalog judges a Compose fit by its
+// request's params.return_draws and a loaded file by its outputs, as
+// the runtime's bound set does.
+func checkPosteriorFit(spec *types.OptimizeSpec, i int, at string, fits model.Catalog) (string, *errors.CodedError) {
+	field := at + ".posterior"
+	reads := PosteriorReads(spec)
+	switch {
+	case len(reads) == 0:
+		return "", specInvalid(i, spec.Name, field, ReasonPosteriorFitMissing,
+			"sets posterior, but its objective and constraints read no fit; read a REG_MMM_BAYES fit through coef() or response() with its name as a literal", nil)
+	case len(reads) > 1:
+		return "", specInvalid(i, spec.Name, field, ReasonPosteriorFitsMultiple,
+			"sets posterior, but its objective and constraints read "+strconv.Itoa(len(reads))+" fits; a posterior block reads the draws of exactly one REG_MMM_BAYES fit",
+			map[string]any{"fits": slices.Clone(reads)})
+	}
+	fit := reads[0]
+	var sig model.Signature
+	if fits != nil {
+		sig, _ = fits.Signature(fit)
+	}
+	if sig.Type != types.REG_MMM_BAYES {
+		typ := string(sig.Type)
+		if sig.EffectiveKind() != types.FitKindRegression {
+			typ = string(sig.EffectiveKind())
+		}
+		return "", specInvalid(i, spec.Name, field, ReasonPosteriorFitNotBayes,
+			"sets posterior over fit "+strconv.Quote(fit)+", a "+typ+"; only a REG_MMM_BAYES fit has posterior draws",
+			map[string]any{"fit": fit, "type": typ})
+	}
+	if sig.DrawsMissing {
+		return "", specInvalid(i, spec.Name, field, model.ReasonDrawsRequired,
+			"sets posterior over fit "+strconv.Quote(fit)+", which carries no posterior draws; fit it with params.return_draws true (a saved file keeps them)",
+			map[string]any{"fit": fit})
+	}
+	return fit, nil
+}
+
+// checkPosterior is a `posterior` block's own structural rule: a known
+// objective, q in (0, 1) for quantile only, draws >= 0.
+func checkPosterior(spec *types.OptimizeSpec, i int, at string) *errors.CodedError {
+	p := spec.Posterior
+	if p == nil {
+		return nil
+	}
+	name, pat := spec.Name, at+".posterior"
+	obj := p.EffectiveObjective()
+	if !slices.Contains(types.AllOptimizePosteriorObjectives(), obj) {
+		return specInvalid(i, name, pat+".objective", ReasonPosteriorObjectiveUnknown,
+			"has unknown posterior objective "+strconv.Quote(string(obj))+"; set mean or quantile",
+			map[string]any{"value": string(obj), "valid": posteriorObjectiveNames()})
+	}
+	switch {
+	case obj == types.OptimizePosteriorQuantile && !(p.Q > 0 && p.Q < 1):
+		return specInvalid(i, name, pat+".q", ReasonPosteriorQInvalid,
+			"sets posterior objective quantile with q "+fmtFloat(p.Q)+"; set q in (0, 1)",
+			map[string]any{"value": p.Q})
+	case obj != types.OptimizePosteriorQuantile && p.Q != 0:
+		return specInvalid(i, name, pat+".q", ReasonPosteriorQInvalid,
+			"sets posterior q "+fmtFloat(p.Q)+" with objective "+string(obj)+"; q is read only by objective quantile",
+			map[string]any{"value": p.Q})
+	}
+	if p.Draws < 0 {
+		return specInvalid(i, name, pat+".draws", ReasonPosteriorDrawsInvalid,
+			"sets posterior draws "+strconv.Itoa(p.Draws)+"; set 0 (every draw) or more",
+			map[string]any{"value": p.Draws})
+	}
+	return nil
+}
+
+func posteriorObjectiveNames() []string {
+	var out []string
+	for _, o := range types.AllOptimizePosteriorObjectives() {
+		out = append(out, string(o))
+	}
+	return out
 }
 
 // loadModels is the block's `models` rule — model.CheckRefs against
@@ -451,7 +583,7 @@ func checkSpec(spec *types.OptimizeSpec, i int, at string) *errors.CodedError {
 			"sets max_iterations "+strconv.Itoa(spec.MaxIterations)+"; set 0 (the default 100) or more",
 			map[string]any{"value": spec.MaxIterations})
 	}
-	return nil
+	return checkPosterior(spec, i, at)
 }
 
 // identRe is a decision variable name.

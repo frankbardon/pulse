@@ -14026,7 +14026,7 @@
       },
       {
         "name": "mmm-bayes-posterior",
-        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — and saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts)."
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), and a budget optimised over the draws (optimize posterior)."
       },
       {
         "name": "mmm-workflow",
@@ -15429,7 +15429,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 275,
+    "examples_count": 276,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21442,4 +21442,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 39bb5e306e26a77020a0901033f80f21d05264e9803594c862d13201eb36f902
+// golden-hash: 0084fa25565dc92eff9bbc43897563d1467b332665db6dd5e8b0a5703d6d86a4

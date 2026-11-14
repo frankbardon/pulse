@@ -223,56 +223,16 @@ func scoreHierarchy(outs map[string]any) (string, []string) {
 	return field, geos
 }
 
-// readScoreDraws reads outputs.draws in its JSON form: name → index,
-// each coefficient's pooled draws (chains in order, then draws; a null
-// draw is NaN) and the credible level.
+// readScoreDraws reads outputs.draws in its JSON form
+// (pmodel.ReadMMMDraws — the reader a posterior optimize block shares):
+// name → index, each coefficient's pooled draws (chains in order, then
+// draws; a null draw is NaN) and the credible level.
 func readScoreDraws(raw map[string]any) (map[string]int, [][]float64, float64, error) {
-	names, ok := raw["names"].([]any)
-	if !ok || len(names) == 0 {
-		return nil, nil, 0, fmt.Errorf("no names")
+	d, err := pmodel.ReadMMMDraws(raw)
+	if err != nil {
+		return nil, nil, 0, err
 	}
-	idx := make(map[string]int, len(names))
-	for j, n := range names {
-		s, ok := n.(string)
-		if !ok {
-			return nil, nil, 0, fmt.Errorf("name %d is not a string", j)
-		}
-		idx[s] = j
-	}
-	chains, ok := raw["draws"].([]any)
-	if !ok || len(chains) == 0 {
-		return nil, nil, 0, fmt.Errorf("no draws")
-	}
-	cols := make([][]float64, len(names))
-	for c, chain := range chains {
-		params, ok := chain.([]any)
-		if !ok || len(params) != len(names) {
-			return nil, nil, 0, fmt.Errorf("chain %d does not hold one draw list per name", c)
-		}
-		for j, p := range params {
-			ds, ok := p.([]any)
-			if !ok {
-				return nil, nil, 0, fmt.Errorf("chain %d, %q is not a list", c, names[j])
-			}
-			for _, v := range ds {
-				f, ok := v.(float64)
-				if !ok {
-					f = math.NaN()
-				}
-				cols[j] = append(cols[j], f)
-			}
-		}
-	}
-	for j := range cols {
-		if len(cols[j]) == 0 || len(cols[j]) != len(cols[0]) {
-			return nil, nil, 0, fmt.Errorf("ragged draws")
-		}
-	}
-	level, ok := raw["credible_level"].(float64)
-	if !ok || !(level > 0 && level < 1) {
-		return nil, nil, 0, fmt.Errorf("no credible_level")
-	}
-	return idx, cols, level, nil
+	return d.Index, d.Cols, d.Level, nil
 }
 
 // Columns satisfies extend.RowScorer: the channels then the controls

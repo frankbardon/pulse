@@ -250,8 +250,10 @@ const FeatureModels = "capability:models"
 const FeatureComposeSweepSampling = "capability:compose_sweep_sampling"
 
 // FeatureComposeOptimize is capability:compose_optimize — the
-// ComposedRequest `optimize` blocks and the ComposedResponse
-// `optimizations` they produce. Exported because the MCP binder (the
+// ComposedRequest `optimize` blocks (a block's `posterior` included:
+// it optimises over a REG_MMM_BAYES fit's draws and adds each
+// variable's `interval`) and the ComposedResponse `optimizations` they
+// produce. Exported because the MCP binder (the
 // bound compose schema) reads it too.
 const FeatureComposeOptimize = "capability:compose_optimize"
 

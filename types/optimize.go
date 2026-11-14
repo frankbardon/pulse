@@ -85,6 +85,19 @@ type OptimizeSpec struct {
 	// and details.field. Gated by capability:models.
 	Models []ModelRef `json:"models,omitempty"`
 
+	// Posterior optimises over a REG_MMM_BAYES fit's posterior draws
+	// instead of its posterior means: the objective is evaluated once
+	// per draw and aggregated (OptimizePosterior), each constraint is
+	// held on its mean over the draws, and the result adds each
+	// variable's allocation interval across the draws. The block's
+	// objective and constraints must read exactly one fit (by a literal
+	// coef() / response() fit argument): a REG_MMM_BAYES fit — a
+	// Compose fit or a block `models` entry — that carries its draws
+	// (params.return_draws true; a saved file keeps them). Bounds and
+	// starts still read the posterior means. Nil is absent
+	// (`omitempty`): the block solves as without it, byte for byte.
+	Posterior *OptimizePosterior `json:"posterior,omitempty"`
+
 	// ForEach fans the block out over parameter axes before anything
 	// judges it: one block per axis combination, in place, rendered from
 	// the block's own body (`{{axis}}` inside a string such as `name`,
@@ -154,6 +167,51 @@ func (s OptimizeSpec) MarshalJSON() ([]byte, error) {
 	}
 	type plain OptimizeSpec
 	return json.Marshal(plain(s))
+}
+
+// OptimizePosterior is a block's `posterior`: how the objective is
+// aggregated over the fit's posterior draws, and over how many.
+type OptimizePosterior struct {
+	// Objective aggregates the per-draw objective values: mean (the
+	// default when empty) or quantile (the Q-quantile, Hyndman–Fan type
+	// 7 — the quantile REG_MMM_BAYES's credible intervals use; maximise
+	// a low quantile for a cautious plan).
+	Objective OptimizePosteriorObjective `json:"objective,omitempty"`
+
+	// Q is the quantile objective's probability, in (0, 1); read only by
+	// objective quantile (set with mean it is refused).
+	Q float64 `json:"q,omitempty"`
+
+	// Draws evaluates a seeded subsample of this many draws (without
+	// replacement, drawn with the block's effective rng_seed, then taken
+	// in pooled draw order); 0 (absent), or as many as the fit holds or
+	// more, evaluates every draw. Negative is refused.
+	Draws int `json:"draws,omitempty"`
+}
+
+// EffectiveObjective is Objective, OptimizePosteriorMean when empty.
+func (p *OptimizePosterior) EffectiveObjective() OptimizePosteriorObjective {
+	if p == nil || p.Objective == "" {
+		return OptimizePosteriorMean
+	}
+	return p.Objective
+}
+
+// OptimizePosteriorObjective is how a posterior block aggregates its
+// per-draw objective values.
+type OptimizePosteriorObjective string
+
+// The posterior objectives.
+const (
+	// OptimizePosteriorMean is the mean over the draws (the default).
+	OptimizePosteriorMean OptimizePosteriorObjective = "mean"
+	// OptimizePosteriorQuantile is the q-quantile over the draws.
+	OptimizePosteriorQuantile OptimizePosteriorObjective = "quantile"
+)
+
+// AllOptimizePosteriorObjectives returns every posterior objective.
+func AllOptimizePosteriorObjectives() []OptimizePosteriorObjective {
+	return []OptimizePosteriorObjective{OptimizePosteriorMean, OptimizePosteriorQuantile}
 }
 
 // OptimizeDefaultStarts is the starting-point count of a block that sets
@@ -421,6 +479,10 @@ type OptimizeResult struct {
 	// from the block. Pin it to replay the run.
 	RNGSeed int64 `json:"rng_seed"`
 
+	// Posterior echoes a `posterior` block's run: the fit whose draws it
+	// read and how many (absent without `posterior`).
+	Posterior *OptimizePosteriorResult `json:"posterior,omitempty"`
+
 	// Error is set when the block failed on its numbers: the entry keeps
 	// Name, Direction and the error, every other figure absent on the
 	// wire (see SlotError).
@@ -444,6 +506,47 @@ type OptimizeVariableResult struct {
 	// Active names the bound the variable sits on at the optimum —
 	// lower or upper — absent when it is strictly inside its bounds.
 	Active OptimizeActiveBound `json:"active,omitempty"`
+
+	// Interval is a `posterior` block's allocation interval for the
+	// variable across the draws (absent without `posterior`).
+	Interval *OptimizeInterval `json:"interval,omitempty"`
+}
+
+// OptimizePosteriorResult is a `posterior` block's echo.
+type OptimizePosteriorResult struct {
+	// Fit is the REG_MMM_BAYES fit (or loaded model) whose draws the
+	// block read.
+	Fit string `json:"fit"`
+
+	// Objective and Q echo the aggregation (Q only for quantile).
+	Objective OptimizePosteriorObjective `json:"objective"`
+	Q         float64                    `json:"q,omitempty"`
+
+	// Draws is the number of draws evaluated; DrawsAvailable the number
+	// the fit holds (every chain's kept draws).
+	Draws          int `json:"draws"`
+	DrawsAvailable int `json:"draws_available"`
+
+	// DrawsResolved is how many of the per-draw re-solves behind the
+	// variables' Interval converged; the interval is over those only.
+	DrawsResolved int `json:"draws_resolved"`
+
+	// CredibleLevel is the intervals' level: the fit's own
+	// credible_level (its draws' outputs.draws.credible_level).
+	CredibleLevel float64 `json:"credible_level"`
+}
+
+// OptimizeInterval is a decision variable's allocation interval across
+// a posterior block's draws: the block is re-solved on each evaluated
+// draw alone (the objective and constraints on that draw, one start at
+// the reported optimum), and Lower / Upper are the equal-tailed
+// quantiles (type 7) at (1 ∓ CredibleLevel) / 2 of the variable's
+// per-draw optimal values over the re-solves that converged — how far
+// the best setting moves across the posterior. Null when none
+// converged.
+type OptimizeInterval struct {
+	Lower float64 `json:"lower"`
+	Upper float64 `json:"upper"`
 }
 
 // OptimizeActiveBound names the bound a variable sits on at the optimum.

@@ -5240,6 +5240,7 @@ pulse/types: func AllNegBinDispersions() []string
 pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
 pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
+pulse/types: func AllOptimizePosteriorObjectives() []pulse/types.OptimizePosteriorObjective
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
@@ -6042,9 +6043,28 @@ pulse/types: type OptimizeConstraintResult field Value float64 "json:\"value\""
 pulse/types: type OptimizeConstraintType string
 pulse/types: const OptimizeDefaultStarts untyped int = 8
 pulse/types: type OptimizeDirection string
+pulse/types: type OptimizeInterval struct
+pulse/types: type OptimizeInterval field Lower float64 "json:\"lower\""
+pulse/types: type OptimizeInterval field Upper float64 "json:\"upper\""
 pulse/types: const OptimizeMaxStarts untyped int = 1000
 pulse/types: const OptimizeMaximize pulse/types.OptimizeDirection = "maximize"
 pulse/types: const OptimizeMinimize pulse/types.OptimizeDirection = "minimize"
+pulse/types: type OptimizePosterior struct
+pulse/types: type OptimizePosterior field Draws int "json:\"draws,omitempty\""
+pulse/types: type OptimizePosterior field Objective pulse/types.OptimizePosteriorObjective "json:\"objective,omitempty\""
+pulse/types: type OptimizePosterior field Q float64 "json:\"q,omitempty\""
+pulse/types: type OptimizePosterior method (*OptimizePosterior) EffectiveObjective() pulse/types.OptimizePosteriorObjective
+pulse/types: const OptimizePosteriorMean pulse/types.OptimizePosteriorObjective = "mean"
+pulse/types: type OptimizePosteriorObjective string
+pulse/types: const OptimizePosteriorQuantile pulse/types.OptimizePosteriorObjective = "quantile"
+pulse/types: type OptimizePosteriorResult struct
+pulse/types: type OptimizePosteriorResult field CredibleLevel float64 "json:\"credible_level\""
+pulse/types: type OptimizePosteriorResult field Draws int "json:\"draws\""
+pulse/types: type OptimizePosteriorResult field DrawsAvailable int "json:\"draws_available\""
+pulse/types: type OptimizePosteriorResult field DrawsResolved int "json:\"draws_resolved\""
+pulse/types: type OptimizePosteriorResult field Fit string "json:\"fit\""
+pulse/types: type OptimizePosteriorResult field Objective pulse/types.OptimizePosteriorObjective "json:\"objective\""
+pulse/types: type OptimizePosteriorResult field Q float64 "json:\"q,omitempty\""
 pulse/types: type OptimizeResult struct
 pulse/types: type OptimizeResult field Constraints []pulse/types.OptimizeConstraintResult "json:\"constraints,omitempty\""
 pulse/types: type OptimizeResult field Converged bool "json:\"converged\""
@@ -6054,6 +6074,7 @@ pulse/types: type OptimizeResult field Iterations int "json:\"iterations\""
 pulse/types: type OptimizeResult field MaxViolation float64 "json:\"max_violation\""
 pulse/types: type OptimizeResult field Name string "json:\"name\""
 pulse/types: type OptimizeResult field Objective float64 "json:\"objective\""
+pulse/types: type OptimizeResult field Posterior *pulse/types.OptimizePosteriorResult "json:\"posterior,omitempty\""
 pulse/types: type OptimizeResult field RNGSeed int64 "json:\"rng_seed\""
 pulse/types: type OptimizeResult field Starts int "json:\"starts\""
 pulse/types: type OptimizeResult field StartsAgreeing int "json:\"starts_agreeing\""
@@ -6068,6 +6089,7 @@ pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,om
 pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
 pulse/types: type OptimizeSpec field Objective string "json:\"objective\""
+pulse/types: type OptimizeSpec field Posterior *pulse/types.OptimizePosterior "json:\"posterior,omitempty\""
 pulse/types: type OptimizeSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
 pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
 pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
@@ -6082,6 +6104,7 @@ pulse/types: type OptimizeVariable field Start pulse/types.OptimizeBound "json:\
 pulse/types: type OptimizeVariable field Upper pulse/types.OptimizeBound "json:\"upper\""
 pulse/types: type OptimizeVariableResult struct
 pulse/types: type OptimizeVariableResult field Active pulse/types.OptimizeActiveBound "json:\"active,omitempty\""
+pulse/types: type OptimizeVariableResult field Interval *pulse/types.OptimizeInterval "json:\"interval,omitempty\""
 pulse/types: type OptimizeVariableResult field Marginal float64 "json:\"marginal\""
 pulse/types: type OptimizeVariableResult field Name string "json:\"name\""
 pulse/types: type OptimizeVariableResult field Value float64 "json:\"value\""
@@ -6831,4 +6854,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0111557b4c9760df7cf78c43fa866f80adf824812cf89c6ca2b8ddd9b33556d5
+// golden-hash: 57af8538ebe175a804186f1ba38637fced36b93d12fe7bb92947a3bf44e18f18

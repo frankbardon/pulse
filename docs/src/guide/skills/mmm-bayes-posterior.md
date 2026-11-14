@@ -1,11 +1,11 @@
 ```yaml
 name: mmm-bayes-posterior
-description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — and saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts).
+description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), and a budget optimised over the draws (optimize posterior).
 kind: design
 type: guide
 applies_to: process, compose, predict
 requires: [REG_MMM_BAYES]
-covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draws limit, save, scoring, pre-adstocked inputs, credible bound, unseen geo, engine holdout]
+covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draws limit, save, scoring, pre-adstocked inputs, credible bound, unseen geo, engine holdout, optimize posterior, allocation interval]
 ```
 
 # Bayesian MMM: raw posterior draws
@@ -48,6 +48,14 @@ A fit scores over its draws, so `save`, the engine `holdout` and scoring it ([`o
 - A geo panel's scoring frame needs the `geo` field; each row uses its geo's intercept, β and curve. A geo the fit lacks scores from the population (each channel's μ β and curve, the mean geo intercept) and warns `PULSE_MMM_GEO_UNSEEN` (`geos`, `rows`, `fit_geos`).
 - Two holdouts: `params.holdout_from` is the history-aware one (the adstock runs over every period, the fit sees those before it). The engine `holdout` fits the train rows and scores the held-out rows' channel columns as they are, with no carry-over from earlier periods: prefer `holdout_from` for a time split.
 
+## Optimising over the draws
+
+A Compose `optimize` block's `posterior: {objective, q, draws}` ([`compose-optimize`](compose-optimize.md)) evaluates its objective once per draw and optimises their `mean` (default) or `quantile` `q` (type 7, as the credible intervals; maximise a low `q` for a cautious plan); each constraint holds on its mean over the draws, while bounds and starts read the posterior means. `draws: N` takes a seeded subsample (the block's `rng_seed`); 0 is every draw. Per draw, `response()` reads that draw's β, curve and decay; with a `geo` argument that geo's own draws, without one the population's.
+
+- The objective and constraints read exactly one fit by literal name: a Compose fit with `return_draws: true`, or a `models` file that kept its draws. Else `PULSE_OPTIMIZE_SPEC_INVALID` reason `posterior_fit_missing`, `posterior_fits_multiple`, `posterior_fit_not_bayes` or `draws_required`, in predict too.
+- Each variable adds `interval`: the `credible_level` range of its optimum when the block is re-solved on each draw alone (one start, at the reported optimum). `posterior` echoes `fit`, `draws`, `draws_available` and `draws_resolved` (re-solves that converged; the interval is over those).
+- Cost grows with the draws: subsample a long run.
+
 ## See
 
-[`op-reg-mmm-bayes`](op-reg-mmm-bayes.md) · [`mmm-bayes-model`](mmm-bayes-model.md) · [`response-shaping`](response-shaping.md)
+[`op-reg-mmm-bayes`](op-reg-mmm-bayes.md) · [`mmm-bayes-model`](mmm-bayes-model.md) · [`response-shaping`](response-shaping.md) · [`compose-optimize`](compose-optimize.md)

@@ -5143,7 +5143,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_SPEC_INVALID: {
-		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
+		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). A `posterior` takes `objective` mean or quantile (`posterior_objective_unknown`), `q` in (0, 1) with quantile only (`posterior_q_invalid`) and `draws` >= 0 (`posterior_draws_invalid`); its objective and constraints must read exactly one fit by a literal coef() / response() fit name (`posterior_fit_missing`, `posterior_fits_multiple`, `details.fits`), a Bayesian media-mix fit (`posterior_fit_not_bayes`, `details.fit` / `type`) carrying its posterior draws — a Compose fit with params.return_draws true, or a saved file that kept them (`draws_required`). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -5162,6 +5162,12 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"optimize", "*", "starts"},
 				Hint:     "Drop `starts` for the default 8, or set 1 to 1000; drop `tolerance` / `max_iterations` for the solver defaults.",
 				Examples: []any{8, 32},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "posterior"},
+				Hint:     "Read one Bayesian media-mix fit by its literal name in coef() / response() and fit it with params.return_draws true; set objective mean, or quantile with q in (0, 1); drop `posterior` to optimise the posterior means.",
+				Examples: []any{map[string]any{"objective": "mean"}, map[string]any{"objective": "quantile", "q": 0.1, "draws": 500}},
 			},
 		},
 	},

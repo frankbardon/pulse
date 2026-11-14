@@ -1,0 +1,67 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Budget allocation over a Bayesian media-mix fit's POSTERIOR, not its means: a compose `fits` entry samples a REG_MMM_BAYES model of the east market's weekly sales on tv and search ONCE (a short single chain for a quick run; return_draws keeps the draws), and an `optimize` block splits params.budget between the two channels to maximise their summed steady-state response(). Its `posterior` evaluates the objective on 15 of the fit's 20 draws (a seeded subsample) and maximises their 10% quantile — a cautious plan that holds up in 9 posterior draws of 10 — while the budget constraint holds on the mean over the draws. Each variable in `optimizations` adds `interval`, the 90% credible range of that channel's best spend when the block is re-solved on each draw alone (how far the posterior moves the plan), and `posterior` echoes the fit, the draws evaluated and how many re-solves converged. Drop `posterior` for the posterior-mean plan.",
+    "capabilities": [
+      "capability:compose_fits",
+      "capability:compose_optimize"
+    ],
+    "intents": [
+      "drivers"
+    ],
+    "name": "compose-posterior-budget",
+    "operators": [
+      "AGG_COUNT",
+      "FILTER_INCLUDE",
+      "REG_MMM_BAYES"
+    ],
+    "tags": [
+      "compose",
+      "composed",
+      "regression",
+      "time-series",
+      "financial"
+    ]
+  },
+  "params": {"budget": 700},
+  "fits": [
+    {
+      "name": "mmm",
+      "request": {
+        "cohort": {"filename": "mmm_weekly.pulse", "data_dir": ".data"},
+        "filterers": [{"type": "FILTER_INCLUDE", "field": "market", "values": ["east"]}],
+        "regressions": [
+          {
+            "type": "REG_MMM_BAYES",
+            "target": "sales",
+            "predictors": ["tv", "search"],
+            "rng_seed": 1,
+            "params": {"channels": ["tv", "search"], "time": "week", "max_lag": 8, "chains": 1, "warmup": 25, "draws": 20, "return_draws": true}
+          }
+        ]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "weeks",
+      "cohort": {"filename": "mmm_weekly.pulse", "data_dir": ".data"},
+      "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]
+    }
+  ],
+  "optimize": [
+    {
+      "name": "allocation",
+      "direction": "maximize",
+      "variables": [
+        {"name": "tv", "lower": 300, "upper": 900},
+        {"name": "search", "lower": 20, "upper": 300}
+      ],
+      "objective": "response(\"mmm\", \"tv\", tv) + response(\"mmm\", \"search\", search)",
+      "constraints": [{"expr": "tv + search - params.budget", "type": "eq"}],
+      "posterior": {"objective": "quantile", "q": 0.1, "draws": 15},
+      "starts": 4,
+      "rng_seed": 3
+    }
+  ]
+}

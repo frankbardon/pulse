@@ -2108,7 +2108,17 @@ func optimizeSchemaBase() map[string]any {
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
 				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
-				"for_each":       forEachSchema(),
+				"posterior": map[string]any{
+					"type":        "object",
+					"description": "Optimise over a REG_MMM_BAYES fit's posterior draws instead of its means: the objective is evaluated per draw and aggregated, each constraint held on its mean over the draws; bounds and starts still read the means. The objective and constraints must read exactly one fit (a literal coef() / response() fit name): a REG_MMM_BAYES Compose fit with params.return_draws true, or a block `models` file that kept its draws. Each result variable adds `interval`, the credible_level range of its per-draw optimum.",
+					"properties": map[string]any{
+						"objective": enumStringField([]string{string(types.OptimizePosteriorMean), string(types.OptimizePosteriorQuantile)}, "mean (default) or quantile (the q-quantile over the draws, type 7)."),
+						"q":         map[string]any{"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "description": "The quantile objective's probability; quantile only."},
+						"draws":     map[string]any{"type": "integer", "minimum": 0, "description": "Evaluate a seeded subsample of this many draws (the block's rng_seed); omit (0) for every draw."},
+					},
+					"additionalProperties": false,
+				},
+				"for_each": forEachSchema(),
 			},
 			"required": []string{"name", "variables", "objective", "direction"},
 		},

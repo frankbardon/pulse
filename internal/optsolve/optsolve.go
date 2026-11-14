@@ -16,6 +16,9 @@ package optsolve
 import (
 	stderrors "errors"
 	"math"
+	"math/bits"
+	"math/rand/v2"
+	"slices"
 	"strconv"
 
 	"github.com/expr-lang/expr"
@@ -63,7 +66,40 @@ type Outcome struct {
 // evaluation fault is fatal: the returned error, located by
 // details.optimize and details.field.
 func Solve(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed int64) (*Outcome, error) {
-	s := &solver{spec: spec, index: i, c: c, sign: 1}
+	return SolvePosterior(spec, i, c, seed, nil)
+}
+
+// Draws is a `posterior` block's evaluation over a fit's draws: Select
+// binds the k-th evaluated draw (0 ≤ k < Count) as the fit's figures
+// for every later expression run, or with k = -1 the posterior means.
+type Draws struct {
+	// Fit is the draw carrier (optblock.Compiled.PosteriorFit).
+	Fit string
+	// Count is the number of draws evaluated, Available the number the
+	// fit holds.
+	Count, Available int
+	// Level is the fit's credible level (the intervals').
+	Level float64
+	// Select binds draw k (-1: the posterior means).
+	Select func(k int)
+}
+
+// SolvePosterior is Solve over d's draws (nil: Solve itself, byte for
+// byte). The objective at x is the aggregate of its per-draw values —
+// their mean, or under objective quantile their q-quantile (type 7;
+// NaN when any draw's is) — and each constraint is its mean over the
+// draws (held on the expectation); the gradients, the figures and the
+// multipliers are those of the aggregates. Once the best run is read,
+// the block is re-solved on each draw alone (its objective and
+// constraints on that draw; one start, the reported optimum) and each
+// variable's Interval is the equal-tailed type-7 quantile pair at
+// (1 ∓ Level)/2 of its per-draw optimal values over the converged
+// re-solves (null when none converged).
+func SolvePosterior(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed int64, d *Draws) (*Outcome, error) {
+	s := &solver{spec: spec, index: i, c: c, sign: 1, draws: d, draw: -1}
+	if d != nil {
+		defer d.Select(-1)
+	}
 	if spec.Direction == types.OptimizeMaximize {
 		s.sign = -1
 	}
@@ -138,7 +174,61 @@ func Solve(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed int64) (*
 	res.Starts = len(starts)
 	res.StartsAgreeing = agreeing
 	res.RNGSeed = seed
+	if d != nil {
+		if err := s.posterior(res, b.X, f, g, opts); err != nil {
+			if se, ok := FailedFit(err); ok {
+				return &Outcome{Result: types.OptimizeResult{Name: spec.Name, Direction: spec.Direction, Error: se}, Failed: true}, nil
+			}
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+// posterior re-solves the block on each evaluated draw alone from the
+// optimum x and fills res's posterior echo and each variable's
+// Interval. An evaluation fault aborts it (the returned error, as a
+// start's).
+func (s *solver) posterior(res *types.OptimizeResult, x []float64, f func([]float64) float64, g func([]float64) []float64, opts optimize.MinimizeOptions) error {
+	d := s.draws
+	opt := make([][]float64, len(x))
+	resolved := 0
+	for k := 0; k < d.Count; k++ {
+		s.draw = k
+		x0 := make([]float64, len(x))
+		copy(x0, x)
+		r, err, abort := s.minimize(f, g, x0, opts)
+		if abort != nil {
+			s.draw = -1
+			return abort
+		}
+		if !(run{res: r, err: err}).converged() {
+			continue
+		}
+		resolved++
+		for j := range opt {
+			opt[j] = append(opt[j], r.X[j])
+		}
+	}
+	s.draw = -1
+	lo, hi := float64(0.5*(1-d.Level)), float64(0.5*(1+d.Level))
+	for j := range res.Variables {
+		iv := &types.OptimizeInterval{Lower: math.NaN(), Upper: math.NaN()}
+		if v := opt[j]; len(v) > 0 {
+			slices.Sort(v)
+			iv.Lower, iv.Upper = model.Quantile7(v, lo), model.Quantile7(v, hi)
+		}
+		res.Variables[j].Interval = iv
+	}
+	p := s.spec.Posterior
+	res.Posterior = &types.OptimizePosteriorResult{
+		Fit: d.Fit, Objective: p.EffectiveObjective(), Draws: d.Count, DrawsAvailable: d.Available,
+		DrawsResolved: resolved, CredibleLevel: d.Level,
+	}
+	if res.Posterior.Objective == types.OptimizePosteriorQuantile {
+		res.Posterior.Q = p.Q
+	}
+	return nil
 }
 
 // guard runs fn, turning an evaluation fault's unwind into its error.
@@ -205,6 +295,11 @@ type solver struct {
 	c     *optblock.Compiled
 	sign  float64
 	fault error
+	// draws is a posterior block's (nil otherwise); draw is the one draw
+	// every expression runs on during a per-draw re-solve, -1 while the
+	// aggregates are solved.
+	draws *Draws
+	draw  int
 }
 
 // abortSolve unwinds optimize.Minimize from inside a callback: Minimize
@@ -235,9 +330,43 @@ func (s *solver) minimize(f func([]float64) float64, g func([]float64) []float64
 	return res, err, nil
 }
 
-// eval is prog at x as a float64. A fault records itself and aborts the
-// solve (never returns into the solver with a made-up value).
+// eval is prog at x as a float64 — without draws evalOnce; on a
+// posterior block prog on the re-solve's draw, else its aggregate over
+// the draws: the objective's mean or q-quantile, a constraint's mean,
+// each summed in draw order.
 func (s *solver) eval(prog *vm.Program, field string, x []float64) float64 {
+	d := s.draws
+	if d == nil {
+		return s.evalOnce(prog, field, x)
+	}
+	if s.draw >= 0 {
+		d.Select(s.draw)
+		return s.evalOnce(prog, field, x)
+	}
+	vals := make([]float64, d.Count)
+	for k := range vals {
+		d.Select(k)
+		vals[k] = s.evalOnce(prog, field, x)
+	}
+	if prog == s.c.Objective && s.spec.Posterior.EffectiveObjective() == types.OptimizePosteriorQuantile {
+		for _, v := range vals {
+			if math.IsNaN(v) {
+				return math.NaN()
+			}
+		}
+		slices.Sort(vals)
+		return model.Quantile7(vals, s.spec.Posterior.Q)
+	}
+	sum := 0.0
+	for _, v := range vals {
+		sum += v
+	}
+	return sum / float64(len(vals))
+}
+
+// evalOnce is prog at x as a float64. A fault records itself and aborts
+// the solve (never returns into the solver with a made-up value).
+func (s *solver) evalOnce(prog *vm.Program, field string, x []float64) float64 {
 	out, err := expr.Run(prog, s.c.Vars(x))
 	if err != nil {
 		s.fault = s.locate(err, field)
@@ -446,4 +575,44 @@ func FailedFit(err error) (*types.SlotError, bool) {
 		}
 	}
 	return se, true
+}
+
+// posteriorStream separates a posterior block's draw subsample from its
+// Latin-hypercube starts, which share the block's effective seed.
+const posteriorStream = 0x706f73746572696f // "posterio"
+
+// SubsampleDraws are the draws a posterior block evaluates out of
+// total: every draw (0..total-1) when n is 0 or at least total, else n
+// distinct draws taken without replacement by a partial Fisher–Yates
+// shuffle over a PCG stream seeded by seed (each pick an unbiased
+// Lemire multiply-and-reject draw — integer arithmetic only, so the same
+// on every architecture), returned in ascending (pooled draw) order.
+func SubsampleDraws(seed int64, total, n int) []int {
+	idx := make([]int, total)
+	for k := range idx {
+		idx[k] = k
+	}
+	if n <= 0 || n >= total {
+		return idx
+	}
+	src := rand.NewPCG(uint64(seed), uint64(seed)^posteriorStream)
+	for k := 0; k < n; k++ {
+		j := k + int(below(src, uint64(total-k)))
+		idx[k], idx[j] = idx[j], idx[k]
+	}
+	out := idx[:n:n]
+	slices.Sort(out)
+	return out
+}
+
+// below is a uniform integer on [0, n), n >= 1 (Lemire).
+func below(src *rand.PCG, n uint64) uint64 {
+	hi, lo := bits.Mul64(src.Uint64(), n)
+	if lo < n {
+		t := -n % n
+		for lo < t {
+			hi, lo = bits.Mul64(src.Uint64(), n)
+		}
+	}
+	return hi
 }

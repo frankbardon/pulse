@@ -1614,6 +1614,33 @@ bound or start whose expression calls a request-bound function under
 resolved, so its range checks run at runtime; a bound over literals and
 params is range-checked by predict and never listed.
 
+A block's optional `posterior` (`OptimizePosterior {objective, q,
+draws}`, `omitempty`; absent solves byte for byte as before) optimises
+over a `REG_MMM_BAYES` fit's posterior draws: the objective is
+evaluated per draw and aggregated — `objective` `mean` (the default)
+or `quantile` (the `q`-quantile, Hyndman–Fan type 7, `q` in (0, 1)) —
+and each constraint holds on its mean over the draws; bounds and starts
+still read the posterior means. `draws` > 0 evaluates a seeded
+subsample (the block's effective `rng_seed`, without replacement, then
+in pooled draw order); 0 or at least the fit's count is every draw. The
+objective and constraints must read exactly one fit by a literal
+`coef()` / `response()` fit name — a Compose fit with
+`params.return_draws` true, or a block `models` file that kept its
+draws — else `PULSE_OPTIMIZE_SPEC_INVALID` reason `posterior_fit_missing`,
+`posterior_fits_multiple`, `posterior_fit_not_bayes` or
+`draws_required` (and `posterior_objective_unknown`,
+`posterior_q_invalid`, `posterior_draws_invalid` for the block itself),
+refused by predict and the runtime alike before any fit runs. Per draw,
+`response()` reads that draw's β, curve and adstock decay (a geo
+argument that geo's own draws, none the population's). The result adds
+`posterior` (`OptimizePosteriorResult {fit, objective, q, draws,
+draws_available, draws_resolved, credible_level}`) and each variable's
+`interval` (`OptimizeInterval {lower, upper}`): the block re-solved on
+each evaluated draw alone (one start, at the reported optimum), and the
+type-7 quantiles at (1 ∓ `credible_level`) / 2 — the fit's own level —
+of the variable's per-draw optimum over the `draws_resolved` re-solves
+that converged (null when none did).
+
 ### Compose comparisons
 
 `ComposedRequest.compare` is an `omitempty` array of `FitComparisonSpec
