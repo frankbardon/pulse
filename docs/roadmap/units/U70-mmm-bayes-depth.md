@@ -4,7 +4,7 @@ slug: mmm-bayes-depth
 title: "Bayesian marketing-mix models gain hierarchy, richer kernels and curves, lift-test data, posterior-aware optimization, raw draws, scoring and alternative samplers"
 track: Vector & matrix
 size: L
-status: not-started
+status: done
 depends_on: [U77, U78]
 soft_depends_on: []
 blocks: [U32]
