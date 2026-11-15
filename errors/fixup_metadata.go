@@ -2653,6 +2653,41 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_POSTFIT_INVALID: {
+		Message: "A ComposedRequest `post_fit` entry (a run of an embedder-registered post-fit operator) cannot run, so nothing runs. Every entry needs a `label` unique among the entries (reason `label_missing`, `label_duplicate`) and a `type` naming a registered POSTFIT_<NAMESPACE>_<NAME> operator (`type_missing`, `type_unknown` with the registered operators under `available`). Each `fits` name must be non-empty (`fit_missing`), listed once (`fit_duplicate`) and name a regression `fits` entry (`fit_unknown`, `fit_kind`, the regression fits under `available`). The entry index is under `post_fit`, its label under `label`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"post_fit", "*", "type"},
+				Hint:     "Name an operator the instance registers (details.available lists them); post-fit operators are embedder-registered — Pulse ships none.",
+				Examples: []any{"POSTFIT_ACME_CURVE"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"post_fit", "*", "fits"},
+				Hint:   "List each regression `fits` entry the operator reads once, by its name (details.available lists the regression fits).",
+			},
+		},
+	},
+	PULSE_POSTFIT_FAILED: {
+		Message: "A post-fit operator returned an error that carries no Pulse code: the entry fails alone — its `post_fit` result keeps its label, type and this error, and PULSE_SLOT_FAILED lifts to the batch (Strict fails the batch with this code). The message carries the operator's error text; the entry's label and type are under `label` / `type`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"post_fit", "*", "params"},
+				Hint:   "Read the operator's error in the message and correct the entry's params or the fits it reads; an embedder whose operator should report a pointed code returns a *errors.CodedError instead.",
+			},
+		},
+	},
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH: {
+		Message: "A post-fit operator returned output its registration's declared Outputs do not admit, so the batch fails: a declared scalar or table is absent (reason missing_scalar, missing_table), an undeclared one is present (undeclared_scalar, undeclared_table), a table's columns are not its declared columns in order (columns_mismatch), a row does not hold one cell per column (row_width), or a cell is not its column's kind — float64 in a float column, string in a string column — nor nil (cell_kind).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return exactly the scalars and tables the registration's Outputs declares, each table's Columns its declared column names in order and each row one cell per column (float64 / string per the column's Kind, or nil for null); details.reason names the rule that failed.",
+			},
+		},
+	},
 	PULSE_COMPARISON_ROWS_DIFFER: {
 		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
 		Fixups: []Fixup{

@@ -39,6 +39,7 @@ const (
 	panicOpShardParallel   = "shard_parallel"
 	panicOpComposeParallel = "compose_parallel"
 	panicOpComposeFits     = "compose_fits"
+	panicOpComposePostFit  = "compose_post_fit"
 )
 
 // joinOnReturn runs f, then wg.Done — the Done NEVER deferred. A pool

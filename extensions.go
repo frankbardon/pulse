@@ -101,6 +101,9 @@ type Extensions struct {
 	// Overlays installs embedder OVERLAY_* kinds for Request.Overlays
 	// (see OverlayRegistration).
 	Overlays []OverlayRegistration
+	// PostFits installs embedder POSTFIT_* operators for
+	// ComposedRequest.PostFit (see PostFitRegistration).
+	PostFits []PostFitRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future

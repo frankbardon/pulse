@@ -1943,6 +1943,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
 			"compare":  compareSchema(),
+			"post_fit": postFitSchema(),
 			"base":     baseSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
@@ -2037,6 +2038,27 @@ func compareSchema() map[string]any {
 					[]types.MultiplicityFamily{types.MultiplicityFamilyCompose}, true),
 			},
 			"required": []string{"name", "restricted", "full"},
+		},
+	}
+}
+
+// postFitSchema describes the ComposedRequest `post_fit` list
+// (types.PostFitSpec): runs of embedder-registered post-fit operators
+// after the optimize blocks, with no record data. Dropped with the slot
+// when capability:compose_fits is hidden (dropHiddenSlots).
+func postFitSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"description": "Runs of embedder-registered post-fit operators (POSTFIT_<NAMESPACE>_<NAME>), each once after the optimize blocks and before the comparisons (no record data): the operator reads the regression `fits` it names, the slot results, the optimize solutions and its params. Results are returned under the response `post_fit`, in order: named scalars and named tables.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"label":  map[string]any{"type": "string", "description": "The entry's label, unique among the entries."},
+				"type":   map[string]any{"type": "string", "description": "A registered post-fit operator."},
+				"fits":   map[string]any{"type": "array", "description": "The regression `fits` entry names the operator reads, each once.", "items": map[string]any{"type": "string"}},
+				"params": map[string]any{"type": "object", "description": "The operator's params, checked against its declared params."},
+			},
+			"required": []string{"label", "type"},
 		},
 	}
 }

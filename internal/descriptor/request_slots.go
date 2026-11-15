@@ -293,6 +293,8 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 		{key: "compare", visible: capabilityGate(featComposeCompare)},
+		// post_fit reads `fits`, so it rides their gate.
+		{key: "post_fit", visible: capabilityGate(featComposeFits)},
 		{key: "base", visible: capabilityGate(featComposeBase)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
@@ -308,6 +310,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
 		{key: "comparisons", visible: capabilityGate(featComposeCompare)},
+		{key: "post_fit", visible: capabilityGate(featComposeFits)},
 	},
 	// An optimize block's saved models ride capability:models, like a
 	// slot's `models`; its `for_each` rides capability:for_each, like an

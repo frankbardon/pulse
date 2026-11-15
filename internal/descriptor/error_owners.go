@@ -414,9 +414,14 @@ var errorOwners = map[errors.Code][]string{
 	// The nested-model comparisons read the fits (ComposedRequest.Compare).
 	errors.PULSE_COMPARISON_INVALID:     own(featComposeCompare),
 	errors.PULSE_COMPARISON_ROWS_DIFFER: own(featComposeCompare),
-	errors.PULSE_MODEL_NAME_COLLISION:   own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:          own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
-	errors.PULSE_MODEL_KIND_MISMATCH:    own(featComposeFits, featModels),
+	// post_fit rides capability:compose_fits (the fits it reads).
+	errors.PULSE_POSTFIT_INVALID: own(featComposeFits),
+	errors.PULSE_POSTFIT_FAILED:  own(featComposeFits),
+	// Raised only by a registered post-fit operator's run.
+	errors.PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH: shared,
+	errors.PULSE_MODEL_NAME_COLLISION:              own(featComposeFits, featModels),
+	errors.PULSE_MODEL_UNKNOWN:                     own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
+	errors.PULSE_MODEL_KIND_MISMATCH:               own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE params.fit
 	// (CheckFitReference, CheckFitDesign) and

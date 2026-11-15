@@ -171,6 +171,7 @@ ext := pulse.Extensions{
     Features:    []pulse.FeatureRegistration{...},
     Tests:       []pulse.TestRegistration{...},
     MatrixOps:   []pulse.MatrixOpRegistration{...},
+    PostFits:    []pulse.PostFitRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
@@ -211,7 +212,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -222,6 +223,7 @@ The regex enforced by `extensions_validate.go` is:
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
 | `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
 | `REG_ACME_HILL` | regression | ACME | HILL |
+| `POSTFIT_ACME_CURVE` | post-fit | ACME | CURVE |
 
 Failure modes raised at registration time:
 
@@ -1174,6 +1176,91 @@ A refusal the factory would raise from the spec alone (a `params` value
 out of range, say) belongs in the registration's optional `Validate`
 hook, so predict reports it too — see
 [Validate hook](#validate-hook-spec-only-refusals-at-predict).
+
+### Post-fit operator (`PostFits`)
+
+A post-fit operator is a computation over a Compose batch's FINISHED
+fits — a response-curve table, a marginal-return grid — that returns
+named scalars and named tables. The category is extension-only: Pulse
+ships no built-in `POSTFIT_*` operator. Author it against
+`extend.PostFitFunc` and register it with `Extensions.PostFits`:
+
+```go
+pulse.PostFitRegistration{
+    Name: "POSTFIT_ACME_CURVE",
+    Params: []pulse.ParamMeta{{Name: "points", JSONType: "number", Required: true}},
+    Outputs: extend.PostFitSchema{
+        Scalars: []string{"peak"},
+        Tables: []extend.PostFitTableSchema{{Name: "curve", Columns: []extend.PostFitColumn{
+            {Name: "spend", Kind: extend.PostFitFloat}, {Name: "label", Kind: extend.PostFitString},
+        }}},
+    },
+    Run: func(in extend.PostFitInput) (extend.PostFitOutput, error) {
+        fit := in.Fit(in.Fits()[0])
+        coefs := fit.Coefficients() // a copy, full precision
+        // … read fit.Vcov(), fit.Adstock("tv"), fit.Draws(),
+        // in.Result("slot", "agg"), in.Optimizations(), in.Params() …
+        return extend.PostFitOutput{Scalars: map[string]float64{"peak": coefs["tv"]},
+            Tables: map[string]*types.PostFitTable{"curve": {Columns: []string{"spend", "label"}}}}, nil
+    },
+}
+```
+
+A Compose request runs it with a `post_fit` entry — `{label, type, fits,
+params}` — and reads the result from the response's `post_fit` root, one
+`{label, type, scalars, tables}` entry per request entry (an undefined
+`NaN` scalar or cell is `null` on the wire):
+
+```json
+"post_fit": [{"label": "curve", "type": "POSTFIT_ACME_CURVE", "fits": ["mmm"], "params": {"points": 20}}]
+```
+
+**Phase.** The batch runs slots/sweep → fits → optimize → **post-fit** →
+compare. When a `post_fit` entry is declared every slot has finished
+before the phase, so `in.Result` may read any ungrouped slot value
+(exactly the `result()` expression reader's rules).
+
+**What the operator sees.** Only `extend.PostFitInput`: the regression
+fits its entry names (`PostFitFit` — coefficients, standard errors, the
+`vcov` matrix when the fit computed one, each channel's adstock record
+with its lag weights, and a `REG_MMM_BAYES` fit's pooled draws under
+`params.return_draws`), the slot-result reader, every optimize block's
+solution (`PostFitSolution`) and its params. Every accessor returns a
+copy; no record is reachable.
+
+**Validation at `pulse.New`.** The naming policy, duplicates and the
+`ParamMeta` rules apply as in every category; a nil `Run` is
+`PULSE_EXTENSION_PARAM_INVALID` reason `missing_factory`; `Outputs` must
+declare at least one scalar or table, names non-empty and unique across
+both lists, each table at least one uniquely named column of kind
+`float` or `string` (reasons `empty_output_schema`, `empty_output_name`,
+`duplicate_output_name`, `empty_table`, `empty_column_name`,
+`duplicate_column_name`, `invalid_column_kind`); a post-fit param is
+never expression-capable (`expression_unsupported`).
+
+**Request rules** (before any fit or slot runs): a missing or repeated
+`label`, a missing or unregistered `type`, or a `fits` name that is
+empty, repeated, unknown or not a regression fit is
+`PULSE_POSTFIT_INVALID` (`details.reason`); declared params are checked
+like every extension slot's (`PULSE_REQUEST_UNKNOWN_FIELD` /
+`PULSE_REQUEST_PARAM_INVALID` at `post_fit[i].params`).
+
+**Output and failures.** Every run's output must be exactly the
+declared scalars and tables — each table's `Columns` its declared names
+in order, each row one cell per column (`float64` / `string` per kind,
+or `nil`); anything else is the fatal
+`PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH`. An operator error, or a named
+fit that failed on its data, fails the entry alone: it keeps `{label,
+type, error}` (a coded error keeps its code, any other is
+`PULSE_POSTFIT_FAILED`; a failed fit's entry carries the fit's code) and
+`PULSE_SLOT_FAILED` (slot_kind `post_fit`) lifts to the batch; under
+`Strict` the batch fails with the entry's code. A panic is
+`PROCESSING_PANIC` with `details.op` `compose_post_fit`.
+
+The `post_fit` request slot and response root ride
+`capability:compose_fits`. Post-fit operators are not yet listed in the
+manifest, the payload schema's `type` enum or feature profiles, and
+predict does not yet judge `post_fit` entries.
 
 ### Expression functions
 
@@ -2831,6 +2918,9 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | an attribute declaring `InheritsDictionary` emitted a value that is no code of its source's dictionary (on a run, or over the probe's three-entry source), or declares a non-`float64` `Emits` |
+| `PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH` | a post-fit operator returned output its declared `Outputs` do not admit (`details.reason`) |
+| `PULSE_POSTFIT_INVALID` | a `post_fit` entry's label, type or `fits` breaks a request rule |
+| `PULSE_POSTFIT_FAILED` | a post-fit operator returned an uncoded error (the entry fails alone) |
 | `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe, or a `Validate` hook refused or panicked on the probe spec (`details.stage` `validate`) |
 | `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |

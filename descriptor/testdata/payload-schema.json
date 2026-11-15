@@ -1052,6 +1052,15 @@
           },
           "type": "object"
         },
+        "post_fit": {
+          "items": {
+            "$ref": "#/$defs/PostFitSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "requests": {
           "items": {
             "$ref": "#/$defs/Request"
@@ -1106,6 +1115,15 @@
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "post_fit": {
+          "items": {
+            "$ref": "#/$defs/PostFitResult"
           },
           "type": [
             "array",
@@ -5103,6 +5121,111 @@
       ],
       "type": "object"
     },
+    "PostFitResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "label": {
+          "type": "string"
+        },
+        "scalars": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "tables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PostFitTable"
+          },
+          "type": "object"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "then": {
+        "required": [
+          "label"
+        ]
+      },
+      "type": "object"
+    },
+    "PostFitSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "fits": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "type"
+      ],
+      "type": "object"
+    },
+    "PostFitTable": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "rows": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "columns",
+        "rows"
+      ],
+      "type": "object"
+    },
     "PredictSchemaInfo": {
       "additionalProperties": false,
       "properties": {
@@ -8051,4 +8174,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5a65a32228e8cf643396260f790f9cd40aff3ca0db653fd85ef521448690dbb0
+// golden-hash: 198d263b0616953858e48d8d39253cb4d91515f5fcee9ad51b92756759e397ab

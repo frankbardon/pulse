@@ -177,6 +177,9 @@ func TestMarshalFinite_PublicResultTypes(t *testing.T) {
 		"CrosstabComponents":         {xtComp, []string{`"ratio":null`, `"value":null`}},
 		"TestResult":                 {test, []string{`"statistic":null`, `"df":null`, `"p_value":null`}},
 		"RegressionResult":           {resp.Regressions[0], []string{`"r2":null`, `"x":null`}},
+		// A post-fit result's undefined scalar and table cell are null.
+		"PostFitResult": {PostFitResult{Label: "p", Type: "POSTFIT_X_Y", Scalars: map[string]float64{"s": nan},
+			Tables: map[string]*PostFitTable{"t": {Columns: []string{"v"}, Rows: [][]any{{inf}}}}}, []string{`"s":null`, `"rows":[[null]]`}},
 		// An undefined holdout r2 (constant held-out targets) is null, key kept.
 		"RegressionHoldout": {&RegressionResult{Type: REG_OLS, Holdout: &RegressionHoldout{N: 2, RMSE: 1, MAE: 1, R2: nan}},
 			[]string{`"holdout":{"n":2,"n_null":0,"rmse":1,"mae":1,"r2":null}`}},

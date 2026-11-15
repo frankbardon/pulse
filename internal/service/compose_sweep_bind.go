@@ -239,6 +239,15 @@ func foldSweepSlotMultiplicity(plan *descx.ComposeMultiplicityPlan, responses []
 
 // unranSlots are the indices of n slots that ran does not mark, in
 // order (every slot when ran is nil).
+// allRan is the run marks of a batch whose every slot has run.
+func allRan(n int) []bool {
+	ran := make([]bool, n)
+	for i := range ran {
+		ran[i] = true
+	}
+	return ran
+}
+
 func unranSlots(n int, ran []bool) []int {
 	out := make([]int, 0, n)
 	for i := 0; i < n; i++ {

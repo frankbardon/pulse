@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
@@ -71,6 +72,12 @@ type ExtensionRegistry struct {
 	// extensionOverlay on the overlay route (a hidden kind is never
 	// found).
 	Overlays map[types.OverlayKind]*ExtensionOverlay
+
+	// PostFits are the extension POSTFIT_<NS>_<NAME> operators
+	// (pulse.PostFitRegistration): each one's declaration and function,
+	// run by the Compose post-fit phase (internal/service,
+	// runComposePostFit). The engine itself never reads them.
+	PostFits map[types.PostFitType]*postfit.Operator
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
@@ -1197,6 +1204,20 @@ func (r *ExtensionRegistry) CustomPostTestNames() []types.TestType {
 	out := make([]types.TestType, 0, len(r.PostTests))
 	for t := range r.PostTests {
 		out = append(out, t)
+	}
+	return out
+}
+
+// PostFitDecls are the registered post-fit operators' declarations by
+// name — what internal/postfit.Check judges a `post_fit` entry by (nil
+// without any; a nil registry has none).
+func (r *ExtensionRegistry) PostFitDecls() map[types.PostFitType]postfit.Decl {
+	if r == nil || len(r.PostFits) == 0 {
+		return nil
+	}
+	out := make(map[types.PostFitType]postfit.Decl, len(r.PostFits))
+	for n, op := range r.PostFits {
+		out[n] = op.Decl
 	}
 	return out
 }

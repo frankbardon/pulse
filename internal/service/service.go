@@ -1375,6 +1375,10 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	cmpFigs := newComparisonFigures(composed.Compare)
+	// Then the post-fit entries' rules (postfit.Check).
+	if err := s.postFitRefusal(composed); err != nil {
+		return nil, err
+	}
 	// Then the batch's saves and loads (model.CheckComposeBatch — every
 	// slot's save path, every save's uniqueness, every `models` entry)
 	// and every model file read, before any fit or slot runs.
@@ -1461,6 +1465,19 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	fitWarnings = append(fitWarnings, optWarnings...)
+	// The post-fit entries read every slot's result, so the slots run
+	// first when any is declared; then the entries (runComposePostFit).
+	if len(composed.PostFit) > 0 {
+		if err := runSlots(unranSlots(len(requests), ran), models); err != nil {
+			return nil, err
+		}
+		ran = allRan(len(requests))
+	}
+	postFit, pfWarnings, err := s.runComposePostFit(composed, models, responses, optimizations)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, pfWarnings...)
 	// The nested-model comparisons read the finished fits only
 	// (runComposeCompare).
 	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
@@ -1498,7 +1515,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, PostFit: postFit, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = echoed
 	}

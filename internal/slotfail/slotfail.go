@@ -47,6 +47,11 @@ const (
 	// failed on its data — the fit's own code). internal/regcompare
 	// builds its error; Collect never lists it (it is no Response slot).
 	KindComparisons Kind = "comparisons"
+	// KindPostFit is a Compose post-fit entry that failed on its data
+	// (a fit it names failed — the fit's own code — or its operator
+	// returned an error). internal/postfit builds its error; Collect
+	// never lists it (it is no Response slot).
+	KindPostFit Kind = "post_fit"
 	// KindGroups is one params.fit "within" refit of a Request.Groups
 	// (or crosstab axis) slot that failed on one outer bucket's records
 	// (RefitDegenerate). The engine builds its error into the slot's

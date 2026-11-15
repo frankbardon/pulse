@@ -24,7 +24,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -34,7 +34,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -53,6 +53,7 @@ const (
 	categoryMatrix     extensionCategory = "matrix"
 	categoryRegression extensionCategory = "regression"
 	categoryOverlay    extensionCategory = "overlay"
+	categoryPostFit    extensionCategory = "post_fit"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -79,6 +80,8 @@ func (c extensionCategory) expectedPrefix() string {
 		return "REG"
 	case categoryOverlay:
 		return "OVERLAY"
+	case categoryPostFit:
+		return "POSTFIT"
 	}
 	return ""
 }
@@ -173,6 +176,9 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateOverlayRegistrations(ext.Overlays); err != nil {
+		return err
+	}
+	if err := validatePostFitRegistrations(ext.PostFits); err != nil {
 		return err
 	}
 	if err := validateExprFunctions(ext.ExprFunctions); err != nil {

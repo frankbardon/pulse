@@ -837,7 +837,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 207,
+    "error_codes_count": 208,
     "error_domains": [
       "CLI",
       "DATA",
@@ -914,6 +914,7 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -2529,4 +2530,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4afe059c51418de09bfe5039fb6c47b7e0f12705381b5be540c4719547e389b6
+// golden-hash: 7e0ed39db6964be44df55f4009ba40001c8941263fba0db7538027d615d36f97

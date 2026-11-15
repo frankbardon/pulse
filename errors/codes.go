@@ -1883,6 +1883,32 @@ const (
 	// "available", "missing", "keys", "requires" and "alternative".
 	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
 
+	// PULSE_POSTFIT_INVALID indicates a ComposedRequest `post_fit` entry
+	// (a run of an embedder-registered post-fit operator) that cannot
+	// run: a missing or repeated label, a missing type or one no
+	// operator registers, or a `fits` name that is empty, repeated,
+	// unknown or not a regression fit. Refused before any fit or slot
+	// runs. Details carry "post_fit" (the 0-based entry index), "label",
+	// "reason" and, where they apply, "type", "field", "value" and
+	// "available".
+	PULSE_POSTFIT_INVALID Code = "PULSE_POSTFIT_INVALID"
+
+	// PULSE_POSTFIT_FAILED indicates a post-fit operator that returned
+	// an error carrying no Pulse code: the entry fails alone (its
+	// ComposedResponse.PostFit entry carries this error and
+	// PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch).
+	// Details carry "label" and "type".
+	PULSE_POSTFIT_FAILED Code = "PULSE_POSTFIT_FAILED"
+
+	// PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH indicates a post-fit
+	// operator run whose output its registration's declared Outputs do
+	// not admit: a declared scalar or table absent, an undeclared one, a
+	// table whose columns are not its declared columns in order, a row
+	// of the wrong width or a cell of the wrong kind. Fatal. Details
+	// carry "post_fit", "label", "type", "reason" and the reason's own
+	// keys ("name", "row", "column", "expected", "got").
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH"
+
 	// PULSE_COMPARISON_ROWS_DIFFER indicates a nested-model comparison
 	// whose two fits, once run, used different row counts (a full-model
 	// predictor null on rows the restricted fit kept): the comparison
@@ -5097,6 +5123,9 @@ var allCodes = []Code{
 	PULSE_FIT_INVALID,
 	PULSE_COMPARISON_INVALID,
 	PULSE_COMPARISON_ROWS_DIFFER,
+	PULSE_POSTFIT_INVALID,
+	PULSE_POSTFIT_FAILED,
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_KIND_MISMATCH,

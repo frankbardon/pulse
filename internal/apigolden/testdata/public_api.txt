@@ -190,6 +190,7 @@ pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\
 pulse: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
+pulse: type ComposedRequest field PostFit []pulse/types.PostFitSpec "json:\"post_fit,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -202,6 +203,7 @@ pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
+pulse: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
@@ -325,6 +327,7 @@ pulse: type Extensions field LookupTables map[string]pulse.LookupTable
 pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
 pulse: type Extensions field Overlays []pulse.OverlayRegistration
 pulse: type Extensions field Populations map[string]pulse.Population
+pulse: type Extensions field PostFits []pulse.PostFitRegistration
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Regressions []pulse.RegressionRegistration
@@ -825,6 +828,12 @@ pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
 pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, error)
 pulse: type Population struct
 pulse: type Population field File []byte
+pulse: type PostFitRegistration struct
+pulse: type PostFitRegistration field Description string
+pulse: type PostFitRegistration field Name pulse/types.PostFitType
+pulse: type PostFitRegistration field Outputs pulse/extend.PostFitSchema
+pulse: type PostFitRegistration field Params []pulse.ParamMeta
+pulse: type PostFitRegistration field Run pulse/extend.PostFitFunc
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
 pulse: type Profile field Conditional *pulse/internal/synth.ConditionalProfile "json:\"conditional,omitempty\""
@@ -2826,6 +2835,7 @@ pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXT
 pulse/errors: const PULSE_EXTENSION_NOT_WEIGHT_AWARE pulse/errors.Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
 pulse/errors: const PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
+pulse/errors: const PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
 pulse/errors: const PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
@@ -3015,6 +3025,8 @@ pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code =
 pulse/errors: const PULSE_PARAMS_FIELD_COLLISION pulse/errors.Code = "PULSE_PARAMS_FIELD_COLLISION"
 pulse/errors: const PULSE_PARAMS_INVALID pulse/errors.Code = "PULSE_PARAMS_INVALID"
 pulse/errors: const PULSE_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_PARAMS_UNDECLARED"
+pulse/errors: const PULSE_POSTFIT_FAILED pulse/errors.Code = "PULSE_POSTFIT_FAILED"
+pulse/errors: const PULSE_POSTFIT_INVALID pulse/errors.Code = "PULSE_POSTFIT_INVALID"
 pulse/errors: const PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE pulse/errors.Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
@@ -3318,6 +3330,60 @@ pulse/extend: type OverlayOutput field Warnings []pulse/types.OverlayWarning
 pulse/extend: type OverlayRefKind string
 pulse/extend: const OverlayRefMargin pulse/extend.OverlayRefKind = "margin"
 pulse/extend: const OverlayRefNone pulse/extend.OverlayRefKind = "none"
+pulse/extend: type PostFitAdstock struct
+pulse/extend: type PostFitAdstock field Decay float64
+pulse/extend: type PostFitAdstock field Kernel string
+pulse/extend: type PostFitAdstock field MaxLag int
+pulse/extend: type PostFitAdstock field Normalize bool
+pulse/extend: type PostFitAdstock field Peak float64
+pulse/extend: type PostFitAdstock field Scale float64
+pulse/extend: type PostFitAdstock field Shape float64
+pulse/extend: type PostFitAdstock field Weights []float64
+pulse/extend: type PostFitColumn struct
+pulse/extend: type PostFitColumn field Kind pulse/extend.PostFitColumnKind
+pulse/extend: type PostFitColumn field Name string
+pulse/extend: type PostFitColumnKind string
+pulse/extend: type PostFitDraws struct
+pulse/extend: type PostFitDraws field CredibleLevel float64
+pulse/extend: type PostFitDraws field Draws [][]float64
+pulse/extend: type PostFitDraws field Names []string
+pulse/extend: type PostFitFit interface
+pulse/extend: type PostFitFit imethod Adstock(channel string) (pulse/extend.PostFitAdstock, bool)
+pulse/extend: type PostFitFit imethod AdstockChannels() []string
+pulse/extend: type PostFitFit imethod Coefficients() map[string]float64
+pulse/extend: type PostFitFit imethod Draws() (pulse/extend.PostFitDraws, bool)
+pulse/extend: type PostFitFit imethod Name() string
+pulse/extend: type PostFitFit imethod StdErrors() map[string]float64
+pulse/extend: type PostFitFit imethod Target() string
+pulse/extend: type PostFitFit imethod Type() pulse/types.RegressionType
+pulse/extend: type PostFitFit imethod Vcov() *pulse/types.MatrixValues
+pulse/extend: const PostFitFloat pulse/extend.PostFitColumnKind = "float"
+pulse/extend: type PostFitFunc func(in pulse/extend.PostFitInput) (pulse/extend.PostFitOutput, error)
+pulse/extend: type PostFitInput interface
+pulse/extend: type PostFitInput imethod Fit(name string) pulse/extend.PostFitFit
+pulse/extend: type PostFitInput imethod Fits() []string
+pulse/extend: type PostFitInput imethod Label() string
+pulse/extend: type PostFitInput imethod Optimizations() []pulse/extend.PostFitSolution
+pulse/extend: type PostFitInput imethod Params() encoding/json.RawMessage
+pulse/extend: type PostFitInput imethod Result(slot string, aggregation string) (float64, error)
+pulse/extend: type PostFitOutput struct
+pulse/extend: type PostFitOutput field Scalars map[string]float64
+pulse/extend: type PostFitOutput field Tables map[string]*pulse/types.PostFitTable
+pulse/extend: type PostFitSchema struct
+pulse/extend: type PostFitSchema field Scalars []string
+pulse/extend: type PostFitSchema field Tables []pulse/extend.PostFitTableSchema
+pulse/extend: type PostFitSolution struct
+pulse/extend: type PostFitSolution field Converged bool
+pulse/extend: type PostFitSolution field ErrorCode string
+pulse/extend: type PostFitSolution field Failed bool
+pulse/extend: type PostFitSolution field Name string
+pulse/extend: type PostFitSolution field Objective float64
+pulse/extend: type PostFitSolution field Status string
+pulse/extend: type PostFitSolution field Variables map[string]float64
+pulse/extend: const PostFitString pulse/extend.PostFitColumnKind = "string"
+pulse/extend: type PostFitTableSchema struct
+pulse/extend: type PostFitTableSchema field Columns []pulse/extend.PostFitColumn
+pulse/extend: type PostFitTableSchema field Name string
 pulse/extend: type PostTest interface
 pulse/extend: type PostTest imethod Run(rows []map[string]any) (*pulse/types.TestResult, error)
 pulse/extend: type PostTestFactory func(spec *pulse/types.Test, schema *pulse/encoding.Schema) (pulse/extend.PostTest, error)
@@ -5427,6 +5493,7 @@ pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "
 pulse/types: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
+pulse/types: type ComposedRequest field PostFit []pulse/types.PostFitSpec "json:\"post_fit,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -5438,6 +5505,7 @@ pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult 
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
 pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
+pulse/types: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
@@ -6353,6 +6421,22 @@ pulse/types: func ParseLookupMultiplicity(s string) (m pulse/types.LookupMultipl
 pulse/types: type PopulationRef struct
 pulse/types: type PopulationRef field Name string "json:\"name\""
 pulse/types: type PopulationRef field Path string "json:\"path\""
+pulse/types: type PostFitResult struct
+pulse/types: type PostFitResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type PostFitResult field Label string "json:\"label\""
+pulse/types: type PostFitResult field Scalars map[string]float64 "json:\"scalars,omitempty\""
+pulse/types: type PostFitResult field Tables map[string]*pulse/types.PostFitTable "json:\"tables,omitempty\""
+pulse/types: type PostFitResult field Type pulse/types.PostFitType "json:\"type\""
+pulse/types: type PostFitResult method (PostFitResult) MarshalJSON() ([]byte, error)
+pulse/types: type PostFitSpec struct
+pulse/types: type PostFitSpec field Fits []string "json:\"fits,omitempty\""
+pulse/types: type PostFitSpec field Label string "json:\"label\""
+pulse/types: type PostFitSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
+pulse/types: type PostFitSpec field Type pulse/types.PostFitType "json:\"type\""
+pulse/types: type PostFitTable struct
+pulse/types: type PostFitTable field Columns []string "json:\"columns\""
+pulse/types: type PostFitTable field Rows [][]any "json:\"rows\""
+pulse/types: type PostFitType string
 pulse/types: func PrecisionScalar(eps float64) pulse/types.PriorPrecision
 pulse/types: func PrecisionVector(v []float64) pulse/types.PriorPrecision
 pulse/types: type PriorPrecision struct
@@ -6877,4 +6961,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6ebab65a237f69c1e945668dd50e0a732a2a7b86199bf9b5cebe8f51698331cf
+// golden-hash: 56f9819b0c5bde2bb216eaa70e33f30136c28d4d2ed4115abac959c5bf9a57dc
