@@ -223,7 +223,9 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 **Validated against:**
 
 - `minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_oracle_test.go`
+- `minpack.lm::nlsLM` 1.2-4 on the same joint objective, start and boxes under `params.adstock`, one case per kernel — geometric, delayed, weibull_cdf, weibull_pdf — its weights written independently (closed forms; `stats::pweibull` / `dweibull`), cross-checked against `nls.lm` on an analytic Jacobian (coefficients incl. the kernel parameters, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_adstock_oracle_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance 0.5% to 15% relative, per parameter; `internal/regmmm/hill_test.go`
+- synthetic series with a known kernel per `params.adstock` value (recovery within 3 SE), WIN_DISTRIBUTED_LAG's weights (`distlagparams.Resolve`, unnormalised) and central differences of the residual Jacobian — tolerance bit-equal weights; Jacobian 1e-5 relative; recovery within 3 standard errors; `internal/regmmm/hill_adstock_test.go`
 
 See [How Pulse is validated](../validation.md).
 

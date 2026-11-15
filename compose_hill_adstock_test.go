@@ -20,9 +20,11 @@ import (
 // generator's decay, writes the adstock record response() and a saved
 // model read (the fitted decay, unnormalised, no fixed_at), so
 // response() equals the hand-written coef()·hill(multiplier·spend)
-// algebra on both orchestrators; every refusal (no order, an engine
-// holdout, a pre-adstocked channel, an unsupported kernel, a partition)
-// is predict's exactly as it is Process's.
+// algebra on both orchestrators; a Weibull fit (E2-S3) records its
+// fitted shape and scale the same way; every refusal (no order, an
+// engine holdout, a pre-adstocked channel, an unknown kernel, a Weibull
+// kernel without max_lag, a partition) is predict's exactly as it is
+// Process's.
 
 const hillAdstockCohort = "hill_adstock.pulse"
 
@@ -159,6 +161,84 @@ func TestHillAdstock_ResponseAndSaveReadTheFittedDecay(t *testing.T) {
 	}
 }
 
+// TestHillAdstock_WeibullSaveRecordsShapeAndScale: each Weibull kernel
+// fits through Process (predict accepting it), its shape:x / scale:x
+// carry finite standard errors, and the saved model's adstock record is
+// that kernel at the fitted shape and scale bit for bit (unnormalised,
+// no fixed_at), so response() over the reloaded model is the fit's.
+func TestHillAdstock_WeibullSaveRecordsShapeAndScale(t *testing.T) {
+	t.Parallel()
+
+	fsys := hillAdstockFS(t)
+	p, err := New(Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kernel := range []string{"weibull_cdf", "weibull_pdf"} {
+		path := "models/hill_" + kernel + ".pulse-model.json"
+		req := hillAdstockRequest()
+		req.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "` + kernel + `", "max_lag": 6}`)
+		req.Regressions[0].Save = path
+		if pr, err := p.Predict(context.Background(), req); err != nil || len(pr.Errors) > 0 {
+			t.Fatalf("%s: predict: %v %+v", kernel, err, pr.Errors)
+		}
+		resp, err := p.Process(context.Background(), req)
+		if err != nil {
+			t.Fatalf("%s: %v", kernel, err)
+		}
+		res := resp.Regressions[0]
+		if res.Error != nil {
+			t.Fatalf("%s: slot failed: %v", kernel, res.Error)
+		}
+		shape, scale := res.Coefficients["shape:x"], res.Coefficients["scale:x"]
+		if !(res.StdErrors["shape:x"] > 0) || !(res.StdErrors["scale:x"] > 0) {
+			t.Fatalf("%s: shape:x %v (se %v), scale:x %v (se %v)", kernel, shape, res.StdErrors["shape:x"], scale, res.StdErrors["scale:x"])
+		}
+		data, err := afero.ReadFile(fsys, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var f struct {
+			Adstock map[string]model.Adstock `json:"adstock"`
+		}
+		if err := json.Unmarshal(data, &f); err != nil {
+			t.Fatal(err)
+		}
+		a, ok := f.Adstock["x"]
+		if !ok || a.Kernel != kernel || a.Shape == nil || a.Scale == nil || math.Float64bits(*a.Shape) != math.Float64bits(shape) ||
+			math.Float64bits(*a.Scale) != math.Float64bits(scale) || a.MaxLag != hillAdstockMaxLag || a.Normalize || a.FixedAt != "" || a.Decay != nil {
+			t.Errorf("%s: saved record %+v, want shape %v scale %v max_lag 6 unnormalised", kernel, a, shape, scale)
+		}
+		// response() over the reload is coef()·hill(Σw · spend, k, s),
+		// Σw the recorded kernel's weights summed.
+		w, err := a.Weights()
+		if err != nil {
+			t.Fatal(err)
+		}
+		mult := 0.0
+		for _, v := range w {
+			mult += v
+		}
+		saved, err := p.Process(context.Background(), &Request{
+			Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Models: []types.ModelRef{{Name: "saved", Path: path}},
+			Attributes: []*types.Attribute{
+				{Type: types.ATTR_FORMULA, Label: "resp", Expression: `response("saved", "x", x)`},
+				{Type: types.ATTR_FORMULA, Label: "hand", Expression: `coef("saved", "x") * hill(` + strconv.FormatFloat(mult, 'g', -1, 64) + ` * x, coef("saved", "k:x"), coef("saved", "s:x"))`},
+			},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "resp", Label: "resp"}, {Type: types.AGG_SUM, Field: "hand", Label: "hand"}},
+		})
+		if err != nil {
+			t.Fatalf("%s: reload: %v", kernel, err)
+		}
+		got, ok1 := saved.Data[0]["resp"].(float64)
+		want, ok2 := saved.Data[0]["hand"].(float64)
+		if !ok1 || !ok2 || !(want > 0) || math.Abs(got-want) > 1e-9*want {
+			t.Errorf("%s: response() over the saved model %v, hand-written %v", kernel, saved.Data[0]["resp"], saved.Data[0]["hand"])
+		}
+	}
+}
+
 // TestHillAdstock_RefusalsPredictMatchRuntime: every in-model adstock
 // refusal is predict's only error and Process's, code, message and
 // details identical.
@@ -180,14 +260,17 @@ func TestHillAdstock_RefusalsPredictMatchRuntime(t *testing.T) {
 	}{
 		{"order_required", edit(func(r *Request) { r.Regressions[0].Order = nil }), "order_required", false},
 		{"adstock_holdout", edit(func(r *Request) { r.Regressions[0].Holdout = "week >= 90" }), model.ReasonAdstockHoldout, false},
-		{"kernel_unsupported", edit(func(r *Request) {
-			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "weibull_cdf", "max_lag": 6}`)
-		}), "kernel_unsupported", false},
+		{"kernel_unknown", edit(func(r *Request) {
+			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "hyperbolic", "max_lag": 6}`)
+		}), "kernel_unknown", false},
+		{"weibull_max_lag_required", edit(func(r *Request) {
+			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "weibull_cdf"}`)
+		}), "max_lag_required", false},
 		{"order_partition", edit(func(r *Request) { r.Regressions[0].Order.Partition = "region" }), "order_partition_unsupported", false},
 		// Two faults at once: both sides report the same first one.
 		{"unordered_weibull", edit(func(r *Request) {
 			r.Regressions[0].Order = nil
-			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "weibull_pdf", "max_lag": 6}`)
+			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "weibull_pdf"}`)
 		}), "order_required", true},
 		{"channel_preadstocked", edit(func(r *Request) {
 			r.Windows = []*types.Window{{Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "x_ad", OrderBy: []types.OrderKey{{Field: "week"}},

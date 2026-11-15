@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ```
 
-`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` is spend adstocked upstream (`WIN_DISTRIBUTED_LAG`), or with `adstock` raw spend the fit adstocks, decay fitted jointly; `zj` linear controls.
+`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` is spend adstocked upstream (`WIN_DISTRIBUTED_LAG`), or with `adstock` raw spend, its kernel fitted jointly; `zj` linear controls.
 
 ## Use when
 
@@ -35,8 +35,8 @@ Use something else:
 | `channels` | array | (required) | Hill-curve predictors; the rest are controls. |
 | `nonnegative` | boolean | `true` | Channel β ≥ 0 (unsupported → exactly 0). |
 | `prior` | object | — | Gaussian `{channel, mean, precision}` on one β. |
-| `adstock` | string | — | `geometric` / `delayed`: decay fitted in-model. |
-| `max_lag` | int | `13` | Adstock window; `delayed` needs it. |
+| `adstock` | string | — | `geometric`, `delayed`, `weibull_cdf`, `weibull_pdf`: fitted in-model. |
+| `max_lag` | int | `13` | Window; non-geometric needs it. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
 | `bootstrap_iters` | int | `1000` | Resample. |
 | `jackknife_groups` | int | — | Resample. |
@@ -56,15 +56,18 @@ Numeric `target`; channels ≥ 0 (else `PROCESSING_CONFIG`). Null rows drop list
 
 ## Output
 
-`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>`, `s:<channel>`, then with `adstock` `decay:<channel>` (`delayed`: and `peak:<channel>`). `coef("fit", "k:tv_ad")` reads one; predict knows them from `params`; an `inline` `models` entry declares them with no fit. Bounds: k ∈ [0.02, 20]× channel mean, s ∈ [0.5, 5].
+`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>`, `s:<channel>`, then the kernel's: `decay:` (+`peak:` delayed) or `shape:`, `scale:` (Weibull). `coef("fit", "k:tv_ad")` reads one; predict knows them from `params`; an `inline` `models` entry declares them with no fit. Bounds: k ∈ [0.02, 20]× channel mean, s ∈ [0.5, 5].
 
 Each channel records its kernel (`adstock.<ch>`, saved too) for `response()`: the fitted one, or its `WIN_DISTRIBUTED_LAG`'s.
 
-`StdErrors` are Gauss-Newton (joint with decay): `null` on a bound and for the k / s / decay of a channel whose β is 0. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
+`StdErrors`: Gauss-Newton, joint with the kernel; `null` on a bound and for a β-0 channel's k / s / kernel. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
 
 ## Reading the output
 
-- `coefficients.*`: A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; k:&lt;channel&gt; is the spend at which the channel delivers half its maximum and s:&lt;channel&gt; how sharply its curve bends there; under params.adstock, decay:&lt;channel&gt; is the share of a period's spend effect carried into the next (delayed: peak:&lt;channel&gt; is the lag where the carry-over peaks).
+- `std_errors.*`: How much the parameter would vary from sample to sample, from the curvature of the least-squares fit at its optimum (Gauss-Newton), mapped onto k and s.
+- `p_values.*`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+- `statistics.*`: The Wald statistic: the parameter divided by its standard error, null where the standard error is.
+- `n_obs`: Rows used in the fit, after rows with a null target or predictor were dropped.
 
 ## Contract
 

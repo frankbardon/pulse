@@ -402,7 +402,7 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 
 #### `coefficients.*`
 
-A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; k:&lt;channel&gt; is the spend at which the channel delivers half its maximum and s:&lt;channel&gt; how sharply its curve bends there; under params.adstock, decay:&lt;channel&gt; is the share of a period's spend effect carried into the next (delayed: peak:&lt;channel&gt; is the lag where the carry-over peaks).
+A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; k:&lt;channel&gt; is the spend at which the channel delivers half its maximum and s:&lt;channel&gt; how sharply its curve bends there; under params.adstock, decay:&lt;channel&gt; is the share of a period's spend effect carried into the next (delayed: peak:&lt;channel&gt; is the lag where the carry-over peaks; Weibull: shape:&lt;channel&gt; and scale:&lt;channel&gt;, scale in periods).
 
 **Sign:**
 

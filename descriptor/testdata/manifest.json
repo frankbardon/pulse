@@ -9319,7 +9319,7 @@
       },
       {
         "name": "REG_MMM_HILL",
-        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve. Channels arrive adstocked, or params.adstock fits the decay in the same least squares (decay:\u003cchannel\u003e, with standard errors).",
+        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve. Channels arrive adstocked, or params.adstock fits the carry-over kernel in the same least squares (decay:\u003cchannel\u003e or the kernel's parameters, with standard errors).",
         "accepts_types": [
           "date",
           "datetime",
@@ -9471,7 +9471,7 @@
             "name": "adstock",
             "type": "string",
             "required": false,
-            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]) or delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]). Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked.",
+            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]), delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]), weibull_cdf or weibull_pdf (shape:\u003cch\u003e in [0.1, 10], scale:\u003cch\u003e in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked.",
             "example": "geometric"
           },
           {
@@ -9479,7 +9479,7 @@
             "type": "int",
             "required": false,
             "default": 13,
-            "description": "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed requires it)."
+            "description": "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed and Weibull require it)."
           }
         ],
         "intents": [
@@ -21531,4 +21531,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ef42a797fbd2ed5615fe440ba5d47730dca647fa3a9807e4cf4c0623c96219a3
+// golden-hash: 37ee06f3f0cf9c38614eb9d48693759270cac87929cf301b223623ca0bfa9ce6

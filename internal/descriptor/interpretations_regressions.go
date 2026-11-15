@@ -519,7 +519,7 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 		Means: "A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, " +
 			"holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; " +
 			"k:<channel> is the spend at which the channel delivers half its maximum and s:<channel> how sharply its curve bends there; " +
-			"under params.adstock, decay:<channel> is the share of a period's spend effect carried into the next (delayed: peak:<channel> is the lag where the carry-over peaks).",
+			"under params.adstock, decay:<channel> is the share of a period's spend effect carried into the next (delayed: peak:<channel> is the lag where the carry-over peaks; Weibull: shape:<channel> and scale:<channel>, scale in periods).",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,

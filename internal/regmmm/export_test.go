@@ -1,6 +1,9 @@
 package regmmm
 
-import "github.com/frankbardon/pulse/extend"
+import (
+	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
+)
 
 // export_test.go opens the model's internals to the external test
 // package (regmmm_test), which imports the root package to run the
@@ -61,4 +64,26 @@ func HillStart(y []float64, a, z [][]float64, priorChannel int, priorMean, prior
 	copy(x0[1+nc+nz:], k)
 	copy(x0[1+2*nc+nz:], s)
 	return x0, nil
+}
+
+// HillAdstockStart is an in-model adstocked fit's start over one channel
+// of raw spend x and controls z (the coefficient table's order, k and
+// s in their own units) and its channel's k scale kRef, exactly as Fit
+// reaches them: initAdstock, then the startAdstock scan.
+func HillAdstockStart(kernel string, maxLag int, y, x []float64, z [][]float64) (x0 []float64, kRef float64, err error) {
+	k, reason := hillKernelFor(kernel, maxLag)
+	if reason != "" {
+		return nil, 0, perr.NewCodedError(perr.PROCESSING_CONFIG, reason)
+	}
+	prob := &problem{y: y, a: [][]float64{append([]float64(nil), x...)}, z: z, kRef: make([]float64, 1), priorIdx: -1,
+		ad: &hillAdstock{kernel: k, spend: make([][]float64, 1), da: make([][][]float64, 1)}}
+	prob.initAdstock()
+	x0, err = prob.startAdstock(true)
+	if err != nil {
+		return nil, 0, err
+	}
+	_, kk, s, _ := prob.curve(x0)
+	nz := len(z)
+	x0[2+nz], x0[3+nz] = kk[0], s[0]
+	return x0, prob.kRef[0], nil
 }

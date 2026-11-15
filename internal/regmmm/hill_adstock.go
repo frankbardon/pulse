@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/distlagparams"
 	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -16,7 +17,7 @@ import (
 // the kernel's parameters join the joint Levenberg–Marquardt vector, so
 // the fit adstocks each channel's raw spend itself and one Jacobian
 // gives every standard error, the decay↔curve covariances included. The
-// kernels are REG_MMM_BAYES's (bayes_adstock.go — WIN_DISTRIBUTED_LAG's
+// kernels — all four of WIN_DISTRIBUTED_LAG's — are REG_MMM_BAYES's (bayes_adstock.go — WIN_DISTRIBUTED_LAG's
 // weights with normalize false, and their analytic derivatives); this
 // file holds what is HILL's own: which kernels the fit takes, each
 // parameter's box and start, and the refusals.
@@ -24,7 +25,6 @@ import (
 // The params.adstock refusal reasons (PROCESSING_CONFIG details.reason).
 const (
 	reasonKernelUnknown         = "kernel_unknown"
-	reasonKernelUnsupported     = "kernel_unsupported"
 	reasonMaxLagInvalid         = "max_lag_invalid"
 	reasonMaxLagRequired        = "max_lag_required"
 	reasonMaxLagWithoutAdstock  = "max_lag_without_adstock"
@@ -48,11 +48,13 @@ type hillKernel struct {
 	lo, hi []float64
 }
 
-// hillKernelFor is params.adstock's kernel at max_lag, or a refusal
-// reason: an unknown name (kernel_unknown) or a kernel HILL does not fit
-// in-model (kernel_unsupported — the Weibull kernels); "" is unknown. The boxes:
-// geometric decay in [0, 0.99]; delayed decay in [0.01, 0.99] (its
-// peak derivative carries log(decay)) and peak in [0, max_lag].
+// hillKernelFor is params.adstock's kernel at max_lag, or the refusal
+// reason kernel_unknown ("" is unknown). The boxes: geometric decay in
+// [0, 0.99]; delayed decay in [0.01, 0.99] (its peak derivative carries
+// log(decay)) and peak in [0, max_lag]; a Weibull kernel's shape in
+// [0.1, 10] (the density's shape derivative carries 1/shape) and scale
+// in [0.1, max_lag + 1] (the density reads lag l at l + 1, so past that
+// scale every weight on the window is the rising flank of one curve).
 func hillKernelFor(name string, maxLag int) (*hillKernel, string) {
 	k := kernelByName(name)
 	if k == nil || name == "" {
@@ -66,19 +68,30 @@ func hillKernelFor(name string, maxLag int) (*hillKernel, string) {
 	case distlagparams.KernelDelayed:
 		return &hillKernel{adstockKernel: k, maxLag: maxLag, lo: []float64{0.01, 0}, hi: []float64{0.99, float64(maxLag)}}, ""
 	}
-	return nil, reasonKernelUnsupported
+	return &hillKernel{adstockKernel: k, maxLag: maxLag, lo: []float64{hillShapeMin, hillScaleMin}, hi: []float64{hillShapeMax, float64(maxLag + 1)}}, ""
 }
 
-// hillKernelNames are the kernels REG_MMM_HILL fits in-model.
-func hillKernelNames() []string {
-	return []string{distlagparams.KernelGeometric, distlagparams.KernelDelayed}
-}
+// The Weibull kernels' boxes (the scale's top is max_lag + 1).
+const (
+	hillShapeMin, hillShapeMax = 0.1, 10
+	hillScaleMin               = 0.1
+)
 
-// start is the kernel's start at decay d: the decay, and the delayed
-// kernel's peak one lag on (min(1, max_lag)).
+// hillKernelNames are the kernels REG_MMM_HILL fits in-model: every
+// WIN_DISTRIBUTED_LAG kernel.
+func hillKernelNames() []string { return distlagparams.Kernels() }
+
+// start is the kernel's start at decay d: the decay; the delayed
+// kernel's peak one lag on (min(1, max_lag)); a Weibull kernel at shape
+// 1 — where both are geometric in the lag (the survival e^(−l/scale),
+// the density e^(−(l+1)/scale)/scale) — with the scale whose per-lag
+// ratio e^(−1/scale) is d, −1/log d, held to its box.
 func (k *hillKernel) start(d float64) []float64 {
-	if k.Name() == distlagparams.KernelDelayed {
+	switch k.Name() {
+	case distlagparams.KernelDelayed:
 		return []float64{d, math.Min(1, float64(k.maxLag))}
+	case distlagparams.KernelWeibullCDF, distlagparams.KernelWeibullPDF:
+		return []float64{1, math.Min(math.Max(-1/detmath.Log(d), k.lo[1]), k.hi[1])}
 	}
 	return []float64{d}
 }
@@ -94,8 +107,8 @@ func (k *hillKernel) prefixes() []string {
 
 // hillAdstockConfig reads params.adstock / params.max_lag into the
 // model's kernel (nil when params.adstock is absent), refusing an
-// unknown or unsupported kernel, a max_lag below 1 or above the window's
-// ceiling, a max_lag without params.adstock, a delayed kernel without
+// unknown kernel, a max_lag below 1 or above the window's ceiling, a
+// max_lag without params.adstock, a delayed or Weibull kernel without
 // max_lag (only geometric defaults it, to 13) and an order.partition (the
 // fit reads one market's series).
 func hillAdstockConfig(spec *types.RegressionSpec, p hillParams) (*hillKernel, error) {
@@ -115,12 +128,8 @@ func hillAdstockConfig(spec *types.RegressionSpec, p hillParams) (*hillKernel, e
 		maxLag = *p.MaxLag
 	}
 	k, reason := hillKernelFor(*p.Adstock, maxLag)
-	switch reason {
-	case reasonKernelUnknown:
+	if reason != "" {
 		return nil, configError(spec, fmt.Sprintf("params.adstock %q is not one of: %s", *p.Adstock, strings.Join(hillKernelNames(), ", ")),
-			map[string]any{"slot": "params.adstock", "reason": reason, "adstock": *p.Adstock, "valid": hillKernelNames()})
-	case reasonKernelUnsupported:
-		return nil, configError(spec, fmt.Sprintf("params.adstock %q is not fitted in-model yet; use %s, adstock upstream with WIN_DISTRIBUTED_LAG, or fit REG_MMM_BAYES", *p.Adstock, strings.Join(hillKernelNames(), " or ")),
 			map[string]any{"slot": "params.adstock", "reason": reason, "adstock": *p.Adstock, "valid": hillKernelNames()})
 	}
 	if p.MaxLag == nil && k.Name() != distlagparams.KernelGeometric {

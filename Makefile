@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -286,6 +286,21 @@ reference-stan:
 reference-stan-geo:
 	Rscript scripts/reference/gen_mmm_bayes_geo_stan.R $(STAN_REFERENCE_DIR)
 	@f=$(STAN_REFERENCE_DIR)/mmm_bayes_geo_stan.json; \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"
+
+# reference-mmm-hill-adstock regenerates REG_MMM_HILL's in-model adstock
+# oracle (internal/regmmm/testdata/mmm_hill_adstock.json: one case per
+# kernel — geometric, delayed, weibull_cdf, weibull_pdf — vs
+# minpack.lm::nlsLM on the same objective, start and bounds) with
+# scripts/reference/gen_mmm_hill_adstock.R, then appends the
+# `// golden-hash:` footer TestReferenceOracle_MMMHillAdstock checks.
+# Standalone (not sourced by gen_reference.R), so it moves no other
+# golden. Needs R 4.6.1 + minpack.lm 1.2-4 + jsonlite 2.0.0. Manual
+# target: CI never runs R; under a second.
+reference-mmm-hill-adstock:
+	Rscript scripts/reference/gen_mmm_hill_adstock.R $(STAN_REFERENCE_DIR)
+	@f=$(STAN_REFERENCE_DIR)/mmm_hill_adstock.json; \
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"
 

@@ -169,14 +169,15 @@ func TestMMMHillAdstock_RecoversDelayedKernel(t *testing.T) {
 // TestMMMHillAdstock_JacobianMatchesFiniteDifferences: the analytic
 // residual Jacobian's kernel columns (and the curve columns beside
 // them) equal central differences of the residuals at an interior
-// point, for both kernels.
+// point, for every kernel.
 func TestMMMHillAdstock_JacobianMatchesFiniteDifferences(t *testing.T) {
 	t.Parallel()
 
 	for _, c := range []struct {
 		kernel string
 		phi    []float64
-	}{{distlagparams.KernelGeometric, []float64{0.55}}, {distlagparams.KernelDelayed, []float64{0.45, 1.7}}} {
+	}{{distlagparams.KernelGeometric, []float64{0.55}}, {distlagparams.KernelDelayed, []float64{0.45, 1.7}},
+		{distlagparams.KernelWeibullCDF, []float64{1.8, 2.4}}, {distlagparams.KernelWeibullPDF, []float64{1.6, 2.2}}} {
 		tr := adstockTruth{kernel: c.kernel, maxLag: 5, tvPhi: c.phi, srPhi: c.phi, tvBeta: 12, tvK: 250, srBeta: 6, srK: 60, noise: 0.2}
 		rows := adstockSeries(tr, 40, 9)
 		k, _ := hillKernelFor(c.kernel, 5)
@@ -237,8 +238,8 @@ func TestMMMHillAdstock_FactoryRefusals(t *testing.T) {
 	}{
 		{"unknown", adstockSpec(`,"adstock":"hyperbolic"`), "params.adstock", reasonKernelUnknown},
 		{"empty", adstockSpec(`,"adstock":""`), "params.adstock", reasonKernelUnknown},
-		{"weibull_cdf", adstockSpec(`,"adstock":"weibull_cdf","max_lag":6`), "params.adstock", reasonKernelUnsupported},
-		{"weibull_pdf", adstockSpec(`,"adstock":"weibull_pdf","max_lag":6`), "params.adstock", reasonKernelUnsupported},
+		{"weibull_cdf without max_lag", adstockSpec(`,"adstock":"weibull_cdf"`), "params.max_lag", reasonMaxLagRequired},
+		{"weibull_pdf without max_lag", adstockSpec(`,"adstock":"weibull_pdf"`), "params.max_lag", reasonMaxLagRequired},
 		{"max_lag zero", adstockSpec(`,"adstock":"geometric","max_lag":0`), "params.max_lag", reasonMaxLagInvalid},
 		{"max_lag ceiling", adstockSpec(`,"adstock":"geometric","max_lag":10001`), "params.max_lag", reasonMaxLagInvalid},
 		{"delayed without max_lag", adstockSpec(`,"adstock":"delayed"`), "params.max_lag", reasonMaxLagRequired},
@@ -255,8 +256,10 @@ func TestMMMHillAdstock_FactoryRefusals(t *testing.T) {
 			t.Fatalf("%s: reason %v, want %s", c.name, ce.Details["reason"], c.reason)
 		}
 	}
-	// Accepted: geometric with the default window, delayed with one.
-	for _, extra := range []string{`,"adstock":"geometric"`, `,"adstock":"delayed","max_lag":4`} {
+	// Accepted: geometric with the default window, every other kernel
+	// with one.
+	for _, extra := range []string{`,"adstock":"geometric"`, `,"adstock":"delayed","max_lag":4`,
+		`,"adstock":"weibull_cdf","max_lag":4`, `,"adstock":"weibull_pdf","max_lag":4`} {
 		if ce := SpecRefusal(adstockSpec(extra)); ce != nil {
 			t.Fatalf("%s refused: %v", extra, ce)
 		}
@@ -286,6 +289,32 @@ func TestMMMHillAdstock_IllConditionedFlagged(t *testing.T) {
 	}
 }
 
+// TestMMMHillAdstock_WeakWeibullFlagged: a Weibull kernel over a
+// one-lag window has one free weight, w_1 = exp(−(1/scale)^shape), and
+// two parameters — only (1/scale)^shape is identified — so the fit
+// still succeeds (finite estimates, the well-identified channel's
+// figures kept) but its condition number lands above the advisory's
+// threshold.
+func TestMMMHillAdstock_WeakWeibullFlagged(t *testing.T) {
+	t.Parallel()
+
+	tr := adstockTruth{kernel: distlagparams.KernelWeibullCDF, maxLag: 1, tvPhi: []float64{2, 3}, srPhi: []float64{1.2, 1.5},
+		tvBeta: 12, tvK: 250, srBeta: 6, srK: 60, noise: 0.2}
+	out := fitAdstock(t, adstockSpec(`,"adstock":"weibull_cdf","max_lag":1`), adstockSeries(tr, 156, 3))
+	cond, _ := out.Outputs[pmodel.MMMConditionKey].(float64)
+	if !(cond > pmodel.MMMConditionThreshold) {
+		t.Fatalf("condition_number = %v, want above %v when shape and scale are not separately identified", cond, pmodel.MMMConditionThreshold)
+	}
+	for _, co := range out.Coefficients {
+		if math.IsNaN(co.Estimate) || math.IsInf(co.Estimate, 0) {
+			t.Fatalf("%s = %v, want a finite estimate (the fit succeeds)", co.Name, co.Estimate)
+		}
+	}
+	if b := coefOf(t, out, "tv"); b.StdErr == nil {
+		t.Fatalf("tv std err absent")
+	}
+}
+
 // TestMMMHillAdstock_KernelWeightsAreTheWindows: the weights the fit
 // adstocks with are WIN_DISTRIBUTED_LAG's (distlagparams.Resolve,
 // normalize false) bit for bit, so the adstock record reproduces the
@@ -299,6 +328,8 @@ func TestMMMHillAdstock_KernelWeightsAreTheWindows(t *testing.T) {
 	}{
 		{distlagparams.KernelGeometric, `{"kernel":"geometric","decay":0.37,"max_lag":7,"normalize":false}`, []float64{0.37}},
 		{distlagparams.KernelDelayed, `{"kernel":"delayed","decay":0.62,"peak":2.3,"max_lag":7,"normalize":false}`, []float64{0.62, 2.3}},
+		{distlagparams.KernelWeibullCDF, `{"kernel":"weibull_cdf","shape":1.7,"scale":2.9,"max_lag":7,"normalize":false}`, []float64{1.7, 2.9}},
+		{distlagparams.KernelWeibullPDF, `{"kernel":"weibull_pdf","shape":0.8,"scale":3.3,"max_lag":7,"normalize":false}`, []float64{0.8, 3.3}},
 	} {
 		k, reason := hillKernelFor(c.kernel, 7)
 		if reason != "" {
@@ -312,6 +343,81 @@ func TestMMMHillAdstock_KernelWeightsAreTheWindows(t *testing.T) {
 		for l := range w {
 			if math.Float64bits(w[l]) != math.Float64bits(spec.Weights[l]) {
 				t.Fatalf("%s lag %d: fit weight %v, window %v", c.kernel, l, w[l], spec.Weights[l])
+			}
+		}
+	}
+}
+
+// TestMMMHillAdstock_RecoversWeibullKernels: each Weibull kernel's
+// shape and scale are recovered within three standard errors (and 5%),
+// appended shape:<ch> then scale:<ch>, with a finite condition number
+// under the advisory's threshold.
+func TestMMMHillAdstock_RecoversWeibullKernels(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		kernel       string
+		tvPhi, srPhi []float64
+		tvK, srK     float64
+	}{
+		{distlagparams.KernelWeibullCDF, []float64{2, 3}, []float64{1.2, 1.5}, 250, 60},
+		{distlagparams.KernelWeibullPDF, []float64{2.5, 3}, []float64{1.5, 2}, 50, 15},
+	} {
+		tr := adstockTruth{kernel: c.kernel, maxLag: 8, tvPhi: c.tvPhi, srPhi: c.srPhi, tvBeta: 12, tvK: c.tvK, srBeta: 6, srK: c.srK, noise: 0.2}
+		out := fitAdstock(t, adstockSpec(`,"adstock":"`+c.kernel+`","max_lag":8`), adstockSeries(tr, 156, 3))
+		var names []string
+		for _, co := range out.Coefficients[8:] {
+			names = append(names, co.Name)
+		}
+		if want := []string{"shape:tv", "shape:search", "scale:tv", "scale:search"}; !slices.Equal(names, want) {
+			t.Fatalf("%s: kernel coefficients %v, want %v", c.kernel, names, want)
+		}
+		for _, w := range []struct {
+			name  string
+			truth float64
+		}{{"shape:tv", c.tvPhi[0]}, {"scale:tv", c.tvPhi[1]}, {"shape:search", c.srPhi[0]}, {"scale:search", c.srPhi[1]}} {
+			got := coefOf(t, out, w.name)
+			if got.StdErr == nil || !(*got.StdErr > 0) || math.IsInf(*got.StdErr, 0) {
+				t.Fatalf("%s: %s std err %v, want finite > 0", c.kernel, w.name, got.StdErr)
+			}
+			if d := math.Abs(got.Estimate - w.truth); d > 3**got.StdErr || d > 0.05*w.truth {
+				t.Errorf("%s: %s = %v ± %v, truth %v", c.kernel, w.name, got.Estimate, *got.StdErr, w.truth)
+			}
+		}
+		cond, ok := out.Outputs[pmodel.MMMConditionKey].(float64)
+		if !ok || !(cond >= 1) || cond > pmodel.MMMConditionThreshold {
+			t.Fatalf("%s: condition_number = %v, want finite in [1, threshold]", c.kernel, out.Outputs[pmodel.MMMConditionKey])
+		}
+	}
+}
+
+// TestMMMHillAdstock_WeibullStartAndBoxes: a Weibull kernel starts at
+// shape 1 with the scale whose per-lag ratio is the scanned decay (held
+// to its box), inside shape [0.1, 10] and scale [0.1, max_lag + 1].
+func TestMMMHillAdstock_WeibullStartAndBoxes(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{distlagparams.KernelWeibullCDF, distlagparams.KernelWeibullPDF} {
+		k, reason := hillKernelFor(name, 4)
+		if reason != "" {
+			t.Fatalf("%s: %s", name, reason)
+		}
+		if !slices.Equal(k.lo, []float64{0.1, 0.1}) || !slices.Equal(k.hi, []float64{10, 5}) {
+			t.Fatalf("%s: box lo %v hi %v, want [0.1 0.1] / [10 5]", name, k.lo, k.hi)
+		}
+		for _, c := range []struct{ d, scale float64 }{{0.5, 1 / math.Ln2}, {0.1, 1 / math.Ln10}, {0.9, 5}} {
+			st := k.start(c.d)
+			if len(st) != 2 || st[0] != 1 || math.Abs(st[1]-c.scale) > 1e-15*c.scale {
+				t.Errorf("%s: start(%v) = %v, want [1 %v]", name, c.d, st, c.scale)
+			}
+		}
+		// At shape 1 the survival is geometric in the lag at that ratio.
+		if name == distlagparams.KernelWeibullCDF {
+			w, _ := k.Weights(k.start(0.5), 4, false)
+			for l := range w {
+				if want := math.Pow(0.5, float64(l)); math.Abs(w[l]-want) > 1e-15 {
+					t.Errorf("start weights lag %d = %v, want %v", l, w[l], want)
+				}
 			}
 		}
 	}
