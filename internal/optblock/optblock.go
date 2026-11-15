@@ -121,6 +121,11 @@ type Env struct {
 	// registered LookupTable (lookup() is declared).
 	Extensions []string
 	Lookup     bool
+	// Differentiable are the Extensions carrying a Derivative hook: an
+	// objective or constraint calling any other embedder function falls
+	// back to finite differences (optgrad.BoundRules). Predict and the
+	// runtime derive it from the same registration.
+	Differentiable []string
 	// Tables are the instance's named tables the literal lookup() /
 	// range_label() calls are judged against (internal/tablecall —
 	// the evaluating builtins' codes); nil judges none.
@@ -423,28 +428,31 @@ func compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound, run 
 		}
 		out.PosteriorFit = fit
 	}
-	gradients(spec, out)
+	gradients(spec, out, optgrad.Options{Rules: optgrad.BoundRules(bound, env.Differentiable)})
 	return out, nil
 }
 
 // gradients sets out's forward-mode gradients, or its GradientFallback,
 // under an analytic effective gradient (internal/optgrad over each
 // compiled program's checked tree — the tree predict's declaration-only
-// compile and the runtime's compile share, so both name the same
+// compile and the runtime's compile share — with the request-bound
+// rules over the compile's bound, optgrad.BoundRules: each reader has a
+// rule exactly when the bound declares it and an embedder function
+// exactly when Env.Differentiable names it, so both name the same
 // fallback).
-func gradients(spec *types.OptimizeSpec, out *Compiled) {
+func gradients(spec *types.OptimizeSpec, out *Compiled, opts optgrad.Options) {
 	if spec.EffectiveGradient() != types.OptimizeGradientAnalytic {
 		return
 	}
 	seen := map[string]bool{}
-	obj, u := optgrad.Compile(out.Objective.Node(), out.Names, optgrad.Options{})
+	obj, u := optgrad.Compile(out.Objective.Node(), out.Names, opts)
 	for _, n := range u {
 		seen[n] = true
 	}
 	cons := make([]*optgrad.Program, len(out.Constraints))
 	for k, prog := range out.Constraints {
 		var cu []string
-		cons[k], cu = optgrad.Compile(prog.Node(), out.Names, optgrad.Options{})
+		cons[k], cu = optgrad.Compile(prog.Node(), out.Names, opts)
 		for _, n := range cu {
 			seen[n] = true
 		}

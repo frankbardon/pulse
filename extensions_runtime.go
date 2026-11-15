@@ -50,8 +50,9 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		r.ExprFunctions = make([]processing.ExprFunction, 0, len(ext.ExprFunctions))
 		for _, fn := range ext.ExprFunctions {
 			r.ExprFunctions = append(r.ExprFunctions, processing.ExprFunction{
-				Name: fn.Name,
-				Fn:   fn.Fn,
+				Name:       fn.Name,
+				Fn:         fn.Fn,
+				Derivative: fn.Derivative,
 			})
 		}
 	}

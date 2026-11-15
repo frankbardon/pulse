@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -1010,7 +1011,54 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i},
 			)
 		}
+		if err := validateExprDerivative(fn, i); err != nil {
+			return err
+		}
 		seen[fn.Name] = struct{}{}
+	}
+	return nil
+}
+
+// validateExprDerivative refuses a Derivative hook with nothing to
+// differentiate: on an Fn that is not a function, or a typed Fn that
+// takes no argument able to carry a number or returns no number (the
+// canonical func(...any) (any, error) shape always can).
+func validateExprDerivative(fn ExprFunction, i int) error {
+	if fn.Derivative == nil {
+		return nil
+	}
+	refuse := func(why string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_PARAM_INVALID,
+			fmt.Sprintf("extension expr function %q sets a Derivative, but its Fn %s; drop the Derivative or give Fn a numeric argument and result", fn.Name, why),
+			map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "field": "Derivative"},
+		)
+	}
+	rt := reflect.TypeOf(fn.Fn)
+	if rt.Kind() != reflect.Func {
+		return refuse(fmt.Sprintf("is a %T, not a function", fn.Fn))
+	}
+	numeric := func(t reflect.Type) bool {
+		switch t.Kind() {
+		case reflect.Interface, reflect.Float64, reflect.Float32, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return true
+		}
+		return false
+	}
+	takes := false
+	for k := 0; k < rt.NumIn(); k++ {
+		in := rt.In(k)
+		if rt.IsVariadic() && k == rt.NumIn()-1 {
+			in = in.Elem()
+		}
+		takes = takes || numeric(in)
+	}
+	if !takes {
+		return refuse("takes no argument that can be a number")
+	}
+	if rt.NumOut() == 0 || !numeric(rt.Out(0)) {
+		return refuse("returns no number")
 	}
 	return nil
 }

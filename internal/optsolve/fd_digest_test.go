@@ -75,8 +75,9 @@ func corpusDigests(t *testing.T, edit func(*types.OptimizeSpec)) []string {
 // `gradient: "fd"` reproduces the pre-analytic solver's result bit for
 // bit (the starts too — the derived seed excludes gradient), and the
 // default analytic gradient is really in play: a block every expression
-// of which differentiates solves to other bits, a block falling back
-// (hill) to the very fd bits.
+// of which differentiates — hill()'s budget fixture included — solves
+// to other bits (TestOptimize_GradientFallbackIsPerBlock pins a
+// fallback block to the very fd bits).
 func TestOptimize_GradientFDByteIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -90,8 +91,8 @@ func TestOptimize_GradientFDByteIdentical(t *testing.T) {
 	if analytic[0] == fdDigests[0] {
 		t.Errorf("corpus[0] solved analytically gives the fd bits: the analytic gradient is not wired")
 	}
-	const hillBlock = 8 // the budget fixture: hill() has no rule yet
-	if analytic[hillBlock] != fdDigests[hillBlock] {
-		t.Errorf("corpus[%d] falls back to fd but its bits moved", hillBlock)
+	const hillBlock = 8 // the budget fixture: hill() differentiates
+	if analytic[hillBlock] == fdDigests[hillBlock] {
+		t.Errorf("corpus[%d] (hill) solved analytically gives the fd bits: hill's rule is not wired", hillBlock)
 	}
 }

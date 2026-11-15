@@ -179,6 +179,11 @@ type ExprFunctionMeta struct {
 	Description string `json:"description,omitempty"`
 	Signature   string `json:"signature,omitempty"`
 	Pure        bool   `json:"pure,omitempty"`
+	// Differentiable reports a registered Derivative hook: an optimize
+	// block calling the function keeps its exact forward-mode gradient
+	// (without one the block falls back to finite differences).
+	// Omitted when false.
+	Differentiable bool `json:"differentiable,omitempty"`
 }
 
 // LookupTableMeta is the manifest projection of a registered lookup

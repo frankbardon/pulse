@@ -101,11 +101,11 @@ type Draws struct {
 // re-solves (null when none converged).
 func SolvePosterior(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed int64, d *Draws) (*Outcome, error) {
 	s := &solver{spec: spec, index: i, c: c, sign: 1, draws: d, draw: -1}
-	if d == nil && c.ObjectiveGrad != nil {
+	if c.ObjectiveGrad != nil {
 		// The analytic gradient: optblock compiled one per expression
 		// (an analytic block every expression of which differentiates).
-		// A posterior block always reads a fit (coef() / response(),
-		// no rule yet), so it never reaches here.
+		// On a posterior block its readers follow d.Select, so each
+		// draw's gradient is its own (grad aggregates them).
 		s.analytic = map[*vm.Program]*optgrad.Program{c.Objective: c.ObjectiveGrad}
 		for k, prog := range c.Constraints {
 			s.analytic[prog] = c.ConstraintGrads[k]
@@ -436,23 +436,121 @@ func (s *solver) locate(err error, field string) error {
 
 // grad is sign·∇prog at x: the forward-mode gradient when the block
 // solves analytically (s.analytic), else fdGrad. A dual evaluation
-// fault re-runs the VM program at x, which records and aborts on the
-// real fault; should the VM evaluate where the dual walk could not (an
-// invariant breach), the point is differentiated by finite differences.
+// fault (optgrad.ErrEval) re-runs the VM program at x, which records
+// and aborts on the real fault; should the VM evaluate where the dual
+// walk could not (a vertical tangent, an invariant breach), the point
+// is differentiated by finite differences. Any other dual error (an
+// embedder Derivative's fault) aborts the solve, located at the block.
+//
+// On a posterior block the gradient is the aggregate's, as eval's
+// value is: during a per-draw re-solve that draw's own; else the mean
+// of the per-draw gradients (summed in draw order), or for the
+// objective under quantile the type-7 interpolation of the two draws
+// the quantile reads, g[lo] + frac·(g[hi] − g[lo]) in sorted order
+// (ties by draw order) — NaN when any draw's value is, as the value.
 func (s *solver) grad(prog *vm.Program, field string, sign float64, x []float64) []float64 {
 	ap := s.analytic[prog]
 	if ap == nil {
 		return s.fdGrad(prog, field, sign, x)
 	}
-	_, g, err := ap.Eval(x)
-	if err != nil {
-		s.eval(prog, field, x)
+	g, ok := s.dualGrad(ap, prog, field, x)
+	if !ok {
 		return s.fdGrad(prog, field, sign, x)
 	}
 	for j := range g {
 		g[j] = float64(sign * g[j])
 	}
 	return g
+}
+
+// dualGrad is ∇prog at x by the dual walk, aggregated over a posterior
+// block's draws (grad); ok false sends the point to finite differences.
+func (s *solver) dualGrad(ap *optgrad.Program, prog *vm.Program, field string, x []float64) ([]float64, bool) {
+	d := s.draws
+	if d == nil {
+		_, g, ok := s.dualOnce(ap, prog, field, x)
+		return g, ok
+	}
+	if s.draw >= 0 {
+		d.Select(s.draw)
+		_, g, ok := s.dualOnce(ap, prog, field, x)
+		return g, ok
+	}
+	vals := make([]float64, d.Count)
+	grads := make([][]float64, d.Count)
+	for k := range vals {
+		d.Select(k)
+		v, g, ok := s.dualOnce(ap, prog, field, x)
+		if !ok {
+			return nil, false
+		}
+		vals[k], grads[k] = v, g
+	}
+	out := make([]float64, len(x))
+	if prog == s.c.Objective && s.spec.Posterior.EffectiveObjective() == types.OptimizePosteriorQuantile {
+		for _, v := range vals {
+			if math.IsNaN(v) {
+				for j := range out {
+					out[j] = math.NaN()
+				}
+				return out, true
+			}
+		}
+		order := make([]int, len(vals))
+		for k := range order {
+			order[k] = k
+		}
+		slices.SortStableFunc(order, func(a, b int) int {
+			switch {
+			case vals[a] < vals[b]:
+				return -1
+			case vals[a] > vals[b]:
+				return 1
+			}
+			return 0
+		})
+		n := len(order)
+		if n == 1 {
+			return grads[order[0]], true
+		}
+		h := float64(float64(n-1) * s.spec.Posterior.Q)
+		lo := int(math.Floor(h))
+		if lo >= n-1 {
+			return grads[order[n-1]], true
+		}
+		frac := h - float64(lo)
+		gl, gh := grads[order[lo]], grads[order[lo+1]]
+		for j := range out {
+			out[j] = gl[j] + float64(frac*(gh[j]-gl[j]))
+		}
+		return out, true
+	}
+	for _, g := range grads {
+		for j := range out {
+			out[j] += g[j]
+		}
+	}
+	for j := range out {
+		out[j] /= float64(len(grads))
+	}
+	return out, true
+}
+
+// dualOnce is prog's value and gradient at x by the dual walk on the
+// selected draw. An evaluation fault re-runs the VM (which aborts on
+// the real fault) and, should the VM evaluate, reports !ok; a
+// derivative's own error aborts the solve.
+func (s *solver) dualOnce(ap *optgrad.Program, prog *vm.Program, field string, x []float64) (float64, []float64, bool) {
+	v, g, err := ap.Eval(x)
+	switch {
+	case err == nil:
+		return v, g, true
+	case stderrors.Is(err, optgrad.ErrEval):
+		s.evalOnce(prog, field, x)
+		return 0, nil, false
+	}
+	s.fault = s.locate(err, field)
+	panic(abortSolve{})
 }
 
 // fdGrad is sign·∇prog at x by finite differences: per variable a step

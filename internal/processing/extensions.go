@@ -328,6 +328,10 @@ func (r *ExtensionRegistry) AggregationKinds() vectors.AggregationKinds {
 type ExprFunction struct {
 	Name string
 	Fn   any
+	// Derivative is pulse.ExprFunction.Derivative (nil: no derivative
+	// rule; an optimize block calling the function falls back to finite
+	// differences).
+	Derivative func(args ...any) ([]float64, error)
 }
 
 // LookupTable is the runtime-side mirror of pulse.LookupTable. The

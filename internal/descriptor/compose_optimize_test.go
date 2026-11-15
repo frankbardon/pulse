@@ -231,11 +231,12 @@ func TestOptimize_RangeLabelAccepted(t *testing.T) {
 }
 
 // TestOptimize_PredictGradientFallbackAdvisory: a block solving with the
-// default analytic gradient whose objective calls a function without a
-// derivative rule (coef()) draws one PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK
+// default analytic gradient whose objective calls an embedder function
+// without a Derivative draws one PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK
 // naming it — never a warning, the batch stays valid; a block every
-// expression of which differentiates, and a block marked gradient fd,
-// draw none; suppression drops it; an unknown gradient is refused with
+// expression of which differentiates (coef(), hill(), an embedder
+// function with a Derivative), and a block marked gradient fd, draw
+// none; suppression drops it; an unknown gradient is refused with
 // gradient_unknown.
 func TestOptimize_PredictGradientFallbackAdvisory(t *testing.T) {
 	t.Parallel()
@@ -249,13 +250,18 @@ func TestOptimize_PredictGradientFallbackAdvisory(t *testing.T) {
 		}
 		return out
 	}
-	env := ValidateCompose(optimizeBatch(nil))
+	ext := &ExtensionsSnapshot{ExprFunctions: []descriptor.ExprFunctionMeta{{Name: "damp"}, {Name: "dampd", Differentiable: true}}}
+	withExt := func(edit func(*types.OptimizeSpec)) *descriptor.Envelope {
+		return ValidateComposeWithOptions(optimizeBatch(edit), &PredictOptions{Extensions: ext})
+	}
+	damp := func(s *types.OptimizeSpec) { s.Objective = "damp(p) * (40 - p)" }
+	env := withExt(damp)
 	got := fallbacks(env)
 	if len(got) != 1 || !env.Data.(*ComposeValidationResult).Valid {
 		t.Fatalf("advisories %+v (valid %v), want one fallback on a valid batch", got, env.Data.(*ComposeValidationResult).Valid)
 	}
 	d := got[0].Details
-	if d["optimize"] != 0 || d["name"] != "price" || !reflect.DeepEqual(d["functions"], []string{"coef"}) ||
+	if d["optimize"] != 0 || d["name"] != "price" || !reflect.DeepEqual(d["functions"], []string{"damp"}) ||
 		!reflect.DeepEqual(d["suggested"], map[string]any{"gradient": "fd"}) {
 		t.Fatalf("details %+v", d)
 	}
@@ -268,15 +274,18 @@ func TestOptimize_PredictGradientFallbackAdvisory(t *testing.T) {
 		}
 	}
 	for name, edit := range map[string]func(*types.OptimizeSpec){
-		"analytic": func(s *types.OptimizeSpec) { s.Objective = "p * (40 - p)" },
-		"fd":       func(s *types.OptimizeSpec) { s.Gradient = types.OptimizeGradientFD },
+		"arithmetic": func(s *types.OptimizeSpec) { s.Objective = "p * (40 - p)" },
+		"coef":       nil,
+		"hill":       func(s *types.OptimizeSpec) { s.Objective = "100 * hill(p, 20, 1.5) - p" },
+		"derivative": func(s *types.OptimizeSpec) { s.Objective = "dampd(p) * (40 - p)" },
+		"fd":         func(s *types.OptimizeSpec) { damp(s); s.Gradient = types.OptimizeGradientFD },
 	} {
-		if got := fallbacks(ValidateCompose(optimizeBatch(edit))); len(got) != 0 {
+		if got := fallbacks(withExt(edit)); len(got) != 0 {
 			t.Errorf("%s block: advisories %+v, want none", name, got)
 		}
 	}
-	opts := &PredictOptions{Instance: (*InstanceSnapshot)(nil).WithSuppressedAdvisories([]string{string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK)})}
-	if got := fallbacks(ValidateComposeWithOptions(optimizeBatch(nil), opts)); len(got) != 0 {
+	opts := &PredictOptions{Extensions: ext, Instance: (*InstanceSnapshot)(nil).WithSuppressedAdvisories([]string{string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK)})}
+	if got := fallbacks(ValidateComposeWithOptions(optimizeBatch(damp), opts)); len(got) != 0 {
 		t.Errorf("suppressed: %+v", got)
 	}
 	env = ValidateCompose(optimizeBatch(func(s *types.OptimizeSpec) { s.Gradient = "newton" }))

@@ -43,7 +43,7 @@ import (
 // fit or slot runs — the same first error predict reports; the
 // runtime's Compile still evaluates every bound once the fits ran.
 func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) ([]*model.Loaded, *errors.CodedError) {
-	checked, cerr := optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, true)
+	checked, cerr := optimizeCheck(req, sweepAxes, exprFunctions, nil, tables, outer, load, kinds, true)
 	if cerr != nil || checked == nil {
 		return nil, cerr
 	}
@@ -57,28 +57,32 @@ func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctio
 // (optblock.Env.Fold) to the value the runtime's Compile evaluates,
 // range-checking it with the runtime's very refusal. Nil, nil when the
 // batch declares no block.
-func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) (*optblock.Checked, *errors.CodedError) {
-	return optimizeCheck(req, sweepAxes, exprFunctions, tables, outer, load, kinds, true)
+//
+// differentiable are the exprFunctions carrying a Derivative hook
+// (optblock.Env.Differentiable), behind Checked.GradientFallbacks.
+func OptimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions, differentiable []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds) (*optblock.Checked, *errors.CodedError) {
+	return optimizeCheck(req, sweepAxes, exprFunctions, differentiable, tables, outer, load, kinds, true)
 }
 
 // optimizeCheck is OptimizeRefusal / OptimizeCheck; fold sets
 // optblock.Env.Fold.
-func optimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds, fold bool) (*optblock.Checked, *errors.CodedError) {
+func optimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions, differentiable []string, tables tablecall.Catalog, outer model.Catalog, load optblock.Loader, kinds vectors.AggregationKinds, fold bool) (*optblock.Checked, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
 	fits := model.CatalogFromFits(req.Fits).WithSweepAxes(sweepAxes)
 	return optblock.CheckAll(req.Optimize, optblock.Env{
-		Params:     params,
-		Fits:       fits,
-		Extensions: exprFunctions,
-		Lookup:     tables != nil && tables.HasLookup(),
-		Tables:     tables,
-		Outer:      model.WithinCatalog(outer, fits),
-		Load:       load,
-		Results:    ResultCatalog(req.Requests, kinds),
-		Fold:       fold,
+		Params:         params,
+		Fits:           fits,
+		Extensions:     exprFunctions,
+		Differentiable: differentiable,
+		Lookup:         tables != nil && tables.HasLookup(),
+		Tables:         tables,
+		Outer:          model.WithinCatalog(outer, fits),
+		Load:           load,
+		Results:        ResultCatalog(req.Requests, kinds),
+		Fold:           fold,
 	})
 }
 
@@ -143,6 +147,23 @@ func predictExprFunctionNames(opts *PredictOptions) []string {
 	out := make([]string, 0, len(snap.ExprFunctions))
 	for _, fn := range snap.ExprFunctions {
 		out = append(out, fn.Name)
+	}
+	return out
+}
+
+// predictDifferentiableNames are the embedder's expr functions carrying
+// a Derivative hook (ExprFunctionMeta.Differentiable), nil without an
+// extension snapshot.
+func predictDifferentiableNames(opts *PredictOptions) []string {
+	snap := extensionsFromOpts(opts)
+	if snap == nil {
+		return nil
+	}
+	var out []string
+	for _, fn := range snap.ExprFunctions {
+		if fn.Differentiable {
+			out = append(out, fn.Name)
+		}
 	}
 	return out
 }

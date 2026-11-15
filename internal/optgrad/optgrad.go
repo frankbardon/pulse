@@ -23,13 +23,15 @@
 // comparisons (== != < > <= >=), and / or / && / || / ??, the ternary,
 // the built-ins abs ceil floor round float min max, and every function
 // with a [Rule] — the deterministic maths set (sqrt log exp pow log1p,
-// sin cos tan atan2, pi e) and the rewritten `**` / `^` / `%`. Anything
-// else — a function without a rule (hill, coef, response, result,
-// lookup, an embedder ExprFunction), a collection, a member access, a
-// let — is Unsupported, and the block falls back to finite differences
-// as a whole (never per term). A caller adds rules through
-// [Options.Rules] (the fit readers' and an embedder's derivative hook
-// arrive that way).
+// hill, sin cos tan atan2, pi e) and the rewritten `**` / `^` / `%` —
+// plus the request-bound rules [BoundRules] builds (coef, sweep_axis,
+// result: constants in the decision variables; response: the channel
+// curve's slope in its spend; an embedder ExprFunction with a
+// Derivative hook). Anything else — a function without a rule (lookup,
+// an embedder ExprFunction without a Derivative), a collection, a
+// member access, a let — is Unsupported, and the block falls back to
+// finite differences as a whole (never per term). A caller adds rules
+// through [Options.Rules].
 //
 // Determinism: every product feeding an add is barriered
 // (float64(a*b)), every tangent sum runs in argument order, and the
@@ -37,8 +39,8 @@
 // internal/vecmath, the kernels the expression built-ins use), so the
 // same point gives the same gradient bits on every architecture.
 //
-// No-execute leaf: it imports expr-lang's ast / builtin packages,
-// internal/exprenv and internal/vecmath only, so predict
+// No-execute leaf: it imports expr-lang's ast / builtin / runtime
+// packages, errors, internal/exprenv and internal/vecmath only, so predict
 // (internal/descriptor, via internal/optblock) and the solver
 // (internal/optsolve) share it.
 package optgrad
@@ -47,6 +49,7 @@ import (
 	stderrors "errors"
 	"math"
 	"slices"
+	"strconv"
 
 	exprast "github.com/expr-lang/expr/ast"
 	exprbuiltin "github.com/expr-lang/expr/builtin"
@@ -66,6 +69,13 @@ type Rule struct {
 	// the arguments. Only the partials of arguments that depend on a
 	// decision variable are read.
 	Partials func(args []float64, out float64) []float64
+	// Derivative, when set, replaces Partials: the partials from the
+	// evaluated arguments as Impl received them (a function reading a
+	// string argument — response()'s fit and channel, an embedder
+	// function's key — needs them). It must return one partial per
+	// argument; an error, or a wrong count, aborts the gradient with
+	// that error (never ErrEval: the VM's value cannot surface it).
+	Derivative func(args []any, out float64) ([]float64, error)
 }
 
 // Options extends the built-in rule table.
@@ -378,7 +388,7 @@ func (e *evaluator) eval(node exprast.Node) (dual, error) {
 		if impl == nil {
 			break
 		}
-		return e.apply(impl, r.Partials, args)
+		return e.apply(impl, r, args)
 	case *exprast.BuiltinNode:
 		r, ok := builtinRules[n.Name]
 		if !ok {
@@ -388,7 +398,7 @@ func (e *evaluator) eval(node exprast.Node) (dual, error) {
 		if err != nil {
 			return dual{}, err
 		}
-		return e.apply(builtinImpl(n.Name), r, args)
+		return e.apply(builtinImpl(n.Name), Rule{Partials: r}, args)
 	}
 	return dual{}, ErrEval
 }
@@ -405,9 +415,13 @@ func (e *evaluator) args(nodes []exprast.Node) ([]dual, error) {
 	return out, nil
 }
 
-// apply calls impl on args and chains partials over the arguments that
-// depend on a variable, in argument order.
-func (e *evaluator) apply(impl func(args ...any) (any, error), partials func([]float64, float64) []float64, args []dual) (dual, error) {
+// apply calls impl on args and chains the rule's partials over the
+// arguments that depend on a variable, in argument order. A partial
+// that is not finite where the value is (a kink or a vertical tangent:
+// sqrt or hill at 0) is ErrEval, so the solver differentiates that
+// point alone by finite differences instead of feeding SLSQP an
+// infinite slope.
+func (e *evaluator) apply(impl func(args ...any) (any, error), rule Rule, args []dual) (dual, error) {
 	raw := make([]any, len(args))
 	nums := make([]float64, len(args))
 	dep := false
@@ -442,15 +456,39 @@ func (e *evaluator) apply(impl func(args ...any) (any, error), partials func([]f
 	if !dep {
 		return r, nil
 	}
-	p := partials(nums, v)
+	var p []float64
+	if rule.Derivative != nil {
+		if p, err = rule.Derivative(raw, v); err != nil {
+			return dual{}, err
+		}
+		if len(p) != len(args) {
+			return dual{}, &PartialsError{Got: len(p), Want: len(args)}
+		}
+	} else {
+		p = rule.Partials(nums, v)
+	}
+	finite := !math.IsNaN(v) && !math.IsInf(v, 0)
 	r.d = make([]float64, e.p.n)
 	for i, a := range args {
 		if a.k != kindNum || a.d == nil {
 			continue
 		}
+		if finite && (math.IsNaN(p[i]) || math.IsInf(p[i], 0)) {
+			return dual{}, ErrEval
+		}
 		addScaled(r.d, p[i], a.d)
 	}
 	return r, nil
+}
+
+// PartialsError is a Derivative that returned the wrong number of
+// partials for its call.
+type PartialsError struct {
+	Got, Want int
+}
+
+func (e *PartialsError) Error() string {
+	return "derivative returned " + strconv.Itoa(e.Got) + " partials for a call of " + strconv.Itoa(e.Want) + " arguments"
 }
 
 // addScaled is dst += c·src, each product barriered, in index order.

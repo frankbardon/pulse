@@ -80,6 +80,7 @@ func TestRules_AgreeWithFiniteDifferences(t *testing.T) {
 		"!(x > y) ? x : y", "x == y ? 0 : x * y", "x != 1 ? x : y",
 		"(x - 3) * (x - 3) + 100 * (y - x * x) * (y - x * x)",
 		"x + params.k * y", "params.k ** 2 * x",
+		"hill(x, y, 1.5)", "hill(x, 2, y)", "hill(3, x, y)", "120 * hill(x * 10, 40, 2) + 60 * hill(y, 10, 1)",
 	}
 	bound := exprenv.Bound{Params: exprenv.Params{"k": 2.5}}
 	for _, src := range exprs {
@@ -115,12 +116,13 @@ func TestCompile_Unsupported(t *testing.T) {
 
 	vars := []string{"x"}
 	coef := func(args ...any) (any, error) { return 2.0, nil }
-	bound := exprenv.Bound{Coef: coef, Extensions: []exprenv.NamedFunc{{Name: "rate", Fn: func(args ...any) (any, error) { return 1.5, nil }}}}
+	lookup := func(args ...any) (any, error) { return 4.0, nil }
+	bound := exprenv.Bound{Coef: coef, Lookup: lookup, Extensions: []exprenv.NamedFunc{{Name: "rate", Fn: func(args ...any) (any, error) { return 1.5, nil }}}}
 	cases := []struct {
 		src  string
 		want []string
 	}{
-		{"hill(x, 40, 2) + hill(x, 1, 1)", []string{"hill"}},
+		{`hill(x, 40, 2) + lookup("t", "a") * x`, []string{"lookup"}},
 		{`coef("m", "t") * x + rate(x)`, []string{"coef", "rate"}},
 		{"filter([x, 1], # > 0)[0]", []string{"array", "find", "predicate"}},
 		{"let a = x; a * 2", []string{"let"}},
@@ -194,19 +196,12 @@ func TestEval_Deterministic(t *testing.T) {
 
 // TestRules_ListsTheTable: Rules reports the function and built-in
 // tables (the maths set, the rewritten operators, expr-lang's numeric
-// built-ins), and the maths set is every exprenv MathNames entry but
-// hill (the fit readers' story).
+// built-ins), and the maths set is every exprenv MathNames entry.
 func TestRules_ListsTheTable(t *testing.T) {
 	t.Parallel()
 
 	fns, bis := Rules()
 	for _, n := range exprenv.MathNames() {
-		if n == exprenv.FuncHill {
-			if slices.Contains(fns, n) {
-				t.Errorf("hill has a rule; move it with the fit readers")
-			}
-			continue
-		}
 		if !slices.Contains(fns, n) {
 			t.Errorf("maths built-in %s has no derivative rule", n)
 		}

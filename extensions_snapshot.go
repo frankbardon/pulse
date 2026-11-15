@@ -200,10 +200,11 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 	snap.Purposes, snap.Interpretations = extensionGuidance(ext)
 	for _, fn := range ext.ExprFunctions {
 		snap.ExprFunctions = append(snap.ExprFunctions, descriptor.ExprFunctionMeta{
-			Name:        fn.Name,
-			Description: fn.Description,
-			Signature:   fn.Signature,
-			Pure:        fn.Pure,
+			Name:           fn.Name,
+			Description:    fn.Description,
+			Signature:      fn.Signature,
+			Pure:           fn.Pure,
+			Differentiable: fn.Derivative != nil,
 		})
 	}
 	for name, t := range ext.LookupTables {

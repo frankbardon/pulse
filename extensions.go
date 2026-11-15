@@ -1242,6 +1242,20 @@ type ExprFunction struct {
 	// only on its arguments. Reserved for a future memoization
 	// optimisation; declaring it has no runtime effect today.
 	Pure bool
+	// Derivative, optional, returns ∂Fn/∂argᵢ at the call's arguments
+	// — one partial per argument, index-aligned, as Fn received them
+	// (float64, string, bool or nil each; a non-numeric argument's
+	// partial is never read). A Compose optimize block calling the
+	// function keeps its exact forward-mode gradient through it. Nil:
+	// a block calling the function differentiates by finite
+	// differences as a whole, and predict says so with
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK. pulse.New refuses a
+	// Derivative on an Fn that is not a function, takes no argument
+	// that can be a number or returns no number
+	// (PULSE_EXTENSION_PARAM_INVALID); at run time an error, or a
+	// partial count that does not match the call, fails the solve with
+	// PROCESSING_RUNTIME. Read nowhere else.
+	Derivative func(args ...any) ([]float64, error)
 }
 
 // LookupTable exposes a static keyed map to the runtime expression

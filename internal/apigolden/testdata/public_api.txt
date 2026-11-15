@@ -305,6 +305,7 @@ pulse: type ExamplesQuery field Tags []string "json:\"tags,omitempty\""
 pulse: type ExportReferenceOptions struct
 pulse: type ExportReferenceOptions field OmitSkills bool
 pulse: type ExprFunction struct
+pulse: type ExprFunction field Derivative func(args ...any) ([]float64, error)
 pulse: type ExprFunction field Description string
 pulse: type ExprFunction field Fn any
 pulse: type ExprFunction field Name string
@@ -1628,6 +1629,7 @@ pulse/descriptor: type ExportFormatCapability field OverlaySupport string "json:
 pulse/descriptor: type ExportFormatCapability field TimeZone string "json:\"time_zone\""
 pulse/descriptor: type ExprFunctionMeta struct
 pulse/descriptor: type ExprFunctionMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type ExprFunctionMeta field Differentiable bool "json:\"differentiable,omitempty\""
 pulse/descriptor: type ExprFunctionMeta field Name string "json:\"name\""
 pulse/descriptor: type ExprFunctionMeta field Pure bool "json:\"pure,omitempty\""
 pulse/descriptor: type ExprFunctionMeta field Signature string "json:\"signature,omitempty\""
@@ -6861,4 +6863,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7d17485e59ee9a1aeb8b64b7b6ed0c7eb5ec7b480abb8a7116916146a8d1adeb
+// golden-hash: 326af099df0eb4f33434dd7fde8176a15d8a0ad43c2dbed16ec61699b178f9ea

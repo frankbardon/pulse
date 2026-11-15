@@ -52,7 +52,7 @@ func (r *ExtensionRegistry) exprBound() exprenv.Bound {
 		RangeLabel: newRangeLabeler(r).call,
 	}
 	for i, fn := range r.ExprFunctions {
-		b.Extensions[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn}
+		b.Extensions[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn, Derivative: fn.Derivative}
 	}
 	if len(r.LookupTables) > 0 {
 		b.Lookup = r.lookupBuiltin

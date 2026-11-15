@@ -89,27 +89,9 @@ func SweepAxisBuiltin(set *Set) func(args ...any) (any, error) {
 // (nil) is a null result (NaN); an integer spend reads as its float64.
 func ResponseBuiltin(set *Set) func(args ...any) (any, error) {
 	return func(args ...any) (any, error) {
-		if len(args) != 3 && len(args) != 4 {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("response() takes 3 or 4 arguments (fit, channel, spend[, geo]), got %d", len(args)))
-		}
-		// The fit, the channel and (argument 4) the geo are strings.
-		var strs []string
-		for i, a := range args {
-			if i == 2 {
-				continue
-			}
-			s, ok := a.(string)
-			if !ok {
-				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-					fmt.Sprintf("response() argument %d must be a string, got %T", i+1, a))
-			}
-			strs = append(strs, s)
-		}
-		spend, ok := responseSpend(args[2])
-		if !ok {
-			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("response() argument 3 must be a number, got %T", args[2]))
+		strs, spend, err := responseArgs(args)
+		if err != nil {
+			return nil, err
 		}
 		var v float64
 		var cerr *errors.CodedError
@@ -122,6 +104,58 @@ func ResponseBuiltin(set *Set) func(args ...any) (any, error) {
 			return nil, cerr
 		}
 		return v, nil
+	}
+}
+
+// responseArgs reads response()'s arguments: the fit, the channel and
+// (argument 4) the geo as strings, the spend as a number.
+func responseArgs(args []any) ([]string, float64, error) {
+	if len(args) != 3 && len(args) != 4 {
+		return nil, 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("response() takes 3 or 4 arguments (fit, channel, spend[, geo]), got %d", len(args)))
+	}
+	var strs []string
+	for i, a := range args {
+		if i == 2 {
+			continue
+		}
+		s, ok := a.(string)
+		if !ok {
+			return nil, 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+				fmt.Sprintf("response() argument %d must be a string, got %T", i+1, a))
+		}
+		strs = append(strs, s)
+	}
+	spend, ok := responseSpend(args[2])
+	if !ok {
+		return nil, 0, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+			fmt.Sprintf("response() argument 3 must be a number, got %T", args[2]))
+	}
+	return strs, spend, nil
+}
+
+// ResponseSlopeBuiltin is ∂response()/∂spend over set at response()'s
+// arguments (fit, channel, spend[, geo]) — ResponseSlope /
+// ResponseGeoSlope, argument faults as ResponseBuiltin's. Never
+// declared to expr-lang: an optimize block's forward-mode gradient
+// reads it beside ResponseBuiltin (exprenv.Bound.ResponseSlope).
+func ResponseSlopeBuiltin(set *Set) func(args ...any) (float64, error) {
+	return func(args ...any) (float64, error) {
+		strs, spend, err := responseArgs(args)
+		if err != nil {
+			return math.NaN(), err
+		}
+		var d float64
+		var cerr *errors.CodedError
+		if len(strs) == 3 {
+			d, cerr = ResponseGeoSlope(set, strs[0], strs[1], strs[2], spend)
+		} else {
+			d, cerr = ResponseSlope(set, strs[0], strs[1], spend)
+		}
+		if cerr != nil {
+			return math.NaN(), cerr
+		}
+		return d, nil
 	}
 }
 

@@ -98,8 +98,8 @@ func TestOptimize_AnalyticGradientAgreesWithFD(t *testing.T) {
 	}
 }
 
-// TestOptimize_GradientFallbackIsPerBlock: one expression calling a
-// function without a derivative rule (hill() in a constraint here)
+// TestOptimize_GradientFallbackIsPerBlock: one expression using a
+// construct without a derivative rule (a let in a constraint here)
 // sends the WHOLE block to finite differences — no gradient programs,
 // the function named — and the block solves to the fd bits; gradient fd
 // names no fallback.
@@ -107,10 +107,10 @@ func TestOptimize_GradientFallbackIsPerBlock(t *testing.T) {
 	t.Parallel()
 
 	raw := `{"name":"g","direction":"minimize","variables":[{"name":"x","lower":0,"upper":4},{"name":"y","lower":0,"upper":4}],
-		"objective":"(x - 1) * (x - 1) + (y - 2) * (y - 2)","constraints":[{"expr":"hill(x, 2, 2) + y - 1","type":"ineq"},{"expr":"x - y","type":"ineq"}],"starts":3,"rng_seed":4}`
+		"objective":"(x - 1) * (x - 1) + (y - 2) * (y - 2)","constraints":[{"expr":"let h = hill(x, 2, 2); h + y - 1","type":"ineq"},{"expr":"x - y","type":"ineq"}],"starts":3,"rng_seed":4}`
 	c := compiled(t, raw)
-	if c.ObjectiveGrad != nil || c.ConstraintGrads != nil || !reflect.DeepEqual(c.GradientFallback, []string{"hill"}) {
-		t.Fatalf("compiled: objective grad %v, constraint grads %v, fallback %v; want none and [hill]", c.ObjectiveGrad != nil, c.ConstraintGrads, c.GradientFallback)
+	if c.ObjectiveGrad != nil || c.ConstraintGrads != nil || !reflect.DeepEqual(c.GradientFallback, []string{"let"}) {
+		t.Fatalf("compiled: objective grad %v, constraint grads %v, fallback %v; want none and [let]", c.ObjectiveGrad != nil, c.ConstraintGrads, c.GradientFallback)
 	}
 	enc := func(edit func(*types.OptimizeSpec)) string {
 		spec := block(t, raw)

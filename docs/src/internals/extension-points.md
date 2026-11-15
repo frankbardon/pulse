@@ -1193,6 +1193,38 @@ accepts typed functions via reflection — `func(v float64) float64` and
 `func(args ...any) (any, error)` both work. Use the variadic shape
 when zero-allocation calling matters.
 
+**Derivatives for `optimize`.** A Compose `optimize` block
+differentiates its objective and constraints exactly (forward mode).
+A block that calls your function keeps that exact gradient only if the
+registration carries the optional `Derivative` hook: given the call's
+arguments (as `Fn` received them), it returns one partial per
+argument, index-aligned — a string or bool argument's partial is never
+read, so return 0 there:
+
+```go
+{
+    Name: "damp",
+    Fn:   func(x, k float64) float64 { return x / (k + x) },
+    Derivative: func(args ...any) ([]float64, error) {
+        x, k := args[0].(float64), args[1].(float64)
+        d := (k + x) * (k + x)
+        return []float64{k / d, -x / d}, nil
+    },
+}
+```
+
+Without `Derivative` the whole block falls back to central finite
+differences, and Compose predict says so with
+`PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` (`details.functions` names
+your function). The manifest marks a function with a hook
+`"differentiable": true`. `pulse.New` refuses a `Derivative` on an `Fn`
+that is not a function, takes no argument that can be a number, or
+returns no number (`PULSE_EXTENSION_PARAM_INVALID`, `details.field`
+`Derivative`). At run time a `Derivative` that returns an error, or the
+wrong number of partials, fails the solve with `PROCESSING_RUNTIME`
+naming the function — never a silent fallback. Write the partials with
+the same care as `Fn`: a wrong slope still solves, to a wrong optimum.
+
 ### Lookup tables
 
 Static keyed tables exposed via the built-in `lookup(table, keys...)`

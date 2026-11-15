@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"reflect"
 	"testing"
 
@@ -144,19 +145,32 @@ func TestOptimize_HiddenParity(t *testing.T) {
 // TestOptimize_GradientFallbackParity: predict's
 // PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK fires exactly when the
 // runtime differentiates the block by finite differences — a block
-// reading coef() (no derivative rule) draws the advisory and solves to
-// the `gradient: "fd"` bits on both orchestrators; an arithmetic block
-// draws none and solves analytically, to other bits.
+// calling an embedder ExprFunction without a Derivative (or a let)
+// draws the advisory and solves to the `gradient: "fd"` bits on both
+// orchestrators; an arithmetic block, one reading coef() or hill(), and
+// one calling an embedder function WITH a Derivative draw none and
+// solve analytically, to other bits.
 func TestOptimize_GradientFallbackParity(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	p := sweepPulse(t, Options{})
+	p := sweepPulse(t, Options{Extensions: Extensions{ExprFunctions: []ExprFunction{
+		{Name: "damp", Fn: func(x float64) float64 { return x / (1 + x) }},
+		{Name: "dampd", Fn: func(x float64) float64 { return x / (1 + x) },
+			Derivative: func(args ...any) ([]float64, error) {
+				x := args[0].(float64)
+				return []float64{1 / float64((1+x)*(1+x))}, nil
+			}},
+	}}})
 	cases := []struct {
 		name, objective string
 		fallback        bool
 	}{
-		{"coef falls back", `"coef(\"m\", \"age\") * x - x * x"`, true},
+		{"embedder function without Derivative falls back", `"10 * damp(x) - 0.1 * x"`, true},
+		{"let falls back", `"let y = x; 0.1 * y - (y - 3) * (y - 3)"`, true},
+		{"embedder function with Derivative is analytic", `"10 * dampd(x) - 0.1 * x"`, false},
+		{"coef is analytic", `"coef(\"m\", \"age\") * x - x * x"`, false},
+		{"hill is analytic", `"40 * hill(x, 20, 1.5) - 0.2 * x"`, false},
 		{"arithmetic is analytic", `"0.1 * x - (x - 3) * (x - 3)"`, false},
 	}
 	for _, tc := range cases {
@@ -193,5 +207,67 @@ func TestOptimize_GradientFallbackParity(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestOptimize_ExprFunctionDerivative: pulse.New refuses a Derivative
+// with nothing to differentiate (an Fn that is not a function, takes no
+// argument that can be a number, or returns none) with
+// PULSE_EXTENSION_PARAM_INVALID field Derivative, and admits it on the
+// canonical and typed numeric shapes; the manifest marks the function
+// differentiable; at run time a Derivative that fails, or returns the
+// wrong partial count, fails the solve with PROCESSING_RUNTIME naming
+// the function on both orchestrators — never silently finite
+// differences.
+func TestOptimize_ExprFunctionDerivative(t *testing.T) {
+	t.Parallel()
+
+	d := func(args ...any) ([]float64, error) { return make([]float64, len(args)), nil }
+	for name, fn := range map[string]any{
+		"not a function":  42,
+		"no numeric arg":  func(s string) float64 { return 1 },
+		"no number back":  func(x float64) string { return "" },
+		"no result":       func(x float64) {},
+		"string variadic": func(s ...string) float64 { return 1 },
+	} {
+		_, err := New(Options{FS: parityFS(t), Extensions: Extensions{ExprFunctions: []ExprFunction{{Name: "f", Fn: fn, Derivative: d}}}})
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_EXTENSION_PARAM_INVALID || ce.Details["field"] != "Derivative" {
+			t.Errorf("%s: %v, want PULSE_EXTENSION_PARAM_INVALID field Derivative", name, err)
+		}
+	}
+	for name, fn := range map[string]any{
+		"canonical": func(args ...any) (any, error) { return 1.0, nil },
+		"typed":     func(k string, x float64) float64 { return x },
+		"int":       func(x int) int { return x },
+	} {
+		if _, err := New(Options{FS: parityFS(t), Extensions: Extensions{ExprFunctions: []ExprFunction{{Name: "f", Fn: fn, Derivative: d}}}}); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+
+	p := sweepPulse(t, Options{Extensions: Extensions{ExprFunctions: []ExprFunction{
+		{Name: "plain", Fn: func(x float64) float64 { return x }},
+		{Name: "boom", Fn: func(x float64) float64 { return x },
+			Derivative: func(args ...any) ([]float64, error) { return nil, stderrors.New("no slope here") }},
+		{Name: "short", Fn: func(x, y float64) float64 { return x + y },
+			Derivative: func(args ...any) ([]float64, error) { return []float64{1}, nil }},
+	}}})
+	flags := map[string]bool{}
+	for _, fn := range p.Manifest(context.Background()).Extensions.ExprFunctions {
+		flags[fn.Name] = fn.Differentiable
+	}
+	if want := map[string]bool{"plain": false, "boom": true, "short": true}; !reflect.DeepEqual(flags, want) {
+		t.Fatalf("manifest differentiable %v, want %v", flags, want)
+	}
+	for _, objective := range []string{`"boom(x) - x * x"`, `"short(x, 1) - x * x"`} {
+		raw := `[{"name":"o","direction":"maximize","variables":[{"name":"x","lower":0,"upper":"params.budget"}],"objective":` + objective + `,"starts":2}]`
+		for name, run := range composeRuns(p) {
+			_, err := run(optimizeComposed(t, raw))
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_RUNTIME || ce.Details["optimize"] != 0 {
+				t.Errorf("%s %s: %v, want PROCESSING_RUNTIME located at the block", name, objective, err)
+			}
+		}
 	}
 }

@@ -11,8 +11,8 @@ import (
 )
 
 // The derivative rules. builtinFuncRules covers the deterministic maths
-// set of the expression built-ins (exprenv's MathNames less hill, whose
-// rule arrives with the fit readers') and the builtins the `**` / `^`
+// set of the expression built-ins (exprenv's MathNames, hill included)
+// and the builtins the `**` / `^`
 // and float `%` patchers rewrite into; builtinRules covers expr-lang's
 // own numeric built-ins. Each partial is computed on the kernels the
 // value runs on (vecmath → linalg/detmath), every product feeding an add
@@ -46,8 +46,9 @@ var builtinFuncRules = map[string]Rule{
 		r2 := float64(x*x) + float64(y*y)
 		return []float64{x / r2, -y / r2}
 	}},
-	exprenv.FuncPi: {Partials: func([]float64, float64) []float64 { return nil }},
-	exprenv.FuncE:  {Partials: func([]float64, float64) []float64 { return nil }},
+	exprenv.FuncHill: {Partials: hillPartials},
+	exprenv.FuncPi:   {Partials: func([]float64, float64) []float64 { return nil }},
+	exprenv.FuncE:    {Partials: func([]float64, float64) []float64 { return nil }},
 	// `**` / `^`: exprPower's body (runtime.ToFloat64, detmath Pow).
 	exprenv.PowFuncName:      {Impl: powImpl, Partials: powPartials},
 	exprenv.PowCaretFuncName: {Impl: powImpl, Partials: powPartials},
@@ -55,6 +56,41 @@ var builtinFuncRules = map[string]Rule{
 	exprenv.ModFuncName: {Impl: modImpl, Partials: func(a []float64, v float64) []float64 {
 		return []float64{1, -math.Trunc(a[0] / a[1])}
 	}},
+}
+
+// hillPartials are hill(x, k, s) = h = 1 / (1 + u), u = (k/x)^s:
+// with q = u·h² (= h·(1 − h), without the cancellation near h = 1),
+// ∂h/∂x = s·q / x, ∂h/∂k = −s·q / k and ∂h/∂s = −q·ln(k/x). At x = 0
+// (u = +Inf, h = 0) they are the limits — ∂h/∂x 0 for s > 1, 1/k at
+// s = 1 and +Inf below (a vertical tangent: the solver takes that point
+// by finite differences), ∂h/∂k and ∂h/∂s 0; at x = +Inf (h = 1) all
+// three are 0. Outside the curve's domain the value is NaN and so is
+// every partial.
+func hillPartials(a []float64, h float64) []float64 {
+	x, k, s := a[0], a[1], a[2]
+	if math.IsNaN(h) {
+		return []float64{math.NaN(), math.NaN(), math.NaN()}
+	}
+	switch {
+	case x == 0:
+		dx := 0.0
+		switch {
+		case s == 1:
+			dx = 1 / k
+		case s < 1:
+			dx = math.Inf(1)
+		}
+		return []float64{dx, 0, 0}
+	case math.IsInf(x, 1):
+		return []float64{0, 0, 0}
+	}
+	u := vecmath.Pow(k/x, s)
+	q := float64(float64(u*h) * h)
+	return []float64{
+		float64(s*q) / x,
+		-float64(s*q) / k,
+		-float64(q * vecmath.Log(k/x)),
+	}
 }
 
 // powPartials are ∂(aᵇ)/∂a = b·aᵇ⁻¹ and ∂(aᵇ)/∂b = aᵇ·ln a.

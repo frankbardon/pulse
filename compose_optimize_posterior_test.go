@@ -28,7 +28,9 @@ import (
 // TestOptimize_PosteriorAbsentByteIdentical: the posterior-free
 // fixtures answer exactly the bytes they answered before `posterior`
 // existed (digests taken on the pre-change code; the optimize path is
-// FMA-free, its saved model and hill() curves fit-free).
+// FMA-free, its saved model and hill() curves fit-free) under
+// `gradient: "fd"` — the pre-analytic differentiation those bytes were
+// solved with, which the analytic default (mmm-optimize-depth) moves.
 func TestOptimize_PosteriorAbsentByteIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -41,7 +43,11 @@ func TestOptimize_PosteriorAbsentByteIdentical(t *testing.T) {
 		{optfixture.Budget, "30f406b71e6590b0b9afeb732a222c373b6aa05db68ee9124fb3bed6d5d2965c"},
 	} {
 		for name, run := range composeRuns(p) {
-			resp, err := run(decodeOpt(t, tc.raw, nil))
+			resp, err := run(decodeOpt(t, tc.raw, func(c *ComposedRequest) {
+				for i := range c.Optimize {
+					c.Optimize[i].Gradient = types.OptimizeGradientFD
+				}
+			}))
 			if err != nil {
 				t.Fatal(err)
 			}

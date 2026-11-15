@@ -68,6 +68,13 @@ type Bound struct {
 	// admitted as is — so a non-string fit, channel or geo, or a string
 	// spend, fails compile.
 	Response func(args ...any) (any, error)
+	// ResponseSlope is ∂response/∂spend at response()'s arguments (the
+	// same Set Response reads; model.ResponseSlopeBuiltin) — never
+	// declared to expr-lang: an optimize block's forward-mode gradient
+	// (internal/optgrad.BoundRules) reads it beside Response. Nil where
+	// no gradient is taken (every compile but an optimize block's
+	// runtime one).
+	ResponseSlope func(args ...any) (float64, error)
 	// Result is result()'s implementation (internal/resultcall.Reader);
 	// nil leaves it undeclared — every compile but a Compose optimize
 	// block's. Declared typed — (string, string) → float64.

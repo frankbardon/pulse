@@ -337,7 +337,7 @@ func TestScalarFold_OptimizeBoundsMatchRuntime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			c := foldOptimize(tc.upper, tc.start)
-			checked, pcerr := OptimizeCheck(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{})
+			checked, pcerr := OptimizeCheck(c, nil, nil, nil, nil, nil, nil, vectors.AggregationKinds{})
 			if pcerr != nil && pcerr.Code == errors.PROCESSING_INTERNAL {
 				t.Fatalf("a foldable read ran a placeholder: %v", pcerr)
 			}
@@ -358,7 +358,7 @@ func TestScalarFold_OptimizeBoundsMatchRuntime(t *testing.T) {
 				sameCoded(t, pcerr, rcerr)
 				// And it is the refusal the post-fit Compile gives: the
 				// non-folding check hands Compile the block's files.
-				unfolded, ucerr := optimizeCheck(c, nil, nil, nil, nil, nil, vectors.AggregationKinds{}, false)
+				unfolded, ucerr := optimizeCheck(c, nil, nil, nil, nil, nil, nil, vectors.AggregationKinds{}, false)
 				if ucerr != nil {
 					t.Fatalf("the non-folding check refused %v", ucerr)
 				}
