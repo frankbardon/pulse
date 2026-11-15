@@ -245,7 +245,7 @@ func whenFieldsRead(src string, byName map[string]FieldSpec, rw rewriteIndex, id
 // isnull builtin (`isnull("nps")`, which an author may also write as
 // isnull(nps) — that spelling is an identifier and the first arm catches
 // it), plus lag's first argument (`lag("nps", 1)` reads nps's previous
-// row).
+// row) and its partition argument (the current row's partition value).
 //
 // A function CALLEE is an identifier too, so a field sharing a builtin's
 // name would be collected from a call that does not read it. That is the
@@ -278,6 +278,15 @@ func (p *fieldReadProbe) Visit(node *ast.Node) {
 		}
 		if _, declared := p.declared[lit.Value]; declared {
 			p.seen[lit.Value] = true
+		}
+		// lag(name, n, default, "geo") also reads geo's CURRENT value: the
+		// partition the read is keyed by.
+		if callee.Value == lagFuncName && len(n.Arguments) == 4 {
+			if part, ok := n.Arguments[3].(*ast.StringNode); ok {
+				if _, declared := p.declared[part.Value]; declared {
+					p.seen[part.Value] = true
+				}
+			}
 		}
 	}
 }

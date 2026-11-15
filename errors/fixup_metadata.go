@@ -1555,6 +1555,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_LAG_PARTITION_INVALID: {
+		Message: "A synth row expression's `lag(name, n, default, partition)` call has a partition that is not a string literal naming a declared `categorical_*` field, or names a field a rule writes at or after the rule holding the call. The read keys on the partition's value on the current row, so that value must already be final when the call runs.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write the partition as a quoted literal naming a categorical field: `lag(\"spend\", 1, 0, \"geo\")`, not `lag(\"spend\", 1, 0, geo)`. A numeric, set or date field cannot partition.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules"},
+				Hint:   "Move every rule that writes the partition field (set, set_expr, set_null or a null_together member) BEFORE the rule calling lag, or read lag from a constraint, which runs after every rule.",
+			},
+		},
+	},
 	PULSE_SYNTH_RULE_DRAW_INVALID: {
 		Message: "A synth row expression misuses a random draw: `uniform()` or `bernoulli(p)` is called from a constraint, with the wrong arguments, or `bernoulli(p)` is given a `p` outside [0, 1] (NaN included). Draws are a rule's: each call site reads its own seeded stream, so a constraint that drew would make acceptance itself random.",
 		Fixups: []Fixup{

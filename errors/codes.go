@@ -1005,6 +1005,16 @@ const (
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 
+	// PULSE_SYNTH_LAG_PARTITION_INVALID indicates a
+	// `lag(name, n, default, partition)` call whose partition argument is
+	// not a string literal naming a declared `categorical_*` field, or
+	// names a field a rule writes at or after the rule holding the call
+	// (the partition value the read keyed on would not be the value the
+	// row is committed under). Refused at spec validation.
+	// `details.lag_partition` names the partition field when the argument
+	// is a literal, `details.writer_rule` the rule that writes it.
+	PULSE_SYNTH_LAG_PARTITION_INVALID Code = "PULSE_SYNTH_LAG_PARTITION_INVALID"
+
 	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
 	// synth row expression: `uniform()` / `bernoulli(p)` called from a
 	// `constraints[]` entry (draws belong to rules; a constraint is a
@@ -4963,6 +4973,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_LAG_PARTITION_INVALID,
 	PULSE_SYNTH_RULE_DRAW_INVALID,
 	PULSE_SYNTH_DST_NONEXISTENT,
 	PULSE_SYNTH_DST_AMBIGUOUS,

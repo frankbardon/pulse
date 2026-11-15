@@ -119,6 +119,9 @@ func ApplyRulesFile(fs afero.Fs, spec *Spec, path string) error {
 	if err := validateRules(&probe); err != nil {
 		return withRulesFilePath(err, path)
 	}
+	if err := lagPartitionRefusal(&probe); err != nil {
+		return withRulesFilePath(err, path)
+	}
 
 	spec.Rules = rules
 	return nil

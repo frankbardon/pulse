@@ -607,7 +607,16 @@ allowed, which makes a recursive series one rule: `{"set_expr":
 `row()` it consumes no randomness and never sees a rejected attempt. It
 returns the value before encode rounding. Profile capture, the fidelity
 report and `--suggest-rules` do not model it. A bad name or offset is
-`PULSE_SYNTH_LAG_FIELD_INVALID` / `PULSE_SYNTH_LAG_OFFSET_INVALID`. The
+`PULSE_SYNTH_LAG_FIELD_INVALID` / `PULSE_SYNTH_LAG_OFFSET_INVALID`.
+
+A 4th argument, `lag("field", n, default, "geo")`, partitions the history
+by a `categorical_*` field: the read returns the `n`-th previous accepted
+row carrying THIS row's `geo`, and `default` on each geo's first `n` rows
+(write `nil` for a null start). A null `geo` is its own partition. Geos
+interleave in draw order; nothing groups or rotates them. The partition
+must be final when read, so a rule at or after the reading rule that
+writes it is refused, as is a partition that is not a literal naming a
+declared categorical field: `PULSE_SYNTH_LAG_PARTITION_INVALID`. The
 full recipe, with a panel reset and Fourier controls, is
 [`internal/examples/synth/07_mmm_adstock.synth.json`](https://github.com/frankbardon/pulse/blob/main/internal/examples/synth/07_mmm_adstock.synth.json)
 and `skills/synth-cross-row.md`.

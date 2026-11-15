@@ -287,6 +287,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC:   own(featSynth),
 	errors.PULSE_SYNTH_LAG_FIELD_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_LAG_OFFSET_INVALID:      own(featSynth),
+	errors.PULSE_SYNTH_LAG_PARTITION_INVALID:   own(featSynth),
 	errors.PULSE_SYNTH_RULE_DRAW_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_DST_NONEXISTENT:         own(featSynth),
 	errors.PULSE_SYNTH_DST_AMBIGUOUS:           own(featSynth),

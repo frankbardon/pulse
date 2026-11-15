@@ -11966,7 +11966,7 @@
         ]
       }
     ],
-    "error_codes_count": 473,
+    "error_codes_count": 474,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12373,6 +12373,7 @@
       "PULSE_SYNTH_FIDELITY_MODEL_INVALID",
       "PULSE_SYNTH_LAG_FIELD_INVALID",
       "PULSE_SYNTH_LAG_OFFSET_INVALID",
+      "PULSE_SYNTH_LAG_PARTITION_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
       "PULSE_SYNTH_OUTPUT_REQUIRED",
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
@@ -15116,7 +15117,7 @@
       },
       {
         "name": "synth-cross-row",
-        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
+        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, per-partition lag, the panel reset, a recursive adstock recipe, and what profile capture ignores."
       },
       {
         "name": "synth-datetime",
@@ -21456,4 +21457,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 927215c1732fb072edd93c47fd67857a407473078a65a7a7c7e868e46542323b
+// golden-hash: afc3e15f8193979143d17920aa7aaea5b8a40350a27222def767a52fc854571f

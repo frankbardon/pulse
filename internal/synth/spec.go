@@ -815,6 +815,11 @@ func validateSpec(s *Spec) error {
 	if err := validateRules(s); err != nil {
 		return err
 	}
+	// lag's partition argument: its type and its order against the rule
+	// writes, which the per-expression walk cannot see (row_lag.go).
+	if err := lagPartitionRefusal(s); err != nil {
+		return err
+	}
 	return nil
 }
 

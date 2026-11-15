@@ -1,10 +1,10 @@
 ```yaml
 name: synth-cross-row
-description: Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores.
+description: Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, per-partition lag, the panel reset, a recursive adstock recipe, and what profile capture ignores.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth, row, lag, adstock, panel, cross-row, accepted-row]
+covers: [synth, row, lag, adstock, panel, partition, cross-row, accepted-row]
 requires: [capability:synth]
 ```
 
@@ -39,6 +39,16 @@ Recursive adstock, with seasonal controls (`internal/examples/synth/07_mmm_adsto
 ```json
 {"set_expr": {"stock": "spend + 0.6 * (row() % 52 == 0 ? 0 : lag(\"stock\", 1, 0))"}}
 ```
+
+**Per-partition lag.** A 4th argument naming a `categorical_*` field keys the history by its value, so interleaved geos each get their own series:
+
+```json
+{"set_expr": {"stock": "spend + 0.6 * lag(\"stock\", 1, 0, \"geo\")"}}
+```
+
+- It reads the `n`-th previous accepted row with THIS row's `geo`; each geo's first `n` rows return the default. A null `geo` is its own partition. Write `nil` as the default for a null start: `lag("x", 1, nil, "geo") ?? 0`.
+- No interleaving guarantee: geos arrive in draw order, not blocks or a fixed rotation. Each geo's history is its own rows in accepted order.
+- The partition must be final when read: a rule at or after the reading rule that writes it (`set`, `set_expr`, `set_null`, a non-gate `null_together` member) is refused, as are a non-literal, undeclared or non-categorical partition (`PULSE_SYNTH_LAG_PARTITION_INVALID`). Constraints run after every rule, so any partition is final there.
 
 ## Not seen by capture
 
