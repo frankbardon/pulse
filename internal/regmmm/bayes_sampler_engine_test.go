@@ -23,8 +23,9 @@ const hmcFastParams = `{"channels":["tv"],"time":"week","chains":1,"warmup":30,"
 
 // cheapHMC is what the fast tests run in place of the sampler a fit
 // builds: a two-step HMC at a fixed step, so a fit costs milliseconds
-// (an adapted warmup this short explores tiny step sizes, each a long
-// path). The real HMC fit is the heavy tier's (bayes_hmc_heavy_test.go).
+// (an adapted warmup explores tiny step sizes; capped at 1023 steps a
+// transition it still costs ~25k gradient evaluations, ~150 ms a fit).
+// The real HMC fit is the heavy tier's (bayes_hmc_heavy_test.go).
 var cheapHMC = mcmc.HMC{PathLength: 0.5, StepSize: 0.25}
 
 // TestMMMBayes_HMCDispatch: sampler hmc builds mcmc.HMC from the

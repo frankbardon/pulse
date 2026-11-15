@@ -64,7 +64,7 @@ res, err := mcmc.HMC{}.Sample(ctx, model, 42, mcmc.Options{Chains: 4, Warmup: 50
 
 HMC builds no tree, so its `ChainStats.TreeDepth` is `nil`. That nil marks the tree fields as not applying: `TreeDepthSaturated` is then 0 because there is no depth to saturate, so read it only when `TreeDepth` is non-nil. `Divergences` and `Divergent` are recorded as for NUTS.
 
-A path needing more than 65536 leapfrog steps is refused: `PULSE_MCMC_INVALID` reason `path_length` for a fixed `StepSize`, `PULSE_MCMC_FAILED` reason `path_too_long` for an adapted one. During warmup such a step size runs 65536 steps. A negative or non-finite `StepSize` or `PathLength` is `PULSE_MCMC_INVALID` reason `step_size` / `path_length`.
+A path needing more than 65536 leapfrog steps is refused: `PULSE_MCMC_INVALID` reason `path_length` for a fixed `StepSize`, `PULSE_MCMC_FAILED` reason `path_too_long` for an adapted one. While the step size adapts, a warmup transition runs at most 1023 leapfrog steps (2^`DefaultMaxTreeDepth` − 1, NUTS's own trajectory cap): dual averaging probes step sizes far below the one it settles on, and the full path at each would make a short warmup cost far more than its draws. Warmup only tunes the step size and the metric; every draw runs the full path, and a fixed `StepSize` runs it in warmup too. A negative or non-finite `StepSize` or `PathLength` is `PULSE_MCMC_INVALID` reason `step_size` / `path_length`.
 
 ### Cancellation, panics and refusals
 

@@ -22,6 +22,17 @@ const DefaultPathLength = math.Pi / 2
 // in useful time.
 const maxHMCSteps = 1 << 16
 
+// maxHMCWarmupSteps bounds the leapfrog steps of one warmup transition
+// while the step size adapts: 2^DefaultMaxTreeDepth − 1, NUTS's own
+// trajectory cap. Dual averaging probes step sizes far below the one it
+// settles on, and a short warmup spends most of its transitions there, so
+// the full ⌈PathLength/StepSize⌉ path would cost orders of magnitude
+// more than the draws. Warmup only tunes the step size and the metric,
+// which a truncated path serves as well (the acceptance statistic of a
+// stable leapfrog path does not grow with its length); the draws always
+// run the full path.
+const maxHMCWarmupSteps = 1<<DefaultMaxTreeDepth - 1
+
 // HMC is static Hamiltonian Monte Carlo (Neal 2011, "MCMC using
 // Hamiltonian dynamics"): each transition draws a momentum, integrates a
 // fixed path of L = ⌈PathLength/StepSize⌉ leapfrog steps (at least 1)
@@ -34,10 +45,14 @@ const maxHMCSteps = 1 << 16
 // adaptation). With StepSize 0 it also adapts the step size as NUTS does
 // — the initial heuristic, then dual averaging towards TargetAccept,
 // re-initialised after each metric window, fixed at the averaged iterate
-// at the end of warmup — and L follows the step size. A warmup step size
-// whose L would exceed 65536 runs 65536 steps; a final one is refused as
-// PULSE_MCMC_FAILED (reason path_too_long). A non-zero StepSize is used
-// as given throughout, and TargetAccept is then unused.
+// at the end of warmup — and L follows the step size, except that a
+// warmup transition runs at most 1023 steps (2^DefaultMaxTreeDepth − 1,
+// NUTS's own trajectory cap): dual averaging probes step sizes far below
+// the one it settles on, so a short warmup would otherwise cost far more
+// than its draws. Every draw runs the full L; a final step size whose L
+// would exceed 65536 is refused as PULSE_MCMC_FAILED (reason
+// path_too_long). A non-zero StepSize is used as given throughout, warmup
+// included, and TargetAccept is then unused.
 //
 // HMC builds no tree: ChainStats.TreeDepth is nil and
 // TreeDepthSaturated is 0 for every chain. Divergences and Divergent are
@@ -147,6 +162,9 @@ func runHMCChain(ctx context.Context, model Model, cfg runConfig, seed uint64, c
 			return chainOut{err: err}
 		}
 		steps, _ := hmcSteps(cfg.pathLength, ch.eps)
+		if adapt {
+			steps = min(steps, maxHMCWarmupSteps)
+		}
 		accept := ch.hmcTransition(steps)
 		if adapt {
 			ch.eps = da.learn(accept)

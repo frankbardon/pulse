@@ -57,11 +57,13 @@
 // are recorded as for NUTS. A path that needs more than 65536 leapfrog
 // steps is refused: PULSE_MCMC_INVALID reason path_length for a fixed
 // StepSize, PULSE_MCMC_FAILED reason path_too_long for an adapted one
-// (during warmup such a step size runs 65536 steps). Other refusals are
-// NUTS's, with HMC's step_size and path_length reasons for a negative or
-// non-finite knob. A static path suits a posterior the diagonal metric
-// makes nearly isotropic; a correlated one wants a longer PathLength,
-// and NUTS chooses the length per transition instead.
+// (while the step size adapts, a warmup transition runs at most 1023
+// steps, NUTS's default trajectory cap; every draw runs the full path).
+// Other refusals are NUTS's, with HMC's step_size and path_length
+// reasons for a negative or non-finite knob. A static path suits a
+// posterior the diagonal metric makes nearly isotropic; a correlated one
+// wants a longer PathLength, and NUTS chooses the length per transition
+// instead.
 //
 // # Transforms
 //

@@ -10,11 +10,11 @@ covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draw
 
 # Bayesian MMM: raw posterior draws
 
-`REG_MMM_BAYES` ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)) summarises its posterior in `outputs`. Ask for the draws themselves when a summary is not the question: a probability (P(ROI > 1)), a contrast between channels, a custom interval.
+`REG_MMM_BAYES` ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)) summarises its posterior in `outputs`. Ask for the draws when a summary is not the question: a probability (P(ROI > 1)), a contrast between channels, a custom interval.
 
 ## Asking for draws
 
-`params.return_draws: true` adds `outputs.draws`; `params.draws_thin: k` (an integer 1–20000, default 1) keeps every k-th retained draw of each chain (draw 0, k, 2k, …), so a chain returns ⌈draws / k⌉. `draws_thin` without `return_draws` is `PROCESSING_CONFIG` reason `draws_thin_without_return_draws`. Neither key moves the derived seed: the posterior is the one you get without them.
+`params.return_draws: true` adds `outputs.draws`; `params.draws_thin: k` (an integer 1–20000, default 1) keeps every k-th retained draw of each chain (draw 0, k, 2k, …), so a chain returns ⌈draws / k⌉. `draws_thin` without `return_draws` is `PROCESSING_CONFIG` reason `draws_thin_without_return_draws`. Neither key moves the derived seed, so the posterior is unchanged.
 
 ## Shape
 
@@ -61,7 +61,7 @@ A Compose `optimize` block's `posterior: {objective, q, draws}` ([`compose-optim
 NUTS (`params.sampler` `nuts`, the default) tunes each trajectory itself; keep it unless you need a fixed cost per draw. `hmc` is static HMC: every transition runs ⌈`path_length` / step size⌉ leapfrog steps, so `path_length` is required (refused under `nuts`, as is `step_size`).
 
 - Start at `path_length` π/2 (1.5708): on the adapted unit-scale metric a quarter period moves a draw to a nearly independent point. Stan's 2π brings it back near its start; much shorter paths random-walk. Read `ess_bulk` / `ess_tail` and lengthen the path when they are low.
-- Omit `step_size` to adapt it towards `target_accept`; a fixed `step_size` turns adaptation off (`target_accept` beside it is refused). Divergences: lower it.
+- Omit `step_size` to adapt it towards `target_accept`; a fixed `step_size` turns adaptation off (`target_accept` beside it is refused). Divergences: lower it. Adapting, a warmup path stops at 1023 steps (NUTS's cap); draws run the full path.
 - No tree: `diagnostics` has no `treedepth_saturated` / `max_tree_depth` and that warning never fires.
 
 ## See

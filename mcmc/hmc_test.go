@@ -146,6 +146,9 @@ func TestHMC_FixedStepSize(t *testing.T) {
 		{0.1, 1.05, 11},
 		{0.25, 1, 4},
 		{0.5, 0.2, 1}, // a path shorter than one step still takes one
+		// A fixed step's warmup runs the full path, past the 1023-step
+		// cap that bounds an adapting warmup (TestHMC_WarmupStepCap).
+		{0.001, 1.5, 1500},
 	} {
 		res := sampleHMC(t, mcmc.HMC{StepSize: tc.step, PathLength: tc.path}, normal{d: 2}, 25,
 			mcmc.Options{Chains: 2, Warmup: warmup, Draws: draws})
@@ -159,6 +162,52 @@ func TestHMC_FixedStepSize(t *testing.T) {
 		}
 		checkTreeless(t, res, draws)
 	}
+}
+
+// warmupCapModel is badly scaled (standard deviations 1e-4 and 1): on
+// the unit metric warmup starts from, the adapting step size is ~1e-4,
+// so even the π/2 path is ~10^4 leapfrog steps.
+var warmupCapModel = normal{d: 2, sd: []float64{1e-4, 1}}
+
+// TestHMC_WarmupStepCap: while the step size adapts, a warmup transition
+// runs at most 2^DefaultMaxTreeDepth − 1 = 1023 leapfrog steps, and every
+// draw runs the full ⌈PathLength/StepSize⌉. On warmupCapModel at
+// PathLength 20 the gradient count stays within one evaluation at the
+// start, the step-size heuristic's trials, 1023 per warmup iteration and
+// the full path per draw (uncapped, warmup alone runs up to 65536 steps a
+// transition), and above half the warmup at the cap plus the draws, so
+// the cap is reached. Ten more draws from the same seed (an identical
+// warmup) cost exactly ten full paths, each past the warmup cap on at
+// least one chain.
+func TestHMC_WarmupStepCap(t *testing.T) {
+	t.Parallel()
+
+	const warmup, draws, warmupCap, heuristic, path = 30, 10, 1<<mcmc.DefaultMaxTreeDepth - 1, 500, 20
+	res := sampleHMC(t, mcmc.HMC{PathLength: path}, warmupCapModel, 31, mcmc.Options{Chains: 2, Warmup: warmup, Draws: draws})
+	more := sampleHMC(t, mcmc.HMC{PathLength: path}, warmupCapModel, 31, mcmc.Options{Chains: 2, Warmup: warmup, Draws: 2 * draws})
+	pastCap := false
+	for c, st := range res.Diagnostics.Chains {
+		mst := more.Diagnostics.Chains[c]
+		if mst.StepSize != st.StepSize || st.Divergences != 0 || mst.Divergences != 0 {
+			t.Fatalf("chain %d: step %g vs %g, divergences %d / %d: the two runs must share a warmup and run full paths",
+				c, st.StepSize, mst.StepSize, st.Divergences, mst.Divergences)
+		}
+		full := int(math.Ceil(path / st.StepSize))
+		if hi := 1 + heuristic + warmup*warmupCap + draws*full; st.GradientEvals > hi {
+			t.Errorf("chain %d: GradientEvals %d, past the capped warmup's bound %d (draws %d × %d steps)", c, st.GradientEvals, hi, draws, full)
+		}
+		if lo := (warmup/2)*warmupCap + draws*full; st.GradientEvals < lo {
+			t.Errorf("chain %d: GradientEvals %d, under %d: warmup never reached the cap, so the test proves nothing", c, st.GradientEvals, lo)
+		}
+		if got := mst.GradientEvals - st.GradientEvals; got != draws*full {
+			t.Errorf("chain %d: %d more draws cost %d evaluations, want %d full paths of %d", c, draws, got, draws, full)
+		}
+		pastCap = pastCap || full > warmupCap
+	}
+	if !pastCap {
+		t.Error("no chain's full path passes the warmup cap, so the draws' full path is unproven")
+	}
+	checkTreeless(t, res, draws)
 }
 
 // TestHMC_DefaultPathLength: PathLength 0 is DefaultPathLength.
@@ -231,7 +280,9 @@ func TestHMC_Divergences(t *testing.T) {
 
 // hmcGoldenRuns are pinned like NUTS's goldenRuns: an adapted run on the
 // diverging funnel (short-warmup windows), a fixed-step correlated
-// Gaussian from a supplied Init, and the full 75/25/50 schedule.
+// Gaussian from a supplied Init, the full 75/25/50 schedule, and a short
+// adapted warmup on warmupCapModel whose transitions reach the 1023-step
+// warmup cap.
 var hmcGoldenRuns = []struct {
 	name  string
 	model mcmc.Model
@@ -249,6 +300,9 @@ var hmcGoldenRuns = []struct {
 	{"normal_full_schedule", normal{d: 2, sd: []float64{0.5, 3}}, mcmc.HMC{TargetAccept: 0.9, PathLength: 2}, 303,
 		mcmc.Options{Chains: 2, Warmup: 1000, Draws: 50},
 		"96cd18afffa63ce5a25c8c8a51969e7769c864c3ff7542047c1dac130bb6b612"},
+	{"warmup_cap", warmupCapModel, mcmc.HMC{}, 404,
+		mcmc.Options{Chains: 2, Warmup: 30, Draws: 20},
+		"b4c0a7d5763baf7a5b0ac9c4bf29483548205735bd0db7ddf3a68d187d87ed0c"},
 }
 
 // TestHMC_GoldenHash pins the exact bits of each golden run. The hashes
