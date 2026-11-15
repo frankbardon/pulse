@@ -353,7 +353,7 @@ Always null: the model reports no test statistic.
 
 #### `outputs.*`
 
-The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); contribution per channel, the outcome it produced over the fitted period; params per coefficient; diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's &lt;channel&gt;[&lt;geo&gt;] beside the all-geo figure (the panel's summed contribution over its summed spend); draws, with params.return_draws, the raw draws params and roi summarise, for a posterior analysis of your own; and seed, the seed the sampler ran with.
+The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); contribution per channel, the outcome it produced over the fitted period; params per coefficient; diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's &lt;channel&gt;[&lt;geo&gt;] beside the all-geo figure (the panel's summed contribution over its summed spend); draws, with params.return_draws, the raw draws params and roi summarise, for a posterior analysis of your own; adstock_state, each series' last fitted periods of raw spend, which scoring carries into later periods; and seed, the seed the sampler ran with.
 
 **Caveats:**
 
@@ -444,7 +444,7 @@ The Wald statistic: the parameter divided by its standard error, null where the 
 
 #### `outputs.*`
 
-outputs.k and outputs.s repeat each channel's k:&lt;channel&gt; and s:&lt;channel&gt; coefficients as objects keyed by channel; under params.adstock, outputs.condition_number is the 1-norm condition number of the joint parameter correlation matrix.
+outputs.k and outputs.s repeat each channel's k:&lt;channel&gt; and s:&lt;channel&gt; coefficients as objects keyed by channel; under params.adstock, outputs.condition_number is the 1-norm condition number of the joint parameter correlation matrix and outputs.adstock_state the last fitted periods of raw spend that scoring carries into later periods.
 
 **Caveats:**
 

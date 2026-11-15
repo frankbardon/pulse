@@ -109,13 +109,18 @@ func (k *hillKernel) prefixes() []string {
 // model's kernel (nil when params.adstock is absent), refusing an
 // unknown kernel, a max_lag below 1 or above the window's ceiling, a
 // max_lag without params.adstock, a delayed or Weibull kernel without
-// max_lag (only geometric defaults it, to 13) and an order.partition (the
-// fit reads one market's series).
+// max_lag (only geometric defaults it, to 13), an order.partition (the
+// fit reads one market's series) and a params.carryover without
+// params.adstock (carryover_unused: nothing carries).
 func hillAdstockConfig(spec *types.RegressionSpec, p hillParams) (*hillKernel, error) {
 	if p.Adstock == nil {
 		if p.MaxLag != nil {
 			return nil, configError(spec, "params.max_lag is the in-model adstock's window; set params.adstock, or drop params.max_lag",
 				map[string]any{"slot": "params.max_lag", "reason": reasonMaxLagWithoutAdstock})
+		}
+		if p.Carryover != nil {
+			return nil, configError(spec, "params.carryover carries the in-model adstock into scored rows; set params.adstock, or drop params.carryover",
+				map[string]any{"slot": "params.carryover", "reason": pmodel.ReasonCarryoverUnused})
 		}
 		return nil, nil
 	}

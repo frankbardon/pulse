@@ -18,6 +18,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -155,8 +156,6 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 				// Pure per-row reads of the row's own stored values,
 				// no per-run state (#391).
 				types.ATTR_CODE_IN, types.ATTR_SET_HAS, types.ATTR_SET_POPCOUNT,
-				// Bound before the row pass: a pure per-row score.
-				types.ATTR_REG_PREDICT,
 				// Row-local with a per-run tally (its
 				// Components.Attributes counters and its Response
 				// warning — out-of-range members) the reducers fold
@@ -164,6 +163,11 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 				// U51 E3-S2, #456).
 				types.ATTR_SCALE_SCORE:
 				rowLocal = true
+			case types.ATTR_REG_PREDICT:
+				// Bound before the row pass: a pure per-row score —
+				// unless it carries adstock (params.order), whose
+				// pre-pass reads every scored row's spend.
+				rowLocal = !model.ScoreCarries(attr)
 			case types.ATTR_PROFILE_SIMILARITY:
 				// The reference form tallies per run (missing
 				// references, domain misses) and folds like

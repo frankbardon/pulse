@@ -1,6 +1,6 @@
 ```yaml
 name: mmm-bayes-posterior
-description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size).
+description: REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked or carried inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size).
 kind: design
 type: guide
 applies_to: process, compose, predict
@@ -43,10 +43,10 @@ The payload is chains × kept draws × (coefficients + roi entries) values, capp
 
 A fit scores over its draws, so `save`, the engine `holdout` and scoring it ([`op-attr-reg-predict`](op-attr-reg-predict.md), a `params.fit` slot) need `return_draws: true`; without it they are refused `draws_required` (`PROCESSING_CONFIG`; scoring `PULSE_MODEL_SCORE_INVALID`), in predict too. The file keeps the thinned draws even when `exclude: ["regressions[*].outputs.draws"]` drops them from the wire.
 
-- Inputs are pre-adstocked: build each channel column with `WIN_DISTRIBUTED_LAG` from the file's `adstock.<ch>` record (the kernel at the posterior-mean params, `normalize: false`, stamped `fixed_at: "posterior_mean"`) over the raw spend, under the channel's name. The decay's uncertainty is not in the score.
+- A score carries the fit's adstock into raw spend (`params.order`, [`regression-order`](regression-order.md)). Under `carryover: false` inputs are pre-adstocked: build each channel with `WIN_DISTRIBUTED_LAG` from the file's `adstock.<ch>` record (posterior-mean params, `normalize: false`, `fixed_at: "posterior_mean"`). Either way the decay's uncertainty is not in the score.
 - The score is the mean over the draws of α + Σγ·z + Σβ·curve(x). Whole-model `bound: "lower"` / `"upper"` (no `terms`) is the credible bound of that mean at `credible_level`: an interval for μ, not a predictive interval (no σ).
 - A geo panel's scoring frame needs the `geo` field; each row uses its geo's intercept, β and curve. A geo the fit lacks scores from the population (each channel's μ β and curve, the mean geo intercept) and warns `PULSE_MMM_GEO_UNSEEN` (`geos`, `rows`, `fit_geos`).
-- Two holdouts: `params.holdout_from` is the history-aware one (the adstock runs over every period, the fit sees those before it). The engine `holdout` fits the train rows and scores the held-out rows' channel columns as they are, with no carry-over from earlier periods: prefer `holdout_from` for a time split.
+- Two holdouts: `params.holdout_from` adstocks every period at each draw's decay, the fit seeing those before it. The engine `holdout` fits the train rows and carries their adstock (posterior-mean kernel) into the held-out rows; `carryover: false` scores their columns as given.
 
 ## Optimising over the draws
 

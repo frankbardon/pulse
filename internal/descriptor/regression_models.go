@@ -103,6 +103,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "lift_tests", Type: "list", Description: "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (> 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."},
 				{Name: "return_draws", Type: "bool", Default: false, Description: "Add outputs.draws, the raw posterior draws: names (the coefficient table), draws[chain][coefficient][draw] on the constrained scale in original units, roi per outputs.roi entry ([chain][draw]) and thin. At most Limits.MaxMMMDrawValues values (chains x kept draws x (coefficients + roi entries), default 10,000,000) or the fit is refused, never truncated. Never moves the derived seed."},
 				{Name: "draws_thin", Type: "float", Default: 1, Description: "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."},
+				{Name: "carryover", Type: "bool", Default: true, Description: "Engine holdout scoring: true (default) adstocks each held-out row's raw spend at the fit's posterior-mean kernel in time order, the fitted rows' last max_lag periods (outputs.adstock_state) carried in; false scores the held-out channel columns as given (no carry-over, the pre-carry-over figures). Never moves the fit or the derived seed."},
 			},
 		},
 	},
@@ -121,22 +122,29 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			// engine writes the replicate ones.
 			PValues:    true,
 			Scorer:     true,
-			OutputKeys: []string{"k", "s", "condition_number"},
+			OutputKeys: []string{"k", "s", "condition_number", "adstock_state"},
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
 				{Name: "nonnegative", Type: "bool", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},
 				{Name: "prior", Type: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."},
-				{Name: "adstock", Type: "string", Example: "geometric", Description: "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:<ch>, in [0, 0.99]), delayed (decay:<ch> in [0.01, 0.99], peak:<ch> in [0, max_lag]), weibull_cdf or weibull_pdf (shape:<ch> in [0.1, 10], scale:<ch> in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked."},
+				{Name: "adstock", Type: "string", Example: "geometric", Description: "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:<ch>, in [0, 0.99]), delayed (decay:<ch> in [0.01, 0.99], peak:<ch> in [0, max_lag]), weibull_cdf or weibull_pdf (shape:<ch> in [0.1, 10], scale:<ch> in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; an engine holdout carries the fitted adstock in (params.carryover). Writes the fit's adstock record for response() and save, and outputs.adstock_state for carried scoring. Absent: channels arrive already adstocked."},
+				{Name: "carryover", Type: "bool", Default: true, Description: "With adstock only: true (default) scores an engine holdout by adstocking each held-out row's raw spend at the fitted kernel, the train rows' last max_lag periods (outputs.adstock_state) carried in; false refuses the holdout (adstock_holdout). Never moves the fit."},
 				{Name: "max_lag", Type: "int", Default: regmmm.BayesDefaultMaxLag, Description: "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed and Weibull require it)."},
 			},
 			OutputSchema: []descriptor.RegressionOutputMeta{
 				{Key: "k", JSONType: "object", Description: "Hill half-saturation per channel (the coefficient k:<channel>)."},
 				{Key: "s", JSONType: "object", Description: "Hill shape per channel (the coefficient s:<channel>)."},
 				{Key: "condition_number", JSONType: "number", Description: "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."},
+				{Key: "adstock_state", JSONType: "object", Description: adstockStateOutput},
 			},
 		},
 	},
 }
+
+// adstockStateOutput describes outputs.adstock_state, which both
+// in-model adstocked media-mix fits carry (regmmm.BayesOutputSchema
+// repeats it).
+const adstockStateOutput = regmmm.AdstockStateOutputDescription
 
 // ordinalParams are REG_ORDINAL's params keys.
 var ordinalParams = []descriptor.Param{

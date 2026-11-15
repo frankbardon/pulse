@@ -139,3 +139,71 @@ func TestRegPredict_PredictRuntimeParity(t *testing.T) {
 		}
 	})
 }
+
+// TestRegPredict_CarryRefusalsPredictRuntimeParity: every carry-over
+// refusal of an ATTR_REG_PREDICT (internal/model mmm_carry.go) over an
+// in-model adstocked REG_MMM_HILL fit — no params.order, an order beside
+// carryover false, an order or carryover on a fit that adstocks nothing
+// in-model, an order without field, an order field the frame lacks or
+// holds as a type that cannot order — is reported by PredictCompose
+// exactly as Compose and ComposeParallel return it.
+func TestRegPredict_CarryRefusalsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := hillAdstockRequest()
+	plain.Regressions[0].Params = json.RawMessage(`{"channels": ["x"]}`)
+	plain.Regressions[0].Order = nil
+	slot := func(params string) *Request {
+		return &Request{Label: "s", Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Attributes:   []*types.Attribute{scoreRef(params)},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p", Label: "p"}}}
+	}
+	cases := []struct {
+		name, params, reason string
+		fit                  *Request
+	}{
+		{"order required", `{"fit":"m"}`, "order_required", hillAdstockRequest()},
+		{"order beside carryover false", `{"fit":"m","carryover":false,"order":{"field":"week"}}`, "order_unused", hillAdstockRequest()},
+		{"order on a plain fit", `{"fit":"m","order":{"field":"week"}}`, "order_unused", plain},
+		{"carryover on a plain fit", `{"fit":"m","carryover":false}`, "carryover_unused", plain},
+		{"order without field", `{"fit":"m","order":{"partition":"region"}}`, "order_field_missing", hillAdstockRequest()},
+		{"order field unknown", `{"fit":"m","order":{"field":"wk"}}`, "order_field_invalid", hillAdstockRequest()},
+		{"order field categorical", `{"fit":"m","order":{"field":"region"}}`, "order_field_invalid", hillAdstockRequest()},
+	}
+	ctx := context.Background()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &ComposedRequest{Fits: []types.FitSpec{{Name: "m", Request: tc.fit}}, Requests: []*Request{slot(tc.params)}}
+			env, err := p.PredictCompose(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict errors = %+v, want exactly one", env.Errors)
+			}
+			pe := env.Errors[0]
+			if perr.Code(pe.Code) != perr.PULSE_MODEL_SCORE_INVALID || pe.Details["reason"] != tc.reason {
+				t.Fatalf("predict = %s %v, want PULSE_MODEL_SCORE_INVALID reason %s", pe.Code, pe.Details, tc.reason)
+			}
+			for name, run := range map[string]func() error{
+				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
+				"ComposeParallel": func() error {
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					return err
+				},
+			} {
+				var ce *perr.CodedError
+				if err := run(); !stderrors.As(err, &ce) {
+					t.Fatalf("%s: uncoded %v", name, err)
+				}
+				if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(ce.Details, pe.Details) {
+					t.Errorf("%s: runtime %s %q %v\n predict %s %q %v", name, ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
+				}
+			}
+		})
+	}
+}

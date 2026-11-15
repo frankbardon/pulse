@@ -280,6 +280,11 @@ type bayesParamsWire struct {
 	PerGeoCurves   *bool                       `json:"per_geo_curves"`
 	ReturnDraws    *bool                       `json:"return_draws"`
 	DrawsThin      *int                        `json:"draws_thin"`
+	// Carryover is the engine holdout's scoring switch (false: score
+	// the held-out channel columns as given, no carried adstock —
+	// internal/model mmm_carry.go). Scoring-only: never in the derived
+	// seed (outputOnlyParams), never read by the fit.
+	Carryover *bool `json:"carryover"`
 }
 
 // bayesConfig is one slot's validated configuration.

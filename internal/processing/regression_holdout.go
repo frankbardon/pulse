@@ -150,7 +150,14 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 	if err != nil {
 		return nil, nil, err
 	}
-	figures, ferr := regression.HoldoutFigures(spec, scorer, held, nNull)
+	scored, cerr, err := carryHeldOut(spec, res, held, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cerr != nil {
+		return nil, cerr, nil
+	}
+	figures, ferr := regression.HoldoutFigures(spec, scorer, scored, nNull)
 	if ferr != nil {
 		return nil, ferr, nil
 	}
@@ -161,6 +168,41 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 		res.Warnings = append(res.Warnings, w)
 	}
 	return res, nil, nil
+}
+
+// carryHeldOut is the held-out rows as the scorer reads them: an
+// in-model adstocked fit that carries (model.MMMCarryover — the default;
+// params.carryover false opts out) reads each row's channels as its raw
+// spend adstocked at the fit's kernel, the train rows' last periods
+// (outputs.adstock_state) carried in and the held-out rows in the fit's
+// order (regression.Carrier); every other fit reads them as given. A
+// repeated or non-contiguous held-out period fails the slot alone
+// (PROCESSING_REGRESSION_ORDER, fitErr); err is a fatal fault.
+func carryHeldOut(spec *types.RegressionSpec, res *types.RegressionResult, held []regression.Record, name string) (rows []regression.Record, fitErr, err error) {
+	if !model.MMMCarryover(spec) {
+		return held, nil, nil
+	}
+	st, ok, rerr := model.ReadAdstockState(res.Outputs)
+	if rerr != nil || !ok {
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"regression holdout fit carries no readable outputs.adstock_state", map[string]any{"regression": string(spec.Type)})
+	}
+	c, err := regression.NewCarrier(st, res.Coefficients, st.Field, st.Partition,
+		map[string]any{"regression": name, "slot": model.HoldoutKey})
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, rec := range held {
+		c.Add(rec)
+	}
+	if ferr := c.Finalize(); ferr != nil {
+		return nil, ferr, nil
+	}
+	rows = make([]regression.Record, len(held))
+	for i, rec := range held {
+		rows[i] = c.Row(rec)
+	}
+	return rows, nil, nil
 }
 
 // holdoutProgram compiles a holdout predicate the way an expression

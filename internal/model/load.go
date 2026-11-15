@@ -340,6 +340,9 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		// Its outputs carry its draws and name its geo field, exactly as
 		// the bound model's do.
 		sig.DrawsMissing, sig.ScoreFields = fileMMMScoreFace(files[j])
+		// An in-model adstocked fit carries its adstock state when the
+		// file holds it, exactly as the bound model does.
+		sig.Carries, sig.CarryState = fileCarryFace(files[j])
 		out[r.Name] = sig
 	}
 	return out

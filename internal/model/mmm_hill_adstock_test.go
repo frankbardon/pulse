@@ -97,17 +97,28 @@ func TestAdstockLineage_DelayedWindowKeepsPeak(t *testing.T) {
 	}
 }
 
-// TestMMMHillAdstock_Refusals: the holdout and pre-adstocked refusals
-// fire only under params.adstock, with their reason and details.
+// TestMMMHillAdstock_Refusals: the holdout refusal fires only under
+// params.adstock with params.carryover false (the default carries the
+// fit's adstock into the held-out rows), the pre-adstocked refusal only
+// under params.adstock, each with its reason and details.
 func TestMMMHillAdstock_Refusals(t *testing.T) {
 	t.Parallel()
 
-	spec := hillAdstockSpec(`, "adstock": "geometric"`)
+	scorable := func(types.RegressionType) bool { return true }
+	carried := hillAdstockSpec(`, "adstock": "geometric"`)
+	carried.Holdout = "week > 90"
+	if ce := MMMHillAdstockHoldoutRefusal(carried); ce != nil {
+		t.Fatalf("carried holdout refused: %v", ce)
+	}
+	if ce := HoldoutScorerRefusal(carried, scorable); ce != nil {
+		t.Fatalf("carried HoldoutScorerRefusal %v", ce)
+	}
+	spec := hillAdstockSpec(`, "adstock": "geometric", "carryover": false`)
 	spec.Holdout = "week > 90"
 	if ce := MMMHillAdstockHoldoutRefusal(spec); ce == nil || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != ReasonAdstockHoldout {
 		t.Fatalf("holdout refusal %v", ce)
 	}
-	if ce := HoldoutScorerRefusal(spec, func(types.RegressionType) bool { return true }); ce == nil || ce.Details["reason"] != ReasonAdstockHoldout {
+	if ce := HoldoutScorerRefusal(spec, scorable); ce == nil || ce.Details["reason"] != ReasonAdstockHoldout {
 		t.Fatalf("HoldoutScorerRefusal %v", ce)
 	}
 	plain := hillSpec()

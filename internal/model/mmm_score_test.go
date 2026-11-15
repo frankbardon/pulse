@@ -40,9 +40,12 @@ func TestCheckScore_MMMBayes(t *testing.T) {
 	for _, tc := range []struct {
 		params, reason string
 	}{
-		{`{"fit":"draws"}`, ""},
-		{`{"fit":"draws","bound":"lower"}`, ""},
-		{`{"fit":"draws","bound":"upper"}`, ""},
+		{`{"fit":"draws","carryover":false}`, ""},
+		{`{"fit":"draws","bound":"lower","order":{"field":"week"}}`, ""},
+		{`{"fit":"draws","bound":"upper","carryover":false}`, ""},
+		// A REG_MMM_BAYES fit adstocks in-model: its score carries, so
+		// it needs params.order (mmm_carry.go).
+		{`{"fit":"draws"}`, ReasonCarryOrderRequired},
 		{`{"fit":"draws","terms":["tv"],"bound":"lower"}`, ReasonTermsUnsupported},
 		{`{"fit":"nodraws"}`, ReasonDrawsRequired},
 		{`{"fit":"nodraws","bound":"upper"}`, ReasonDrawsRequired},

@@ -221,6 +221,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addKnown(a.OrderField)
 		if a.Type == types.ATTR_REG_PREDICT {
 			if p, err := model.DecodeScoreParams(a.Params); err == nil {
+				// A carried score orders its rows by params.order.
+				if p.Order != nil {
+					addKnown(p.Order.Field)
+					addKnown(p.Order.Partition)
+				}
 				if b, lerr := models.Lookup(p.Fit); lerr == nil {
 					addAllKnown(b.Predictors)
 					// A REG_MMM_BAYES geo panel reads each row's geo.

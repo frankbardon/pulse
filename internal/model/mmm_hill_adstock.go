@@ -37,9 +37,10 @@ func MMMHillAdstock(spec *types.RegressionSpec) (string, bool) {
 // The refusal reasons of an in-model adstocked REG_MMM_HILL slot.
 const (
 	// ReasonAdstockHoldout refuses the engine holdout on an in-model
-	// adstocked REG_MMM_HILL fit: its held-out rows are raw spend whose
-	// adstock must carry in from the fitted rows, which the row scorer
-	// (it reads pre-adstocked channels) cannot do.
+	// adstocked REG_MMM_HILL fit under params.carryover false: its
+	// held-out rows are raw spend, which the row scorer would read as
+	// pre-adstocked channel columns. The default carries the fit's
+	// adstock into them instead (mmm_carry.go).
 	ReasonAdstockHoldout = "adstock_holdout"
 	// ReasonChannelPreadstocked refuses params.adstock on a channel that
 	// is a WIN_DISTRIBUTED_LAG output of the same request: the spend
@@ -49,14 +50,15 @@ const (
 )
 
 // MMMHillAdstockHoldoutRefusal is the engine holdout's refusal on a
-// REG_MMM_HILL spec with params.adstock: PROCESSING_CONFIG {regression,
-// slot: "holdout", reason: adstock_holdout[, name]}. Nil for any other
-// spec, or one without a holdout.
+// REG_MMM_HILL spec with params.adstock and params.carryover false:
+// PROCESSING_CONFIG {regression, slot: "holdout", reason:
+// adstock_holdout[, name]}. Nil for any other spec, one without a
+// holdout, or one that carries (the default).
 func MMMHillAdstockHoldoutRefusal(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Holdout == "" {
 		return nil
 	}
-	if _, ok := MMMHillAdstock(spec); !ok {
+	if _, ok := MMMHillAdstock(spec); !ok || MMMCarryover(spec) {
 		return nil
 	}
 	details := map[string]any{"regression": string(spec.Type), "slot": HoldoutKey, "reason": ReasonAdstockHoldout}
@@ -64,7 +66,7 @@ func MMMHillAdstockHoldoutRefusal(spec *types.RegressionSpec) *errors.CodedError
 		details["name"] = spec.Name
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		"regression "+string(spec.Type)+" with params.adstock cannot take an engine holdout yet: the held-out rows' adstock must carry in from the fitted rows; drop holdout, or adstock upstream with WIN_DISTRIBUTED_LAG and drop params.adstock",
+		"regression "+string(spec.Type)+" with params.adstock and params.carryover false cannot take an engine holdout: its held-out rows are raw spend, which the scorer would read as adstocked columns; drop carryover false (the holdout then carries the fit's adstock in), or drop holdout",
 		details)
 }
 

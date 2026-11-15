@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -524,6 +525,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				}
 			}
 			w.checkScoreFields(attr.Type, p.Fit, sig, schema)
+			w.checkScoreOrder(p, schema)
 		default:
 			if vectors.IsVectorAttribute(attrRoute) {
 				// A vector-input attribute reads its members (step 9,
@@ -1909,6 +1911,34 @@ func (s filterLateLabelSet) annotateCompile(ce *errors.CodedError) {
 	}
 	name, _, _ := strings.Cut(rest, " ")
 	s.annotate(name, ce)
+}
+
+// checkScoreOrder judges a carried score's params.order on the scoring
+// frame (CheckScore has passed, so the order is the carrying one):
+// field and partition present, and — a schema field — of a type that
+// orders (keys) rows (internal/regorder), else
+// model.CarryOrderFieldInvalid.
+func (w *fieldRefWalk) checkScoreOrder(p model.ScoreParams, schema *encoding.Schema) {
+	if p.Order == nil {
+		return
+	}
+	for _, c := range []struct {
+		slot, name string
+		ok         func(encoding.FieldType) bool
+	}{
+		{"order.field", p.Order.Field, regorder.OrderFieldType},
+		{"order.partition", p.Order.Partition, regorder.PartitionFieldType},
+	} {
+		if c.name == "" {
+			continue
+		}
+		w.check(c.name, func() *errors.CodedError { return model.CarryOrderFieldInvalid(p.Fit, c.slot, c.name, "") })
+		if schema != nil {
+			if f := schema.Field(c.name); f != nil && !c.ok(f.Type) {
+				w.out = append(w.out, model.CarryOrderFieldInvalid(p.Fit, c.slot, c.name, f.Type.String()))
+			}
+		}
+	}
 }
 
 // checkScoreFields judges the fields a score reads beyond the fit's

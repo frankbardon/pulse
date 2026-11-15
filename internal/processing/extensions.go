@@ -875,7 +875,9 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // either comparison operator over a centroid reference (its pre-pass
 // folds the centroid) — but
 // never a fitted slot bound to a prebuilt fit (vectors.FitBound: its
-// params.fit state exists before the scan, so it is row-local). Every
+// params.fit state exists before the scan, so it is row-local) — or a
+// carried ATTR_REG_PREDICT (model.ScoreCarries: params.order, its
+// pre-pass reading every scored row's spend). Every
 // routing decision that schedules attributes asks this, never the type
 // alone. It reads the slot's params.metric — written out by
 // Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
@@ -902,7 +904,9 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if r.attributeRequiresTwoPass(attr.Type) {
 		return true
 	}
-	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema)
+	// A carried ATTR_REG_PREDICT (params.order) pre-passes every scored
+	// row's spend (model.ScoreCarries, shared with predict).
+	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema) || model.ScoreCarries(attr)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered

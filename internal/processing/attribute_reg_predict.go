@@ -76,7 +76,13 @@ func newRegPredictAttribute(attr *types.Attribute, schema *encoding.Schema) (Att
 	if _, err := model.DecodeScoreParams(attr.Params); err != nil {
 		return nil, err
 	}
-	return &regPredictAttribute{attr: attr, schema: schema}, nil
+	base := regPredictAttribute{attr: attr, schema: schema}
+	if model.ScoreCarries(attr) {
+		// params.order: the carried score's pre-pass reads every scored
+		// row's raw spend (attribute_reg_predict_carry.go).
+		return &regPredictCarryAttribute{regPredictAttribute: base}, nil
+	}
+	return &base, nil
 }
 
 // bindModels resolves params.fit in the request's bound models and
@@ -85,31 +91,38 @@ func newRegPredictAttribute(attr *types.Attribute, schema *encoding.Schema) (Att
 // schema field must be numeric (PULSE_MODEL_PREDICTOR_NOT_NUMERIC) — the
 // field-reference pass's order.
 func (a *regPredictAttribute) bindModels(models *model.Set) error {
+	_, _, err := a.bind(models)
+	return err
+}
+
+// bind is bindModels, returning the decoded params and the bound fit
+// (nil for a failed fit, whose slot scores null).
+func (a *regPredictAttribute) bind(models *model.Set) (model.ScoreParams, *model.Bound, error) {
 	p, sig, cerr := model.CheckScoreFor(a.attr, models, a.exts.ScorableRegression)
 	if cerr != nil {
-		return cerr
+		return p, nil, cerr
 	}
 	if a.schema != nil {
 		for _, col := range sig.Terms {
 			if f := a.schema.Field(col); f != nil && !f.Type.IsNumericForAnalytics() {
-				return model.PredictorNotNumeric(p.Fit, col, f.Type.String())
+				return p, nil, model.PredictorNotNumeric(p.Fit, col, f.Type.String())
 			}
 		}
 	}
 	if se, failed := models.Failed(p.Fit); failed {
 		a.unavailable = model.FitUnavailable(p.Fit, regPredictLabel(a.attr), se)
-		return nil
+		return p, nil, nil
 	}
 	b, err := models.Lookup(p.Fit)
 	if err != nil {
-		return err
+		return p, nil, err
 	}
 	scorer, err := b.Scorer(a.exts.RegressionScorer, p)
 	if err != nil {
-		return err
+		return p, nil, err
 	}
 	a.scorer, a.fit = scorer, p.Fit
-	return nil
+	return p, b, nil
 }
 
 // EmitsNull satisfies NullEmitter: a NaN from Row / Compute is a null.

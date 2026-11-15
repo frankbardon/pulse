@@ -283,12 +283,18 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			if fault := takeReadFaults(records); fault != nil {
 				results[i], fitErrs[i] = nil, fault
 			}
+			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
+				return nil, nil, err
+			}
 			continue
 		}
 		if be, ok := eng.(BufferedEngine); ok {
 			results[i], fitErrs[i] = be.FitBuffered(records)
 			if fault := takeReadFaults(records); fault != nil {
 				results[i], fitErrs[i] = nil, fault
+			}
+			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
+				return nil, nil, err
 			}
 			continue
 		}
@@ -297,6 +303,17 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 		results[i], fitErrs[i] = eng.Fit()
 	}
 	return results, fitErrs, nil
+}
+
+// attachState records an in-model adstocked fit's carry-over state
+// (outputs.adstock_state, carryover.go) over the rows it read, beside
+// the model's own outputs; a failed fit, or any other spec, is
+// untouched.
+func attachState(spec *types.RegressionSpec, res *types.RegressionResult, fitErr error, records []Record) error {
+	if fitErr != nil || res == nil || res.Error != nil {
+		return nil
+	}
+	return AttachAdstockState(spec, res, records)
 }
 
 // BuildStreaming constructs StreamingEngine handles for the single-pass

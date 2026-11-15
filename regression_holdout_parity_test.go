@@ -49,6 +49,9 @@ type holdoutParityCase struct {
 	name string
 	spec *types.RegressionSpec
 	pred string
+	// score is appended to the reference ATTR_REG_PREDICT's params (a
+	// carried score's order, or carryover false).
+	score string
 	// check runs case-specific assertions on the single-route result.
 	check func(t *testing.T, single *types.RegressionResult)
 }
@@ -110,7 +113,7 @@ func holdoutParityRoutes(t *testing.T, p *Pulse, c holdoutParityCase) *types.Reg
 			Params: json.RawMessage(`{"prediction_field":"p"}`), Weight: c.spec.Weight}
 	}
 	fitName := c.spec.Name
-	scorer := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"` + fitName + `"}`)}
+	scorer := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"` + fitName + `"` + c.score + `}`)}
 	figures := &Request{Label: "held", Cohort: &types.Cohort{Filename: mat}, Filterers: expr(pred),
 		Attributes:   []*types.Attribute{scorer},
 		Aggregations: []*types.Aggregation{scoreAgg(types.AGG_RMSE, "rmse"), scoreAgg(types.AGG_MAE, "mae")}}
@@ -385,10 +388,17 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 // geo_time_gap), so it holds out each market's tail.
 var holdoutBuiltinPreds = map[types.RegressionType]string{types.REG_MMM_BAYES: "week > 46"}
 
+// holdoutBuiltinScores extends the reference score per type:
+// REG_MMM_BAYES adstocks in-model, so its holdout carries the train
+// rows' adstock into the held-out rows' raw spend — and the reference
+// ATTR_REG_PREDICT carries the same way, ordered by params.order.
+var holdoutBuiltinScores = map[types.RegressionType]string{types.REG_MMM_BAYES: `,"order":{"field":"week","partition":"market"}`}
+
 // TestHoldout_EveryScorableBuiltin: every built-in regression type with
 // a scorer takes a holdout and passes gates A and B (REG_MMM_BAYES
-// through its draws: its held-out rows score their columns as given,
-// params.holdout_from being its history-aware holdout); the ones without
+// through its draws, its held-out rows' raw spend adstocked with the
+// train rows' adstock carried in — a carried ATTR_REG_PREDICT's figure
+// exactly); the ones without
 // (REG_ORDINAL and REG_MULTINOMIAL, whose fits predict a distribution
 // over levels, not one score) have no case — their holdout slot is
 // refused alike by predict and the runtime (internal/regordinal
@@ -415,8 +425,57 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 			if spec.Type != typ {
 				t.Fatalf("case builds %s, want %s", spec.Type, typ)
 			}
-			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec, pred: holdoutBuiltinPreds[typ]})
+			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec, pred: holdoutBuiltinPreds[typ], score: holdoutBuiltinScores[typ]})
 		})
+	}
+}
+
+// bayesHoldoutPreCarry are REG_MMM_BAYES's engine-holdout figures on
+// the parity case before carry-over existed (its held-out channel
+// columns scored as given), recorded on the commit that added
+// carry-over (arm64): params.carryover false must reproduce them.
+var bayesHoldoutPreCarry = struct {
+	n             int
+	rmse, mae, r2 float64
+}{12, 87.77602283475005, 80.63504090720453, -30.537788305256186}
+
+// TestHoldout_BayesCarryoverOptOut: REG_MMM_BAYES under params.carryover
+// false scores its held-out channel columns as given — the pre-carry-
+// over figures (pinned, ≤ 1e-9 relative: recorded on one arch), equal
+// bit for bit to an ATTR_REG_PREDICT with carryover false (gates A and
+// B) — while the default carries the train rows' adstock in and moves
+// them (TestHoldout_EveryScorableBuiltin pins that route).
+func TestHoldout_BayesCarryoverOptOut(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	spec := holdoutBuiltinCases[types.REG_MMM_BAYES]()
+	spec.Params = json.RawMessage(`{"channels":["tv"],"time":"week","geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true,"carryover":false}`)
+	got := holdoutParityRoutes(t, p, holdoutParityCase{name: "bayes-no-carry", spec: spec, pred: "week > 46", score: `,"carryover":false`})
+	h, want := got.Holdout, bayesHoldoutPreCarry
+	near := func(what string, g, w float64) {
+		t.Helper()
+		if rel := math.Abs(g-w) / math.Max(1, math.Abs(w)); !(rel <= 1e-9) {
+			t.Errorf("carryover false %s = %.17g, pre-carry-over %.17g", what, g, w)
+		}
+	}
+	if h.N != want.n {
+		t.Errorf("carryover false n = %d, pre-carry-over %d", h.N, want.n)
+	}
+	near("rmse", h.RMSE, want.rmse)
+	near("mae", h.MAE, want.mae)
+	near("r2", h.R2, want.r2)
+
+	carried := holdoutBuiltinCases[types.REG_MMM_BAYES]()
+	carried.Holdout = "week > 46"
+	req := windowParityDerive()
+	req.Regressions = []*types.RegressionSpec{carried}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := resp.Regressions[0].Holdout; c == nil || c.RMSE == h.RMSE {
+		t.Errorf("carried holdout %+v did not move from the as-given %v", c, h.RMSE)
 	}
 }
 

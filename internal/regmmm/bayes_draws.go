@@ -40,8 +40,9 @@ import (
 const reasonDrawsThinWithoutDraws = "draws_thin_without_return_draws"
 
 // outputOnlyParams are the params keys that shape the output only and so
-// never enter the derived seed.
-var outputOnlyParams = []string{"return_draws", "draws_thin"}
+// never enter the derived seed: the draws keys, and carryover (how the
+// engine holdout scores, never the fit).
+var outputOnlyParams = []string{"return_draws", "draws_thin", "carryover"}
 
 // drawsConfig validates params.return_draws and params.draws_thin onto
 // cfg: draws_thin an integer in [1, maxBayesDraws], and only beside

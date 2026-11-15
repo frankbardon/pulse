@@ -4352,7 +4352,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
           "params": [
             {
               "name": "fit",
@@ -4388,6 +4388,19 @@
                 "lower",
                 "upper"
               ]
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "A fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the scored rows, which then hold RAW spend and need order; false scores pre-adstocked channel columns as given. Refused on any other fit."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -9264,6 +9277,13 @@
             "required": false,
             "default": 1,
             "description": "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."
+          },
+          {
+            "name": "carryover",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "Engine holdout scoring: true (default) adstocks each held-out row's raw spend at the fit's posterior-mean kernel in time order, the fitted rows' last max_lag periods (outputs.adstock_state) carried in; false scores the held-out channel columns as given (no carry-over, the pre-carry-over figures). Never moves the fit or the derived seed."
           }
         ],
         "intents": [
@@ -9314,6 +9334,11 @@
             "key": "draws",
             "json_type": "object",
             "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
+          },
+          {
+            "key": "adstock_state",
+            "json_type": "object",
+            "description": "The carry-over state (with params.adstock on REG_MMM_HILL; always on REG_MMM_BAYES): field and partition (the fit's order), kernel, max_lag, step (the period) and series [{key, order, spend}] — each series' last max_lag fitted periods of each channel's raw spend. The engine holdout and a carried ATTR_REG_PREDICT (params.order) adstock scored rows with it carried in; a saved model keeps it."
           }
         ]
       },
@@ -9471,8 +9496,15 @@
             "name": "adstock",
             "type": "string",
             "required": false,
-            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]), delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]), weibull_cdf or weibull_pdf (shape:\u003cch\u003e in [0.1, 10], scale:\u003cch\u003e in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked.",
+            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]), delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]), weibull_cdf or weibull_pdf (shape:\u003cch\u003e in [0.1, 10], scale:\u003cch\u003e in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; an engine holdout carries the fitted adstock in (params.carryover). Writes the fit's adstock record for response() and save, and outputs.adstock_state for carried scoring. Absent: channels arrive already adstocked.",
             "example": "geometric"
+          },
+          {
+            "name": "carryover",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "With adstock only: true (default) scores an engine holdout by adstocking each held-out row's raw spend at the fitted kernel, the train rows' last max_lag periods (outputs.adstock_state) carried in; false refuses the holdout (adstock_holdout). Never moves the fit."
           },
           {
             "name": "max_lag",
@@ -9500,6 +9532,11 @@
             "key": "condition_number",
             "json_type": "number",
             "description": "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."
+          },
+          {
+            "key": "adstock_state",
+            "json_type": "object",
+            "description": "The carry-over state (with params.adstock on REG_MMM_HILL; always on REG_MMM_BAYES): field and partition (the fit's order), kernel, max_lag, step (the period) and series [{key, order, spend}] — each series' last max_lag fitted periods of each channel's raw spend. The engine holdout and a carried ATTR_REG_PREDICT (params.order) adstock scored rows with it carried in; a saved model keeps it."
           }
         ]
       },
@@ -14111,7 +14148,7 @@
       },
       {
         "name": "mmm-bayes-posterior",
-        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size)."
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked or carried inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size)."
       },
       {
         "name": "mmm-workflow",
@@ -15067,7 +15104,7 @@
       },
       {
         "name": "regression-order",
-        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, and the Bayesian media-mix model's deprecated params.time alias. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-row-scores",
@@ -15686,6 +15723,7 @@
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
         "chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
+        "chain rejects an ATTR_REG_PREDICT carrying adstock (params.order: a pre-pass over every scored row, not row-local)",
         "chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
         "chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
@@ -21531,4 +21569,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 37ee06f3f0cf9c38614eb9d48693759270cac87929cf301b223623ca0bfa9ce6
+// golden-hash: 794071b8c624f296632d27ad2a8c956fe7d6bdcbb5923a50f4f44d8f04281f1e

@@ -52,6 +52,10 @@ const (
 // seed.
 const holdoutNoiseStream = 0x686f6c646f7574 // "holdout"
 
+// AdstockStateOutputDescription is outputs.adstock_state's declared
+// description, shared by both in-model adstocked media-mix models.
+const AdstockStateOutputDescription = "The carry-over state (with params.adstock on REG_MMM_HILL; always on REG_MMM_BAYES): field and partition (the fit's order), kernel, max_lag, step (the period) and series [{key, order, spend}] — each series' last max_lag fitted periods of each channel's raw spend. The engine holdout and a carried ATTR_REG_PREDICT (params.order) adstock scored rows with it carried in; a saved model keeps it."
+
 // BayesOutputSchema is REG_MMM_BAYES's declared Outputs, which the
 // root package's registration and internal/descriptor's static twin
 // both declare (each output's reading is the descriptor's built-in
@@ -66,6 +70,7 @@ var BayesOutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "holdout", JSONType: "object", Description: "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."},
 	{Key: "hierarchy", JSONType: "object", Description: "With params.geo: geo (the field), geos (in order) and pooled — per pooled term (each channel's effect under its name, each adstock parameter as decay:<ch> …): parameter (roi, beta or the kernel key), mu (the population value's posterior; β on the raw outcome) and tau (the pooling scale's, on the parameter's unconstrained scale). roi, mroi and contribution then carry each geo's entry <ch>[<geo>] beside the all-geo one under <ch> (summed contribution over summed spend; spend-weighted mROI). Absent without params.geo."},
 	{Key: "draws", JSONType: "object", Description: "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."},
+	{Key: "adstock_state", JSONType: "object", Description: AdstockStateOutputDescription},
 }
 
 // pool concatenates per-chain draws, chain order.

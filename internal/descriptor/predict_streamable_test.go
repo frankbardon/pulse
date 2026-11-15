@@ -618,6 +618,12 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"fit-bound reg influence with a grouper streams", regScored(types.ATTR_REG_INFLUENCE, `{"fit":"m","measure":"dffits"}`, grouped), vecSchema},
 		{"fit-bound studentized residual with a grouper streams", regScored(types.ATTR_REG_RESIDUAL, `{"fit":"m","kind":"studentized"}`, grouped), vecSchema},
 		{"refit reg influence with a grouper buffers", regScored(types.ATTR_REG_INFLUENCE, ``, grouped), vecSchema},
+		// U71 E2-S4: a carried ATTR_REG_PREDICT (params.order) pre-passes
+		// every scored row's spend — two-pass by its params alone, so it
+		// buffers beside a grouper where the plain score streams.
+		{"carried reg predict with a grouper buffers", regScored(types.ATTR_REG_PREDICT, `{"fit":"m","order":{"field":"a"}}`, grouped), vecSchema},
+		{"reg predict with carryover false and a grouper streams", regScored(types.ATTR_REG_PREDICT, `{"fit":"m","carryover":false}`, grouped), vecSchema},
+		{"plain reg predict with a grouper streams", regScored(types.ATTR_REG_PREDICT, `{"fit":"m"}`, grouped), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		// U51 E3-S3: a GROUP_ROUNDED grouping streams (and now merges).
 		{"grouped GROUP_ROUNDED sum streams", &types.Request{

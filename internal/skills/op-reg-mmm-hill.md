@@ -15,17 +15,18 @@ examples_tags: [regression, time-series, buffered-pipeline]
 
 ## Params
 
-`channels` through `max_lag` sit under `params`; shared keys: `regression-spec`.
+`channels` through `carryover` sit under `params`; shared keys: `regression-spec`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
 | `channels` | array | (required) | Hill-curve predictors; the rest are controls. |
-| `nonnegative` | boolean | `true` | Channel β ≥ 0 (unsupported → exactly 0). |
+| `nonnegative` | boolean | `true` | Channel β ≥ 0. |
 | `prior` | object | — | Gaussian `{channel, mean, precision}` on one β. |
-| `adstock` | string | — | `geometric`, `delayed`, `weibull_cdf`, `weibull_pdf`: fitted in-model. |
+| `adstock` | string | — | `geometric`, `delayed`, `weibull_cdf`, `weibull_pdf`: in-model. |
 | `max_lag` | int | `13` | Window; non-geometric needs it. |
+| `carryover` | bool | `true` | Holdout carries adstock. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
 | `bootstrap_iters` | int | `1000` | Resample. |
 | `jackknife_groups` | int | — | Resample. |
@@ -51,11 +52,11 @@ Numeric `target`; channels ≥ 0 (else `PROCESSING_CONFIG`). Null rows drop list
 
 ## Output
 
-`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>`, `s:<channel>`, then the kernel's: `decay:` (+`peak:` delayed) or `shape:`, `scale:` (Weibull). `coef("fit", "k:tv_ad")` reads one; predict knows them from `params`<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. Bounds: k ∈ [0.02, 20]× channel mean, s ∈ [0.5, 5].
+`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>`, `s:<channel>`, then the kernel's: `decay:` (+`peak:` delayed) or `shape:`, `scale:` (Weibull). `coef("fit", "k:tv_ad")` reads one; predict knows them<!-- feature: capability:models -->; an `inline` `models` entry declares them with no fit<!-- /feature -->. k ∈ [0.02, 20]× channel mean, s ∈ [0.5, 5].
 
 Each channel records its kernel (`adstock.<ch>`, saved too) for `response()`: the fitted one, or its<!-- feature: WIN_DISTRIBUTED_LAG --> `WIN_DISTRIBUTED_LAG`'s<!-- /feature -->.
 
-`StdErrors`: Gauss-Newton, joint with the kernel; `null` on a bound and for a β-0 channel's k / s / kernel. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
+`StdErrors`: Gauss-Newton, joint with kernel; `null` on a bound and a β-0 channel's k / s / kernel. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
 
 <!-- generated: reading-the-output -->
 
@@ -63,10 +64,10 @@ Each channel records its kernel (`adstock.<ch>`, saved too) for `response()`: th
 
 ## Gotchas
 
-- Spend below k sits on the β/k^s ridge: judge contribution.
-- No convergence in 1000 iterations: `PROCESSING_REGRESSION_NO_CONVERGE`, the slot fails alone.
+- Spend below k: β/k^s ridge, judge contribution.
+- No convergence in 1000 iterations: `PROCESSING_REGRESSION_NO_CONVERGE` (slot fails alone).
 - `penalty`, `selection`, `covariance`, `family`, a weight are refused. `holdout`, `resample`, `save` work<!-- feature: ATTR_REG_PREDICT -->, as does `ATTR_REG_PREDICT` (whole model)<!-- /feature -->.
-- `adstock` needs `order` (one series); refuses `holdout`, an upstream-adstocked channel. Scoring reads pre-adstocked channels.
+- `adstock` needs `order` (one series), refuses an upstream-adstocked channel; `holdout` / scoring carry it in (`regression-order`).
 
 ## See
 

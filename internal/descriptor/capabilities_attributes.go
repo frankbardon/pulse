@@ -186,7 +186,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.ATTR_REG_PREDICT),
 			Category:    "attribute",
-			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
 			Params: []descriptor.Param{
 				{
 					Name:        "fit",
@@ -212,6 +212,17 @@ func attributeCapabilities() []descriptor.Operator {
 					Default:     "point",
 					EnumValues:  []string{"point", "lower", "upper"},
 					Description: "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null. A REG_MMM_BAYES fit alone takes a whole-model lower / upper (no terms): the credible bound of its mean prediction across its draws at the fit's credible_level — an interval for μ, not a predictive interval.",
+				},
+				{
+					Name:        "carryover",
+					Type:        "bool",
+					Default:     true,
+					Description: "A fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the scored rows, which then hold RAW spend and need order; false scores pre-adstocked channel columns as given. Refused on any other fit.",
+				},
+				{
+					Name:        "order",
+					Type:        "object",
+					Description: "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass.",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalytics, // the scoring frame rule: IsNumericForAnalytics (TestCapabilities_RegPredictAcceptsScoringRule)

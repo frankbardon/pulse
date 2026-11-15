@@ -60,8 +60,12 @@ var scopedManifestExceptions = map[string]float64{
 	// per regression in scope) measured 15.71% (40,748 of 259,300 bytes).
 	// REG_MMM_HILL's in-model adstock (U71 E2-S2, #551; feature growth:
 	// the adstock / max_lag params and the condition_number output key)
-	// measured 15.81% (41,045 of 259,687 bytes).
-	IntentDrivers: 0.159,
+	// measured 15.81% (41,045 of 259,687 bytes). Adstock carry-over
+	// (U71 E2-S4, #551; feature growth: the carryover param on both
+	// media-mix models and ATTR_REG_PREDICT's carryover / order, plus
+	// the adstock_state output key on both models) measured 15.94%
+	// (41,454 of 260,096 bytes).
+	IntentDrivers: 0.160,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

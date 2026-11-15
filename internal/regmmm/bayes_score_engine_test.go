@@ -111,10 +111,13 @@ func scoreReq(cohort string, byGeo bool, models ...types.ModelRef) *types.Reques
 	if byGeo {
 		groups = append([]*types.Group{{Type: types.GROUP_CATEGORY, Field: "geo"}}, groups...)
 	}
+	// The inputs are pre-adstocked columns, scored as given: carryover
+	// false (a carried score reads raw spend, compose_hill_carryover_test
+	// and regression_holdout_parity_test at the root).
 	attr := func(label, bound string) *types.Attribute {
-		params := `{"fit":"m"}`
+		params := `{"fit":"m","carryover":false}`
 		if bound != "" {
-			params = `{"fit":"m","bound":"` + bound + `"}`
+			params = `{"fit":"m","carryover":false,"bound":"` + bound + `"}`
 		}
 		return &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: label, Params: json.RawMessage(params)}
 	}
@@ -333,10 +336,12 @@ func TestMMMBayes_SaveAndScore(t *testing.T) {
 }
 
 // TestMMMBayes_EngineHoldoutScores: the engine holdout fits the train
-// rows and scores the held-out rows through the scorer on their columns
-// as given (no carry-over from the history: params.holdout_from is the
-// history-aware holdout) — its RMSE equals the train fit's scorer on
-// those rows.
+// rows and scores the held-out rows through the scorer, each row's raw
+// spend adstocked at the posterior-mean kernel (the adstock record) over
+// the whole series — the train weeks carried in from the fit's
+// outputs.adstock_state — so its RMSE equals the train fit's scorer on
+// those carried adstocks (params.carryover false, the columns as given:
+// TestHoldout_BayesCarryoverOptOut at the root).
 func TestMMMBayes_EngineHoldoutScores(t *testing.T) {
 	t.Parallel()
 
@@ -358,16 +363,30 @@ func TestMMMBayes_EngineHoldoutScores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sse float64
-	for _, row := range rows[50:] {
-		y, ok := sc.Score(scoreRow{"tv": row.TV, "price": row.Price})
-		if !ok {
-			t.Fatalf("week %v scored null", row.Week)
+	decay := r.Coefficients["decay:tv"]
+	w, err := model.Adstock{Kernel: "geometric", Decay: &decay, MaxLag: regmmm.DefaultMaxLag}.Weights()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sse, sseGiven float64
+	for i := 50; i < len(rows); i++ {
+		a := 0.0
+		for l := 0; l < len(w) && l <= i; l++ {
+			a += float64(w[l] * rows[i-l].TV)
 		}
-		sse += float64((row.Sales - y) * (row.Sales - y))
+		y, ok := sc.Score(scoreRow{"tv": a, "price": rows[i].Price})
+		if !ok {
+			t.Fatalf("week %v scored null", rows[i].Week)
+		}
+		sse += float64((rows[i].Sales - y) * (rows[i].Sales - y))
+		g, _ := sc.Score(scoreRow{"tv": rows[i].TV, "price": rows[i].Price})
+		sseGiven += float64((rows[i].Sales - g) * (rows[i].Sales - g))
 	}
 	if want := math.Sqrt(sse / 10); !relClose(r.Holdout.RMSE, want, 1e-9) {
-		t.Errorf("holdout rmse %v, want %v from the scorer on the held-out rows", r.Holdout.RMSE, want)
+		t.Errorf("holdout rmse %v, want %v from the scorer on the carried adstocks", r.Holdout.RMSE, want)
+	}
+	if given := math.Sqrt(sseGiven / 10); relClose(r.Holdout.RMSE, given, 1e-6) {
+		t.Errorf("holdout rmse %v equals the as-given columns' %v: no carry-over", r.Holdout.RMSE, given)
 	}
 }
 

@@ -32,8 +32,8 @@ func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *er
 		scorable = ScorableType
 	}
 	if scorable(spec.Type) {
-		// A REG_MMM_HILL params.adstock fit reads raw spend its scorer
-		// cannot adstock (mmm_hill_adstock.go).
+		// A REG_MMM_HILL params.adstock fit under carryover false would
+		// score raw spend as adstocked columns (mmm_hill_adstock.go).
 		if cerr := MMMHillAdstockHoldoutRefusal(spec); cerr != nil {
 			return cerr
 		}

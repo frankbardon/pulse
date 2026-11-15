@@ -22,9 +22,10 @@ import (
 // response() equals the hand-written coef()·hill(multiplier·spend)
 // algebra on both orchestrators; a Weibull fit (E2-S3) records its
 // fitted shape and scale the same way; every refusal (no order, an
-// engine holdout, a pre-adstocked channel, an unknown kernel, a Weibull
-// kernel without max_lag, a partition) is predict's exactly as it is
-// Process's.
+// engine holdout under carryover false, a pre-adstocked channel, an
+// unknown kernel, a Weibull kernel without max_lag, a partition,
+// carryover without adstock) is predict's exactly as it is Process's
+// (carry-over itself: compose_hill_carryover_test.go).
 
 const hillAdstockCohort = "hill_adstock.pulse"
 
@@ -34,20 +35,18 @@ const (
 	hillAdstockMaxLag = 6
 )
 
-// hillAdstockFS writes 104 weeks of bursty spend x, y = 5 + 8·hill(a,
-// 60, 2) + a small deterministic wobble, a x's unnormalised geometric
-// adstock at hillAdstockDecay over lags 0..hillAdstockMaxLag.
-func hillAdstockFS(t *testing.T) afero.Fs {
-	t.Helper()
-	fsys := afero.NewMemMapFs()
+// hillAdstockSeries is the generator's 104 weeks: bursty spend x, y =
+// 5 + 8·hill(a, 60, 2) + a small deterministic wobble, a x's
+// unnormalised geometric adstock at hillAdstockDecay over lags
+// 0..hillAdstockMaxLag.
+func hillAdstockSeries() (x, y []float64) {
 	const n = 104
-	x := make([]float64, n)
+	x, y = make([]float64, n), make([]float64, n)
 	for i := range x {
 		if (i*37)%17 > 7 {
 			x[i] = float64((i*53)%29)*4 + 10
 		}
 	}
-	var rows [][]string
 	for i := range n {
 		a := 0.0
 		for l := 0; l <= hillAdstockMaxLag && l <= i; l++ {
@@ -57,8 +56,20 @@ func hillAdstockFS(t *testing.T) afero.Fs {
 		if a > 0 {
 			h = 1 / (1 + math.Pow(60/a, 2))
 		}
-		y := 5 + 8*h + 0.01*float64((i*13)%7-3)
-		rows = append(rows, []string{strconv.Itoa(i), jsonNumber(x[i]), jsonNumber(y), []string{"north", "south"}[i%2]})
+		y[i] = 5 + 8*h + 0.01*float64((i*13)%7-3)
+	}
+	return x, y
+}
+
+// hillAdstockFS writes hillAdstockSeries as week, x, y and an
+// alternating region.
+func hillAdstockFS(t *testing.T) afero.Fs {
+	t.Helper()
+	fsys := afero.NewMemMapFs()
+	x, y := hillAdstockSeries()
+	var rows [][]string
+	for i := range x {
+		rows = append(rows, []string{strconv.Itoa(i), jsonNumber(x[i]), jsonNumber(y[i]), []string{"north", "south"}[i%2]})
 	}
 	createTestPulseFile(t, fsys, hillAdstockCohort, []string{"week", "x", "y", "region"}, rows)
 	return fsys
@@ -259,7 +270,14 @@ func TestHillAdstock_RefusalsPredictMatchRuntime(t *testing.T) {
 		more bool
 	}{
 		{"order_required", edit(func(r *Request) { r.Regressions[0].Order = nil }), "order_required", false},
-		{"adstock_holdout", edit(func(r *Request) { r.Regressions[0].Holdout = "week >= 90" }), model.ReasonAdstockHoldout, false},
+		{"adstock_holdout", edit(func(r *Request) {
+			r.Regressions[0].Holdout = "week >= 90"
+			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "geometric", "max_lag": 6, "carryover": false}`)
+		}), model.ReasonAdstockHoldout, false},
+		{"carryover_unused", edit(func(r *Request) {
+			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "carryover": true}`)
+			r.Regressions[0].Order = nil
+		}), model.ReasonCarryoverUnused, false},
 		{"kernel_unknown", edit(func(r *Request) {
 			r.Regressions[0].Params = json.RawMessage(`{"channels": ["x"], "adstock": "hyperbolic", "max_lag": 6}`)
 		}), "kernel_unknown", false},

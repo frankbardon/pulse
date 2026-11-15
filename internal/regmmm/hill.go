@@ -76,6 +76,11 @@ type hillParams struct {
 	// Adstock and MaxLag are the in-model adstock (hill_adstock.go).
 	Adstock *string `json:"adstock"`
 	MaxLag  *int    `json:"max_lag"`
+	// Carryover is the scoring switch under params.adstock: false
+	// scores an engine holdout's channel columns as given (and keeps
+	// the adstock_holdout refusal) instead of carrying the fit's
+	// adstock in (internal/model mmm_carry.go). It never moves the fit.
+	Carryover *bool `json:"carryover"`
 }
 
 // configError is a PROCESSING_CONFIG refusal naming the regression.
