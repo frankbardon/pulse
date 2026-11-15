@@ -177,3 +177,48 @@ func TestHillCarryover_ScoreCarriesFromTheFit(t *testing.T) {
 		t.Errorf("carried score over the saved model %v, over the fit %v", saved.Data[0]["carried"], carriedSum)
 	}
 }
+
+// TestHillCarryover_ResampleSeedIgnoresCarryover: params.carryover
+// shapes scoring only, so it never enters the rng_seed 0 derived seed —
+// a bootstrap on the in-model adstocked fit draws bit-identical
+// replicates (standard errors, p-values, succeeded count) with
+// carryover absent, true and false.
+func TestHillCarryover_ResampleSeedIgnoresCarryover(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	boot := func(carry string) *types.RegressionResult {
+		t.Helper()
+		req := hillAdstockRequest()
+		s := req.Regressions[0]
+		s.Params = json.RawMessage(`{"channels": ["x"], "adstock": "geometric", "max_lag": 6` + carry + `}`)
+		s.Resample, s.BootstrapIters = "bootstrap", 30
+		resp, err := p.Process(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res := resp.Regressions[0]
+		if res.Error != nil || res.BootstrapSucceeded == 0 {
+			t.Fatalf("carryover %q: bootstrap fit failed: %+v", carry, res.Error)
+		}
+		return res
+	}
+	base := boot("")
+	for _, carry := range []string{`, "carryover": true`, `, "carryover": false`} {
+		got := boot(carry)
+		if got.BootstrapSucceeded != base.BootstrapSucceeded {
+			t.Errorf("carryover %q: succeeded %d, absent %d", carry, got.BootstrapSucceeded, base.BootstrapSucceeded)
+		}
+		for name, se := range base.StdErrors {
+			if math.Float64bits(got.StdErrors[name]) != math.Float64bits(se) {
+				t.Errorf("carryover %q: %s replicate se %v, absent %v", carry, name, got.StdErrors[name], se)
+			}
+			if math.Float64bits(got.PValues[name]) != math.Float64bits(base.PValues[name]) {
+				t.Errorf("carryover %q: %s p %v, absent %v", carry, name, got.PValues[name], base.PValues[name])
+			}
+		}
+	}
+}
