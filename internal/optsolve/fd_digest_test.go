@@ -49,9 +49,18 @@ var fdDigests = []string{
 	"bbed5294c6ac5d1ca0e89d2b07d656e3545b4a32024e3b6dacd9605d0e9be7ec",
 }
 
-func corpusDigests(t *testing.T, edit func(*types.OptimizeSpec)) []string {
+// failedEntry marks a corpus block that fails on its numbers (no
+// gradient echo) in corpusDigests' modes.
+const failedEntry types.OptimizeGradient = "failed"
+
+// corpusDigests solves every fdCorpus block (edited by edit) and
+// returns each result's digest with its gradient echo (Gradient,
+// GradientFallback — a label added after the digests were taken, never
+// a figure) cleared, plus each block's echoed Gradient.
+func corpusDigests(t *testing.T, edit func(*types.OptimizeSpec)) ([]string, []types.OptimizeGradient) {
 	t.Helper()
 	out := make([]string, len(fdCorpus))
+	modes := make([]types.OptimizeGradient, len(fdCorpus))
 	for k, tc := range fdCorpus {
 		spec := block(t, tc.raw)
 		if edit != nil {
@@ -61,14 +70,24 @@ func corpusDigests(t *testing.T, edit func(*types.OptimizeSpec)) []string {
 		if err != nil {
 			t.Fatalf("corpus[%d]: %v", k, err)
 		}
-		b, err := json.Marshal(o.Result)
+		r := o.Result
+		modes[k] = r.Gradient
+		if o.Failed {
+			// A failed entry keeps name, direction and error only.
+			if r.Gradient != "" || r.GradientFallback != nil {
+				t.Errorf("corpus[%d] failed but echoes gradient %q fallback %v", k, r.Gradient, r.GradientFallback)
+			}
+			modes[k] = failedEntry
+		}
+		r.Gradient, r.GradientFallback = "", nil
+		b, err := json.Marshal(r)
 		if err != nil {
 			t.Fatal(err)
 		}
 		sum := sha256.Sum256(b)
 		out[k] = hex.EncodeToString(sum[:])
 	}
-	return out
+	return out, modes
 }
 
 // TestOptimize_GradientFDByteIdentical: every corpus block under
@@ -81,13 +100,21 @@ func corpusDigests(t *testing.T, edit func(*types.OptimizeSpec)) []string {
 func TestOptimize_GradientFDByteIdentical(t *testing.T) {
 	t.Parallel()
 
-	got := corpusDigests(t, func(s *types.OptimizeSpec) { s.Gradient = types.OptimizeGradientFD })
+	got, modes := corpusDigests(t, func(s *types.OptimizeSpec) { s.Gradient = types.OptimizeGradientFD })
 	for k := range fdCorpus {
 		if got[k] != fdDigests[k] {
 			t.Errorf("corpus[%d] under gradient fd: digest %s, want the pre-analytic %s", k, got[k], fdDigests[k])
 		}
+		if modes[k] != types.OptimizeGradientFD && modes[k] != failedEntry {
+			t.Errorf("corpus[%d] under gradient fd echoes gradient %q", k, modes[k])
+		}
 	}
-	analytic := corpusDigests(t, nil)
+	analytic, amodes := corpusDigests(t, nil)
+	for k := range fdCorpus {
+		if amodes[k] != types.OptimizeGradientAnalytic && amodes[k] != failedEntry {
+			t.Errorf("corpus[%d] by default echoes gradient %q, want analytic (every expression differentiates)", k, amodes[k])
+		}
+	}
 	if analytic[0] == fdDigests[0] {
 		t.Errorf("corpus[0] solved analytically gives the fd bits: the analytic gradient is not wired")
 	}

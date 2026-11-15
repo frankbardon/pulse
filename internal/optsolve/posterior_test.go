@@ -274,7 +274,14 @@ func TestOptimize_PosteriorAnalyticGradient(t *testing.T) {
 			}
 			fdRaw["gradient"] = "fd"
 			fdBytes, _ := json.Marshal(fdRaw)
-			if f := solvePosterior(t, string(fdBytes)); mustJSON(t, f) == mustJSON(t, a) {
+			f := solvePosterior(t, string(fdBytes))
+			if a.Gradient != types.OptimizeGradientAnalytic || a.GradientFallback != nil || f.Gradient != types.OptimizeGradientFD || f.GradientFallback != nil {
+				t.Fatalf("gradient echo: default %q %v, fd %q %v", a.Gradient, a.GradientFallback, f.Gradient, f.GradientFallback)
+			}
+			// The figures differ, not only the echo.
+			fc, ac := *f, *a
+			fc.Gradient, ac.Gradient = "", ""
+			if mustJSON(t, &fc) == mustJSON(t, &ac) {
 				t.Fatalf("the default solve gives the fd bits: the posterior path is not analytic")
 			}
 		})

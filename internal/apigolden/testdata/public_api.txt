@@ -6078,6 +6078,8 @@ pulse/types: type OptimizeResult field Constraints []pulse/types.OptimizeConstra
 pulse/types: type OptimizeResult field Converged bool "json:\"converged\""
 pulse/types: type OptimizeResult field Direction pulse/types.OptimizeDirection "json:\"direction\""
 pulse/types: type OptimizeResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type OptimizeResult field Gradient pulse/types.OptimizeGradient "json:\"gradient,omitempty\""
+pulse/types: type OptimizeResult field GradientFallback []string "json:\"gradient_fallback,omitempty\""
 pulse/types: type OptimizeResult field Iterations int "json:\"iterations\""
 pulse/types: type OptimizeResult field MaxViolation float64 "json:\"max_violation\""
 pulse/types: type OptimizeResult field Name string "json:\"name\""
@@ -6864,4 +6866,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 479fbb06feea0d6d72e347f958ea9f15a659b35c47f238fa4f2d62fad7c06275
+// golden-hash: 7139fab9eb2f362f05378a0dccced1088b8887b03cd0b3146a670519bbc79635

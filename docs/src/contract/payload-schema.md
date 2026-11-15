@@ -1595,8 +1595,8 @@ in `ComposedResponse.optimizations`, an `omitempty` array of
 `OptimizeResult` in declaration order — `name`, `direction`,
 `objective`, `variables [{name, value, marginal, active}]`,
 `constraints [{expr, type, value, multiplier}]`, `converged`, `status`,
-`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`
-— pinned outside the Compose-level `return` (always emitted, never
+`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`,
+`gradient`, `gradient_fallback` — pinned outside the Compose-level `return` (always emitted, never
 rounded); a block that failed on its numbers keeps `{name, direction,
 error}` (see Failed slots) and warns `PULSE_SLOT_FAILED` (`slot_kind`
 `optimizations`). Each block is solved from its start point plus
@@ -1606,7 +1606,15 @@ objective and constraints — central finite differences for the whole
 block when an expression calls a function without a derivative rule
 (Compose predict's `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK`), and
 throughout under `gradient` `fd` (unknown: `PULSE_OPTIMIZE_SPEC_INVALID`
-`gradient_unknown`); `marginal` is ∂f/∂xᵢ, `multiplier` the
+`gradient_unknown`). The result echoes the gradient the block actually
+solved with as `gradient` (`OptimizeGradient`: `analytic`, or `fd` when
+asked or fallen back — a point kink, a finite value with a non-finite
+partial differentiated by central differences at that point only, stays
+`analytic`) and, on a fallback, `gradient_fallback` — the functions and
+constructs without a derivative rule (sorted, unique; the advisory's
+`details.functions` for the same block, one verdict); both `omitempty`,
+absent on a failed entry, additive (`format_version` stays `"1.1"`);
+`marginal` is ∂f/∂xᵢ, `multiplier` the
 constraint's Lagrange multiplier in the objective's own direction
 (∇f = Σ multiplier·∇expr on the free variables — for a budget `eq` it
 equals every free variable's `marginal`), `starts_agreeing` the

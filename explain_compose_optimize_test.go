@@ -9,13 +9,16 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/types"
 )
 
 // explain_compose_optimize_test.go pins Explain's Compose root on the
 // `optimize` blocks to PredictCompose and both orchestrators: a block's
 // refusal is the same code and details on all three, located at
 // details.slot `optimize[i]`; a valid block's step names the gradient
-// mode predict's PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK decides.
+// mode predict's PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK decides, and
+// the runtime result's gradient echo (read back by response-side
+// Explain) is that same verdict.
 
 func TestExplain_ComposeOptimizeMatchesPredictAndRuntime(t *testing.T) {
 	t.Parallel()
@@ -73,7 +76,7 @@ func TestExplain_ComposeOptimizeMatchesPredictAndRuntime(t *testing.T) {
 		})
 	}
 
-	t.Run("gradient mode follows predict's advisory", func(t *testing.T) {
+	t.Run("gradient mode follows predict's advisory, and the runtime echo agrees", func(t *testing.T) {
 		c := optimizeComposed(t, `[`+block("fb", x, `"boost(x) - x * x"`)+`,`+block("an", x, `"coef(\"m\", \"age\") * x - x * x"`)+`]`)
 		res, err := p.Explain(ctx, descriptor.ExplainRequest{Composed: c})
 		if err != nil {
@@ -83,13 +86,47 @@ func TestExplain_ComposeOptimizeMatchesPredictAndRuntime(t *testing.T) {
 			t.Fatalf("refused: %+v", res.Refusals)
 		}
 		var fired []int
+		var functions []string
 		for _, a := range res.Advisories {
 			if a.Code == string(perr.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK) {
 				fired = append(fired, a.Details["optimize"].(int))
+				functions = a.Details["functions"].([]string)
 			}
 		}
 		if !slices.Equal(fired, []int{0}) {
 			t.Fatalf("fallback advisories on %v, want [0]", fired)
+		}
+		// The runtime echo is the advisory's verdict on both
+		// orchestrators, and response-side Explain reports it.
+		for name, run := range composeRuns(p) {
+			resp, err := run(c)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			o := resp.Optimizations
+			if len(o) != 2 || o[0].Gradient != types.OptimizeGradientFD || !slices.Equal(o[0].GradientFallback, functions) ||
+				o[1].Gradient != types.OptimizeGradientAnalytic || o[1].GradientFallback != nil {
+				t.Fatalf("%s: runtime echo %+v, want fd %v then analytic", name, o, functions)
+			}
+			rex, err := p.Explain(ctx, descriptor.ExplainRequest{ComposedResponse: resp, Detail: descriptor.ExplainFull})
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := map[string]string{}
+			for _, s := range rex.Sentences {
+				switch {
+				case strings.Contains(s, "`fb`"):
+					found["fb"] = s
+				case strings.Contains(s, "`an`"):
+					found["an"] = s
+				}
+			}
+			if !strings.Contains(found["fb"], "finite differences, because `boost` has no derivative rule") {
+				t.Errorf("%s: fallback finding %q", name, found["fb"])
+			}
+			if !strings.Contains(found["an"], "solved with the analytic gradient") {
+				t.Errorf("%s: analytic finding %q", name, found["an"])
+			}
 		}
 		texts := map[string]string{}
 		for _, s := range res.Steps {

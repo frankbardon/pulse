@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"reflect"
+	"slices"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -149,7 +150,10 @@ func TestOptimize_HiddenParity(t *testing.T) {
 // draws the advisory and solves to the `gradient: "fd"` bits on both
 // orchestrators; an arithmetic block, one reading coef() or hill(), and
 // one calling an embedder function WITH a Derivative draw none and
-// solve analytically, to other bits.
+// solve analytically, to other bits. The runtime echo agrees: each
+// result's gradient is fd exactly when the advisory fires, its
+// gradient_fallback the advisory's `functions`, and gradient fd echoes
+// fd with no fallback.
 func TestOptimize_GradientFallbackParity(t *testing.T) {
 	t.Parallel()
 
@@ -182,26 +186,44 @@ func TestOptimize_GradientFallbackParity(t *testing.T) {
 			if err != nil || len(env.Errors) != 0 {
 				t.Fatalf("predict: %v %+v", err, env)
 			}
-			fired := false
+			var functions []string
 			for _, a := range env.Data.(*descx.ComposeValidationResult).Advisories {
-				fired = fired || a.Code == string(perr.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK)
+				if a.Code == string(perr.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK) {
+					functions = a.Details["functions"].([]string)
+				}
 			}
-			if fired != tc.fallback {
+			if fired := functions != nil; fired != tc.fallback {
 				t.Fatalf("advisory fired %v, want %v", fired, tc.fallback)
 			}
+			wantMode := types.OptimizeGradientAnalytic
+			if tc.fallback {
+				wantMode = types.OptimizeGradientFD
+			}
 			for name, run := range composeRuns(p) {
-				enc := func(extra string) []byte {
+				// enc solves the block and checks its runtime gradient
+				// echo — the mode it solved with and the fallback
+				// functions, predict's advisory `functions` exactly —
+				// then returns the figures with the echo cleared.
+				enc := func(extra string, mode types.OptimizeGradient, fallback []string) []byte {
 					resp, err := run(optimizeComposed(t, raw(extra)))
 					if err != nil {
 						t.Fatalf("%s: %v", name, err)
 					}
-					b, err := json.Marshal(resp.Optimizations)
+					opts := slices.Clone(resp.Optimizations)
+					if len(opts) != 1 || opts[0].Error != nil {
+						t.Fatalf("%s: optimizations %+v", name, opts)
+					}
+					if opts[0].Gradient != mode || !reflect.DeepEqual(opts[0].GradientFallback, fallback) {
+						t.Fatalf("%s%s: echo gradient %q fallback %v, want %q %v (predict's advisory)", name, extra, opts[0].Gradient, opts[0].GradientFallback, mode, fallback)
+					}
+					opts[0].Gradient, opts[0].GradientFallback = "", nil
+					b, err := json.Marshal(opts)
 					if err != nil {
 						t.Fatal(err)
 					}
 					return b
 				}
-				def, fd := enc(""), enc(`,"gradient":"fd"`)
+				def, fd := enc("", wantMode, functions), enc(`,"gradient":"fd"`, types.OptimizeGradientFD, nil)
 				if same := bytes.Equal(def, fd); same != tc.fallback {
 					t.Fatalf("%s: default equals fd %v, want %v (predict fallback)\n%s\n%s", name, same, tc.fallback, def, fd)
 				}

@@ -208,9 +208,11 @@ func TestExplainOptimize_UnresolvedBoundNamed(t *testing.T) {
 func optimizeResponse() *types.ComposedResponse {
 	return &types.ComposedResponse{Optimizations: []types.OptimizeResult{
 		{Name: "plain", Direction: types.OptimizeMaximize, Objective: 12.5, Converged: true, Status: "ok", Iterations: 7, Starts: 3, StartsAgreeing: 2,
+			Gradient: types.OptimizeGradientFD, GradientFallback: []string{"boost", "let"},
 			Variables:   []types.OptimizeVariableResult{{Name: "x", Value: 40, Marginal: 0.01, Active: types.OptimizeActiveUpper}},
 			Constraints: []types.OptimizeConstraintResult{{Expr: "100 - x", Type: types.OptimizeConstraintIneq, Value: 60}}},
 		{Name: "post", Direction: types.OptimizeMaximize, Objective: 3, Converged: true, Iterations: 4, Starts: 1, StartsAgreeing: 1,
+			Gradient:  types.OptimizeGradientAnalytic,
 			Variables: []types.OptimizeVariableResult{{Name: "tv", Value: 20, Marginal: math.NaN(), Interval: &types.OptimizeInterval{Lower: 15, Upper: 25}}},
 			Posterior: &types.OptimizePosteriorResult{Fit: "b", Objective: types.OptimizePosteriorMean, Draws: 100, DrawsAvailable: 400, DrawsResolved: 95, CredibleLevel: 0.9}},
 		{Name: "bad", Direction: types.OptimizeMinimize, Error: &types.SlotError{Code: string(errors.PROCESSING_RUNTIME), Message: "no start converged"}},
@@ -219,7 +221,8 @@ func optimizeResponse() *types.ComposedResponse {
 
 // TestExplainOptimize_Response: one finding per Optimizations entry at
 // `optimizations[i]` — descriptive with its solution figures, the
-// posterior's intervals and draw counts, a failed block not_computable —
+// posterior's intervals and draw counts, the gradient each block solved
+// with (and a fallback's functions), a failed block not_computable —
 // and the caveats a reader must not lose.
 func TestExplainOptimize_Response(t *testing.T) {
 	t.Parallel()
@@ -249,7 +252,9 @@ func TestExplainOptimize_Response(t *testing.T) {
 		t.Errorf("undefined marginal not null: %v", *p["variables.tv.marginal"])
 	}
 	all := strings.Join(res.Sentences, "\n")
-	for _, s := range []string{"(on its upper bound)", "`tv` from 15 to 25", "0.9 level", "fit `b`"} {
+	for _, s := range []string{"(on its upper bound)", "`tv` from 15 to 25", "0.9 level", "fit `b`",
+		"It solved by finite differences, because `boost` and `let` have no derivative rule (" + string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK) + ")",
+		"It solved with the analytic gradient."} {
 		if !strings.Contains(all, s) {
 			t.Errorf("sentences lack %q:\n%s", s, all)
 		}

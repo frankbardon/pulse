@@ -20,17 +20,17 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 
 | Code | Fires when | `details` |
 |---|---|---|
-| `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample t-test's `split_by` is a categorical field with more than two dictionary entries | `slot`, `operator`, `field`, `split_by`, `groups`, `suggested` (the many-group ANOVA; absent when none is offered) |
+| `PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS` | a two-sample t-test's `split_by` is a categorical field with more than two dictionary entries | `slot`, `operator`, `field`, `split_by`, `groups`, `suggested` (the many-group ANOVA; absent if none is offered) |
 <!-- feature: capability:multiplicity -->
 | `PULSE_ADVISORY_MANY_TESTS` | `p_values.uncorrected` ≥ `threshold` (10) and no `multiplicity` block anywhere — request, slot or instance default | `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": "holm"}}` |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: ≥ 2 slots emit p-values, their corrected ones sit in ≥ 2 separate families other than `compose`, and the slots emit ≥ 10 in total — no correction spans the batch | `slots`, `families` (IDs), `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": M, "family": "compose"}}` |
 <!-- /feature -->
 <!-- feature: capability:compose_optimize -->
-| `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` | Compose only: an analytic `optimize` block calls a function with no derivative rule, so it solves by finite differences | `optimize`, `name`, `functions`, `suggested` |
+| `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` | Compose only: an analytic `optimize` block calls a function with no derivative rule, so it solves by finite differences (result: `gradient_fallback`) | `optimize`, `name`, `functions`, `suggested` |
 <!-- /feature -->
 <!-- feature: io_format:spss -->
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator or a parametric test (t, z, paired t, ANOVA, Pearson) reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
-| `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent when it names none) |
+| `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent if it names none) |
 <!-- /feature -->
 <!-- feature: capability:weighting -->
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
@@ -49,9 +49,9 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 <!-- /feature -->
 
-The two-group rule reads the dictionary: it fires even when a filter leaves two groups.
+The two-group rule reads the dictionary: it fires even if a filter leaves two groups.
 
-The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical and never fires.
+The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical, never fires.
 
 ## Roots
 

@@ -103,7 +103,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
 
 The batch runs the sweep slots first, then the rank, the bound fit, `optimize` and the contribution slot. Responses keep index order, so the contribution slot comes first. Serial and parallel runs give the same bytes. A pinned `rng_seed` (or the echoed `sweep_seed`) replays the draws.
 
-At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`.
+At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`. `gradient` reports how the block was differentiated: `analytic` (exact), or `fd` (finite differences — asked for, or a fallback whose `gradient_fallback` names the functions with no derivative rule, as Compose predict's `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` said).
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 

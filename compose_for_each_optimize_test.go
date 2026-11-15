@@ -102,6 +102,12 @@ func TestComposeForEachOptimize_MatchesHandWrittenTwin(t *testing.T) {
 		if len(got.Optimizations) != 2 || got.Optimizations[1].Name != "allocation_lean" {
 			t.Fatalf("%s: optimizations %+v", name, got.Optimizations)
 		}
+		for i, o := range got.Optimizations {
+			// Each expansion carries its own gradient echo.
+			if o.Error == nil && o.Gradient == "" {
+				t.Errorf("%s: expansion %d carries no gradient echo", name, i)
+			}
+		}
 		nr := got.NormalizedRequest
 		if nr == nil || len(nr.Optimize) != 2 || nr.Optimize[0].ForEach != nil || nr.Optimize[1].Name != "allocation_lean" {
 			t.Fatalf("%s: normalized request %s, want the expanded blocks", name, mustJSON(t, "opt", nr))

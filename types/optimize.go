@@ -516,6 +516,19 @@ type OptimizeResult struct {
 	// from the block. Pin it to replay the run.
 	RNGSeed int64 `json:"rng_seed"`
 
+	// Gradient is the gradient the block actually solved with: analytic
+	// (the forward-mode derivatives, a point kink differentiated by
+	// central finite differences at that point only) or fd (central
+	// finite differences throughout) — fd when the block asks for it, or
+	// when it asks for analytic and an expression calls a function
+	// without a derivative rule. GradientFallback then names those
+	// functions and constructs (sorted, unique): the same verdict as
+	// predict's PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK details
+	// `functions` for the block, absent otherwise. Both are absent on a
+	// failed entry.
+	Gradient         OptimizeGradient `json:"gradient,omitempty"`
+	GradientFallback []string         `json:"gradient_fallback,omitempty"`
+
 	// Posterior echoes a `posterior` block's run: the fit whose draws it
 	// read and how many (absent without `posterior`).
 	Posterior *OptimizePosteriorResult `json:"posterior,omitempty"`

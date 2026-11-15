@@ -188,6 +188,14 @@ func SolvePosterior(spec *types.OptimizeSpec, i int, c *optblock.Compiled, seed 
 	res.Starts = len(starts)
 	res.StartsAgreeing = agreeing
 	res.RNGSeed = seed
+	// The gradient echo is optblock's one verdict (the one predict's
+	// fallback advisory reads): analytic exactly when Compile set the
+	// forward-mode programs.
+	res.Gradient = types.OptimizeGradientFD
+	if c.ObjectiveGrad != nil {
+		res.Gradient = types.OptimizeGradientAnalytic
+	}
+	res.GradientFallback = slices.Clone(c.GradientFallback)
 	if d != nil {
 		if err := s.posterior(res, b.X, f, g, opts); err != nil {
 			if se, ok := FailedFit(err); ok {

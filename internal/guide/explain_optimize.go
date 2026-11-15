@@ -316,6 +316,27 @@ func gradientSentence(i int, spec *types.OptimizeSpec, g optimizeGradients) stri
 	return "It asks for the analytic gradient; whether every function it calls has a derivative rule is judged when the batch is checked."
 }
 
+// solvedGradientSentence is the result's runtime gradient echo (with a
+// leading space; "" on a result without one): analytic, finite
+// differences as asked, or finite differences because the functions in
+// gradient_fallback have no derivative rule.
+func solvedGradientSentence(r *types.OptimizeResult) string {
+	switch {
+	case r.Gradient == types.OptimizeGradientAnalytic:
+		return " It solved with the analytic gradient."
+	case r.Gradient == types.OptimizeGradientFD && len(r.GradientFallback) > 0:
+		verb := " has"
+		if len(r.GradientFallback) > 1 {
+			verb = " have"
+		}
+		return " It solved by finite differences, because " + andList(ticks(r.GradientFallback)) +
+			verb + " no derivative rule (" + string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK) + ")."
+	case r.Gradient == types.OptimizeGradientFD:
+		return " It solved by finite differences, as its gradient fd asked."
+	}
+	return ""
+}
+
 // posteriorSentence names a posterior block's aggregation and the fit
 // whose draws it reads.
 func posteriorSentence(spec *types.OptimizeSpec, p *types.OptimizePosterior) string {
@@ -403,6 +424,7 @@ func (e *explainer) optimizeFinding(rr *responseReader, i int, r *types.Optimize
 		rr.later = append(rr.later, lead+" did not converge ("+r.Status+"), so its figures are the best point found, not a confirmed optimum.")
 	}
 	text += ", and " + strconv.Itoa(r.StartsAgreeing) + " of " + count(r.Starts, "start", "starts") + " reached that objective."
+	text += solvedGradientSentence(r)
 	if r.Converged && r.Starts > 1 && r.StartsAgreeing < r.Starts {
 		rr.later = append(rr.later, lead+": only "+strconv.Itoa(r.StartsAgreeing)+" of "+count(r.Starts, "start", "starts")+
 			" reached its best objective, so the objective may have several optima; more starts would test that.")

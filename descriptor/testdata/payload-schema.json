@@ -4073,6 +4073,18 @@
         "error": {
           "$ref": "#/$defs/SlotError"
         },
+        "gradient": {
+          "$ref": "#/$defs/OptimizeGradient"
+        },
+        "gradient_fallback": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "iterations": {
           "type": "integer"
         },
@@ -8012,4 +8024,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2d1f814fda7e73b48b881d48e853ef3d9503fad220bd75ed395011c9693403f1
+// golden-hash: a4b1327a178cedbf2e20127229219bde819eb604cfdf350cdb90d1fbe39a4958

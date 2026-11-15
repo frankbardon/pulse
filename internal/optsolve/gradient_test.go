@@ -102,7 +102,9 @@ func TestOptimize_AnalyticGradientAgreesWithFD(t *testing.T) {
 // construct without a derivative rule (a let in a constraint here)
 // sends the WHOLE block to finite differences — no gradient programs,
 // the function named — and the block solves to the fd bits; gradient fd
-// names no fallback.
+// names no fallback. The result echoes it: gradient fd on both, the
+// fallback block's gradient_fallback naming let, the fd block's none —
+// every figure otherwise the same bits.
 func TestOptimize_GradientFallbackIsPerBlock(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +114,7 @@ func TestOptimize_GradientFallbackIsPerBlock(t *testing.T) {
 	if c.ObjectiveGrad != nil || c.ConstraintGrads != nil || !reflect.DeepEqual(c.GradientFallback, []string{"let"}) {
 		t.Fatalf("compiled: objective grad %v, constraint grads %v, fallback %v; want none and [let]", c.ObjectiveGrad != nil, c.ConstraintGrads, c.GradientFallback)
 	}
-	enc := func(edit func(*types.OptimizeSpec)) string {
+	enc := func(edit func(*types.OptimizeSpec), wantFallback []string) string {
 		spec := block(t, raw)
 		if edit != nil {
 			edit(spec)
@@ -121,9 +123,14 @@ func TestOptimize_GradientFallbackIsPerBlock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return strconv.Quote(mustJSON(t, out.Result))
+		r := out.Result
+		if r.Gradient != types.OptimizeGradientFD || !reflect.DeepEqual(r.GradientFallback, wantFallback) {
+			t.Fatalf("echo gradient %q fallback %v, want fd %v", r.Gradient, r.GradientFallback, wantFallback)
+		}
+		r.GradientFallback = nil
+		return strconv.Quote(mustJSON(t, r))
 	}
-	if a, f := enc(nil), enc(func(s *types.OptimizeSpec) { s.Gradient = types.OptimizeGradientFD }); a != f {
+	if a, f := enc(nil, []string{"let"}), enc(func(s *types.OptimizeSpec) { s.Gradient = types.OptimizeGradientFD }, nil); a != f {
 		t.Fatalf("fallback block differs from fd:\n%s\n%s", a, f)
 	}
 	fd := block(t, raw)
