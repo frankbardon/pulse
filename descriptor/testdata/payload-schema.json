@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:74b949607a5fabe74f9f19228ced0b88aaaf70b4e6bde1c2842e6354e0162f6c",
+  "$comment": "feature_set_digest: fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -5153,7 +5153,7 @@
           "type": "object"
         },
         "type": {
-          "type": "string"
+          "$ref": "#/$defs/PostFitType"
         }
       },
       "required": [
@@ -5185,7 +5185,7 @@
           "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
         },
         "type": {
-          "type": "string"
+          "$ref": "#/$defs/PostFitType"
         }
       },
       "required": [
@@ -5225,6 +5225,10 @@
         "rows"
       ],
       "type": "object"
+    },
+    "PostFitType": {
+      "enum": [],
+      "type": "string"
     },
     "PredictSchemaInfo": {
       "additionalProperties": false,
@@ -8174,4 +8178,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 198d263b0616953858e48d8d39253cb4d91515f5fcee9ad51b92756759e397ab
+// golden-hash: 0ddfa284e2d9e5568eb494e781e423c3d1b93634c1a5543f1cc4a12d3fd8503b

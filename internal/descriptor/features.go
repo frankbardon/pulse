@@ -107,6 +107,7 @@ var (
 	featComposeFits       = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeOpt        = FeatureComposeOptimize
 	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
+	featComposePostFit    = FeatureComposePostFit
 	featSweepBind         = FeatureComposeSweepBind
 	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
 	featComposeBase       = FeatureName(FeatureKindCapability, "compose_base")
@@ -269,6 +270,15 @@ const FeatureComposeOptimize = "capability:compose_optimize"
 // fits schema) reads it too.
 const FeatureComposeSweepBind = "capability:compose_sweep_bind"
 
+// FeatureComposePostFit is capability:compose_post_fit — the
+// ComposedRequest `post_fit` entries (runs of embedder-registered
+// POSTFIT_<NAMESPACE>_<NAME> operators over the batch's finished fits)
+// and the ComposedResponse `post_fit` results. Every registered post-fit
+// operator depends on it, as a built-in MAT_* operator depends on
+// capability:matrices. Exported because the root facade (the feature
+// universe's extension edges) reads it too.
+const FeatureComposePostFit = "capability:compose_post_fit"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -341,6 +351,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The nested-model comparisons of two fits: ComposedRequest.Compare
 	// and ComposedResponse.Comparisons.
 	capability("compose_compare"),
+	// The runs of embedder-registered post-fit operators over the
+	// finished fits: ComposedRequest.PostFit and ComposedResponse.PostFit.
+	capability("compose_post_fit"),
 	// The Compose `base`: ComposedRequest.Base, merged into every
 	// explicit slot.
 	capability("compose_base"),
@@ -699,6 +712,8 @@ var slotTokens = map[string]slotTokenSet{
 	// `compare` / `comparisons` are everyday English; no guidance
 	// sentence names the slot.
 	featComposeCompare: {},
+	// `post_fit` names the slot only; no guidance sentence names it.
+	featComposePostFit: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
 	// `base` is everyday English; no guidance sentence names the slot.
@@ -960,6 +975,9 @@ var hardEdges = map[string][]string{
 	// batch to solve it in (its coef() reads the batch's fits, but a
 	// block over params alone needs none).
 	featComposeOpt: {featCompose},
+	// A post-fit entry runs over the batch's finished fits: without
+	// `fits` (which needs Compose) there is no fit to read.
+	featComposePostFit: {featComposeFits},
 	// A base is merged into Compose slots: without Compose there are no
 	// slots to merge it into.
 	featComposeBase: {featCompose},

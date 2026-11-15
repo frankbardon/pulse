@@ -829,10 +829,12 @@ pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, e
 pulse: type Population struct
 pulse: type Population field File []byte
 pulse: type PostFitRegistration struct
+pulse: type PostFitRegistration field DependsOn []string
 pulse: type PostFitRegistration field Description string
 pulse: type PostFitRegistration field Name pulse/types.PostFitType
 pulse: type PostFitRegistration field Outputs pulse/extend.PostFitSchema
 pulse: type PostFitRegistration field Params []pulse.ParamMeta
+pulse: type PostFitRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type PostFitRegistration field Run pulse/extend.PostFitFunc
 pulse: type Profile = pulse/synth.Profile
 pulse: type Profile underlying struct
@@ -1660,6 +1662,7 @@ pulse/descriptor: type ExtensionsManifest field LookupTables []pulse/descriptor.
 pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.MatrixMeta "json:\"matrix_ops\""
 pulse/descriptor: type ExtensionsManifest field Overlays []pulse/descriptor.OverlayCapability "json:\"overlays\""
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
+pulse/descriptor: type ExtensionsManifest field PostFits []pulse/descriptor.PostFitMeta "json:\"post_fits\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
 pulse/descriptor: type ExtensionsManifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
@@ -2127,6 +2130,22 @@ pulse/descriptor: type PopulationMeta field Labels []string "json:\"labels\""
 pulse/descriptor: type PopulationMeta field N int64 "json:\"n\""
 pulse/descriptor: type PopulationMeta field Name string "json:\"name\""
 pulse/descriptor: type PopulationMeta field Operator string "json:\"operator,omitempty\""
+pulse/descriptor: type PostFitColumnMeta struct
+pulse/descriptor: type PostFitColumnMeta field Kind string "json:\"kind\""
+pulse/descriptor: type PostFitColumnMeta field Name string "json:\"name\""
+pulse/descriptor: type PostFitMeta struct
+pulse/descriptor: type PostFitMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type PostFitMeta field Intents []string "json:\"intents,omitempty\""
+pulse/descriptor: type PostFitMeta field Name string "json:\"name\""
+pulse/descriptor: type PostFitMeta field Namespace string "json:\"namespace\""
+pulse/descriptor: type PostFitMeta field Outputs pulse/descriptor.PostFitOutputsMeta "json:\"outputs\""
+pulse/descriptor: type PostFitMeta field Params []pulse/descriptor.OperatorParamMeta "json:\"params,omitempty\""
+pulse/descriptor: type PostFitOutputsMeta struct
+pulse/descriptor: type PostFitOutputsMeta field Scalars []string "json:\"scalars\""
+pulse/descriptor: type PostFitOutputsMeta field Tables []pulse/descriptor.PostFitTableMeta "json:\"tables\""
+pulse/descriptor: type PostFitTableMeta struct
+pulse/descriptor: type PostFitTableMeta field Columns []pulse/descriptor.PostFitColumnMeta "json:\"columns\""
+pulse/descriptor: type PostFitTableMeta field Name string "json:\"name\""
 pulse/descriptor: type PostWindowAttribute struct
 pulse/descriptor: type PostWindowAttribute field DependsOn string "json:\"depends_on\""
 pulse/descriptor: type PostWindowAttribute field Index int "json:\"index\""
@@ -6961,4 +6980,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 56f9819b0c5bde2bb216eaa70e33f30136c28d4d2ed4115abac959c5bf9a57dc
+// golden-hash: 2906183d27c224f573a25f7c67fd22d794c5212c385c3b664461c6bb428443ba

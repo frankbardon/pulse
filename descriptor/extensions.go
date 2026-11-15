@@ -35,9 +35,14 @@ type ExtensionsManifest struct {
 	// set, the declared params, Inferential, and Buffered (always true —
 	// an extension kind runs buffered only). A request names one in an
 	// Overlays slot its handlers run on, like a built-in kind.
-	Overlays      []OverlayCapability `json:"overlays"`
-	ExprFunctions []ExprFunctionMeta  `json:"expr_functions"`
-	LookupTables  []LookupTableMeta   `json:"lookup_tables"`
+	Overlays []OverlayCapability `json:"overlays"`
+	// PostFits lists the embedder-registered POSTFIT_* operators: the
+	// declared params and the output schema every run returns (named
+	// scalars, named tables of float / string columns). A Compose batch
+	// names one in a `post_fit` entry; Pulse ships no built-in.
+	PostFits      []PostFitMeta      `json:"post_fits"`
+	ExprFunctions []ExprFunctionMeta `json:"expr_functions"`
+	LookupTables  []LookupTableMeta  `json:"lookup_tables"`
 	// ReferenceVectors lists the registered reference-vector tables
 	// (Options.Extensions.ReferenceVectors) an expression reads with
 	// ref("table", key).
@@ -150,6 +155,43 @@ type OperatorMeta struct {
 	// registration's purpose declares, sorted. Omitted when the
 	// registration declares none.
 	Intents []string `json:"intents,omitempty"`
+}
+
+// PostFitMeta is the manifest projection of an embedder-registered
+// post-fit operator (pulse.PostFitRegistration): its identity, the
+// declared params of an entry's params object and the output schema
+// (extend.PostFitSchema) every run is held to.
+type PostFitMeta struct {
+	Name        string              `json:"name"`
+	Namespace   string              `json:"namespace"`
+	Description string              `json:"description,omitempty"`
+	Params      []OperatorParamMeta `json:"params,omitempty"`
+	Outputs     PostFitOutputsMeta  `json:"outputs"`
+	// Intents lists the intent-taxonomy IDs the registration's purpose
+	// declares, sorted. Omitted when it declares none.
+	Intents []string `json:"intents,omitempty"`
+}
+
+// PostFitOutputsMeta is a post-fit operator's declared output: its
+// scalar names and its tables, in declaration order. Both lists are
+// always present (empty when the operator declares none of that kind).
+type PostFitOutputsMeta struct {
+	Scalars []string           `json:"scalars"`
+	Tables  []PostFitTableMeta `json:"tables"`
+}
+
+// PostFitTableMeta is one declared output table: its name and its
+// columns in order.
+type PostFitTableMeta struct {
+	Name    string              `json:"name"`
+	Columns []PostFitColumnMeta `json:"columns"`
+}
+
+// PostFitColumnMeta is one declared table column: its name and its
+// cell kind ("float" or "string").
+type PostFitColumnMeta struct {
+	Name string `json:"name"`
+	Kind string `json:"kind"`
 }
 
 // OperatorParamMeta is the manifest-friendly mirror of pulse.ParamMeta.

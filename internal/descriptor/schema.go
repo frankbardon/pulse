@@ -205,6 +205,9 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 		reflect.TypeFor[types.OverlayKind]():     stringify(types.AllOverlayKinds()),
 		reflect.TypeFor[types.RegressionType]():  stringify(types.AllRegressionTypes()),
 		reflect.TypeFor[types.MatrixType]():      stringify(types.AllMatrixTypes()),
+		// Post-fit operators are extension-only: no built-in name, so
+		// a schema without registrations offers none (empty enum).
+		reflect.TypeFor[types.PostFitType](): {},
 	}
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
@@ -229,6 +232,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
 			{reflect.TypeFor[types.RegressionType](), snap.Regressions},
 			{reflect.TypeFor[types.OverlayKind](), snap.Overlays},
+			{reflect.TypeFor[types.PostFitType](), snap.PostFits},
 		} {
 			if len(c.ops) == 0 {
 				continue

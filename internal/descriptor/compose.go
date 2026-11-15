@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
@@ -395,6 +396,14 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		return env, req
 	}
 	result.Compare = comparisonSummaries(cmpPlans)
+	// Then the post-fit entries — the runtime's postFitRefusal (the
+	// same postfit.Check over the same declarations), run right after
+	// its comparisons' rules; nothing past it runs on a refusal.
+	if perr := postfit.Check(req.PostFit, req.Fits, opts.postFitDecls(), DeclaredParamsRefusal); perr != nil {
+		addCodedError(env, perr)
+		result.Valid = false
+		return env, req
+	}
 	// Then the batch's saves and loads — the runtime's
 	// model.CheckComposeBatch and its model-file reads, run before any
 	// fit or slot; nothing past it runs on a refusal.

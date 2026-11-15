@@ -3,8 +3,10 @@ package pulse
 import (
 	"fmt"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/types"
 )
@@ -32,6 +34,18 @@ import (
 type PostFitRegistration struct {
 	Name        types.PostFitType
 	Description string
+	// Purpose is the optional plain-language guidance for the
+	// operator, validated at pulse.New with the built-in tier's rules
+	// (PULSE_EXTENSION_PURPOSE_INVALID); see
+	// AggregatorRegistration.Purpose.
+	Purpose *descriptor.Purpose
+	// DependsOn names the features this operator needs, each an AND
+	// edge; see AggregatorRegistration.DependsOn. The operator is a
+	// feature like any extension operator: its host group is
+	// capability:compose_post_fit (the `post_fit` slot it runs in), and
+	// a feature profile that omits it hides it on every surface.
+	// Optional; extensions carry no Since.
+	DependsOn []string
 	// Run is the operator. Required (PULSE_EXTENSION_PARAM_INVALID,
 	// reason missing_factory).
 	Run extend.PostFitFunc
@@ -85,12 +99,36 @@ func adaptPostFits(regs []PostFitRegistration) map[types.PostFitType]*postfit.Op
 	}
 	out := make(map[types.PostFitType]*postfit.Operator, len(regs))
 	for _, r := range regs {
-		out[r.Name] = &postfit.Operator{
-			Decl: postfit.Decl{Name: r.Name, Params: paramMetaSnapshot(r.Params), Outputs: clonePostFitSchema(r.Outputs)},
-			Run:  r.Run,
-		}
+		out[r.Name] = &postfit.Operator{Decl: postFitDeclaration(r), Run: r.Run}
 	}
 	return out
+}
+
+// postFitDeclaration is the registration's declared contract — the ONE
+// root function both the runtime registry (adaptPostFits) and the
+// snapshot predict reads (addSnapshotPostFits) build it with, so
+// postfit.Check judges an entry identically on both sides.
+func postFitDeclaration(r PostFitRegistration) postfit.Decl {
+	return postfit.Decl{Name: r.Name, Params: paramMetaSnapshot(r.Params), Outputs: clonePostFitSchema(r.Outputs)}
+}
+
+// addSnapshotPostFits projects ext.PostFits onto the snapshot: the
+// generic OperatorMeta and the declared contract.
+func addSnapshotPostFits(snap *descx.ExtensionsSnapshot, regs []PostFitRegistration) {
+	if len(regs) == 0 {
+		return
+	}
+	snap.PostFitDecls = make(map[types.PostFitType]postfit.Decl, len(regs))
+	for _, r := range regs {
+		name := string(r.Name)
+		snap.PostFits = append(snap.PostFits, descriptor.OperatorMeta{
+			Name:        name,
+			Namespace:   parseNamespace(name),
+			Description: r.Description,
+			Params:      paramMetaSnapshot(r.Params),
+		})
+		snap.PostFitDecls[r.Name] = postFitDeclaration(r)
+	}
 }
 
 // clonePostFitSchema copies a declaration so a later mutation of the

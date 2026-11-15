@@ -23,7 +23,8 @@ import (
 //   - atomic `op-<category>-<kebab>.md` (`kind: operator`) documenting
 //     ONE registered extension operator: stem = OperatorStem(operator),
 //     `category:` = the operator's prefix (AGG, ATTR, FILTER, GROUP, WIN,
-//     FEAT, TEST, MAT), the family's required `##` sections;
+//     FEAT, TEST, MAT, REG, OVERLAY, POSTFIT), the family's required `##`
+//     sections;
 //   - topical `ext-<kebab>.md` (`kind: design`), optionally `requires:`.
 //
 // LoadExtensionSkills validates them HARD at pulse.New, against the

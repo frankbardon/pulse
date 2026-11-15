@@ -159,6 +159,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.sweep.request", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(`"aggregations":[{"type":"AGG_SUM","field":"n","label":"t{{k}}","lable":"x"}]`) + `}}`, path: "aggregations[0].lable", unknown: "lable", locator: "slot"},
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},
 		{family: "composed.compare", body: composed(`"compare":[{"name":"c","restricted":"a","full":"b","tset":"f"}]`), path: "compare[0].tset", unknown: "tset"},
+		{family: "composed.post_fit", body: composed(`"post_fit":[{"lable":"e","type":"POSTFIT_ACME_ROI"}]`), path: "post_fit[0].lable", unknown: "lable"},
 		{family: "composed.optimize", body: composed(`"optimize":[{"name":"o","direction":"minimize","variables":[{"name":"x","lower":0,"upper":1}],"objective":"x","strats":2}]`), path: "optimize[0].strats", unknown: "strats"},
 		{family: "composed.optimize.for_each", body: composed(`"optimize":[{"name":"o_{{v}}","direction":"minimize","variables":[{"name":"x","lower":0,"upper":{"$var":"v"}}],"objective":"x","for_each":{"axes":[{"name":"v","values":[1]}],"mdoe":"zip"}}]`), path: "optimize[0].for_each.mdoe", unknown: "mdoe"},
 		// A block kept as written for its {"$var"} marker is still walked
@@ -264,10 +265,14 @@ func strictAcceptanceRequiredFamilies() []string {
 			}
 			// A slice element: the keys that open a second decode
 			// layer (params allowlist, for_each expansion, a nested
-			// request) are families of their own.
+			// request) are families of their own. A post-fit entry's
+			// params are checked only against an embedder registration's
+			// declared params — Pulse ships no post-fit operator, so this
+			// instance has none to misspell against; the refusal is
+			// pinned by the root's TestPostFit_PredictMatchesRuntime.
 			for _, sub := range jsonFields(et) {
 				switch {
-				case sub.name == "params" && isRawOrMap(sub.Type) && et != reflect.TypeFor[types.Request](),
+				case sub.name == "params" && isRawOrMap(sub.Type) && et != reflect.TypeFor[types.Request]() && et != reflect.TypeFor[types.PostFitSpec](),
 					sub.name == "for_each",
 					sub.name == "request" && structElem(sub.Type) != nil:
 					out = append(out, name+"."+sub.name)

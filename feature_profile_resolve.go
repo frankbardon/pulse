@@ -92,6 +92,9 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 		add(categoryOverlay, string(r.Name), r.DependsOn)
 		u.extOverlayHosts[string(r.Name)] = descx.ExtensionOverlayHostCapabilities(overlayDeclaration(r))
 	}
+	for _, r := range ext.PostFits {
+		add(categoryPostFit, string(r.Name), r.DependsOn)
+	}
 	// Synth distributions are not features (capability:synth gates
 	// them), so an extension SYNTH_* name never resolves.
 	return u
@@ -129,6 +132,12 @@ func (u featureUniverse) dependencies(name string) ([][]string, bool) {
 	// carries (internal/descriptor hardEdges).
 	if u.extOrigin[name] == string(categoryMatrix) {
 		groups = append(groups, []string{descx.FeatureName(descx.FeatureKindCapability, "matrices")})
+	}
+	// A POSTFIT_* operator runs only in the Compose `post_fit` slot,
+	// which capability:compose_post_fit gates: that is its host group
+	// (it never runs on a request host).
+	if u.extOrigin[name] == string(categoryPostFit) {
+		groups = [][]string{{descx.FeatureComposePostFit}}
 	}
 	for _, d := range deps {
 		groups = append(groups, []string{d})

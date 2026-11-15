@@ -1257,10 +1257,24 @@ type, error}` (a coded error keeps its code, any other is
 `Strict` the batch fails with the entry's code. A panic is
 `PROCESSING_PANIC` with `details.op` `compose_post_fit`.
 
-The `post_fit` request slot and response root ride
-`capability:compose_fits`. Post-fit operators are not yet listed in the
-manifest, the payload schema's `type` enum or feature profiles, and
-predict does not yet judge `post_fit` entries.
+**Self-description.** A registered post-fit operator is described like
+any other extension: the manifest lists it under `extensions.post_fits`
+(its params and its declared `outputs` — scalar names, tables with their
+columns and cell kinds), the instance payload schema and the MCP compose
+tool offer its name as a `post_fit` `type` (an empty enum on an instance
+without any), and predict judges every `post_fit` entry with the same
+rules the run applies (`PULSE_POSTFIT_INVALID`, the params check),
+without running the operator. The `post_fit` request slot and response
+root ride `capability:compose_post_fit` (which depends on
+`capability:compose_fits`); the operator itself is a feature whose host
+is that capability, plus its optional `DependsOn`, and it may carry a
+`Purpose` (validated like the built-ins'; its intents reach the manifest
+entry). A feature profile that omits the operator hides it everywhere —
+a request naming it is refused as an unknown type, exactly as on an
+instance that never registered it. The response root is pinned outside
+the Compose-level `return`, like `optimizations` and `comparisons`:
+always emitted whole, at full precision, and a `return` path naming it
+is `PULSE_RETURN_INVALID`.
 
 ### Expression functions
 

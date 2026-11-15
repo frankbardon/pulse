@@ -478,6 +478,8 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 		metas = snap.Regressions
 	case "overlay":
 		metas = snap.Overlays
+	case "post_fit":
+		metas = snap.PostFits
 	default:
 		return nil
 	}
@@ -1943,7 +1945,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
 			"compare":  compareSchema(),
-			"post_fit": postFitSchema(),
+			"post_fit": postFitSchema(inst),
 			"base":     baseSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
@@ -2044,9 +2046,16 @@ func compareSchema() map[string]any {
 
 // postFitSchema describes the ComposedRequest `post_fit` list
 // (types.PostFitSpec): runs of embedder-registered post-fit operators
-// after the optimize blocks, with no record data. Dropped with the slot
-// when capability:compose_fits is hidden (dropHiddenSlots).
-func postFitSchema() map[string]any {
+// after the optimize blocks, with no record data. The `type` enum is the
+// instance's registered (visible) post-fit operators — empty without
+// any, as the payload schema's PostFitType. Dropped with the slot when
+// capability:compose_post_fit is hidden (dropHiddenSlots).
+func postFitSchema(inst *descx.InstanceSnapshot) map[string]any {
+	names := extensionNames(inst.Extensions(), "post_fit")
+	if names == nil {
+		names = []string{}
+	}
+	sort.Strings(names)
 	return map[string]any{
 		"type":        "array",
 		"description": "Runs of embedder-registered post-fit operators (POSTFIT_<NAMESPACE>_<NAME>), each once after the optimize blocks and before the comparisons (no record data): the operator reads the regression `fits` it names, the slot results, the optimize solutions and its params. Results are returned under the response `post_fit`, in order: named scalars and named tables.",
@@ -2054,7 +2063,7 @@ func postFitSchema() map[string]any {
 			"type": "object",
 			"properties": map[string]any{
 				"label":  map[string]any{"type": "string", "description": "The entry's label, unique among the entries."},
-				"type":   map[string]any{"type": "string", "description": "A registered post-fit operator."},
+				"type":   map[string]any{"type": "string", "enum": names, "description": "A registered post-fit operator (the manifest's extensions.post_fits lists each one's params and outputs)."},
 				"fits":   map[string]any{"type": "array", "description": "The regression `fits` entry names the operator reads, each once.", "items": map[string]any{"type": "string"}},
 				"params": map[string]any{"type": "object", "description": "The operator's params, checked against its declared params."},
 			},

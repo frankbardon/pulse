@@ -43,6 +43,8 @@ import (
 //     request's own slots are gated like a slot's, details.fit)
 //   - ComposedRequest.Compare  — capability:compose_compare (+ the
 //     ComposedResponse.Comparisons it produces)
+//   - ComposedRequest.PostFit  — capability:compose_post_fit (+ the
+//     ComposedResponse.PostFit it produces)
 //   - ComposedRequest.Base     — capability:compose_base
 //   - a `fits` entry's `from_sweep` (FitSpec) — capability:compose_sweep_bind
 //   - ChainRequest.Overlays    — capability:process_chain
@@ -293,8 +295,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		paramsSlotGate,
 		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 		{key: "compare", visible: capabilityGate(featComposeCompare)},
-		// post_fit reads `fits`, so it rides their gate.
-		{key: "post_fit", visible: capabilityGate(featComposeFits)},
+		{key: "post_fit", visible: capabilityGate(featComposePostFit)},
 		{key: "base", visible: capabilityGate(featComposeBase)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
@@ -310,7 +311,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
 		{key: "comparisons", visible: capabilityGate(featComposeCompare)},
-		{key: "post_fit", visible: capabilityGate(featComposeFits)},
+		{key: "post_fit", visible: capabilityGate(featComposePostFit)},
 	},
 	// An optimize block's saved models ride capability:models, like a
 	// slot's `models`; its `for_each` rides capability:for_each, like an
@@ -541,6 +542,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Compare) > 0 {
 			out = append(out, "compare")
+		}
+		if r != nil && len(r.PostFit) > 0 {
+			out = append(out, "post_fit")
 		}
 		if r != nil && r.Base != nil {
 			out = append(out, "base")

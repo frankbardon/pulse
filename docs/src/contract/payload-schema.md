@@ -1728,8 +1728,9 @@ request, result or public type: no fit's bytes move. Long form:
 {label, type, fits, params}`: a run of an embedder-registered post-fit
 operator (`POSTFIT_<NAMESPACE>_<NAME>`; Pulse ships none) once the
 optimize blocks have run and before the comparisons, with no record
-data. `type` is a plain string in the published schema (the instance's
-registrations are its valid values), `fits` names regression `fits`
+data. `type` is a `PostFitType`: an empty enum in the published schema
+(Pulse ships no post-fit operator), the instance's registered operators
+in its own view (`Pulse.PayloadSchema()`), `fits` names regression `fits`
 entries, `params` is checked against the registration's declared
 params. A malformed entry is `PULSE_POSTFIT_INVALID` (`details.post_fit`,
 `details.reason`) before any fit or slot runs. Results land in
@@ -1740,7 +1741,7 @@ an object of named numbers, `tables` an object of named `PostFitTable
 outside the Compose-level `return`; an undefined figure is `null`, key
 kept. An entry whose operator errs, or whose fit failed on its data,
 keeps `{label, type, error}` and warns `PULSE_SLOT_FAILED` (`slot_kind`
-`post_fit`). Both keys are gated by `capability:compose_fits`. Additive:
+`post_fit`). Both keys are gated by `capability:compose_post_fit`. Additive:
 `format_version` stays `"1.1"`. Long form:
 `docs/src/internals/extension-points.md` (Post-fit operator).
 

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:74b949607a5fabe74f9f19228ced0b88aaaf70b4e6bde1c2842e6354e0162f6c",
+    "feature_set_digest": "fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
     "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
@@ -15657,6 +15657,7 @@
       "matrix_ops": [],
       "regressions": [],
       "overlays": [],
+      "post_fits": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -21572,4 +21573,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4f3a952f8cf38225afae588ce57411a89aa770db0fa6d2841c3ea7f004b196e9
+// golden-hash: 1c7f80eb6683117ea5fdba84bfc6656cb97a72e5f14b25c03f1a149c520bfe66
