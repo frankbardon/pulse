@@ -1187,6 +1187,23 @@ type RegressionRegistration struct {
 	// (spec.RNGSeed) for the model's own use. Unset (false), every
 	// model accepts resample.
 	NoResample bool
+	// RequiresOrder, optional, declares from the spec alone that the
+	// model reads its rows in order — it carries state from one row to
+	// the next (an adstock, a lag, a state-space filter). It returns
+	// true for a spec the model can fit only over ordered rows; such a
+	// spec without types.RegressionSpec.Order is refused with
+	// PROCESSING_CONFIG {regression, slot: "order", reason:
+	// "order_required", requires: "order"} at predict and at runtime
+	// alike, before Validate. With an order the engine hands the model
+	// its admitted rows sorted by order.field (per order.partition
+	// series), contiguous under the gap policy — a repeat or a gap fails
+	// the slot alone with PROCESSING_REGRESSION_ORDER — so the model
+	// reads rows.At(i) in time order and never sorts them itself. It
+	// must be pure and must not retain the spec (it judges a copy); a
+	// panic is PULSE_EXTENSION_SPEC_REFUSED. Nil requires no order:
+	// every model accepts a spec's order regardless (the rows then
+	// simply arrive sorted).
+	RequiresOrder func(spec *types.RegressionSpec) bool
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the
 	// spec. Declared, a params key outside the list is refused

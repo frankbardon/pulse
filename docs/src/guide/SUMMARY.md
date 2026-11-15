@@ -315,6 +315,7 @@
     - [regression-margins](skills/regression-margins.md)
     - [regression-model-options](skills/regression-model-options.md)
     - [regression-modeling](skills/regression-modeling.md)
+    - [regression-order](skills/regression-order.md)
     - [regression-row-scores](skills/regression-row-scores.md)
     - [regression-spec](skills/regression-spec.md)
     - [request-envelope](skills/request-envelope.md)

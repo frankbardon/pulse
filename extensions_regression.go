@@ -51,6 +51,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		Params:            matrixParamSnapshot(reg.Params),
 		OutputSchema:      slices.Clone(reg.OutputSchema),
 		Validate:          reg.Validate,
+		RequiresOrder:     reg.RequiresOrder,
 	}
 }
 

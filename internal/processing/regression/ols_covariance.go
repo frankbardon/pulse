@@ -37,7 +37,8 @@ type LabeledRecord interface {
 }
 
 // levelFields are the fields spec keys rows by through clusterKey: the
-// covariance cluster and the jackknife_by delete-group field.
+// covariance cluster, the jackknife_by delete-group field and the
+// order.partition series key.
 func levelFields(spec *types.RegressionSpec) []string {
 	var out []string
 	if spec.Covariance != nil && spec.Covariance.Cluster != "" {
@@ -46,11 +47,15 @@ func levelFields(spec *types.RegressionSpec) []string {
 	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
 		out = append(out, spec.JackknifeBy)
 	}
+	if spec.Order != nil && spec.Order.Partition != "" {
+		out = append(out, spec.Order.Partition)
+	}
 	return out
 }
 
 // LevelFault is the first corrupt categorical code among the fields
-// spec keys rows by (covariance cluster, jackknife_by) across records —
+// spec keys rows by (covariance cluster, jackknife_by, order.partition)
+// across records —
 // ENCODING_INVALID with the CategoricalIndexFault details — or nil. The
 // drivers run it before a fit reads a row (FitEachBufferedWithContext
 // over the buffered rows, the streaming guard per row), so the fault

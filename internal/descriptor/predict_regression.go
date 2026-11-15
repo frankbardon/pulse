@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -135,6 +136,16 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 		if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
+		// A model that reads its rows in order needs the spec's order —
+		// the runtime adapter's own call.
+		if cerr := ExtensionRegressionOrderRefusal(reg, decl); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+	}
+	// The order block's shape and field types — the runtime's rule
+	// itself (internal/regorder.Check, regression.BuildWith's call).
+	if cerr := regorder.Check(reg, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 
 	if reg.Target == "" {

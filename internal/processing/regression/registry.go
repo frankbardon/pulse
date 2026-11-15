@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -150,6 +151,11 @@ func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve R
 		if cerr := regressionFieldTypeRefusal(s, schema); cerr != nil {
 			return nil, cerr
 		}
+		// The order block's shape and field types — the one rule predict
+		// applies too (internal/regorder).
+		if cerr := regorder.Check(s, schema); cerr != nil {
+			return nil, cerr
+		}
 		eng, err := factory(s, schema)
 		if err != nil {
 			return nil, err
@@ -260,6 +266,17 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 		if fault := LevelFault(specs[i], records...); fault != nil {
 			fitErrs[i] = fault
 			continue
+		}
+		// An ordered slot sees its rows sorted by order.field, after the
+		// gap policy passed (a repeat or a gap fails it alone).
+		records := records
+		if specs[i].Order != nil {
+			arranged, oerr := Arrange(specs[i], records)
+			if oerr != nil {
+				fitErrs[i] = oerr
+				continue
+			}
+			records = arranged
 		}
 		if ce, ok := eng.(ContextBufferedEngine); ok {
 			results[i], fitErrs[i] = ce.FitBufferedContext(ctx, records)

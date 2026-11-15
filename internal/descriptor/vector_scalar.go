@@ -168,6 +168,10 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			judge(c.OrderBy, slot+" covariance.order_by", "")
 		}
 		judge(reg.JackknifeBy, slot+" jackknife_by", "")
+		if o := reg.Order; o != nil {
+			judge(o.Field, slot+" order.field", "")
+			judge(o.Partition, slot+" order.partition", "")
+		}
 	}
 
 	grouper := func(g *types.Group, slot string) {

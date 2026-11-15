@@ -424,6 +424,16 @@ type RegressionSpec struct {
 	// Empty is byte-identical.
 	Holdout string `json:"holdout,omitempty"`
 
+	// Order is the row order the slot is fitted in (RegressionOrder:
+	// {field, partition, gaps}): the engine sorts the rows by the field
+	// and refuses a gap or a repeat before any fit. An order-dependent
+	// model (adstock, a lag) reads it; a model whose registration
+	// requires order is refused without it (PROCESSING_CONFIG, details
+	// {slot: "order", reason: "order_required"}). Order forces the
+	// buffered path. Gated by capability:regression_order. Nil is
+	// byte-identical.
+	Order *RegressionOrder `json:"order,omitempty"`
+
 	// Params is the model's own configuration object, read by an
 	// extension regression (pulse.RegressionRegistration.Params declares
 	// its keys; the factory sees it on the spec). A key the registration
@@ -1114,12 +1124,12 @@ func (s RegressionSpec) Streamable() bool {
 // the same: any non-empty Resample or Selection, or a robust Covariance
 // (a second pass for every fitted row's residual), forces the buffered
 // path, and so does a Holdout (the held-out rows are scored after the
-// fit, a second pass).
+// fit, a second pass) and an Order (the rows are sorted before the fit).
 func (s RegressionSpec) StreamableAs(typeStreamable bool) bool {
 	if !typeStreamable {
 		return false
 	}
-	if s.Resample != "" || s.Selection != "" || s.Holdout != "" {
+	if s.Resample != "" || s.Selection != "" || s.Holdout != "" || s.Order != nil {
 		return false
 	}
 	return !s.Covariance.Robust()

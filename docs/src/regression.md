@@ -197,6 +197,28 @@ The result is `{basis, terms, df, vif, tolerance, gvif_scaled}`, the maps keyed 
 
 Oracle: `car` 3.1-5 `vif` on R 4.6.1 at 1e-10 (measured within 2e-15) — lm, binomial logit, poisson log, fixed-θ negative binomial and gamma log; ungrouped and with a three-level factor's dummies as one term; both bases; frequency weights against the `rep()` expansion and probability weights — each re-derived in the script from the weighted design's closed form (`scripts/reference/gen_vif.R`, `vif.json`), and end to end through `FEAT_ONE_HOT` (`TestCollinearity_OneHotMatchesCar`).
 
+### Row order (`order`)
+
+`"order": {"field": "week", "partition": "market", "gaps": "refuse"}`
+on any regression fits the rows in time order: the engine sorts them by
+`field` (an unsigned integer period index, `date` or `datetime`) within
+each `partition` series (optional; ragged starts and ends are fine),
+after listwise deletion, before any fit. Under `gaps: "refuse"` (the
+default and only policy) a repeated period in one series
+(`reason: duplicate`) or a step that is not the cadence — the smallest
+positive step over every series — (`reason: gap`) fails that slot alone
+with `PROCESSING_REGRESSION_ORDER`. A null `field` or `partition` drops
+its row; a filtered or null-target row inside the span leaves a gap.
+Months on a `date` read as gaps: order such a series by an integer
+period index. An order forces the buffered path; a `holdout` fits the
+ordered (gap-checked) train rows and scores the held-out rows in order.
+A model that carries state across rows requires an order and refuses a
+spec without one (`PROCESSING_CONFIG`, `reason: order_required`).
+`REG_MMM_BAYES` reads `order.field` as its time field — `params.time`
+is its deprecated alias (the same fit and seed; both set must agree,
+`time_alias_conflict`) — and on a geo panel needs `partition` =
+`params.geo`. Rides `capability:regression_order`.
+
 ### Nested-model comparison (Compose `compare`)
 
 A Compose batch's `compare` list tests two of its regression `fits` against each other: does the full model's extra terms improve on the restricted model it contains? It is R's `anova(m0, m1)` (`test = "F" | "Chisq" | "LRT"`), MASS's `anova.negbin` and `lmtest::waldtest(m0, m1, vcov = V)`; Stata's `lrtest` / `test`. Each entry `{name, restricted, full, test, multiplicity}` runs once the fits have run, reading no record; the results are `ComposedResponse.comparisons`, in declaration order, outside the Compose `return`. Opt-in, additive, absent byte-identical; gated by `capability:compose_compare` (which depends on `capability:compose_fits` and `REG_OLS` or `REG_GLM`, so a feature profile can keep fits and hide comparisons).
@@ -402,7 +424,7 @@ Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha`
 Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 
 A fit that fails on its data — `RANK_DEFICIENT`, `SEPARATION`,
-`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA` — fails its slot
+`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA`, `ORDER` — fails its slot
 alone: `regressions[i]` keeps `name` / `type` and carries `error`
 `{code, message, details}`, the other slots of the response survive,
 and a `PULSE_SLOT_FAILED` warning names it. Under `Options.Strict` the
@@ -419,6 +441,7 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma, negative_binomial}`.     |
 | `PROCESSING_REGRESSION_INVALID_LINK`          | Link not one of the chosen Family's (`details.allowed`).                      |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
+| `PROCESSING_REGRESSION_ORDER`                 | An ordered slot's admitted rows repeat a period (`duplicate`) or skip one (`gap`); fails the slot alone. |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | Advisory: l1 / elasticnet SEs, p-values and intervals are `null` (no valid analytical form); set `resample` for replicate ones. |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |

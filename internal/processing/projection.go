@@ -385,6 +385,10 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			addKnown(c.OrderBy)
 		}
 		addKnown(r.JackknifeBy)
+		if o := r.Order; o != nil {
+			addKnown(o.Field)
+			addKnown(o.Partition)
+		}
 		// The holdout predicate reads its fields off every record.
 		if r.Holdout != "" {
 			if !appendExprIdents(out, r.Holdout, known, vecMembers) {

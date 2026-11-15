@@ -1065,6 +1065,7 @@ pulse: type RegressionRegistration field PValues bool
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
 pulse: type RegressionRegistration field Penalty bool
 pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type RegressionRegistration field RequiresOrder func(spec *pulse/types.RegressionSpec) bool
 pulse: type RegressionRegistration field Scorer pulse/extend.RegressionScorerFactory
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
@@ -2741,6 +2742,7 @@ pulse/errors: const PROCESSING_REGRESSION_INSUFFICIENT_DATA pulse/errors.Code = 
 pulse/errors: const PROCESSING_REGRESSION_INVALID_FAMILY pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_LINK pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_LINK"
 pulse/errors: const PROCESSING_REGRESSION_NO_CONVERGE pulse/errors.Code = "PROCESSING_REGRESSION_NO_CONVERGE"
+pulse/errors: const PROCESSING_REGRESSION_ORDER pulse/errors.Code = "PROCESSING_REGRESSION_ORDER"
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
 pulse/errors: const PROCESSING_REGRESSION_SEPARATION pulse/errors.Code = "PROCESSING_REGRESSION_SEPARATION"
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
@@ -5246,6 +5248,7 @@ pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintT
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
 pulse/types: func AllOptimizeGradients() []pulse/types.OptimizeGradient
 pulse/types: func AllOptimizePosteriorObjectives() []pulse/types.OptimizePosteriorObjective
+pulse/types: func AllOrderGaps() []pulse/types.OrderGaps
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
@@ -6120,6 +6123,8 @@ pulse/types: type OptimizeVariableResult field Interval *pulse/types.OptimizeInt
 pulse/types: type OptimizeVariableResult field Marginal float64 "json:\"marginal\""
 pulse/types: type OptimizeVariableResult field Name string "json:\"name\""
 pulse/types: type OptimizeVariableResult field Value float64 "json:\"value\""
+pulse/types: type OrderGaps string
+pulse/types: const OrderGapsRefuse pulse/types.OrderGaps = "refuse"
 pulse/types: type OrderKey struct
 pulse/types: type OrderKey field Desc bool "json:\"desc,omitempty\""
 pulse/types: type OrderKey field Field string "json:\"field\""
@@ -6434,6 +6439,10 @@ pulse/types: type RegressionMultiplicity field Coefficients []string "json:\"coe
 pulse/types: type RegressionMultiplicity field Family pulse/types.MultiplicityFamily "json:\"family,omitempty\""
 pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
 pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
+pulse/types: type RegressionOrder struct
+pulse/types: type RegressionOrder field Field string "json:\"field\""
+pulse/types: type RegressionOrder field Gaps pulse/types.OrderGaps "json:\"gaps,omitempty\""
+pulse/types: type RegressionOrder field Partition string "json:\"partition,omitempty\""
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AIC float64 "json:\"aic,omitempty\""
 pulse/types: type RegressionResult field ActiveBounds []string "json:\"-\""
@@ -6513,6 +6522,7 @@ pulse/types: type RegressionSpec field Margins *pulse/types.RegressionMargins "j
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
 pulse/types: type RegressionSpec field Multiplicity *pulse/types.RegressionMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionSpec field Name string "json:\"name,omitempty\""
+pulse/types: type RegressionSpec field Order *pulse/types.RegressionOrder "json:\"order,omitempty\""
 pulse/types: type RegressionSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type RegressionSpec field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type RegressionSpec field Predictors []string "json:\"predictors,omitempty\""
@@ -6866,4 +6876,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7139fab9eb2f362f05378a0dccced1088b8887b03cd0b3146a670519bbc79635
+// golden-hash: 3a1668f330e1fbee375651cb7d81a4a79d7ead86e45cccaf8d7e74bfffd34ad3

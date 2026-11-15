@@ -292,6 +292,8 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
+	// The regression order's gap policies (capability:regression_order).
+	m[reflect.TypeFor[types.OrderGaps]()] = stringify(types.AllOrderGaps())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
 	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify(descriptor.ExplainDetails())

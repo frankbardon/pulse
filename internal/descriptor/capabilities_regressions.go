@@ -18,6 +18,10 @@ import (
 // `holdout` slot (every built-in, and an extension model with a scorer).
 const holdoutParamDescription = "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path."
 
+// orderParamDescription is the manifest description of the shared
+// `order` block (every built-in and every extension model).
+const orderParamDescription = "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path."
+
 // marginsParamDescription is the manifest description of the margins
 // block shared by REG_OLS and REG_GLM.
 const marginsParamDescription = "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'."
@@ -55,8 +59,8 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 	// built-in reads beside its own knobs: the slot weight, the
 	// multiplicity block (only an engine that emits p-values — the
 	// REG_BAYES_LINEAR posterior has none, and its block is refused
-	// PULSE_MULTIPLICITY_INVALID), the holdout predicate and the
-	// model-file save (every built-in is scorable) and the result name. On a scoped instance a key whose
+	// PULSE_MULTIPLICITY_INVALID), the holdout predicate, the row
+	// order and the model-file save (every built-in is scorable) and the result name. On a scoped instance a key whose
 	// capability is hidden drops from the list (assembleManifest), as
 	// the payload schema drops it.
 	sharedSlotParams := func(weight string, pValues bool) []descriptor.Param {
@@ -68,6 +72,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		}
 		return append(out,
 			descriptor.Param{Name: "holdout", Type: "string", Required: false, Description: holdoutParamDescription, Slot: true},
+			descriptor.Param{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
 			descriptor.Param{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json).", Slot: true},
 			descriptor.Param{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},
 		)
@@ -184,6 +189,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.", Slot: true},
 				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.", Slot: true},
 				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
+				{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
 				{Name: "name", Type: "string", Required: false, Description: "Result alias.", Slot: true},
 			},
 		},

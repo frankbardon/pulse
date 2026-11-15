@@ -30,6 +30,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Default family: every non-intercept key; `coefficients` lists `<level>:<term>` keys. |
 <!-- /feature -->
+| `order` | object | — | Row order. |
 | `name` | string | — | Result name. |
 
 ## Inputs

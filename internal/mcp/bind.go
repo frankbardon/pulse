@@ -1171,7 +1171,32 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 	}
 	addModelSave(out, inst, "Write the finished fit as a model file at this path (relative to the data root, ending .pulse-model.json), atomically; overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	addRegressionHoldout(out, inst)
+	addRegressionOrder(out, inst)
 	return out
+}
+
+// addRegressionOrder adds the `order` property to the regressions array
+// schema's items when inst enables capability:regression_order.
+func addRegressionOrder(arr map[string]any, inst *descx.InstanceSnapshot) {
+	if !inst.Enabled(descx.FeatureRegressionOrder) {
+		return
+	}
+	gaps := make([]string, 0, len(types.AllOrderGaps()))
+	for _, g := range types.AllOrderGaps() {
+		gaps = append(gaps, string(g))
+	}
+	props := arr["items"].(map[string]any)["properties"].(map[string]any)
+	props["order"] = map[string]any{
+		"type":        "object",
+		"description": "Fit the rows in order: {field (an unsigned integer period index, date or datetime), partition (optional: the field splitting a panel into series), gaps (\"refuse\", the default)}. The rows are sorted by field per series after listwise deletion; a repeated period or a step that is not the cadence fails the slot alone (PROCESSING_REGRESSION_ORDER). Required by an order-dependent model; forces the buffered path.",
+		"properties": map[string]any{
+			"field":     map[string]any{"type": "string"},
+			"partition": map[string]any{"type": "string"},
+			"gaps":      map[string]any{"type": "string", "enum": gaps},
+		},
+		"required":             []string{"field"},
+		"additionalProperties": false,
+	}
 }
 
 // addRegressionHoldout adds the `holdout` property to the regressions

@@ -10,6 +10,7 @@
     "capability:compose_fits",
     "capability:compose_banner",
     "capability:regression_holdout",
+    "capability:regression_order",
     "capability:models",
     "capability:for_each",
     "capability:process_chain",

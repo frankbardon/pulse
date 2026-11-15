@@ -659,7 +659,9 @@ func (numericRecord) Weight() (float64, bool)              { return 0, false }
 // (descx.ExtensionRegressionSlotRefusal), then the target / predictor
 // field types (descx.ExtensionRegressionFieldTypeRefusal — the built-in
 // regressions' rule or the declared Accepts) — each predict's own call,
-// in predict's order — then the registration's Validate hook
+// in predict's order — then the order an order-requiring model needs
+// (descx.ExtensionRegressionOrderRefusal), then the registration's
+// Validate hook
 // (descx.ExtensionRegressionValidateRefusal), then the
 // model, held to its declared form.
 func AdaptRegressionFactory(reg RegressionAdapter) regression.Factory {
@@ -684,6 +686,11 @@ func AdaptRegressionFactory(reg RegressionAdapter) regression.Factory {
 			return nil, cerr
 		}
 		if cerr := regresample.Check(spec); cerr != nil {
+			return nil, cerr
+		}
+		// A model that reads its rows in order needs the spec's order
+		// (descx.ExtensionRegressionOrderRefusal — predict's own call).
+		if cerr := descx.ExtensionRegressionOrderRefusal(spec, decl); cerr != nil {
 			return nil, cerr
 		}
 		// The registration's own spec-only Validate hook, last before

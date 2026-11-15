@@ -45,6 +45,7 @@ Flat keys, but `channels` / `nonnegative` / `prior` sit under `params`; shared k
 | `multiplicity` | object | — | Replicate p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs
@@ -53,7 +54,7 @@ Numeric `target`; channels ≥ 0 (a negative value is `PROCESSING_CONFIG`). Null
 
 ## Output
 
-`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>` per channel, `s:<channel>` per channel. Read one with `coef("fit", "k:tv_ad")`; predict knows these names from `params.channels`; an `inline` `models` entry declares them with no fit. `outputs.k` / `outputs.s` repeat them by channel. Bounds: k within [0.02, 20]× the channel mean, s within [0.5, 5].
+`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>` per channel, `s:<channel>` per channel. Read one with `coef("fit", "k:tv_ad")`; predict knows these names from `params.channels`; an `inline` `models` entry declares them with no fit. Bounds: k within [0.02, 20]× the channel mean, s within [0.5, 5].
 
 A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (`adstock.<ch>`, saved too) for `response()`; others none.
 

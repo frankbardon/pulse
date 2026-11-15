@@ -121,6 +121,9 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 			train = append(train, rec)
 		}
 	}
+	// An ordered slot scores its held-out rows in order too (its train
+	// rows are arranged, and gap-checked, by the fit's driver).
+	held = regression.SortOrdered(spec, held)
 	fitSpec := *spec
 	fitSpec.Holdout = ""
 	fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, []*types.RegressionSpec{&fitSpec}, p.schema, train, p.regressionResolver())

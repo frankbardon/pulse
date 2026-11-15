@@ -192,6 +192,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_ORDER: {
+		Message: "An ordered regression slot's admitted rows do not form contiguous series: a order.field value repeats inside one series (details.reason duplicate) or a step between consecutive values is not the cadence, the smallest positive step over every series (details.reason gap). A filtered or null row leaves a gap an order-dependent model would carry across. The slot fails alone.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Regressions", "Order", "Field"},
+				Hint:   "Fill the missing periods, filter to one complete span, or set order.partition to the field that splits a panel into its series (a repeat across markets is not a duplicate within one).",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_DIAGNOSTIC: {
 		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
 		Fixups: []Fixup{

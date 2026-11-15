@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
+  "$comment": "feature_set_digest: fs1:74b949607a5fabe74f9f19228ced0b88aaaf70b4e6bde1c2842e6354e0162f6c",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -4514,6 +4514,12 @@
       ],
       "type": "object"
     },
+    "OrderGaps": {
+      "enum": [
+        "refuse"
+      ],
+      "type": "string"
+    },
     "OrderKey": {
       "additionalProperties": false,
       "properties": {
@@ -5734,6 +5740,24 @@
       },
       "type": "object"
     },
+    "RegressionOrder": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "gaps": {
+          "$ref": "#/$defs/OrderGaps"
+        },
+        "partition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -6100,6 +6124,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "order": {
+          "$ref": "#/$defs/RegressionOrder"
         },
         "params": {
           "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
@@ -8024,4 +8051,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: a4b1327a178cedbf2e20127229219bde819eb604cfdf350cdb90d1fbe39a4958
+// golden-hash: 5a65a32228e8cf643396260f790f9cd40aff3ca0db653fd85ef521448690dbb0

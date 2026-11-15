@@ -94,6 +94,16 @@ const (
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 
+	// PROCESSING_REGRESSION_ORDER indicates an ordered regression slot
+	// (RegressionSpec.Order) whose admitted rows do not form contiguous
+	// series under its gap policy: details.reason "duplicate" (a Field
+	// value repeats inside one series; details.value) or "gap" (a step
+	// between consecutive values is not the cadence, the smallest
+	// positive step over every series; details.from / to / step).
+	// details.partition names the series on a partitioned order. The slot
+	// fails alone (PULSE_SLOT_FAILED).
+	PROCESSING_REGRESSION_ORDER Code = "PROCESSING_REGRESSION_ORDER"
+
 	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
 	// fit whose own diagnostic crossed its threshold while the fit still
 	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
@@ -4844,6 +4854,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_REGRESSION_ORDER,
 	PROCESSING_REGRESSION_DIAGNOSTIC,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	PROCESSING_AUC_OUTCOME_NOT_BINARY,

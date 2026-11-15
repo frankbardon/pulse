@@ -55,8 +55,10 @@ var scopedManifestExceptions = map[string]float64{
 	// growth, no other content of the scope moved. Measured 15.06%
 	// (38,020 of 252,480 bytes) there. REG_MULTINOMIAL (U65 E4-S2, #631)
 	// added its row the same way (feature growth): measured 15.50%
-	// (39,341 of 253,801 bytes) with both.
-	IntentDrivers: 0.156,
+	// (39,341 of 253,801 bytes) with both. The shared `order` slot on
+	// every regression (U71 E2-S1, #551; feature growth, one Param row
+	// per regression in scope) measured 15.71% (40,748 of 259,300 bytes).
+	IntentDrivers: 0.158,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

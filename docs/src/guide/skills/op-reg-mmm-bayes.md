@@ -31,7 +31,7 @@ Use something else:
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
 | `channels` | array | (required) | Raw spend (≥ 0). |
-| `time` | string | (required) | Contiguous integers. |
+| `time` | string | — | Deprecated: `order.field`. |
 | `max_lag` | number | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |
@@ -57,11 +57,12 @@ Use something else:
 | `vcov` | bool | `false` | Posterior vcov. |
 | `holdout` | string | — | Engine holdout. |
 | `save` | string | — | Model file. |
+| `order` | object | — | Time field (+ `geo` partition). |
 | `name` | string | — | Result name. |
 
 ## Inputs
 
-One row per period (per geo with `geo`; ragged ends ok). Refused: `date` time (`time_gap`; `geo_time_gap`), a repeat (`duplicate_time`), negative spend (`negative_spend`), `[`/`]` in predictors.
+One row per period (per geo with `geo`; ragged ends ok). Refused: a gap (`time_gap`, `geo_time_gap`; weekly `date`s), a repeat (`duplicate_time`), negative spend, `[`/`]` in names.
 
 ## Output
 
@@ -89,7 +90,6 @@ Coefficients are posterior means; an `inline` `models` entry declares them with 
 - k and s (or λ) trade off: judge ROI.
 - mROI holds the curve fixed.
 - Health warns, never refuses (`PROCESSING_REGRESSION_DIAGNOSTIC`, `rhat_high`, `ess_low`, `divergences`, `treedepth_saturated`); `Strict` fails.
-- `hmc`: no tree depth; `path_length` π/2 ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
 
 ## See
 

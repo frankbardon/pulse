@@ -188,11 +188,12 @@ way).
 | `FieldInputs` | fields the model reads beyond target, predictors and weight | a buffered request decodes every field |
 | `Validate` | an `extend.SpecValidator[types.RegressionSpec]`: refuse a spec from the spec alone (a `params` value out of range), so predict reports it too | nothing is refused: a refusal raised in the factory surfaces only at run time |
 | `NoResample` | opt OUT of `resample`: a row-subset refit would break the model (it reads row order) or cost too much | set, `resample` and its knobs are `PROCESSING_CONFIG` `{slot: "resample"}` (predict ≡ runtime); `rng_seed` still reaches the factory |
+| `RequiresOrder` | `func(*types.RegressionSpec) bool`: the model reads its rows in order (an adstock, a lag); return true for every spec that needs it | a spec without `order` is `PROCESSING_CONFIG` `{slot: "order", reason: "order_required"}` (predict ≡ runtime); with one, the rows arrive sorted by `order.field` (per `order.partition`), contiguous — never sort them yourself |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either honoured
 or refused with `PROCESSING_CONFIG` `{regression, slot}` — never silently
-ignored. `resample` is honoured unless `NoResample`, `conf_level` and
-`rng_seed` always; `family`,
+ignored. `resample` is honoured unless `NoResample`, `conf_level`,
+`order` and `rng_seed` always; `family`,
 `link`, `max_iters`, `tol` and `prior` are always refused (carry the
 model's own settings in `params`).
 

@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -8,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/extspec"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -60,6 +62,41 @@ type ExtensionRegression struct {
 	// accepts every spec. Predict and the runtime adapter both run it
 	// through ExtensionRegressionValidateRefusal.
 	Validate func(*types.RegressionSpec) error
+	// RequiresOrder is the registration's spec-only declaration that
+	// the model reads its rows in order (RegressionRegistration
+	// .RequiresOrder); nil requires none. Predict and the runtime
+	// adapter both judge it through ExtensionRegressionOrderRefusal.
+	RequiresOrder func(*types.RegressionSpec) bool
+}
+
+// ExtensionRegressionOrderRefusal is the refusal of a slot whose model
+// requires an order (decl.RequiresOrder true on spec) but whose spec
+// sets none — regorder.RequiredRefusal, PROCESSING_CONFIG {regression,
+// slot: "order", reason: "order_required", requires: "order"}. A panic
+// in the hook is PULSE_EXTENSION_SPEC_REFUSED {category: "regression",
+// type, slot: "regressions"[, name], panic}. Nil when the spec sets an
+// order, the model declares no requirement or does not require one for
+// spec. Predict and the runtime adapter both call it, before the
+// Validate hook.
+func ExtensionRegressionOrderRefusal(spec *types.RegressionSpec, decl ExtensionRegression) (cerr *errors.CodedError) {
+	if spec == nil || spec.Order != nil || decl.RequiresOrder == nil {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			details := map[string]any{"category": extCategoryRegression, "type": string(spec.Type), "slot": extensionRegressionSlotKey, "panic": fmt.Sprint(r)}
+			if spec.Name != "" {
+				details["name"] = spec.Name
+			}
+			cerr = errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_SPEC_REFUSED,
+				fmt.Sprintf("regression %s RequiresOrder panicked: %v", spec.Type, r), details)
+		}
+	}()
+	view := *spec
+	if !decl.RequiresOrder(&view) {
+		return nil
+	}
+	return regorder.RequiredRefusal(spec)
 }
 
 // extensionRegressionSlotKey is the request slot key a regression spec

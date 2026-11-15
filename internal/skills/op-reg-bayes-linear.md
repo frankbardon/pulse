@@ -37,6 +37,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
 <!-- /feature -->
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs
@@ -45,7 +46,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level`, `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). **No `PValues`** — Bayesian inference reports credibility, not tail probability.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level`, `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). **No `PValues`** — credibility, not tail probability.
 
 <!-- generated: reading-the-output -->
 
@@ -53,7 +54,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Gotchas
 
-- Other engines' knobs (`penalty`, `family`, `link`, …) and `resample` / `selection` → `PROCESSING_CONFIG`, predict too (`regression-spec`).
+- Other engines' knobs and `resample` / `selection` → `PROCESSING_CONFIG`, predict too (`regression-spec`).
 - `prior_mu` or a `prior_precision` list of length ≠ predictors + 1, or a negative entry → `PROCESSING_CONFIG`.
 - Flat (`0`) entries need the data to identify those coefficients: an improper posterior (e.g. collinear, both flat) → `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 <!-- feature: capability:multiplicity -->

@@ -52,7 +52,8 @@ built with a feature profile gets a narrower document:
   `MultiplicityMethod` and `MultiplicityFamily` are absent); without
   `capability:regression_holdout` neither `RegressionSpec.holdout` nor
   `RegressionResult.holdout` is a property (so `RegressionHoldout` is
-  absent);
+  absent); without `capability:regression_order` `RegressionSpec.order`
+  is not a property (so `RegressionOrder` and `OrderGaps` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -1180,6 +1181,29 @@ the buffered path (the held-out rows are scored after the fit)"`). The
 block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.
+
+## Regression order
+
+`RegressionSpec` takes an additive `omitempty` object `order`
+(`#/$defs/RegressionOrder`) `{field, partition, gaps}`: the engine sorts
+the slot's rows by `field` (an unsigned integer, `date` or `datetime`
+field or derived column) — within each `partition` series (optional; a
+categorical, unsigned integer, `date`, `datetime` or `packed_bool`
+field), the series in ascending key order — before any fit, dropping a
+row whose `field` or `partition` is null. Under `gaps` `refuse`
+(`#/$defs/OrderGaps`, the default and only policy) the rows the fit
+admits (target and every predictor present) must form contiguous
+series: a repeated value inside one series (`details.reason`
+`duplicate`) or a step that is not the cadence, the smallest positive
+step over every series (`reason` `gap`), fails the slot alone with
+`PROCESSING_REGRESSION_ORDER` (`PULSE_SLOT_FAILED`). The spec rules —
+`field` required, a known `gaps`, `partition` ≠ `field`, the field
+types — are `PROCESSING_CONFIG` `{slot: "order", reason}`, and a model
+whose registration requires an order refuses a spec without one
+(`reason` `order_required`), identically at predict and at runtime. An
+order forces the buffered path (predict `streamable` false). It adds no
+response field; absent is byte-identical and `format_version` stays
+`"1.1"`. The block rides `capability:regression_order`.
 
 ## Multinomial regression
 

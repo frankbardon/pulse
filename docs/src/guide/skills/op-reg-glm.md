@@ -57,6 +57,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `multiplicity` | object | — | p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs

@@ -112,6 +112,7 @@ var (
 	featComposeBase       = FeatureName(FeatureKindCapability, "compose_base")
 	featModelSave         = FeatureModelSave
 	featRegHoldout        = FeatureRegressionHoldout
+	featRegOrder          = FeatureRegressionOrder
 	featModels            = FeatureModels
 	featForEach           = FeatureForEach
 	featProcessChain      = FeatureName(FeatureKindCapability, "process_chain")
@@ -228,6 +229,11 @@ const FeatureModelSave = "capability:model_save"
 // the out-of-sample figures it produces (RegressionResult.Holdout).
 const FeatureRegressionHoldout = "capability:regression_holdout"
 
+// FeatureRegressionOrder is capability:regression_order — the `order`
+// block on a regression slot (RegressionSpec.Order): the engine sorts
+// the rows and refuses a gap or a repeat before any fit.
+const FeatureRegressionOrder = "capability:regression_order"
+
 // FeatureLookupTables is capability:lookup_tables — the registered
 // LookupTables (Options.Extensions.LookupTables and the
 // Options.LookupTablesDir / PULSE_LOOKUP_TABLES_DIR files) and the
@@ -287,6 +293,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose_banner"),     // ComposedRequest.Banner + ComposedResponse.Banner
 	capability("model_save"),         // RegressionSpec.Save + FitSpec.Save (model + population files)
 	capability("regression_holdout"), // RegressionSpec.Holdout + RegressionResult.Holdout
+	capability("regression_order"),   // RegressionSpec.Order (the engine-enforced row order)
 	capability("models"),             // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
 	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute / Aggregation / MatrixSpec / OptimizeSpec
 	capability("process_chain"),      // ProcessChain
@@ -608,6 +615,7 @@ var requestSlotCapabilities = map[string]bool{
 	featForEach:    true,
 	featModelSave:  true,
 	featRegHoldout: true,
+	featRegOrder:   true,
 	// capability:params rides modelsHosts instead: a facet's filterers
 	// read params too.
 }
@@ -701,6 +709,8 @@ var slotTokens = map[string]slotTokenSet{
 	// with a filter or a range grouper); no guidance sentence names the
 	// slot.
 	featRegHoldout: {},
+	// `order` is everyday English; no guidance sentence names the slot.
+	featRegOrder: {},
 	// `models` is everyday English; no guidance sentence names the slot.
 	featModels: {},
 	// `params` is every operator's own configuration key too (a
@@ -967,6 +977,9 @@ var hardEdges = map[string][]string{
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
 	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS)},
+	// An order sorts a regression slot's rows: without a regression
+	// there are no rows to order.
+	featRegOrder: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},
 	// Parameters are read only by an expression (an optimize block's
 	// included): without one there is nothing to read them.
 	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA", featRegHoldout, featComposeOpt},
@@ -994,6 +1007,7 @@ var extensionRegressionEdges = map[string]bool{
 	"ATTR_REG_PREDICT": true,
 	featModelSave:      true,
 	featRegHoldout:     true,
+	featRegOrder:       false,
 	featComposeFits:    false,
 }
 

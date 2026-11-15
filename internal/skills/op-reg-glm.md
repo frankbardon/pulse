@@ -52,6 +52,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
 <!-- /feature -->
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs

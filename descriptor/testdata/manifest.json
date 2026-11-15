@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
+    "feature_set_digest": "fs1:74b949607a5fabe74f9f19228ced0b88aaaf70b4e6bde1c2842e6354e0162f6c",
     "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
@@ -8674,6 +8674,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -8971,6 +8978,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -9059,6 +9073,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -9097,8 +9118,8 @@
           {
             "name": "time",
             "type": "string",
-            "required": true,
-            "description": "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
+            "required": false,
+            "description": "Deprecated alias of the slot's order.field (order {field, partition: \u003cgeo\u003e}): the integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused. One of the two is required; both set must name the same field.",
             "example": "week",
             "names_column": true
           },
@@ -9384,6 +9405,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "multiplicity",
             "type": "object",
             "required": false,
@@ -9544,6 +9572,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"\u003clevel\u003e:\u003cterm\u003e\" keys; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
             "slot": true
           },
           {
@@ -9802,6 +9837,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -9887,6 +9929,13 @@
             "required": false,
             "default": 0.95,
             "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -11966,7 +12015,7 @@
         ]
       }
     ],
-    "error_codes_count": 474,
+    "error_codes_count": 475,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11999,6 +12048,7 @@
       "PROCESSING_REGRESSION_INVALID_FAMILY",
       "PROCESSING_REGRESSION_INVALID_LINK",
       "PROCESSING_REGRESSION_NO_CONVERGE",
+      "PROCESSING_REGRESSION_ORDER",
       "PROCESSING_REGRESSION_RANK_DEFICIENT",
       "PROCESSING_REGRESSION_SEPARATION",
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
@@ -14994,6 +15044,10 @@
       {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-order",
+        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, and the Bayesian media-mix model's deprecated params.time alias. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-row-scores",
@@ -21457,4 +21511,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: afc3e15f8193979143d17920aa7aaea5b8a40350a27222def767a52fc854571f
+// golden-hash: 962fe099284c04fda1df38a8bbe8e55bc9dec3bba1893763e4fd5a53c15ae26f

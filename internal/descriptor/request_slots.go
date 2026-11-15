@@ -141,6 +141,10 @@ var modelSaveSlotGate = gatedSlot{key: saveKey, visible: capabilityGate(featMode
 // RegressionResult block it produces: capability:regression_holdout.
 var holdoutSlotGate = gatedSlot{key: "holdout", visible: capabilityGate(featRegHoldout)}
 
+// orderSlotGate gates the `order` key on a RegressionSpec:
+// capability:regression_order.
+var orderSlotGate = gatedSlot{key: "order", visible: capabilityGate(featRegOrder)}
+
 // modelsSlotGate gates the `models` key on a Request and a
 // FacetRequest; both ride capability:models.
 var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels)}
@@ -208,7 +212,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "measures", visible: capabilityGate(featCrosstabCells)},
 	},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
-	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate},
+	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate, orderSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate, {key: "from_sweep", visible: capabilityGate(featSweepBind)}},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
@@ -778,6 +782,22 @@ func nestedHoldoutRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Co
 	return nil
 }
 
+// nestedOrderRefusal refuses the first regression `order` set inside req
+// when inst hides capability:regression_order —
+// PULSE_REQUEST_UNKNOWN_FIELD at that regression (details.path),
+// valid_keys over its visible keys.
+func nestedOrderRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featRegOrder) {
+		return nil
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Order != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("regressions[%d]", i), []string{orderSlotGate.key}, VisibleSlotKeys(r, inst))
+		}
+	}
+	return nil
+}
+
 // nestedForEachRefusal refuses the first item `for_each` set inside req
 // when inst hides capability:for_each, in expansion order: features,
 // attributes, windows, aggregations, matrices, then a crosstab's cell,
@@ -898,7 +918,10 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 	if ce := nestedModelSaveRefusal(req, inst); ce != nil {
 		return ce
 	}
-	return nestedHoldoutRefusal(req, inst)
+	if ce := nestedHoldoutRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedOrderRefusal(req, inst)
 }
 
 // SlotRefusal is the request-slot gate. v is a *types.Request,
@@ -981,6 +1004,9 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			return ce
 		}
 		if ce := nestedHoldoutRefusal(r, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedOrderRefusal(r, inst); ce != nil {
 			return ce
 		}
 	case *types.FacetRequest:
