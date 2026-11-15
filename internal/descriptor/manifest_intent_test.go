@@ -58,7 +58,10 @@ var scopedManifestExceptions = map[string]float64{
 	// (39,341 of 253,801 bytes) with both. The shared `order` slot on
 	// every regression (U71 E2-S1, #551; feature growth, one Param row
 	// per regression in scope) measured 15.71% (40,748 of 259,300 bytes).
-	IntentDrivers: 0.158,
+	// REG_MMM_HILL's in-model adstock (U71 E2-S2, #551; feature growth:
+	// the adstock / max_lag params and the condition_number output key)
+	// measured 15.81% (41,045 of 259,687 bytes).
+	IntentDrivers: 0.159,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

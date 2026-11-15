@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "name": "mmm_hill_adstock",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "time-series",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_MMM_HILL",
+      "FILTER_INCLUDE"
+    ],
+    "capabilities": [
+      "capability:regression_order"
+    ],
+    "description": "Media-mix model whose decay is fitted, not searched: FILTER_INCLUDE keeps the east market (params.adstock fits one series), order {field: week} hands the rows to the model in time order, and ONE REG_MMM_HILL with params.adstock geometric (13-week window) adstocks the four RAW spend channels itself, fitting each channel's decay jointly with its effect and Hill curve in one least squares, price and promo as linear controls. The coefficient table appends decay:<channel> after k:<channel> and s:<channel>, every one with a Gauss-Newton standard error from the joint Jacobian (decay-curve covariances included, so a decay interval comes with the fit); outputs.condition_number reports how well the data separate the decay from the curve (above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED). The fit writes each channel's adstock record at its fitted decay, which response() and a saved model read; compare regression/19_mmm_hill.json, which adstocks upstream at a fixed decay.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "mmm_weekly.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "market",
+      "values": ["east"]
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_MMM_HILL",
+      "name": "mmm",
+      "target": "sales",
+      "predictors": ["tv", "radio", "search", "social", "price", "promo"],
+      "order": {"field": "week"},
+      "params": {
+        "channels": ["tv", "radio", "search", "social"],
+        "adstock": "geometric",
+        "max_lag": 13
+      }
+    }
+  ],
+  "return": {
+    "preset": "standard",
+    "exclude": ["data"]
+  }
+}

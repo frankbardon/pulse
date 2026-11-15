@@ -81,7 +81,7 @@ func AdstockUnknown(fit, channel string, channels []string) *errors.CodedError {
 		channels = []string{}
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_TERM_UNKNOWN,
-		fmt.Sprintf("%s(): fit %q has no adstock record for channel %q — only a media-mix channel adstocked by one WIN_DISTRIBUTED_LAG (REG_MMM_HILL), a REG_MMM_BAYES channel or an inline model's declared adstock has one", ResponseFunc, fit, channel),
+		fmt.Sprintf("%s(): fit %q has no adstock record for channel %q — only a media-mix channel adstocked by one WIN_DISTRIBUTED_LAG or by params.adstock (REG_MMM_HILL), a REG_MMM_BAYES channel or an inline model's declared adstock has one", ResponseFunc, fit, channel),
 		map[string]any{"fit": fit, "channel": channel, "reason": ReasonAdstockUnknown, "channels": slices.Clone(channels)})
 }
 

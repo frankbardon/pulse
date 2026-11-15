@@ -224,8 +224,8 @@ var (
 		},
 		Assumptions: []string{
 			regIndependentRows,
-			"Each channel is spend already carried over from earlier periods (adstocked upstream, for example by WIN_DISTRIBUTED_LAG): " +
-				"the model does not carry spend over itself, so the carry-over decay is searched outside it.",
+			"Each channel is spend already carried over from earlier periods (adstocked upstream, for example by WIN_DISTRIBUTED_LAG, the decay searched outside the model), " +
+				"or, with params.adstock, raw spend the model carries over itself, its decay fitted with the curves over rows in time order.",
 			"Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.",
 			"A channel's coefficient is held at 0 or above by default, so a channel the data do not support comes back exactly 0.",
 			regAssociationOnly,

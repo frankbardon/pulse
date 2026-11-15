@@ -1321,6 +1321,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED: {
+		Message: "A REG_MMM_HILL fit with params.adstock has an ill-conditioned joint parameter correlation matrix (outputs.condition_number above 1e6, or a block that does not invert), so the data barely separate the decay from the curve and the effect and its standard errors are unreliable; the estimates stand. This is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "resample"},
+				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the decay with the curve, and the replicate standard errors and intervals reflect how weakly the data pin them down. Or fix the decay outside the fit (WIN_DISTRIBUTED_LAG, drop params.adstock) or fit REG_MMM_BAYES, whose decay prior regularises it.",
+				Examples: []any{map[string]any{"resample": "bootstrap"}},
+			},
+		},
+	},
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
 		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
 		Fixups: []Fixup{

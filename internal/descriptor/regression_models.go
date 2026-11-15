@@ -108,22 +108,31 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 	},
 	types.REG_MMM_HILL: {
 		SpecRefusal: regmmm.SpecRefusal,
-		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
+		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve. Channels arrive adstocked, or params.adstock fits the decay in the same least squares (decay:<channel>, with standard errors).",
 		Decl: ExtensionRegression{
 			Vcov: true,
+			// params.adstock carries state from row to row: the slot then
+			// needs order (predict and the adapter judge it alike).
+			RequiresOrder: func(spec *types.RegressionSpec) bool {
+				_, ok := model.MMMHillAdstock(spec)
+				return ok
+			},
 			// The model reports no p-value itself; under resample the
 			// engine writes the replicate ones.
 			PValues:    true,
 			Scorer:     true,
-			OutputKeys: []string{"k", "s"},
+			OutputKeys: []string{"k", "s", "condition_number"},
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
 				{Name: "nonnegative", Type: "bool", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},
 				{Name: "prior", Type: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."},
+				{Name: "adstock", Type: "string", Example: "geometric", Description: "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:<ch>, in [0, 0.99]) or delayed (decay:<ch> in [0.01, 0.99], peak:<ch> in [0, max_lag]). Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked."},
+				{Name: "max_lag", Type: "int", Default: regmmm.BayesDefaultMaxLag, Description: "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed requires it)."},
 			},
 			OutputSchema: []descriptor.RegressionOutputMeta{
 				{Key: "k", JSONType: "object", Description: "Hill half-saturation per channel (the coefficient k:<channel>)."},
 				{Key: "s", JSONType: "object", Description: "Hill shape per channel (the coefficient s:<channel>)."},
+				{Key: "condition_number", JSONType: "number", Description: "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."},
 			},
 		},
 	},

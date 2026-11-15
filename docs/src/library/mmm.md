@@ -10,7 +10,7 @@ Before `v1.0.0-alpha.29` both models shipped in a separate contrib pack module r
 y = β0 + Σ_c β_c · hill(a_c, k_c, s_c) + Σ_j γ_j · z_j        hill(x, k, s) = x^s / (x^s + k^s)
 ```
 
-The channels `a_c` are already-adstocked spend columns (`WIN_DISTRIBUTED_LAG` upstream, its decay a sweep axis); the model does not adstock. The controls `z_j` enter linearly. All of β0, β, γ, k and s are fitted together by bounded Levenberg–Marquardt, serially and FMA-free, so the same rows give the same bits on every architecture.
+The channels `a_c` are already-adstocked spend columns (`WIN_DISTRIBUTED_LAG` upstream, its decay a sweep axis), or, with `params.adstock`, raw spend the model adstocks itself (In-model adstock, below). The controls `z_j` enter linearly. All of β0, β, γ, k and s are fitted together by bounded Levenberg–Marquardt, serially and FMA-free, so the same rows give the same bits on every architecture.
 
 ```json
 {"type": "REG_MMM_HILL", "name": "mmm", "target": "sales",
@@ -25,6 +25,8 @@ The channels `a_c` are already-adstocked spend columns (`WIN_DISTRIBUTED_LAG` up
 | `channels` | array | required | Predictors entering through the Hill curve; every other predictor is a linear control. |
 | `nonnegative` | boolean | `true` | Bound each channel β at 0 from below. An unsupported channel is exactly 0. |
 | `prior` | object | none | Gaussian prior `{channel, mean, precision}` on one channel's β, for an experiment-measured effect. |
+| `adstock` | string | none | In-model adstock kernel: `geometric` or `delayed`. The channels are then raw spend. |
+| `max_lag` | int | `13` | With `adstock` only: the window in periods, 1 to 10000. `delayed` requires it. |
 
 A shared slot the model did not declare (`penalty`, `selection`, `covariance`, `family`) is `PROCESSING_CONFIG`. `holdout`, `resample`, `conf_level`, `vcov`, `save` and `ATTR_REG_PREDICT` scoring work. A negative channel value or an unknown `prior` key is `PROCESSING_CONFIG`. No convergence within 1000 iterations is `PROCESSING_REGRESSION_NO_CONVERGE`, and the slot fails alone.
 
@@ -38,9 +40,26 @@ Standard errors are Gauss–Newton, `σ²·(JᵀJ)⁻¹`, mapped to k and s by t
 
 The model reports no p-value itself. Under `resample` (bootstrap or jackknife) the engine refits per replicate and writes replicate p-values from the Wald statistic of each coefficient.
 
+## In-model adstock
+
+`params.adstock` makes the decay a parameter of the fit. Each channel's raw spend is adstocked inside the model with `WIN_DISTRIBUTED_LAG`'s weights (unnormalised, lags `0..max_lag`), and the kernel's parameters join β, γ, k and s in the one Levenberg–Marquardt vector. The fit is joint, not profiled, so one Jacobian gives every standard error and the decay↔curve covariances in `vcov`. `geometric` fits `decay:<channel>` in [0, 0.99]. `delayed` fits `decay:<channel>` in [0.01, 0.99] and `peak:<channel>` in [0, `max_lag`]. These coefficients follow `s:<channel>` in the table, named as `REG_MMM_BAYES` names them. The start scans five decays (0.1 to 0.9) and keeps the best linear start, and each kernel's Jacobian is analytic.
+
+```json
+{"type": "REG_MMM_HILL", "name": "mmm", "target": "sales",
+ "predictors": ["tv", "search", "price"], "order": {"field": "week"},
+ "params": {"channels": ["tv", "search"], "adstock": "geometric", "max_lag": 13}}
+```
+
+- **Order.** The adstock carries spend from row to row, so the slot needs `order {field}` (`order_required` otherwise, by predict too). The fit reads one series: `order.partition` is refused (`order_partition_unsupported`). Filter a panel to one market.
+- **Refusals.** All are `PROCESSING_CONFIG`, raised by predict exactly as at run time. An unknown kernel is `kernel_unknown`. A Weibull kernel is `kernel_unsupported` (fit it with `REG_MMM_BAYES`). `max_lag` out of range is `max_lag_invalid`, and `max_lag` without `adstock` is `max_lag_without_adstock`. A channel that is a `WIN_DISTRIBUTED_LAG` output of the same request is `channel_preadstocked`: it would be adstocked twice. An engine `holdout` is `adstock_holdout`: its raw-spend rows need the adstock carried in from the fitted rows.
+- **Lineage and scoring.** The fit records each channel's kernel at the fitted coefficients (unnormalised, no `fixed_at`), so `response()`, `save` and a loaded model read the fitted decay. The row scorer, like `REG_MMM_BAYES`'s, reads pre-adstocked channels.
+- **Conditioning.** `outputs.condition_number` is the 1-norm condition number of the joint parameter correlation matrix. Above 1e6, or when the block does not invert, the fit carries the result-only advisory `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`. The fit still succeeds and the standard errors are kept. Above that threshold the data separate the decay from the curve and the effect too weakly to trust them; `resample: bootstrap` gives replicate ones. `Options.SuppressAdvisories` drops the advisory, and `Strict` never escalates it.
+
+Example: `internal/examples/regression/25_mmm_hill_adstock.json`.
+
 ## Decay intervals
 
-The decay is not a parameter of the fit, so it has no standard error. Bound it two ways:
+Under `params.adstock` the decay has a standard error (above). Over upstream-adstocked channels the decay is not a parameter of the fit, so it has none. Bound it two ways:
 
 - **Search spread.** In the sweep, read the decays of the near-best ranks by holdout RMSE. A channel whose near-best slots span `[0.1, 0.5]` has a decay the data does not pin down.
 - **Bootstrap.** At the chosen decays, `resample: bootstrap` on the fit gives intervals for the betas, k and s conditional on those decays.
@@ -107,7 +126,7 @@ At the optimum every free channel's `marginal` (its marginal ROI) equals the bud
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 
-**Adstock lineage.** A fit records how each channel was adstocked, so a later reader never guesses a decay or `max_lag`. A `REG_MMM_HILL` channel that is the output of exactly one `WIN_DISTRIBUTED_LAG` records that window's resolved params (`kernel`, `decay`, `decay` + `peak` or `shape` + `scale`, `max_lag`, `normalize`). A decay written as `sweep_axis()` or `params.d` is recorded as the number the window read. A `REG_MMM_BAYES` channel records the fit's `params.adstock` kernel at the posterior means of its coefficients (`decay:<channel>`; `decay:` and `peak:<channel>`; `shape:` and `scale:<channel>`) over the fit's `max_lag`, unnormalised. A channel built any other way (`WIN_LAG` items and a formula, a feature) gets no record. The record lives on the bound fit, and a `save` writes it as the model file's `adstock` feature.
+**Adstock lineage.** A fit records how each channel was adstocked, so a later reader never guesses a decay or `max_lag`. A `REG_MMM_HILL` channel that is the output of exactly one `WIN_DISTRIBUTED_LAG` records that window's resolved params (`kernel`, `decay`, `decay` + `peak` or `shape` + `scale`, `max_lag`, `normalize`). A decay written as `sweep_axis()` or `params.d` is recorded as the number the window read. Under `params.adstock` a `REG_MMM_HILL` channel records the fit's kernel at its fitted coefficients over the fit's `max_lag`, unnormalised. A `REG_MMM_BAYES` channel records the fit's `params.adstock` kernel at the posterior means of its coefficients (`decay:<channel>`; `decay:` and `peak:<channel>`; `shape:` and `scale:<channel>`) over the fit's `max_lag`, unnormalised. A channel built any other way (`WIN_LAG` items and a formula, a feature) gets no record. The record lives on the bound fit, and a `save` writes it as the model file's `adstock` feature.
 
 **Steady-state response.** `response(fit, channel, spend)` is the channel's contribution once a constant spend has run long enough to fill the adstock window: `beta · hill(m · spend, k, s)`. `beta`, `k` and `s` are the fit's `<channel>`, `k:<channel>` and `s:<channel>` coefficients (a `REG_MMM_BAYES` fit's posterior means). A `REG_MMM_BAYES` fit with `params.saturation` `logistic` or `michaelis_menten` is read on its own curve instead, over `lam:<channel>` or `k:<channel>` (the fit's curve record; `hill()` itself stays the Hill formula). `m` is the sum of the channel's adstock kernel weights over lags `0..max_lag`, the level a constant spend of 1 settles to: `(1 − d^(max_lag+1)) / (1 − d)` for an unnormalised geometric kernel, 1 for any normalised kernel, the plain sum for a Weibull one. On a `REG_MMM_BAYES` geo panel it reads the population's terms; a fourth argument, `response(fit, channel, spend, geo)`, reads that geo's own (Geo panels, below). It reads the fit's adstock record and never a default, so it replaces the hand-written `coef · hill(m · x, k, s)` algebra and its copied decay. A channel with no record is `PULSE_MODEL_TERM_UNKNOWN` with `details.reason: "adstock_unknown"`, `details.channel` and the channels that have one under `details.channels`. Predict raises it for a call whose fit and channel are literals, except on a `from_sweep` fit: its record comes from the winning slot, so the run judges it. It works on in-request, saved, loaded and inline models, in `optimize` objectives, constraints and bounds and in formulas and filters. `response` is reserved: an embedder function of that name is `PULSE_EXTENSION_NAME_RESERVED`.
 

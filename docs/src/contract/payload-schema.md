@@ -1050,6 +1050,11 @@ the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
 beside the predictors (no intercept), leaves their `p_values` `null`,
 and fills `outputs` `link`, `levels`, `thresholds`,
 `fitted_probabilities` and, with `params.brant`, `brant`.
+`REG_MMM_HILL` with `params.adstock` appends `decay:<channel>` (and
+`peak:<channel>`) after `s:<channel>`, adds `outputs.condition_number`
+(`null` when the joint block does not invert) and, above 1e6, carries
+`PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED` on `advisories`
+(result-only; the standard errors stay).
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any

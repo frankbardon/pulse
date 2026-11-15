@@ -258,6 +258,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),
 	// Fires only on a REG_OLS bounds fit (result-only).
 	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE: own("REG_OLS"),
+	// Fires only on an in-model adstocked REG_MMM_HILL fit (result-only).
+	errors.PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED: own("REG_MMM_HILL"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
 	// Fires on an embedder extension operator, which any instance may

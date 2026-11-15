@@ -639,6 +639,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			})
 		}
 		w.checkHoldout(req, reg, models)
+		// An in-model adstock over a channel the request already
+		// adstocks (the runtime walks this same rule).
+		if cerr := model.MMMHillPreadstockedRefusal(req, reg); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 	}
 	// The windows (judged at step 5 on the historical order, against the
 	// output-row columns) and the post-window attributes right after

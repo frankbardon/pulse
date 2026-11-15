@@ -24,20 +24,21 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 | `PULSE_ADVISORY_MANY_TESTS` | `p_values.uncorrected` ≥ `threshold` (10) and no `multiplicity` block anywhere — request, slot or instance default | `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": "holm"}}` |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: ≥ 2 slots emit p-values, their corrected ones sit in ≥ 2 separate families other than `compose`, and the slots emit ≥ 10 in total — no correction spans the batch | `slots`, `families` (IDs), `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": M, "family": "compose"}}` |
 | `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` | Compose only: an analytic `optimize` block calls a function with no derivative rule, so it solves by finite differences (result: `gradient_fallback`) | `optimize`, `name`, `functions`, `suggested` |
-| `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator or a parametric test (t, z, paired t, ANOVA, Pearson) reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
+| `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator or a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent if it names none) |
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
-| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
+| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1, shared per layer) |
 | `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT` | an `ATTR_FORMULA` result can be nil (a nullable field or literal `nil` reaches it unguarded by `??` or a `== nil` ternary), so those rows are null | `slot`, `operator`, `label`, `fields`, `literal_nil` |
-| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay (prior, rolling, baseline, sibling, a Compose formula on its first target) on ≥ 2 groupers with no `params.partition_by` runs down a last grouper (series axis) that is not a date | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last, if any); Compose adds `request`, `target` |
+| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay (prior, rolling, baseline, sibling) on ≥ 2 groupers, no `params.partition_by`, runs down a non-date last grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a date grouper to move last); Compose adds `request`, `target` |
 | `PULSE_ADVISORY_JACKKNIFE_COST` | a leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
-| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` fit without `resample`: SEs, p, intervals null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested: {"resample": "bootstrap"}` |
+| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` fit without `resample`: SEs, p, intervals null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested` (`resample`) |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | result only: a least-squares `bounds` bound without `resample`, nulls SEs, p, CIs, `vcov` | `slot`, `operator`, `active`, `suggested` |
-| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an embedder extension operator that declares no params gets a non-empty `params` object, whose keys pass unchecked | `slot`, `operator`, `keys` |
+| `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED` | result only: an adstocked media-mix fit's `condition_number` > 1e6, SEs kept | `slot`, `operator`, `condition_number`, `suggested` |
+| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an extension operator that declares no params gets non-empty `params`, keys unchecked | `slot`, `operator`, `keys` |
 
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 
-The two-group rule reads the dictionary: it fires even if a filter leaves two groups.
+The two-group rule reads the dictionary: a filter leaving two groups still fires it.
 
 The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical, never fires.
 

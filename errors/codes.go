@@ -844,6 +844,17 @@ const (
 	// the patch {"resample": "bootstrap"}.
 	PULSE_ADVISORY_CONSTRAINT_ACTIVE Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 
+	// PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED is an advisory on a
+	// REG_MMM_HILL fit with params.adstock whose joint parameter
+	// correlation matrix is ill-conditioned (outputs.condition_number
+	// above 1e6, or a joint block that does not invert): the data barely
+	// separate the decay from the curve and the effect, so the standard
+	// errors — reported, never nulled — are unreliable. Result-only: the
+	// conditioning depends on the data. details carry the slot, the
+	// operator, the condition number, the threshold and the patch
+	// {"resample": "bootstrap"}.
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED Code = "PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -4962,6 +4973,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
 	PULSE_ADVISORY_CONSTRAINT_ACTIVE,
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,

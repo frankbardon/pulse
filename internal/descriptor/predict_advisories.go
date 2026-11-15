@@ -45,6 +45,9 @@ var advisoryCodes = []errors.Code{
 	// data-dependent, so no predict rule raises it; registered here so
 	// Options.SuppressAdvisories accepts it.
 	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE,
+	// Result-only too: an in-model adstocked REG_MMM_HILL fit's
+	// conditioning depends on the data (model.MMMHillConditionAdvisory).
+	errors.PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED,
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK,
 }

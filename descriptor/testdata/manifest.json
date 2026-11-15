@@ -9319,7 +9319,7 @@
       },
       {
         "name": "REG_MMM_HILL",
-        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve.",
+        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve. Channels arrive adstocked, or params.adstock fits the decay in the same least squares (decay:\u003cchannel\u003e, with standard errors).",
         "accepts_types": [
           "date",
           "datetime",
@@ -9466,6 +9466,20 @@
             "type": "object",
             "required": false,
             "description": "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."
+          },
+          {
+            "name": "adstock",
+            "type": "string",
+            "required": false,
+            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]) or delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]). Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; refuses the engine holdout. Writes the fit's adstock record for response() and save. Absent: channels arrive already adstocked.",
+            "example": "geometric"
+          },
+          {
+            "name": "max_lag",
+            "type": "int",
+            "required": false,
+            "default": 13,
+            "description": "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed requires it)."
           }
         ],
         "intents": [
@@ -9481,6 +9495,11 @@
             "key": "s",
             "json_type": "object",
             "description": "Hill shape per channel (the coefficient s:\u003cchannel\u003e)."
+          },
+          {
+            "key": "condition_number",
+            "json_type": "number",
+            "description": "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."
           }
         ]
       },
@@ -12015,7 +12034,7 @@
         ]
       }
     ],
-    "error_codes_count": 475,
+    "error_codes_count": 476,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12064,6 +12083,7 @@
       "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
+      "PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED",
       "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED",
@@ -15498,7 +15518,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 277,
+    "examples_count": 278,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21511,4 +21531,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 962fe099284c04fda1df38a8bbe8e55bc9dec3bba1893763e4fd5a53c15ae26f
+// golden-hash: ef42a797fbd2ed5615fe440ba5d47730dca647fa3a9807e4cf4c0623c96219a3

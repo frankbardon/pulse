@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
@@ -72,6 +73,9 @@ type hillParams struct {
 	Channels    []string   `json:"channels"`
 	Nonnegative *bool      `json:"nonnegative"`
 	Prior       *hillPrior `json:"prior"`
+	// Adstock and MaxLag are the in-model adstock (hill_adstock.go).
+	Adstock *string `json:"adstock"`
+	MaxLag  *int    `json:"max_lag"`
 }
 
 // configError is a PROCESSING_CONFIG refusal naming the regression.
@@ -147,6 +151,15 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 		return nil, configError(spec, "params.channels needs at least one channel", map[string]any{"slot": "params.channels"})
 	}
 	m := &model{target: spec.Target, nonneg: p.Nonnegative == nil || *p.Nonnegative}
+	kernel, err := hillAdstockConfig(spec, p)
+	if err != nil {
+		return nil, err
+	}
+	m.kernel = kernel
+	reserved := []string{HalfSaturationPrefix, ShapePrefix}
+	if kernel != nil {
+		reserved = append(reserved, kernel.prefixes()...)
+	}
 	isChannel := map[string]bool{}
 	for _, c := range p.Channels {
 		if !slices.Contains(spec.Predictors, c) || isChannel[c] {
@@ -156,8 +169,12 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 		isChannel[c] = true
 	}
 	for _, x := range spec.Predictors {
-		if len(x) >= 2 && (x[:2] == HalfSaturationPrefix || x[:2] == ShapePrefix) {
-			return nil, configError(spec, fmt.Sprintf("predictor %q collides with the k:/s: curve coefficients", x),
+		if slices.ContainsFunc(reserved, func(prefix string) bool { return strings.HasPrefix(x, prefix) }) {
+			what := "the k:/s: curve coefficients"
+			if kernel != nil {
+				what = "the " + strings.Join(reserved, "/") + " curve and adstock coefficients"
+			}
+			return nil, configError(spec, fmt.Sprintf("predictor %q collides with %s", x, what),
 				map[string]any{"slot": "predictors", "predictor": x})
 		}
 		if isChannel[x] {
@@ -200,6 +217,9 @@ type model struct {
 	channels, controls []string
 	nonneg             bool
 	prior              *hillPrior
+	// kernel is the in-model adstock's kernel, nil when the channels
+	// arrive already adstocked (params.adstock absent).
+	kernel *hillKernel
 }
 
 // hillCurve is x^s/(x^s+k^s) for x ≥ 0, written 1/(1+(k/x)^s) — the
@@ -218,9 +238,26 @@ type problem struct {
 	kRef     []float64   // per-channel k scale: the channel mean
 	priorIdx int         // channel under the prior, -1 none
 	prior    hillPrior
+	// ad is the in-model adstock (nil: a holds pre-adstocked columns);
+	// with it a is the adstock of ad.spend at the current x.
+	ad *hillAdstock
 }
 
-func (p *problem) dim() int { return 1 + 3*len(p.a) + len(p.z) }
+func (p *problem) dim() int {
+	d := 1 + 3*len(p.a) + len(p.z)
+	if p.ad != nil {
+		d += p.ad.np() * len(p.a)
+	}
+	return d
+}
+
+// rows is the residual count: one per row, plus the prior's.
+func (p *problem) rows() int {
+	if p.priorIdx >= 0 {
+		return len(p.y) + 1
+	}
+	return len(p.y)
+}
 
 // curve is (β, k, s, γ) at x.
 func (p *problem) curve(x []float64) (b, k, s, g []float64) {
@@ -239,6 +276,9 @@ func (p *problem) curve(x []float64) (b, k, s, g []float64) {
 // non-nil, the Jacobian rows. The objective is ½·Σ r².
 func (p *problem) residuals(r []float64, jac [][]float64, x []float64) {
 	nc, nz := len(p.a), len(p.z)
+	if p.ad != nil {
+		p.adstockAt(x, jac != nil)
+	}
 	b, k, s, g := p.curve(x)
 	for i, yi := range p.y {
 		pred := x[0]
@@ -261,6 +301,13 @@ func (p *problem) residuals(r []float64, jac [][]float64, x []float64) {
 				// dh/dθk = −s·h(1−h); dh/dθs = s·ln(x/k)·h(1−h).
 				row[1+nc+nz+c] = -float64(bs * hh)
 				row[1+2*nc+nz+c] = float64(bs * float64(detmath.Log(p.a[c][i]/k[c])*hh))
+				if p.ad != nil {
+					// dh/da = s·h(1−h)/a; ∂a/∂φ from the kernel.
+					dpa := float64(bs*hh) / p.a[c][i]
+					for j := range p.ad.np() {
+						row[p.phiIndex(j, c)] = float64(dpa * p.ad.da[c][j][i])
+					}
+				}
 			}
 		}
 		for j := range nz {
@@ -287,10 +334,15 @@ func (m *model) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 	n, nc, nz := rows.Len(), len(m.channels), len(m.controls)
 	prob := &problem{y: make([]float64, n), a: make([][]float64, nc), z: make([][]float64, nz),
 		kRef: make([]float64, nc), priorIdx: -1}
+	rule := "1 + 3·channels + controls"
+	if m.kernel != nil {
+		prob.ad = &hillAdstock{kernel: m.kernel, spend: make([][]float64, nc), da: make([][][]float64, nc)}
+		rule = fmt.Sprintf("1 + %d·channels + controls", 3+prob.ad.np())
+	}
 	dim := prob.dim()
 	if n <= dim {
 		return extend.RegressionOutput{}, perr.NewCodedErrorWithDetails(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-			fmt.Sprintf("%s needs more than %d rows (1 + 3·channels + controls), got %d", Name, dim, n),
+			fmt.Sprintf("%s needs more than %d rows (%s), got %d", Name, dim, rule, n),
 			map[string]any{"n": n, "required": dim + 1})
 	}
 	for c := range prob.a {
@@ -323,12 +375,21 @@ func (m *model) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 				fmt.Sprintf("%s: channel %q never spends", Name, m.channels[c]), map[string]any{"channel": m.channels[c]})
 		}
 	}
+	if prob.ad != nil {
+		prob.initAdstock()
+	}
 	if m.prior != nil {
 		prob.priorIdx = slices.Index(m.channels, m.prior.Channel)
 		prob.prior = *m.prior
 	}
 
-	x0, err := prob.start(m.nonneg)
+	var x0 []float64
+	var err error
+	if prob.ad != nil {
+		x0, err = prob.startAdstock(m.nonneg)
+	} else {
+		x0, err = prob.start(m.nonneg)
+	}
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
@@ -363,6 +424,12 @@ func (p *problem) solve(x0 []float64, nonneg bool, maxIter int) (*optimize.Least
 		}
 		lower[1+nc+nz+c], upper[1+nc+nz+c] = detmath.Log(kRange[0]), detmath.Log(kRange[1])
 		lower[1+2*nc+nz+c], upper[1+2*nc+nz+c] = detmath.Log(sRange[0]), detmath.Log(sRange[1])
+		if p.ad == nil {
+			continue
+		}
+		for i := range p.ad.np() {
+			lower[p.phiIndex(i, c)], upper[p.phiIndex(i, c)] = p.ad.kernel.lo[i], p.ad.kernel.hi[i]
+		}
 	}
 	res, err := optimize.LeastSquares(
 		func(x []float64) []float64 { p.residuals(r, nil, x); return r },
@@ -463,12 +530,23 @@ func (m *model) coefNames() []string {
 	for _, c := range m.channels {
 		names = append(names, ShapePrefix+c)
 	}
+	if m.kernel != nil {
+		for _, prefix := range m.kernel.prefixes() {
+			for _, c := range m.channels {
+				names = append(names, prefix+c)
+			}
+		}
+	}
 	return names
 }
 
 // output maps the solution onto the regression output.
 func (m *model) output(prob *problem, res *optimize.LeastSquaresResult) extend.RegressionOutput {
 	n, nc, nz, dim := len(prob.y), len(m.channels), len(m.controls), prob.dim()
+	if prob.ad != nil {
+		// The solver's last evaluation may be a rejected trial step.
+		prob.adstockAt(res.X, false)
+	}
 	b, k, s, g := prob.curve(res.X)
 	est := slices.Clone(res.X)
 	copy(est[1+nc+nz:], k)
@@ -493,7 +571,7 @@ func (m *model) output(prob *problem, res *optimize.LeastSquaresResult) extend.R
 		sst += float64(d * d)
 	}
 	df := float64(n - dim)
-	vcov := prob.covariance(res, ssr/df, k, s)
+	vcov, cond := prob.covariance(res, ssr/df, k, s)
 
 	names := m.coefNames()
 	coefs := make([]extend.RegressionCoefficient, dim)
@@ -510,6 +588,10 @@ func (m *model) output(prob *problem, res *optimize.LeastSquaresResult) extend.R
 	for c, name := range m.channels {
 		ks[name], ss[name] = k[c], s[c]
 	}
+	outputs := map[string]any{"k": ks, "s": ss}
+	if prob.ad != nil {
+		outputs[pmodel.MMMConditionKey] = cond
+	}
 	return extend.RegressionOutput{
 		Coefficients: coefs,
 		Vcov:         vcov,
@@ -520,15 +602,19 @@ func (m *model) output(prob *problem, res *optimize.LeastSquaresResult) extend.R
 			Deviance:       extend.Figure(ssr),
 			Iterations:     res.Iterations,
 		},
-		Outputs: map[string]any{"k": ks, "s": ss},
+		Outputs: outputs,
 	}
 }
 
 // covariance is σ²·(JᵀJ)⁻¹ over the free parameters, in coefficient
 // units (the θk / θs rows scaled by k / s, the delta method), NaN in
-// the row and column of a held β_c and of its k_c and s_c. A free block
-// that does not invert leaves every entry NaN.
-func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k, s []float64) [][]float64 {
+// the row and column of a held β_c and of its k_c and s_c (and, under an
+// in-model adstock, its kernel parameters, in their own units). A free
+// block that does not invert leaves every entry NaN. cond is the free
+// block's correlation condition number (conditionNumber; +Inf when the
+// block does not invert, NaN with no free parameter), computed only
+// under an in-model adstock (NaN otherwise).
+func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k, s []float64) (out [][]float64, cond float64) {
 	nc, nz, dim := len(p.a), len(p.z), p.dim()
 	scale := make([]float64, dim)
 	for i := range scale {
@@ -543,6 +629,11 @@ func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k
 	for c := range nc {
 		if held[1+c] {
 			held[1+nc+nz+c], held[1+2*nc+nz+c] = true, true
+			if p.ad != nil {
+				for i := range p.ad.np() {
+					held[p.phiIndex(i, c)] = true
+				}
+			}
 		}
 	}
 	var free []int
@@ -551,15 +642,16 @@ func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k
 			free = append(free, i)
 		}
 	}
-	out := make([][]float64, dim)
+	out = make([][]float64, dim)
 	for i := range out {
 		out[i] = make([]float64, dim)
 		for j := range out[i] {
 			out[i][j] = math.NaN()
 		}
 	}
+	cond = math.NaN()
 	if len(free) == 0 || !(sigma2 >= 0) {
-		return out
+		return out, cond
 	}
 	packed := make([]float64, 0, len(free)*(len(free)+1)/2)
 	for a, i := range free {
@@ -569,11 +661,17 @@ func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k
 	}
 	sym, err := linalg.NewSym(len(free), packed)
 	if err != nil {
-		return out
+		return out, cond
 	}
 	inv, err := linalg.InverseSPD(sym)
 	if err != nil {
-		return out
+		if p.ad != nil {
+			cond = math.Inf(1)
+		}
+		return out, cond
+	}
+	if p.ad != nil {
+		cond = conditionNumber(sym, inv)
 	}
 	for a, i := range free {
 		for c := a; c < len(free); c++ {
@@ -582,7 +680,7 @@ func (p *problem) covariance(res *optimize.LeastSquaresResult, sigma2 float64, k
 			out[j][i] = out[i][j]
 		}
 	}
-	return out
+	return out, cond
 }
 
 // hillScorer scores β0 + Σ β_c·hill(a_c, k_c, s_c) + Σ γ_j·z_j.

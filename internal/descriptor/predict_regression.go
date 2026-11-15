@@ -131,14 +131,16 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			covRefused = reg.Covariance != nil
 		}
+		// A model that reads its rows in order needs the spec's order —
+		// the runtime adapter's own call, which it makes before the
+		// factory, so a spec failing both reports this one first on
+		// both sides.
+		if cerr := ExtensionRegressionOrderRefusal(reg, decl); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 		// A model regression's factory checks read the spec alone:
 		// its refusal is the runtime's own (regression_models.go).
 		if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg, schema); cerr != nil {
-			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
-		}
-		// A model that reads its rows in order needs the spec's order —
-		// the runtime adapter's own call.
-		if cerr := ExtensionRegressionOrderRefusal(reg, decl); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}

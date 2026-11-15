@@ -20,7 +20,9 @@ const HoldoutKey = "holdout"
 // so predict and the run refuse the same request identically. A
 // scorable REG_MMM_BAYES spec without params.return_draws is
 // PROCESSING_CONFIG reason draws_required (MMMBayesDrawsRefusal): its
-// scorer averages over the draws. Nil when spec sets no holdout or its
+// scorer averages over the draws. A REG_MMM_HILL spec with
+// params.adstock is PROCESSING_CONFIG reason adstock_holdout
+// (MMMHillAdstockHoldoutRefusal). Nil when spec sets no holdout or its
 // fit can be scored.
 func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *errors.CodedError {
 	if spec == nil || spec.Holdout == "" {
@@ -30,6 +32,11 @@ func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *er
 		scorable = ScorableType
 	}
 	if scorable(spec.Type) {
+		// A REG_MMM_HILL params.adstock fit reads raw spend its scorer
+		// cannot adstock (mmm_hill_adstock.go).
+		if cerr := MMMHillAdstockHoldoutRefusal(spec); cerr != nil {
+			return cerr
+		}
 		// A REG_MMM_BAYES fit scores over its draws (mmm_score.go).
 		return MMMBayesDrawsRefusal(spec, HoldoutKey)
 	}
