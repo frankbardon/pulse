@@ -118,7 +118,7 @@ Adds a carry-over (distributed lag, or adstock) series: each row sums current an
 - Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
 - Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
 - Steps are rows, not calendar periods: a period with no row is skipped, not filled, so one row back can span two periods.
-- The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.
+- The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay), delayed (the same carry-over peaking params.peak rows later) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.
 - By default the weights sum to 1, so the column stays on the field's scale; with params.normalize false the raw weights apply.
 - A missing value reads null and adds nothing to later rows; rows before the partition starts add nothing either, so the carry-over starts from zero.
 

@@ -58,7 +58,7 @@ One `f64` per record; null when a column the score reads is null, NaN or ±Inf, 
 - The fit's predictor list is authoritative: build the same columns (same features) in the slot. An absent one-hot column is the reference level; scoring never infers a level. Under selection a dropped feature scores 0.
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local: streams, merges, materializes. Row weight ignored (the fit's own applied).
-- A registered model scores whole-model only, through its scorer (`no_scorer` without one); save-then-load recipe: [`regression-row-scores`](regression-row-scores.md).
+- A registered model scores whole-model only, through its scorer (`no_scorer` without one); save-then-load recipe: [`regression-row-scores`](regression-row-scores.md). `REG_MMM_BAYES` alone takes a whole-model `bound` ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
 
 ## See
 

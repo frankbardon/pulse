@@ -61,6 +61,23 @@ var PriceModel []byte
 //go:embed testdata/budget.json
 var Budget []byte
 
+// BayesModelPath is the saved REG_MMM_BAYES model Posterior loads: two
+// channels (tv, search) with Hill curves on geometric adstocks and six
+// posterior draws (two chains of three) at credible level 0.8.
+const BayesModelPath = "models/mmm_bayes" + model.FileSuffix
+
+// BayesModel is the saved REG_MMM_BAYES model file at BayesModelPath.
+//
+//go:embed testdata/mmm_bayes_model.json
+var BayesModel []byte
+
+// Posterior is a posterior-aware budget allocation over the saved Bayes
+// model (block `models`): tv + search = params.budget, maximising the
+// 0.2-quantile over every draw of the summed steady-state response().
+//
+//go:embed testdata/posterior.json
+var Posterior []byte
+
 // Schema is the cohort schema: week, price and units.
 func Schema() encoding.Schema {
 	return encoding.Schema{Fields: []encoding.Field{

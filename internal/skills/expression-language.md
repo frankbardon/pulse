@@ -68,7 +68,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 <!-- feature: capability:compose_fits -->
 ## Bound models
 
-`coef(fit, term[, stat])` reads a fit's figure: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: `compose-sweep-bind`; `response(fit, channel, spend)`: `mmm-workflow`.
+`coef(fit, term[, stat])` reads a fit's figure: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE`. Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: `compose-sweep-bind`; `response(fit, channel, spend[, geo])`: `mmm-workflow`.
 <!-- /feature -->
 
 ## Patterns

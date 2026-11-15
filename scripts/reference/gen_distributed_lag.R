@@ -1,5 +1,6 @@
 # gen_distributed_lag.R — R oracle for WIN_DISTRIBUTED_LAG (custom-regressions E3-S3):
-# the lag kernel of each kernel (geometric, Weibull CDF, Weibull PDF),
+# the lag kernel of each kernel (geometric, delayed, Weibull CDF,
+# Weibull PDF),
 # normalised and raw, and the adstocked series it produces over a
 # two-partition series with nulls.
 #
@@ -15,6 +16,7 @@
 #
 # Kernel, for lags l = 0..max_lag (max_lag + 1 weights):
 #   geometric:   decay^l
+#   delayed:     decay^((l - peak)^2)                        (Jin et al. 2017)
 #   weibull_cdf: pweibull(l, shape, scale, lower.tail = FALSE)  (survival)
 #   weibull_pdf: dweibull(l + 1, shape, scale)                  (one lag on)
 # normalised: w / sum(w).
@@ -49,10 +51,11 @@ ad_num <- function(x) {
 }
 ad_vec <- function(v) lapply(unname(as.numeric(v)), ad_num)
 
-ad_kernel <- function(kernel, max_lag, decay = NA, shape = NA, scale = NA, normalize = TRUE) {
+ad_kernel <- function(kernel, max_lag, decay = NA, shape = NA, scale = NA, normalize = TRUE, peak = NA) {
   l <- 0:max_lag
   w <- switch(kernel,
     geometric = decay^l,
+    delayed = decay^((l - peak)^2),
     weibull_cdf = pweibull(l, shape = shape, scale = scale, lower.tail = FALSE),
     weibull_pdf = dweibull(l + 1, shape = shape, scale = scale),
     stop("unknown kernel ", kernel))
@@ -76,10 +79,11 @@ ad_x <- list(
   b = c(NA, 40, 55, 0, 70, 220, 35, NA, 95, 130, 5, 60))
 
 ad_cases <- list()
-ad_case <- function(name, kernel, max_lag, decay = NA, shape = NA, scale = NA, normalize = TRUE) {
-  w <- ad_kernel(kernel, max_lag, decay, shape, scale, normalize)
+ad_case <- function(name, kernel, max_lag, decay = NA, shape = NA, scale = NA, normalize = TRUE, peak = NA) {
+  w <- ad_kernel(kernel, max_lag, decay, shape, scale, normalize, peak)
   params <- list(kernel = kernel, max_lag = max_lag, normalize = normalize)
   if (!is.na(decay)) params$decay <- ad_num(decay)
+  if (!is.na(peak)) params$peak <- ad_num(peak)
   if (!is.na(shape)) params$shape <- ad_num(shape)
   if (!is.na(scale)) params$scale <- ad_num(scale)
   parts <- lapply(names(ad_x), function(g) list(
@@ -97,14 +101,19 @@ for (norm in c(TRUE, FALSE)) {
 }
 ad_case("geometric_long_lag", "geometric", 15, decay = 0.35)
 ad_case("geometric_decay_zero_identity", "geometric", 2, decay = 0)
+# Appended after the original cases so their bytes never move.
+for (norm in c(TRUE, FALSE)) {
+  tag <- if (norm) "normalized" else "raw"
+  ad_case(paste0("delayed_", tag), "delayed", 6, decay = 0.5, peak = 2.3, normalize = norm)
+}
 
 distlag_doc <- list(
   generator = "scripts/reference/gen_distributed_lag.R (via gen_reference.R)",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")),
                   jsonlite = as.character(packageVersion("jsonlite"))),
-  primitive = "WIN_DISTRIBUTED_LAG: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
-  r_function = "decay^l; pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
+  primitive = "WIN_DISTRIBUTED_LAG: geometric / delayed / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
+  r_function = "decay^l; decay^((l - peak)^2); pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
   note = paste(
     "Lags l = 0..max_lag; normalised kernels are w / sum(w). A lag before the partition start and a null lagged value add 0;",
     "a row whose own value is null reads null. Partitions are given in order_by order."),

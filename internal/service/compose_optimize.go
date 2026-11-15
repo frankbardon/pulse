@@ -2,6 +2,7 @@ package service
 
 import (
 	stderrors "errors"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -71,6 +72,11 @@ func (s *Service) optimizeLoader(refs model.Refs) (*model.Loaded, *errors.CodedE
 func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblock.Env, set *model.Set, results *resultcall.Reader) (*optsolve.Outcome, error) {
 	bound := s.extensions.ExprBoundWithModels(set)
 	bound.Result = results.Func
+	var view *drawView
+	if spec.Posterior != nil {
+		view = newDrawView(set)
+		view.bind(&bound)
+	}
 	c, cerr := optblock.Compile(spec, i, env, bound)
 	if cerr != nil {
 		if se, ok := optsolve.FailedFit(cerr); ok {
@@ -78,7 +84,76 @@ func (s *Service) solveOptimizeBlock(spec *types.OptimizeSpec, i int, env optblo
 		}
 		return nil, cerr
 	}
-	return optsolve.Solve(spec, i, c, optblock.EffectiveSeed(spec))
+	seed := optblock.EffectiveSeed(spec)
+	if view == nil {
+		return optsolve.Solve(spec, i, c, seed)
+	}
+	if _, failed := set.Failed(c.PosteriorFit); failed {
+		// The carrier failed on its data: its draws do not exist, and the
+		// objective's first read fails the block alone with its code.
+		return optsolve.Solve(spec, i, c, seed)
+	}
+	draws, err := view.load(set, c.PosteriorFit, spec.Posterior.Draws, seed)
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"optimize block "+strconv.Quote(spec.Name)+": reading the posterior draws of fit "+strconv.Quote(c.PosteriorFit)+": "+err.Error(),
+			map[string]any{"optimize": i, "field": "optimize[" + strconv.Itoa(i) + "].posterior", "fit": c.PosteriorFit})
+	}
+	return optsolve.SolvePosterior(spec, i, c, seed, draws)
+}
+
+// drawView is a posterior block's bound-model readers: coef(),
+// sweep_axis() and response() over whichever Set is selected — the
+// block's bound set (the posterior means, which its bounds and starts
+// read) or the set with the carrier fit at one draw
+// (model.Set.WithMMMDraw), each built once, before the solve.
+type drawView struct {
+	readers []modelReaders // [0] the means, then one per evaluated draw
+	cur     int
+}
+
+// modelReaders are the bound-model builtins over one Set.
+type modelReaders struct {
+	coef, axis, response func(args ...any) (any, error)
+}
+
+func readersOf(set *model.Set) modelReaders {
+	return modelReaders{coef: model.CoefBuiltin(set), axis: model.SweepAxisBuiltin(set), response: model.ResponseBuiltin(set)}
+}
+
+func newDrawView(set *model.Set) *drawView {
+	return &drawView{readers: []modelReaders{readersOf(set)}}
+}
+
+// bind points b's bound-model readers at the view's selection (an
+// embedder function that shadows coef keeps its own name: it is
+// registered after, exactly as over ExprBoundWithModels).
+func (v *drawView) bind(b *exprenv.Bound) {
+	b.Coef = func(args ...any) (any, error) { return v.readers[v.cur].coef(args...) }
+	b.SweepAxis = func(args ...any) (any, error) { return v.readers[v.cur].axis(args...) }
+	b.Response = func(args ...any) (any, error) { return v.readers[v.cur].response(args...) }
+}
+
+// load builds one reader set per evaluated draw of fit — every draw, or
+// the seeded subsample of n (optsolve.SubsampleDraws) — and returns the
+// solver's Draws over them.
+func (v *drawView) load(set *model.Set, fit string, n int, seed int64) (*optsolve.Draws, error) {
+	d, err := set.MMMDrawsOf(fit)
+	if err != nil {
+		return nil, err
+	}
+	picks := optsolve.SubsampleDraws(seed, d.Len(), n)
+	for _, k := range picks {
+		ds, err := set.WithMMMDraw(fit, d, k)
+		if err != nil {
+			return nil, err
+		}
+		v.readers = append(v.readers, readersOf(ds))
+	}
+	return &optsolve.Draws{
+		Fit: fit, Count: len(picks), Available: d.Len(), Level: d.Level,
+		Select: func(k int) { v.cur = k + 1 },
+	}, nil
 }
 
 // runComposeOptimize solves every `optimize` block once the fits have

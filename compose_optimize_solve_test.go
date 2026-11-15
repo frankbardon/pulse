@@ -23,7 +23,8 @@ import (
 // (Strict: fatal with its own code), and the bytes are the same serial,
 // parallel and run after run.
 
-// optFixtureFS is the optfixture cohort plus its saved demand model.
+// optFixtureFS is the optfixture cohort plus its saved demand model and
+// its saved REG_MMM_BAYES model.
 func optFixtureFS(t *testing.T) afero.Fs {
 	t.Helper()
 	fsys := afero.NewMemMapFs()
@@ -48,6 +49,9 @@ func optFixtureFS(t *testing.T) afero.Fs {
 		t.Fatal(err)
 	}
 	if err := afero.WriteFile(fsys, optfixture.ModelPath, mf, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(fsys, optfixture.BayesModelPath, optfixture.BayesModel, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return fsys

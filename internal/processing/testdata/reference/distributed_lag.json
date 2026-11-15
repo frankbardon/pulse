@@ -5,8 +5,8 @@
     "stats": "4.6.1",
     "jsonlite": "2.0.0"
   },
-  "primitive": "WIN_DISTRIBUTED_LAG: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
-  "r_function": "decay^l; pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
+  "primitive": "WIN_DISTRIBUTED_LAG: geometric / delayed / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
+  "r_function": "decay^l; decay^((l - peak)^2); pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
   "note": "Lags l = 0..max_lag; normalised kernels are w / sum(w). A lag before the partition start and a null lagged value add 0; a row whose own value is null reads null. Partitions are given in order_by order.",
   "cases": [
     {
@@ -829,7 +829,173 @@
           ]
         }
       ]
+    },
+    {
+      "name": "delayed_normalized",
+      "params": {
+        "kernel": "delayed",
+        "max_lag": 6,
+        "normalize": true,
+        "decay": 0.5,
+        "peak": 2.2999999999999998
+      },
+      "weights": [
+        0.012008739007552031,
+        0.14561475725316997,
+        0.4414213997940396,
+        0.33453486424001766,
+        0.063382504475487697,
+        0.0030021847518880043,
+        3.5550477845012159e-05
+      ],
+      "partitions": [
+        {
+          "partition": "a",
+          "x": [
+            120,
+            80,
+            0,
+            200,
+            null,
+            150,
+            90,
+            60,
+            300,
+            10,
+            0,
+            45
+          ],
+          "y": [
+            1.4410486809062437,
+            18.43446999098456,
+            64.619748555538351,
+            77.859643493835691,
+            null,
+            95.516453338206304,
+            90.074413784151147,
+            92.718407395669502,
+            102.84809970529962,
+            109.91242210216264,
+            160.10941248072174,
+            109.39354599316145
+          ]
+        },
+        {
+          "partition": "b",
+          "x": [
+            null,
+            40,
+            55,
+            0,
+            70,
+            220,
+            35,
+            null,
+            95,
+            130,
+            5,
+            60
+          ],
+          "y": [
+            null,
+            0.48034956030208126,
+            6.4850709355421605,
+            25.665667640685932,
+            38.50018328880153,
+            33.769673301603824,
+            66.96117558277183,
+            null,
+            94.626979920878341,
+            41.25756217567298,
+            63.806351953890207,
+            90.727089774187775
+          ]
+        }
+      ]
+    },
+    {
+      "name": "delayed_raw",
+      "params": {
+        "kernel": "delayed",
+        "max_lag": 6,
+        "normalize": false,
+        "decay": 0.5,
+        "peak": 2.2999999999999998
+      },
+      "weights": [
+        0.025559439329930676,
+        0.30992692498474672,
+        0.9395227492140118,
+        0.71202509779853573,
+        0.13490352956305335,
+        0.0063898598324826613,
+        7.5665753170104099e-05
+      ],
+      "partitions": [
+        {
+          "partition": "a",
+          "x": [
+            120,
+            80,
+            0,
+            200,
+            null,
+            150,
+            90,
+            60,
+            300,
+            10,
+            0,
+            45
+          ],
+          "y": [
+            3.0671327195916813,
+            39.235986144564059,
+            137.53688390446115,
+            165.71671953893136,
+            null,
+            203.29753128723414,
+            191.71467652409194,
+            197.34216116338908,
+            218.90223136360194,
+            233.93795822852431,
+            340.77739651751034,
+            232.83358062322989
+          ]
+        },
+        {
+          "partition": "b",
+          "x": [
+            null,
+            40,
+            55,
+            0,
+            70,
+            220,
+            35,
+            null,
+            95,
+            130,
+            5,
+            60
+          ],
+          "y": [
+            null,
+            1.0223775731972271,
+            13.802846162536056,
+            54.626890842721544,
+            81.943915871807235,
+            71.875482962958614,
+            142.52038483743991,
+            null,
+            201.40437316034979,
+            87.812730101536204,
+            135.8056479205728,
+            193.10383423323631
+          ]
+        }
+      ]
     }
   ]
 }
-// golden-hash: 9d88e49f76e76c7b7caedf3d73ff53f2d38e9e7a1b0598433cf6c6895833c60d
+// golden-hash: 0f66326129dbb487332b90bfe244489ffa08f94076435de6a034078d0fff8342

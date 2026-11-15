@@ -81,33 +81,43 @@ func SweepAxisBuiltin(set *Set) func(args ...any) (any, error) {
 	}
 }
 
-// ResponseBuiltin is response(fit, channel, spend) bound to set (nil:
-// none) — Response: the channel's steady-state response
-// beta · hill(m · spend, k, s), refused like coef() (PULSE_MODEL_UNKNOWN
-// / _KIND_MISMATCH / _TERM_UNKNOWN reason adstock_unknown, a failed
-// fit's own code). A null spend (nil) is a null result (NaN); an
-// integer spend reads as its float64.
+// ResponseBuiltin is response(fit, channel, spend[, geo]) bound to set
+// (nil: none) — Response, or with geo ResponseGeo: the channel's
+// steady-state response beta · curve(m · spend), refused like coef()
+// (PULSE_MODEL_UNKNOWN / _KIND_MISMATCH / _TERM_UNKNOWN reason
+// adstock_unknown or geo_unknown, a failed fit's own code). A null spend
+// (nil) is a null result (NaN); an integer spend reads as its float64.
 func ResponseBuiltin(set *Set) func(args ...any) (any, error) {
 	return func(args ...any) (any, error) {
-		if len(args) != 3 {
+		if len(args) != 3 && len(args) != 4 {
 			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-				fmt.Sprintf("response() takes 3 arguments (fit, channel, spend), got %d", len(args)))
+				fmt.Sprintf("response() takes 3 or 4 arguments (fit, channel, spend[, geo]), got %d", len(args)))
 		}
-		strs := make([]string, 2)
-		for i, a := range args[:2] {
+		// The fit, the channel and (argument 4) the geo are strings.
+		var strs []string
+		for i, a := range args {
+			if i == 2 {
+				continue
+			}
 			s, ok := a.(string)
 			if !ok {
 				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 					fmt.Sprintf("response() argument %d must be a string, got %T", i+1, a))
 			}
-			strs[i] = s
+			strs = append(strs, s)
 		}
 		spend, ok := responseSpend(args[2])
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
 				fmt.Sprintf("response() argument 3 must be a number, got %T", args[2]))
 		}
-		v, cerr := Response(set, strs[0], strs[1], spend)
+		var v float64
+		var cerr *errors.CodedError
+		if len(strs) == 3 {
+			v, cerr = ResponseGeo(set, strs[0], strs[1], strs[2], spend)
+		} else {
+			v, cerr = Response(set, strs[0], strs[1], spend)
+		}
 		if cerr != nil {
 			return nil, cerr
 		}

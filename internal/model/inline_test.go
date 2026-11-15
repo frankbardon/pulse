@@ -281,3 +281,39 @@ func TestInline_NumberPathsMatchExprSlots(t *testing.T) {
 		t.Errorf("exprslots inline tails %v, InlineNumberPaths %v", got, exp)
 	}
 }
+
+// TestInline_BayesKernelTerms: an inline REG_MMM_BAYES model's terms
+// follow the adstock kernel its coefficients name — decay: alone
+// (geometric), decay: and peak: (delayed), shape: and scale: (Weibull)
+// — so each loads, and a delayed or Weibull term beside the geometric
+// set (or a peak: without its decay:) is refused, never accepted as a
+// stray coefficient.
+func TestInline_BayesKernelTerms(t *testing.T) {
+	t.Parallel()
+
+	body := func(adstock string) string {
+		return `{"model_format_version": 1, "type": "REG_MMM_BAYES", "target": "sales",
+	"predictors": ["tv"], "terms": ["tv"],
+	"coefficients": {"(intercept)": 10, "tv": 3, "k:tv": 50, "s:tv": 1.5, "sigma": 2` + adstock + `}}`
+	}
+	for _, tc := range []struct {
+		name, adstock string
+		ok            bool
+	}{
+		{"geometric", `, "decay:tv": 0.5`, true},
+		{"delayed", `, "decay:tv": 0.5, "peak:tv": 1.5`, true},
+		{"weibull", `, "shape:tv": 1.2, "scale:tv": 3`, true},
+		{"geometric with a peak", `, "decay:tv": 0.5, "shape:tv": 1.2`, false},
+		{"peak without decay", `, "peak:tv": 1.5`, false},
+		{"weibull without scale", `, "shape:tv": 1.2`, false},
+	} {
+		rs := Refs{Models: []types.ModelRef{inlineRef("m", body(tc.adstock))}}
+		cerr := CheckRefs(rs, nil)
+		if cerr == nil {
+			_, cerr = LoadFiles(rs, nil, stubInline)
+		}
+		if (cerr == nil) != tc.ok {
+			t.Errorf("%s: %v, want ok %v", tc.name, cerr, tc.ok)
+		}
+	}
+}

@@ -36,6 +36,14 @@ func TestResolve_Refusals(t *testing.T) {
 		{"shape zero", `{"kernel": "weibull_pdf", "shape": 0, "scale": 2, "max_lag": 4}`, "params.shape must be > 0"},
 		{"scale negative", `{"kernel": "weibull_cdf", "shape": 2, "scale": -1, "max_lag": 4}`, "params.scale must be > 0"},
 		{"no mass", `{"kernel": "weibull_pdf", "shape": 1000, "scale": 0.001, "max_lag": 4}`, "no finite positive weight"},
+		{"peak on geometric", `{"kernel": "geometric", "decay": 0.5, "peak": 1, "max_lag": 4}`, "params.peak applies only to the delayed kernel"},
+		{"peak on weibull", `{"kernel": "weibull_cdf", "shape": 2, "scale": 2, "peak": 1, "max_lag": 4}`, "params.peak applies only to the delayed kernel"},
+		{"shape on delayed", `{"kernel": "delayed", "decay": 0.5, "peak": 1, "shape": 2, "max_lag": 4}`, "the delayed kernel reads params.decay and params.peak"},
+		{"decay missing on delayed", `{"kernel": "delayed", "peak": 1, "max_lag": 4}`, "params.decay is required for the delayed kernel"},
+		{"peak missing", `{"kernel": "delayed", "decay": 0.5, "max_lag": 4}`, "params.peak is required"},
+		{"peak negative", `{"kernel": "delayed", "decay": 0.5, "peak": -0.5, "max_lag": 4}`, "params.peak must be in [0, max_lag]"},
+		{"peak past max_lag", `{"kernel": "delayed", "decay": 0.5, "peak": 4.5, "max_lag": 4}`, "params.peak must be in [0, max_lag]"},
+		{"decay one on delayed", `{"kernel": "delayed", "decay": 1, "peak": 1, "max_lag": 4}`, "params.decay must be in [0, 1)"},
 		{"normalize not bool", `{"kernel": "geometric", "decay": 0.5, "max_lag": 4, "normalize": "yes"}`, "malformed params"},
 	}
 	for _, c := range cases {
@@ -111,6 +119,23 @@ func TestResolve_Kernels(t *testing.T) {
 
 	spec, _ = Resolve(json.RawMessage(`{"kernel": "weibull_pdf", "shape": 1.5, "scale": 2.5, "max_lag": 6}`))
 	sumTo(t, spec.Weights, 1)
+
+	spec, _ = Resolve(json.RawMessage(`{"kernel": "delayed", "decay": 0.5, "peak": 1.5, "max_lag": 4, "normalize": false}`))
+	for l := range 5 {
+		d := float64(l) - 1.5
+		if want := math.Pow(0.5, d*d); math.Abs(spec.Weights[l]-want) > 1e-15 {
+			t.Errorf("delayed w[%d] = %v, want %v", l, spec.Weights[l], want)
+		}
+	}
+	spec, _ = Resolve(json.RawMessage(`{"kernel": "delayed", "decay": 0.3, "peak": 2, "max_lag": 5}`))
+	sumTo(t, spec.Weights, 1)
+	if spec.Weights[2] <= spec.Weights[1] || spec.Weights[2] <= spec.Weights[3] {
+		t.Errorf("delayed peak 2 does not peak at lag 2: %v", spec.Weights)
+	}
+	spec, _ = Resolve(json.RawMessage(`{"kernel": "delayed", "decay": 0, "peak": 1, "max_lag": 2, "normalize": false}`))
+	if spec.Weights[0] != 0 || spec.Weights[1] != 1 || spec.Weights[2] != 0 {
+		t.Errorf("delayed decay 0 peak 1 is a one-lag shift, got %v", spec.Weights)
+	}
 
 	spec, _ = Resolve(json.RawMessage(`{"kernel": "geometric", "decay": 0, "max_lag": 2}`))
 	if spec.Weights[0] != 1 || spec.Weights[1] != 0 || spec.Weights[2] != 0 {

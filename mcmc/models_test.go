@@ -98,3 +98,20 @@ func ar1Precision(d int, rho float64) []float64 {
 	}
 	return p
 }
+
+// shifted is independent N(mu_i, sd_i²): known non-zero posterior means,
+// so a sampler that drifts towards the origin (or never leaves its
+// start) fails the mean check, which a centred target cannot catch.
+type shifted struct{ mu, sd []float64 }
+
+func (m shifted) Dim() int { return len(m.mu) }
+
+func (m shifted) LogDensityGrad(theta, grad []float64) float64 {
+	var s float64
+	for i, x := range theta {
+		z := (x - m.mu[i]) / m.sd[i]
+		grad[i] = -(z / m.sd[i])
+		s += float64(z * z)
+	}
+	return float64(-0.5 * s)
+}

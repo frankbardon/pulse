@@ -157,7 +157,7 @@ func cheapenHeavyExample(t *testing.T, path string, doc map[string]any) {
 		return params
 	}
 	switch filepath.ToSlash(path)[strings.LastIndex(filepath.ToSlash(path), "/")+1:] {
-	case "20_mmm_bayes.json":
+	case "20_mmm_bayes.json", "23_mmm_bayes_geo.json":
 		pp := slotParams("regressions", 0)
 		pp["chains"], pp["warmup"], pp["draws"] = 1, 5, 5
 	case "17_sem_contribution.json":

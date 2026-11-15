@@ -321,7 +321,7 @@ var (
 			winOnResultRows,
 			winPerPartition,
 			winRowsNotTime,
-			"The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.",
+			"The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay), delayed (the same carry-over peaking params.peak rows later) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.",
 			"By default the weights sum to 1, so the column stays on the field's scale; with params.normalize false the raw weights apply.",
 			"A missing value reads null and adds nothing to later rows; rows before the partition starts add nothing either, so the carry-over starts from zero.",
 		},

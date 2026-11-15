@@ -134,7 +134,9 @@
 5 ./mcp/gosdk TestSkills_FacadeMCPParity
 5 ./optimize TestOptimize_NoFMAContraction
 
-# shard 6 (20 s local): ., ./internal/integration, ./internal/regmmm, ./internal/descriptor
+# shard 6 (20 s local, plus about 8 min for the geo-hierarchical SBC and Stan oracle,
+# which sit here rather than in the already long catchall): ., ./internal/integration,
+# ./internal/regmmm, ./internal/descriptor
 6 ./internal/integration TestBitExact_Heavy
 6 ./internal/integration TestObservabilityVendorImportBoundaryModule
 6 ./internal/integration TestExamples_RunEndToEnd
@@ -152,6 +154,8 @@
 6 ./internal/descriptor TestManifestGuidanceBudget_Falsifiers
 6 ./internal/regmmm TestMMMBayes_FitMatchesFitContext
 6 ./internal/regmmm TestMMMBayes_FitOutputs
+6 ./internal/regmmm TestMMMBayes_GeoPosteriorMatchesStan
+6 ./internal/regmmm TestMMMBayes_GeoSimulationBasedCalibration
 6 ./internal/regmmm TestMMMBayes_HealthWarnings
 6 ./internal/regmmm TestMMMBayes_Holdout
 6 ./internal/regmmm TestMMMBayes_InputsRefused

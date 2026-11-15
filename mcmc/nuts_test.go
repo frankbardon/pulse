@@ -53,14 +53,20 @@ func pooled(res mcmc.Result, j int) (mean, variance float64) {
 // R̂ ≤ 1.01.
 func checkMoments(t *testing.T, res mcmc.Result, wantVar []float64) {
 	t.Helper()
+	checkMomentsAt(t, res, make([]float64, len(wantVar)), wantVar)
+}
+
+// checkMomentsAt is checkMoments around the known means wantMean.
+func checkMomentsAt(t *testing.T, res mcmc.Result, wantMean, wantVar []float64) {
+	t.Helper()
 	for j, v := range wantVar {
 		ess := res.Diagnostics.ESSBulk[j]
 		if ess < 400 {
 			t.Errorf("param %d: bulk ESS %.0f < 400", j, ess)
 		}
 		mean, variance := pooled(res, j)
-		if se := math.Sqrt(v / ess); math.Abs(mean) > 5*se {
-			t.Errorf("param %d: mean %.4f, want 0 ± %.4f", j, mean, 5*se)
+		if se := math.Sqrt(v / ess); math.Abs(mean-wantMean[j]) > 5*se {
+			t.Errorf("param %d: mean %.4f, want %.4f ± %.4f", j, mean, wantMean[j], 5*se)
 		}
 		// Var of a sample variance of a normal is 2σ⁴/n.
 		if se := v * math.Sqrt(2/ess); math.Abs(variance-v) > 5*se {
@@ -242,7 +248,8 @@ func TestNUTS_TargetAccept(t *testing.T) {
 
 // drawHash is the SHA-256 of every bit a run produces: the draws in
 // [chain][param][draw] order, then each chain's step size, metric, mean
-// acceptance statistic, gradient count, tree depths and divergences.
+// acceptance statistic, gradient count, tree depths and divergences (a
+// tree-less sampler's divergences alone; NUTS's hashes are unchanged).
 func drawHash(res mcmc.Result) string {
 	h := sha256.New()
 	var b [8]byte
@@ -270,6 +277,15 @@ func drawHash(res mcmc.Result) string {
 				v |= 1
 			}
 			put(v)
+		}
+		if st.TreeDepth == nil { // a tree-less sampler (HMC): divergences alone
+			for _, dv := range st.Divergent {
+				v := uint64(0)
+				if dv {
+					v = 1
+				}
+				put(v)
+			}
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))

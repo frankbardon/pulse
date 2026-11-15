@@ -254,6 +254,8 @@ pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
 pulse: const DefaultMaxJoinBuildRows int64 = 100000000
+pulse: const DefaultMaxMMMDrawValues int64 = 10000000
+pulse: const DefaultMaxMMMGeos int64 = 50
 pulse: const DefaultMaxMatrixDim int64 = 2048
 pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
@@ -450,6 +452,8 @@ pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_esti
 pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
 pulse: type FeatureProfileLimits field MaxJoinBuildRows int64 "json:\"max_join_build_rows,omitempty\""
+pulse: type FeatureProfileLimits field MaxMMMDrawValues int64 "json:\"max_mmm_draw_values,omitempty\""
+pulse: type FeatureProfileLimits field MaxMMMGeos int64 "json:\"max_mmm_geos,omitempty\""
 pulse: type FeatureProfileLimits field MaxMatrixDim int64 "json:\"max_matrix_dim,omitempty\""
 pulse: type FeatureProfileLimits field RequestTimeout string "json:\"request_timeout,omitempty\""
 pulse: type FeatureProfileMissing struct
@@ -665,6 +669,8 @@ pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
 pulse: type Limits field MaxJoinBuildRows int64
+pulse: type Limits field MaxMMMDrawValues int64
+pulse: type Limits field MaxMMMGeos int64
 pulse: type Limits field MaxMatrixDim int64
 pulse: type Limits field RequestTimeout time.Duration
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
@@ -2939,6 +2945,8 @@ pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_M
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
 pulse/errors: const PULSE_MCMC_FAILED pulse/errors.Code = "PULSE_MCMC_FAILED"
 pulse/errors: const PULSE_MCMC_INVALID pulse/errors.Code = "PULSE_MCMC_INVALID"
+pulse/errors: const PULSE_MMM_GEO_UNSEEN pulse/errors.Code = "PULSE_MMM_GEO_UNSEEN"
+pulse/errors: const PULSE_MMM_LIFT_PRIOR_OVERLAP pulse/errors.Code = "PULSE_MMM_LIFT_PRIOR_OVERLAP"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
@@ -4104,6 +4112,7 @@ pulse/mcmc: type ChainStats field TreeDepthSaturated int
 pulse/mcmc: const DefaultChains untyped int = 4
 pulse/mcmc: const DefaultDraws untyped int = 1000
 pulse/mcmc: const DefaultMaxTreeDepth untyped int = 10
+pulse/mcmc: const DefaultPathLength untyped float = 314159265358979323846264338327950288419716939937510582097494459/200000000000000000000000000000000000000000000000000000000000000
 pulse/mcmc: const DefaultTargetAccept untyped float = 4/5
 pulse/mcmc: const DefaultWarmup untyped int = 1000
 pulse/mcmc: type Diagnostics struct
@@ -4113,6 +4122,12 @@ pulse/mcmc: type Diagnostics field ESSTail []float64
 pulse/mcmc: type Diagnostics field RHat []float64
 pulse/mcmc: func ESSBulk(chains [][]float64) float64
 pulse/mcmc: func ESSTail(chains [][]float64) float64
+pulse/mcmc: type HMC struct
+pulse/mcmc: type HMC field PathLength float64
+pulse/mcmc: type HMC field StepSize float64
+pulse/mcmc: type HMC field TargetAccept float64
+pulse/mcmc: type HMC field Workers int
+pulse/mcmc: type HMC method (HMC) Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
 pulse/mcmc: type Mapped struct
 pulse/mcmc: type Mapped field DLogJac float64
 pulse/mcmc: type Mapped field DyDx float64
@@ -5225,6 +5240,7 @@ pulse/types: func AllNegBinDispersions() []string
 pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
 pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
+pulse/types: func AllOptimizePosteriorObjectives() []pulse/types.OptimizePosteriorObjective
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
@@ -6027,9 +6043,28 @@ pulse/types: type OptimizeConstraintResult field Value float64 "json:\"value\""
 pulse/types: type OptimizeConstraintType string
 pulse/types: const OptimizeDefaultStarts untyped int = 8
 pulse/types: type OptimizeDirection string
+pulse/types: type OptimizeInterval struct
+pulse/types: type OptimizeInterval field Lower float64 "json:\"lower\""
+pulse/types: type OptimizeInterval field Upper float64 "json:\"upper\""
 pulse/types: const OptimizeMaxStarts untyped int = 1000
 pulse/types: const OptimizeMaximize pulse/types.OptimizeDirection = "maximize"
 pulse/types: const OptimizeMinimize pulse/types.OptimizeDirection = "minimize"
+pulse/types: type OptimizePosterior struct
+pulse/types: type OptimizePosterior field Draws int "json:\"draws,omitempty\""
+pulse/types: type OptimizePosterior field Objective pulse/types.OptimizePosteriorObjective "json:\"objective,omitempty\""
+pulse/types: type OptimizePosterior field Q float64 "json:\"q,omitempty\""
+pulse/types: type OptimizePosterior method (*OptimizePosterior) EffectiveObjective() pulse/types.OptimizePosteriorObjective
+pulse/types: const OptimizePosteriorMean pulse/types.OptimizePosteriorObjective = "mean"
+pulse/types: type OptimizePosteriorObjective string
+pulse/types: const OptimizePosteriorQuantile pulse/types.OptimizePosteriorObjective = "quantile"
+pulse/types: type OptimizePosteriorResult struct
+pulse/types: type OptimizePosteriorResult field CredibleLevel float64 "json:\"credible_level\""
+pulse/types: type OptimizePosteriorResult field Draws int "json:\"draws\""
+pulse/types: type OptimizePosteriorResult field DrawsAvailable int "json:\"draws_available\""
+pulse/types: type OptimizePosteriorResult field DrawsResolved int "json:\"draws_resolved\""
+pulse/types: type OptimizePosteriorResult field Fit string "json:\"fit\""
+pulse/types: type OptimizePosteriorResult field Objective pulse/types.OptimizePosteriorObjective "json:\"objective\""
+pulse/types: type OptimizePosteriorResult field Q float64 "json:\"q,omitempty\""
 pulse/types: type OptimizeResult struct
 pulse/types: type OptimizeResult field Constraints []pulse/types.OptimizeConstraintResult "json:\"constraints,omitempty\""
 pulse/types: type OptimizeResult field Converged bool "json:\"converged\""
@@ -6039,6 +6074,7 @@ pulse/types: type OptimizeResult field Iterations int "json:\"iterations\""
 pulse/types: type OptimizeResult field MaxViolation float64 "json:\"max_violation\""
 pulse/types: type OptimizeResult field Name string "json:\"name\""
 pulse/types: type OptimizeResult field Objective float64 "json:\"objective\""
+pulse/types: type OptimizeResult field Posterior *pulse/types.OptimizePosteriorResult "json:\"posterior,omitempty\""
 pulse/types: type OptimizeResult field RNGSeed int64 "json:\"rng_seed\""
 pulse/types: type OptimizeResult field Starts int "json:\"starts\""
 pulse/types: type OptimizeResult field StartsAgreeing int "json:\"starts_agreeing\""
@@ -6053,6 +6089,7 @@ pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,om
 pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
 pulse/types: type OptimizeSpec field Objective string "json:\"objective\""
+pulse/types: type OptimizeSpec field Posterior *pulse/types.OptimizePosterior "json:\"posterior,omitempty\""
 pulse/types: type OptimizeSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
 pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
 pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
@@ -6067,6 +6104,7 @@ pulse/types: type OptimizeVariable field Start pulse/types.OptimizeBound "json:\
 pulse/types: type OptimizeVariable field Upper pulse/types.OptimizeBound "json:\"upper\""
 pulse/types: type OptimizeVariableResult struct
 pulse/types: type OptimizeVariableResult field Active pulse/types.OptimizeActiveBound "json:\"active,omitempty\""
+pulse/types: type OptimizeVariableResult field Interval *pulse/types.OptimizeInterval "json:\"interval,omitempty\""
 pulse/types: type OptimizeVariableResult field Marginal float64 "json:\"marginal\""
 pulse/types: type OptimizeVariableResult field Name string "json:\"name\""
 pulse/types: type OptimizeVariableResult field Value float64 "json:\"value\""
@@ -6816,4 +6854,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: fbd09bb7a9fdd8f81a16ec3d05a5a1a220d50c03af3eb69184455d2957e8f79b
+// golden-hash: 57af8538ebe175a804186f1ba38637fced36b93d12fe7bb92947a3bf44e18f18

@@ -42,6 +42,8 @@ const (
 	DefaultMaxJoinBuildRows   int64         = 100_000_000
 	DefaultMaxDerivedColumns  int64         = 1_000
 	DefaultMaxExpandedItems   int64         = 1_000
+	DefaultMaxMMMGeos         int64         = 50
+	DefaultMaxMMMDrawValues   int64         = 10_000_000
 )
 
 // Limits holds the instance resource limits. On an input layer a zero
@@ -99,6 +101,20 @@ type Limits struct {
 	// Window, feature and attribute items count toward
 	// MaxDerivedColumns instead. Default 1,000.
 	MaxExpandedItems int64
+
+	// MaxMMMGeos bounds the number of distinct geos one REG_MMM_BAYES
+	// geo panel (params.geo) fits: the hierarchical model's dimension and
+	// gradient cost grow with every geo. Checked once the fit has read
+	// its rows, before any sampling. Default 50.
+	MaxMMMGeos int64
+
+	// MaxMMMDrawValues bounds the raw posterior draws one REG_MMM_BAYES
+	// fit returns (params.return_draws): chains x kept draws per chain
+	// (draws / draws_thin, rounded up) x (coefficients + roi entries).
+	// Exceeding it refuses the fit — the draws are never truncated.
+	// Checked before any sampling (on a geo panel once the fit has read
+	// its geos). Default 10,000,000.
+	MaxMMMDrawValues int64
 }
 
 // Name is a limit's snake_case key — the spelling the feature profile
@@ -118,6 +134,8 @@ const (
 	MaxJoinBuildRows   Name = "max_join_build_rows"
 	MaxDerivedColumns  Name = "max_derived_columns"
 	MaxExpandedItems   Name = "max_expanded_items"
+	MaxMMMGeos         Name = "max_mmm_geos"
+	MaxMMMDrawValues   Name = "max_mmm_draw_values"
 )
 
 // field binds a Name to its Go field. Reads go through Limits.value (a
@@ -156,6 +174,10 @@ func (l *Limits) value(n Name) int64 {
 		return l.MaxDerivedColumns
 	case MaxExpandedItems:
 		return l.MaxExpandedItems
+	case MaxMMMGeos:
+		return l.MaxMMMGeos
+	case MaxMMMDrawValues:
+		return l.MaxMMMDrawValues
 	}
 	return 0
 }
@@ -191,6 +213,12 @@ var fields = []field{
 	{MaxExpandedItems, "MaxExpandedItems",
 		func(l *Limits, v int64) { l.MaxExpandedItems = v },
 		DefaultMaxExpandedItems},
+	{MaxMMMGeos, "MaxMMMGeos",
+		func(l *Limits, v int64) { l.MaxMMMGeos = v },
+		DefaultMaxMMMGeos},
+	{MaxMMMDrawValues, "MaxMMMDrawValues",
+		func(l *Limits, v int64) { l.MaxMMMDrawValues = v },
+		DefaultMaxMMMDrawValues},
 }
 
 func lookup(n Name) (field, bool) {

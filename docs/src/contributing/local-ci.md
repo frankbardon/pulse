@@ -16,12 +16,16 @@ The suite has two tiers, split by a build tag:
 | Tier | Files | Run with |
 |---|---|---|
 | Fast | every `*_test.go` without a build tag | `make test` / `go test ./...` |
-| Heavy | `*_heavy_test.go` files whose first line is `//go:build heavy` | `make test-heavy` / `go test -tags heavy ./...` (runs both tiers) |
+| Heavy | `*_heavy_test.go` files whose first line is `//go:build heavy` | `make test-heavy` / `go test -tags heavy -timeout 30m ./...` (runs both tiers) |
 
 ```bash
 make test         # fast tier only: the quick local loop
 make test-heavy   # both tiers: everything, the pre-push default
 ```
+
+`make test-heavy` passes `-timeout 30m`, as CI does: the heavy
+`internal/regmmm` package alone runs about 8 minutes locally, close to `go test`'s
+10-minute default.
 
 The rule is time-based. A test that takes 1 s or more on a warm
 cache goes in a heavy file. That covers large-cohort worker-invariance

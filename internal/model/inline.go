@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -87,7 +88,7 @@ var (
 	inlineIntegerKeys = []string{"n_obs"}
 	inlineMapKeys     = []string{"ci_lower", "ci_upper", "coefficients", "std_errors"}
 	// An adstock record's numbers, under adstock.<channel>.
-	inlineAdstockRealKeys    = []string{"decay", "scale", "shape"}
+	inlineAdstockRealKeys    = []string{"decay", "peak", "scale", "shape"}
 	inlineAdstockIntegerKeys = []string{"max_lag"}
 )
 
@@ -280,11 +281,45 @@ func inlineNumberInvalid(j int, r types.ModelRef, field string, ref *InlineNumbe
 		details)
 }
 
+// inlineBayesKernel is the adstock kernel whose coefficient names an
+// inline REG_MMM_BAYES model's terms follow (MMMBayesAdstockPrefixes),
+// read off its coefficients: a peak:<channel> names the delayed kernel,
+// a shape:<channel> or scale:<channel> a Weibull one (weibull_cdf and
+// weibull_pdf share their names), anything else the geometric default.
+// Every other type reads "" (its terms carry no kernel).
+func inlineBayesKernel(f *File, channels []string) string {
+	if f.Type != types.REG_MMM_BAYES {
+		return ""
+	}
+	for _, ch := range channels {
+		if _, ok := f.Coefficients[MMMPeakPrefix+ch]; ok {
+			return distlagparams.KernelDelayed
+		}
+		_, shape := f.Coefficients[MMMAdstockShapePrefix+ch]
+		_, scale := f.Coefficients[MMMAdstockScalePrefix+ch]
+		if shape || scale {
+			return distlagparams.KernelWeibullCDF
+		}
+	}
+	return distlagparams.KernelGeometric
+}
+
+// inlineSaturation is the saturation curve whose coefficient names an
+// inline REG_MMM_BAYES model's terms follow: its `saturation` section
+// (feature saturation), hill when absent. Every other type reads hill.
+func inlineSaturation(f *File) string {
+	if f.Saturation == "" {
+		return MMMSaturationHill
+	}
+	return f.Saturation
+}
+
 // checkInline judges a decoded inline body: its type is one InlineTypes
 // lists, and its coefficients name exactly the terms the model reports
 // — the intercept and every predictor, plus, for a media-mix model,
 // ModelRegressionTerms' curve terms of its channels (a predictor with a
-// k:, s: or decay: coefficient is a channel). std_errors, ci_lower and
+// k:, s:, decay: or lam: coefficient is a channel; a REG_MMM_BAYES body's
+// curve is its `saturation`, hill when absent). std_errors, ci_lower and
 // ci_upper may name only those terms.
 func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 	if !slices.Contains(inlineTypes, f.Type) {
@@ -300,7 +335,7 @@ func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 	if ModelRegression(f.Type) {
 		var channels []string
 		for _, p := range f.Predictors {
-			for _, prefix := range []string{MMMHalfSaturationPrefix, MMMShapePrefix, MMMDecayPrefix} {
+			for _, prefix := range []string{MMMHalfSaturationPrefix, MMMShapePrefix, MMMDecayPrefix, MMMLogisticLambdaPrefix} {
 				if _, ok := f.Coefficients[prefix+p]; ok {
 					channels = append(channels, p)
 					break
@@ -312,7 +347,7 @@ func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 				fmt.Sprintf("is a %s model with no channel: give at least one predictor its %s<channel> and %s<channel> coefficients", f.Type, MMMHalfSaturationPrefix, MMMShapePrefix),
 				map[string]any{"term": MMMHalfSaturationPrefix + "<channel>"})
 		}
-		params, _ := json.Marshal(map[string]any{"channels": channels})
+		params, _ := json.Marshal(map[string]any{"channels": channels, "adstock": inlineBayesKernel(f, channels), "saturation": inlineSaturation(f)})
 		terms, _ := ModelRegressionTerms(&types.RegressionSpec{Type: f.Type, Params: params})
 		expected = append(expected, terms...)
 	}

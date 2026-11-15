@@ -132,7 +132,7 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 		}
 		// A model regression's factory checks read the spec alone:
 		// its refusal is the runtime's own (regression_models.go).
-		if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg); cerr != nil {
+		if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}

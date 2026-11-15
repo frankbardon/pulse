@@ -21,7 +21,8 @@ import (
 
 // slotParityCases put $F in a slot the acceptance gate's templates do
 // not judge: a test's split_by / subject_field, a contingency test's
-// cols, FEAT_TARGET_ENCODE's target, FILTER_RANGE under numeric bounds.
+// cols, FEAT_TARGET_ENCODE's target, FILTER_RANGE under numeric bounds,
+// REG_MMM_BAYES's params.geo.
 var slotParityCases = []struct {
 	op   string
 	slot fieldaccept.Slot
@@ -50,6 +51,10 @@ var slotParityCases = []struct {
 	// bound that fails to parse (it used to range over dictionary
 	// indexes).
 	{"FILTER_RANGE", fieldaccept.SlotField, `{"filterers":[{"type":"FILTER_RANGE","field":"$F","values":["0","1"]}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`},
+	// REG_MMM_BAYES's geo panel field: a label or an unsigned code. The
+	// filter keeps four weeks, so an accepted type's fit is the cheap
+	// insufficient-data slot failure (no sampling).
+	{"REG_MMM_BAYES", fieldaccept.SlotGeo, `{"filterers":[{"type":"FILTER_RANGE","field":"week","values":["1","4"]}],"regressions":[{"type":"REG_MMM_BAYES","target":"y","predictors":["x"],"params":{"channels":["x"],"time":"week","geo":"$F"}}]}`},
 }
 
 // TestFieldTypeSlots_PredictMatchesRuntime extends the acceptance gate

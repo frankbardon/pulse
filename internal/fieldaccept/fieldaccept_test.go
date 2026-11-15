@@ -266,7 +266,7 @@ func TestTableCodes(t *testing.T) {
 		errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: true,
 	}
 	for _, op := range Operators() {
-		for _, slot := range []Slot{SlotField, SlotField2, SlotTarget, SlotPredictor, SlotSplitBy, SlotSubject, SlotRows, SlotCols, SlotStratify, SlotPrediction} {
+		for _, slot := range []Slot{SlotField, SlotField2, SlotTarget, SlotPredictor, SlotSplitBy, SlotSubject, SlotRows, SlotCols, SlotStratify, SlotPrediction, SlotGeo} {
 			for b := 0; b < 256; b++ {
 				ft := encoding.FieldType(b)
 				if !ft.IsKnown() {
@@ -350,6 +350,7 @@ func TestCategoricalValue_PackedBoolLevel(t *testing.T) {
 		{"FEAT_FREQUENCY_ENCODE", SlotField, level},
 		{"FEAT_TARGET_ENCODE", SlotField, level},
 		{"FEAT_TRAIN_TEST_SPLIT", SlotStratify, level},
+		{"REG_MMM_BAYES", SlotGeo, []string{"categorical_u16", "categorical_u32", "categorical_u8", "u16", "u32", "u4", "u64", "u8"}},
 	} {
 		if got := TypeNames(tc.op, tc.slot); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s %s: %v, want %v", tc.op, tc.slot, got, tc.want)

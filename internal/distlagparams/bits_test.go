@@ -29,6 +29,14 @@ func TestDistLag_WeightBitsPinned(t *testing.T) {
 			0x3fe4cd383ef411a0, 0x3fcd1f4ebe88e579, 0x3fb462b71ef96d6e, 0x3f9c8a3391c39933, 0x3f83fa574c6f51a3,
 			0x3f6bf813d168a57e, 0x3f53940ddf62da3e, 0x3f3b68e038bd97ef, 0x3f232fd027b7ea5a,
 		}},
+		{`{"kernel":"delayed","decay":0.55,"peak":2.3,"max_lag":8,"normalize":false}`, []uint64{
+			0x3fa5aa9f2dd849f0, 0x3fd74d4ee45bb737, 0x3fee52dff7546a32, 0x3fe7dfc77e9b13b2, 0x3fc6be58e8e67f7e,
+			0x3f8a376991128266, 0x3f32486c50fb991c, 0x3ebedafdf1902f1d, 0x3e2f812be3e8c48a,
+		}},
+		{`{"kernel":"delayed","decay":0.4,"peak":1,"max_lag":8}`, []uint64{
+			0x3fcc0aa26c53193d, 0x3fe186a583b3efc6, 0x3fcc0aa26c53193d, 0x3f8cb6ebf40b5d71, 0x3f22d18002a6896e,
+			0x3e8f926c8320c12a, 0x3dd0f337e1071719, 0x3ce74bc6b457f451, 0x3bd47dcb02dde1c3,
+		}},
 		{`{"kernel":"weibull_cdf","shape":0.6,"scale":2.3,"max_lag":8,"normalize":false}`, []uint64{
 			0x3ff0000000000000, 0x3fe171e8f8b0f503, 0x3fd984314cbf32aa, 0x3fd3ceab0a461140, 0x3fcfc2c640f5db39,
 			0x3fca030d86bff52b, 0x3fc5a2c266cf6d06, 0x3fc2364c57757003, 0x3fbef4d1c70feac1,

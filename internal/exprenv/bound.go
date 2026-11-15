@@ -27,8 +27,9 @@ const CoefFunc = "coef"
 const SweepAxisFunc = "sweep_axis"
 
 // ResponseFunc is the media-mix steady-state response reader,
-// response(fit, channel, spend) (internal/model.ResponseFunc; internal/
-// processing pins the two equal). Like sweep_axis it is reserved.
+// response(fit, channel, spend[, geo]) (internal/model.ResponseFunc;
+// internal/processing pins the two equal). Like sweep_axis it is
+// reserved.
 const ResponseFunc = "response"
 
 // ResultFunc is the Compose slot-value reader, result(slot,
@@ -62,9 +63,10 @@ type Bound struct {
 	// a number (float64) or a string / bool `values` entry.
 	SweepAxis func(args ...any) (any, error)
 	// Response is response()'s implementation; nil leaves it
-	// undeclared. Declared typed — (string, string, float64) → float64,
-	// an integer spend admitted as is — so a non-string fit or channel,
-	// or a string spend, fails compile.
+	// undeclared. Declared typed — (string, string, float64) and
+	// (string, string, float64, string) → float64, an integer spend
+	// admitted as is — so a non-string fit, channel or geo, or a string
+	// spend, fails compile.
 	Response func(args ...any) (any, error)
 	// Result is result()'s implementation (internal/resultcall.Reader);
 	// nil leaves it undeclared — every compile but a Compose optimize
@@ -116,7 +118,10 @@ func (b Bound) Options() []expr.Option {
 		out = append(out, expr.Function(SweepAxisFunc, b.SweepAxis, new(func(string, string) any)))
 	}
 	if b.Response != nil {
-		out = append(out, expr.Function(ResponseFunc, b.Response, new(func(string, string, float64) float64)))
+		out = append(out, expr.Function(ResponseFunc, b.Response,
+			new(func(string, string, float64) float64),
+			new(func(string, string, float64, string) float64),
+		))
 	}
 	if b.Result != nil {
 		out = append(out, expr.Function(ResultFunc, b.Result, new(func(string, string) float64)))

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -33,6 +34,9 @@ import (
 // fails it alone (regressionSlotResults); anything else is fatal.
 func (p *Processor) fitRegressions(ctx context.Context, req *types.Request, filtered []*Record) ([]*types.RegressionResult, error) {
 	specs := req.Regressions
+	// A model's own data-dependent limit check (REG_MMM_BAYES's geo
+	// count) reads the run's effective limits off ctx.
+	ctx = limits.WithContext(ctx, p.limits)
 	// An unknown type is refused at its request index before the
 	// holdout split re-slices the specs.
 	if err := regression.CheckTypes(specs, p.exts.LookupRegression); err != nil {
@@ -148,6 +152,11 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 		return nil, ferr, nil
 	}
 	res.Holdout = figures
+	// A REG_MMM_BAYES geo panel's held-out rows from a geo the train
+	// fit lacks scored from the population (PULSE_MMM_GEO_UNSEEN).
+	if w := model.ScorerGeoTally(scorer).Warning("regression "+name+" holdout", map[string]any{"regression": name}); w != nil {
+		res.Warnings = append(res.Warnings, w)
+	}
 	return res, nil, nil
 }
 

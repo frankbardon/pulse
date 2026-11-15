@@ -235,9 +235,11 @@ func TestMMMBayes_FitOutputs(t *testing.T) {
 // TestMMMBayes_HealthWarnings: an under-sampled fit (a tiny warmup and
 // few draws) reports its figures with a coded ess_low warning on the
 // result and the response; each of R̂, divergences and tree-depth
-// saturation warns with its own reason and figures; a healthy-looking
-// run reports none of those three; under Strict the first warning
-// fails the run with PROCESSING_REGRESSION_DIAGNOSTIC.
+// saturation warns with its own reason and figures, as does a crawling
+// chain's low ESS; a healthy-looking run reports none (the doctored
+// cases construct their draws, so no assertion rests on a seed); under
+// Strict the first warning fails the run with
+// PROCESSING_REGRESSION_DIAGNOSTIC.
 func TestMMMBayes_HealthWarnings(t *testing.T) {
 	// serial: swaps the package-level MMM sampler hook (bayesSampler)
 
@@ -279,58 +281,88 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 		t.Errorf("one chain on the wire: %v, want max_rhat null", err)
 	}
 
-	// The sampler-run diagnostics, doctored: each reason appears exactly
-	// when its figure crosses (the 200-draw fit always has a low ESS and
-	// some R̂ above 1.01, but not the intercept's).
-	intercept := func(ws []*types.ResponseWarning) bool {
-		for _, w := range ws {
-			if w.Details["reason"] == regmmm.ReasonRHatHigh && slices.Contains(w.Details["parameters"].([]string), regmmm.InterceptName) {
-				return w.Details["max_rhat"].(float64) > regmmm.BayesRHatMax && w.Details["threshold"] == regmmm.BayesRHatMax
+	// The sampler-run diagnostics, doctored: constructed draws whose
+	// figures the test sets, so each reason appears exactly when its
+	// figure crosses, and a healthy run reports none.
+	const doctored = `{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":1000}`
+	flagged := func(r *types.RegressionResult, reason string) []string {
+		for _, w := range r.Warnings {
+			if w.Details["reason"] == reason {
+				return w.Details["parameters"].([]string)
 			}
 		}
-		return false
+		return nil
+	}
+	rhatFlags := func(want float64) func(*types.RegressionResult) bool {
+		return func(r *types.RegressionResult) bool {
+			for _, w := range r.Warnings {
+				if w.Details["reason"] == regmmm.ReasonRHatHigh {
+					got := w.Details["max_rhat"].(float64)
+					return slices.Equal(w.Details["parameters"].([]string), []string{regmmm.InterceptName}) &&
+						slices.Equal(flagged(r, regmmm.ReasonESSLow), []string{regmmm.InterceptName}) &&
+						len(w.Details["channels"].([]string)) == 0 && w.Details["threshold"] == regmmm.BayesRHatMax &&
+						got > regmmm.BayesRHatMax && (want == 0 || math.Abs(got-want) < 1e-3)
+				}
+			}
+			return false
+		}
 	}
 	for _, tc := range []struct {
-		name      string
-		s         doctoredSampler
-		reasons   []string
-		intercept bool
-		check     func(map[string]any) bool
+		name    string
+		s       doctoredSampler
+		reasons []string
+		check   func(*types.RegressionResult) bool
 	}{
-		{"divergences", doctoredSampler{divergences: 3}, []string{regmmm.ReasonDivergences}, false,
-			func(d map[string]any) bool { return d["count"] == 3 && d["draws"] == 200 }},
-		{"treedepth", doctoredSampler{saturated: 2}, []string{regmmm.ReasonTreeDepthSaturated}, false,
-			func(d map[string]any) bool { return d["count"] == 2 && d["max_tree_depth"] == mcmc.DefaultMaxTreeDepth }},
-		{"rhat", doctoredSampler{split: true}, nil, true, nil},
-		{"baseline", doctoredSampler{}, nil, false, nil},
+		{"baseline", doctoredSampler{}, nil, nil},
+		{"divergences", doctoredSampler{divergences: 3}, []string{regmmm.ReasonDivergences},
+			func(r *types.RegressionResult) bool {
+				for _, w := range r.Warnings {
+					if w.Details["reason"] == regmmm.ReasonDivergences {
+						return w.Details["count"] == 3 && w.Details["draws"] == 2000 && slices.Equal(w.Details["per_chain"].([]int), []int{3, 0})
+					}
+				}
+				return false
+			}},
+		{"treedepth", doctoredSampler{saturated: 2}, []string{regmmm.ReasonTreeDepthSaturated},
+			func(r *types.RegressionResult) bool {
+				for _, w := range r.Warnings {
+					if w.Details["reason"] == regmmm.ReasonTreeDepthSaturated {
+						return w.Details["count"] == 2 && w.Details["draws"] == 2000 && w.Details["max_tree_depth"] == mcmc.DefaultMaxTreeDepth
+					}
+				}
+				return false
+			}},
+		{"ess", doctoredSampler{sticky: 50}, []string{regmmm.ReasonESSLow},
+			func(r *types.RegressionResult) bool {
+				for _, w := range r.Warnings {
+					if w.Details["reason"] == regmmm.ReasonESSLow {
+						return w.Details["threshold"] == regmmm.BayesESSMin && len(flagged(r, regmmm.ReasonESSLow)) == len(r.Coefficients) &&
+							slices.Equal(w.Details["channels"].([]string), []string{"tv"}) &&
+							w.Details["min_ess_bulk"].(float64) < regmmm.BayesESSMin && w.Details["min_ess_tail"].(float64) < regmmm.BayesESSMin
+					}
+				}
+				return false
+			}},
+		// A chain that disagrees also costs the intercept its ESS (the
+		// between-chain variance enters it), so ess_low rides along —
+		// on the intercept alone.
+		{"split", doctoredSampler{split: true}, []string{regmmm.ReasonRHatHigh, regmmm.ReasonESSLow}, rhatFlags(0)},
+		// Just over and just under the threshold: R̂ 1.02 warns, 1.005
+		// does not.
+		{"rhat_over", doctoredSampler{rhat: 1.02}, []string{regmmm.ReasonRHatHigh, regmmm.ReasonESSLow}, rhatFlags(1.02)},
+		{"rhat_under", doctoredSampler{rhat: 1.005}, nil, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			regmmm.SetBayesSampler(t, func(float64) mcmc.Sampler { return tc.s })
-			// Pinned: the seed FastParams derived before params were
-			// hashed in canonical form (E3-S7); the intercept's R̂ sits
-			// under 1.01 on it, which the doctored cases rely on.
-			spec := regmmm.BayesSpec(regmmm.FastParams)
-			spec.RNGSeed = 8392533999830091673
-			r := process(t, p, bayesRequest(regmmm.BayesCohort, spec)).Regressions[0]
+			r := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(doctored))).Regressions[0]
 			if r.Error != nil {
 				t.Fatalf("fit = %s", mustJSON(t, r))
 			}
-			var got []string
-			for _, reason := range warningReasons(t, r.Warnings) {
-				if reason == regmmm.ReasonDivergences || reason == regmmm.ReasonTreeDepthSaturated {
-					got = append(got, reason)
-				}
+			if got := warningReasons(t, r.Warnings); !slices.Equal(got, tc.reasons) {
+				t.Fatalf("reasons = %v, want %v: %s", got, tc.reasons, mustJSON(t, r.Warnings))
 			}
-			if !slices.Equal(got, tc.reasons) {
-				t.Fatalf("reasons = %v, want %v", got, tc.reasons)
-			}
-			if intercept(r.Warnings) != tc.intercept {
-				t.Errorf("rhat_high on the intercept = %v, want %v: %s", !tc.intercept, tc.intercept, mustJSON(t, r.Warnings))
-			}
-			for _, w := range r.Warnings {
-				if tc.check != nil && w.Details["reason"] == tc.reasons[0] && !tc.check(w.Details) {
-					t.Errorf("warning = %s", mustJSON(t, w))
-				}
+			if tc.check != nil && !tc.check(r) {
+				t.Errorf("warnings = %s", mustJSON(t, r.Warnings))
 			}
 		})
 	}

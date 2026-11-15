@@ -40,6 +40,7 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 		WeightAware: descx.ModelRegressionWeightAware(t),
 		Factory:     factory,
 		Scorer:      regmmm.Scorers[t],
+		BoundScorer: regmmm.BoundScorers[t],
 	}, true
 }
 

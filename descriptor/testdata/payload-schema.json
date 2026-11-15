@@ -3953,6 +3953,91 @@
       ],
       "type": "string"
     },
+    "OptimizeInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "upper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "type": "object"
+    },
+    "OptimizePosterior": {
+      "additionalProperties": false,
+      "properties": {
+        "draws": {
+          "type": "integer"
+        },
+        "objective": {
+          "$ref": "#/$defs/OptimizePosteriorObjective"
+        },
+        "q": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "OptimizePosteriorObjective": {
+      "enum": [
+        "mean",
+        "quantile"
+      ],
+      "type": "string"
+    },
+    "OptimizePosteriorResult": {
+      "additionalProperties": false,
+      "properties": {
+        "credible_level": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "draws": {
+          "type": "integer"
+        },
+        "draws_available": {
+          "type": "integer"
+        },
+        "draws_resolved": {
+          "type": "integer"
+        },
+        "fit": {
+          "type": "string"
+        },
+        "objective": {
+          "$ref": "#/$defs/OptimizePosteriorObjective"
+        },
+        "q": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "credible_level",
+        "draws",
+        "draws_available",
+        "draws_resolved",
+        "fit",
+        "objective"
+      ],
+      "type": "object"
+    },
     "OptimizeResult": {
       "additionalProperties": false,
       "if": {
@@ -3998,6 +4083,9 @@
             "number",
             "null"
           ]
+        },
+        "posterior": {
+          "$ref": "#/$defs/OptimizePosteriorResult"
         },
         "rng_seed": {
           "type": "integer"
@@ -4175,6 +4263,16 @@
             }
           ]
         },
+        "posterior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizePosterior"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
+        },
         "rng_seed": {
           "anyOf": [
             {
@@ -4304,6 +4402,9 @@
           "objective": {
             "type": "string"
           },
+          "posterior": {
+            "$ref": "#/$defs/OptimizePosterior"
+          },
           "rng_seed": {
             "type": "integer"
           },
@@ -4354,6 +4455,9 @@
       "properties": {
         "active": {
           "$ref": "#/$defs/OptimizeActiveBound"
+        },
+        "interval": {
+          "$ref": "#/$defs/OptimizeInterval"
         },
         "marginal": {
           "type": [
@@ -7888,4 +7992,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 416358d638426fef7ad19867dd628aae9cbf722896b62ef130e4b8aba68024b8
+// golden-hash: 3962dfdf3c0cb7f69bbf71124d0151cc0ad3d60f53d4a551f0b787d61fc03442

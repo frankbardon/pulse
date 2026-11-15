@@ -91,6 +91,8 @@ const (
 	// SlotBase is WIN_LIFT's `params.base` (the column the field's share
 	// is compared with).
 	SlotBase Slot = "base"
+	// SlotGeo is REG_MMM_BAYES's `params.geo` (the panel's market key).
+	SlotGeo Slot = "geo"
 )
 
 // Rule is one tabled slot: the accepted types and the refusal code.
@@ -311,7 +313,7 @@ func SuccessLevelRefusal(op, field, success string, schema *encoding.Schema) *er
 	return nil
 }
 
-// codeValue is ATTR_CODE_IN's set: a categorical (codes match its
+// codeValue is ATTR_CODE_IN's (and REG_MMM_BAYES's geo) set: a categorical (codes match its
 // labels) or an unsigned integer (codes match its value exactly). Floats
 // (equality is a trap), dates (FILTER_DATE_RANGES' job), packed_bool
 // (already 0/1), decimal128 and set_* (ATTR_SET_HAS' job) are refused.
@@ -416,6 +418,9 @@ func init() {
 	add(temporalValue, unsupported, field, "GROUP_DATE", "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "FEAT_DATE_FEATURES", "ATTR_DATE_PART")
 	add(packedBool, unsupported, field, "FILTER_TRUE", "FILTER_FALSE")
 	add(codeValue, unsupported, field, "ATTR_CODE_IN")
+	// REG_MMM_BAYES's geo is a market key matched by value: a label or
+	// an unsigned integer code (codeValue's set).
+	add(codeValue, unsupported, []Slot{SlotGeo}, "REG_MMM_BAYES")
 	add(modelErrorValue, unsupported, []Slot{SlotField, SlotPrediction}, "AGG_MAE", "AGG_MAPE", "AGG_RMSE")
 	// AGG_AUC: a numeric score (field) against a 0/1 outcome — the same
 	// set (packed_bool is the natural outcome; a 0/1 integer or float

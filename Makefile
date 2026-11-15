@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -50,12 +50,14 @@ dist:
 # and `go test ./...` and CI keep t.Parallel(). -recheck reruns each
 # offender alone and clears it if it is then under 1 s (contention, not
 # cost). pipefail and the filter's own failure tracking both keep a test
-# failure fatal. `make test-heavy` applies no budget.
+# failure fatal. `make test-heavy` applies no budget and passes
+# `-timeout 30m` (go test's 10 min default is below the slowest heavy
+# package, internal/regmmm); CI passes the same.
 test:
 	set -o pipefail; $(GO) test -count=1 -json -parallel 1 $(TESTFLAGS) ./... | $(GO) run ./internal/tools/citest filter -budget 1s -recheck
 
 test-heavy:
-	$(GO) test -tags heavy $(TESTFLAGS) ./...
+	$(GO) test -tags heavy -timeout 30m $(TESTFLAGS) ./...
 
 # smoke builds, vets and tests internal/embeddersmoke: a separate Go
 # module (own go.mod, replace => ../..) that embeds Pulse through the
@@ -254,6 +256,38 @@ reference-optimize:
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
 	done
+
+# reference-stan regenerates REG_MMM_BAYES's Stan oracle
+# (internal/regmmm/testdata/mmm_bayes_stan.json: posterior means per
+# adstock kernel x saturation curve cell and per lift-test case,
+# sampled by CmdStan from
+# scripts/reference/mmm_bayes.stan)
+# with scripts/reference/gen_mmm_bayes_stan.R, then appends the
+# `// golden-hash:` footer TestMMMBayes_PosteriorMatchesStan checks.
+# Needs R 4.6.1 + cmdstanr 0.9.0 + CmdStan 2.40.0 + posterior 1.7.1
+# (install lines: docs/src/internals/regenerating-goldens.md, The Stan
+# toolchain). Manual target: CI never runs R or Stan; about 15 minutes.
+STAN_REFERENCE_DIR=internal/regmmm/testdata
+reference-stan:
+	Rscript scripts/reference/gen_mmm_bayes_stan.R $(STAN_REFERENCE_DIR)
+	@f=$(STAN_REFERENCE_DIR)/mmm_bayes_stan.json; \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"
+
+# reference-stan-geo regenerates REG_MMM_BAYES's geo-hierarchical Stan
+# oracle (internal/regmmm/testdata/mmm_bayes_geo_stan.json: posterior
+# means on a three-geo x two-channel panel, curves shared and per geo,
+# sampled by CmdStan from scripts/reference/mmm_bayes_geo.stan) with
+# scripts/reference/gen_mmm_bayes_geo_stan.R, then appends the
+# `// golden-hash:` footer TestMMMBayes_GeoPosteriorMatchesStan checks.
+# Same toolchain as reference-stan; separate so neither golden moves
+# when the other is regenerated. Manual target: CI never runs R or Stan;
+# about thirty minutes.
+reference-stan-geo:
+	Rscript scripts/reference/gen_mmm_bayes_geo_stan.R $(STAN_REFERENCE_DIR)
+	@f=$(STAN_REFERENCE_DIR)/mmm_bayes_geo_stan.json; \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"
 
 # reference-statsmodels regenerates the statsmodels oracles under
 # testdata/statsmodels/ (U65: GLM residual kinds, ...) with the PEP 723

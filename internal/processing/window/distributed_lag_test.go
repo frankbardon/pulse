@@ -63,7 +63,7 @@ func oracleClose(got, want float64) bool {
 	return math.Abs(got-want) <= distLagOracleRelTol*math.Max(math.Abs(want), 1e-300)
 }
 
-// TestReferenceOracle_WinDistributedLag holds every kernel (geometric, Weibull
+// TestReferenceOracle_WinDistributedLag holds every kernel (geometric, delayed, Weibull
 // CDF, Weibull PDF; normalised and raw) to R: the kernel weights through
 // distlagparams, and the series through the full window Apply over two
 // partitions with nulls, the rows handed over shuffled so partition_by

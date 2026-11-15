@@ -688,12 +688,15 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		Field: "coefficients.*",
 		Means: "Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) " +
 			"and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; " +
-			"decay:<channel>, k:<channel> and s:<channel> are each channel's carry-over, half-saturation spend and curve shape, and sigma the noise SD.",
+			"the adstock kernel's terms are each channel's carry-over — decay:<channel> (geometric), decay: and peak:<channel> (delayed, peak the lag of greatest effect) or shape: and scale:<channel> (Weibull, scale in periods) — " +
+			"the saturation curve's terms its response shape — k:<channel> and s:<channel> the Hill half-saturation spend and curve shape, lam:<channel> the logistic rate (half-saturated at log 3 / lam), k:<channel> alone the Michaelis–Menten half-saturation — and sigma the noise SD. " +
+			"On a geo panel (params.geo) a pooled term's own name is its population value, <term>[<geo>] the geo's (each geo has its own (intercept)[<geo>]) and tau:<term> how far the geos spread around the population on the parameter's unconstrained scale (log ROI, logit decay).",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
-			"An experiment-measured prior on a channel's ROI anchors its effect.",
-			"k and s trade off against each other on a channel whose spend never reaches its k: judge it by its ROI and contribution, not by k or s.",
+			"A lift test (params.lift_tests) or an experiment-based roi prior anchors a channel's effect.",
+			"A geo's term is pulled toward the population value, the more so the less its own rows say: a small tau is the data finding the geos alike, not proof they are equal.",
+			"k and s (or lam) trade off against each other on a channel whose spend never reaches its half-saturation: judge it by its ROI and contribution, not by the curve's terms.",
 			regInterceptAtZero,
 		},
 	},
@@ -723,6 +726,8 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 			"contribution per channel, the outcome it produced over the fitted period; params per coefficient; " +
 			"diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); " +
 			"holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); " +
+			"hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's <channel>[<geo>] beside the all-geo figure (the panel's summed contribution over its summed spend); " +
+			"draws, with params.return_draws, the raw draws params and roi summarise, for a posterior analysis of your own; " +
 			"and seed, the seed the sampler ran with.",
 		Caveats: []string{
 			"A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.",
@@ -734,7 +739,7 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 		},
 	},
 }, append(regCI("the posterior mean minus (lower) or plus (upper) a normal critical value times the posterior SD, a normal approximation to the posterior.",
-	"For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.",
+	"For a skewed posterior (a decay near 0 or 1, a peak or k on its bound) it can leave the parameter's range: read the credible intervals in outputs.params instead.",
 	regCIOneAtATime,
 ), regConfLevel, descriptor.Interpretation{
 	Field: "n_obs",

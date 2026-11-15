@@ -4,7 +4,7 @@ slug: mmm-bayes-depth
 title: "Bayesian marketing-mix models gain hierarchy, richer kernels and curves, lift-test data, posterior-aware optimization, raw draws, scoring and alternative samplers"
 track: Vector & matrix
 size: L
-status: not-started
+status: done
 depends_on: [U77, U78]
 soft_depends_on: []
 blocks: [U32]
@@ -26,13 +26,13 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 
 ## Owned TODO items
 
-- [ ] **#552** *Narrowed by U62.* Partial pooling / geo-hierarchical MMM as a pack on the `REG_MMM_HILL` contract. The Bayesian part is done: `REG_MMM_BAYES` ([U62](units/U62-bayesian-mmm.md); shipped in `contrib/mmmpulse`, a built-in regression since `v1.0.0-alpha.29`) samples a single-market posterior with NUTS. What stays open is the geo hierarchy (partial pooling across markets). Deferred from U60 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#561** Geo-hierarchical MMM: partial pooling of channel effects, decay and curves across markets (a panel input is refused by `REG_MMM_BAYES` today as `duplicate_time`). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#562** Weibull and delayed adstock kernels for `REG_MMM_BAYES` (`params.adstock` accepts `geometric` only; `WIN_DISTRIBUTED_LAG` already has the Weibull weights). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#563** Saturation curves other than Hill for `REG_MMM_BAYES` (for example logistic or Michaelis-Menten forms). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#564** A lift-test likelihood: a measured experiment enters as data, not only as an informative `priors.<channel>.roi` (the estimand-mismatch caveat in `ext-mmm-workflow` applies to the prior route). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#565** A posterior-aware budget optimizer: Compose `optimize` over `REG_MMM_BAYES` draws, so an allocation carries the posterior uncertainty; today the Bayesian route has no optimizer and the point-estimate `optimize` reads `coef()` means only. Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#566** Raw posterior draws on the wire (`REG_MMM_BAYES` returns summaries and diagnostics only). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#567** Save and scoring (`ATTR_REG_PREDICT`, engine `holdout`) for `REG_MMM_BAYES` with pre-adstocked inputs, so a Bayesian fit can score new rows without a row-order dependency. Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#568** Samplers other than NUTS behind `mcmc.Sampler` / `params.sampler` (for example HMC with a fixed path length, or variational inference). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
-- [ ] **#578** `TestMMMBayes_HealthWarnings` doctored-sampler subtests pin `rng_seed` 8392533999830091673 (the old derived seed), because the new canonical seed flagged `rhat_high` on the intercept baseline: make the test independent of a particular draw. Deferred from U63 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#552** *Narrowed by U62.* Partial pooling / geo-hierarchical MMM as a pack on the `REG_MMM_HILL` contract. The Bayesian part is done: `REG_MMM_BAYES` ([U62](units/U62-bayesian-mmm.md); shipped in `contrib/mmmpulse`, a built-in regression since `v1.0.0-alpha.29`) samples a single-market posterior with NUTS. What stays open is the geo hierarchy (partial pooling across markets). Deferred from U60 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#561** Geo-hierarchical MMM: partial pooling of channel effects, decay and curves across markets (a panel input is refused by `REG_MMM_BAYES` today as `duplicate_time`). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#562** Weibull and delayed adstock kernels for `REG_MMM_BAYES` (`params.adstock` accepts `geometric` only; `WIN_DISTRIBUTED_LAG` already has the Weibull weights). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#563** Saturation curves other than Hill for `REG_MMM_BAYES` (for example logistic or Michaelis-Menten forms). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#564** A lift-test likelihood: a measured experiment enters as data, not only as an informative `priors.<channel>.roi` (the estimand-mismatch caveat in `ext-mmm-workflow` applies to the prior route). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#565** A posterior-aware budget optimizer: Compose `optimize` over `REG_MMM_BAYES` draws, so an allocation carries the posterior uncertainty; today the Bayesian route has no optimizer and the point-estimate `optimize` reads `coef()` means only. Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#566** Raw posterior draws on the wire (`REG_MMM_BAYES` returns summaries and diagnostics only). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#567** Save and scoring (`ATTR_REG_PREDICT`, engine `holdout`) for `REG_MMM_BAYES` with pre-adstocked inputs, so a Bayesian fit can score new rows without a row-order dependency. Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#568** Samplers other than NUTS behind `mcmc.Sampler` / `params.sampler` (for example HMC with a fixed path length, or variational inference). Deferred from U62 · [U70](units/U70-mmm-bayes-depth.md)
+- [x] **#578** `TestMMMBayes_HealthWarnings` doctored-sampler subtests pin `rng_seed` 8392533999830091673 (the old derived seed), because the new canonical seed flagged `rhat_high` on the intercept baseline: make the test independent of a particular draw. Deferred from U63 · [U70](units/U70-mmm-bayes-depth.md)

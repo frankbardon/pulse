@@ -1,9 +1,10 @@
 // Package coefcall finds the coef(fit, term[, stat]),
-// sweep_axis(fit, axis) and response(fit, channel, spend) calls an
-// ATTR_FORMULA / FILTER_EXPRESSION / optimize expression makes with
-// literal arguments (response(): a literal fit and channel, any spend)
-// and judges them by internal/model.CheckCoef / CheckSweepAxis /
-// CheckResponse — the static
+// sweep_axis(fit, axis) and response(fit, channel, spend[, geo]) calls
+// an ATTR_FORMULA / FILTER_EXPRESSION / optimize expression makes with
+// literal arguments (response(): a literal fit and channel, any spend,
+// and a geo judged when it too is a literal) and judges them by
+// internal/model.CheckCoef / CheckSweepAxis / CheckResponse (with a
+// literal geo, CheckResponseGeo) — the static
 // half of the coef() rule, shared by the engine's build (internal/
 // processing) and the no-execute field-reference pass (internal/
 // descriptor: predict and the runtime's entry check), so both refuse
@@ -92,6 +93,8 @@ func staticRefusal(src string, cat model.Catalog, coef bool) *errors.CodedError 
 		switch {
 		case c.axis:
 			cerr = model.CheckSweepAxis(cat, c.Fit, c.Term)
+		case c.response && c.hasGeo:
+			cerr = model.CheckResponseGeo(cat, c.Fit, c.Term, c.geo)
 		case c.response:
 			cerr = model.CheckResponse(cat, c.Fit, c.Term)
 		case coef:
@@ -138,10 +141,13 @@ func LiteralFits(src string, coef bool) []string {
 
 // read is one all-literal coef() call, sweep_axis() call (axis: Term
 // is the axis) or response() call with a literal fit and channel
-// (response: Term is the channel).
+// (response: Term is the channel; hasGeo: its geo argument is the
+// literal geo).
 type read struct {
 	Call
 	axis, response bool
+	hasGeo         bool
+	geo            string
 }
 
 // ResponseCall is one response(fit, channel, spend) call whose fit and
@@ -188,13 +194,20 @@ func (v *readVisitor) Visit(node *exprast.Node) {
 	switch {
 	case id.Value == model.CoefFunc && len(n.Arguments) >= 2 && len(n.Arguments) <= 3:
 	case id.Value == model.SweepAxisFunc && len(n.Arguments) == 2:
-	case id.Value == model.ResponseFunc && len(n.Arguments) == 3:
+	case id.Value == model.ResponseFunc && (len(n.Arguments) == 3 || len(n.Arguments) == 4):
 	default:
 		return
 	}
 	args := n.Arguments
+	geo, hasGeo := "", false
 	if id.Value == model.ResponseFunc {
-		// The spend is the evaluation's; the fit and channel judge it.
+		// The spend is the evaluation's; the fit and channel judge it,
+		// and a literal geo too (a computed one is the evaluation's).
+		if len(args) == 4 {
+			if s, ok := args[3].(*exprast.StringNode); ok {
+				geo, hasGeo = s.Value, true
+			}
+		}
 		args = args[:2]
 	}
 	lits := make([]string, len(args))
@@ -205,7 +218,8 @@ func (v *readVisitor) Visit(node *exprast.Node) {
 		}
 		lits[i] = s.Value
 	}
-	r := read{Call: Call{Fit: lits[0], Term: lits[1], Stat: model.StatPoint}, axis: id.Value == model.SweepAxisFunc, response: id.Value == model.ResponseFunc}
+	r := read{Call: Call{Fit: lits[0], Term: lits[1], Stat: model.StatPoint}, axis: id.Value == model.SweepAxisFunc, response: id.Value == model.ResponseFunc,
+		hasGeo: hasGeo, geo: geo}
 	if len(lits) == 3 {
 		r.Stat = lits[2]
 	}

@@ -78,6 +78,12 @@ type Diagnostics struct {
 
 // ChainStats are one chain's sampler statistics. A sampler without a
 // given notion (a step size, a tree) leaves the field zero.
+//
+// TreeDepth is the marker for the tree fields: it is non-nil exactly when
+// the sampler builds a tree (NUTS). A tree-less sampler (HMC) leaves
+// TreeDepth nil, and TreeDepthSaturated is then 0 because there is no
+// depth to saturate, not because none did — read it only when TreeDepth
+// is non-nil. Divergences and Divergent are recorded by both.
 type ChainStats struct {
 	// StepSize is the integrator step size fixed at the end of warmup.
 	StepSize float64
@@ -88,9 +94,10 @@ type ChainStats struct {
 	// Divergences counts retained transitions that diverged.
 	Divergences int
 	// TreeDepthSaturated counts retained transitions that hit the
-	// sampler's maximum tree depth.
+	// sampler's maximum tree depth; meaningless when TreeDepth is nil.
 	TreeDepthSaturated int
-	// TreeDepth is each retained transition's tree depth.
+	// TreeDepth is each retained transition's tree depth; nil for a
+	// sampler that builds no tree.
 	TreeDepth []int
 	// Divergent marks each retained transition that diverged.
 	Divergent []bool

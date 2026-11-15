@@ -87,7 +87,7 @@ names the root `--limit` flag and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
 `max_chain_stages`, `max_join_build_rows`, `max_derived_columns`,
-`max_expanded_items`.
+`max_expanded_items`, `max_mmm_geos`, `max_mmm_draw_values`.
 
 ```json
 {

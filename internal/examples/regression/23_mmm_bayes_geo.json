@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "name": "mmm_bayes_geo",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "time-series",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_MMM_BAYES"
+    ],
+    "description": "Geo-hierarchical Bayesian media-mix model over a two-market weekly panel: params.geo names the market field, so the east and west series (104 weeks each, one row per market and week) fit one model instead of being refused as duplicate_time. Each channel's ROI and adstock decay are partially pooled across the markets (non-centred: a market's value is the population mu shifted by tau times its own offset, on the log-ROI and logit-decay scales), while the Hill curves, the price and promo controls and the noise are shared and each market keeps its own intercept. The chains are kept short for a quick run (2 chains of 100 warmup + 100 draws, so the fit carries diagnostic warnings; drop them for the 4 × (1000 + 1000) default), rng_seed pins the draws and holdout_from 92 holds each market's last 13 weeks out of the likelihood. The coefficient table names the population terms as tv / decay:tv, each market's as tv[east] / decay:tv[east] and the pooling scales as tau:tv / tau:decay:tv; outputs.roi / mroi / contribution give the all-market figure under tv (summed contribution over summed spend) beside tv[east] and tv[west], and outputs.hierarchy the population mu and tau of every pooled term.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "mmm_weekly.pulse",
+    "data_dir": ".data"
+  },
+  "regressions": [
+    {
+      "type": "REG_MMM_BAYES",
+      "name": "mmm_geo",
+      "target": "sales",
+      "predictors": ["tv", "radio", "search", "social", "price", "promo"],
+      "rng_seed": 1,
+      "params": {
+        "channels": ["tv", "radio", "search", "social"],
+        "time": "week",
+        "geo": "market",
+        "chains": 2,
+        "warmup": 100,
+        "draws": 100,
+        "holdout_from": 92
+      }
+    }
+  ],
+  "return": {
+    "preset": "standard",
+    "exclude": ["data"]
+  }
+}

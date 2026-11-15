@@ -162,3 +162,59 @@ func TestResponseBuiltin_SpendForms(t *testing.T) {
 		t.Error("string spend accepted")
 	}
 }
+
+// TestResponse_GeoArgument: response(fit, channel, spend, geo) compiles
+// in a formula and reads model.ResponseGeo bit for bit; a literal geo
+// the fit does not name (the Hill fit is no geo panel) fails the build
+// and a computed one fails at evaluation with the identical error; a
+// non-string geo fails compile.
+func TestResponse_GeoArgument(t *testing.T) {
+	t.Parallel()
+
+	set := responseModels(t)
+	coefs := map[string]float64{"(intercept)[NE]": 1, "x1": 2, "x1[NE]": 3, "decay:x1": 0.4, "decay:x1[NE]": 0.2, "k:x1": 3, "s:x1": 1.4, "sigma": 1}
+	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "y", Predictors: []string{"x1"},
+		Params: []byte(`{"channels": ["x1"], "time": "t", "geo": "g", "max_lag": 3}`)}
+	res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: coefs}
+	b, err := model.Bind("panel", spec, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Adstocks = model.AdstockLineage(nil, spec, res)
+	if err := set.Add(b); err != nil {
+		t.Fatal(err)
+	}
+	schema := predictSchema()
+	p := NewProcessor(schema)
+	p.SetModels(set)
+	recs := predictRecords(schema)
+	if _, _, err := p.applyAttributes([]*types.Attribute{{Type: types.ATTR_FORMULA, Label: "r", Expression: `response("panel", "x1", 2, "NE")`}}, recs); err != nil {
+		t.Fatal(err)
+	}
+	want, cerr := model.ResponseGeo(set, "panel", "x1", "NE", 2)
+	pop, _ := model.Response(set, "panel", "x1", 2)
+	if cerr != nil || math.IsNaN(want) || want == pop {
+		t.Fatalf("ResponseGeo %v (%v), population %v: the fixture no longer discriminates", want, cerr, pop)
+	}
+	if got, _ := recs[0].NumericValue("r"); math.Float64bits(got) != math.Float64bits(want) {
+		t.Fatalf("formula %v, want %v", got, want)
+	}
+	refusal := model.GeoUnknown("mmm", "x1", "NE", []string{})
+	for form, src := range map[string]string{
+		"literal":  `response("mmm", "x1", x3, "NE")`,
+		"computed": `let geoName = "NE"; response("mmm", "x1", x3, geoName)`,
+	} {
+		req := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: src}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "c"}}}
+		_, err := processCoef(t, set, nil, req, predictRecords(schema))
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || !reflect.DeepEqual(ce, refusal) {
+			t.Fatalf("%s: err = %#v\nwant %#v", form, err, refusal)
+		}
+	}
+	req := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: `response("panel", "x1", 2, 7)`}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "c"}}}
+	if _, err := processCoef(t, set, nil, req, predictRecords(schema)); err == nil {
+		t.Fatal("a numeric geo compiled")
+	}
+}
