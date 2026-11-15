@@ -48,6 +48,7 @@
     - [compose-banner](skills/compose-banner.md)
     - [compose-fits](skills/compose-fits.md)
     - [compose-optimize](skills/compose-optimize.md)
+    - [compose-post-fit](skills/compose-post-fit.md)
     - [compose-requests](skills/compose-requests.md)
     - [compose-sweep-bind](skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](skills/compose-sweep-sampling.md)

@@ -66,6 +66,7 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 	}
 	fits := e.readComposeFits(rr, resp.Fits, req)
 	opts := e.readOptimizations(rr, resp.Optimizations)
+	postFits := e.readPostFit(rr, resp.PostFit)
 	layers := make([]*types.OverlayLayer, len(resp.Overlays))
 	for i := range resp.Overlays {
 		layers[i] = &resp.Overlays[i]
@@ -81,6 +82,9 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 	}
 	if opts > 0 {
 		s += " and " + count(opts, "optimize result", "optimize results")
+	}
+	if postFits > 0 {
+		s += " and " + count(postFits, "post-fit result", "post-fit results")
 	}
 	if overlays > 0 {
 		s += " and " + count(overlays, "batch overlay", "batch overlays") + " across them"

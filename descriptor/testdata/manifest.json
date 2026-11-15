@@ -14038,6 +14038,10 @@
         "description": "ComposedRequest.optimize — maximise or minimise an expression over bounded decision variables, subject to equality and inequality constraints, using fitted coefficients. How to read the optimum, the marginals (marginal ROI), the multipliers (shadow prices) and the active bounds, the fits-then-optimize pattern, and the failures."
       },
       {
+        "name": "compose-post-fit",
+        "description": "ComposedRequest.post_fit — run an embedder-registered POSTFIT_\u003cNS\u003e_\u003cNAME\u003e operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says."
+      },
+      {
         "name": "compose-requests",
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
@@ -21573,4 +21577,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c7f80eb6683117ea5fdba84bfc6656cb97a72e5f14b25c03f1a149c520bfe66
+// golden-hash: b7ce50ff639bb917b2625251ee6a474e34c7c03dddc48b195005b17a693fcbdd

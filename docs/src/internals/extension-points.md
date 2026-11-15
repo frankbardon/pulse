@@ -7,7 +7,8 @@ built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
 To register your own regression model, follow [Adding a Regression
 Model (Embedders)](adding-regression.md); for an overlay kind, [Adding an
-Overlay Kind (Embedders)](adding-overlay.md).
+Overlay Kind (Embedders)](adding-overlay.md); for a post-fit operator,
+[Adding a Post-Fit Operator (Embedders)](adding-post-fit.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -1179,6 +1180,10 @@ hook, so predict reports it too — see
 
 ### Post-fit operator (`PostFits`)
 
+> Step-by-step recipe with a worked marginal-ROI grid over a fitted
+> media-mix model and the embedder example that ships with it:
+> [Adding a Post-Fit Operator (Embedders)](adding-post-fit.md).
+
 A post-fit operator is a computation over a Compose batch's FINISHED
 fits — a response-curve table, a marginal-return grid — that returns
 named scalars and named tables. The category is extension-only: Pulse
@@ -1275,6 +1280,15 @@ instance that never registered it. The response root is pinned outside
 the Compose-level `return`, like `optimizations` and `comparisons`:
 always emitted whole, at full precision, and a `return` path naming it
 is `PULSE_RETURN_INVALID`.
+
+**Explain and examples.** `Explain` describes each `post_fit` entry as a
+`post_fit[i]` step — the operator (with its `Purpose` plain sentence), the
+label, the fits it reads, its params and the phase — locates every
+post-fit refusal at that slot, and reads each `ComposedResponse.PostFit`
+entry as a descriptive finding (`scalars.<name>`, `tables.<name>.rows`;
+a failed entry is `not_computable`). An embedder example
+(`Extensions.Examples`) tags the operator in `_meta.operators` like any
+other: its `"type"` value is derived from the body.
 
 ### Expression functions
 
@@ -2966,6 +2980,9 @@ CLAUDE.md Update Demand table in the same PR.
 - [Adding an Overlay Kind (Embedders)](adding-overlay.md) — the
   embedder recipe: hosts and handlers, registration declarations, the
   probe, p-values and `multiplicity`, weights.
+- [Adding a Post-Fit Operator (Embedders)](adding-post-fit.md) — the
+  embedder recipe: the operator over finished fits, its declared params
+  and outputs, an embedder example, reading the `post_fit` root.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.
