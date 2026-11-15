@@ -31,7 +31,7 @@ Exactly ONE root, as an object:
 - A `no_evidence_of_*` verdict is not evidence of none; say "no evidence of a difference", never "no difference".
 - Pass results unedited: a `null` figure is undefined and reads `not_computable`.
 - Without the request companion an aggregation is described by count only.
-- A `composed` root is judged exactly as `pulse_predict` judges it: its `fits` and each slot's `models` bind every slot; `details.slot` names `requests[i]` or `fits[k]`.
+- A `composed` root is judged as `pulse_predict` judges it: its `fits` and each slot's `models` bind every slot; `details.slot` names `requests[i]`, `fits[k]` or `optimize[i]` (a step per expanded block, gradient mode named; results: `optimizations[i]`).
 - A selection regression (and a Compose regression fit, read at `fits.<name>`) is named by the predictors it KEPT; its sentence names the dropped candidates.
 - Relay `validation.gap`; no `validation` means no record, not unchecked.
 - Zero or several roots, an operator beside a root or one this instance does not offer, or an unknown `detail` → `SERVICE_VALIDATION`; unreadable cohort → `DATA_FILE`.

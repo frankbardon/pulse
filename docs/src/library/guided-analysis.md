@@ -140,7 +140,12 @@ rather than reading them as zero. Regressions and overlays without a
 multiplicity correction are read against an alpha of 0.05, and the
 result says so. A Compose request is checked exactly as `PredictCompose`
 checks it — its `fits` and each slot's `models` bind every slot — and
-a Compose result's regression fits are read beside its slots. A
+a Compose result's regression fits are read beside its slots. Each
+`optimize` block becomes one step per block as it runs (`for_each`
+expanded, `optimize[i]`), naming its objective, bounds, constraints,
+what it reads and whether the solver differentiates it analytically or
+by finite differences; a block's refusal is located at `optimize[i]`, and
+a Compose result's `optimizations` are read one finding each. A
 regression run with a `selection` is described by the predictors the
 selection kept, with the candidates it dropped named in its sentence.
 CLI: `pulse explain --request FILE` or `--response FILE`;

@@ -65,6 +65,7 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 		e.readSlot(rr, "Request "+strconv.Itoa(i+1), "responses["+strconv.Itoa(i)+"].", r, spec)
 	}
 	fits := e.readComposeFits(rr, resp.Fits, req)
+	opts := e.readOptimizations(rr, resp.Optimizations)
 	layers := make([]*types.OverlayLayer, len(resp.Overlays))
 	for i := range resp.Overlays {
 		layers[i] = &resp.Overlays[i]
@@ -77,6 +78,9 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 	s := "This batch reports " + count(slots, "response", "responses") + " side by side"
 	if fits > 0 {
 		s += " and " + count(fits, "regression fit", "regression fits")
+	}
+	if opts > 0 {
+		s += " and " + count(opts, "optimize result", "optimize results")
 	}
 	if overlays > 0 {
 		s += " and " + count(overlays, "batch overlay", "batch overlays") + " across them"
