@@ -241,6 +241,8 @@ var errorOwners = map[errors.Code][]string{
 	// The split-families rule reads the per-slot p-value families,
 	// which a hidden capability:multiplicity withholds.
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: own(featMultiplicity),
+	// The gradient-fallback rule reads an optimize block.
+	errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK: own(featComposeOpt),
 	// The SPSS-sidecar measure-level rules fire only on the operators
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a

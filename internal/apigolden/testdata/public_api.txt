@@ -2754,6 +2754,7 @@ pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISOR
 pulse/errors: const PULSE_ADVISORY_FORMULA_NULLABLE_RESULT pulse/errors.Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
+pulse/errors: const PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK pulse/errors.Code = "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
 pulse/errors: const PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED pulse/errors.Code = "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED"
 pulse/errors: const PULSE_ADVISORY_SERIES_AXIS_NOT_DATE pulse/errors.Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
@@ -5240,6 +5241,7 @@ pulse/types: func AllNegBinDispersions() []string
 pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
 pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
 pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
+pulse/types: func AllOptimizeGradients() []pulse/types.OptimizeGradient
 pulse/types: func AllOptimizePosteriorObjectives() []pulse/types.OptimizePosteriorObjective
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
@@ -6043,6 +6045,9 @@ pulse/types: type OptimizeConstraintResult field Value float64 "json:\"value\""
 pulse/types: type OptimizeConstraintType string
 pulse/types: const OptimizeDefaultStarts untyped int = 8
 pulse/types: type OptimizeDirection string
+pulse/types: type OptimizeGradient string
+pulse/types: const OptimizeGradientAnalytic pulse/types.OptimizeGradient = "analytic"
+pulse/types: const OptimizeGradientFD pulse/types.OptimizeGradient = "fd"
 pulse/types: type OptimizeInterval struct
 pulse/types: type OptimizeInterval field Lower float64 "json:\"lower\""
 pulse/types: type OptimizeInterval field Upper float64 "json:\"upper\""
@@ -6085,6 +6090,7 @@ pulse/types: type OptimizeSpec struct
 pulse/types: type OptimizeSpec field Constraints []pulse/types.OptimizeConstraint "json:\"constraints,omitempty\""
 pulse/types: type OptimizeSpec field Direction pulse/types.OptimizeDirection "json:\"direction\""
 pulse/types: type OptimizeSpec field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
+pulse/types: type OptimizeSpec field Gradient pulse/types.OptimizeGradient "json:\"gradient,omitempty\""
 pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,omitempty\""
 pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
@@ -6094,6 +6100,7 @@ pulse/types: type OptimizeSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
 pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
 pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
 pulse/types: type OptimizeSpec field Variables []pulse/types.OptimizeVariable "json:\"variables\""
+pulse/types: type OptimizeSpec method (*OptimizeSpec) EffectiveGradient() pulse/types.OptimizeGradient
 pulse/types: type OptimizeSpec method (*OptimizeSpec) EffectiveStarts() int
 pulse/types: type OptimizeSpec method (*OptimizeSpec) UnmarshalJSON(data []byte) error
 pulse/types: type OptimizeSpec method (OptimizeSpec) MarshalJSON() ([]byte, error)
@@ -6854,4 +6861,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 57af8538ebe175a804186f1ba38637fced36b93d12fe7bb92947a3bf44e18f18
+// golden-hash: 7d17485e59ee9a1aeb8b64b7b6ed0c7eb5ec7b480abb8a7116916146a8d1adeb

@@ -2,6 +2,8 @@ package descriptor
 
 import (
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
@@ -166,6 +168,38 @@ func optimizeSummaries(specs []types.OptimizeSpec) []descriptor.OptimizeSummary 
 			Starts:      spec.EffectiveStarts(),
 			RNGSeed:     optblock.EffectiveSeed(spec),
 		}
+	}
+	return out
+}
+
+// optimizeGradientAdvisories is PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK
+// over the blocks the optimize rule set passed: one per block whose
+// effective gradient is analytic but whose objective or constraints
+// call a function (or use a construct) without a derivative rule
+// (optblock.Checked.GradientFallbacks — the judgement the runtime's
+// Compile makes on the same tree, so the advisory fires exactly when
+// the solver falls back to finite differences). details {optimize,
+// name, functions, suggested: {"gradient": "fd"}}. Dropped per
+// Options.SuppressAdvisories.
+func optimizeGradientAdvisories(checked *optblock.Checked, inst *InstanceSnapshot) []descriptor.Advisory {
+	if checked == nil || inst.AdvisorySuppressed(string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK)) {
+		return nil
+	}
+	var out []descriptor.Advisory
+	for _, f := range checked.GradientFallbacks {
+		at := "optimize[" + strconv.Itoa(f.Block) + "]"
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK),
+			Message: "The optimize block " + strconv.Quote(f.Name) + " at " + at + " solves with the analytic gradient, but " +
+				strings.Join(f.Functions, ", ") + " has no derivative rule, so the whole block is differentiated by finite differences. " +
+				"It still solves; set gradient fd on it to state that choice.",
+			Details: map[string]any{
+				"optimize":  f.Block,
+				"name":      f.Name,
+				"functions": slices.Clone(f.Functions),
+				"suggested": map[string]any{"gradient": string(types.OptimizeGradientFD)},
+			},
+		})
 	}
 	return out
 }

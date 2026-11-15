@@ -80,6 +80,7 @@ func TestOptimize_RefusalsTable(t *testing.T) {
 		{"starts over cap", func(s *types.OptimizeSpec) { s.Starts = intp(types.OptimizeMaxStarts + 1) }, errors.PULSE_OPTIMIZE_SPEC_INVALID, optblock.ReasonStartsInvalid, "optimize[0].starts"},
 		{"negative tolerance", func(s *types.OptimizeSpec) { s.Tolerance = -1e-9 }, errors.PULSE_OPTIMIZE_SPEC_INVALID, optblock.ReasonToleranceInvalid, "optimize[0].tolerance"},
 		{"negative max_iterations", func(s *types.OptimizeSpec) { s.MaxIterations = -1 }, errors.PULSE_OPTIMIZE_SPEC_INVALID, optblock.ReasonMaxIterationsInvalid, "optimize[0].max_iterations"},
+		{"unknown gradient", func(s *types.OptimizeSpec) { s.Gradient = "newton" }, errors.PULSE_OPTIMIZE_SPEC_INVALID, optblock.ReasonGradientUnknown, "optimize[0].gradient"},
 		{"variable name missing", func(s *types.OptimizeSpec) { s.Variables[1].Name = "" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameMissing, "optimize[0].variables[1].name"},
 		{"variable name not identifier", func(s *types.OptimizeSpec) { s.Variables[1].Name = "tv-spend" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameInvalid, "optimize[0].variables[1].name"},
 		{"variable named params", func(s *types.OptimizeSpec) { s.Variables[1].Name = "params" }, errors.PULSE_OPTIMIZE_VARIABLE_INVALID, optblock.ReasonNameReserved, "optimize[0].variables[1].name"},
@@ -249,8 +250,9 @@ func TestOptimize_CompileResolvesAndEvaluates(t *testing.T) {
 }
 
 // TestOptimize_EffectiveSeed: a pinned seed is echoed; a zero seed is
-// derived from the block alone — stable, independent of rng_seed, moved
-// by any other change.
+// derived from the block alone — stable, independent of rng_seed and
+// of gradient (how the solver differentiates never moves the starts),
+// moved by any other change.
 func TestOptimize_EffectiveSeed(t *testing.T) {
 	t.Parallel()
 
@@ -263,6 +265,13 @@ func TestOptimize_EffectiveSeed(t *testing.T) {
 	pinned.RNGSeed = 42
 	if got := optblock.EffectiveSeed(&pinned); got != 42 {
 		t.Fatalf("pinned seed = %d", got)
+	}
+	for _, g := range types.AllOptimizeGradients() {
+		marked := spec
+		marked.Gradient = g
+		if got := optblock.EffectiveSeed(&marked); got != derived {
+			t.Fatalf("gradient %s derives seed %d, want %d", g, got, derived)
+		}
 	}
 	other := spec
 	other.Objective += " + 1"

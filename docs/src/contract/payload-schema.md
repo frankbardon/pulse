@@ -1566,7 +1566,7 @@ summary echoes it as `from_sweep`.
 
 `ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec
 {name, variables, objective, direction, constraints, starts, rng_seed,
-tolerance, max_iterations}`: a constrained optimisation solved once,
+tolerance, max_iterations, gradient}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
 upper, start}`, each bound an `OptimizeBound` — a number or a
 scalar expression string read once before the solve (literals,
@@ -1600,8 +1600,13 @@ in `ComposedResponse.optimizations`, an `omitempty` array of
 rounded); a block that failed on its numbers keeps `{name, direction,
 error}` (see Failed slots) and warns `PULSE_SLOT_FAILED` (`slot_kind`
 `optimizations`). Each block is solved from its start point plus
-`starts − 1` seeded Latin-hypercube points with SLSQP and central
-finite-difference gradients; `marginal` is ∂f/∂xᵢ, `multiplier` the
+`starts − 1` seeded Latin-hypercube points with SLSQP and, under
+`gradient` `analytic` (the default), exact forward-mode gradients of the
+objective and constraints — central finite differences for the whole
+block when an expression calls a function without a derivative rule
+(Compose predict's `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK`), and
+throughout under `gradient` `fd` (unknown: `PULSE_OPTIMIZE_SPEC_INVALID`
+`gradient_unknown`); `marginal` is ∂f/∂xᵢ, `multiplier` the
 constraint's Lagrange multiplier in the objective's own direction
 (∇f = Σ multiplier·∇expr on the free variables — for a budget `eq` it
 equals every free variable's `marginal`), `starts_agreeing` the

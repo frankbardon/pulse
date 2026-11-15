@@ -283,6 +283,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
 	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
 	m[reflect.TypeFor[types.OptimizePosteriorObjective]()] = stringify(types.AllOptimizePosteriorObjectives())
+	m[reflect.TypeFor[types.OptimizeGradient]()] = stringify(types.AllOptimizeGradients())
 	// The nested-model comparison tests and distributions: closed
 	// vocabularies (a hidden capability:compose_fits drops the `compare`
 	// / `comparisons` slots, and the defs with them).

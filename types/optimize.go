@@ -73,6 +73,16 @@ type OptimizeSpec struct {
 	// solver default 100; negative is refused.
 	MaxIterations int `json:"max_iterations,omitempty"`
 
+	// Gradient is how the solver differentiates the objective and the
+	// constraints: analytic (the default when empty) — the exact
+	// forward-mode gradient of each expression, falling back to
+	// finite differences for the WHOLE block when any expression calls a
+	// function without a derivative rule (predict reports the fallback
+	// as PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK) — or fd, central
+	// finite differences throughout (the pre-analytic solver, bit for
+	// bit). It never moves the starts: the derived seed excludes it.
+	Gradient OptimizeGradient `json:"gradient,omitempty"`
+
 	// Models loads saved model files (a regression `save`) by name for
 	// this block's coef() calls — the Request.Models contract (ModelRef):
 	// each name joins the block's model namespace above the batch's
@@ -212,6 +222,33 @@ const (
 // AllOptimizePosteriorObjectives returns every posterior objective.
 func AllOptimizePosteriorObjectives() []OptimizePosteriorObjective {
 	return []OptimizePosteriorObjective{OptimizePosteriorMean, OptimizePosteriorQuantile}
+}
+
+// OptimizeGradient is how a block's solver differentiates its
+// expressions.
+type OptimizeGradient string
+
+// The optimize gradients.
+const (
+	// OptimizeGradientAnalytic is the exact forward-mode gradient (the
+	// default), finite differences for a block calling a function
+	// without a derivative rule.
+	OptimizeGradientAnalytic OptimizeGradient = "analytic"
+	// OptimizeGradientFD is central finite differences throughout.
+	OptimizeGradientFD OptimizeGradient = "fd"
+)
+
+// AllOptimizeGradients returns every optimize gradient.
+func AllOptimizeGradients() []OptimizeGradient {
+	return []OptimizeGradient{OptimizeGradientAnalytic, OptimizeGradientFD}
+}
+
+// EffectiveGradient is Gradient, OptimizeGradientAnalytic when empty.
+func (s *OptimizeSpec) EffectiveGradient() OptimizeGradient {
+	if s == nil || s.Gradient == "" {
+		return OptimizeGradientAnalytic
+	}
+	return s.Gradient
 }
 
 // OptimizeDefaultStarts is the starting-point count of a block that sets

@@ -25,8 +25,11 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 | `PULSE_ADVISORY_MANY_TESTS` | `p_values.uncorrected` ≥ `threshold` (10) and no `multiplicity` block anywhere — request, slot or instance default | `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": "holm"}}` |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | Compose only: ≥ 2 slots emit p-values, their corrected ones sit in ≥ 2 separate families other than `compose`, and the slots emit ≥ 10 in total — no correction spans the batch | `slots`, `families` (IDs), `total`, `uncorrected`, `basis`, `threshold`, `suggested: {"multiplicity": {"method": M, "family": "compose"}}` |
 <!-- /feature -->
+<!-- feature: capability:compose_optimize -->
+| `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` | Compose only: an analytic `optimize` block calls a function with no derivative rule, so it solves by finite differences | `optimize`, `name`, `functions`, `suggested` |
+<!-- /feature -->
 <!-- feature: io_format:spss -->
-| `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator (average, stddev, variance, moments, CI bounds) or a parametric test (t, z, paired t, ANOVA, Pearson) reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
+| `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | the SPSS sidecar records a numeric field `nominal` and a mean-family aggregator or a parametric test (t, z, paired t, ANOVA, Pearson) reads it | `slot`, `operator`, `field`, `measure`, `suggested` (a frequency count or chi-square) |
 | `PULSE_ADVISORY_ORDINAL_PARAMETRIC` | the SPSS sidecar records a numeric field `ordinal` and a parametric test reads it | `slot`, `operator`, `field`, `measure`, `suggested` (the rank-based test from the operator's `not_for`; absent when it names none) |
 <!-- /feature -->
 <!-- feature: capability:weighting -->
@@ -40,7 +43,7 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 | `PULSE_ADVISORY_JACKKNIFE_COST` | a leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` fit without `resample`: SEs, p, intervals null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested: {"resample": "bootstrap"}` |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | result only: a least-squares `bounds` bound without `resample`, nulls SEs, p, CIs, `vcov` | `slot`, `operator`, `active`, `suggested` |
-| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an embedder extension operator that declares no params gets a non-empty `params` object, whose keys pass unchecked (a misspelled key is not refused) | `slot`, `operator`, `keys` |
+| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an embedder extension operator that declares no params gets a non-empty `params` object, whose keys pass unchecked | `slot`, `operator`, `keys` |
 
 <!-- feature: capability:multiplicity -->
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
@@ -52,7 +55,7 @@ The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numer
 
 ## Roots
 
-Request predict runs every rule. <!-- feature: capability:facet -->Facet predict runs them too, but a facet request has no test, aggregation or weight slot, so only the many-tests note can fire: one p-value per inferential population-comparison overlay (chi-square or Kolmogorov-Smirnov), counted in its own `p_values`. <!-- /feature --><!-- feature: capability:compose -->Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then the split-families note, then a many-tests note over its own overlays. Its `slots[]` show each slot's `streamable`, `p_values` and `families` (`id` `compose`, or local such as `requests[0]#request`); set `family: "compose"` on each slot's block to pool them. Their overlay `p_values` are `lower_bound` (the extent depends on slot results). <!-- /feature --><!-- feature: capability:process_chain -->Chain predict carries no advisories.<!-- /feature -->
+Request predict runs every rule. <!-- feature: capability:facet -->Facet predict runs them too; only the many-tests note can fire (one p-value per population-comparison overlay, in its own `p_values`). <!-- /feature --><!-- feature: capability:compose -->Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then the split-families note, then a many-tests note over its own overlays. Its `slots[]` show each slot's `streamable`, `p_values` and `families` (`id` `compose`, or local such as `requests[0]#request`); set `family: "compose"` on each slot's block to pool them. Their overlay `p_values` are `lower_bound`. <!-- /feature --><!-- feature: capability:process_chain -->Chain predict carries no advisories.<!-- /feature -->
 
 ## Suppression
 

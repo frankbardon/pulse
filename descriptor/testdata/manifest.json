@@ -11966,7 +11966,7 @@
         ]
       }
     ],
-    "error_codes_count": 472,
+    "error_codes_count": 473,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12014,6 +12014,7 @@
       "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
+      "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED",
       "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE",
@@ -21455,4 +21456,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f3c78f9384966e3ae3a79a2c1bc20634483a35d809a7b55847a9e0ac42e5c01d
+// golden-hash: 927215c1732fb072edd93c47fd67857a407473078a65a7a7c7e868e46542323b

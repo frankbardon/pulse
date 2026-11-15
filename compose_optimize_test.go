@@ -1,11 +1,14 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -49,6 +52,7 @@ func TestOptimize_RefusalParity(t *testing.T) {
 		{"bad constraint type", block(x, `"x"`, `,"constraints":[{"expr":"params.budget - x","type":"le"}]`), perr.PULSE_OPTIMIZE_SPEC_INVALID},
 		{"starts below one", block(x, `"x"`, `,"starts":0`), perr.PULSE_OPTIMIZE_SPEC_INVALID},
 		{"not numeric", block(x, `"x > 1"`, ``), perr.PULSE_OPTIMIZE_EXPRESSION_INVALID},
+		{"unknown gradient", block(x, `"x"`, `,"gradient":"newton"`), perr.PULSE_OPTIMIZE_SPEC_INVALID},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,5 +138,60 @@ func TestOptimize_HiddenParity(t *testing.T) {
 	env, err = control.p.PredictCompose(ctx, build())
 	if err != nil || len(env.Errors) != 0 {
 		t.Fatalf("enabled predict: %v %+v", err, env)
+	}
+}
+
+// TestOptimize_GradientFallbackParity: predict's
+// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK fires exactly when the
+// runtime differentiates the block by finite differences — a block
+// reading coef() (no derivative rule) draws the advisory and solves to
+// the `gradient: "fd"` bits on both orchestrators; an arithmetic block
+// draws none and solves analytically, to other bits.
+func TestOptimize_GradientFallbackParity(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := sweepPulse(t, Options{})
+	cases := []struct {
+		name, objective string
+		fallback        bool
+	}{
+		{"coef falls back", `"coef(\"m\", \"age\") * x - x * x"`, true},
+		{"arithmetic is analytic", `"0.1 * x - (x - 3) * (x - 3)"`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := func(extra string) string {
+				return `[{"name":"o","direction":"maximize","variables":[{"name":"x","lower":0,"upper":"params.budget"}],"objective":` + tc.objective + `,"starts":3,"rng_seed":5` + extra + `}]`
+			}
+			env, err := p.PredictCompose(ctx, optimizeComposed(t, raw("")))
+			if err != nil || len(env.Errors) != 0 {
+				t.Fatalf("predict: %v %+v", err, env)
+			}
+			fired := false
+			for _, a := range env.Data.(*descx.ComposeValidationResult).Advisories {
+				fired = fired || a.Code == string(perr.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK)
+			}
+			if fired != tc.fallback {
+				t.Fatalf("advisory fired %v, want %v", fired, tc.fallback)
+			}
+			for name, run := range composeRuns(p) {
+				enc := func(extra string) []byte {
+					resp, err := run(optimizeComposed(t, raw(extra)))
+					if err != nil {
+						t.Fatalf("%s: %v", name, err)
+					}
+					b, err := json.Marshal(resp.Optimizations)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return b
+				}
+				def, fd := enc(""), enc(`,"gradient":"fd"`)
+				if same := bytes.Equal(def, fd); same != tc.fallback {
+					t.Fatalf("%s: default equals fd %v, want %v (predict fallback)\n%s\n%s", name, same, tc.fallback, def, fd)
+				}
+			}
+		})
 	}
 }

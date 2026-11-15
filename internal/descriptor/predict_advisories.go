@@ -46,6 +46,7 @@ var advisoryCodes = []errors.Code{
 	// Options.SuppressAdvisories accepts it.
 	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE,
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
+	errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK,
 }
 
 // AdvisoryCodes returns every registered PULSE_ADVISORY_* code, in rule

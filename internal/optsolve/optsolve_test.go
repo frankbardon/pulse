@@ -70,7 +70,9 @@ func TestOptimize_SolveQuadraticBoundAndMarginal(t *testing.T) {
 	if !near(x.Value, 3, 1e-6) || x.Active != "" || !near(x.Marginal, 0, 1e-6) {
 		t.Errorf("x = %+v, want 3, free, marginal 0", x)
 	}
-	if y.Value != 0 || y.Active != types.OptimizeActiveLower || !near(y.Marginal, 2, 1e-6) {
+	// The active test is SLSQP's sqrt(ε) window: the exact gradient
+	// stops within ulps of the bound, not on it.
+	if !near(y.Value, 0, 1e-12) || y.Active != types.OptimizeActiveLower || !near(y.Marginal, 2, 1e-6) {
 		t.Errorf("y = %+v, want 0 at its lower bound, marginal 2", y)
 	}
 	if !near(r.Objective, 1, 1e-9) || !r.Converged || r.Starts != 3 || r.StartsAgreeing != 3 || r.RNGSeed != 5 {

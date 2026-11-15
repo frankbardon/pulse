@@ -119,8 +119,10 @@ type ComposeValidationResult struct {
 	// each slot's Request advisories in slot order (details.request = the
 	// slot index, every slot path prefixed "requests[i]."), then
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT over Slots, then
-	// PULSE_ADVISORY_MANY_TESTS over PValues. Never a warning; omitted
-	// when none fires.
+	// PULSE_ADVISORY_MANY_TESTS over PValues, then one
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK per optimize block that
+	// falls back to finite differences. Never a warning; omitted when
+	// none fires.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
 
 	// Sweep summarises what the request's `sweep` block expands to —
@@ -460,6 +462,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		result.PValues = countComposeHostPValues(req, multPlan, opts)
 	}
 	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts, slotModels)
+	result.Advisories = append(result.Advisories, optimizeGradientAdvisories(checked, opts.instance())...)
 	for k := range result.Slots {
 		i := result.Slots[k].Request
 		if i < len(postWindows) {

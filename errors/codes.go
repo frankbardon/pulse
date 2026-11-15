@@ -843,6 +843,15 @@ const (
 	// IDs, the total and the patch {"multiplicity":{"family":"compose"}}.
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
 
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK is a Compose predict
+	// advisory: an `optimize` block solves with the default analytic
+	// gradient, but its objective or a constraint calls a function (or
+	// uses a construct) without a derivative rule, so the solver
+	// differentiates the WHOLE block by central finite differences.
+	// details carry the block index and name, the functions without a
+	// rule, and the patch {"gradient":"fd"} that states the choice.
+	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK Code = "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK"
+
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
 	// PULSE_ADVISORY_* advisory code.
@@ -4933,6 +4942,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
 	PULSE_ADVISORY_CONSTRAINT_ACTIVE,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
+	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,

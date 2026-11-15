@@ -2107,6 +2107,7 @@ func optimizeSchemaBase() map[string]any {
 				"rng_seed":       map[string]any{"type": "integer", "description": "Seed of the Latin-hypercube starts; omit (0) to derive one from the block."},
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
+				"gradient":       enumStringField([]string{string(types.OptimizeGradientAnalytic), string(types.OptimizeGradientFD)}, "How the solver differentiates: analytic (default; exact forward-mode gradients, finite differences for the whole block when an expression calls a function without a derivative rule) or fd (finite differences throughout)."),
 				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
 				"posterior": map[string]any{
 					"type":        "object",

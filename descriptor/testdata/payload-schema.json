@@ -3953,6 +3953,13 @@
       ],
       "type": "string"
     },
+    "OptimizeGradient": {
+      "enum": [
+        "analytic",
+        "fd"
+      ],
+      "type": "string"
+    },
     "OptimizeInterval": {
       "additionalProperties": false,
       "properties": {
@@ -4187,6 +4194,16 @@
         "for_each": {
           "$ref": "#/$defs/ForEach"
         },
+        "gradient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizeGradient"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
+        },
         "max_iterations": {
           "anyOf": [
             {
@@ -4383,6 +4400,9 @@
           },
           "for_each": {
             "$ref": "#/$defs/ForEach"
+          },
+          "gradient": {
+            "$ref": "#/$defs/OptimizeGradient"
           },
           "max_iterations": {
             "type": "integer"
@@ -7992,4 +8012,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3962dfdf3c0cb7f69bbf71124d0151cc0ad3d60f53d4a551f0b787d61fc03442
+// golden-hash: 2d1f814fda7e73b48b881d48e853ef3d9503fad220bd75ed395011c9693403f1

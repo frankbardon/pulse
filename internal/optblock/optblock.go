@@ -54,6 +54,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
+	"github.com/frankbardon/pulse/internal/optgrad"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/resultcall"
 	"github.com/frankbardon/pulse/internal/scalarslot"
@@ -75,6 +76,7 @@ const (
 	ReasonStartsInvalid         = "starts_invalid"
 	ReasonToleranceInvalid      = "tolerance_invalid"
 	ReasonMaxIterationsInvalid  = "max_iterations_invalid"
+	ReasonGradientUnknown       = "gradient_unknown"
 )
 
 // The PULSE_OPTIMIZE_SPEC_INVALID reasons of a block's `posterior`
@@ -186,6 +188,19 @@ type Compiled struct {
 	// its objective and constraints read (checkPosteriorFit); "" without
 	// `posterior`.
 	PosteriorFit string
+	// ObjectiveGrad and ConstraintGrads are the expressions' forward-mode
+	// gradients (internal/optgrad over each program's checked tree),
+	// set only when the block's effective gradient is analytic and every
+	// expression differentiates; nil otherwise (the solver uses finite
+	// differences).
+	ObjectiveGrad   *optgrad.Program
+	ConstraintGrads []*optgrad.Program
+	// GradientFallback names every function or construct without a
+	// derivative rule across the objective and constraints (sorted,
+	// unique) when the effective gradient is analytic: non-empty means
+	// the whole block falls back to finite differences — predict's
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK. Nil under gradient fd.
+	GradientFallback []string
 }
 
 // Unresolved is one bound or start whose expression calls a
@@ -235,6 +250,22 @@ func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.
 type Checked struct {
 	Loaded     []*model.Loaded
 	Unresolved []Unresolved
+	// GradientFallbacks are the blocks whose analytic gradient falls
+	// back to finite differences, in block order.
+	GradientFallbacks []GradientFallback
+}
+
+// GradientFallback is one block whose effective gradient is analytic
+// but whose objective or constraints call a function (or use a
+// construct) without a derivative rule, so the solver differentiates
+// the whole block by finite differences.
+type GradientFallback struct {
+	// Block is the block's index, Name its name.
+	Block int
+	Name  string
+	// Functions are the functions and constructs without a rule, sorted
+	// and unique (Compiled.GradientFallback).
+	Functions []string
 }
 
 // CheckAll is CheckLoaded that also returns the bounds and starts the
@@ -252,6 +283,9 @@ func CheckAll(specs []types.OptimizeSpec, env Env) (*Checked, *errors.CodedError
 		}
 		out.Loaded[i] = c.Loaded
 		out.Unresolved = append(out.Unresolved, c.Unresolved...)
+		if len(c.GradientFallback) > 0 {
+			out.GradientFallbacks = append(out.GradientFallbacks, GradientFallback{Block: i, Name: specs[i].Name, Functions: c.GradientFallback})
+		}
 	}
 	return out, nil
 }
@@ -389,7 +423,40 @@ func compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound, run 
 		}
 		out.PosteriorFit = fit
 	}
+	gradients(spec, out)
 	return out, nil
+}
+
+// gradients sets out's forward-mode gradients, or its GradientFallback,
+// under an analytic effective gradient (internal/optgrad over each
+// compiled program's checked tree — the tree predict's declaration-only
+// compile and the runtime's compile share, so both name the same
+// fallback).
+func gradients(spec *types.OptimizeSpec, out *Compiled) {
+	if spec.EffectiveGradient() != types.OptimizeGradientAnalytic {
+		return
+	}
+	seen := map[string]bool{}
+	obj, u := optgrad.Compile(out.Objective.Node(), out.Names, optgrad.Options{})
+	for _, n := range u {
+		seen[n] = true
+	}
+	cons := make([]*optgrad.Program, len(out.Constraints))
+	for k, prog := range out.Constraints {
+		var cu []string
+		cons[k], cu = optgrad.Compile(prog.Node(), out.Names, optgrad.Options{})
+		for _, n := range cu {
+			seen[n] = true
+		}
+	}
+	if len(seen) > 0 {
+		for n := range seen {
+			out.GradientFallback = append(out.GradientFallback, n)
+		}
+		slices.Sort(out.GradientFallback)
+		return
+	}
+	out.ObjectiveGrad, out.ConstraintGrads = obj, cons
 }
 
 // PosteriorReads are the fits a block's objective and constraints read
@@ -582,6 +649,11 @@ func checkSpec(spec *types.OptimizeSpec, i int, at string) *errors.CodedError {
 		return specInvalid(i, name, at+".max_iterations", ReasonMaxIterationsInvalid,
 			"sets max_iterations "+strconv.Itoa(spec.MaxIterations)+"; set 0 (the default 100) or more",
 			map[string]any{"value": spec.MaxIterations})
+	}
+	if spec.Gradient != "" && !slices.Contains(types.AllOptimizeGradients(), spec.Gradient) {
+		return specInvalid(i, name, at+".gradient", ReasonGradientUnknown,
+			"sets gradient "+strconv.Quote(string(spec.Gradient))+"; set analytic (the default) or fd",
+			map[string]any{"value": string(spec.Gradient), "valid": gradientNames()})
 	}
 	return checkPosterior(spec, i, at)
 }
@@ -800,8 +872,10 @@ func ResultSlots(specs []types.OptimizeSpec, cat *resultcall.Catalog) []int {
 // EffectiveSeed is the seed a block's Latin-hypercube starts are drawn
 // with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
 // one rng_seed 0 derivation every seeded draw shares — over the block's
-// wire form with rng_seed excluded (never the clock). It reads the spec
-// only; predict and the runtime report the same seed.
+// wire form with rng_seed and gradient excluded (never the clock; how
+// the solver differentiates never moves the starts, so `gradient: "fd"`
+// draws the starts an unmarked block does). It reads the spec only;
+// predict and the runtime report the same seed.
 func EffectiveSeed(spec *types.OptimizeSpec) int64 {
 	if spec == nil {
 		return 0
@@ -811,11 +885,21 @@ func EffectiveSeed(spec *types.OptimizeSpec) int64 {
 	}
 	unseeded := *spec
 	unseeded.RNGSeed = 0
+	unseeded.Gradient = ""
 	body, err := json.Marshal(&unseeded)
 	if err != nil {
 		body = nil
 	}
 	return regresample.DeriveSeed(body, 0, nil)
+}
+
+// gradientNames are the valid gradients as strings.
+func gradientNames() []string {
+	var out []string
+	for _, g := range types.AllOptimizeGradients() {
+		out = append(out, string(g))
+	}
+	return out
 }
 
 // directionNames / constraintTypeNames are the valid values as strings.
