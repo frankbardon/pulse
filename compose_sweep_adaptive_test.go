@@ -250,20 +250,30 @@ func TestComposeSweepAdaptive_HiddenParity(t *testing.T) {
 	})
 	control.base = h.base
 	ctx := context.Background()
+	// keys, when set, pins details.unknown_keys: the "alone" cases drop
+	// `budget` so the de / bo key gate is the FIRST refusal (with
+	// `budget` set it would be refused first and hide a missing gate).
 	cases := map[string]struct {
 		edit func(*ComposedRequest)
 		code perr.Code
+		keys []string
 	}{
-		"budget": {nil, perr.PULSE_REQUEST_UNKNOWN_FIELD},
+		"budget": {nil, perr.PULSE_REQUEST_UNKNOWN_FIELD, nil},
 		"de knobs": {func(c *ComposedRequest) {
 			c.Sweep.Mode, c.Sweep.DE = types.SweepModeDE, &types.SweepDE{CR: &[]float64{0.5}[0]}
-		}, perr.PULSE_REQUEST_UNKNOWN_FIELD},
-		"mode de": {func(c *ComposedRequest) { c.Sweep.Mode, c.Sweep.Budget = types.SweepModeDE, 0 }, perr.PULSE_SWEEP_INVALID},
+		}, perr.PULSE_REQUEST_UNKNOWN_FIELD, nil},
+		"de knobs alone": {func(c *ComposedRequest) {
+			c.Sweep.Mode, c.Sweep.Budget, c.Sweep.DE = types.SweepModeDE, 0, &types.SweepDE{CR: &[]float64{0.5}[0]}
+		}, perr.PULSE_REQUEST_UNKNOWN_FIELD, []string{"de"}},
+		"mode de": {func(c *ComposedRequest) { c.Sweep.Mode, c.Sweep.Budget = types.SweepModeDE, 0 }, perr.PULSE_SWEEP_INVALID, nil},
 		"bo knobs": {func(c *ComposedRequest) {
 			c.Sweep.Mode, c.Sweep.BO = types.SweepModeBO, &types.SweepBO{Batch: &[]int{2}[0]}
-		}, perr.PULSE_REQUEST_UNKNOWN_FIELD},
-		"mode bo": {func(c *ComposedRequest) { c.Sweep.Mode, c.Sweep.Budget = types.SweepModeBO, 0 }, perr.PULSE_SWEEP_INVALID},
-		"mode":    {func(c *ComposedRequest) { c.Sweep.Budget = 0 }, perr.PULSE_SWEEP_INVALID},
+		}, perr.PULSE_REQUEST_UNKNOWN_FIELD, nil},
+		"bo knobs alone": {func(c *ComposedRequest) {
+			c.Sweep.Mode, c.Sweep.Budget, c.Sweep.BO = types.SweepModeBO, 0, &types.SweepBO{Batch: &[]int{2}[0]}
+		}, perr.PULSE_REQUEST_UNKNOWN_FIELD, []string{"bo"}},
+		"mode bo": {func(c *ComposedRequest) { c.Sweep.Mode, c.Sweep.Budget = types.SweepModeBO, 0 }, perr.PULSE_SWEEP_INVALID, nil},
+		"mode":    {func(c *ComposedRequest) { c.Sweep.Budget = 0 }, perr.PULSE_SWEEP_INVALID, nil},
 	}
 	build := func(edit func(*ComposedRequest)) *ComposedRequest {
 		c := adaptiveSweep(t, 4, "")
@@ -278,6 +288,9 @@ func TestComposeSweepAdaptive_HiddenParity(t *testing.T) {
 			serial := slotGateFromErr(err)
 			if serial == nil || serial.code != c.code {
 				t.Fatalf("Compose: want %s, got %+v (%v)", c.code, serial, err)
+			}
+			if c.keys != nil && !reflect.DeepEqual(toStrings(serial.details["unknown_keys"]), c.keys) {
+				t.Fatalf("unknown_keys %v, want %v", serial.details["unknown_keys"], c.keys)
 			}
 			if c.code == perr.PULSE_SWEEP_INVALID {
 				if serial.details["reason"] != "mode_unknown" || !reflect.DeepEqual(toStrings(serial.details["valid"]), []string{"grid", "zip", "random", "lhs"}) {
