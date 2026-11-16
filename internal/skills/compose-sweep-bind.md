@@ -61,6 +61,10 @@ The regression's `type`, `target` and `predictors` (and a model regression's ter
 
 A batch with a binding runs sweep-first: authored fits, then the sweep slots (once; their responses are the batch's), then the rank, then the bound fit refitted on the winner — figures identical to an authored fit of that body — then `optimize` and the explicit slots. Responses keep index order.<!-- feature: capability:multiplicity --> The rank reads each sweep slot after its own `multiplicity` folds; a `compose`-family `p_adjusted` is not ready then, so ranking by it is refused.<!-- /feature -->
 
+## Failure
+
+A failed sweep slot stops the batch after the sweep slots: no explicit slot runs and the fit is not refitted. Serial `Compose` and fail-fast `ComposeParallel` return the slot's own error (`details.request`). Without fail-fast the error is `SERVICE_INTERNAL` with `failed_indices`, `first_error` and `skipped_indices` (the slots that never ran); a later-phase failure has no `skipped_indices`.
+
 ## No winner
 
 When no slot is ranked (every value null), the fit binds failed: `fits.best` carries `error` `PULSE_SWEEP_RANK_PATH` (`reason: "empty"`), a `PULSE_SLOT_FAILED` warning names it in `details.fit`, and a slot scoring it reads null (`PULSE_FIT_UNAVAILABLE`). `Strict` fails the batch. There is no fallback to rank 2.

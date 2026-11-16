@@ -383,3 +383,102 @@ func TestComposeSweepAxis_FailedFitUnavailable(t *testing.T) {
 		t.Fatalf("filter over the failed fit: %v", err)
 	}
 }
+
+// phaseZeroFailBatch is sweepBindBatch with two explicit slots (0, 1)
+// ahead of the three sweep slots (2, 3, 4), the sweep's slots 3 and 4
+// failing at run time (a non-numeric FILTER_RANGE bound) — phase 0
+// fails before either explicit slot could run.
+func phaseZeroFailBatch() *types.ComposedRequest {
+	c := sweepBindBatch()
+	c.Requests = append(c.Requests, &types.Request{
+		Label:        "plain",
+		Cohort:       &types.Cohort{Filename: fitsCohort},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+	})
+	c.Sweep.Axes = []types.SweepAxis{{Name: "hi", Values: []any{json.Number("80"), "bad", "worse"}}}
+	return c
+}
+
+// TestComposeSweepBind_PhaseZeroFailureAggregate (#704): a non-fail-fast
+// ComposeParallel whose phase 0 fails returns the uniform SERVICE_INTERNAL
+// aggregate — failed_indices the failed sweep slots, skipped_indices the
+// explicit slots that never ran, first_error — while a later-phase
+// failure's aggregate carries no skipped_indices key; fail-fast keeps the
+// failing slot's own located error, and serial Compose (fail-fast by
+// construction) the same located error as its later phases.
+func TestComposeSweepBind_PhaseZeroFailureAggregate(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	t.Run("parallel_no_fail_fast", func(t *testing.T) {
+		resp, err := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+		var ce *perr.CodedError
+		if resp != nil || !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL {
+			t.Fatalf("resp %v, err %v", resp, err)
+		}
+		if !reflect.DeepEqual(ce.Details["failed_indices"], []int{3, 4}) ||
+			!reflect.DeepEqual(ce.Details["skipped_indices"], []int{0, 1}) ||
+			ce.Details["first_error"] == nil || ce.Details["first_error"] == "" {
+			t.Fatalf("details %v", ce.Details)
+		}
+	})
+	t.Run("parallel_later_phase_has_no_skipped", func(t *testing.T) {
+		c := sweepBindBatch()
+		c.Requests[0].Cohort = &types.Cohort{Filename: "missing.pulse"}
+		_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4})
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL || !reflect.DeepEqual(ce.Details["failed_indices"], []int{0}) {
+			t.Fatalf("err %v", err)
+		}
+		if _, ok := ce.Details["skipped_indices"]; ok {
+			t.Fatalf("a later-phase aggregate carries skipped_indices: %v", ce.Details)
+		}
+	})
+	t.Run("fail_fast_located", func(t *testing.T) {
+		serial, serr := svc.Compose(context.Background(), phaseZeroFailBatch())
+		par, perr2 := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+		for name, run := range map[string]struct {
+			resp *types.ComposedResponse
+			err  error
+		}{"serial": {serial, serr}, "parallel": {par, perr2}} {
+			var ce *perr.CodedError
+			if run.resp != nil || !stderrors.As(run.err, &ce) || ce.Code == perr.SERVICE_INTERNAL || ce.Details["request"] != 3 {
+				t.Fatalf("%s: resp %v, err %v", name, run.resp, run.err)
+			}
+			if _, ok := ce.Details["skipped_indices"]; ok {
+				t.Fatalf("%s: a located error carries skipped_indices: %v", name, ce.Details)
+			}
+		}
+	})
+}
+
+// TestComposeSweepBind_PhaseZeroFailureRunsNoExplicitSlot: after a
+// failed phase 0 no explicit slot runs and no bound fit is refitted —
+// on Compose and on a non-fail-fast ComposeParallel alike.
+func TestComposeSweepBind_PhaseZeroFailureRunsNoExplicitSlot(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
+	svc := fitsService(t)
+	for _, mode := range []string{"serial", "parallel"} {
+		t.Run(mode, func(t *testing.T) {
+			o := observeBind(t)
+			var err error
+			if mode == "serial" {
+				_, err = svc.Compose(context.Background(), phaseZeroFailBatch())
+			} else {
+				_, err = svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+			}
+			if err == nil {
+				t.Fatal("phase 0 did not fail")
+			}
+			for _, e := range []string{"slot:scored", "slot:plain", "fit:best"} {
+				if o.count(e) != 0 {
+					t.Errorf("%s ran after a failed phase 0: %v", e, o.events)
+				}
+			}
+			if o.count("slot:upto_80") != 1 {
+				t.Fatalf("vacuous: the sweep slot did not run: %v", o.events)
+			}
+		})
+	}
+}

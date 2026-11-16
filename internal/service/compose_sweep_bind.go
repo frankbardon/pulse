@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/frankbardon/pulse/errors"
@@ -96,7 +97,7 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 		return nil, nil, nil, nil, err
 	}
 	if err := runSlots(bind.slots(), early); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, phaseZeroFailure(err, bind, len(requests))
 	}
 	ran := make([]bool, len(requests))
 	for i := bind.lo; i < bind.hi && i < len(ran); i++ {
@@ -121,6 +122,35 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 		return nil, nil, nil, nil, err
 	}
 	return models, results, warnings, ran, nil
+}
+
+// phaseZeroFailure is a failed phase 0's batch error (#704). Phase 0
+// returns early — no slot outside the sweep runs after it fails — so a
+// non-fail-fast pool's SERVICE_INTERNAL aggregate (slotPoolFailure:
+// failed_indices, first_error) gains details.skipped_indices, every
+// slot index outside [lo, hi) in index order (never nil: an empty list
+// when the batch is all sweep). A later phase runs every slot, so its
+// aggregate never carries the key. Any other error — the serial loop's
+// or a fail-fast pool's located slot error, a set-binding error — is
+// returned unchanged. The type assertion is deliberate: a slot's own
+// error wrapped inside a located one is never rewritten.
+func phaseZeroFailure(err error, bind *sweepBinding, n int) error {
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.SERVICE_INTERNAL {
+		return err
+	}
+	if _, agg := ce.Details["failed_indices"].([]int); !agg {
+		return err
+	}
+	skipped := make([]int, 0, n-(bind.hi-bind.lo))
+	for i := range n {
+		if i < bind.lo || i >= bind.hi {
+			skipped = append(skipped, i)
+		}
+	}
+	details := maps.Clone(ce.Details)
+	details["skipped_indices"] = skipped
+	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
 }
 
 // bindWinner resolves each sweep-bound fit over ranking: its request
