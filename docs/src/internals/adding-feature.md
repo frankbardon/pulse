@@ -45,7 +45,8 @@ If the operator is streaming-eligible, implement the
   (mean, stddev) on a first pass.
 - `Finalize()` — close out the pre-pass, compute coefficients.
 - `EmitRow(row)` — emit the per-row feature value(s) on the second
-  pass.
+  pass. The engine calls it once per row; more calls than `PrePass`
+  observed is a `PROCESSING_INTERNAL` coded error.
 
 Operators without whole-cohort statistics skip `PrePass` and run as
 single-pass row transforms.
