@@ -196,6 +196,18 @@ cannot match: the heavy `TestDE_MatchesScipyOracle` pins the outcome —
 every seed within `1e-3` of the optimum on both sides, the median best
 values within two decades.
 
+Mode `bo` is held to scikit-optimize's `gp_minimize` (a
+Latin-hypercube initial design, EI with `xi = 0` over 1000 candidates
+and 5 polishes, one point a round) on Branin over 20 seeds:
+`scripts/reference/scipy/gen_sweep_bo.py` (PEP 723, pinned NumPy 2.3.3,
+SciPy 1.16.2, scikit-learn 1.7.2 and scikit-optimize 0.10.2) writes
+`internal/sweep/testdata/bo_oracle.json` with its footer, and
+`make reference-sweep-bo` runs it under `uv run`. The trajectories
+cannot match (different streams; skopt polishes by L-BFGS-B, bo by
+SLSQP), so the heavy `TestBO_MatchesSkoptOracle` pins the outcome —
+every seed within `0.05` of the optimum value on both sides, the median
+best values within `0.005`.
+
 The Gaussian-process surrogate behind mode `bo` (`internal/gp`) is held
 to scikit-learn's `GaussianProcessRegressor` (`normalize_y`, `alpha`
 `1e-10`, `ConstantKernel * Matern(nu=2.5)` ARD `+ WhiteKernel`) on fixed

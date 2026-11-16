@@ -4,7 +4,7 @@ description: The compose sweep's seeded sampling modes — random and lhs (Latin
 type: guide
 kind: design
 applies_to: compose, predict
-covers: [SweepSpec, SweepRange, SweepDE, integer range, profile_bins, random sweep, Latin hypercube, lhs, samples, rng_seed, sweep_seed, hyperparameter search, differential evolution]
+covers: [SweepSpec, SweepRange, SweepDE, SweepBO, integer range, profile_bins, random sweep, Latin hypercube, lhs, samples, rng_seed, sweep_seed, hyperparameter search, differential evolution, Bayesian optimisation]
 requires: [capability:compose_sweep, capability:compose_sweep_sampling]
 ---
 
@@ -36,9 +36,11 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 - Draws are numbers in shortest round-trip form; placeholders substitute them as in a grid. Default labels are `sample=<i>_<axis>=<value>` (`i` from 0), unique by construction. A ranked slot's draws come back as numbers in its `ranking` entry's `axes` (its index in `slot`): read them there, not off the label. Under `rank.profile` each range axis is binned: `rank.profile_bins` (default 10) equal-width bins over `[min, max]`, equal log-width under `log`. One entry per bin a ranked slot fell into, ascending, with `lo` / `hi` edges, `best` and `label` the bin's best slot, `value` its draw and `n` the ranked slots in the bin; empty bins are absent.
 
 <!-- feature: capability:compose_sweep_adaptive -->
-## Adaptive search: `de`
+## Adaptive search: `de`, `bo`
 
 `mode: "de"` (differential evolution, rand/1/bin) spends `budget` slots in rounds and needs `rank` (its objective). Axes carry a `range` (searched continuously, `scale` / `integer` honoured) or `values` (searched by index). Round 0 is a Latin-hypercube population; each later round is one generation; a `budget` remainder is a final partial generation. Optional `de {population, f, cr}`: population 4..budget (default 10 × axes, capped at budget), `f` in (0, 2] (0.8), `cr` in [0, 1] (0.9); out of range is `PULSE_SWEEP_INVALID` (`de_population_invalid`, `de_population_over_budget`, `de_f_invalid`, `de_cr_invalid`), `de` under another mode `PULSE_SWEEP_MODE_MISMATCH` (`de_without_de_mode`). Seeded like `lhs`.
+
+`mode: "bo"` (Bayesian optimisation, GP surrogate) suits costly slots, small budgets. Optional `bo {init, n_init, batch}`: `init` `lhs` (default) or `random`; `n_init` (2 × axes) and `batch` (1) in 1..budget, else `PULSE_SWEEP_INVALID` (`bo_n_init_invalid`, `bo_batch_over_budget`, …); a non-finite objective stops it (`bo_surrogate_failed`).
 <!-- /feature -->
 
 ## Seed

@@ -156,6 +156,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "composed.sweep", body: `{"sweep":{` + sweepAxes + `,"mdoe":"grid","request":` + nested(agg) + `}}`, path: "sweep.mdoe", unknown: "mdoe"},
 		{family: "composed.sweep.axes", body: `{"sweep":{"axes":[{"name":"k","valuse":[1,2]}],"request":` + nested(agg) + `}}`, path: "sweep.axes[0].valuse", unknown: "valuse"},
 		{family: "composed.sweep.de", body: `{"sweep":{"mode":"de","budget":4,"axes":[{"name":"k","values":[1,2]}],"de":{"populaton":4},"request":` + nested(agg) + `,"rank":{"by":"t"}}}`, path: "sweep.de.populaton", unknown: "populaton"},
+		{family: "composed.sweep.bo", body: `{"sweep":{"mode":"bo","budget":4,"axes":[{"name":"k","values":[1,2]}],"bo":{"n_inti":2},"request":` + nested(agg) + `,"rank":{"by":"t"}}}`, path: "sweep.bo.n_inti", unknown: "n_inti"},
 		{family: "composed.sweep.rank", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(agg) + `,"rank":{"by":"t","ordr":"desc"}}}`, path: "sweep.rank.ordr", unknown: "ordr"},
 		{family: "composed.sweep.request", body: `{"sweep":{` + sweepAxes + `,"request":` + nested(`"aggregations":[{"type":"AGG_SUM","field":"n","label":"t{{k}}","lable":"x"}]`) + `}}`, path: "aggregations[0].lable", unknown: "lable", locator: "slot"},
 		{family: "composed.fits", body: composed(`"fits":[{"name":"f","request":` + nested(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"]}]`) + `,"svae":"x"}]`), path: "fits[0].svae", unknown: "svae"},

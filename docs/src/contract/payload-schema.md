@@ -1418,15 +1418,15 @@ there is no chain-level block.
 `ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
-`SweepSpec` is `{axes, mode, samples, rng_seed, budget, de, label, request,
-overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
+`SweepSpec` is `{axes, mode, samples, rng_seed, budget, de, bo, label,
+request, overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
 a non-empty list of scalars under `grid` / `zip`; `range` a
 `SweepRange {min, max, scale, integer}` — `SweepScale` `linear` default, `log`;
 `integer` draws whole numbers —
 under `random` / `lhs`, never both; `target`, optional, a
 `params.<identifier>` string writing each slot's axis value into that
 request param — present only where `capability:params` is), `mode` the closed enum `SweepMode`
-(`grid` default, `zip`, `random`, `lhs`, `de`; the sampling modes draw
+(`grid` default, `zip`, `random`, `lhs`, `de`, `bo`; the sampling modes draw
 `samples` slots seeded by `rng_seed`, 0 deriving one from the spec), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
@@ -1444,9 +1444,13 @@ absent. The adaptive modes ride `capability:compose_sweep_adaptive`:
 `budget` (an `omitempty` integer, the slot count an adaptive mode
 evaluates in rounds; required there with `rank`, refused elsewhere) is
 absent on an instance that hides it, and so are the adaptive
-`SweepMode` values (`de`) and mode `de`'s knobs `de` — a `SweepDE
+`SweepMode` values (`de`, `bo`), mode `de`'s knobs `de` — a `SweepDE
 {population, f, cr}` (an integer and two numbers, each `omitempty`;
-refused under any other mode) — with the `SweepDE` def. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
+refused under any other mode) — with the `SweepDE` def, and mode `bo`'s
+knobs `bo` — a `SweepBO {init, n_init, batch}` (`init` the closed enum
+`SweepBOInit`, `lhs` or `random`, and two integers, each `omitempty`;
+refused under any other mode) — with the `SweepBO` and `SweepBOInit`
+defs. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
 `values` only, on every instance.
 A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)

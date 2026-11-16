@@ -284,6 +284,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	}
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
 	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
+	m[reflect.TypeFor[types.SweepBOInit]()] = stringify(types.AllSweepBOInits())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
 	// The optimize block's directions, constraint types and active
 	// bounds: closed vocabularies (a hidden capability:compose_optimize

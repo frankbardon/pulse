@@ -187,6 +187,17 @@ var directFigures = []directFigure{
 	{"gp.Fit(mixed,seed=5).mean", func() float64 { return gpFit().mean }},
 	{"gp.Fit(mixed,seed=5).variance", func() float64 { return gpFit().variance }},
 	{"gp.LogMarginalLikelihood(mixed).grad_sum", func() float64 { return gpFit().gradSum }},
+
+	// compose-sweep-2 E4-S2: the compose sweep's mode bo (internal/sweep
+	// bo.go) — the Latin-hypercube initial design, the per-round ML-II
+	// GP fit, expected improvement (detmath Erfc / Exp), the candidate
+	// scoring and SLSQP polish, the constant-liar batch fill, a one-hot
+	// list axis — searching boSearch through the real adaptive executor.
+	// The trajectory sum moves if any slot of any round moves.
+	{"sweep.bo(rosenbrock+log+list,seed=7).best", func() float64 { return boSearch().best }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).best_x", func() float64 { return boSearch().x }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).best_lambda", func() float64 { return boSearch().lambda }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).sum", func() float64 { return boSearch().sum }},
 }
 
 // deFigures is deSearch's outcome.
@@ -224,6 +235,55 @@ var deSearch = sync.OnceValue(func() deFigures {
 		panic(err)
 	}
 	out := deFigures{best: ev[0].Value}
+	b := ev[0]
+	for _, e := range ev {
+		out.sum += e.Value
+		if e.Value < b.Value {
+			b = e
+		}
+	}
+	out.best, out.x, out.lambda = b.Value, num(b.Axes["x"]), num(b.Axes["lambda"])
+	return out
+})
+
+// boSearch runs a 24-slot mode-bo sweep (seed 7, n_init 6, batch 3)
+// over x, y on [-2, 2], lambda log-scaled on [1e-3, 1e2] and a list axis
+// kind (a, b, c), minimising 2-D Rosenbrock plus (ln lambda − ln 0.1)²
+// plus 1 off kind b, every product rounded before its add.
+var boSearch = sync.OnceValue(func() deFigures {
+	num := func(v any) float64 {
+		f, err := strconv.ParseFloat(string(v.(json.Number)), 64)
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}
+	lo, hi, llo, lhi, nInit, batch := -2.0, 2.0, 1e-3, 1e2, 6, 3
+	spec := &types.SweepSpec{
+		Mode: types.SweepModeBO, Budget: 24, RNGSeed: 7,
+		BO: &types.SweepBO{NInit: &nInit, Batch: &batch},
+		Axes: []types.SweepAxis{
+			{Name: "x", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "y", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "lambda", Range: &types.SweepRange{Min: &llo, Max: &lhi, Scale: types.SweepScaleLog}},
+			{Name: "kind", Values: []any{"a", "b", "c"}},
+		},
+		Request: json.RawMessage(`{"params":{"x":{"$var":"x"},"y":{"$var":"y"},"l":{"$var":"lambda"},"k":{"$var":"kind"}}}`),
+		Rank:    &types.SweepRank{By: "v"},
+	}
+	ev, err := sweeptest.Search(spec, func(a map[string]any) (float64, bool) {
+		x, y := num(a["x"]), num(a["y"])
+		d1, d2, dl := 1-x, y-float64(x*x), detmath.Log(num(a["lambda"]))-detmath.Log(0.1)
+		v := float64(d1*d1) + float64(100*float64(d2*d2)) + float64(dl*dl)
+		if a["kind"] != "b" {
+			v++
+		}
+		return v, true
+	})
+	if err != nil {
+		panic(err)
+	}
+	out := deFigures{}
 	b := ev[0]
 	for _, e := range ev {
 		out.sum += e.Value

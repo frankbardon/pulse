@@ -7505,6 +7505,28 @@
       ],
       "type": "object"
     },
+    "SweepBO": {
+      "additionalProperties": false,
+      "properties": {
+        "batch": {
+          "type": "integer"
+        },
+        "init": {
+          "$ref": "#/$defs/SweepBOInit"
+        },
+        "n_init": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SweepBOInit": {
+      "enum": [
+        "lhs",
+        "random"
+      ],
+      "type": "string"
+    },
     "SweepDE": {
       "additionalProperties": false,
       "properties": {
@@ -7522,6 +7544,7 @@
     },
     "SweepMode": {
       "enum": [
+        "bo",
         "de",
         "grid",
         "lhs",
@@ -7601,6 +7624,9 @@
             "array",
             "null"
           ]
+        },
+        "bo": {
+          "$ref": "#/$defs/SweepBO"
         },
         "budget": {
           "type": "integer"
@@ -8263,4 +8289,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e90093c103c66a3d2c4491509e54e136dc603d4c83128b9740318392f1330d51
+// golden-hash: 55cfd8020c9a4f216a193bfd002163ba6bdb4a3371b63fdd5c68fa7f9a396b10

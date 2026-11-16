@@ -37,6 +37,11 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		// The shared rng_seed 0 derivation (leaf: stdlib + types +
 		// errors).
 		modulePrefix + "/internal/regresample": true,
+		// Mode bo's surrogate (leaf: stdlib + linalg + linalg/detmath +
+		// optimize + internal/regresample; TestGP_ImportBoundary) and
+		// the SLSQP polish of its acquisition maximiser.
+		modulePrefix + "/internal/gp": true,
+		modulePrefix + "/optimize":    true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -55,7 +60,7 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowedDirect[path] {
-				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors, internal/template, internal/strictjson, linalg/detmath and internal/regresample", name, path)
+				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors, internal/template, internal/strictjson, linalg/detmath, internal/regresample, internal/gp and optimize", name, path)
 			}
 		}
 	}

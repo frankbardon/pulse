@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -68,7 +69,7 @@ func TestValidate_Rules(t *testing.T) {
 		{"bad number text", func(s *types.SweepSpec) { s.Axes[0].Values = []any{json.Number("1x")} }, ReasonValueNotScalar, nil},
 		{"string number text", func(s *types.SweepSpec) { s.Axes[0].Values = []any{json.Number(`"1"`)} }, ReasonValueNotScalar, nil},
 		{"unknown mode", func(s *types.SweepSpec) { s.Mode = "cross" }, ReasonModeUnknown,
-			map[string]any{"field": "sweep.mode", "value": "cross", "valid": withAdaptive("grid", "zip", "random", "lhs")}},
+			map[string]any{"field": "sweep.mode", "value": "cross", "valid": withAdaptive("grid", "zip", "random", "lhs", "de", "bo")}},
 		{"zip unequal", func(s *types.SweepSpec) {
 			s.Mode = types.SweepModeZip
 			s.Axes[1].Values = []any{true}
@@ -170,11 +171,14 @@ func TestValidate_DecodedJSON(t *testing.T) {
 	}
 }
 
-// withAdaptive is modes followed by every registered adaptive mode (the
-// test binary's own: adaptive_test.go and sweeptest register some).
+// withAdaptive is modes (the wire list) followed by every other
+// registered adaptive mode (the test binary's own: adaptive_test.go and
+// sweeptest register some).
 func withAdaptive(modes ...string) []string {
 	for _, m := range AdaptiveModes() {
-		modes = append(modes, string(m))
+		if !slices.Contains(modes, string(m)) {
+			modes = append(modes, string(m))
+		}
 	}
 	return modes
 }

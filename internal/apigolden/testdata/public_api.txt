@@ -5346,6 +5346,7 @@ pulse/types: func AllOrderGaps() []pulse/types.OrderGaps
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
+pulse/types: func AllSweepBOInits() []pulse/types.SweepBOInit
 pulse/types: func AllSweepModes() []pulse/types.SweepMode
 pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllSweepScales() []pulse/types.SweepScale
@@ -6832,12 +6833,20 @@ pulse/types: type SweepAxis field Range *pulse/types.SweepRange "json:\"range,om
 pulse/types: type SweepAxis field Target string "json:\"target,omitempty\""
 pulse/types: type SweepAxis field Values []any "json:\"values,omitempty\""
 pulse/types: type SweepAxis method (*SweepAxis) UnmarshalJSON(data []byte) error
+pulse/types: type SweepBO struct
+pulse/types: type SweepBO field Batch *int "json:\"batch,omitempty\""
+pulse/types: type SweepBO field Init pulse/types.SweepBOInit "json:\"init,omitempty\""
+pulse/types: type SweepBO field NInit *int "json:\"n_init,omitempty\""
+pulse/types: type SweepBOInit string
+pulse/types: const SweepBOInitLHS pulse/types.SweepBOInit = "lhs"
+pulse/types: const SweepBOInitRandom pulse/types.SweepBOInit = "random"
 pulse/types: type SweepDE struct
 pulse/types: type SweepDE field CR *float64 "json:\"cr,omitempty\""
 pulse/types: type SweepDE field F *float64 "json:\"f,omitempty\""
 pulse/types: type SweepDE field Population *int "json:\"population,omitempty\""
 pulse/types: type SweepMode string
 pulse/types: type SweepMode method (SweepMode) Sampled() bool
+pulse/types: const SweepModeBO pulse/types.SweepMode = "bo"
 pulse/types: const SweepModeDE pulse/types.SweepMode = "de"
 pulse/types: const SweepModeGrid pulse/types.SweepMode = "grid"
 pulse/types: const SweepModeLHS pulse/types.SweepMode = "lhs"
@@ -6862,6 +6871,7 @@ pulse/types: const SweepScaleLinear pulse/types.SweepScale = "linear"
 pulse/types: const SweepScaleLog pulse/types.SweepScale = "log"
 pulse/types: type SweepSpec struct
 pulse/types: type SweepSpec field Axes []pulse/types.SweepAxis "json:\"axes\""
+pulse/types: type SweepSpec field BO *pulse/types.SweepBO "json:\"bo,omitempty\""
 pulse/types: type SweepSpec field Budget int "json:\"budget,omitempty\""
 pulse/types: type SweepSpec field DE *pulse/types.SweepDE "json:\"de,omitempty\""
 pulse/types: type SweepSpec field Label string "json:\"label,omitempty\""
@@ -7008,4 +7018,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 574491b91d9013a10db1eb08db88d18fbaf870dd6d09da3ccb26297b50c04def
+// golden-hash: 7afe43627c74c732f0525c61ad34dfd4e81b9d9b3bc819ac50a131a2430f5f43

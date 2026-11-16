@@ -2344,7 +2344,7 @@ func samplingSweepSchema() map[string]any {
 					"required": []string{"name"},
 				},
 			},
-			"mode":    enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once); de: adaptive differential evolution over `budget` slots, needs rank."),
+			"mode":    enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once); de: adaptive differential evolution over `budget` slots, needs rank; bo: adaptive Bayesian optimisation (GP surrogate, expected improvement) over `budget` slots, needs rank."),
 			"samples": map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
 			"budget":  map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
 			"de": map[string]any{
@@ -2355,6 +2355,16 @@ func samplingSweepSchema() map[string]any {
 					"population": map[string]any{"type": "integer", "minimum": 4, "description": "Population size, at most the budget; default 10 × the axis count, capped at the budget."},
 					"f":          map[string]any{"type": "number", "exclusiveMinimum": 0, "maximum": 2, "description": "Differential weight in (0, 2]; default 0.8."},
 					"cr":         map[string]any{"type": "number", "minimum": 0, "maximum": 1, "description": "Crossover probability in [0, 1]; default 0.9."},
+				},
+			},
+			"bo": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"description":          "Mode bo's knobs (Bayesian optimisation: a Gaussian-process surrogate, expected-improvement acquisition); refused under every other mode. Round 0 is the initial design, each later round `batch` points.",
+				"properties": map[string]any{
+					"init":   enumStringField(stringSlice(types.AllSweepBOInits()), "The initial design: lhs (default, Latin hypercube) or random."),
+					"n_init": map[string]any{"type": "integer", "minimum": 1, "description": "Initial design size, at most the budget; default 2 × the axis count, capped at the budget."},
+					"batch":  map[string]any{"type": "integer", "minimum": 1, "description": "Points per later round, at most the budget; default 1. Above 1 fills by constant liar."},
 				},
 			},
 			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs / adaptive modes: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
@@ -2385,6 +2395,7 @@ func nonAdaptiveSweepSchema() map[string]any {
 	props := out["properties"].(map[string]any)
 	delete(props, "budget")
 	delete(props, "de")
+	delete(props, "bo")
 	mode := props["mode"].(map[string]any)
 	mode["enum"] = slices.DeleteFunc(slices.Clone(mode["enum"].([]string)), func(m string) bool { return sweep.IsAdaptive(types.SweepMode(m)) })
 	return out
@@ -2398,6 +2409,7 @@ func enumerationSweepSchema() map[string]any {
 	props := out["properties"].(map[string]any)
 	delete(props, "budget")
 	delete(props, "de")
+	delete(props, "bo")
 	delete(props, "samples")
 	delete(props, "rng_seed")
 	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},

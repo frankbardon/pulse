@@ -66,6 +66,11 @@ type SweepSpec struct {
 	// its derived seed.
 	DE *SweepDE `json:"de,omitempty"`
 
+	// BO is mode bo's knobs (SweepBO); nil takes every default. Refused
+	// under every other mode. Absent is nil, so a spec without it keeps
+	// its derived seed.
+	BO *SweepBO `json:"bo,omitempty"`
+
 	// Label is the per-slot label pattern, `{{axis}}` placeholders
 	// substituted per slot. Empty takes the default `<axis>=<value>`
 	// pairs joined by `_` — prefixed `sample=<index>_` under a sampling
@@ -103,6 +108,40 @@ type SweepDE struct {
 	F *float64 `json:"f,omitempty"`
 	// CR is the binomial crossover probability, in [0, 1]. Nil is 0.9.
 	CR *float64 `json:"cr,omitempty"`
+}
+
+// SweepBO is mode bo's knobs — Bayesian optimisation over a Gaussian-
+// process surrogate with expected-improvement acquisition. Each unset
+// field takes its default.
+type SweepBO struct {
+	// Init is the initial design round 0 evaluates (SweepBOInit*). Empty
+	// is lhs.
+	Init SweepBOInit `json:"init,omitempty"`
+	// NInit is the initial design's size: at least 1 and at most the
+	// budget. Nil is 2 × the axis count, capped at the budget.
+	NInit *int `json:"n_init,omitempty"`
+	// Batch is the number of points each later round proposes (fewer
+	// when less budget is left): at least 1 and at most the budget.
+	// Nil is 1. A batch above 1 fills by constant liar.
+	Batch *int `json:"batch,omitempty"`
+}
+
+// SweepBOInit names mode bo's initial design.
+type SweepBOInit string
+
+const (
+	// SweepBOInitLHS draws the initial design as a Latin hypercube (the
+	// lhs draw). The default.
+	SweepBOInitLHS SweepBOInit = "lhs"
+	// SweepBOInitRandom draws the initial design uniformly (the random
+	// draw).
+	SweepBOInitRandom SweepBOInit = "random"
+)
+
+// AllSweepBOInits returns every SweepBOInit value the wire schema
+// lists.
+func AllSweepBOInits() []SweepBOInit {
+	return []SweepBOInit{SweepBOInitLHS, SweepBOInitRandom}
 }
 
 // SweepAxis is one swept parameter: a placeholder Name (or, with
@@ -216,6 +255,12 @@ const (
 	// (capability:compose_sweep_adaptive), tuned by SweepSpec.DE.
 	// Compose sweep only.
 	SweepModeDE SweepMode = "de"
+	// SweepModeBO searches the axes by Bayesian optimisation (a
+	// Gaussian-process surrogate, expected improvement) over
+	// SweepSpec.Budget slots — an adaptive mode
+	// (capability:compose_sweep_adaptive), tuned by SweepSpec.BO.
+	// Compose sweep only.
+	SweepModeBO SweepMode = "bo"
 )
 
 // AllSweepModes returns every SweepMode value the wire schema lists.
@@ -223,7 +268,7 @@ const (
 // registry (internal/sweep RegisterAdaptive) is what makes a mode
 // adaptive.
 func AllSweepModes() []SweepMode {
-	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS, SweepModeDE}
+	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS, SweepModeDE, SweepModeBO}
 }
 
 // Sampled reports whether m is a sampling mode (random or lhs).

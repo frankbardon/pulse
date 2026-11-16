@@ -51,6 +51,16 @@ func TestSweepAdaptive_HiddenRefusal(t *testing.T) {
 	if valid, _ := ce.Details["valid"].([]string); ce.Code != errors.PULSE_SWEEP_INVALID || slices.Contains(valid, "de") {
 		t.Fatalf("mode de: got %s %v", ce.Code, ce.Details)
 	}
+	// Mode bo's knobs too (E4-S2).
+	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Mode, s.BO = types.SweepModeBO, &types.SweepBO{} }), hidden))
+	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"bo", "budget"}) ||
+		slices.Contains(ce.Details["valid_keys"].([]string), "bo") {
+		t.Fatalf("bo: got %s %v", ce.Code, ce.Details)
+	}
+	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Mode, s.Budget = types.SweepModeBO, 0 }), hidden))
+	if valid, _ := ce.Details["valid"].([]string); ce.Code != errors.PULSE_SWEEP_INVALID || slices.Contains(valid, "bo") {
+		t.Fatalf("mode bo: got %s %v", ce.Code, ce.Details)
+	}
 	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Budget = 0 }), hidden))
 	valid, _ := ce.Details["valid"].([]string)
 	if ce.Code != errors.PULSE_SWEEP_INVALID || ce.Details["reason"] != "mode_unknown" ||
@@ -74,8 +84,9 @@ func TestSweepAdaptive_HiddenRefusal(t *testing.T) {
 	}
 }
 
-// TestSweepAdaptive_HiddenSchema: `budget`, `de` (with its SweepDE def)
-// and the mode de are on the SweepSpec def of the full registry and of
+// TestSweepAdaptive_HiddenSchema: `budget`, `de` (with its SweepDE def),
+// `bo` (with its SweepBO and SweepBOInit defs) and the modes de and bo
+// are on the SweepSpec def of the full registry and of
 // an instance offering the adaptive modes, and absent from one hiding
 // them.
 func TestSweepAdaptive_HiddenSchema(t *testing.T) {
@@ -110,6 +121,15 @@ func TestSweepAdaptive_HiddenSchema(t *testing.T) {
 		_, deDef := doc.Defs["SweepDE"]
 		if de != c.want || deDef != c.want || slices.Contains(doc.Defs["SweepMode"].Enum, "de") != c.want {
 			t.Errorf("%s: de key %v, SweepDE def %v, mode enum %v; want present %v", c.name, de, deDef, doc.Defs["SweepMode"].Enum, c.want)
+		}
+		_, bo := doc.Defs["SweepSpec"].Properties["bo"]
+		_, boDef := doc.Defs["SweepBO"]
+		_, initDef := doc.Defs["SweepBOInit"]
+		if bo != c.want || boDef != c.want || initDef != c.want || slices.Contains(doc.Defs["SweepMode"].Enum, "bo") != c.want {
+			t.Errorf("%s: bo key %v, SweepBO def %v, SweepBOInit def %v, mode enum %v; want present %v", c.name, bo, boDef, initDef, doc.Defs["SweepMode"].Enum, c.want)
+		}
+		if c.want && !reflect.DeepEqual(doc.Defs["SweepBOInit"].Enum, []string{"lhs", "random"}) {
+			t.Errorf("%s: SweepBOInit enum %v", c.name, doc.Defs["SweepBOInit"].Enum)
 		}
 	}
 }
