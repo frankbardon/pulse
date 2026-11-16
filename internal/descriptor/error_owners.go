@@ -114,6 +114,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
 	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
+	errors.PROCESSING_REGRESSION_ORDER:             own(featRegOrder),
 	errors.PROCESSING_REGRESSION_DIAGNOSTIC:        shared,
 	errors.PROCESSING_VECTOR_LENGTH_MISMATCH:       ownExpr,
 	errors.PROCESSING_AUC_OUTCOME_NOT_BINARY:       own("AGG_AUC"),
@@ -241,6 +242,8 @@ var errorOwners = map[errors.Code][]string{
 	// The split-families rule reads the per-slot p-value families,
 	// which a hidden capability:multiplicity withholds.
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT: own(featMultiplicity),
+	// The gradient-fallback rule reads an optimize block.
+	errors.PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK: own(featComposeOpt),
 	// The SPSS-sidecar measure-level rules fire only on the operators
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a
@@ -255,6 +258,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),
 	// Fires only on a REG_OLS bounds fit (result-only).
 	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE: own("REG_OLS"),
+	// Fires only on an in-model adstocked REG_MMM_HILL fit (result-only).
+	errors.PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED: own("REG_MMM_HILL"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
 	// Fires on an embedder extension operator, which any instance may
@@ -285,6 +290,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC:   own(featSynth),
 	errors.PULSE_SYNTH_LAG_FIELD_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_LAG_OFFSET_INVALID:      own(featSynth),
+	errors.PULSE_SYNTH_LAG_PARTITION_INVALID:   own(featSynth),
 	errors.PULSE_SYNTH_RULE_DRAW_INVALID:       own(featSynth),
 	errors.PULSE_SYNTH_DST_NONEXISTENT:         own(featSynth),
 	errors.PULSE_SYNTH_DST_AMBIGUOUS:           own(featSynth),
@@ -408,9 +414,15 @@ var errorOwners = map[errors.Code][]string{
 	// The nested-model comparisons read the fits (ComposedRequest.Compare).
 	errors.PULSE_COMPARISON_INVALID:     own(featComposeCompare),
 	errors.PULSE_COMPARISON_ROWS_DIFFER: own(featComposeCompare),
-	errors.PULSE_MODEL_NAME_COLLISION:   own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:          own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
-	errors.PULSE_MODEL_KIND_MISMATCH:    own(featComposeFits, featModels),
+	// The post-fit entries (ComposedRequest.PostFit).
+	errors.PULSE_POSTFIT_INVALID: own(featComposePostFit),
+	errors.PULSE_POSTFIT_FAILED:  own(featComposePostFit),
+	// Raised only by a registered post-fit operator's run, like its
+	// overlay / regression siblings.
+	errors.PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH: shared,
+	errors.PULSE_MODEL_NAME_COLLISION:              own(featComposeFits, featModels),
+	errors.PULSE_MODEL_UNKNOWN:                     own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_REG_LEVERAGE", "ATTR_REG_INFLUENCE", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
+	errors.PULSE_MODEL_KIND_MISMATCH:               own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE params.fit
 	// (CheckFitReference, CheckFitDesign) and

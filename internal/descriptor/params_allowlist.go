@@ -780,3 +780,41 @@ func ParamsRefusal(v any, inst *InstanceSnapshot) error {
 	}
 	return nil
 }
+
+// DeclaredParamsRefusal checks raw (the params object at path, e.g.
+// post_fit[0]) against an extension operator's declared params, by the
+// rules every extension slot's params are held to: an undeclared key is
+// PULSE_REQUEST_UNKNOWN_FIELD, then a wrong JSON type, a missing
+// Required key and an ExactlyOneOf breach are PULSE_REQUEST_PARAM_INVALID.
+// An empty declaration passes everything (undeclared params are not
+// checked), as do params that are not an object (the operator's own
+// validation). The post-fit check (internal/postfit.Check) runs it, at
+// predict and at runtime alike.
+func DeclaredParamsRefusal(path, op string, params []descriptor.OperatorParamMeta, raw json.RawMessage) *errors.CodedError {
+	if len(params) == 0 {
+		return nil
+	}
+	var m map[string]json.RawMessage
+	if len(bytes.TrimSpace(raw)) > 0 {
+		var ok bool
+		if m, ok = objectMap(raw); !ok {
+			return nil
+		}
+	}
+	decl := ParamsDecl{Declared: true, Keys: []string{}}
+	for _, p := range params {
+		decl.Keys = append(decl.Keys, p.Name)
+		decl.declareValue(p.Name, p.JSONType, p.Required, p.ExactlyOneOf, p.Expression)
+	}
+	sort.Strings(decl.Keys)
+	var unknown []string
+	for _, k := range paramKeys(m) {
+		if !slices.Contains(decl.Keys, k) {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) > 0 {
+		return strictjson.UnknownFieldErrorAliased(path+".params", unknown, decl.Keys, nil)
+	}
+	return valueRefusal(path, op, decl, m)
+}

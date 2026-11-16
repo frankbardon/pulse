@@ -94,6 +94,16 @@ const (
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 
+	// PROCESSING_REGRESSION_ORDER indicates an ordered regression slot
+	// (RegressionSpec.Order) whose admitted rows do not form contiguous
+	// series under its gap policy: details.reason "duplicate" (a Field
+	// value repeats inside one series; details.value) or "gap" (a step
+	// between consecutive values is not the cadence, the smallest
+	// positive step over every series; details.from / to / step).
+	// details.partition names the series on a partitioned order. The slot
+	// fails alone (PULSE_SLOT_FAILED).
+	PROCESSING_REGRESSION_ORDER Code = "PROCESSING_REGRESSION_ORDER"
+
 	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
 	// fit whose own diagnostic crossed its threshold while the fit still
 	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
@@ -450,8 +460,10 @@ const (
 
 	// PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC indicates a derived value a
 	// Pulse.Materialize run cannot store in its f64 column — a window
-	// copying a categorical, set or decimal source value, or a
-	// non-numeric lag/lead default. details carry column and value_type.
+	// copying a set or decimal source value (a lagged categorical is
+	// written as its source's categorical), an extension window writing
+	// strings, or a non-numeric lag/lead default over a numeric field.
+	// details carry column and value_type.
 	// The run fails with no target written.
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
 
@@ -834,6 +846,17 @@ const (
 	// the patch {"resample": "bootstrap"}.
 	PULSE_ADVISORY_CONSTRAINT_ACTIVE Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 
+	// PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED is an advisory on a
+	// REG_MMM_HILL fit with params.adstock whose joint parameter
+	// correlation matrix is ill-conditioned (outputs.condition_number
+	// above 1e6, or a joint block that does not invert): the data barely
+	// separate the decay from the curve and the effect, so the standard
+	// errors — reported, never nulled — are unreliable. Result-only: the
+	// conditioning depends on the data. details carry the slot, the
+	// operator, the condition number, the threshold and the patch
+	// {"resample": "bootstrap"}.
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED Code = "PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -842,6 +865,15 @@ const (
 	// correction spans the batch. details carry the slots, the family
 	// IDs, the total and the patch {"multiplicity":{"family":"compose"}}.
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
+
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK is a Compose predict
+	// advisory: an `optimize` block solves with the default analytic
+	// gradient, but its objective or a constraint calls a function (or
+	// uses a construct) without a derivative rule, so the solver
+	// differentiates the WHOLE block by central finite differences.
+	// details carry the block index and name, the functions without a
+	// rule, and the patch {"gradient":"fd"} that states the choice.
+	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK Code = "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK"
 
 	// PULSE_SUPPRESS_ADVISORY_UNKNOWN is raised by pulse.New when
 	// Options.SuppressAdvisories names a code that is not a registered
@@ -995,6 +1027,16 @@ const (
 	// the state. Refused at spec validation. `details.lag_field` names the
 	// lagged field, `details.expr` the expression.
 	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
+
+	// PULSE_SYNTH_LAG_PARTITION_INVALID indicates a
+	// `lag(name, n, default, partition)` call whose partition argument is
+	// not a string literal naming a declared `categorical_*` field, or
+	// names a field a rule writes at or after the rule holding the call
+	// (the partition value the read keyed on would not be the value the
+	// row is committed under). Refused at spec validation.
+	// `details.lag_partition` names the partition field when the argument
+	// is a literal, `details.writer_rule` the rule that writes it.
+	PULSE_SYNTH_LAG_PARTITION_INVALID Code = "PULSE_SYNTH_LAG_PARTITION_INVALID"
 
 	// PULSE_SYNTH_RULE_DRAW_INVALID indicates a misused random draw in a
 	// synth row expression: `uniform()` / `bernoulli(p)` called from a
@@ -1842,6 +1884,32 @@ const (
 	// "reason" and, where they apply, "field", "value", "valid",
 	// "available", "missing", "keys", "requires" and "alternative".
 	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
+
+	// PULSE_POSTFIT_INVALID indicates a ComposedRequest `post_fit` entry
+	// (a run of an embedder-registered post-fit operator) that cannot
+	// run: a missing or repeated label, a missing type or one no
+	// operator registers, or a `fits` name that is empty, repeated,
+	// unknown or not a regression fit. Refused before any fit or slot
+	// runs. Details carry "post_fit" (the 0-based entry index), "label",
+	// "reason" and, where they apply, "type", "field", "value" and
+	// "available".
+	PULSE_POSTFIT_INVALID Code = "PULSE_POSTFIT_INVALID"
+
+	// PULSE_POSTFIT_FAILED indicates a post-fit operator that returned
+	// an error carrying no Pulse code: the entry fails alone (its
+	// ComposedResponse.PostFit entry carries this error and
+	// PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch).
+	// Details carry "label" and "type".
+	PULSE_POSTFIT_FAILED Code = "PULSE_POSTFIT_FAILED"
+
+	// PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH indicates a post-fit
+	// operator run whose output its registration's declared Outputs do
+	// not admit: a declared scalar or table absent, an undeclared one, a
+	// table whose columns are not its declared columns in order, a row
+	// of the wrong width or a cell of the wrong kind. Fatal. Details
+	// carry "post_fit", "label", "type", "reason" and the reason's own
+	// keys ("name", "row", "column", "expected", "got").
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH"
 
 	// PULSE_COMPARISON_ROWS_DIFFER indicates a nested-model comparison
 	// whose two fits, once run, used different row counts (a full-model
@@ -4825,6 +4893,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_REGRESSION_ORDER,
 	PROCESSING_REGRESSION_DIAGNOSTIC,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	PROCESSING_AUC_OUTCOME_NOT_BINARY,
@@ -4932,7 +5001,9 @@ var allCodes = []Code{
 	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
 	PULSE_ADVISORY_CONSTRAINT_ACTIVE,
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
+	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
 	PULSE_SYNTH_DISTRIBUTION_UNKNOWN,
@@ -4953,6 +5024,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_SYNTH_LAG_FIELD_INVALID,
 	PULSE_SYNTH_LAG_OFFSET_INVALID,
+	PULSE_SYNTH_LAG_PARTITION_INVALID,
 	PULSE_SYNTH_RULE_DRAW_INVALID,
 	PULSE_SYNTH_DST_NONEXISTENT,
 	PULSE_SYNTH_DST_AMBIGUOUS,
@@ -5053,6 +5125,9 @@ var allCodes = []Code{
 	PULSE_FIT_INVALID,
 	PULSE_COMPARISON_INVALID,
 	PULSE_COMPARISON_ROWS_DIFFER,
+	PULSE_POSTFIT_INVALID,
+	PULSE_POSTFIT_FAILED,
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH,
 	PULSE_MODEL_NAME_COLLISION,
 	PULSE_MODEL_UNKNOWN,
 	PULSE_MODEL_KIND_MISMATCH,

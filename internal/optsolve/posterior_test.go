@@ -1,13 +1,18 @@
 package optsolve
 
 import (
+	"encoding/json"
+	"math"
 	"reflect"
 	"slices"
 	"testing"
 
+	"github.com/expr-lang/expr/vm"
+
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/optblock"
+	"github.com/frankbardon/pulse/internal/optgrad"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -23,10 +28,12 @@ const posteriorModel = `{"name": "m", "inline": {"model_format_version": 1, "typ
 		          [[10, 10], [2.5, 3.5], [0.3, 0.7], [45, 55], [1.5, 1.5], [2, 2]]],
 		"thin": 1, "credible_level": 0.9}}}}`
 
-// solvePosterior compiles a block loading posteriorModel and solves it
-// over the model's draws (a draws:N subsample through SubsampleDraws),
-// the coef() reader switched per draw as the runtime switches it.
-func solvePosterior(t *testing.T, raw string) *types.OptimizeResult {
+// posteriorSetup compiles a block loading posteriorModel against the
+// coef() / response() readers switched per draw as the runtime switches
+// them (Service.solveOptimizeBlock's drawView), and returns it with the
+// Draws over the model's draws (a draws:N subsample through
+// SubsampleDraws) and the selection cursor.
+func posteriorSetup(t *testing.T, raw string) (*types.OptimizeSpec, *optblock.Compiled, *Draws, *int) {
 	t.Helper()
 	spec := block(t, raw)
 	loaded, cerr := model.LoadFiles(model.Refs{Models: spec.Models}, nil, nil)
@@ -37,10 +44,20 @@ func solvePosterior(t *testing.T, raw string) *types.OptimizeResult {
 	if err != nil {
 		t.Fatal(err)
 	}
-	readers := []func(args ...any) (any, error){model.CoefBuiltin(set)}
-	cur := 0
-	c, cerr := optblock.Compile(spec, 0, optblock.Env{Loaded: []*model.Loaded{loaded}},
-		exprenv.Bound{Coef: func(args ...any) (any, error) { return readers[cur](args...) }})
+	type readers struct {
+		coef, response func(args ...any) (any, error)
+		slope          func(args ...any) (float64, error)
+	}
+	of := func(s *model.Set) readers {
+		return readers{model.CoefBuiltin(s), model.ResponseBuiltin(s), model.ResponseSlopeBuiltin(s)}
+	}
+	views := []readers{of(set)}
+	cur := new(int)
+	c, cerr := optblock.Compile(spec, 0, optblock.Env{Loaded: []*model.Loaded{loaded}}, exprenv.Bound{
+		Coef:          func(args ...any) (any, error) { return views[*cur].coef(args...) },
+		Response:      func(args ...any) (any, error) { return views[*cur].response(args...) },
+		ResponseSlope: func(args ...any) (float64, error) { return views[*cur].slope(args...) },
+	})
 	if cerr != nil {
 		t.Fatal(cerr)
 	}
@@ -58,18 +75,26 @@ func solvePosterior(t *testing.T, raw string) *types.OptimizeResult {
 		if err != nil {
 			t.Fatal(err)
 		}
-		readers = append(readers, model.CoefBuiltin(v))
+		views = append(views, of(v))
 	}
-	out, err := SolvePosterior(spec, 0, c, seed, &Draws{Fit: "m", Count: len(picks), Available: d.Len(), Level: d.Level,
-		Select: func(k int) { cur = k + 1 }})
+	return spec, c, &Draws{Fit: "m", Count: len(picks), Available: d.Len(), Level: d.Level,
+		Select: func(k int) { *cur = k + 1 }}, cur
+}
+
+// solvePosterior solves a block loading posteriorModel over the model's
+// draws (posteriorSetup).
+func solvePosterior(t *testing.T, raw string) *types.OptimizeResult {
+	t.Helper()
+	spec, c, d, cur := posteriorSetup(t, raw)
+	out, err := SolvePosterior(spec, 0, c, optblock.EffectiveSeed(spec), d)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out.Failed {
 		t.Fatalf("failed: %+v", out.Result.Error)
 	}
-	if cur != 0 {
-		t.Errorf("the solve left draw %d selected", cur-1)
+	if *cur != 0 {
+		t.Errorf("the solve left draw %d selected", *cur-1)
 	}
 	return &out.Result
 }
@@ -193,3 +218,72 @@ func TestSubsampleDraws(t *testing.T) {
 
 // frozenSubsample is SubsampleDraws(42, 20, 4).
 var frozenSubsample = []int{2, 12, 15, 16}
+
+// TestOptimize_PosteriorAnalyticGradient: a posterior block reading
+// coef() and response() differentiates analytically (no fallback), and
+// its gradients agree with the solver's own finite differences of the
+// same aggregates within 1e-5·max(1, |∂|) — the mean objective, the
+// quantile objective (the type-7 interpolation of the two draws it
+// reads), a constraint's mean and each draw alone during a re-solve —
+// at points off the quantile's kinks; the same point twice gives the
+// same bits, and a whole solve is reproducible bit for bit.
+func TestOptimize_PosteriorAnalyticGradient(t *testing.T) {
+	t.Parallel()
+
+	resp := `response(\"m\", \"tv\", x) - coef(\"m\", \"tv\") * x / 40`
+	for _, tc := range []struct{ name, objective, constraints, posterior string }{
+		{"mean", resp, `,"constraints":[{"expr":"coef(\"m\", \"tv\") * 30 - x","type":"ineq"}]`, `{}`},
+		{"quantile", resp, ``, `{"objective":"quantile","q":0.3}`},
+		{"coef quantile", `coef(\"m\", \"tv\") * x - x * x / 4`, ``, `{"objective":"quantile","q":0.1}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := posteriorBlock(tc.objective, tc.constraints, tc.posterior)
+			spec, c, d, _ := posteriorSetup(t, raw)
+			if c.ObjectiveGrad == nil || c.GradientFallback != nil {
+				t.Fatalf("posterior block fell back: %v", c.GradientFallback)
+			}
+			fd := &solver{spec: spec, c: c, sign: 1, draws: d, draw: -1}
+			an := &solver{spec: spec, c: c, sign: 1, draws: d, draw: -1, analytic: map[*vm.Program]*optgrad.Program{c.Objective: c.ObjectiveGrad}}
+			for k, prog := range c.Constraints {
+				an.analytic[prog] = c.ConstraintGrads[k]
+			}
+			progs := append([]*vm.Program{c.Objective}, c.Constraints...)
+			for _, x := range [][]float64{{1.7}, {6.3}, {13.1}} {
+				for _, draw := range []int{-1, 0, d.Count - 1} {
+					fd.draw, an.draw = draw, draw
+					for pi, prog := range progs {
+						want, got := fd.grad(prog, "f", 1, x), an.grad(prog, "f", 1, x)
+						if math.Abs(got[0]-want[0]) > 1e-5*math.Max(1, math.Abs(want[0])) {
+							t.Errorf("x %v draw %d expression %d: analytic %v, fd %v", x, draw, pi, got[0], want[0])
+						}
+						if again := an.grad(prog, "f", 1, x); math.Float64bits(again[0]) != math.Float64bits(got[0]) {
+							t.Errorf("x %v draw %d expression %d: %v then %v", x, draw, pi, got[0], again[0])
+						}
+					}
+				}
+			}
+			a, b := solvePosterior(t, raw), solvePosterior(t, raw)
+			if !reflect.DeepEqual(a, b) {
+				t.Fatalf("two analytic solves differ:\n%+v\n%+v", a, b)
+			}
+			// SolvePosterior really solves analytically: gradient fd
+			// (the pre-analytic path) lands on other bits.
+			var fdRaw map[string]any
+			if err := json.Unmarshal([]byte(raw), &fdRaw); err != nil {
+				t.Fatal(err)
+			}
+			fdRaw["gradient"] = "fd"
+			fdBytes, _ := json.Marshal(fdRaw)
+			f := solvePosterior(t, string(fdBytes))
+			if a.Gradient != types.OptimizeGradientAnalytic || a.GradientFallback != nil || f.Gradient != types.OptimizeGradientFD || f.GradientFallback != nil {
+				t.Fatalf("gradient echo: default %q %v, fd %q %v", a.Gradient, a.GradientFallback, f.Gradient, f.GradientFallback)
+			}
+			// The figures differ, not only the echo.
+			fc, ac := *f, *a
+			fc.Gradient, ac.Gradient = "", ""
+			if mustJSON(t, &fc) == mustJSON(t, &ac) {
+				t.Fatalf("the default solve gives the fd bits: the posterior path is not analytic")
+			}
+		})
+	}
+}

@@ -139,3 +139,210 @@ func TestRegPredict_PredictRuntimeParity(t *testing.T) {
 		}
 	})
 }
+
+// TestRegPredict_CarryRefusalsPredictRuntimeParity: every carry-over
+// refusal of an ATTR_REG_PREDICT (internal/model mmm_carry.go) over an
+// in-model adstocked REG_MMM_HILL fit — no params.order, an order beside
+// carryover false, an order or carryover on a fit that adstocks nothing
+// in-model, an order without field, an order field the frame lacks or
+// holds as a type that cannot order — is reported by PredictCompose
+// exactly as Compose and ComposeParallel return it.
+func TestRegPredict_CarryRefusalsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := hillAdstockRequest()
+	plain.Regressions[0].Params = json.RawMessage(`{"channels": ["x"]}`)
+	plain.Regressions[0].Order = nil
+	slot := func(params string) *Request {
+		return &Request{Label: "s", Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Attributes:   []*types.Attribute{scoreRef(params)},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p", Label: "p"}}}
+	}
+	cases := []struct {
+		name, params, reason string
+		fit                  *Request
+	}{
+		{"order required", `{"fit":"m"}`, "order_required", hillAdstockRequest()},
+		{"order beside carryover false", `{"fit":"m","carryover":false,"order":{"field":"week"}}`, "order_unused", hillAdstockRequest()},
+		{"order on a plain fit", `{"fit":"m","order":{"field":"week"}}`, "order_unused", plain},
+		{"carryover on a plain fit", `{"fit":"m","carryover":false}`, "carryover_unused", plain},
+		{"order without field", `{"fit":"m","order":{"partition":"region"}}`, "order_field_missing", hillAdstockRequest()},
+		{"order field unknown", `{"fit":"m","order":{"field":"wk"}}`, "order_field_invalid", hillAdstockRequest()},
+		{"order field categorical", `{"fit":"m","order":{"field":"region"}}`, "order_field_invalid", hillAdstockRequest()},
+	}
+	ctx := context.Background()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &ComposedRequest{Fits: []types.FitSpec{{Name: "m", Request: tc.fit}}, Requests: []*Request{slot(tc.params)}}
+			env, err := p.PredictCompose(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict errors = %+v, want exactly one", env.Errors)
+			}
+			pe := env.Errors[0]
+			if perr.Code(pe.Code) != perr.PULSE_MODEL_SCORE_INVALID || pe.Details["reason"] != tc.reason {
+				t.Fatalf("predict = %s %v, want PULSE_MODEL_SCORE_INVALID reason %s", pe.Code, pe.Details, tc.reason)
+			}
+			for name, run := range map[string]func() error{
+				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
+				"ComposeParallel": func() error {
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					return err
+				},
+			} {
+				var ce *perr.CodedError
+				if err := run(); !stderrors.As(err, &ce) {
+					t.Fatalf("%s: uncoded %v", name, err)
+				}
+				if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(ce.Details, pe.Details) {
+					t.Errorf("%s: runtime %s %q %v\n predict %s %q %v", name, ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
+				}
+			}
+		})
+	}
+}
+
+// TestRegFitted_CarryRefusalsPredictRuntimeParity (U71 E2-S5, E2-S6):
+// every params.fit regression attribute — ATTR_REG_FITTED /
+// ATTR_REG_RESIDUAL and, reading a REG_MMM_HILL fit's tangent plane,
+// ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE — takes ATTR_REG_PREDICT's
+// carry-over rule, each refusal identical (code, message, details) in
+// predict and on both orchestrators; so is each design refusal of a
+// leverage / influence / scaled-residual slot over a HILL fit (no vcov,
+// params.prior, a resample).
+func TestRegFitted_CarryRefusalsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := hillAdstockRequest()
+	plain.Regressions[0].Params = json.RawMessage(`{"channels": ["x"]}`)
+	plain.Regressions[0].Order = nil
+	slot := func(typ types.AttributeType, params string) *Request {
+		return &Request{Label: "s", Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Attributes:   []*types.Attribute{{Type: typ, Label: "p", Params: json.RawMessage(params)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p", Label: "p"}}}
+	}
+	type tc struct {
+		name, params, reason string
+		fit                  *Request
+	}
+	carry := []tc{
+		{"order required", `{"fit":"m"}`, "order_required", hillAdstockRequest()},
+		{"order beside carryover false", `{"fit":"m","carryover":false,"order":{"field":"week"}}`, "order_unused", hillAdstockRequest()},
+		{"order on a plain fit", `{"fit":"m","order":{"field":"week"}}`, "order_unused", plain},
+		{"carryover on a plain fit", `{"fit":"m","carryover":false}`, "carryover_unused", plain},
+		{"order without field", `{"fit":"m","order":{"partition":"region"}}`, "order_field_missing", hillAdstockRequest()},
+		{"order field unknown", `{"fit":"m","order":{"field":"wk"}}`, "order_field_invalid", hillAdstockRequest()},
+		{"order field categorical", `{"fit":"m","order":{"field":"region"}}`, "order_field_invalid", hillAdstockRequest()},
+	}
+	type run struct {
+		typ types.AttributeType
+		tc
+	}
+	// vcov: true, so a design-reading slot meets its carry-over rule
+	// (the design rule runs after it only on an order field the frame
+	// lacks or cannot order by).
+	for _, c := range carry {
+		c.fit.Regressions[0].Vcov = true
+	}
+	var runs []run
+	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
+		for _, c := range carry {
+			runs = append(runs, run{typ, c})
+		}
+	}
+	// The design rule over a HILL fit (model.CheckFitDesign): vcov,
+	// no prior, no resample — details.requires names the face.
+	withSpec := func(edit func(*types.RegressionSpec)) *Request {
+		r := hillAdstockRequest()
+		r.Regressions[0].Vcov = true
+		edit(r.Regressions[0])
+		return r
+	}
+	design := []tc{
+		{"design without vcov", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", hillAdstockRequest()},
+		{"design over a prior", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", withSpec(func(s *types.RegressionSpec) {
+			s.Params = json.RawMessage(`{"channels": ["x"], "adstock": "geometric", "max_lag": 6, "prior": {"channel": "x", "mean": 8, "precision": 1}}`)
+		})},
+		{"design over a resample", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", withSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.JackknifeGroups = "jackknife", 4
+		})},
+	}
+	for _, typ := range []types.AttributeType{types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
+		for _, c := range design {
+			runs = append(runs, run{typ, c})
+		}
+	}
+	runs = append(runs, run{types.ATTR_REG_RESIDUAL, tc{"kind studentized without vcov", `{"fit":"m","kind":"studentized","order":{"field":"week"}}`, "params_invalid", hillAdstockRequest()}})
+	ctx := context.Background()
+	for _, r := range runs {
+		t.Run(string(r.typ)+" "+r.name, func(t *testing.T) {
+			c := &ComposedRequest{Fits: []types.FitSpec{{Name: "m", Request: r.fit}}, Requests: []*Request{slot(r.typ, r.params)}}
+			env, err := p.PredictCompose(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict errors = %+v, want exactly one", env.Errors)
+			}
+			pe := env.Errors[0]
+			if perr.Code(pe.Code) != perr.PULSE_MODEL_SCORE_INVALID || pe.Details["reason"] != r.reason || pe.Details["attribute"] != string(r.typ) {
+				t.Fatalf("predict = %s %v, want PULSE_MODEL_SCORE_INVALID reason %s on %s", pe.Code, pe.Details, r.reason, r.typ)
+			}
+			for name, run := range map[string]func() error{
+				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
+				"ComposeParallel": func() error {
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					return err
+				},
+			} {
+				var ce *perr.CodedError
+				if err := run(); !stderrors.As(err, &ce) {
+					t.Fatalf("%s: uncoded %v", name, err)
+				}
+				if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(ce.Details, pe.Details) {
+					t.Errorf("%s: runtime %s %q %v\n predict %s %q %v", name, ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
+				}
+			}
+		})
+	}
+}
+
+// TestRegFitted_CarryRepeatedPeriodIsOrderError (U71 E2-S5): a carried
+// fitted slot whose scored rows repeat a period of its series (ordered
+// by floor(week / 2), so every period appears twice) is
+// PROCESSING_REGRESSION_ORDER reason duplicate, as a carried
+// ATTR_REG_PREDICT's.
+func TestRegFitted_CarryRepeatedPeriodIsOrderError(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ComposedRequest{
+		Fits: []types.FitSpec{{Name: "m", Request: hillAdstockRequest()}},
+		Requests: []*Request{{Label: "s", Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Attributes: []*types.Attribute{
+				{Type: types.ATTR_FORMULA, Label: "half", Expression: "floor(week / 2)"},
+				{Type: types.ATTR_REG_FITTED, Label: "p", Params: json.RawMessage(`{"fit":"m","order":{"field":"half"}}`)},
+			},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "p", Label: "p"}}}},
+	}
+	var ce *perr.CodedError
+	if _, err := p.Compose(context.Background(), c); !stderrors.As(err, &ce) {
+		t.Fatalf("uncoded %v", err)
+	}
+	if ce.Code != perr.PROCESSING_REGRESSION_ORDER || ce.Details["reason"] != "duplicate" || ce.Details["attribute"] != string(types.ATTR_REG_FITTED) {
+		t.Fatalf("got %s %v, want PROCESSING_REGRESSION_ORDER reason duplicate on ATTR_REG_FITTED", ce.Code, ce.Details)
+	}
+}

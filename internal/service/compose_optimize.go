@@ -45,6 +45,21 @@ func (s *Service) exprFunctionNames() []string {
 	return names
 }
 
+// differentiableFunctionNames are the embedder's ExprFunctions carrying
+// a Derivative hook (optblock.Env.Differentiable), registration order.
+func (s *Service) differentiableFunctionNames() []string {
+	if s.extensions == nil {
+		return nil
+	}
+	var names []string
+	for _, fn := range s.extensions.ExprFunctions {
+		if fn.Derivative != nil {
+			names = append(names, fn.Name)
+		}
+	}
+	return names
+}
+
 // hasLookup reports a registered LookupTable (lookup() is declared).
 func (s *Service) hasLookup() bool {
 	return s.extensions != nil && len(s.extensions.LookupTables) > 0
@@ -115,10 +130,12 @@ type drawView struct {
 // modelReaders are the bound-model builtins over one Set.
 type modelReaders struct {
 	coef, axis, response func(args ...any) (any, error)
+	responseSlope        func(args ...any) (float64, error)
 }
 
 func readersOf(set *model.Set) modelReaders {
-	return modelReaders{coef: model.CoefBuiltin(set), axis: model.SweepAxisBuiltin(set), response: model.ResponseBuiltin(set)}
+	return modelReaders{coef: model.CoefBuiltin(set), axis: model.SweepAxisBuiltin(set), response: model.ResponseBuiltin(set),
+		responseSlope: model.ResponseSlopeBuiltin(set)}
 }
 
 func newDrawView(set *model.Set) *drawView {
@@ -132,6 +149,7 @@ func (v *drawView) bind(b *exprenv.Bound) {
 	b.Coef = func(args ...any) (any, error) { return v.readers[v.cur].coef(args...) }
 	b.SweepAxis = func(args ...any) (any, error) { return v.readers[v.cur].axis(args...) }
 	b.Response = func(args ...any) (any, error) { return v.readers[v.cur].response(args...) }
+	b.ResponseSlope = func(args ...any) (float64, error) { return v.readers[v.cur].responseSlope(args...) }
 }
 
 // load builds one reader set per evaluated draw of fit — every draw, or
@@ -179,15 +197,16 @@ func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *compo
 	params, _ := exprenv.NormalizeParams(composed.Params)
 	catalog := model.CatalogFromFits(composed.Fits).WithSweepAxes(ext.sweepAxes())
 	env := optblock.Env{
-		Params:     params,
-		Fits:       catalog,
-		Extensions: s.exprFunctionNames(),
-		Lookup:     s.hasLookup(),
-		Tables:     s.extensions.TablesCatalog(),
-		Outer:      model.WithinCatalog(s.populationCatalog(), catalog),
-		Load:       s.optimizeLoader,
-		Loaded:     loaded,
-		Results:    descx.ResultCatalog(composed.Requests, s.extensions.AggregationKinds()),
+		Params:         params,
+		Fits:           catalog,
+		Extensions:     s.exprFunctionNames(),
+		Differentiable: s.differentiableFunctionNames(),
+		Lookup:         s.hasLookup(),
+		Tables:         s.extensions.TablesCatalog(),
+		Outer:          model.WithinCatalog(s.populationCatalog(), catalog),
+		Load:           s.optimizeLoader,
+		Loaded:         loaded,
+		Results:        descx.ResultCatalog(composed.Requests, s.extensions.AggregationKinds()),
 	}
 	results := &resultcall.Reader{Catalog: env.Results, Responses: responses}
 	out := make([]types.OptimizeResult, len(composed.Optimize))

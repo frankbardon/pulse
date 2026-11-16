@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
@@ -119,8 +120,10 @@ type ComposeValidationResult struct {
 	// each slot's Request advisories in slot order (details.request = the
 	// slot index, every slot path prefixed "requests[i]."), then
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT over Slots, then
-	// PULSE_ADVISORY_MANY_TESTS over PValues. Never a warning; omitted
-	// when none fires.
+	// PULSE_ADVISORY_MANY_TESTS over PValues, then one
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK per optimize block that
+	// falls back to finite differences. Never a warning; omitted when
+	// none fires.
 	Advisories []descriptor.Advisory `json:"advisories,omitempty"`
 
 	// Sweep summarises what the request's `sweep` block expands to —
@@ -375,7 +378,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles, aggregationKinds(opts.instance(), extensionsFromOpts(opts)))
+	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), predictDifferentiableNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles, aggregationKinds(opts.instance(), extensionsFromOpts(opts)))
 	if oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
@@ -393,6 +396,14 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		return env, req
 	}
 	result.Compare = comparisonSummaries(cmpPlans)
+	// Then the post-fit entries — the runtime's postFitRefusal (the
+	// same postfit.Check over the same declarations), run right after
+	// its comparisons' rules; nothing past it runs on a refusal.
+	if perr := postfit.Check(req.PostFit, req.Fits, opts.postFitDecls(), DeclaredParamsRefusal); perr != nil {
+		addCodedError(env, perr)
+		result.Valid = false
+		return env, req
+	}
 	// Then the batch's saves and loads — the runtime's
 	// model.CheckComposeBatch and its model-file reads, run before any
 	// fit or slot; nothing past it runs on a refusal.
@@ -460,6 +471,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		result.PValues = countComposeHostPValues(req, multPlan, opts)
 	}
 	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts, slotModels)
+	result.Advisories = append(result.Advisories, optimizeGradientAdvisories(checked, opts.instance())...)
 	for k := range result.Slots {
 		i := result.Slots[k].Request
 		if i < len(postWindows) {

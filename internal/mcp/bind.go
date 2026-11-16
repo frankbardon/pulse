@@ -478,6 +478,8 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 		metas = snap.Regressions
 	case "overlay":
 		metas = snap.Overlays
+	case "post_fit":
+		metas = snap.PostFits
 	default:
 		return nil
 	}
@@ -1171,7 +1173,32 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 	}
 	addModelSave(out, inst, "Write the finished fit as a model file at this path (relative to the data root, ending .pulse-model.json), atomically; overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	addRegressionHoldout(out, inst)
+	addRegressionOrder(out, inst)
 	return out
+}
+
+// addRegressionOrder adds the `order` property to the regressions array
+// schema's items when inst enables capability:regression_order.
+func addRegressionOrder(arr map[string]any, inst *descx.InstanceSnapshot) {
+	if !inst.Enabled(descx.FeatureRegressionOrder) {
+		return
+	}
+	gaps := make([]string, 0, len(types.AllOrderGaps()))
+	for _, g := range types.AllOrderGaps() {
+		gaps = append(gaps, string(g))
+	}
+	props := arr["items"].(map[string]any)["properties"].(map[string]any)
+	props["order"] = map[string]any{
+		"type":        "object",
+		"description": "Fit the rows in order: {field (an unsigned integer period index, date or datetime), partition (optional: the field splitting a panel into series), gaps (\"refuse\", the default)}. The rows are sorted by field per series after listwise deletion; a repeated period or a step that is not the cadence fails the slot alone (PROCESSING_REGRESSION_ORDER). Required by an order-dependent model; forces the buffered path.",
+		"properties": map[string]any{
+			"field":     map[string]any{"type": "string"},
+			"partition": map[string]any{"type": "string"},
+			"gaps":      map[string]any{"type": "string", "enum": gaps},
+		},
+		"required":             []string{"field"},
+		"additionalProperties": false,
+	}
 }
 
 // addRegressionHoldout adds the `holdout` property to the regressions
@@ -1918,6 +1945,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
 			"optimize": optimizeSchema(inst),
 			"compare":  compareSchema(),
+			"post_fit": postFitSchema(inst),
 			"base":     baseSchema(reqSchema),
 		},
 		"required":             []string{"requests"},
@@ -2016,6 +2044,34 @@ func compareSchema() map[string]any {
 	}
 }
 
+// postFitSchema describes the ComposedRequest `post_fit` list
+// (types.PostFitSpec): runs of embedder-registered post-fit operators
+// after the optimize blocks, with no record data. The `type` enum is the
+// instance's registered (visible) post-fit operators — empty without
+// any, as the payload schema's PostFitType. Dropped with the slot when
+// capability:compose_post_fit is hidden (dropHiddenSlots).
+func postFitSchema(inst *descx.InstanceSnapshot) map[string]any {
+	names := extensionNames(inst.Extensions(), "post_fit")
+	if names == nil {
+		names = []string{}
+	}
+	sort.Strings(names)
+	return map[string]any{
+		"type":        "array",
+		"description": "Runs of embedder-registered post-fit operators (POSTFIT_<NAMESPACE>_<NAME>), each once after the optimize blocks and before the comparisons (no record data): the operator reads the regression `fits` it names, the slot results, the optimize solutions and its params. Results are returned under the response `post_fit`, in order: named scalars and named tables.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"label":  map[string]any{"type": "string", "description": "The entry's label, unique among the entries."},
+				"type":   map[string]any{"type": "string", "enum": names, "description": "A registered post-fit operator (the manifest's extensions.post_fits lists each one's params and outputs)."},
+				"fits":   map[string]any{"type": "array", "description": "The regression `fits` entry names the operator reads, each once.", "items": map[string]any{"type": "string"}},
+				"params": map[string]any{"type": "object", "description": "The operator's params, checked against its declared params."},
+			},
+			"required": []string{"label", "type"},
+		},
+	}
+}
+
 // optimizeSchema describes the ComposedRequest `optimize` list
 // (types.OptimizeSpec): constrained optimisations solved after the fits
 // with no record data. Dropped with the slot when
@@ -2107,6 +2163,7 @@ func optimizeSchemaBase() map[string]any {
 				"rng_seed":       map[string]any{"type": "integer", "description": "Seed of the Latin-hypercube starts; omit (0) to derive one from the block."},
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
+				"gradient":       enumStringField([]string{string(types.OptimizeGradientAnalytic), string(types.OptimizeGradientFD)}, "How the solver differentiates: analytic (default; exact forward-mode gradients, finite differences for the whole block when an expression calls a function without a derivative rule) or fd (finite differences throughout)."),
 				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
 				"posterior": map[string]any{
 					"type":        "object",

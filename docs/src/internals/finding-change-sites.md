@@ -67,6 +67,33 @@ from the ones that do:
 - Under **Gates to rerun**, the benchmarks of its packages and the
   Makefile targets (other than whole-module ones) that run them.
 
+`op` and `new-op` also print **Spec sites** — what a change to the
+category's request spec struct (`types.RegressionSpec`: a new key, an
+object sub-block, a coded refusal, a vocabulary or a capability) reaches
+without naming any operator. The spec is the `types` struct carrying the
+registry's element type that a `types.Request` field holds; the slot's
+json name and the family word (`REGRESSION`) follow from it. Each kind
+of site is found by its shape:
+
+- **Refusal pipelines** — declarations calling at least three of the
+  spec's checkers (funcs taking the spec and returning
+  `*errors.CodedError`): `checkRegressionSpec` (predict),
+  `ValidateRegression` (runtime), `AdaptRegressionFactory` (extensions).
+- **Field-list derivers** — funcs from the spec to a `[]string`
+  (`levelFields`, `RegressionReads`): a key naming a cohort field joins
+  each.
+- **Code tables** — `var` / `const` declarations listing at least three
+  `*_REGRESSION_*` codes (`slotfail.RegressionCodes`, `codeMetadata`,
+  `errorOwners`).
+- **Vocabulary registrars** — callers of a closed vocabulary reachable
+  from the spec's fields (`types.AllCovarianceTypes` in the payload
+  schema's `enumValues` and the MCP schema).
+- **Strict-input families** — string literals `"request.regressions"`
+  or `"request.regressions.<key>"` (the CLI strict-acceptance rows).
+- **Capability lists** — files naming at least two
+  `capability:regression_*` features (`examples/profiles/*.json`,
+  `features.go`, the feature-profile docs).
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in but this one does not.
 `slot` warns about **per-slot walkers** (functions that reference many
@@ -107,6 +134,9 @@ Nothing in the site list is hand-maintained:
 - **`new-op` templates** are the sites the category's existing
   operators share, after folding each operator's own name out of file
   names.
+- **Spec sites** are read by AST from those shapes (above), never from
+  a site list; the tool's tests pin each rule on a fixture tree and the
+  regression sites on the real one.
 - **Slot sites** are `go/types`-resolved references to the
   `types.Request` / `types.Response` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against

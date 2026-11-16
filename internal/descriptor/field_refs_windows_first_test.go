@@ -177,22 +177,63 @@ func TestWindowsFirst_PredictStreamableMatchesRuntime(t *testing.T) {
 	}
 }
 
-// TestWindowsFirst_CategoricalWindowGroupRefusedByPredict: GROUP_CATEGORY
-// on a WIN_LAG of a categorical field is refused by predict exactly as
-// the engine refuses it (processing's
-// TestWindowsFirst_CategoryGroupOnCategoricalWindowRefused) — the window
-// accepts no categorical field (internal/fieldaccept), so no window
-// yields a category to key by.
-func TestWindowsFirst_CategoricalWindowGroupRefusedByPredict(t *testing.T) {
+// TestWindowsFirst_CategoricalWindowGroupPredicted: a WIN_LAG of a
+// categorical field is a lagged category (mmm-optimize-depth E4-S1).
+// Predict accepts it as a GROUP_CATEGORY key and as a later copy
+// window's field, and refuses every other read of it — an aggregation's
+// field, a value window — with PULSE_FIELD_TYPE_UNSUPPORTED, and a
+// params.default that is no dictionary label with PULSE_WINDOW_INVALID
+// default_not_a_label (the engine raises the same: processing's
+// TestWindowsFirst_CategoryGroupOnCategoricalWindow and
+// TestWinLag_CategoricalRefusals; the facade parity in integration's
+// TestWinLagCategorical_PredictMatchesRuntime).
+func TestWindowsFirst_CategoricalWindowGroupPredicted(t *testing.T) {
 	t.Parallel()
 
-	req := &types.Request{
-		Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "cat", Label: "lag_cat", OrderBy: []types.OrderKey{{Field: "m"}}}},
-		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_cat"}},
-		Aggregations: []*types.Aggregation{sumField("n", "s")},
+	data := buildTestPulseFile(t, fieldRefSchema())
+	lag := func(params string) *types.Window {
+		w := &types.Window{Type: types.WIN_LAG, Field: "cat", Label: "lag_cat", OrderBy: []types.OrderKey{{Field: "m"}}}
+		if params != "" {
+			w.Params = []byte(params)
+		}
+		return w
 	}
-	env := predictFromBytes(buildTestPulseFile(t, fieldRefSchema()), req, nil)
-	if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) || env.Errors[0].Details["type"] != "WIN_LAG" {
-		t.Fatalf("predict errors %+v, want PULSE_FIELD_TYPE_UNSUPPORTED for WIN_LAG", env.Errors)
+	for name, c := range map[string]struct {
+		req          *types.Request
+		code, reason string
+	}{
+		"group": {req: &types.Request{Windows: []*types.Window{lag("")},
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_cat"}}, Aggregations: []*types.Aggregation{sumField("n", "s")}}},
+		"group label default": {req: &types.Request{Windows: []*types.Window{lag(`{"default": "a"}`)},
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_cat"}}, Aggregations: []*types.Aggregation{sumField("n", "s")}}},
+		"lag of lag": {req: &types.Request{Windows: []*types.Window{lag(""),
+			{Type: types.WIN_LEAD, Field: "lag_cat", Label: "back", OrderBy: []types.OrderKey{{Field: "m"}}}},
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "back"}}, Aggregations: []*types.Aggregation{sumField("n", "s")}}},
+		"aggregated": {req: &types.Request{Windows: []*types.Window{lag("")},
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, Aggregations: []*types.Aggregation{sumField("lag_cat", "s")}},
+			code: string(errors.PULSE_FIELD_TYPE_UNSUPPORTED), reason: "categorical_window_output"},
+		"value window": {req: &types.Request{Windows: []*types.Window{lag(""),
+			{Type: types.WIN_DELTA, Field: "lag_cat", Label: "d", OrderBy: []types.OrderKey{{Field: "m"}}}}},
+			code: string(errors.PULSE_FIELD_TYPE_UNSUPPORTED)},
+		"unknown default": {req: &types.Request{Windows: []*types.Window{lag(`{"default": "zz"}`)}},
+			code: string(errors.PULSE_WINDOW_INVALID), reason: "default_not_a_label"},
+		"numeric default": {req: &types.Request{Windows: []*types.Window{lag(`{"default": 0}`)}},
+			code: string(errors.PULSE_WINDOW_INVALID), reason: "default_not_a_label"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := predictFromBytes(data, c.req, nil)
+			if c.code == "" {
+				if len(env.Errors) != 0 {
+					t.Fatalf("predict errors %+v, want none", env.Errors)
+				}
+				return
+			}
+			if len(env.Errors) != 1 || env.Errors[0].Code != c.code {
+				t.Fatalf("predict errors %+v, want one %s", env.Errors, c.code)
+			}
+			if c.reason != "" && env.Errors[0].Details["reason"] != c.reason {
+				t.Fatalf("details %v, want reason %s", env.Errors[0].Details, c.reason)
+			}
+		})
 	}
 }

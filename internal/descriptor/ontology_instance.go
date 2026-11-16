@@ -84,6 +84,7 @@ func extensionOperatorLists(ext *ExtensionsSnapshot) [][]descriptor.OperatorMeta
 	return [][]descriptor.OperatorMeta{
 		ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers, ext.Windows,
 		ext.Features, ext.Tests, ext.Overlays, ext.MatrixOps, ext.Regressions,
+		ext.PostFits,
 	}
 }
 
@@ -130,6 +131,12 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	// capability.
 	for _, op := range ext.MatrixOps {
 		b.edge(OntologyID(descriptor.OntologyNodeOperator, op.Name), b.featureNode(featMatrices, "extension matrix operator "+op.Name), descriptor.OntologyEdgeRequiresCapability, "extension matrix operator")
+	}
+	// An extension POSTFIT_* operator runs only in the Compose
+	// `post_fit` slot: it requires capability:compose_post_fit, so
+	// pruning drops it with the capability.
+	for _, op := range ext.PostFits {
+		b.edge(OntologyID(descriptor.OntologyNodeOperator, op.Name), b.featureNode(featComposePostFit, "extension post-fit operator "+op.Name), descriptor.OntologyEdgeRequiresCapability, "extension post-fit operator")
 	}
 	b.addPurposeEdges(ontologySources{purposes: ext.Purposes})
 	for _, t := range ext.LabelTables {

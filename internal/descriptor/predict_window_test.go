@@ -381,7 +381,7 @@ func TestPredictWindow_NonNumericField(t *testing.T) {
 	req := &types.Request{
 		Windows: []*types.Window{
 			{
-				Type:    types.WIN_LAG,
+				Type:    types.WIN_DELTA,
 				Field:   "region",
 				OrderBy: []types.OrderKey{{Field: "ts"}},
 			},
@@ -390,6 +390,12 @@ func TestPredictWindow_NonNumericField(t *testing.T) {
 	env := predictFromBytes(data, req, nil)
 	if !envHasErrorCode(env, errors.PULSE_FIELD_TYPE_UNSUPPORTED) {
 		t.Fatalf("expected non-numeric field error, got %+v", env.Errors)
+	}
+	// A copy window copies the category's label (mmm-optimize-depth
+	// E4-S1): WIN_LAG over the same field is accepted.
+	req.Windows[0].Type = types.WIN_LAG
+	if env := predictFromBytes(data, req, nil); len(env.Errors) != 0 {
+		t.Fatalf("WIN_LAG over a categorical: %+v", env.Errors)
 	}
 }
 

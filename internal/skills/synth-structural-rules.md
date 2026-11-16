@@ -21,7 +21,7 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 | Refusal codes, non-nullable targets, a rule that never fires | `synth-rule-validation` |
 | Which rules retire a field's model / pairs / residual correlations | `synth-rule-claims` |
 | `--rules` / `--emit-spec`, and detecting rules with `--suggest-rules` | `synth-rules-from-profile` |
-| `row()` / `lag()`, panel reset, recursive adstock | `synth-cross-row` |
+| `row()` / `lag()`, per-partition lag, panel reset, recursive adstock | `synth-cross-row` |
 | Random draws in a rule; `"output": false` helper fields | `synth-rule-draws` |
 | `trend` / `season` / `between` over a date / datetime | `synth-datetime` |
 | `lookup()` over the instance's tables; its codes and hash | `synth-rule-validation` |

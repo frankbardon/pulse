@@ -14,7 +14,7 @@ Goal: per-channel decay, response curve and a budget split that equalises margin
 
 ## The one call
 
-- **`sweep`**: `lhs` ([`compose-sweep-sampling`](compose-sweep-sampling.md)), one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep `max` below 1), `samples` in the thousands, `rank` `{by: "regressions.mmm.holdout.rmse", order: "asc"}`. Each slot: one `WIN_DISTRIBUTED_LAG` per channel (`kernel: geometric`, `decay: {"$var": "tv"}`, `normalize: false`), then one `REG_MMM_HILL` named `mmm` with `params.channels` and a `holdout` on the last weeks. Use enough samples for the channel count and check the best slots agree on the decays. `MaxComposeSlots` counts the samples plus the explicit slots: raise `Options.Limits.MaxComposeSlots` (CLI `--limit max_compose_slots=2001` for 2,000 samples and one explicit slot).
+- **`sweep`**: `lhs` ([`compose-sweep-sampling`](compose-sweep-sampling.md)), one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep `max` below 1), `samples` in the thousands, `rank` `{by: "regressions.mmm.holdout.rmse", order: "asc"}`. Each slot: one `WIN_DISTRIBUTED_LAG` per channel (`kernel: geometric`, `decay: {"$var": "tv"}`, `normalize: false`), then one `REG_MMM_HILL` named `mmm` with `params.channels` and a `holdout` on the last weeks. Use enough samples for the channel count and check the best slots agree on the decays. `MaxComposeSlots` counts the samples plus the explicit slots: raise `Options.Limits.MaxComposeSlots` (CLI `--limit max_compose_slots=2001`).
 - **`fits`**: `[{"name": "mmm", "from_sweep": {"regression": "mmm"}}]` refits the winning slot's regression, its holdout kept ([`compose-sweep-bind`](compose-sweep-bind.md)).
 - **`requests`**: one contribution slot. A window's `decay` is a literal, so rebuild each adstock at the winner's decay: one `WIN_LAG` item (ordered by week) fanned out with `for_each` over channel × lag `1..max_lag`, label `{{ch}}_l{{lag}}` (`params: {offset: {"$var": "lag"}, default: 0}`, [`item-fan-out`](item-fan-out.md)), then an `ATTR_FORMULA` per channel labelled `tv_ad`, `tv + d * (tv_l1 + d * (tv_l2 + … + d * tv_l13))` with `d` written as `sweep_axis("mmm", "tv")`, then `coef("mmm", "tv_ad") * hill(tv_ad, coef("mmm", "k:tv_ad"), coef("mmm", "s:tv_ad"))`.
 - **`optimize`**: maximise the summed steady-state curves, `response("mmm", "tv_ad", tv) + …`, under `sum(spend) = budget` ([`compose-optimize`](compose-optimize.md)). Current spend, bounds and the budget are your own figures in `params`.
@@ -23,7 +23,7 @@ Run order: the sweep slots, the rank, the bound fit, then optimize and the contr
 
 ## Steady-state response
 
-`response(fit, channel, spend)` = `beta · hill(m · spend, k, s)`: `beta`, `k`, `s` the fit's `<ch>`, `k:<ch>`, `s:<ch>` coefficients (Bayes: posterior means on its own curve; a geo panel's population, or a 4th `geo` argument's own, [`mmm-bayes-model`](mmm-bayes-model.md)), `m` the sum of the channel's adstock kernel weights over lags `0..max_lag` — the level a constant spend of 1 settles to (geometric: `(1 - d^(max_lag+1)) / (1 - d)`; normalised: 1). It reads the fit's own adstock record, never a default: a channel that is one `WIN_DISTRIBUTED_LAG` column (Hill, sweep winner included), every Bayes channel, or an inline model's declared `adstock`. Any other channel is `PULSE_MODEL_TERM_UNKNOWN` `adstock_unknown` (`details.channel`; predict too when the fit and channel are literals, except on a `from_sweep` fit, judged at run). Works in optimize objectives, constraints and bounds and in formulas. `hill()` is Hill only: read other curves through `response()`.
+`response(fit, channel, spend)` = `beta · hill(m · spend, k, s)`: `beta`, `k`, `s` the fit's `<ch>`, `k:<ch>`, `s:<ch>` coefficients (Bayes: posterior means on its own curve; a geo panel's population, or a 4th `geo` argument's own, [`mmm-bayes-model`](mmm-bayes-model.md)), `m` the sum of the channel's adstock kernel weights over lags `0..max_lag` — the level a constant spend of 1 settles to (geometric: `(1 - d^(max_lag+1)) / (1 - d)`; normalised: 1). It reads the fit's own adstock record, never a default: a Hill channel that is one `WIN_DISTRIBUTED_LAG` column (sweep winner included) or fitted by `params.adstock`, every Bayes channel, or an inline model's declared `adstock`. Any other channel is `PULSE_MODEL_TERM_UNKNOWN` `adstock_unknown` (`details.channel`; predict too when the fit and channel are literals, except on a `from_sweep` fit, judged at run). Works in optimize objectives, constraints and bounds and in formulas. `hill()` is Hill only: read other curves through `response()`.
 
 ## Contribution by quarter
 
@@ -31,9 +31,9 @@ Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and 
 
 ## Bayesian route vs LM/sweep route
 
-- **LM/sweep** (above): fast (seconds per fit), scores holdout, saves and feeds `compose optimize`. Decay is a sweep axis, so betas, k and s are decay-conditional; there is no decay interval.
-- **`REG_MMM_BAYES`** ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. With `return_draws` it saves, scores and feeds `optimize` over its draws (`posterior`, [`mmm-bayes-posterior`](mmm-bayes-posterior.md)). Needs `params.time` as contiguous integers (a date is `time_gap`).
-- Pick the sweep to allocate budget, Bayes to say how sure you are. Reading an interval: an always-on channel is the hardest to identify and gets a wide interval, so read its width, not its centre. Check `diagnostics` first; `Strict` turns a sampler warning into a failed slot.
+- **LM/sweep** (above): fast (seconds per fit), scores holdout, saves and feeds `compose optimize`. Decay is a sweep axis (betas, k, s decay-conditional), or `params.adstock` fits it, with SE ([`op-reg-mmm-hill`](op-reg-mmm-hill.md)).
+- **`REG_MMM_BAYES`** ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. With `return_draws` it saves, scores and feeds `optimize` over its draws (`posterior`, [`mmm-bayes-posterior`](mmm-bayes-posterior.md)). Needs `order.field` as contiguous integers (a date is `time_gap`).
+- Pick the sweep to allocate budget, Bayes to say how sure you are. Reading an interval: an always-on channel is the hardest to identify and gets a wide interval, so read its width, not its centre. Check `diagnostics` first (`Strict` fails on a sampler warning).
 
 ## Lift tests: likelihood or prior
 
@@ -43,7 +43,7 @@ Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and 
 
 ## Intervals and trust
 
-- Decay: no SE exists. Report the range of decays among the sweep's near-best ranks (`ranking[i].axes`). For beta intervals, `resample` an authored fit at the winning decays: on the sweep regression it would run in every slot.
+- Decay: a sweep has no SE; report the near-best ranks' decays (`ranking[i].axes`), or fit `params.adstock`. For beta intervals, `resample` an authored fit at the winning decays: on the sweep regression it would run in every slot.
 - Curves: an underfunded channel's k and s are weakly identified; trust its ROI, not its k.
 - Check `starts_agreeing` on the optimize result.
 - Known truth (a synthetic cohort): declare it as an `inline` `models` entry (numbers may be `params.<name>`) and run the same `optimize` objective over it beside the fit ([`compose-optimize`](compose-optimize.md)).

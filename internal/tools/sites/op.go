@@ -101,6 +101,10 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Sections = append(rep.Sections, a.enumeratorSection())
 	}
 
+	// Sites a change to the category's request spec reaches.
+	if sec, ok := r.specSection(c.categoryDef); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
 	// Sites that do not spell the name, derived from the ones that do.
 	if sec, ok := r.paramEnumSection(op); ok {
 		rep.Sections = append(rep.Sections, sec)

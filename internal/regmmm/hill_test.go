@@ -122,13 +122,13 @@ func TestMMMHill_RegistersAndSelfDescribes(t *testing.T) {
 	for _, o := range meta.OutputSchema {
 		outputs = append(outputs, o.Key)
 	}
-	for _, want := range []string{"channels", "nonnegative", "prior"} {
+	for _, want := range []string{"channels", "nonnegative", "prior", "adstock", "max_lag", "carryover"} {
 		if !slices.Contains(params, want) {
 			t.Errorf("manifest params %v lack %s", params, want)
 		}
 	}
-	if !slices.Equal(outputs, []string{"k", "s"}) {
-		t.Errorf("manifest output_schema keys = %v, want [k s]", outputs)
+	if !slices.Equal(outputs, []string{"k", "s", "condition_number", "adstock_state"}) {
+		t.Errorf("manifest output_schema keys = %v, want [k s condition_number adstock_state]", outputs)
 	}
 	s := spec(twoChannels, paramsTwo)
 	s.Vcov = true

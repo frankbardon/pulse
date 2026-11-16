@@ -51,9 +51,14 @@ func fieldTypeRefusalCases() []fieldTypeRefusalCase {
 		body := strings.NewReplacer("$F", "t_"+ft.String(), "$V", v, "$W", w, "$S", s).Replace(tmpl)
 		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: code})
 	}
-	// Value windows: 11 ops x 12 types = 132.
+	// Value windows: 11 ops x 12 types = 132, less the copy windows'
+	// categoricals (WIN_LAG / WIN_LEAD copy a category's label,
+	// mmm-optimize-depth E4-S1) = 126.
 	for _, op := range []string{"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_LIFT", "WIN_DISTRIBUTED_LAG"} {
 		for _, ft := range refusedValueTypes() {
+			if ft.IsCategorical() && (op == "WIN_LAG" || op == "WIN_LEAD") {
+				continue
+			}
 			fill(op, acceptanceTemplates[op], ft, errors.PULSE_FIELD_TYPE_UNSUPPORTED)
 		}
 	}
@@ -248,7 +253,12 @@ func TestFieldTypeRefusal_SafePairsStillRun(t *testing.T) {
 	safe := []encoding.FieldType{encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32,
 		encoding.FieldTypeU64, encoding.FieldTypeF32, encoding.FieldTypeF64, encoding.FieldTypeDate}
 	for _, op := range ops {
-		for _, ft := range safe {
+		fts := safe
+		if op == "WIN_LAG" || op == "WIN_LEAD" {
+			fts = append(append([]encoding.FieldType(nil), safe...),
+				encoding.FieldTypeCategoricalU8, encoding.FieldTypeCategoricalU16, encoding.FieldTypeCategoricalU32)
+		}
+		for _, ft := range fts {
 			v, w, s := acceptanceValues(ft)
 			body := strings.NewReplacer("$F", "t_"+ft.String(), "$V", v, "$W", w, "$S", s).Replace(acceptanceTemplates[op])
 			mk := func() *types.Request {

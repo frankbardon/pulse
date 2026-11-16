@@ -2277,6 +2277,16 @@ type ComposedRequest struct {
 	// `omitempty`, so a comparison-free request is byte-identical on the
 	// wire and under Hash. See FitComparisonSpec.
 	Compare []FitComparisonSpec `json:"compare,omitempty"`
+
+	// PostFit are the batch's post-fit operator runs (PostFitSpec): each
+	// runs once, after the optimize blocks and before the comparisons,
+	// with no record data — over the fits it names, the slot results
+	// (result()), the optimize solutions and its params; results land in
+	// ComposedResponse.PostFit. The operators are embedder-registered
+	// (pulse.PostFitRegistration). Nil is absent — the slot is
+	// `omitempty`, so a post-fit-free request is byte-identical on the
+	// wire and under Hash. See PostFitSpec.
+	PostFit []PostFitSpec `json:"post_fit,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2360,6 +2370,13 @@ type ComposedResponse struct {
 	// rounded. Gated by capability:compose_compare with the `compare`
 	// request slot.
 	Comparisons []FitComparisonResult `json:"comparisons,omitempty"`
+
+	// PostFit carries each ComposedRequest.PostFit entry's result
+	// (PostFitResult), in declaration order, each echoing its label and
+	// type. Omitted when the request declared no post-fit entry. Like
+	// `fits` it sits outside the Compose-level `return`: always emitted,
+	// never rounded.
+	PostFit []PostFitResult `json:"post_fit,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

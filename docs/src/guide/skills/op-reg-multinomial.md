@@ -35,6 +35,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `vcov` | bool | `false` | Inverse information over the keys + `Correlation`. |
 | `weight` | slot weight | — | `null` opts out; frequency or probability. |
 | `multiplicity` | object | — | Default family: every non-intercept key; `coefficients` lists `<level>:<term>` keys. |
+| `order` | object | — | Row order. |
 | `name` | string | — | Result name. |
 
 ## Inputs

@@ -9,8 +9,6 @@ applies_to: compose, predict
 examples_tags: [regression, ols, compose]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -21,6 +19,8 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 | `terms` | list | — | Score only these terms, `(intercept)` opt-in; fit order. Absent: whole model. |
 | `scale` | enum | `response` | GLM only: `response` (inverse link) or `link`. |
 | `bound` | enum | `point` | `point`, `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
+| `carryover` | bool | `true` | Adstocked-in-model fit: carry (needs `order`). |
+| `order` | object | — | `{field, partition?}` of raw spend (`regression-order`). |
 
 ## Inputs
 
@@ -29,7 +29,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `f64` per record; null when a column the score reads is null, NaN or ±Inf, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; other slots compute normally; predict cannot foresee it). Training rows equal the fit's own fitted values bit for bit.
+One `f64` per record; null when a column read is null, NaN or ±Inf, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; other slots compute; predict cannot foresee it). Training rows equal the fit's fitted values bit for bit.
 
 <!-- generated: reading-the-output -->
 
@@ -37,9 +37,9 @@ One `f64` per record; null when a column the score reads is null, NaN or ±Inf, 
 
 ## Gotchas
 
-- The fit's predictor list is authoritative: build the same columns (same features) in the slot. An absent one-hot column is the reference level; scoring never infers a level. Under selection a dropped feature scores 0.
+- The fit's predictor list is authoritative: build the same columns (same features). An absent one-hot column is the reference level; never inferred. Under selection a dropped feature scores 0.
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
-- Row-local: streams, merges, materializes. Row weight ignored (the fit's own applied).
+- Row-local (two-pass with `order`): streams, merges, materializes. Row weight ignored.
 - A registered model scores whole-model only, through its scorer (`no_scorer` without one); save-then-load recipe: `regression-row-scores`.<!-- feature: REG_MMM_BAYES --> `REG_MMM_BAYES` alone takes a whole-model `bound` (`mmm-bayes-posterior`).<!-- /feature -->
 
 ## See

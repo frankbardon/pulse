@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -122,6 +123,21 @@ type ExtensionsSnapshot struct {
 	// keyed by name — the same overlayhost.ExtensionDecl the runtime
 	// registry holds, built by the same root function. Never serialised.
 	OverlayDetails map[string]overlayhost.ExtensionDecl `json:"-"`
+
+	// PostFits are the extension POSTFIT_<NS>_<NAME> operators
+	// (pulse.PostFitRegistration): Name, Namespace, Description and
+	// Params, so every per-category walk (the payload-schema and MCP
+	// `post_fit` type enums, the ontology, the feature-set digest) reads
+	// them like any other category. PostFitDecls carries the declared
+	// contract predict judges an entry by.
+	PostFits []descriptor.OperatorMeta
+
+	// PostFitDecls carries each extension post-fit operator's declared
+	// contract (params, output schema), keyed by name — the same
+	// postfit.Decl the runtime registry holds, built by the same root
+	// function, so predict's postfit.Check judges an entry exactly as
+	// the runtime does. Never serialised.
+	PostFitDecls map[types.PostFitType]postfit.Decl `json:"-"`
 
 	// OverlayParams carries each extension overlay kind's declared
 	// params in the manifest Param vocabulary (the built-in overlay
@@ -285,6 +301,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		MatrixOps:        []descriptor.MatrixMeta{},
 		Regressions:      []descriptor.RegressionMeta{},
 		Overlays:         []descriptor.OverlayCapability{},
+		PostFits:         []descriptor.PostFitMeta{},
 		ExprFunctions:    []descriptor.ExprFunctionMeta{},
 		LookupTables:     []descriptor.LookupTableMeta{},
 		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
@@ -292,6 +309,56 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		RangeTables:      []descriptor.RangeTableMeta{},
 		Populations:      []descriptor.PopulationMeta{},
 	}
+}
+
+// extensionPostFitMetas projects the snapshot's post-fit operators onto
+// the manifest, sorted by name: identity, params, intents and the
+// declared output schema (PostFitDecls). Never nil.
+func extensionPostFitMetas(s *ExtensionsSnapshot) []descriptor.PostFitMeta {
+	out := []descriptor.PostFitMeta{}
+	if s == nil {
+		return out
+	}
+	for _, m := range s.withExtIntents(sortOperatorMeta(s.PostFits)) {
+		decl := s.PostFitDecls[types.PostFitType(m.Name)]
+		outputs := descriptor.PostFitOutputsMeta{
+			Scalars: append([]string{}, decl.Outputs.Scalars...),
+			Tables:  []descriptor.PostFitTableMeta{},
+		}
+		for _, t := range decl.Outputs.Tables {
+			cols := make([]descriptor.PostFitColumnMeta, len(t.Columns))
+			for i, c := range t.Columns {
+				cols[i] = descriptor.PostFitColumnMeta{Name: c.Name, Kind: string(c.Kind)}
+			}
+			outputs.Tables = append(outputs.Tables, descriptor.PostFitTableMeta{Name: t.Name, Columns: cols})
+		}
+		out = append(out, descriptor.PostFitMeta{
+			Name:        m.Name,
+			Namespace:   m.Namespace,
+			Description: m.Description,
+			Params:      m.Params,
+			Outputs:     outputs,
+			Intents:     m.Intents,
+		})
+	}
+	return out
+}
+
+// postFitDecls is predict's view of the instance's registered post-fit
+// operators (the snapshot's PostFitDecls; the instance's own when the
+// options carry none) — what postfit.Check judges a `post_fit` entry by,
+// the twin of processing.ExtensionRegistry.PostFitDecls. A hidden
+// operator was dropped before the snapshot was built, so it reads as
+// never registered. Nil-receiver-safe.
+func (o *PredictOptions) postFitDecls() map[types.PostFitType]postfit.Decl {
+	snap := extensionsFromOpts(o)
+	if snap == nil {
+		snap = o.instance().Extensions()
+	}
+	if snap == nil {
+		return nil
+	}
+	return snap.PostFitDecls
 }
 
 // RangeTableSpecs is one registered range table's ranges: a date
@@ -349,6 +416,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	out.MatrixOps = extensionMatrixMetas(snap, true)
 	out.Overlays = extensionOverlayCapabilities(snap, true)
 	out.Regressions = extensionRegressionMetas(snap, true)
+	out.PostFits = extensionPostFitMetas(snap)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
 	}

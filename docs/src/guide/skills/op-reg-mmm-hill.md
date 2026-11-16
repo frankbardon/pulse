@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ```
 
-`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` are already-adstocked spend columns (adstocked upstream by `WIN_DISTRIBUTED_LAG`, decay a sweep axis), `zj` linear controls.
+`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` is spend adstocked upstream (`WIN_DISTRIBUTED_LAG`), or with `adstock` raw spend, its kernel fitted jointly; `zj` linear controls.
 
 ## Use when
 
@@ -26,43 +26,49 @@ Use something else:
 
 ## Params
 
-Flat keys, but `channels` / `nonnegative` / `prior` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
+`channels` through `carryover` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Predictors entering the Hill curve; the rest are linear controls. |
-| `nonnegative` | boolean | `true` | Channel β ≥ 0: an unsupported channel is exactly 0. |
-| `prior` | object | — | Gaussian prior `{channel, mean, precision}` on one channel's β. |
+| `channels` | array | (required) | Hill-curve predictors; the rest are controls. |
+| `nonnegative` | boolean | `true` | Channel β ≥ 0. |
+| `prior` | object | — | Gaussian `{channel, mean, precision}` on one β. |
+| `adstock` | string | — | `geometric`, `delayed`, `weibull_cdf`, `weibull_pdf`: in-model. |
+| `max_lag` | int | `13` | Window; non-geometric needs it. |
+| `carryover` | bool | `true` | Holdout carries adstock. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
 | `bootstrap_iters` | int | `1000` | Resample. |
 | `jackknife_groups` | int | — | Resample. |
 | `jackknife_by` | field | — | Resample. |
 | `rng_seed` | int | — | Resample. |
 | `conf_level` | float | `0.95` | CI coverage. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | `Vcov`, `Correlation`, `dispersion`. |
 | `multiplicity` | object | — | Replicate p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs
 
-Numeric `target`; channels ≥ 0 (a negative value is `PROCESSING_CONFIG`). Null rows drop listwise. Needs more rows than 1 + 3·channels + controls.
+Numeric `target`; channels ≥ 0 (else `PROCESSING_CONFIG`). Null rows drop listwise. Rows > 1 + 3·channels + controls (+ kernel).
 
 ## Output
 
-`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>` per channel, `s:<channel>` per channel. Read one with `coef("fit", "k:tv_ad")`; predict knows these names from `params.channels`; an `inline` `models` entry declares them with no fit. `outputs.k` / `outputs.s` repeat them by channel. Bounds: k within [0.02, 20]× the channel mean, s within [0.5, 5].
+`coefficients` in this order: `(intercept)`, channel betas, controls, `k:<channel>`, `s:<channel>`, then the kernel's: `decay:` (+`peak:` delayed) or `shape:`, `scale:` (Weibull). `coef("fit", "k:tv_ad")` reads one; predict knows them; an `inline` `models` entry declares them with no fit. k ∈ [0.02, 20]× channel mean, s ∈ [0.5, 5].
 
-A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (`adstock.<ch>`, saved too) for `response()`; others none.
+Each channel records its kernel (`adstock.<ch>`, saved too) for `response()`: the fitted one, or its `WIN_DISTRIBUTED_LAG`'s.
 
-`StdErrors` are Gauss-Newton, per parameter: `null` only for a parameter on a bound and for the k / s of a channel whose β is 0. A binding channel never nulls the rest. `PValues` come from `resample` (bootstrap, a Wald statistic per coefficient); `Vcov` is NaN in a held parameter's row and column.
+`StdErrors`: Gauss-Newton, joint with kernel; `null` on a bound and a β-0 channel's k / s / kernel. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
 
 ## Reading the output
 
-- `coefficients.*`: A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; k:&lt;channel&gt; is the spend at which the channel delivers half its maximum and s:&lt;channel&gt; how sharply its curve bends there.
 - `std_errors.*`: How much the parameter would vary from sample to sample, from the curvature of the least-squares fit at its optimum (Gauss-Newton), mapped onto k and s.
+- `p_values.*`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+- `statistics.*`: The Wald statistic: the parameter divided by its standard error, null where the standard error is.
+- `n_obs`: Rows used in the fit, after rows with a null target or predictor were dropped.
 
 ## Contract
 
@@ -73,10 +79,10 @@ A channel that is one `WIN_DISTRIBUTED_LAG` column records its resolved kernel (
 
 ## Gotchas
 
-- An underfunded channel (spend below k) sits on the β/k^s ridge: judge contribution.
-- No convergence in 1000 iterations is `PROCESSING_REGRESSION_NO_CONVERGE`; the slot fails alone (`PULSE_SLOT_FAILED`), a sweep goes on.
-- `penalty`, `selection`, `covariance`, `family`, a weight are refused. `holdout`, `resample` and `save` work as does scoring with `ATTR_REG_PREDICT` (whole model: no `terms`, no bounds).
-- Decay interval: read the near-best sweep slots' decays.
+- Spend below k: β/k^s ridge, judge contribution.
+- No convergence in 1000 iterations: `PROCESSING_REGRESSION_NO_CONVERGE` (slot fails alone).
+- `penalty`, `selection`, `covariance`, `family`, a weight are refused. `holdout`, `resample`, `save` work, as does `ATTR_REG_PREDICT` (whole model).
+- `adstock` needs `order` (one series), refuses an upstream-adstocked channel; `holdout` / scoring carry it in ([`regression-order`](regression-order.md)).
 
 ## See
 

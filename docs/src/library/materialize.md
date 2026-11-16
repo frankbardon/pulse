@@ -53,7 +53,10 @@ res, err := p.Materialize(ctx, &pulse.Request{
   `ATTR_PREVIOUS_STATE` output, which is written as its state field's
   own type (`categorical_*` or `packed_bool`) and dictionary, nullable
   (a null rides the bitmap), so it reads back as the same labels and a
-  crosstab on the derived cohort equals the in-request one; each with a generated
+  crosstab on the derived cohort equals the in-request one — and a
+  lagged category (a `WIN_LAG` / `WIN_LEAD` of a `categorical_*`
+  field), written the same way as its source's type and dictionary;
+  each with a generated
   description such as `WIN_LAG of spend (partition region; order week)
   — derived from sales.pulse`. A window's frame is stated only when the
   operator reads it: `WIN_EWMA` is cumulative whatever its required
@@ -64,8 +67,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   panel.pulse` — and a regression attribute names its `penalty` /
   `alpha` / `l1_ratio`. Every description is capped at 1,000 bytes,
   cut on a rune boundary with an ellipsis. Integer window outputs (row number,
-  rank) are stored as `f64`; a non-numeric value (a lag copying a
-  categorical label) fails the run with
+  rank) are stored as `f64`; any other non-numeric value (an
+  extension window writing strings) fails the run with
   `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - **Writing.** An ungrouped single file — `0x01`, or `0x02` when
   it keeps a `vec_*` field, whose dim, kind, scale and labels follow it
@@ -73,8 +76,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   ask for a shard archive, constant elision or parent groups (below) — written
   atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
-  derived column (a previous-state column copies its state variable's
-  codes and value labels, each category's `observed` flag recomputed
+  derived column (a previous-state column or a lagged category copies
+  its source variable's codes and value labels, each category's `observed` flag recomputed
   from the rows written) and re-fingerprinted, so value labels survive to
   `pulse export spss`; a stale or unreadable one is dropped with a warning
   carrying its own code. No other sidecar is carried. An existing target needs `Overwrite`; replacing one reports

@@ -207,7 +207,7 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 **Assumptions:**
 
 - Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.
-- Each channel is spend already carried over from earlier periods (adstocked upstream, for example by WIN_DISTRIBUTED_LAG): the model does not carry spend over itself, so the carry-over decay is searched outside it.
+- Each channel is spend already carried over from earlier periods (adstocked upstream, for example by WIN_DISTRIBUTED_LAG, the decay searched outside the model), or, with params.adstock, raw spend the model carries over itself, its decay fitted with the curves over rows in time order.
 - Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.
 - A channel's coefficient is held at 0 or above by default, so a channel the data do not support comes back exactly 0.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
@@ -223,7 +223,9 @@ Fits a media-mix model: each marketing channel's effect and response curve (wher
 **Validated against:**
 
 - `minpack.lm::nlsLM` 1.2-4 on the same objective, start and bounds (coefficients, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_oracle_test.go`
+- `minpack.lm::nlsLM` 1.2-4 on the same joint objective, start and boxes under `params.adstock`, one case per kernel — geometric, delayed, weibull_cdf, weibull_pdf — its weights written independently (closed forms; `stats::pweibull` / `dweibull`), cross-checked against `nls.lm` on an analytic Jacobian (coefficients incl. the kernel parameters, standard errors, R², residual SE) — tolerance 1e-6 relative (the solver's stop rule); `internal/regmmm/hill_adstock_oracle_test.go`
 - synthetic data with known true parameters (internal/mmmfixture) — tolerance 0.5% to 15% relative, per parameter; `internal/regmmm/hill_test.go`
+- synthetic series with a known kernel per `params.adstock` value (recovery within 3 SE), WIN_DISTRIBUTED_LAG's weights (`distlagparams.Resolve`, unnormalised) and central differences of the residual Jacobian — tolerance bit-equal weights; Jacobian 1e-5 relative; recovery within 3 standard errors; `internal/regmmm/hill_adstock_test.go`
 
 See [How Pulse is validated](../validation.md).
 

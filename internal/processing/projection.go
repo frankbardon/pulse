@@ -221,6 +221,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addKnown(a.OrderField)
 		if a.Type == types.ATTR_REG_PREDICT {
 			if p, err := model.DecodeScoreParams(a.Params); err == nil {
+				// A carried score orders its rows by params.order.
+				if p.Order != nil {
+					addKnown(p.Order.Field)
+					addKnown(p.Order.Partition)
+				}
 				if b, lerr := models.Lookup(p.Fit); lerr == nil {
 					addAllKnown(b.Predictors)
 					// A REG_MMM_BAYES geo panel reads each row's geo.
@@ -232,6 +237,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		// predictors and — a residual or influence slot
 		// (model.FitReadsTarget) — its target.
 		if name, ok := model.FitReference(a.Type, a); ok {
+			// A carried params.fit regression slot orders its rows by
+			// params.order.
+			addAllKnown(model.FitOrderFields(a.Type, a))
 			if b, lerr := models.Lookup(name); lerr == nil {
 				addAllKnown(b.Predictors)
 				addAllKnown(b.Signature().ScoreFields)
@@ -314,6 +322,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			if name, ok := jsonStringField(f.Params, "stratify"); ok {
 				addKnown(name)
 			}
+			if name, ok := jsonStringField(f.Params, "order_by"); ok {
+				addKnown(name)
+			}
 		case types.FEAT_TARGET_ENCODE:
 			if name, ok := jsonStringField(f.Params, "target"); ok {
 				addKnown(name)
@@ -385,6 +396,10 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			addKnown(c.OrderBy)
 		}
 		addKnown(r.JackknifeBy)
+		if o := r.Order; o != nil {
+			addKnown(o.Field)
+			addKnown(o.Partition)
+		}
 		// The holdout predicate reads its fields off every record.
 		if r.Holdout != "" {
 			if !appendExprIdents(out, r.Holdout, known, vecMembers) {

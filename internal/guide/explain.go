@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -251,7 +252,7 @@ var (
 // summaryOrder is the order the summary counts steps in.
 var summaryOrder = []*role{
 	roleJoin, roleFilter, roleFeature, roleAttribute, roleWindow, roleGroup, roleAgg,
-	roleCrosstab, roleTest, rolePostTest, roleRegression, roleMatrix, roleOverlay,
+	roleCrosstab, roleTest, rolePostTest, roleRegression, roleMatrix, roleOptimize, rolePostFit, roleOverlay,
 }
 
 // inferential roles carry assumptions worth stating in full detail.
@@ -438,12 +439,20 @@ func (e *explainer) warnings(env *descriptor.Envelope, prefix string) {
 }
 
 // locatedSlot is the wire path a batch validator's located refusal
-// names — details.request = i is "requests[i]", details.fit = k is
-// "fits[k]" — or "" when the refusal is not located.
+// names — details.optimize = i is "optimize[i]" (the expanded block),
+// details.post_fit = i is "post_fit[i]", details.request = i is
+// "requests[i]", details.fit = k is "fits[k]", and a post-fit params
+// refusal's details.path under "post_fit[i]." is that entry — or ""
+// when the refusal is not located.
 func locatedSlot(details map[string]any) string {
-	for _, k := range []struct{ key, path string }{{"request", "requests"}, {"fit", "fits"}} {
+	for _, k := range []struct{ key, path string }{{"optimize", "optimize"}, {postfit.Slot, postfit.Slot}, {"request", "requests"}, {"fit", "fits"}} {
 		if i, ok := details[k.key].(int); ok {
 			return k.path + "[" + strconv.Itoa(i) + "]"
+		}
+	}
+	if p, ok := details["path"].(string); ok && strings.HasPrefix(p, postfit.Slot+"[") {
+		if end := strings.IndexByte(p, ']'); end > 0 {
+			return p[:end+1]
 		}
 	}
 	return ""
@@ -835,6 +844,7 @@ func predicting(target string, predictors []string) string {
 // verdict. Without a Compose check the slot predicts are the verdict.
 func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 	batch := e.checks.Compose != nil
+	var grads optimizeGradients
 	if batch {
 		env, err := e.checks.Compose(c)
 		if err != nil {
@@ -842,6 +852,7 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		}
 		e.absorbLocated(env, "", true)
 		e.advisories(env)
+		grads = e.optimizeGradientsOf(env)
 	}
 	// Each slot is explained as it runs: the `base` merged in
 	// (banner.MergeBase, the merge every Compose surface shares). A
@@ -868,6 +879,12 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		}
 		e.requestSteps(prefix, r, e.defaults(env, []string{"Requests", strconv.Itoa(i)}))
 	}
+	// The optimize blocks run after the slots and fits, each as it runs
+	// (explain_optimize.go).
+	e.optimizeSteps(c, grads)
+	// Then the post-fit entries, after the optimize blocks
+	// (explain_postfit.go).
+	e.postFitSteps(c)
 	for i, o := range c.Overlays {
 		detail := ""
 		if len(o.Targets) > 0 {

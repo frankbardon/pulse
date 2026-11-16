@@ -9,12 +9,12 @@ Pulse exposes regression through a compact, composable surface. A small set of `
 | `REG_OLS`          | Ordinary least squares + optional regularization | Streams sufficient statistics (Phase 1 + 2) |
 | `REG_GLM`          | Generalized linear model via IRLS            | Always buffered (Newton-Raphson refit)     |
 | `REG_BAYES_LINEAR` | Bayesian linear regression (conjugate NIG)   | Streams sufficient statistics (Phase 4)    |
-| `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls | Always buffered |
+| `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; channels arrive adstocked, or `params.adstock` fits the decay in the same least squares | Always buffered |
 | `REG_MMM_BAYES`    | Bayesian media-mix model: raw spend adstocked in the model, Hill saturation, linear controls, posterior sampled by NUTS | Always buffered |
 | `REG_MULTINOMIAL`  | Multinomial (baseline-category) logit of a categorical target by Newton-Raphson | Always buffered |
 | `REG_ORDINAL`      | Ordinal (proportional-odds, cumulative link) regression, MASS `polr`'s model: logit / probit / cloglog, Newton on the analytic information | Always buffered |
 
-Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`). `REG_MMM_BAYES` takes neither: its sampler, priors and model-owned holdout (`holdout_from`) ride `params`, its scorer averages over its posterior draws, so `save`, the engine `holdout` and `ATTR_REG_PREDICT` need `params.return_draws` (skill `mmm-bayes-posterior`), and it names its adstock kernel's terms (`decay:<channel>`; with `params.adstock` `delayed` also `peak:<channel>`, under a Weibull kernel `shape:` / `scale:<channel>` instead), `k:<channel>`, `s:<channel>` and `sigma` beside the predictors, its ROI / mROI / contribution intervals and sampler diagnostics riding `outputs` — skill `op-reg-mmm-bayes`, example `internal/examples/regression/20_mmm_bayes.json`, design guide `mmm-workflow`. The modifiers:
+Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>`, plus its adstock kernel's terms under `params.adstock` (`decay:<channel>`, `delayed` adding `peak:<channel>`, a Weibull kernel `shape:` / `scale:<channel>` instead), which requires `order` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`). `REG_MMM_BAYES` takes neither: its sampler, priors and model-owned holdout (`holdout_from`) ride `params`, its scorer averages over its posterior draws, so `save`, the engine `holdout` and `ATTR_REG_PREDICT` need `params.return_draws` (skill `mmm-bayes-posterior`), and it names its adstock kernel's terms (`decay:<channel>`; with `params.adstock` `delayed` also `peak:<channel>`, under a Weibull kernel `shape:` / `scale:<channel>` instead), `k:<channel>`, `s:<channel>` and `sigma` beside the predictors, its ROI / mROI / contribution intervals and sampler diagnostics riding `outputs` — skill `op-reg-mmm-bayes`, example `internal/examples/regression/20_mmm_bayes.json`, design guide `mmm-workflow`. The modifiers:
 
 - `Resample ∈ {jackknife, bootstrap}` — replaces analytical SE / p-values with resample-based estimates. Forces buffered.
 - `Selection ∈ {forward, backward, stepwise}` — drives AIC- or BIC-based greedy subset search. Requires `Criterion`. Forces buffered.
@@ -196,6 +196,28 @@ The result is `{basis, terms, df, vif, tolerance, gvif_scaled}`, the maps keyed 
 - **Refusals** (`PROCESSING_CONFIG`, `details.requires`, identical at predict and run — `internal/collinearity`): a `basis` outside its values; a group with no name (`a group name`), no predictor, a member that is not a predictor or sits in two groups (`a predictor`), a name clashing with another term (`a unique term name`); `REG_BAYES_LINEAR`, an extension or model regression (`type REG_OLS or REG_GLM`); `intercept: false` (`intercept` — an uncentered VIF measures distance from 0, which car warns "may not be sensible"); `selection` (`no_selection`); a `REG_GLM` `penalty` on basis `model` (`unpenalized` — the working weights would be the shrunken fit's; basis `predictors` is allowed); fewer than two terms (`two_or_more_terms`, car's own floor).
 
 Oracle: `car` 3.1-5 `vif` on R 4.6.1 at 1e-10 (measured within 2e-15) — lm, binomial logit, poisson log, fixed-θ negative binomial and gamma log; ungrouped and with a three-level factor's dummies as one term; both bases; frequency weights against the `rep()` expansion and probability weights — each re-derived in the script from the weighted design's closed form (`scripts/reference/gen_vif.R`, `vif.json`), and end to end through `FEAT_ONE_HOT` (`TestCollinearity_OneHotMatchesCar`).
+
+### Row order (`order`)
+
+`"order": {"field": "week", "partition": "market", "gaps": "refuse"}`
+on any regression fits the rows in time order: the engine sorts them by
+`field` (an unsigned integer period index, `date` or `datetime`) within
+each `partition` series (optional; ragged starts and ends are fine),
+after listwise deletion, before any fit. Under `gaps: "refuse"` (the
+default and only policy) a repeated period in one series
+(`reason: duplicate`) or a step that is not the cadence — the smallest
+positive step over every series — (`reason: gap`) fails that slot alone
+with `PROCESSING_REGRESSION_ORDER`. A null `field` or `partition` drops
+its row; a filtered or null-target row inside the span leaves a gap.
+Months on a `date` read as gaps: order such a series by an integer
+period index. An order forces the buffered path; a `holdout` fits the
+ordered (gap-checked) train rows and scores the held-out rows in order.
+A model that carries state across rows requires an order and refuses a
+spec without one (`PROCESSING_CONFIG`, `reason: order_required`).
+`REG_MMM_BAYES` reads `order.field` as its time field — `params.time`
+is its deprecated alias (the same fit and seed; both set must agree,
+`time_alias_conflict`) — and on a geo panel needs `partition` =
+`params.geo`. Rides `capability:regression_order`.
 
 ### Nested-model comparison (Compose `compare`)
 
@@ -395,14 +417,16 @@ Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha`
 | Cook's distance | `(rP/(1 − h))²·h/(φ·p′)` |
 | DFFITS | `sign(g′(μ))·rP·√h/(σ·(1 − h))`, σ = σ₍ᵢ₎ or √φ |
 
-`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (feature `dispersion`) or a negative binomial's θ (feature `theta`); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
+`residual_type` is kind `standardized`'s alone (`pearson` default, `deviance`): the studentized residual, Cook's distance and DFFITS stay Pearson-based, as in R, and any other kind refuses it (`PULSE_MODEL_SCORE_INVALID` `params_invalid`). DFFITS is the change on the linear-predictor scale, so under a decreasing link — gamma's inverse — it is negative where the residual is positive. Over an OLS fit every formula reduces to the refit's above. The fit must set `vcov: true` and be unweighted, unpenalized, without `selection`, `resample`, `bounds` or a robust `covariance` (`PULSE_MODEL_SCORE_INVALID` reason `params_invalid`, `details.requires` naming the missing piece); a `REG_BAYES_LINEAR` or extension fit is `type_unsupported`, and so — by design, not as a gap — is `REG_MMM_BAYES`: classical hat-matrix figures need a point estimate's `(XᵀWX)⁻¹`, which a posterior does not have. Weighted bound fits are not supported yet: refit with `weight: null`. A model file keeps the dispersion (feature `dispersion`) or a negative binomial's θ (feature `theta`); a file an earlier build saved carries none and is refused (`requires: dispersion`) until re-saved.
+
+**A nonlinear fit.** `REG_MMM_HILL` is a nonlinear least squares, so the same figures read its tangent plane (the Gauss–Newton linearisation R reads off an `nls` gradient): `x̃` is replaced by `g = ∂ŷ/∂θ` at the optimum over every free parameter — the betas, each curve's `k` and `s` and, under `params.adstock`, the kernel's parameters (a parameter held on a bound has a null variance and joins nothing) — so `h = gᵀ(vcov/σ̂²)g`, with `σ̂² = SSR/df` its `dispersion` (which a HILL fit carries beside `vcov: true`), `p′` the free parameter count and `df` the fit's residual df; then the OLS formulas. Over the fit's own rows the hat values sum to `p′` and lie in [0, 1]; with every curve held on its bound the figures are the linear model's. `params.prior` is a penalty (`requires: unpenalized`). Over an in-model adstock the slot carries it as `ATTR_REG_FITTED` does (`carryover` / `order`; [carry-over](library/mmm.md#adstock-carry-over)). The R oracle is `make reference-mmm-hill-adstock` (hat values, `rstandard`, `rstudent`, `cooks.distance` and `dffits` of `lm(e ~ J − 1)`, J checked against `numDeriv::jacobian`).
 
 ## Error codes
 
 Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 
 A fit that fails on its data — `RANK_DEFICIENT`, `SEPARATION`,
-`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA` — fails its slot
+`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA`, `ORDER` — fails its slot
 alone: `regressions[i]` keeps `name` / `type` and carries `error`
 `{code, message, details}`, the other slots of the response survive,
 and a `PULSE_SLOT_FAILED` warning names it. Under `Options.Strict` the
@@ -419,6 +443,7 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma, negative_binomial}`.     |
 | `PROCESSING_REGRESSION_INVALID_LINK`          | Link not one of the chosen Family's (`details.allowed`).                      |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
+| `PROCESSING_REGRESSION_ORDER`                 | An ordered slot's admitted rows repeat a period (`duplicate`) or skip one (`gap`); fails the slot alone. |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | Advisory: l1 / elasticnet SEs, p-values and intervals are `null` (no valid analytical form); set `resample` for replicate ones. |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |

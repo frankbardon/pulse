@@ -119,6 +119,10 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	cmpFigs := newComparisonFigures(composed.Compare)
+	// The post-fit entries' rules, exactly as on the serial path.
+	if err := s.postFitRefusal(composed); err != nil {
+		return nil, err
+	}
 	// The batch's saves and loads, exactly as on the serial path.
 	pre, err := s.composeModelsPrepass(composed)
 	if err != nil {
@@ -270,6 +274,23 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	fitWarnings = append(fitWarnings, optWarnings...)
+	// The post-fit entries read every slot's result, so the slots run
+	// first when any is declared, exactly as on the serial path; then
+	// the entries (runComposePostFit).
+	if len(composed.PostFit) > 0 {
+		if err := pool(unranSlots(n, ran), models); err != nil {
+			return nil, err
+		}
+		if launched < n {
+			return nil, runCtx.Err()
+		}
+		ran = allRan(n)
+	}
+	postFit, pfWarnings, err := s.runComposePostFit(composed, models, responses, optimizations)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, pfWarnings...)
 	// The nested-model comparisons read the finished fits only
 	// (runComposeCompare).
 	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
@@ -319,7 +340,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Comparisons: comparisons, PostFit: postFit, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = echoed
 	}

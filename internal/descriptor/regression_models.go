@@ -81,7 +81,7 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			OutputSchema: slices.Clone(regmmm.BayesOutputSchema),
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
-				{Name: "time", Type: "string", NamesColumn: true, Required: true, Example: "week", Description: "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
+				{Name: "time", Type: "string", NamesColumn: true, Example: "week", Description: "Deprecated alias of the slot's order.field (order {field, partition: <geo>}): the integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused. One of the two is required; both set must name the same field."},
 				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13, geometric only — every other kernel requires it)."},
 				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel, one for every channel, unnormalised (WIN_DISTRIBUTED_LAG's weights): geometric (decay:<ch>), delayed (decay^((l − peak)²): decay:<ch>, peak:<ch>), weibull_cdf or weibull_pdf (shape:<ch>, scale:<ch>, in lags)."},
 				{Name: "saturation", Type: "string", Default: "hill", Description: "Saturation curve, one for every channel, on the adstock: hill (1/(1 + (k/a)^s): k:<ch>, s:<ch>), logistic ((1 − e^(−λa))/(1 + e^(−λa)): lam:<ch>, per raw adstock unit) or michaelis_menten (a/(k + a): k:<ch>); k is in raw adstock units."},
@@ -103,31 +103,48 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 				{Name: "lift_tests", Type: "list", Description: "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (> 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."},
 				{Name: "return_draws", Type: "bool", Default: false, Description: "Add outputs.draws, the raw posterior draws: names (the coefficient table), draws[chain][coefficient][draw] on the constrained scale in original units, roi per outputs.roi entry ([chain][draw]) and thin. At most Limits.MaxMMMDrawValues values (chains x kept draws x (coefficients + roi entries), default 10,000,000) or the fit is refused, never truncated. Never moves the derived seed."},
 				{Name: "draws_thin", Type: "float", Default: 1, Description: "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."},
+				{Name: "carryover", Type: "bool", Default: true, Description: "Engine holdout scoring: true (default) adstocks each held-out row's raw spend at the fit's posterior-mean kernel in time order, the fitted rows' last max_lag periods (outputs.adstock_state) carried in; false scores the held-out channel columns as given (no carry-over, the pre-carry-over figures). Never moves the fit or the derived seed."},
 			},
 		},
 	},
 	types.REG_MMM_HILL: {
 		SpecRefusal: regmmm.SpecRefusal,
-		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
+		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve. Channels arrive adstocked, or params.adstock fits the carry-over kernel in the same least squares (decay:<channel> or the kernel's parameters, with standard errors).",
 		Decl: ExtensionRegression{
 			Vcov: true,
+			// params.adstock carries state from row to row: the slot then
+			// needs order (predict and the adapter judge it alike).
+			RequiresOrder: func(spec *types.RegressionSpec) bool {
+				_, ok := model.MMMHillAdstock(spec)
+				return ok
+			},
 			// The model reports no p-value itself; under resample the
 			// engine writes the replicate ones.
 			PValues:    true,
 			Scorer:     true,
-			OutputKeys: []string{"k", "s"},
+			OutputKeys: []string{"k", "s", "condition_number", "adstock_state"},
 			Params: []descriptor.Param{
 				{Name: "channels", Type: "list", NamesColumn: true, Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
 				{Name: "nonnegative", Type: "bool", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},
 				{Name: "prior", Type: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."},
+				{Name: "adstock", Type: "string", Example: "geometric", Description: "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:<ch>, in [0, 0.99]), delayed (decay:<ch> in [0.01, 0.99], peak:<ch> in [0, max_lag]), weibull_cdf or weibull_pdf (shape:<ch> in [0.1, 10], scale:<ch> in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; an engine holdout carries the fitted adstock in (params.carryover). Writes the fit's adstock record for response() and save, and outputs.adstock_state for carried scoring. Absent: channels arrive already adstocked."},
+				{Name: "carryover", Type: "bool", Default: true, Description: "With adstock only: true (default) scores an engine holdout by adstocking each held-out row's raw spend at the fitted kernel, the train rows' last max_lag periods (outputs.adstock_state) carried in; false refuses the holdout (adstock_holdout). Never moves the fit."},
+				{Name: "max_lag", Type: "int", Default: regmmm.BayesDefaultMaxLag, Description: "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed and Weibull require it)."},
 			},
 			OutputSchema: []descriptor.RegressionOutputMeta{
 				{Key: "k", JSONType: "object", Description: "Hill half-saturation per channel (the coefficient k:<channel>)."},
 				{Key: "s", JSONType: "object", Description: "Hill shape per channel (the coefficient s:<channel>)."},
+				{Key: "condition_number", JSONType: "number", Description: "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."},
+				{Key: "adstock_state", JSONType: "object", Description: adstockStateOutput},
 			},
 		},
 	},
 }
+
+// adstockStateOutput describes outputs.adstock_state, which both
+// in-model adstocked media-mix fits carry (regmmm.BayesOutputSchema
+// repeats it).
+const adstockStateOutput = regmmm.AdstockStateOutputDescription
 
 // ordinalParams are REG_ORDINAL's params keys.
 var ordinalParams = []descriptor.Param{

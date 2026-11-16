@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/types"
@@ -26,12 +27,20 @@ import (
 // Resample whose bound bound (RegressionResult.ActiveBounds, set by the
 // engine): result-only, since whether a bound binds depends on the data
 // (internal/regbounds holds its predicate and wording).
+//
+// PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED rides a REG_MMM_HILL fit
+// with params.adstock whose outputs.condition_number is above
+// model.MMMConditionThreshold (or undefined): result-only, since the
+// conditioning depends on the data (model.MMMHillConditionAdvisory
+// holds its predicate and wording). The standard errors stay; the
+// advisory flags them.
 func attachRegressionAdvisories(req *types.Request, resp *types.Response, inst *descx.InstanceSnapshot) {
 	if req == nil || resp == nil {
 		return
 	}
 	penalized := !inst.AdvisorySuppressed(string(regpenalty.InferenceAdvisoryCode))
 	bounded := !inst.AdvisorySuppressed(string(regbounds.AdvisoryCode))
+	conditioned := !inst.AdvisorySuppressed(string(model.MMMConditionAdvisoryCode))
 	for i, res := range resp.Regressions {
 		if res == nil || res.Error != nil || i >= len(req.Regressions) {
 			continue
@@ -53,6 +62,16 @@ func attachRegressionAdvisories(req *types.Request, resp *types.Response, inst *
 			msg, details := regbounds.Advisory(spec, slot, res.ActiveBounds)
 			res.Advisories = append(res.Advisories, types.Advisory{
 				Code:    string(regbounds.AdvisoryCode),
+				Message: msg,
+				Details: details,
+			})
+		}
+		if !conditioned {
+			continue
+		}
+		if msg, details, ok := model.MMMHillConditionAdvisory(spec, slot, res); ok {
+			res.Advisories = append(res.Advisories, types.Advisory{
+				Code:    string(model.MMMConditionAdvisoryCode),
 				Message: msg,
 				Details: details,
 			})

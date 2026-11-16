@@ -120,6 +120,25 @@ func TestExamples_OperatorsMatchBody(t *testing.T) {
 	}
 }
 
+// TestDeriveOperators_EveryTypedCategory: a `"type"` value of every
+// operator category a request names is derived — the post-fit
+// category included, so an embedder example's `_meta.operators` can tag
+// its POSTFIT_<NS>_<NAME> operator — while an overlay kind (it rides
+// `kind`, not `type`) and a non-operator type value are not.
+func TestDeriveOperators_EveryTypedCategory(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{"requests":[{"aggregations":[{"type":"AGG_MEAN"}]}],
+		"fits":[{"request":{"regressions":[{"type":"REG_MMM_HILL"}],"matrices":[{"type":"MAT_COV"}]}}],
+		"post_fit":[{"type":"POSTFIT_ACME_MROI"}],
+		"optimize":[{"constraints":[{"type":"ineq"}]}],
+		"overlays":[{"kind":"OVERLAY_ACME_X"}]}`)
+	want := []string{"AGG_MEAN", "MAT_COV", "POSTFIT_ACME_MROI", "REG_MMM_HILL"}
+	if got := DeriveOperators(body); !equalStrings(got, want) {
+		t.Fatalf("DeriveOperators = %v, want %v", got, want)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

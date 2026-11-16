@@ -31,7 +31,7 @@ Use something else:
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
 | `channels` | array | (required) | Raw spend (≥ 0). |
-| `time` | string | (required) | Contiguous integers. |
+| `time` | string | — | Deprecated: `order.field`. |
 | `max_lag` | number | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |
@@ -44,7 +44,7 @@ Use something else:
 | `draws` | number | 1000 | Per chain. |
 | `credible_level` | number | 0.9 | Interval level. |
 | `sampler` | string | `nuts` | Or `hmc`. |
-| `target_accept` | number | 0.8 | Raise if divergent (`geo`: 0.95). |
+| `target_accept` | number | 0.8 | Raise on divergences (`geo` 0.95). |
 | `path_length` | number | — | `hmc`: required. |
 | `step_size` | number | — | `hmc`: fixed. |
 | `holdout_from` | number | — | Time holdout. |
@@ -53,21 +53,23 @@ Use something else:
 | `lift_tests` | array | — | Lift experiments. |
 | `return_draws` | bool | `false` | `outputs.draws`. |
 | `draws_thin` | number | 1 | Every k-th draw. |
+| `carryover` | bool | `true` | Holdout carries adstock. |
 | `conf_level` | float | `0.95` | Wald CI. |
 | `vcov` | bool | `false` | Posterior vcov. |
-| `holdout` | string | — | Engine holdout. |
+| `holdout` | string | — | Row holdout. |
 | `save` | string | — | Model file. |
+| `order` | object | — | Time field (+ `geo` partition). |
 | `name` | string | — | Result name. |
 
 ## Inputs
 
-One row per period (per geo with `geo`; ragged ends ok). Refused: `date` time (`time_gap`; `geo_time_gap`), a repeat (`duplicate_time`), negative spend (`negative_spend`), `[`/`]` in predictors.
+One row per period (per geo with `geo`; ragged ends ok). Refused: a gap (`time_gap`, `geo_time_gap`; weekly `date`s), a repeat (`duplicate_time`), negative spend, `[` `]` in names.
 
 ## Output
 
 Coefficients are posterior means; an `inline` `models` entry declares them with no fit. `outputs`: `seed`, `roi`, `mroi`, `contribution` (per channel, and `<ch>[<geo>]`), `params`, `diagnostics`, `holdout`, `hierarchy`, `draws`; summaries `{mean, median, sd, lower, upper}` at `credible_level`.
 
-φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response(fit, ch, spend[, geo])` reads their means.
+φ and q coefficients: `decay:`/`peak:`/`shape:`/`scale:<ch>`, `k:`/`s:`/`lam:<ch>`. `response()` reads their means.
 
 ## Reading the output
 
@@ -85,11 +87,9 @@ Coefficients are posterior means; an `inline` `models` entry declares them with 
 
 ## Gotchas
 
-- `save`, scoring, `holdout` need `return_draws`; scoring reads pre-adstocked channels.
+- `save`, scoring, `holdout` need `return_draws`; the last two carry adstock ([`regression-order`](regression-order.md)).
 - k and s (or λ) trade off: judge ROI.
-- mROI holds the curve fixed.
 - Health warns, never refuses (`PROCESSING_REGRESSION_DIAGNOSTIC`, `rhat_high`, `ess_low`, `divergences`, `treedepth_saturated`); `Strict` fails.
-- `hmc`: no tree depth; `path_length` π/2 ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
 
 ## See
 

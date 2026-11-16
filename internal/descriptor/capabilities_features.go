@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/splitmode"
 	"github.com/frankbardon/pulse/types"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -98,11 +99,13 @@ func featureCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.FEAT_TRAIN_TEST_SPLIT),
 			Category:    "feature",
-			Description: "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows.",
+			Description: "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows: a seeded shuffle, or a time boundary (mode temporal).",
 			Params: []descriptor.Param{
 				{Name: "ratios", Type: "list", Required: true, Description: "Two- or three-element ratio list summing to ~1.0."},
 				{Name: "seed", Type: "int", Required: false, Default: 0, Description: "RNG seed; same seed produces byte-identical assignments."},
-				{Name: "stratify", Type: "field", NamesColumn: true, Required: false, FieldFilter: "categorical", Description: "Optional categorical or packed_bool field; ratios are applied per level for class balance."},
+				{Name: "stratify", Type: "field", NamesColumn: true, Required: false, FieldFilter: "categorical", Description: "Optional categorical or packed_bool field; ratios are applied per level for class balance. Random mode only."},
+				{Name: "mode", Type: "enum", Required: false, Default: splitmode.Random, EnumValues: splitmode.Modes(), Description: "random shuffles (seed, stratify); temporal sends the earliest rows by order_by to train and the latest to test, val between, never splitting rows that share an order value. Temporal refuses seed and stratify and runs buffered."},
+				{Name: "order_by", Type: "field", NamesColumn: true, Required: false, Description: "Temporal mode only: the date, datetime or unsigned integer field ordering the rows; a row whose value is null joins no partition (null split value)."},
 			},
 			AcceptsTypes:  nonVectorFieldTypes,
 			EmitsType:     "u8",

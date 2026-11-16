@@ -71,6 +71,14 @@ type ScoreParams struct {
 	// that term's coefficient-interval contribution (bound × column),
 	// never a prediction interval.
 	Bound string `json:"bound,omitempty"`
+	// Carryover false scores an in-model adstocked fit's channel
+	// columns as given (pre-adstocked); absent or true carries the
+	// fit's adstock into the scored rows, which needs Order
+	// (mmm_carry.go).
+	Carryover *bool `json:"carryover,omitempty"`
+	// Order orders a carried score's rows: the scoring frame's field
+	// (and series partition). Only a carried score takes it.
+	Order *ScoreOrder `json:"order,omitempty"`
 }
 
 // Signature is the static face of a bound model: what a scoring
@@ -166,6 +174,13 @@ type Signature struct {
 	// runtime's Set and a loaded file from the outputs, a static
 	// FitCatalog from the fit request's params.
 	DrawsMissing bool
+	// Carries reports a fit that adstocks its channels in-model
+	// (REG_MMM_BAYES; REG_MMM_HILL under params.adstock), whose score
+	// carries adstock by default (mmm_carry.go); CarryState that it
+	// holds outputs.adstock_state — the runtime's Set and a loaded file
+	// from the outputs, a static FitCatalog always (the run writes it).
+	Carries    bool
+	CarryState bool
 	// ScoreFields are the fields a score reads beyond Terms — a
 	// REG_MMM_BAYES geo panel's params.geo field, which picks each
 	// row's geo — so the scoring frame must hold them (predict's walk)
@@ -249,6 +264,14 @@ func (b *Bound) Signature() Signature {
 		sig.DrawsMissing = !has
 		sig.ScoreFields = mmmOutputsGeoField(outs)
 	}
+	if boundCarries(b.Type, coefs) {
+		var outs map[string]any
+		if b.Result != nil {
+			outs = b.Result.Outputs
+		}
+		_, has := outs[MMMAdstockStateKey]
+		sig.Carries, sig.CarryState = true, has
+	}
 	return sig
 }
 
@@ -324,6 +347,10 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 				// the data names.
 				sig.Geos, sig.GeosKnown = staticMMMGeos(reg)
 			}
+			// An in-model adstocked fit carries its adstock state (the
+			// run writes outputs.adstock_state).
+			sig.Carries = MMMInModelAdstock(reg)
+			sig.CarryState = sig.Carries
 			if reg.Type == types.REG_MMM_BAYES {
 				sig.DrawsMissing = !MMMBayesReturnsDraws(reg)
 				if geo := MMMBayesGeoField(reg); geo != "" {
@@ -399,7 +426,9 @@ func BuiltinRegression(t types.RegressionType) bool {
 // cat, the fit type is scorable, `terms` lists distinct names of the
 // fit's terms (InterceptKey included), `scale` is a GLM-only
 // response|link and `bound` is point|lower|upper, a non-point one with
-// exactly one predictor term. The first fault wins. It does not judge the scoring
+// exactly one predictor term, and the carry-over rule (carryRefusal:
+// an in-model adstocked fit's score needs params.order unless
+// params.carryover is false). The first fault wins. It does not judge the scoring
 // frame's columns — the caller's field-reference walk does, with
 // PredictorMissing / PredictorNotNumeric over Signature.Terms.
 //
@@ -467,6 +496,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	if cerr := mmmDrawsRefusal(types.ATTR_REG_PREDICT, p.Fit, sig); cerr != nil {
 		return p, sig, cerr
 	}
+	if cerr := carryRefusal(p, sig); cerr != nil {
+		return p, sig, cerr
+	}
 	if p.Terms != nil {
 		if len(p.Terms) == 0 {
 			return p, sig, scoreInvalid(p.Fit, ReasonTermsEmpty, "lists no terms; omit params.terms to score the whole model", nil)
@@ -531,7 +563,7 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 	}
 	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_REG_PREDICT), raw, &p); err != nil {
 		return ScoreParams{}, scoreInvalid("", ReasonParamsInvalid,
-			"params must be an object {fit, terms?, scale?, bound?}: "+err.Error(), nil)
+			"params must be an object {fit, terms?, scale?, bound?, carryover?, order?}: "+err.Error(), nil)
 	}
 	return p, nil
 }

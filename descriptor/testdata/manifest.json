@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
+    "feature_set_digest": "fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
     "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
@@ -4192,6 +4192,19 @@
               "type": "string",
               "required": false,
               "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual / leverage (the kernel parameters' partials through the carried lags); false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -4226,7 +4239,7 @@
         {
           "name": "ATTR_REG_INFLUENCE",
           "category": "attribute",
-          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight).",
+          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
           "params": [
             {
               "name": "target",
@@ -4249,7 +4262,7 @@
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
             },
             {
               "name": "measure",
@@ -4261,6 +4274,19 @@
                 "cooks",
                 "dffits"
               ]
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual / leverage (the kernel parameters' partials through the carried lags); false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -4294,7 +4320,7 @@
         {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true).",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
           "params": [
             {
               "name": "target",
@@ -4317,7 +4343,20 @@
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual / leverage (the kernel parameters' partials through the carried lags); false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -4352,7 +4391,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
           "params": [
             {
               "name": "fit",
@@ -4388,6 +4427,19 @@
                 "lower",
                 "upper"
               ]
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "A fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the scored rows, which then hold RAW spend and need order; false scores pre-adstocked channel columns as given. Refused on any other fit."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -4476,7 +4528,7 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit.",
+              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal).",
               "enum_values": [
                 "response",
                 "pearson",
@@ -4496,6 +4548,19 @@
                 "pearson",
                 "deviance"
               ]
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual / leverage (the kernel parameters' partials through the carried lags); false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -6662,10 +6727,13 @@
               "name": "default",
               "type": "any",
               "required": false,
-              "description": "Substitute value when the lookback row does not exist."
+              "description": "Substitute value when the lookback row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."
             }
           ],
           "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
             "date",
             "f32",
             "f64",
@@ -6675,7 +6743,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "matches the source field type: a verbatim copy of the lookback row's cell; params.default (any JSON value) where the offset crosses the partition start",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookback row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition start, else null",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -6701,10 +6769,13 @@
               "name": "default",
               "type": "any",
               "required": false,
-              "description": "Substitute value when the lookahead row does not exist."
+              "description": "Substitute value when the lookahead row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."
             }
           ],
           "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
             "date",
             "f32",
             "f64",
@@ -6714,7 +6785,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "matches the source field type: a verbatim copy of the lookahead row's cell; params.default (any JSON value) where the offset crosses the partition end",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookahead row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition end, else null",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -7204,7 +7275,7 @@
         {
           "name": "FEAT_TRAIN_TEST_SPLIT",
           "category": "feature",
-          "description": "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows.",
+          "description": "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows: a seeded shuffle, or a time boundary (mode temporal).",
           "params": [
             {
               "name": "ratios",
@@ -7223,8 +7294,26 @@
               "name": "stratify",
               "type": "field",
               "required": false,
-              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance.",
+              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance. Random mode only.",
               "field_filter": "categorical",
+              "names_column": true
+            },
+            {
+              "name": "mode",
+              "type": "enum",
+              "required": false,
+              "default": "random",
+              "description": "random shuffles (seed, stratify); temporal sends the earliest rows by order_by to train and the latest to test, val between, never splitting rows that share an order value. Temporal refuses seed and stratify and runs buffered.",
+              "enum_values": [
+                "random",
+                "temporal"
+              ]
+            },
+            {
+              "name": "order_by",
+              "type": "field",
+              "required": false,
+              "description": "Temporal mode only: the date, datetime or unsigned integer field ordering the rows; a row whose value is null joins no partition (null split value).",
               "names_column": true
             }
           ],
@@ -8674,6 +8763,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -8971,6 +9067,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -9059,6 +9162,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
@@ -9097,8 +9207,8 @@
           {
             "name": "time",
             "type": "string",
-            "required": true,
-            "description": "Integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
+            "required": false,
+            "description": "Deprecated alias of the slot's order.field (order {field, partition: \u003cgeo\u003e}): the integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused. One of the two is required; both set must name the same field.",
             "example": "week",
             "names_column": true
           },
@@ -9243,6 +9353,13 @@
             "required": false,
             "default": 1,
             "description": "With return_draws only (refused without it): keep every k-th retained draw of each chain (an integer in 1–20000, default 1), so a chain returns ceil(draws / k)."
+          },
+          {
+            "name": "carryover",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "Engine holdout scoring: true (default) adstocks each held-out row's raw spend at the fit's posterior-mean kernel in time order, the fitted rows' last max_lag periods (outputs.adstock_state) carried in; false scores the held-out channel columns as given (no carry-over, the pre-carry-over figures). Never moves the fit or the derived seed."
           }
         ],
         "intents": [
@@ -9293,12 +9410,17 @@
             "key": "draws",
             "json_type": "object",
             "description": "With params.return_draws: the raw posterior draws — names (the coefficient table's), draws[chain][coefficient][draw] on the constrained scale in original units, roi (per outputs.roi entry, [chain][draw]), thin (params.draws_thin: every thin-th retained draw of each chain is kept) and credible_level. A saved fit's file keeps them: its scorer (save, the engine holdout and ATTR_REG_PREDICT need return_draws) averages the prediction over them. The draws outputs.params and outputs.roi summarise; a non-finite draw is null. Capped by Limits.MaxMMMDrawValues (chains x kept draws x (coefficients + roi entries)); over it the fit is refused, never truncated. Absent without return_draws."
+          },
+          {
+            "key": "adstock_state",
+            "json_type": "object",
+            "description": "The carry-over state (with params.adstock on REG_MMM_HILL; always on REG_MMM_BAYES): field and partition (the fit's order), kernel, max_lag, step (the period) and series [{key, order, spend}] — each series' last max_lag fitted periods of each channel's raw spend. The engine holdout and a carried ATTR_REG_PREDICT (params.order) adstock scored rows with it carried in; a saved model keeps it."
           }
         ]
       },
       {
         "name": "REG_MMM_HILL",
-        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve.",
+        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve. Channels arrive adstocked, or params.adstock fits the carry-over kernel in the same least squares (decay:\u003cchannel\u003e or the kernel's parameters, with standard errors).",
         "accepts_types": [
           "date",
           "datetime",
@@ -9384,6 +9506,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "multiplicity",
             "type": "object",
             "required": false,
@@ -9438,6 +9567,27 @@
             "type": "object",
             "required": false,
             "description": "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."
+          },
+          {
+            "name": "adstock",
+            "type": "string",
+            "required": false,
+            "description": "In-model adstock kernel, one for every channel: the channels are then RAW spend (≥ 0) and the fit adstocks them itself (WIN_DISTRIBUTED_LAG's weights, unnormalised), the kernel's parameters joining the joint least squares — geometric (decay:\u003cch\u003e, in [0, 0.99]), delayed (decay:\u003cch\u003e in [0.01, 0.99], peak:\u003cch\u003e in [0, max_lag]), weibull_cdf or weibull_pdf (shape:\u003cch\u003e in [0.1, 10], scale:\u003cch\u003e in [0.1, max_lag + 1]); a weakly identified kernel (shape and scale trade off) raises the ill-conditioning advisory. Requires order {field} (one series; order.partition is refused); a channel that is a WIN_DISTRIBUTED_LAG output is refused; an engine holdout carries the fitted adstock in (params.carryover). Writes the fit's adstock record for response() and save, and outputs.adstock_state for carried scoring. Absent: channels arrive already adstocked.",
+            "example": "geometric"
+          },
+          {
+            "name": "carryover",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "With adstock only: true (default) scores an engine holdout by adstocking each held-out row's raw spend at the fitted kernel, the train rows' last max_lag periods (outputs.adstock_state) carried in; false refuses the holdout (adstock_holdout). Never moves the fit."
+          },
+          {
+            "name": "max_lag",
+            "type": "int",
+            "required": false,
+            "default": 13,
+            "description": "With adstock only: the adstock window in periods, an integer in [1, 10000] (default 13, geometric only — delayed and Weibull require it)."
           }
         ],
         "intents": [
@@ -9453,6 +9603,16 @@
             "key": "s",
             "json_type": "object",
             "description": "Hill shape per channel (the coefficient s:\u003cchannel\u003e)."
+          },
+          {
+            "key": "condition_number",
+            "json_type": "number",
+            "description": "With params.adstock only: the 1-norm condition number of the joint parameter correlation matrix (null when it does not invert); above 1e6 the fit carries advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED."
+          },
+          {
+            "key": "adstock_state",
+            "json_type": "object",
+            "description": "The carry-over state (with params.adstock on REG_MMM_HILL; always on REG_MMM_BAYES): field and partition (the fit's order), kernel, max_lag, step (the period) and series [{key, order, spend}] — each series' last max_lag fitted periods of each channel's raw spend. The engine holdout and a carried ATTR_REG_PREDICT (params.order) adstock scored rows with it carried in; a saved model keeps it."
           }
         ]
       },
@@ -9544,6 +9704,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"\u003clevel\u003e:\u003cterm\u003e\" keys; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
             "slot": true
           },
           {
@@ -9802,6 +9969,13 @@
             "slot": true
           },
           {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -9887,6 +10061,13 @@
             "required": false,
             "default": 0.95,
             "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "order",
+            "type": "object",
+            "required": false,
+            "description": "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path. A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -11966,7 +12147,7 @@
         ]
       }
     ],
-    "error_codes_count": 472,
+    "error_codes_count": 479,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11999,6 +12180,7 @@
       "PROCESSING_REGRESSION_INVALID_FAMILY",
       "PROCESSING_REGRESSION_INVALID_LINK",
       "PROCESSING_REGRESSION_NO_CONVERGE",
+      "PROCESSING_REGRESSION_ORDER",
       "PROCESSING_REGRESSION_RANK_DEFICIENT",
       "PROCESSING_REGRESSION_SEPARATION",
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
@@ -12014,6 +12196,8 @@
       "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
+      "PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED",
+      "PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED",
       "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE",
@@ -12080,6 +12264,7 @@
       "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
       "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -12269,6 +12454,8 @@
       "PULSE_PARAMS_FIELD_COLLISION",
       "PULSE_PARAMS_INVALID",
       "PULSE_PARAMS_UNDECLARED",
+      "PULSE_POSTFIT_FAILED",
+      "PULSE_POSTFIT_INVALID",
       "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_RAKE_EMPTY_CELL",
@@ -12372,6 +12559,7 @@
       "PULSE_SYNTH_FIDELITY_MODEL_INVALID",
       "PULSE_SYNTH_LAG_FIELD_INVALID",
       "PULSE_SYNTH_LAG_OFFSET_INVALID",
+      "PULSE_SYNTH_LAG_PARTITION_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
       "PULSE_SYNTH_OUTPUT_REQUIRED",
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
@@ -13415,6 +13603,10 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
+        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -13451,6 +13643,10 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
+        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -13486,6 +13682,10 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
         ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
@@ -13926,6 +14126,10 @@
         "description": "ComposedRequest.optimize — maximise or minimise an expression over bounded decision variables, subject to equality and inequality constraints, using fitted coefficients. How to read the optimum, the marginals (marginal ROI), the multipliers (shadow prices) and the active bounds, the fits-then-optimize pattern, and the failures."
       },
       {
+        "name": "compose-post-fit",
+        "description": "ComposedRequest.post_fit — run an embedder-registered POSTFIT_\u003cNS\u003e_\u003cNAME\u003e operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says."
+      },
+      {
         "name": "compose-requests",
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
@@ -14039,7 +14243,7 @@
       },
       {
         "name": "mmm-bayes-posterior",
-        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size)."
+        "description": "REG_MMM_BAYES raw posterior draws — params.return_draws and params.draws_thin, the outputs.draws shape (names, draws per chain, per-draw ROI), how the draws relate to the reported summaries, null draws, the Limits.MaxMMMDrawValues cap and response shaping — saving and scoring a fit over its draws (pre-adstocked or carried inputs, credible bounds, unseen geos, the two holdouts), a budget optimised over the draws (optimize posterior), and choosing the sampler (nuts or static hmc, path_length, step_size)."
       },
       {
         "name": "mmm-workflow",
@@ -14982,6 +15186,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-influence",
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+      },
+      {
         "name": "regression-margins",
         "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -14992,6 +15200,10 @@
       {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-order",
+        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-row-scores",
@@ -15115,7 +15327,7 @@
       },
       {
         "name": "synth-cross-row",
-        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
+        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, per-partition lag, the panel reset, a recursive adstock recipe, and what profile capture ignores."
       },
       {
         "name": "synth-datetime",
@@ -15442,7 +15654,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 277,
+    "examples_count": 280,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -15541,6 +15753,7 @@
       "matrix_ops": [],
       "regressions": [],
       "overlays": [],
+      "post_fits": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -15610,6 +15823,7 @@
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
         "chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
+        "chain rejects an ATTR_REG_PREDICT carrying adstock (params.order: a pre-pass over every scored row, not row-local)",
         "chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
         "chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
@@ -21455,4 +21669,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f3c78f9384966e3ae3a79a2c1bc20634483a35d809a7b55847a9e0ac42e5c01d
+// golden-hash: 64d6d8996b06c56607f0f934b77d9ae6f175efe5d1f9e3fc07a48a535d8a8cc7

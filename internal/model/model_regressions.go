@@ -186,7 +186,9 @@ func ModelRegressions() []types.RegressionType {
 // coefficient names its fit reports beyond the intercept and the
 // predictors, derived from the spec alone, and whether they are known.
 // REG_MMM_HILL names "k:<channel>" for every params.channels entry, then
-// "s:<channel>" for each; REG_MMM_BAYES names its params.adstock
+// "s:<channel>" for each, then — under params.adstock — the kernel's
+// params per channel (MMMBayesAdstockPrefixes; an unknown kernel reports
+// false); REG_MMM_BAYES names its params.adstock
 // kernel's params per channel (MMMBayesAdstockPrefixes: "decay:<channel>"
 // for the default geometric kernel; an unknown kernel reports false),
 // then its params.saturation curve's (MMMBayesCurvePrefixes: "k:<channel>"
@@ -220,6 +222,14 @@ func ModelRegressionTerms(spec *types.RegressionSpec) ([]string, bool) {
 		return nil, false
 	}
 	prefixes := []string{MMMHalfSaturationPrefix, MMMShapePrefix}
+	if spec.Type == types.REG_MMM_HILL && p.Adstock != nil {
+		// The in-model adstock's kernel params follow k and s.
+		ad, ok := MMMBayesAdstockPrefixes(*p.Adstock)
+		if !ok || *p.Adstock == "" {
+			return nil, false
+		}
+		prefixes = append(prefixes, ad...)
+	}
 	if spec.Type == types.REG_MMM_BAYES {
 		kernel := ""
 		if p.Adstock != nil {

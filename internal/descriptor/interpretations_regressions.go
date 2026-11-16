@@ -518,7 +518,8 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 		Field: "coefficients.*",
 		Means: "A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, " +
 			"holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; " +
-			"k:<channel> is the spend at which the channel delivers half its maximum and s:<channel> how sharply its curve bends there.",
+			"k:<channel> is the spend at which the channel delivers half its maximum and s:<channel> how sharply its curve bends there; " +
+			"under params.adstock, decay:<channel> is the share of a period's spend effect carried into the next (delayed: peak:<channel> is the lag where the carry-over peaks; Weibull: shape:<channel> and scale:<channel>, scale in periods).",
 		Sign: regLinearSign,
 		Caveats: []string{
 			regCoefCausal,
@@ -534,7 +535,7 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 			"(Gauss-Newton), mapped onto k and s.",
 		Caveats: []string{
 			"Null for a parameter that ends on its bound, and for the k and s of a channel whose coefficient is held at 0: the data cannot inform the shape of a curve that adds nothing.",
-			"It treats the carry-over decay as known; a decay chosen by a search makes the true uncertainty larger.",
+			"Over channels adstocked upstream it treats the carry-over decay as known (a searched decay makes the true uncertainty larger); under params.adstock the decay is fitted jointly, so its uncertainty is included.",
 			"With rows ordered in time it is usually too small (see the independence assumption); resample bootstrap gives replicate ones.",
 		},
 	},
@@ -554,7 +555,12 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 	},
 	{
 		Field: "outputs.*",
-		Means: "outputs.k and outputs.s repeat each channel's k:<channel> and s:<channel> coefficients as objects keyed by channel.",
+		Means: "outputs.k and outputs.s repeat each channel's k:<channel> and s:<channel> coefficients as objects keyed by channel; " +
+			"under params.adstock, outputs.condition_number is the 1-norm condition number of the joint parameter correlation matrix " +
+			"and outputs.adstock_state the last fitted periods of raw spend that scoring carries into later periods.",
+		Caveats: []string{
+			"A condition number above 1e6 (advisory PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED) means the data barely separate the decay from the curve and the effect: the standard errors are unreliable even where finite.",
+		},
 	},
 }, append(regCI("the parameter minus (lower) or plus (upper) a Student-t critical value on df times its standard error.",
 	regCIRepeated,
@@ -562,7 +568,7 @@ var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
 	"Null where the standard error is; under resample the critical value is the normal one on the replicate standard error.",
 ), regConfLevel, descriptor.Interpretation{
 	Field: "df",
-	Means: "Residual degrees of freedom n minus every fitted parameter (intercept, channel coefficients, controls, and each channel's k and s).",
+	Means: "Residual degrees of freedom n minus every fitted parameter (intercept, channel coefficients, controls, each channel's k and s, and its kernel parameters under params.adstock).",
 }), []descriptor.Interpretation{
 	{
 		Field: "r2",
@@ -728,6 +734,7 @@ var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 			"holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); " +
 			"hierarchy, with params.geo, the geos and per pooled term the population value mu and the geos' spread tau, while roi, mroi and contribution add each geo's <channel>[<geo>] beside the all-geo figure (the panel's summed contribution over its summed spend); " +
 			"draws, with params.return_draws, the raw draws params and roi summarise, for a posterior analysis of your own; " +
+			"adstock_state, each series' last fitted periods of raw spend, which scoring carries into later periods; " +
 			"and seed, the seed the sampler ran with.",
 		Caveats: []string{
 			"A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.",

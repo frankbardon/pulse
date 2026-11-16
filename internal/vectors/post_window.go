@@ -95,7 +95,9 @@ func (pw PostWindow) Refusal(req *types.Request) *errors.CodedError {
 func PostWindowEligible(route types.AttributeType, attr *types.Attribute) bool {
 	switch route {
 	case types.ATTR_REG_PREDICT:
-		return true
+		// A carried score (params.order) pre-passes the whole filtered
+		// set first, like a total() formula.
+		return !model.ScoreCarries(attr)
 	case types.ATTR_FORMULA:
 		return attr != nil && !totalcall.Contains(attr.Expression)
 	}
@@ -235,10 +237,21 @@ func attributeReads(attr *types.Attribute, route types.AttributeType, cat model.
 		if err != nil {
 			return nil
 		}
-		return boundTerms(cat, p.Fit, false)
+		out := boundTerms(cat, p.Fit, false)
+		if p.Order != nil {
+			// A carried score orders its rows by these columns.
+			for _, f := range []string{p.Order.Field, p.Order.Partition} {
+				if f != "" {
+					out = append(out, f)
+				}
+			}
+		}
+		return out
 	case model.FitReferenced(route, attr):
 		name, _ := model.FitReference(route, attr)
-		return boundTerms(cat, name, model.FitReadsTarget(route))
+		// A carried params.fit regression slot orders its rows by
+		// params.order's columns.
+		return append(boundTerms(cat, name, model.FitReadsTarget(route)), model.FitOrderFields(route, attr)...)
 	}
 	names, _ := AttributeInputNames(attr)
 	out := make([]string, 0, len(names))

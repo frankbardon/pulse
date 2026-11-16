@@ -117,7 +117,8 @@ func computedColumns(req *types.Request, schema *encoding.Schema, windows bool, 
 
 // RegressionReads returns the names a regression slot reads off each
 // record: target, predictors, unpenalized, covariance cluster /
-// order_by, jackknife_by and the free identifiers of its holdout
+// order_by, jackknife_by, order.field / order.partition and the free
+// identifiers of its holdout
 // predicate, in that order (empties skipped, repeats kept). The slot
 // weight is not one — a weight names a cohort field.
 func RegressionReads(reg *types.RegressionSpec) []string {
@@ -142,6 +143,10 @@ func RegressionReads(reg *types.RegressionSpec) []string {
 		add(c.OrderBy)
 	}
 	add(reg.JackknifeBy)
+	if o := reg.Order; o != nil {
+		add(o.Field)
+		add(o.Partition)
+	}
 	if reg.Holdout != "" {
 		names, _, _ := exprident.Free(reg.Holdout)
 		for _, n := range names {

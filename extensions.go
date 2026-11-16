@@ -101,6 +101,9 @@ type Extensions struct {
 	// Overlays installs embedder OVERLAY_* kinds for Request.Overlays
 	// (see OverlayRegistration).
 	Overlays []OverlayRegistration
+	// PostFits installs embedder POSTFIT_* operators for
+	// ComposedRequest.PostFit (see PostFitRegistration).
+	PostFits []PostFitRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future
@@ -1187,6 +1190,23 @@ type RegressionRegistration struct {
 	// (spec.RNGSeed) for the model's own use. Unset (false), every
 	// model accepts resample.
 	NoResample bool
+	// RequiresOrder, optional, declares from the spec alone that the
+	// model reads its rows in order — it carries state from one row to
+	// the next (an adstock, a lag, a state-space filter). It returns
+	// true for a spec the model can fit only over ordered rows; such a
+	// spec without types.RegressionSpec.Order is refused with
+	// PROCESSING_CONFIG {regression, slot: "order", reason:
+	// "order_required", requires: "order"} at predict and at runtime
+	// alike, before Validate. With an order the engine hands the model
+	// its admitted rows sorted by order.field (per order.partition
+	// series), contiguous under the gap policy — a repeat or a gap fails
+	// the slot alone with PROCESSING_REGRESSION_ORDER — so the model
+	// reads rows.At(i) in time order and never sorts them itself. It
+	// must be pure and must not retain the spec (it judges a copy); a
+	// panic is PULSE_EXTENSION_SPEC_REFUSED. Nil requires no order:
+	// every model accepts a spec's order regardless (the rows then
+	// simply arrive sorted).
+	RequiresOrder func(spec *types.RegressionSpec) bool
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the
 	// spec. Declared, a params key outside the list is refused
@@ -1242,6 +1262,20 @@ type ExprFunction struct {
 	// only on its arguments. Reserved for a future memoization
 	// optimisation; declaring it has no runtime effect today.
 	Pure bool
+	// Derivative, optional, returns ∂Fn/∂argᵢ at the call's arguments
+	// — one partial per argument, index-aligned, as Fn received them
+	// (float64, string, bool or nil each; a non-numeric argument's
+	// partial is never read). A Compose optimize block calling the
+	// function keeps its exact forward-mode gradient through it. Nil:
+	// a block calling the function differentiates by finite
+	// differences as a whole, and predict says so with
+	// PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK. pulse.New refuses a
+	// Derivative on an Fn that is not a function, takes no argument
+	// that can be a number or returns no number
+	// (PULSE_EXTENSION_PARAM_INVALID); at run time an error, or a
+	// partial count that does not match the call, fails the solve with
+	// PROCESSING_RUNTIME. Read nowhere else.
+	Derivative func(args ...any) ([]float64, error)
 }
 
 // LookupTable exposes a static keyed map to the runtime expression

@@ -33,12 +33,14 @@ Refit keys are top-level; `fit` is `params.fit` ([`regression-row-scores`](regre
 | `target` | field | (required) | Dependent field; absent with `fit`. |
 | `predictors` | list | (required) | Independent fields; absent with `fit`. |
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
-| `alpha` | float | — | Penalty strength. |
-| `l1_ratio` | float | — | Elasticnet mix. |
-| `fit` | string | — | Score a bound fit (`fits` / `models` entry), no refit: `y − score`. |
-| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized` (`fit` needs `vcov`). |
+| `alpha` | float | — | Strength. |
+| `l1_ratio` | float | — | L1 mix. |
+| `fit` | string | — | Bound fit (`fits` / `models`), no refit: `y − score`. |
+| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized`. |
 | `residual_type` | enum | `pearson` | kind `standardized` only; or `deviance`. |
-| `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
+| `carryover` | bool | `true` | Carry adstock ([`regression-order`](regression-order.md)). |
+| `order` | object | — | `{field, partition?}`; needed to carry. |
+| `weight` | slot weight | inherited | `null` opts out; WLS refit; not with `fit`. |
 
 ## Inputs
 
@@ -48,7 +50,7 @@ Refit keys are top-level; `fit` is `params.fit` ([`regression-row-scores`](regre
 
 ## Output
 
-One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target or any predictor is null, NaN or ±Inf**, so a downstream aggregation counts the row in `n_null`. With an intercept Σ residuals ≈ 0.
+One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target or any predictor is null, NaN or ±Inf** (counted in `n_null`). With an intercept Σ ≈ 0.
 
 ## Reading the output
 
@@ -64,8 +66,8 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
 
 ## Gotchas
 
-- Two-pass: each slot refits on its own. With `params.fit` it is row-local and fits nothing; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
-- Penalized residuals are bias-shrunk; diagnose on unpenalized fits. `kind` scales and refusals: [`regression-row-scores`](regression-row-scores.md).
+- Two-pass: refits per slot. With `params.fit` row-local (two-pass with `order`), no refit; refusals, failed fit (all null): [`regression-row-scores`](regression-row-scores.md).
+- Penalized residuals are shrunk; diagnose unpenalized. `kind` rules: [`regression-row-scores`](regression-row-scores.md), [`regression-influence`](regression-influence.md).
 
 ## See
 

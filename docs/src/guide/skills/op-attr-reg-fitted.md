@@ -36,7 +36,9 @@ Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Regularization strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
-| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score (a GLM's fitted mean); no refit keys beside it. |
+| `fit` | string | — | Bound fit (`fits` / `models`), no refit: its score (a GLM's fitted mean); no refit keys. |
+| `carryover` | bool | `true` | Carry adstock ([`regression-order`](regression-order.md)). |
+| `order` | object | — | `{field, partition?}`; needed to carry. |
 | `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
@@ -62,7 +64,7 @@ One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when
 
 ## Gotchas
 
-- Two-pass: each slot refits on its own (no fit sharing). With `params.fit` it is row-local and equals the bound model's score bit for bit; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
+- Two-pass: each slot refits on its own. With `params.fit` row-local (two-pass with `order`), the bound model's score bit for bit; refusals, failed fit (`PULSE_FIT_UNAVAILABLE`, all null): [`regression-row-scores`](regression-row-scores.md).
 - A penalty shrinks coefficients toward zero when `alpha` / `l1_ratio` is mis-tuned.
 
 ## See

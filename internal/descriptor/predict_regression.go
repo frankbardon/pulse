@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/regsolve"
@@ -130,11 +131,23 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			covRefused = reg.Covariance != nil
 		}
+		// A model that reads its rows in order needs the spec's order —
+		// the runtime adapter's own call, which it makes before the
+		// factory, so a spec failing both reports this one first on
+		// both sides.
+		if cerr := ExtensionRegressionOrderRefusal(reg, decl); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 		// A model regression's factory checks read the spec alone:
 		// its refusal is the runtime's own (regression_models.go).
 		if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg, schema); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
+	}
+	// The order block's shape and field types — the runtime's rule
+	// itself (internal/regorder.Check, regression.BuildWith's call).
+	if cerr := regorder.Check(reg, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 
 	if reg.Target == "" {

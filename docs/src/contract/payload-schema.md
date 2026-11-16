@@ -52,7 +52,8 @@ built with a feature profile gets a narrower document:
   `MultiplicityMethod` and `MultiplicityFamily` are absent); without
   `capability:regression_holdout` neither `RegressionSpec.holdout` nor
   `RegressionResult.holdout` is a property (so `RegressionHoldout` is
-  absent);
+  absent); without `capability:regression_order` `RegressionSpec.order`
+  is not a property (so `RegressionOrder` and `OrderGaps` are absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -1049,6 +1050,11 @@ the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
 beside the predictors (no intercept), leaves their `p_values` `null`,
 and fills `outputs` `link`, `levels`, `thresholds`,
 `fitted_probabilities` and, with `params.brant`, `brant`.
+`REG_MMM_HILL` with `params.adstock` appends `decay:<channel>` (and
+`peak:<channel>`) after `s:<channel>`, adds `outputs.condition_number`
+(`null` when the joint block does not invert) and, above 1e6, carries
+`PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED` on `advisories`
+(result-only; the standard errors stay).
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any
@@ -1180,6 +1186,29 @@ the buffered path (the held-out rows are scored after the fit)"`). The
 block rides `capability:regression_holdout`, is kept by the `standard`
 and `minimal` presets, is rounded by `return.precision` and never
 appears under `Response.components`.
+
+## Regression order
+
+`RegressionSpec` takes an additive `omitempty` object `order`
+(`#/$defs/RegressionOrder`) `{field, partition, gaps}`: the engine sorts
+the slot's rows by `field` (an unsigned integer, `date` or `datetime`
+field or derived column) — within each `partition` series (optional; a
+categorical, unsigned integer, `date`, `datetime` or `packed_bool`
+field), the series in ascending key order — before any fit, dropping a
+row whose `field` or `partition` is null. Under `gaps` `refuse`
+(`#/$defs/OrderGaps`, the default and only policy) the rows the fit
+admits (target and every predictor present) must form contiguous
+series: a repeated value inside one series (`details.reason`
+`duplicate`) or a step that is not the cadence, the smallest positive
+step over every series (`reason` `gap`), fails the slot alone with
+`PROCESSING_REGRESSION_ORDER` (`PULSE_SLOT_FAILED`). The spec rules —
+`field` required, a known `gaps`, `partition` ≠ `field`, the field
+types — are `PROCESSING_CONFIG` `{slot: "order", reason}`, and a model
+whose registration requires an order refuses a spec without one
+(`reason` `order_required`), identically at predict and at runtime. An
+order forces the buffered path (predict `streamable` false). It adds no
+response field; absent is byte-identical and `format_version` stays
+`"1.1"`. The block rides `capability:regression_order`.
 
 ## Multinomial regression
 
@@ -1566,7 +1595,7 @@ summary echoes it as `from_sweep`.
 
 `ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec
 {name, variables, objective, direction, constraints, starts, rng_seed,
-tolerance, max_iterations}`: a constrained optimisation solved once,
+tolerance, max_iterations, gradient}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
 upper, start}`, each bound an `OptimizeBound` — a number or a
 scalar expression string read once before the solve (literals,
@@ -1595,13 +1624,26 @@ in `ComposedResponse.optimizations`, an `omitempty` array of
 `OptimizeResult` in declaration order — `name`, `direction`,
 `objective`, `variables [{name, value, marginal, active}]`,
 `constraints [{expr, type, value, multiplier}]`, `converged`, `status`,
-`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`
-— pinned outside the Compose-level `return` (always emitted, never
+`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`,
+`gradient`, `gradient_fallback` — pinned outside the Compose-level `return` (always emitted, never
 rounded); a block that failed on its numbers keeps `{name, direction,
 error}` (see Failed slots) and warns `PULSE_SLOT_FAILED` (`slot_kind`
 `optimizations`). Each block is solved from its start point plus
-`starts − 1` seeded Latin-hypercube points with SLSQP and central
-finite-difference gradients; `marginal` is ∂f/∂xᵢ, `multiplier` the
+`starts − 1` seeded Latin-hypercube points with SLSQP and, under
+`gradient` `analytic` (the default), exact forward-mode gradients of the
+objective and constraints — central finite differences for the whole
+block when an expression calls a function without a derivative rule
+(Compose predict's `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK`), and
+throughout under `gradient` `fd` (unknown: `PULSE_OPTIMIZE_SPEC_INVALID`
+`gradient_unknown`). The result echoes the gradient the block actually
+solved with as `gradient` (`OptimizeGradient`: `analytic`, or `fd` when
+asked or fallen back — a point kink, a finite value with a non-finite
+partial differentiated by central differences at that point only, stays
+`analytic`) and, on a fallback, `gradient_fallback` — the functions and
+constructs without a derivative rule (sorted, unique; the advisory's
+`details.functions` for the same block, one verdict); both `omitempty`,
+absent on a failed entry, additive (`format_version` stays `"1.1"`);
+`marginal` is ∂f/∂xᵢ, `multiplier` the
 constraint's Lagrange multiplier in the objective's own direction
 (∇f = Σ multiplier·∇expr on the free variables — for a budget `eq` it
 equals every free variable's `marginal`), `starts_agreeing` the
@@ -1679,6 +1721,29 @@ deviance, the Pearson dispersion, the covariance its standard errors
 read) travel through an internal capture on the fit's run, never a
 request, result or public type: no fit's bytes move. Long form:
 `docs/src/regression.md` (Nested-model comparison).
+
+### Compose post-fit
+
+`ComposedRequest.post_fit` is an `omitempty` array of `PostFitSpec
+{label, type, fits, params}`: a run of an embedder-registered post-fit
+operator (`POSTFIT_<NAMESPACE>_<NAME>`; Pulse ships none) once the
+optimize blocks have run and before the comparisons, with no record
+data. `type` is a `PostFitType`: an empty enum in the published schema
+(Pulse ships no post-fit operator), the instance's registered operators
+in its own view (`Pulse.PayloadSchema()`), `fits` names regression `fits`
+entries, `params` is checked against the registration's declared
+params. A malformed entry is `PULSE_POSTFIT_INVALID` (`details.post_fit`,
+`details.reason`) before any fit or slot runs. Results land in
+`ComposedResponse.post_fit`, an `omitempty` array of `PostFitResult
+{label, type, scalars, tables, error}` in declaration order: `scalars`
+an object of named numbers, `tables` an object of named `PostFitTable
+{columns, rows}` whose cells are numbers, strings or `null` — pinned
+outside the Compose-level `return`; an undefined figure is `null`, key
+kept. An entry whose operator errs, or whose fit failed on its data,
+keeps `{label, type, error}` and warns `PULSE_SLOT_FAILED` (`slot_kind`
+`post_fit`). Both keys are gated by `capability:compose_post_fit`. Additive:
+`format_version` stays `"1.1"`. Long form:
+`docs/src/internals/extension-points.md` (Post-fit operator).
 
 ### Model files (`save`)
 

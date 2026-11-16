@@ -1,6 +1,8 @@
 package synth
 
 import (
+	"bytes"
+	mrand "math/rand/v2"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -151,5 +153,79 @@ func TestSynthLag_BufferCopiesSelectionsAndVectors(t *testing.T) {
 	}
 	if v := gotVec.([]float64); v[0] != 1 {
 		t.Fatalf("vector = %v, want the committed [1 2]", v)
+	}
+}
+
+// TestSynthLagPartition_GenerateRefusesABypassingSpec: a Spec that never
+// met validateSpec (SpecFromProfile's path) meets the partition refusal
+// at generate, before the first row, with validateSpec's code, message
+// and details.
+func TestSynthLagPartition_GenerateRefusesABypassingSpec(t *testing.T) {
+	t.Parallel()
+
+	for _, rules := range [][]RuleSpec{
+		{{SetExpr: map[string]string{"score": `lag("score", 1, 0, "region")`}}, {Set: map[string]any{"region": "west"}}},
+		{{SetExpr: map[string]string{"score": `lag("score", 1, 0, "nps")`}}},
+	} {
+		spec := ruleSpecFixture(rules...)
+		specErr := validateSpec(spec)
+		schema, wfs, err := buildSchema(spec)
+		if err != nil {
+			t.Fatalf("buildSchema: %v", err)
+		}
+		var buf bytes.Buffer
+		_, _, _, genErr := generate(spec, schema, wfs, &buf, mrand.New(mrand.NewPCG(1, 2)), 1, nil)
+		var ces [2]*errors.CodedError
+		for i, e := range []error{specErr, genErr} {
+			ce, ok := e.(*errors.CodedError)
+			if !ok || ce.Code != errors.PULSE_SYNTH_LAG_PARTITION_INVALID {
+				t.Fatalf("side %d returned %v, want PULSE_SYNTH_LAG_PARTITION_INVALID", i, e)
+			}
+			ces[i] = ce
+		}
+		if ces[0].Message != ces[1].Message || len(ces[0].Details) != len(ces[1].Details) {
+			t.Errorf("sides differ:\n %v\n %v", ces[0], ces[1])
+		}
+		if buf.Len() != 0 {
+			t.Errorf("generate wrote %d bytes before refusing", buf.Len())
+		}
+	}
+}
+
+// TestSynthLagPartition_DetectorsCompileThePartitionedForm: the
+// partitioned call compiles in both --suggest-rules detectors, nil
+// default included, like every shape the loader accepts.
+func TestSynthLagPartition_DetectorsCompileThePartitionedForm(t *testing.T) {
+	t.Parallel()
+
+	gate := (&gateDetector{schema: &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeU4},
+	}}}).predicateCompiler()
+	dep := (&depDetector{fields: []depField{{name: "x", typ: "u4"}, {name: "g", typ: "categorical_u8"}}}).exprChecker()
+	if err := dep("x", `lag("x", 2, 0, "g") + 1`); err != nil {
+		t.Fatalf("dependency detector refused a partitioned lag: %v", err)
+	}
+	if err := dep("x", `(lag("x", 1, nil, "g") ?? 0) + 1`); err != nil {
+		t.Fatalf("dependency detector refused a nil-default partitioned lag: %v", err)
+	}
+	if err := gate(`lag("x", 1, 0, x) > 1`); err == nil {
+		t.Fatal("gate detector compiled a non-literal partition")
+	}
+}
+
+// TestSynthLagPartition_FiringCauseReadsThePartition: the never-fired
+// diagnosis names the partition field among a `when`'s reads — the
+// partitioned lag keys on its current value.
+func TestSynthLagPartition_FiringCauseReadsThePartition(t *testing.T) {
+	t.Parallel()
+
+	spec := ruleSpecFixture()
+	byName := map[string]FieldSpec{}
+	for _, f := range spec.Fields {
+		byName[f.Name] = f
+	}
+	got := whenFieldsRead(`lag("score", 1, 0, "region") > 2`, byName, rewriteIndex{}, 0)
+	if len(got) != 2 || got[0].name != "region" || got[1].name != "score" {
+		t.Fatalf("reads = %+v, want region and score", got)
 	}
 }

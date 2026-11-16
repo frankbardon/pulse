@@ -13,8 +13,16 @@ func TestTypeNames_ValueWindow(t *testing.T) {
 	t.Parallel()
 
 	want := []string{"date", "f32", "f64", "u16", "u32", "u4", "u64", "u8"}
-	if got := TypeNames("WIN_LAG", SlotField); !reflect.DeepEqual(got, want) {
-		t.Fatalf("WIN_LAG field: %v, want %v", got, want)
+	if got := TypeNames("WIN_RUNNING_SUM", SlotField); !reflect.DeepEqual(got, want) {
+		t.Fatalf("WIN_RUNNING_SUM field: %v, want %v", got, want)
+	}
+	// The copy windows add categorical_* (a label copies verbatim);
+	// set_*, decimal128, packed_bool and datetime stay refused.
+	copies := []string{"categorical_u16", "categorical_u32", "categorical_u8", "date", "f32", "f64", "u16", "u32", "u4", "u64", "u8"}
+	for _, op := range []string{"WIN_LAG", "WIN_LEAD"} {
+		if got := TypeNames(op, SlotField); !reflect.DeepEqual(got, copies) {
+			t.Fatalf("%s field: %v, want %v", op, got, copies)
+		}
 	}
 	if got := TypeNames("FEAT_POLY", SlotField); !reflect.DeepEqual(got, append([]string{"date", "decimal128"}, want[1:]...)) {
 		t.Fatalf("FEAT_POLY field: %v", got)
@@ -104,11 +112,18 @@ func TestRefusal(t *testing.T) {
 	if r := Refusal("WIN_EXT_NS_LAG", SlotField, "c", encoding.FieldTypeCategoricalU8); r != nil {
 		t.Fatalf("untabled (extension) operator refused: %v", r)
 	}
-	r := Refusal("WIN_LAG", SlotField, "c", encoding.FieldTypeCategoricalU8)
+	// A copy window copies a category's label; a value window refuses it.
+	if r := Refusal("WIN_LAG", SlotField, "c", encoding.FieldTypeCategoricalU8); r != nil {
+		t.Fatalf("categorical copy window refused: %v", r)
+	}
+	if r := Refusal("WIN_LEAD", SlotField, "s", encoding.FieldTypeSetU8); r == nil || r.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
+		t.Fatalf("set copy window: %v", r)
+	}
+	r := Refusal("WIN_DELTA", SlotField, "c", encoding.FieldTypeCategoricalU8)
 	if r == nil || r.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED {
 		t.Fatalf("categorical window: %v", r)
 	}
-	if r.Details["field_type"] != "categorical_u8" || r.Details["slot"] != "field" || r.Details["type"] != "WIN_LAG" {
+	if r.Details["field_type"] != "categorical_u8" || r.Details["slot"] != "field" || r.Details["type"] != "WIN_DELTA" {
 		t.Fatalf("details: %v", r.Details)
 	}
 	if !strings.Contains(r.Message, "categorical_u8") || !strings.Contains(r.Message, "u64") {

@@ -37,6 +37,10 @@ func TestStreamable(t *testing.T) {
 		{"bucketize boundaries derived", f(types.FEAT_BUCKETIZE, "ly", `{"boundaries":[1,2]}`), true},
 		{"log derived", f(types.FEAT_LOG, "ly", ``), true},
 		{"frequency derived", f(types.FEAT_FREQUENCY_ENCODE, "ly", ``), true},
+		{"split random", f(types.FEAT_TRAIN_TEST_SPLIT, "", `{"ratios":[0.8,0.2],"mode":"random"}`), true},
+		{"split mode absent", f(types.FEAT_TRAIN_TEST_SPLIT, "", `{"ratios":[0.8,0.2]}`), true},
+		{"split temporal stored", f(types.FEAT_TRAIN_TEST_SPLIT, "", `{"ratios":[0.8,0.2],"mode":"temporal","order_by":"s"}`), false},
+		{"split malformed left to the refusal", f(types.FEAT_TRAIN_TEST_SPLIT, "", `{"mode":5}`), true},
 		{"nil", nil, true},
 	}
 	for _, c := range cases {

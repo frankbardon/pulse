@@ -212,7 +212,8 @@ var (
 				"A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; " +
 					"a row missing any predictor gets null; a row a weighted fit leaves out (no usable weight) reads 0.",
 				"Unpenalized least squares only; a request with a penalty is refused. Over a bound fit (params.fit) it is that fit's leverage: for a generalized-linear fit it also weighs the row's fitted value " +
-					"(its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move.",
+					"(its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move. " +
+					"Over a nonlinear media-mix fit it is the tangent-plane leverage, which also counts the curve's (and in-model adstock's) parameters: a row on the curve's steep stretch carries more.",
 			},
 		},
 	}

@@ -151,6 +151,10 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	pcols := make([]processing.DerivedColumn, len(cols))
 	for i, c := range cols {
 		pcols[i] = processing.DerivedColumn{Name: c.Name, Window: c.Window}
+		if c.Window && c.Inherits != "" {
+			// A lagged category: emitted as its source dictionary's codes.
+			pcols[i].Dictionary = c.Dictionary
+		}
 	}
 	proc := s.newProcessor(ctx, schema, req)
 	if err := proc.DeriveRecords(ctx, req, iter, pcols, sink.Row); err != nil {

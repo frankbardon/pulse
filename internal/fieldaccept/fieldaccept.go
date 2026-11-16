@@ -27,7 +27,8 @@
 //
 // It is a leaf: it imports only the public errors / encoding / types
 // packages (and the stdlib-only internal/paramread, for a lenient
-// params probe), never internal/processing or internal/service, so
+// params probe, and the leaf internal/regorder, whose order-field rule
+// orderValue reuses), never internal/processing or internal/service, so
 // internal/descriptor may import it without breaking
 // TestPredictNoExecutionImports.
 //
@@ -51,6 +52,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -78,6 +80,9 @@ const (
 	SlotCols Slot = "cols"
 	// SlotStratify is FEAT_TRAIN_TEST_SPLIT's `params.stratify`.
 	SlotStratify Slot = "stratify"
+	// SlotOrderBy is FEAT_TRAIN_TEST_SPLIT's temporal-mode
+	// `params.order_by`.
+	SlotOrderBy Slot = "order_by"
 	// SlotPrediction is a model-error aggregator's
 	// `params.prediction_field`.
 	SlotPrediction Slot = "prediction_field"
@@ -119,6 +124,16 @@ func windowValue(ft encoding.FieldType) bool {
 		return true
 	}
 	return false
+}
+
+// copyValue is the copy windows' (WIN_LAG / WIN_LEAD) set: windowValue
+// plus categorical_*. A copy reads no number — its output is the source
+// cell verbatim — so a category copies as its dictionary label and the
+// output is a categorical column on the source's dictionary
+// (windowparams.CategoricalLags). set_*, decimal128, packed_bool and
+// datetime stay out with the rest of the value windows.
+func copyValue(ft encoding.FieldType) bool {
+	return windowValue(ft) || ft.IsCategorical()
 }
 
 // polyValue is FEAT_POLY's set: windowValue plus decimal128, which the
@@ -203,6 +218,17 @@ func setValue(ft encoding.FieldType) bool {
 // against.
 func temporalValue(ft encoding.FieldType) bool {
 	return ft == encoding.FieldTypeDate || ft == encoding.FieldTypeDateTime
+}
+
+// orderValue is the row-order set: an unsigned integer period index, a
+// date (epoch day) or a datetime (epoch second) — exactly the regression
+// order rule (regorder.OrderFieldType), so a column that can order a
+// regression's rows can cut a temporal split and nothing else can. A
+// float (no period), a categorical (a dictionary index is no instant),
+// set_*, decimal128 and packed_bool are refused. FEAT_TRAIN_TEST_SPLIT's
+// order_by reads it.
+func orderValue(ft encoding.FieldType) bool {
+	return regorder.OrderFieldType(ft)
 }
 
 // packedBool is FILTER_TRUE / FILTER_FALSE's STRICT-mode set (no
@@ -353,8 +379,9 @@ func add(class func(encoding.FieldType) bool, code errors.Code, slots []Slot, op
 
 func init() {
 	field := []Slot{SlotField}
+	add(copyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "WIN_LAG", "WIN_LEAD")
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field,
-		"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
+		"WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
 		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_DISTRIBUTED_LAG")
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotField, SlotBase}, "WIN_LIFT")
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
@@ -430,6 +457,7 @@ func init() {
 	add(categoricalValue, unsupported, field, "TEST_PROP_Z")
 	add(categoricalValue, unsupported, field, "FEAT_ONE_HOT", "FEAT_FREQUENCY_ENCODE", "FEAT_TARGET_ENCODE")
 	add(categoricalValue, unsupported, []Slot{SlotStratify}, "FEAT_TRAIN_TEST_SPLIT")
+	add(orderValue, unsupported, []Slot{SlotOrderBy}, "FEAT_TRAIN_TEST_SPLIT")
 	add(testValue, unsupported, []Slot{SlotTarget}, "FEAT_TARGET_ENCODE")
 	add(categoricalValue, unsupported, []Slot{SlotRows, SlotCols}, "TEST_CHISQ", "TEST_FISHER_EXACT")
 	add(categoricalValue, unsupported, []Slot{SlotSplitBy},

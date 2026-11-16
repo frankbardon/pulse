@@ -21,7 +21,7 @@ import (
 
 // slotParityCases put $F in a slot the acceptance gate's templates do
 // not judge: a test's split_by / subject_field, a contingency test's
-// cols, FEAT_TARGET_ENCODE's target, FILTER_RANGE under numeric bounds,
+// cols, FEAT_TARGET_ENCODE's target, FEAT_TRAIN_TEST_SPLIT's order_by, FILTER_RANGE under numeric bounds,
 // REG_MMM_BAYES's params.geo.
 var slotParityCases = []struct {
 	op   string
@@ -46,6 +46,9 @@ var slotParityCases = []struct {
 	{"TEST_PROP_Z", fieldaccept.SlotSplitBy, `{"tests":[{"type":"TEST_PROP_Z","field":"g","split_by":"$F","params":{"success":"a"}}]}`},
 	{"TEST_CHISQ", fieldaccept.SlotCols, `{"tests":[{"type":"TEST_CHISQ","rows":"g","cols":"$F"}]}`},
 	{"TEST_FISHER_EXACT", fieldaccept.SlotCols, `{"tests":[{"type":"TEST_FISHER_EXACT","rows":"g","cols":"$F"}]}`},
+	// FEAT_TRAIN_TEST_SPLIT's temporal order: an unsigned integer, a
+	// date or a datetime (regorder.OrderFieldType).
+	{"FEAT_TRAIN_TEST_SPLIT", fieldaccept.SlotOrderBy, `{"features":[{"type":"FEAT_TRAIN_TEST_SPLIT","params":{"ratios":[0.7,0.3],"mode":"temporal","order_by":"$F"}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`},
 	{"FEAT_TARGET_ENCODE", fieldaccept.SlotTarget, `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"$F","smoothing":5}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`},
 	// Numeric bounds: a categorical is refused by its type, not by a
 	// bound that fails to parse (it used to range over dictionary

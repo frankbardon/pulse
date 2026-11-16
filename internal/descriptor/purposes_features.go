@@ -261,11 +261,12 @@ var (
 	}
 
 	purposeFeatTrainTestSplit = descriptor.Purpose{
-		Plain:   "Labels every record train (0), validation (1) or test (2) by a seeded shuffle, so a model can be checked on records it never learned from.",
+		Plain:   "Labels every record train (0), validation (1) or test (2) by a seeded shuffle or by time, to check a model on records it never learned from.",
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How do I hold back 20% of records to test a model on?",
 			"Can I split records so each class keeps its share in train and test?",
+			"How do I hold out the latest weeks to test a forecast on?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Hold out a share of respondents to check a scoring model.",
@@ -280,6 +281,7 @@ var (
 			featBeforeFilters,
 			"Each share is the ratio times the record count, rounded; with stratify it is applied within each category.",
 			"The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.",
+			"In temporal mode records sharing an order value always land in the same set, and a record with no order value lands in none (its label is missing).",
 			"The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, " +
 				"so build those from the train rows in a separate request.",
 		},

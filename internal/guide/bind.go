@@ -258,6 +258,18 @@ func preferDate(f *encoding.Field) int {
 	return 1
 }
 
+// preferValue orders a window field's candidates: a value (number or
+// date) before a category. A copy window (WIN_LAG / WIN_LEAD) also
+// copies a categorical, but a change-over-time draft means a measure
+// (last month's sales), so a category binds only when no value field
+// fits.
+func preferValue(f *encoding.Field) int {
+	if f.Type.IsCategorical() {
+		return 1
+	}
+	return 0
+}
+
 // preferSubject orders a subject_field's candidates (ATTR_PREVIOUS_STATE's
 // "any" field filter takes every scalar): a field named like a subject
 // id (`customer_id`) first, then a bare `id` (often the row id, one
@@ -423,7 +435,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 		}
 	case catWindow:
 		if !op.ignoresField && !descx.WindowFieldForbidden(types.WindowType(op.name)) {
-			slots = append(slots, bslot{key: "field", accept: fieldAccept})
+			slots = append(slots, bslot{key: "field", accept: fieldAccept, prefer: preferValue})
 		}
 		// A row-local window (WIN_FORMULA) refuses order_by: it binds no
 		// field at all, and its expression is the caller's need.

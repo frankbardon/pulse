@@ -32,6 +32,22 @@ import (
 // that carries no such design (no vcov, robust, penalized, selection,
 // resample, weighted, …) before this is built.
 //
+// A REG_MMM_HILL fit (U71 E2-S6, #732) is a nonlinear least squares:
+// its design row is the tangent g = ∂ŷ/∂θ at the optimum (the
+// registered model.Tangent, RegisterModelTangent), Vcov = σ̂²·(JᵀJ)⁻¹ over
+// the free parameters (a parameter held on a bound has a NaN row and
+// joins nothing), and
+//
+//	h = gᵀ(Vcov/σ̂²)g          the Gauss–Newton (tangent-plane) hat value
+//
+// with the figures InfluenceFigures(y − ŷ, h, σ̂², df, p′, true, 1), p′
+// the free parameter count and df the fit's residual df n − p (every
+// parameter, the df its σ̂² = SSR/df divided by) — OLS's formulas on the
+// linearised model, and on the fit's own rows the hat values of its own
+// Jacobian (Σ h = p′). A carried row (the engine's carry-over) hands
+// the tangent each channel's adstock lags, so the kernel parameters'
+// partials see the carried history.
+//
 // FMA-free like influence.go (TestOLSQR_NoFMAContraction matches this
 // file's name): every product feeding an add or subtract is wrapped.
 // The linear predictor is the shared scoring kernel (LinearPredictor,
@@ -52,6 +68,10 @@ type BoundInfluence struct {
 	phi, df   float64
 	p1        float64
 	estimated bool
+	// tangent is a nonlinear fit's gradient (nil on REG_OLS / REG_GLM);
+	// free indexes its Keys over m's rows (the free parameters).
+	tangent model.Tangent
+	free    []int
 }
 
 // NewBoundInfluence resolves b's design. A fit CheckFitDesign admits
@@ -80,7 +100,11 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 		// is estimated); every other one reads φ = 1.
 		d.fam, d.estimated = fam, fam.EstimatesDispersion || b.Family == reglink.NegativeBinomial && b.Result.Dispersion != 0
 	default:
-		return nil, internalDesign(b, "is not a REG_OLS or REG_GLM fit")
+		tf, ok := modelTangents[b.Type]
+		if !ok {
+			return nil, internalDesign(b, "is not a REG_OLS, REG_GLM or REG_MMM_HILL fit")
+		}
+		return newTangentInfluence(b, tf)
 	}
 	d.phi = 1
 	if d.estimated {
@@ -129,9 +153,62 @@ func internalDesign(b *model.Bound, what string) error {
 // Columns are the predictor columns the design row reads, fit order.
 func (d *BoundInfluence) Columns() []string { return append([]string(nil), d.columns...) }
 
+// newTangentInfluence resolves a nonlinear fit's design (tf, its
+// tangent): the free parameters are the Vcov keys with a defined
+// variance, M = Vcov/σ̂² over them.
+func newTangentInfluence(b *model.Bound, tf model.TangentFactory) (*BoundInfluence, error) {
+	tan, err := tf(b)
+	if err != nil {
+		return nil, internalDesign(b, "has no tangent plane ("+err.Error()+")")
+	}
+	d := &BoundInfluence{gaussian: true, estimated: true, phi: b.Result.Dispersion, tangent: tan}
+	if !(d.phi > 0) {
+		return nil, internalDesign(b, "carries no dispersion")
+	}
+	idx := make(map[string]int, len(b.Vcov.RowKeys))
+	for i, k := range b.Vcov.RowKeys {
+		idx[k] = i
+	}
+	keys := tan.Keys()
+	pos := make([]int, len(keys))
+	for i, k := range keys {
+		j, ok := idx[k]
+		if !ok || j >= len(b.Vcov.Values) || j >= len(b.Vcov.Values[j]) {
+			return nil, internalDesign(b, fmt.Sprintf("has no vcov row for %q", k))
+		}
+		pos[i] = j
+		// A parameter held on a bound has a NaN variance: it is not
+		// estimated, so it joins neither the hat matrix nor p′.
+		if v := b.Vcov.Values[j][j]; !math.IsNaN(v) {
+			d.free = append(d.free, i)
+		}
+	}
+	d.m = make([][]float64, len(d.free))
+	for a, i := range d.free {
+		d.m[a] = make([]float64, len(d.free))
+		row := b.Vcov.Values[pos[i]]
+		for c, j := range d.free {
+			if pos[j] >= len(row) {
+				return nil, internalDesign(b, "has a ragged vcov")
+			}
+			d.m[a][c] = row[pos[j]] / d.phi
+		}
+	}
+	d.p1 = float64(len(d.free))
+	d.df = b.Result.DF
+	if !(d.df > 0) {
+		d.df = float64(b.Result.NObs - len(keys))
+	}
+	return d, nil
+}
+
 // Leverage is row's leverage h; ok=false (a null) when a predictor is
 // null or non-finite (InputValue).
 func (d *BoundInfluence) Leverage(row model.Row) (float64, bool) {
+	if d.tangent != nil {
+		h, _, ok := d.atTangent(row)
+		return h, ok
+	}
 	x, ok := d.read(row)
 	if !ok {
 		return 0, false
@@ -140,9 +217,38 @@ func (d *BoundInfluence) Leverage(row model.Row) (float64, bool) {
 	return h, true
 }
 
+// atTangent is a nonlinear fit's design at row: the hat value
+// h = gᵀ M g over the free parameters (NaN with none) and the fitted
+// value ŷ; ok=false when a column the tangent reads is null.
+func (d *BoundInfluence) atTangent(row model.Row) (h, mu float64, ok bool) {
+	mu, g, ok := d.tangent.Gradient(row)
+	if !ok {
+		return 0, 0, false
+	}
+	if len(d.free) == 0 {
+		return math.NaN(), mu, true
+	}
+	q := 0.0
+	for a, i := range d.free {
+		r := 0.0
+		for c, j := range d.free {
+			r += float64(d.m[a][c] * g[j])
+		}
+		q += float64(g[i] * r)
+	}
+	return finiteOrNaN(q), mu, true
+}
+
 // Row is row's influence figures with response y; ok=false (a null)
 // when a predictor is null or non-finite.
 func (d *BoundInfluence) Row(row model.Row, y float64) (RowInfluence, bool) {
+	if d.tangent != nil {
+		h, mu, ok := d.atTangent(row)
+		if !ok {
+			return RowInfluence{}, false
+		}
+		return InfluenceFigures(y-mu, h, d.phi, d.df, d.p1, true, 1), true
+	}
 	x, ok := d.read(row)
 	if !ok {
 		return RowInfluence{}, false

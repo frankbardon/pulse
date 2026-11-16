@@ -55,8 +55,17 @@ var scopedManifestExceptions = map[string]float64{
 	// growth, no other content of the scope moved. Measured 15.06%
 	// (38,020 of 252,480 bytes) there. REG_MULTINOMIAL (U65 E4-S2, #631)
 	// added its row the same way (feature growth): measured 15.50%
-	// (39,341 of 253,801 bytes) with both.
-	IntentDrivers: 0.156,
+	// (39,341 of 253,801 bytes) with both. The shared `order` slot on
+	// every regression (U71 E2-S1, #551; feature growth, one Param row
+	// per regression in scope) measured 15.71% (40,748 of 259,300 bytes).
+	// REG_MMM_HILL's in-model adstock (U71 E2-S2, #551; feature growth:
+	// the adstock / max_lag params and the condition_number output key)
+	// measured 15.81% (41,045 of 259,687 bytes). Adstock carry-over
+	// (U71 E2-S4, #551; feature growth: the carryover param on both
+	// media-mix models and ATTR_REG_PREDICT's carryover / order, plus
+	// the adstock_state output key on both models) measured 15.94%
+	// (41,454 of 260,096 bytes).
+	IntentDrivers: 0.160,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

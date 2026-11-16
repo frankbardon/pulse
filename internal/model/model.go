@@ -180,7 +180,7 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 	b.Design.Constrained = spec.Bounds.Active()
 	b.Design.NoIntercept = spec.Intercept != nil && !*spec.Intercept
 	b.Design.Selection = b.Design.Selection || spec.Selection != ""
-	b.Design.Penalized = b.Design.Penalized || spec.Penalty != ""
+	b.Design.Penalized = b.Design.Penalized || spec.Penalty != "" || MMMHillPrior(spec)
 	b.Design.Resample = b.Design.Resample || spec.Resample != ""
 	b.Saturation = MMMBayesSaturation(spec)
 	for i, p := range predictors {

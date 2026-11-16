@@ -52,9 +52,9 @@ Predict warns (error under `--strict` / `Options.Strict: true`) on every encoder
 
 ## Train / test / split semantics
 
-The train/test split feature tags each row in a numeric `split` column. `0` = train, `1` = val, `2` = test; two- or three-element ratios, optional `stratify` (per-class shuffle keeps class balance), deterministic `seed`.
+The split feature tags each row in a numeric `split` column (`0` train, `1` val, `2` test) by 2 or 3 ratios: a seeded shuffle (`stratify` keeps class balance) or `mode: "temporal"` (earliest `order_by` rows train, ties kept together).
 
-Downstream: keep `split == 0` with a value filter for train-only; group by `split` for per-partition metrics. Same seed + same rows in the same order ⇒ same labels.
+Downstream: keep `split == 0` with a value filter for train-only; group by `split` for per-partition metrics. Same seed + rows in the same order ⇒ same labels.
 
 ## Components
 

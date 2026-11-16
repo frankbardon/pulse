@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -89,6 +90,12 @@ func attrTwoPass(opts *PredictOptions, attr *types.Attribute, specs []types.Vect
 		return true
 	}
 	if route == types.ATTR_FORMULA && totalcall.Contains(attr.Expression) {
+		return true
+	}
+	// A carried ATTR_REG_PREDICT (params.order) pre-passes every scored
+	// row's spend — the runtime's attrRequiresTwoPassIn through the
+	// shared model.ScoreCarries.
+	if route == types.ATTR_REG_PREDICT && model.ScoreCarries(attr) {
 		return true
 	}
 	// An ATTR_VEC_DISTANCE over std_euclidean / mahalanobis (explicit,

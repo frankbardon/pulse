@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -23,7 +24,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -33,7 +34,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -52,6 +53,7 @@ const (
 	categoryMatrix     extensionCategory = "matrix"
 	categoryRegression extensionCategory = "regression"
 	categoryOverlay    extensionCategory = "overlay"
+	categoryPostFit    extensionCategory = "post_fit"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -78,6 +80,8 @@ func (c extensionCategory) expectedPrefix() string {
 		return "REG"
 	case categoryOverlay:
 		return "OVERLAY"
+	case categoryPostFit:
+		return "POSTFIT"
 	}
 	return ""
 }
@@ -172,6 +176,9 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateOverlayRegistrations(ext.Overlays); err != nil {
+		return err
+	}
+	if err := validatePostFitRegistrations(ext.PostFits); err != nil {
 		return err
 	}
 	if err := validateExprFunctions(ext.ExprFunctions); err != nil {
@@ -1010,7 +1017,54 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i},
 			)
 		}
+		if err := validateExprDerivative(fn, i); err != nil {
+			return err
+		}
 		seen[fn.Name] = struct{}{}
+	}
+	return nil
+}
+
+// validateExprDerivative refuses a Derivative hook with nothing to
+// differentiate: on an Fn that is not a function, or a typed Fn that
+// takes no argument able to carry a number or returns no number (the
+// canonical func(...any) (any, error) shape always can).
+func validateExprDerivative(fn ExprFunction, i int) error {
+	if fn.Derivative == nil {
+		return nil
+	}
+	refuse := func(why string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_PARAM_INVALID,
+			fmt.Sprintf("extension expr function %q sets a Derivative, but its Fn %s; drop the Derivative or give Fn a numeric argument and result", fn.Name, why),
+			map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "field": "Derivative"},
+		)
+	}
+	rt := reflect.TypeOf(fn.Fn)
+	if rt.Kind() != reflect.Func {
+		return refuse(fmt.Sprintf("is a %T, not a function", fn.Fn))
+	}
+	numeric := func(t reflect.Type) bool {
+		switch t.Kind() {
+		case reflect.Interface, reflect.Float64, reflect.Float32, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return true
+		}
+		return false
+	}
+	takes := false
+	for k := 0; k < rt.NumIn(); k++ {
+		in := rt.In(k)
+		if rt.IsVariadic() && k == rt.NumIn()-1 {
+			in = in.Elem()
+		}
+		takes = takes || numeric(in)
+	}
+	if !takes {
+		return refuse("takes no argument that can be a number")
+	}
+	if rt.NumOut() == 0 || !numeric(rt.Out(0)) {
+		return refuse("returns no number")
 	}
 	return nil
 }

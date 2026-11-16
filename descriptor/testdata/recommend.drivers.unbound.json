@@ -353,8 +353,7 @@
               "params": {
                 "channels": [
                   "\u003cchannels\u003e"
-                ],
-                "time": "\u003ctime\u003e"
+                ]
               },
               "predictors": [
                 "\u003cpredictors\u003e"
@@ -368,8 +367,7 @@
           "channels",
           "cohort",
           "predictors",
-          "target",
-          "time"
+          "target"
         ],
         "alternatives": [
           {
@@ -423,4 +421,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0bd4e079e0f01ace488d0ad516fda12ca5bad0dcbbaad2bf641a8af243209b44
+// golden-hash: 570bb099adbe2d4809f253e08a95cb343a4cbaf9ac709b1401a897d39df28e84

@@ -192,6 +192,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_ORDER: {
+		Message: "An ordered regression slot's admitted rows do not form contiguous series: a order.field value repeats inside one series (details.reason duplicate) or a step between consecutive values is not the cadence, the smallest positive step over every series (details.reason gap). A filtered or null row leaves a gap an order-dependent model would carry across. The slot fails alone. A carried media-mix score refuses the same over the rows it scores (an engine holdout's held-out rows fail that slot alone; a carried per-row model score's rows fail the request), a gap measured against the fit's period (details carry the scoring slot).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Regressions", "Order", "Field"},
+				Hint:   "Fill the missing periods, filter to one complete span, or set order.partition to the field that splits a panel into its series (a repeat across markets is not a duplicate within one).",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_DIAGNOSTIC: {
 		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
 		Fixups: []Fixup{
@@ -1096,6 +1106,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Windows", "*"},
 				Hint:   "details.reason windows_first_reads_aggregate: an aggregation, grouper or crosstab axis reads a window output, so the windows run first over the records and no aggregation label exists yet — drop the window-output read from the aggregations (the windows then run over the aggregated rows again), or materialize the windows first and aggregate the derived cohort in a second request.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Windows", "*", "Params"},
+				Hint:   "details.reason default_not_a_label: a WIN_LAG / WIN_LEAD over a categorical fills a missing neighbour with params.default, a cell of the lagged category — set it to one of details.field's dictionary labels exactly (pulse inspect lists them), or drop it for null.",
+			},
 		},
 	},
 	PULSE_FIELD_TYPE_UNSUPPORTED: {
@@ -1115,6 +1130,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "Field"},
 				Hint:   "ATTR_PREVIOUS_STATE reads a categorical_* or packed_bool state: a state stored as coded integers has no labels to carry, so re-import it as a categorical (an explicit import schema typing the column categorical_u8) and name that field.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Windows", "*"},
+				Hint:   "details.reason categorical_window_output: details.field is a lagged category (a WIN_LAG / WIN_LEAD of a categorical, window details.window_index), read only as a GROUP_CATEGORY key (a request group or a crosstab axis) or by another WIN_LAG / WIN_LEAD — key it with GROUP_CATEGORY, or materialize the window first and read the stored categorical in a second request.",
 			},
 		},
 	},
@@ -1311,6 +1331,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED: {
+		Message: "A REG_MMM_HILL fit with params.adstock has an ill-conditioned joint parameter correlation matrix (outputs.condition_number above 1e6, or a block that does not invert), so the data barely separate the decay from the curve and the effect and its standard errors are unreliable; the estimates stand. This is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "resample"},
+				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the decay with the curve, and the replicate standard errors and intervals reflect how weakly the data pin them down. Or fix the decay outside the fit (WIN_DISTRIBUTED_LAG, drop params.adstock) or fit REG_MMM_BAYES, whose decay prior regularises it.",
+				Examples: []any{map[string]any{"resample": "bootstrap"}},
+			},
+		},
+	},
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
 		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
 		Fixups: []Fixup{
@@ -1345,6 +1376,17 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"Requests", "*", "Multiplicity", "Family"},
 				Hint:     "To correct the readout as one family, set family \"compose\" on the multiplicity block of each slot named in details.slots (or on the compose request's own block, when the slots name no family of their own), with one method across the batch. Keep the split when each slot answers a separate question.",
 				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm", "family": "compose"}}},
+			},
+		},
+	},
+	PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK: {
+		Message: "An optimize block solves with the analytic gradient, but its objective or a constraint calls a function without a derivative rule (named in details.functions), so the solver differentiates the whole block by finite differences; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Optimize", "*", "Gradient"},
+				Hint:     "The block still solves; set gradient \"fd\" on it to state the finite-difference choice, or rewrite the expressions named in details.functions with functions that have a derivative rule (the maths built-ins, arithmetic, comparisons, the ternary).",
+				Examples: []any{map[string]any{"gradient": "fd"}},
 			},
 		},
 	},
@@ -1541,6 +1583,21 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Rules", "*", "SetExpr"},
 				Hint:   "Write n as a whole-number literal between 1 and 1024: `lag(\"spend\", 1)` reads the previous accepted row, `lag(\"spend\", 52)` the row 52 accepted rows back. A computed, fractional, zero or negative offset is refused.",
+			},
+		},
+	},
+	PULSE_SYNTH_LAG_PARTITION_INVALID: {
+		Message: "A synth row expression's `lag(name, n, default, partition)` call has a partition that is not a string literal naming a declared `categorical_*` field, or names a field a rule writes at or after the rule holding the call. The read keys on the partition's value on the current row, so that value must already be final when the call runs.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write the partition as a quoted literal naming a categorical field: `lag(\"spend\", 1, 0, \"geo\")`, not `lag(\"spend\", 1, 0, geo)`. A numeric, set or date field cannot partition.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules"},
+				Hint:   "Move every rule that writes the partition field (set, set_expr, set_null or a null_together member) BEFORE the rule calling lag, or read lag from a constraint, which runs after every rule.",
 			},
 		},
 	},
@@ -2606,6 +2663,41 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_POSTFIT_INVALID: {
+		Message: "A ComposedRequest `post_fit` entry (a run of an embedder-registered post-fit operator) cannot run, so nothing runs. Every entry needs a `label` unique among the entries (reason `label_missing`, `label_duplicate`) and a `type` naming a registered POSTFIT_<NAMESPACE>_<NAME> operator (`type_missing`, `type_unknown` with the registered operators under `available`). Each `fits` name must be non-empty (`fit_missing`), listed once (`fit_duplicate`) and name a regression `fits` entry (`fit_unknown`, `fit_kind`, the regression fits under `available`). The entry index is under `post_fit`, its label under `label`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"post_fit", "*", "type"},
+				Hint:     "Name an operator the instance registers (details.available lists them); post-fit operators are embedder-registered — Pulse ships none.",
+				Examples: []any{"POSTFIT_ACME_CURVE"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"post_fit", "*", "fits"},
+				Hint:   "List each regression `fits` entry the operator reads once, by its name (details.available lists the regression fits).",
+			},
+		},
+	},
+	PULSE_POSTFIT_FAILED: {
+		Message: "A post-fit operator returned an error that carries no Pulse code: the entry fails alone — its `post_fit` result keeps its label, type and this error, and PULSE_SLOT_FAILED lifts to the batch (Strict fails the batch with this code). The message carries the operator's error text; the entry's label and type are under `label` / `type`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"post_fit", "*", "params"},
+				Hint:   "Read the operator's error in the message and correct the entry's params or the fits it reads; an embedder whose operator should report a pointed code returns a *errors.CodedError instead.",
+			},
+		},
+	},
+	PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH: {
+		Message: "A post-fit operator returned output its registration's declared Outputs do not admit, so the batch fails: a declared scalar or table is absent (reason missing_scalar, missing_table), an undeclared one is present (undeclared_scalar, undeclared_table), a table's columns are not its declared columns in order (columns_mismatch), a row does not hold one cell per column (row_width), or a cell is not its column's kind — float64 in a float column, string in a string column — nor nil (cell_kind).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return exactly the scalars and tables the registration's Outputs declares, each table's Columns its declared column names in order and each row one cell per column (float64 / string per the column's Kind, or nil for null); details.reason names the rule that failed.",
+			},
+		},
+	},
 	PULSE_COMPARISON_ROWS_DIFFER: {
 		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
 		Fixups: []Fixup{
@@ -2666,7 +2758,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit}`, a residual's `{fit, kind, residual_type}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares or generalized-linear fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported`). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit, carryover, order}`, a residual's `{fit, kind, residual_type, carryover, order}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure, carryover, order}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares, generalized-linear or nonlinear least-squares media-mix (read on its tangent plane; no `prior`) fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported` — the Bayesian media-mix fit by design, since a posterior has no hat matrix, not a gap a later build fills). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. A fit that adstocks raw spend in-model (the media-mix models) carries its adstock into the scored rows by default, which needs `order {field, partition?}` ordering the frame's raw spend (`order_required`; `order_field_missing`; a field the frame lacks or of a type that cannot order rows, `order_field_invalid`) and a model holding its adstock state (`carryover_state_missing`: a file saved before carry-over); `carryover: false` scores pre-adstocked columns as given, and `order` beside it, or `order` / `carryover` on a fit that adstocks nothing in-model, is refused (`order_unused`, `carryover_unused`). The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2680,8 +2772,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "order"},
+				Hint:   "For a media-mix fit that adstocks in-model (reason order_required), set params.order {field, partition?} to the scoring frame's period field over raw spend, or set params.carryover false to score pre-adstocked channel columns as given.",
+			},
+			{
+				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "request", "regressions", "*", "vcov"},
-				Hint:   "For a leverage / influence / standardized / studentized slot (details.requires vcov), set vcov: true on the bound fit's regression; for requires unweighted set its weight to null.",
+				Hint:   "For a leverage / influence / standardized / studentized slot (details.requires vcov), set vcov: true on the bound fit's regression; for requires unweighted set its weight to null; for requires unpenalized on a media-mix fit drop its params.prior. Over a Bayesian media-mix fit (type_unsupported) none applies: read its rows with the fitted-value and residual attributes.",
 			},
 		},
 	},
@@ -5143,7 +5240,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_SPEC_INVALID: {
-		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). A `posterior` takes `objective` mean or quantile (`posterior_objective_unknown`), `q` in (0, 1) with quantile only (`posterior_q_invalid`) and `draws` >= 0 (`posterior_draws_invalid`); its objective and constraints must read exactly one fit by a literal coef() / response() fit name (`posterior_fit_missing`, `posterior_fits_multiple`, `details.fits`), a Bayesian media-mix fit (`posterior_fit_not_bayes`, `details.fit` / `type`) carrying its posterior draws — a Compose fit with params.return_draws true, or a saved file that kept them (`draws_required`). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
+		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100); `gradient`, when set, is `analytic` (the default) or `fd` (`gradient_unknown`). A `posterior` takes `objective` mean or quantile (`posterior_objective_unknown`), `q` in (0, 1) with quantile only (`posterior_q_invalid`) and `draws` >= 0 (`posterior_draws_invalid`); its objective and constraints must read exactly one fit by a literal coef() / response() fit name (`posterior_fit_missing`, `posterior_fits_multiple`, `details.fits`), a Bayesian media-mix fit (`posterior_fit_not_bayes`, `details.fit` / `type`) carrying its posterior draws — a Compose fit with params.return_draws true, or a saved file that kept them (`draws_required`). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,

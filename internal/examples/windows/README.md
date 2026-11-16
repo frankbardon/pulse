@@ -35,6 +35,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `15_window_column_aggregate.json` | `WIN_DELTA`, `AGG_AVERAGE`, `AGG_COUNT` | Windows-first, ungrouped: aggregate a window column (the mean order-to-order revenue change; the first order's null change is skipped) |
 | `16_window_column_by_quarter.json` | `WIN_RUNNING_SUM`, `GROUP_DATE`, `AGG_SUM`, `AGG_MAX` | Windows-first, grouped: the running revenue total reached by each quarter's end beside the quarter's own sum |
 | `17_formula.json` | `WIN_FORMULA`, `WIN_SHARE` | Gains table: a row-local formula over two earlier `WIN_SHARE` columns — their ratio (the lift) and their difference; no `order_by` |
+| `18_lag_category_flows.json` | `WIN_LAG`, `GROUP_CATEGORY`, `AGG_COUNT` | A lagged category: the customer's previous plan (a categorical on plan's dictionary) crossed with the current plan, plan names on both axes |
 
 ## Frame requirements
 

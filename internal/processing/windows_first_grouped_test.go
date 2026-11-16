@@ -2,14 +2,12 @@ package processing
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -316,47 +314,4 @@ func TestWindowsFirst_PostWindowAttributeGroupedAndCrosstab(t *testing.T) {
 			},
 		}
 	})
-}
-
-// TestWindowsFirst_CategoryGroupOnCategoricalWindowRefused: grouping by
-// a window label over a categorical source is refused before any row —
-// WIN_LAG / WIN_LEAD accept no categorical field (fieldaccept's window
-// table, the one predict reads too), so no window yields a category
-// label to key by: PULSE_FIELD_TYPE_UNSUPPORTED naming the window type,
-// slot and field type, grouped and crosstab alike.
-func TestWindowsFirst_CategoryGroupOnCategoricalWindowRefused(t *testing.T) {
-	t.Parallel()
-
-	lag := &types.Window{Type: types.WIN_LAG, Field: "region", Label: "lag_region", OrderBy: []types.OrderKey{{Field: "d"}}}
-	for name, req := range map[string]*types.Request{
-		"grouped": {Windows: []*types.Window{lag}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_region"}},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}},
-		"crosstab": {Windows: []*types.Window{lag}, Crosstab: &types.CrosstabSpec{
-			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_region"}},
-			Columns: []*types.Group{wfRegionGroup()},
-			Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Label: "n"},
-		}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			p := NewProcessor(wfSchema(false))
-			var err error
-			if req.Crosstab != nil {
-				_, err = p.RunCrosstab(context.Background(), req, wfRecords(false))
-			} else {
-				_, err = p.processRecords(context.Background(), p.prepare(req), wfRecords(false))
-			}
-			var ce *errors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_FIELD_TYPE_UNSUPPORTED ||
-				ce.Details["type"] != "WIN_LAG" || ce.Details["field_type"] != "categorical_u8" {
-				t.Fatalf("err = %v (details %v), want PULSE_FIELD_TYPE_UNSUPPORTED for WIN_LAG over categorical_u8", err, detailsOf(ce))
-			}
-		})
-	}
-}
-
-func detailsOf(ce *errors.CodedError) map[string]any {
-	if ce == nil {
-		return nil
-	}
-	return ce.Details
 }

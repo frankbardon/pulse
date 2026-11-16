@@ -57,6 +57,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `multiplicity` | object | — | p-values join a family; adds `PAdjusted`. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
+| `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
 
 ## Inputs
@@ -83,7 +84,7 @@ See `## Contract`; null / NaN / ±Inf drops the row.
 ## Gotchas
 
 - `l1` / `elasticnet`: null SE / p / CI + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`; use `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
-- `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound nulls SE / p / CI + `PULSE_ADVISORY_CONSTRAINT_ACTIVE` ([`regression-model-options`](regression-model-options.md)).
+- `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound: [`regression-model-options`](regression-model-options.md).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Weighted `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
 - Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one, or `l2`.

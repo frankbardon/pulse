@@ -17,6 +17,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -113,7 +114,7 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     PULSE_VECTOR_FIELD_NOT_SCALAR, one per slot, reported first;
 //  1. features — the schema plus each earlier feature's outputs
 //     (Field; FEAT_TARGET_ENCODE params.target; FEAT_TRAIN_TEST_SPLIT
-//     params.stratify);
+//     params.stratify / params.order_by);
 //  2. filterers — the schema plus every feature output (attributes run
 //     after filters, so their labels are NOT visible to a filter — save
 //     a before-filters attribute's (ATTR_PREVIOUS_STATE), which an
@@ -318,6 +319,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 						map[string]any{"field": s, "feature": string(feat.Type)})
 				})
 			}
+			if o := paramString(feat.Params, "order_by"); o != "" {
+				w.check(o, func() *errors.CodedError {
+					return refusal("feature FEAT_TRAIN_TEST_SPLIT: order_by references unknown field "+o,
+						map[string]any{"field": o, "feature": string(feat.Type)})
+				})
+			}
 		default:
 			if feat.Field != "" {
 				w.check(feat.Field, mk(feat.Field))
@@ -482,6 +489,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					}
 				}
 				w.checkScoreFields(attr.Type, p.Fit, sig, schema)
+				w.checkCarryOrder(attr.Type, p.Fit, p.Order, schema)
 				if model.FitReadsTarget(attrRoute) && sig.Target != "" {
 					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
 					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
@@ -524,6 +532,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				}
 			}
 			w.checkScoreFields(attr.Type, p.Fit, sig, schema)
+			w.checkCarryOrder(attr.Type, p.Fit, p.Order, schema)
 		default:
 			if vectors.IsVectorAttribute(attrRoute) {
 				// A vector-input attribute reads its members (step 9,
@@ -617,6 +626,17 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					map[string]any{"field": f, "type": string(reg.Type)})
 			})
 		}
+		if o := reg.Order; o != nil {
+			for _, f := range []string{o.Field, o.Partition} {
+				if f == "" {
+					continue
+				}
+				w.checkRegression(req, reg, f, func() *errors.CodedError {
+					return refusal("regression order references unknown field: "+f,
+						map[string]any{"field": f, "type": string(reg.Type)})
+				})
+			}
+		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
 		// A model regression's declared reads beyond its target and
 		// predictors (REG_MMM_BAYES's params.time), which the runtime
@@ -628,6 +648,11 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			})
 		}
 		w.checkHoldout(req, reg, models)
+		// An in-model adstock over a channel the request already
+		// adstocks (the runtime walks this same rule).
+		if cerr := model.MMMHillPreadstockedRefusal(req, reg); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 	}
 	// The windows (judged at step 5 on the historical order, against the
 	// output-row columns) and the post-window attributes right after
@@ -1032,6 +1057,13 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if cerr := regmargins.CheckDependent(reg, w.deps); cerr != nil {
 			w.out = append(w.out, cerr)
 		}
+	}
+	// 14. A lagged category (a WIN_LAG / WIN_LEAD of a categorical) read
+	// as anything but a GROUP_CATEGORY key or a copy window's field
+	// (vectors.CategoricalWindowRefusal — the engine's applyWindows
+	// raises the same).
+	if cerr := vectors.CategoricalWindowRefusal(req, schema, cls); cerr != nil {
+		w.out = append(w.out, cerr)
 	}
 	return w.out, pw
 }
@@ -1893,6 +1925,39 @@ func (s filterLateLabelSet) annotateCompile(ce *errors.CodedError) {
 	}
 	name, _, _ := strings.Cut(rest, " ")
 	s.annotate(name, ce)
+}
+
+// checkCarryOrder judges a carried slot's params.order on the scoring
+// frame (CheckScore / CheckFitReference has passed, so the order is the
+// carrying one) — an ATTR_REG_PREDICT score's, or a params.fit
+// ATTR_REG_FITTED / ATTR_REG_RESIDUAL's: field and partition present,
+// and — a schema field — of a type that orders (keys) rows
+// (internal/regorder), else model.CarryOrderFieldInvalidFor.
+func (w *fieldRefWalk) checkCarryOrder(t types.AttributeType, fit string, order *model.ScoreOrder, schema *encoding.Schema) {
+	if order == nil {
+		return
+	}
+	p := struct {
+		Fit   string
+		Order *model.ScoreOrder
+	}{fit, order}
+	for _, c := range []struct {
+		slot, name string
+		ok         func(encoding.FieldType) bool
+	}{
+		{"order.field", p.Order.Field, regorder.OrderFieldType},
+		{"order.partition", p.Order.Partition, regorder.PartitionFieldType},
+	} {
+		if c.name == "" {
+			continue
+		}
+		w.check(c.name, func() *errors.CodedError { return model.CarryOrderFieldInvalidFor(t, p.Fit, c.slot, c.name, "") })
+		if schema != nil {
+			if f := schema.Field(c.name); f != nil && !c.ok(f.Type) {
+				w.out = append(w.out, model.CarryOrderFieldInvalidFor(t, p.Fit, c.slot, c.name, f.Type.String()))
+			}
+		}
+	}
 }
 
 // checkScoreFields judges the fields a score reads beyond the fit's

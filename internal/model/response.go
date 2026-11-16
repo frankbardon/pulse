@@ -81,7 +81,7 @@ func AdstockUnknown(fit, channel string, channels []string) *errors.CodedError {
 		channels = []string{}
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_TERM_UNKNOWN,
-		fmt.Sprintf("%s(): fit %q has no adstock record for channel %q — only a media-mix channel adstocked by one WIN_DISTRIBUTED_LAG (REG_MMM_HILL), a REG_MMM_BAYES channel or an inline model's declared adstock has one", ResponseFunc, fit, channel),
+		fmt.Sprintf("%s(): fit %q has no adstock record for channel %q — only a media-mix channel adstocked by one WIN_DISTRIBUTED_LAG or by params.adstock (REG_MMM_HILL), a REG_MMM_BAYES channel or an inline model's declared adstock has one", ResponseFunc, fit, channel),
 		map[string]any{"fit": fit, "channel": channel, "reason": ReasonAdstockUnknown, "channels": slices.Clone(channels)})
 }
 
@@ -125,6 +125,32 @@ func Response(set *Set, fit, channel string, spend float64) (float64, *errors.Co
 	return response(set, fit, channel, "", false, spend)
 }
 
+// ResponseSlope is ∂response(fit, channel, spend)/∂spend over the same
+// terms Response reads (and refused as it refuses them):
+// CurveSlopeAt — the curve's slope at m · spend times β · m.
+func ResponseSlope(set *Set, fit, channel string, spend float64) (float64, *errors.CodedError) {
+	if cerr := CheckResponse(set, fit, channel); cerr != nil {
+		return math.NaN(), cerr
+	}
+	t, cerr := responseTerms(set, fit, channel, "", false)
+	if cerr != nil {
+		return math.NaN(), cerr
+	}
+	return CurveSlopeAt(t.curve, t.beta, t.params, t.m, spend), nil
+}
+
+// ResponseGeoSlope is ResponseSlope over geo's own terms (ResponseGeo's).
+func ResponseGeoSlope(set *Set, fit, channel, geo string, spend float64) (float64, *errors.CodedError) {
+	if cerr := CheckResponseGeo(set, fit, channel, geo); cerr != nil {
+		return math.NaN(), cerr
+	}
+	t, cerr := responseTerms(set, fit, channel, geo, true)
+	if cerr != nil {
+		return math.NaN(), cerr
+	}
+	return CurveSlopeAt(t.curve, t.beta, t.params, t.m, spend), nil
+}
+
 // ResponseGeo is response(fit, channel, spend, geo): CheckResponseGeo,
 // then Response's figure over geo's own terms — β channel[geo], each
 // kernel parameter prefix+channel[geo] on the channel record's kernel
@@ -142,13 +168,36 @@ func ResponseGeo(set *Set, fit, channel, geo string, spend float64) (float64, *e
 // response is Response's figure once the call is checked: the
 // population's terms, or with hasGeo geo's (ResponseGeo).
 func response(set *Set, fit, channel, geo string, hasGeo bool, spend float64) (float64, *errors.CodedError) {
+	t, cerr := responseTerms(set, fit, channel, geo, hasGeo)
+	if cerr != nil {
+		return math.NaN(), cerr
+	}
+	return CurveResponseAt(t.curve, t.beta, t.params, t.m, spend), nil
+}
+
+// curveTerms are one response() call's figures short of the spend: the
+// saturation curve, β, the curve parameters and the adstock record's
+// steady-state multiplier m.
+type curveTerms struct {
+	curve  string
+	beta   float64
+	params []float64
+	m      float64
+}
+
+// responseTerms reads response()'s terms once the call is checked: a
+// failed fit's own refusal, the channel's adstock record (geo's kernel
+// parameters with hasGeo), its steady-state multiplier, then β and the
+// curve parameters as coef() reads them.
+func responseTerms(set *Set, fit, channel, geo string, hasGeo bool) (curveTerms, *errors.CodedError) {
+	var none curveTerms
 	if se, failed := set.Failed(fit); failed {
-		return math.NaN(), FailedFitRefusal(fit, se)
+		return none, FailedFitRefusal(fit, se)
 	}
 	b := set.byName[fit]
 	a, ok := b.Adstock(channel)
 	if !ok {
-		return math.NaN(), AdstockUnknown(fit, channel, nil)
+		return none, AdstockUnknown(fit, channel, nil)
 	}
 	// term is name's coefficient in geo (the population's without one).
 	term := func(name string) string {
@@ -160,24 +209,24 @@ func response(set *Set, fit, channel, geo string, hasGeo bool, spend float64) (f
 	if hasGeo {
 		kernel, ok := MMMBayesAdstockPrefixes(a.Kernel)
 		if !ok {
-			return math.NaN(), AdstockUnknown(fit, channel, nil)
+			return none, AdstockUnknown(fit, channel, nil)
 		}
 		for _, p := range kernel {
 			v, cerr := Coef(set, fit, term(p+channel), StatPoint)
 			if cerr != nil {
-				return math.NaN(), cerr
+				return none, cerr
 			}
 			a.setParam(p, v)
 		}
 	}
 	m, err := a.SteadyState()
 	if err != nil {
-		return math.NaN(), AdstockUnknown(fit, channel, nil)
+		return none, AdstockUnknown(fit, channel, nil)
 	}
 	curve := b.Saturation
 	prefixes, ok := MMMBayesCurvePrefixes(curve)
 	if !ok {
-		return math.NaN(), AdstockUnknown(fit, channel, nil)
+		return none, AdstockUnknown(fit, channel, nil)
 	}
 	terms := []string{term(channel)}
 	for _, p := range prefixes {
@@ -194,11 +243,11 @@ func response(set *Set, fit, channel, geo string, hasGeo bool, spend float64) (f
 	for i, t := range terms {
 		c, cerr := Coef(set, fit, t, StatPoint)
 		if cerr != nil {
-			return math.NaN(), cerr
+			return none, cerr
 		}
 		v[i] = c
 	}
-	return CurveResponseAt(curve, v[0], v[1:], m, spend), nil
+	return curveTerms{curve: curve, beta: v[0], params: v[1:], m: m}, nil
 }
 
 // SteadyState is the record's steady-state multiplier m: the sum of its
@@ -230,6 +279,48 @@ func ResponseAt(beta, k, s, m, spend float64) float64 {
 	}
 	h := 1 / (1 + detmath.Pow(k/x, s))
 	return float64(beta * h)
+}
+
+// CurveSlopeAt is ∂CurveResponseAt/∂spend: beta · m · curve'(m · spend)
+// — Hill s·q / x with q = u·h², u = (k/x)^s, h = 1 / (1 + u) (the
+// limit at x = 0: 0 for s > 1, 1/k at s = 1, +Inf below); logistic
+// λ · 2e / (1 + e)², e = e^(−λx); michaelis_menten k / (k + x)² —
+// on detmath's transcendentals with every product barriered. Wherever
+// CurveResponseAt is NaN so is the slope.
+func CurveSlopeAt(curve string, beta float64, params []float64, m, spend float64) float64 {
+	if math.IsNaN(CurveResponseAt(curve, beta, params, m, spend)) {
+		return math.NaN()
+	}
+	x := float64(m * spend)
+	var d float64
+	switch {
+	case curve == "" || curve == MMMSaturationHill:
+		k, s := params[0], params[1]
+		switch {
+		case x == 0:
+			switch {
+			case s == 1:
+				d = 1 / k
+			case s < 1:
+				d = math.Inf(1)
+			}
+		case math.IsInf(x, 1):
+		default:
+			u := detmath.Pow(k/x, s)
+			h := 1 / (1 + u)
+			q := float64(float64(u*h) * h)
+			d = float64(s*q) / x
+		}
+	case curve == MMMSaturationLogistic:
+		lam := params[0]
+		e := detmath.Exp(-float64(lam * x))
+		den := float64((1 + e) * (1 + e))
+		d = float64(lam*float64(2*e)) / den
+	case curve == MMMSaturationMichaelisMenten:
+		k := params[0]
+		d = k / float64((k+x)*(k+x))
+	}
+	return float64(float64(beta*m) * d)
 }
 
 // CurveResponseAt is beta · curve(m · spend) under saturation curve

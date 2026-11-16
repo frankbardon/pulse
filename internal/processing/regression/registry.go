@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -46,6 +47,25 @@ func RegisterModel(t types.RegressionType, f Factory, scorer model.ScorerFactory
 	if scorer != nil {
 		modelScorers[t] = scorer
 	}
+}
+
+// modelTangents are the nonlinear model regressions' tangent-plane
+// factories (RegisterModelTangent), read by NewBoundInfluence.
+var modelTangents = map[types.RegressionType]model.TangentFactory{}
+
+// RegisterModelTangent installs model regression t's tangent-plane
+// factory (U71 E2-S6: REG_MMM_HILL's), the gradient a leverage /
+// influence slot over a bound fit of t reads. internal/regadapt calls
+// it from its init beside RegisterModel; a type that is no model
+// regression, or a second registration, panics at boot.
+func RegisterModelTangent(t types.RegressionType, f model.TangentFactory) {
+	if !model.ModelRegression(t) {
+		panic("regression: RegisterModelTangent of " + string(t) + ", which is no model regression")
+	}
+	if _, exists := modelTangents[t]; exists {
+		panic("regression: duplicate tangent registration for " + string(t))
+	}
+	modelTangents[t] = f
 }
 
 // Lookup returns the factory for a regression type, if registered.
@@ -148,6 +168,11 @@ func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve R
 	for _, s := range specs {
 		factory, _ := resolve.lookup(s.Type)
 		if cerr := regressionFieldTypeRefusal(s, schema); cerr != nil {
+			return nil, cerr
+		}
+		// The order block's shape and field types — the one rule predict
+		// applies too (internal/regorder).
+		if cerr := regorder.Check(s, schema); cerr != nil {
 			return nil, cerr
 		}
 		eng, err := factory(s, schema)
@@ -261,10 +286,24 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			fitErrs[i] = fault
 			continue
 		}
+		// An ordered slot sees its rows sorted by order.field, after the
+		// gap policy passed (a repeat or a gap fails it alone).
+		records := records
+		if specs[i].Order != nil {
+			arranged, oerr := Arrange(specs[i], records)
+			if oerr != nil {
+				fitErrs[i] = oerr
+				continue
+			}
+			records = arranged
+		}
 		if ce, ok := eng.(ContextBufferedEngine); ok {
 			results[i], fitErrs[i] = ce.FitBufferedContext(ctx, records)
 			if fault := takeReadFaults(records); fault != nil {
 				results[i], fitErrs[i] = nil, fault
+			}
+			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
+				return nil, nil, err
 			}
 			continue
 		}
@@ -273,6 +312,9 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			if fault := takeReadFaults(records); fault != nil {
 				results[i], fitErrs[i] = nil, fault
 			}
+			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
+				return nil, nil, err
+			}
 			continue
 		}
 		// An engine with no buffered entry point (none in the tree:
@@ -280,6 +322,17 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 		results[i], fitErrs[i] = eng.Fit()
 	}
 	return results, fitErrs, nil
+}
+
+// attachState records an in-model adstocked fit's carry-over state
+// (outputs.adstock_state, carryover.go) over the rows it read, beside
+// the model's own outputs; a failed fit, or any other spec, is
+// untouched.
+func attachState(spec *types.RegressionSpec, res *types.RegressionResult, fitErr error, records []Record) error {
+	if fitErr != nil || res == nil || res.Error != nil {
+		return nil
+	}
+	return AttachAdstockState(spec, res, records)
 }
 
 // BuildStreaming constructs StreamingEngine handles for the single-pass

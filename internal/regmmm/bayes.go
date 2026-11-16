@@ -280,6 +280,11 @@ type bayesParamsWire struct {
 	PerGeoCurves   *bool                       `json:"per_geo_curves"`
 	ReturnDraws    *bool                       `json:"return_draws"`
 	DrawsThin      *int                        `json:"draws_thin"`
+	// Carryover is the engine holdout's scoring switch (false: score
+	// the held-out channel columns as given, no carried adstock —
+	// internal/model mmm_carry.go). Scoring-only: never in the derived
+	// seed (outputOnlyParams), never read by the fit.
+	Carryover *bool `json:"carryover"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -386,20 +391,27 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 	} else {
 		paramread.Declare(paramread.Regression, string(BayesName), &w)
 	}
-	cfg := &bayesConfig{name: spec.Name, target: spec.Target, time: w.Time, maxLag: defaultMaxLag,
+	timeField, err := bayesTimeField(spec, &w)
+	if err != nil {
+		return nil, err
+	}
+	cfg := &bayesConfig{name: spec.Name, target: spec.Target, time: timeField, maxLag: defaultMaxLag,
 		chains: defaultBayesChains, warmup: defaultBayesWarmup, draws: defaultBayesDraws,
 		credibleLevel: defaultCredibleLevel, targetAccept: defaultBayesTargetAccept}
 	if len(w.Channels) == 0 {
 		return nil, bayesSlotError(spec, "params.channels", "params.channels needs at least one channel", nil)
 	}
-	if w.Time == "" {
-		return nil, bayesSlotError(spec, "params.time", "params.time must name the integer time field", nil)
+	if timeField == "" {
+		return nil, bayesSlotError(spec, "params.time", "order.field (or the deprecated params.time) must name the integer time field", nil)
 	}
 	if w.Geo != nil {
-		if err := geoSpecRefusal(spec, *w.Geo, w.Time); err != nil {
+		if err := geoSpecRefusal(spec, *w.Geo, timeField); err != nil {
 			return nil, err
 		}
 		cfg.geo = *w.Geo
+	}
+	if err := bayesOrderPartitionRefusal(spec, cfg.geo); err != nil {
+		return nil, err
 	}
 	if w.PerGeoCurves != nil && *w.PerGeoCurves {
 		if cfg.geo == "" {
@@ -672,6 +684,46 @@ func peakPriorRefusal(p prior, maxLag int) error {
 // decode, channels, the coefficient-name collision, the sampler
 // settings, the priors), so predict raises the very error the runtime
 // does (internal/descriptor's model-regression declaration calls it).
+// The order refusals' details.reason values.
+const (
+	// reasonTimeAliasConflict: order.field and the deprecated
+	// params.time name different fields.
+	reasonTimeAliasConflict = "time_alias_conflict"
+	// reasonOrderPartitionGeo: order.partition is not params.geo.
+	reasonOrderPartitionGeo = "order_partition_not_geo"
+)
+
+// bayesTimeField is the slot's time field: order.field, else the
+// deprecated params.time alias; both set must name the same field
+// (PROCESSING_CONFIG, slot order, reason time_alias_conflict). Empty
+// when neither is set.
+func bayesTimeField(spec *types.RegressionSpec, w *bayesParamsWire) (string, error) {
+	if spec.Order == nil || spec.Order.Field == "" {
+		return w.Time, nil
+	}
+	if w.Time != "" && w.Time != spec.Order.Field {
+		return "", bayesSlotError(spec, "order", fmt.Sprintf("order.field %q and the deprecated params.time %q name different time fields; drop params.time", spec.Order.Field, w.Time),
+			map[string]any{"reason": reasonTimeAliasConflict, "field": spec.Order.Field, "time": w.Time})
+	}
+	return spec.Order.Field, nil
+}
+
+// bayesOrderPartitionRefusal is the panel rule of an order: on a geo
+// panel order.partition must be params.geo (each geo is one series —
+// the engine's gap policy then reads each geo's periods on their own),
+// and without params.geo the model fits one market's series, so a
+// partition is refused (reason order_partition_not_geo).
+func bayesOrderPartitionRefusal(spec *types.RegressionSpec, geo string) error {
+	if spec.Order == nil || spec.Order.Partition == geo {
+		return nil
+	}
+	msg := fmt.Sprintf("order.partition %q is not params.geo %q: a geo panel's series are its geos — set order.partition to params.geo", spec.Order.Partition, geo)
+	if geo == "" {
+		msg = fmt.Sprintf("order.partition %q splits the rows into series, but without params.geo the model fits one market's series — name the market field in params.geo, or drop order.partition", spec.Order.Partition)
+	}
+	return bayesSlotError(spec, "order", msg, map[string]any{"reason": reasonOrderPartitionGeo, "partition": spec.Order.Partition, "geo": geo})
+}
+
 func BayesSpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
 	_, err := BayesFactory(spec, nil)
 	if err == nil {
@@ -697,6 +749,7 @@ func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
+	cp.Params, cp.Order = orderAsTimeAlias(cp.Params, cp.Order)
 	cp.Params = regresample.CanonicalJSON(withoutOutputOnlyParams(cp.Params))
 	body, err := json.Marshal(&cp)
 	if err != nil {

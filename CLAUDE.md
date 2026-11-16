@@ -104,7 +104,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
 - **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form (incl. regression `warnings`): `.claude/reference/response-components.md` (Per-slot failures).
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`); `base` merges into each explicit slot; optimize takes `for_each`; `result()` reads a slot in a pre-phase. Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` / `post_fit` add slots, `optimize` adds `optimizations` (skills `compose-*`); `base` merges into each explicit slot; optimize takes `for_each`; `result()` reads a slot in a pre-phase. Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute / aggregation / matrix item expands in place before validation (absent = byte-identical). **Scalar-expression slots** (optimize bound, window param) report what predict cannot compute as `unresolved_scalars` (`execution-modes/scalar-slots.md`); `response()` reads a fit's channel curve. Long form: `execution-modes.md` (Item fan-out).
 
@@ -200,7 +200,7 @@ Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
 ## Extension Points
 
-`pulse.Options.Extensions` registers embedder operators (ten categories incl. `MAT` / `REG`, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipes: `docs/src/internals/extension-points.md`, `adding-regression.md`, `adding-overlay.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
+`pulse.Options.Extensions` registers embedder operators (eleven categories, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipes: `docs/src/internals/extension-points.md`, `adding-regression.md`, `adding-overlay.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
 
 ## Feature profiles
 

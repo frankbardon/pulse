@@ -62,6 +62,9 @@ func guidanceEntries(ext Extensions) []guidanceEntry {
 		out = append(out, guidanceEntry{category: categoryOverlay, name: string(r.Name), index: i, purpose: r.Purpose, interpretation: r.Interpretation,
 			needsInterpretation: r.Inferential})
 	}
+	for i, r := range ext.PostFits {
+		out = append(out, guidanceEntry{category: categoryPostFit, name: string(r.Name), index: i, purpose: r.Purpose})
+	}
 	return out
 }
 

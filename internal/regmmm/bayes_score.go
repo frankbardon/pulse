@@ -17,7 +17,11 @@ import (
 // through the fit's adstock record (adstock.<channel>, the kernel at its
 // posterior-mean params, fixed_at posterior_mean; WIN_DISTRIBUTED_LAG
 // with those params builds the column) — so a row scores alone, without
-// the spend history. Per kept draw d of the fit's outputs.draws (chains
+// the spend history. A carried score (the engine holdout by default,
+// ATTR_REG_PREDICT with params.order) hands it rows whose channels the
+// engine has already adstocked from raw spend, the fit's
+// outputs.adstock_state carried in (internal/processing/regression
+// carryover.go). Per kept draw d of the fit's outputs.draws (chains
 // in order, then draws),
 //
 //	ŷ_d = α_d + Σ_j γ_jd·z_j + Σ_c β_cd·curve(x_c; q_cd)

@@ -132,6 +132,7 @@ var regressionKeyProbes = map[string]string{
 	"weight":           `{"weight":{"field":"w","kind":"frequency"}}`,
 	"multiplicity":     `{"multiplicity":{"method":"holm"}}`,
 	"holdout":          `{"holdout":"a > 1"}`,
+	"order":            `{"order":{"field":"g"}}`,
 	"reference":        `{"reference":"lo"}`,
 }
 

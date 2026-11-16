@@ -267,18 +267,23 @@ func TestErrorLookup_FixupStrip(t *testing.T) {
 
 	// Example-only mention strips too: PULSE_FIELD_TYPE_UNSUPPORTED
 	// keeps its field-swap fixups (the generic one and the
-	// ATTR_PREVIOUS_STATE re-import one) and drops the count-it-instead
-	// one, whose examples name AGG_MODE.
+	// ATTR_PREVIOUS_STATE re-import one) and the lagged-category one,
+	// and drops the count-it-instead one, whose examples name AGG_MODE.
 	got, _ = ErrorLookup(scopedExcept("AGG_MODE"), "PULSE_FIELD_TYPE_UNSUPPORTED")
-	if len(got.Fixups) != 2 || strings.Contains(lookupJSON(t, got), "AGG_MODE") {
-		t.Errorf("fixups = %+v, want only the two field-swap fixups", got.Fixups)
+	if len(got.Fixups) != 3 || strings.Contains(lookupJSON(t, got), "AGG_MODE") {
+		t.Errorf("fixups = %+v, want the two field-swap fixups and the lagged-category one", got.Fixups)
+	}
+	// A hidden WIN_LAG strips the lagged-category fixup.
+	got, _ = ErrorLookup(scopedExcept("WIN_LAG"), "PULSE_FIELD_TYPE_UNSUPPORTED")
+	if strings.Contains(lookupJSON(t, got), "categorical_window_output") {
+		t.Errorf("fixup naming hidden WIN_LAG survived: %+v", got.Fixups)
 	}
 	// A hidden ATTR_PREVIOUS_STATE strips its re-import fixup.
 	got, _ = ErrorLookup(scopedExcept("ATTR_PREVIOUS_STATE"), "PULSE_FIELD_TYPE_UNSUPPORTED")
 	if strings.Contains(lookupJSON(t, got), "ATTR_PREVIOUS_STATE") {
 		t.Errorf("fixup naming hidden ATTR_PREVIOUS_STATE survived: %+v", got.Fixups)
 	}
-	if again, _ := errors.Lookup("PULSE_FIELD_TYPE_UNSUPPORTED"); len(again.Fixups) != 3 {
+	if again, _ := errors.Lookup("PULSE_FIELD_TYPE_UNSUPPORTED"); len(again.Fixups) != 4 {
 		t.Error("strip wrote through to the errors package table")
 	}
 }

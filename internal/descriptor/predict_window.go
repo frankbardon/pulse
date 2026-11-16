@@ -57,10 +57,12 @@ func IsOrderableType(ft encoding.FieldType) bool {
 
 // isNumericType reports whether the field type is a value-window
 // input — the accepted-types table's (internal/fieldaccept) value-window
-// set, which validateWindows enforces. Kept for the missing-field
-// suggestions (numericFallbackFields).
+// set (WIN_RUNNING_SUM's row; the copy windows WIN_LAG / WIN_LEAD also
+// copy a categorical, which is no number), which validateWindows
+// enforces. Kept for the missing-field suggestions
+// (numericFallbackFields).
 func isNumericType(ft encoding.FieldType) bool {
-	return !ft.IsVector() && fieldaccept.Accepts(string(types.WIN_LAG), fieldaccept.SlotField, ft)
+	return !ft.IsVector() && fieldaccept.Accepts(string(types.WIN_RUNNING_SUM), fieldaccept.SlotField, ft)
 }
 
 // validateSort checks that every Request.Sort key names a field.
@@ -148,6 +150,14 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
+		}
+
+		// A copy window over a categorical: its params.default must be
+		// a dictionary label (the shared reading the engine raises).
+		if ref := windowparams.CategoricalDefaultRefusal(req.Windows, i, schema); ref != nil {
+			details := map[string]any{"window_index": i, "type": string(w.Type)}
+			maps.Copy(details, ref.Details)
+			env.AddError(string(errors.PULSE_WINDOW_INVALID), "window["+idx+"] ("+string(w.Type)+"): "+ref.Message, details)
 		}
 
 		// WIN_LIFT's base column: the accepted-types table's refusal,

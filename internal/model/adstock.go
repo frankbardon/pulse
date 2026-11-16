@@ -23,7 +23,11 @@ import (
 //   - REG_MMM_HILL: written at fit time when channel <ch> is the output
 //     column of exactly one WIN_DISTRIBUTED_LAG window of the fit's
 //     request, with that window's RESOLVED params (a decay written as
-//     sweep_axis() or params.d records the number it read);
+//     sweep_axis() or params.d records the number it read); under
+//     params.adstock instead its kernel at the fitted kernel
+//     coefficients (decay:<ch>; decay:<ch> and peak:<ch>), params.max_lag
+//     (default MMMBayesDefaultMaxLag), unnormalised — no fixed_at, the
+//     estimates are the fit's own;
 //   - REG_MMM_BAYES: its params.adstock kernel (default geometric) at
 //     the posterior means of the kernel's coefficients (decay:<ch>;
 //     decay:<ch> and peak:<ch>; shape:<ch> and scale:<ch>), the fit's
@@ -142,9 +146,13 @@ func AdstockLineage(req *types.Request, spec *types.RegressionSpec, res *types.R
 		var ok bool
 		switch spec.Type {
 		case types.REG_MMM_HILL:
+			if _, inModel := MMMHillAdstock(spec); inModel {
+				a, ok = coefAdstock(res, ch, maxLag, kernel, "")
+				break
+			}
 			a, ok = windowAdstock(req, ch)
 		case types.REG_MMM_BAYES:
-			a, ok = bayesAdstock(res, ch, maxLag, kernel)
+			a, ok = coefAdstock(res, ch, maxLag, kernel, MMMAdstockFixedAtPosteriorMean)
 		}
 		if ok {
 			out[ch] = a
@@ -172,7 +180,8 @@ func StaticAdstockChannels(req *types.Request, spec *types.RegressionSpec) []str
 		ok := false
 		switch spec.Type {
 		case types.REG_MMM_HILL:
-			ok = staticWindowAdstock(req, ch)
+			_, inModel := MMMHillAdstock(spec)
+			ok = inModel || staticWindowAdstock(req, ch)
 		case types.REG_MMM_BAYES:
 			ok = true
 		}
@@ -227,7 +236,7 @@ func windowAdstock(req *types.Request, ch string) (Adstock, bool) {
 	if paramread.Probe(w.Params, &raw) != nil || raw.Kernel == nil || raw.MaxLag == nil {
 		return Adstock{}, false
 	}
-	a := Adstock{Kernel: *raw.Kernel, Decay: raw.Decay, Shape: raw.Shape, Scale: raw.Scale, MaxLag: *raw.MaxLag, Normalize: true}
+	a := Adstock{Kernel: *raw.Kernel, Decay: raw.Decay, Peak: raw.Peak, Shape: raw.Shape, Scale: raw.Scale, MaxLag: *raw.MaxLag, Normalize: true}
 	if raw.Normalize != nil {
 		a.Normalize = *raw.Normalize
 	}
@@ -360,10 +369,12 @@ func AttributeMayWrite(a *types.Attribute, ch string) bool {
 	return strings.HasPrefix(ch, string(a.Type)+"_")
 }
 
-// bayesAdstock is a REG_MMM_BAYES channel's record: its kernel (""
-// is geometric) at the posterior means of the kernel's coefficients
-// (MMMBayesAdstockPrefixes) over lags 0..max_lag, unnormalised.
-func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel string) (Adstock, bool) {
+// coefAdstock is an in-model adstocked channel's record: its kernel (""
+// is geometric) at the fit's kernel coefficients (MMMBayesAdstockPrefixes
+// — a REG_MMM_BAYES fit's posterior means, fixedAt posterior_mean; a
+// REG_MMM_HILL params.adstock fit's estimates, no fixedAt) over lags
+// 0..max_lag, unnormalised.
+func coefAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel, fixedAt string) (Adstock, bool) {
 	prefixes, ok := MMMBayesAdstockPrefixes(kernel)
 	if !ok {
 		return Adstock{}, false
@@ -375,7 +386,7 @@ func bayesAdstock(res *types.RegressionResult, ch string, maxLag *int, kernel st
 	if maxLag != nil {
 		l = *maxLag
 	}
-	a := Adstock{Kernel: kernel, MaxLag: l, FixedAt: MMMAdstockFixedAtPosteriorMean}
+	a := Adstock{Kernel: kernel, MaxLag: l, FixedAt: fixedAt}
 	for _, prefix := range prefixes {
 		v, ok := res.Coefficients[prefix+ch]
 		if !ok || math.IsNaN(v) || math.IsInf(v, 0) {

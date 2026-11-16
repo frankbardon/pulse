@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/postfit"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
@@ -71,6 +72,12 @@ type ExtensionRegistry struct {
 	// extensionOverlay on the overlay route (a hidden kind is never
 	// found).
 	Overlays map[types.OverlayKind]*ExtensionOverlay
+
+	// PostFits are the extension POSTFIT_<NS>_<NAME> operators
+	// (pulse.PostFitRegistration): each one's declaration and function,
+	// run by the Compose post-fit phase (internal/service,
+	// runComposePostFit). The engine itself never reads them.
+	PostFits map[types.PostFitType]*postfit.Operator
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
@@ -328,6 +335,10 @@ func (r *ExtensionRegistry) AggregationKinds() vectors.AggregationKinds {
 type ExprFunction struct {
 	Name string
 	Fn   any
+	// Derivative is pulse.ExprFunction.Derivative (nil: no derivative
+	// rule; an optimize block calling the function falls back to finite
+	// differences).
+	Derivative func(args ...any) ([]float64, error)
 }
 
 // LookupTable is the runtime-side mirror of pulse.LookupTable. The
@@ -871,7 +882,9 @@ func (r *ExtensionRegistry) attributeRequiresTwoPass(t types.AttributeType) bool
 // either comparison operator over a centroid reference (its pre-pass
 // folds the centroid) — but
 // never a fitted slot bound to a prebuilt fit (vectors.FitBound: its
-// params.fit state exists before the scan, so it is row-local). Every
+// params.fit state exists before the scan, so it is row-local) — or a
+// carried ATTR_REG_PREDICT (model.ScoreCarries: params.order, its
+// pre-pass reading every scored row's spend). Every
 // routing decision that schedules attributes asks this, never the type
 // alone. It reads the slot's params.metric — written out by
 // Processor.prepare's rewrite; attrRequiresTwoPassIn also reads a kind
@@ -898,7 +911,9 @@ func (r *ExtensionRegistry) attrRequiresTwoPassIn(attr *types.Attribute, specs [
 	if r.attributeRequiresTwoPass(attr.Type) {
 		return true
 	}
-	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema)
+	// A carried ATTR_REG_PREDICT (params.order) pre-passes every scored
+	// row's spend (model.ScoreCarries, shared with predict).
+	return formulaCallsTotal(attr) || vectors.ComparisonTwoPass(attr.Type, attr, specs, schema) || model.ScoreCarries(attr)
 }
 
 // isExtensionAggregator reports whether t is an embedder-registered
@@ -1189,6 +1204,20 @@ func (r *ExtensionRegistry) CustomPostTestNames() []types.TestType {
 	out := make([]types.TestType, 0, len(r.PostTests))
 	for t := range r.PostTests {
 		out = append(out, t)
+	}
+	return out
+}
+
+// PostFitDecls are the registered post-fit operators' declarations by
+// name — what internal/postfit.Check judges a `post_fit` entry by (nil
+// without any; a nil registry has none).
+func (r *ExtensionRegistry) PostFitDecls() map[types.PostFitType]postfit.Decl {
+	if r == nil || len(r.PostFits) == 0 {
+		return nil
+	}
+	out := make(map[types.PostFitType]postfit.Decl, len(r.PostFits))
+	for n, op := range r.PostFits {
+		out[n] = op.Decl
 	}
 	return out
 }

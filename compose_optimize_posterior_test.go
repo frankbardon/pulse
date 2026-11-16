@@ -28,7 +28,9 @@ import (
 // TestOptimize_PosteriorAbsentByteIdentical: the posterior-free
 // fixtures answer exactly the bytes they answered before `posterior`
 // existed (digests taken on the pre-change code; the optimize path is
-// FMA-free, its saved model and hill() curves fit-free).
+// FMA-free, its saved model and hill() curves fit-free) under
+// `gradient: "fd"` — the pre-analytic differentiation those bytes were
+// solved with, which the analytic default (mmm-optimize-depth) moves.
 func TestOptimize_PosteriorAbsentByteIdentical(t *testing.T) {
 	t.Parallel()
 
@@ -41,11 +43,25 @@ func TestOptimize_PosteriorAbsentByteIdentical(t *testing.T) {
 		{optfixture.Budget, "30f406b71e6590b0b9afeb732a222c373b6aa05db68ee9124fb3bed6d5d2965c"},
 	} {
 		for name, run := range composeRuns(p) {
-			resp, err := run(decodeOpt(t, tc.raw, nil))
+			resp, err := run(decodeOpt(t, tc.raw, func(c *ComposedRequest) {
+				for i := range c.Optimize {
+					c.Optimize[i].Gradient = types.OptimizeGradientFD
+				}
+			}))
 			if err != nil {
 				t.Fatal(err)
 			}
-			b, err := json.Marshal(resp.Optimizations)
+			// The gradient echo (mmm-optimize-depth E1-S4) is a label
+			// added after the digests were taken, never a figure: it
+			// must say fd, then leaves the pinned bytes.
+			opts := slices.Clone(resp.Optimizations)
+			for i := range opts {
+				if opts[i].Gradient != types.OptimizeGradientFD || opts[i].GradientFallback != nil {
+					t.Errorf("%s: block %d echoes gradient %q fallback %v, want fd", name, i, opts[i].Gradient, opts[i].GradientFallback)
+				}
+				opts[i].Gradient = ""
+			}
+			b, err := json.Marshal(opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,6 +109,9 @@ func TestOptimize_PosteriorSavedModel(t *testing.T) {
 	echo := types.OptimizePosteriorResult{Fit: "mmm", Objective: types.OptimizePosteriorQuantile, Q: 0.2, Draws: 6, DrawsAvailable: 6, DrawsResolved: 6, CredibleLevel: 0.8}
 	if got.Posterior == nil || *got.Posterior != echo {
 		t.Fatalf("posterior echo %+v, want %+v", got.Posterior, echo)
+	}
+	if got.Gradient != types.OptimizeGradientAnalytic || got.GradientFallback != nil {
+		t.Errorf("posterior block echoes gradient %q fallback %v, want analytic (response() and coef() differentiate)", got.Gradient, got.GradientFallback)
 	}
 	tv, search := got.Variables[0], got.Variables[1]
 	for _, v := range got.Variables {

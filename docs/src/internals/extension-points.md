@@ -7,7 +7,8 @@ built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
 To register your own regression model, follow [Adding a Regression
 Model (Embedders)](adding-regression.md); for an overlay kind, [Adding an
-Overlay Kind (Embedders)](adding-overlay.md).
+Overlay Kind (Embedders)](adding-overlay.md); for a post-fit operator,
+[Adding a Post-Fit Operator (Embedders)](adding-post-fit.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -171,6 +172,7 @@ ext := pulse.Extensions{
     Features:    []pulse.FeatureRegistration{...},
     Tests:       []pulse.TestRegistration{...},
     MatrixOps:   []pulse.MatrixOpRegistration{...},
+    PostFits:    []pulse.PostFitRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
@@ -211,7 +213,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -222,6 +224,7 @@ The regex enforced by `extensions_validate.go` is:
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
 | `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
 | `REG_ACME_HILL` | regression | ACME | HILL |
+| `POSTFIT_ACME_CURVE` | post-fit | ACME | CURVE |
 
 Failure modes raised at registration time:
 
@@ -1014,6 +1017,7 @@ warnings is byte-identical.
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
 | `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
 | `NoResample` | the model opts out of the engine's resample driver (a row-subset refit would break it — it reads row order — or cost `bootstrap_iters` full fits): `resample`, `jackknife_groups`, `jackknife_by` and `bootstrap_iters` are `PROCESSING_CONFIG` `{regression, slot: "resample"}` (`key` names a set knob) at predict and runtime alike, and the manifest row lists no `resample` slot. `rng_seed` still reaches the factory (`spec.RNGSeed`) for the model's own use. Unset, every model accepts resample |
+| `RequiresOrder` | `func(*types.RegressionSpec) bool`, optional and spec-only: true for a spec the model can fit only over ordered rows (it carries state from one row to the next — an adstock, a lag). Such a spec without `order` is `PROCESSING_CONFIG` `{regression, slot: "order", reason: "order_required", requires: "order"}` at predict and runtime alike (`descx.ExtensionRegressionOrderRefusal`, before `Validate`); a panic is `PULSE_EXTENSION_SPEC_REFUSED`. With an `order` the engine hands the model its admitted rows sorted by `order.field` (per `order.partition` series) and contiguous — a repeat or a gap fails the slot alone with `PROCESSING_REGRESSION_ORDER` — so the model reads `rows.At(i)` in time order and never sorts. It judges a copy of the spec; nil requires no order |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
 | `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value, a missing `Required` param or not exactly one member of an `ExactlyOneOf` group is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
@@ -1040,6 +1044,7 @@ runtime adapter alike:
 | `rng_seed` | always honoured — the resample driver's seed, and the factory's `spec.RNGSeed` for the model's own use |
 | `save` | `Scorer` |
 | `conf_level` | always honoured — the engine's intervals (see **Intervals**) |
+| `order` | always honoured — the engine sorts and gap-checks the rows before the model sees them; required (`order_required`) when `RequiresOrder` says so |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params` | always honoured |
@@ -1173,6 +1178,118 @@ out of range, say) belongs in the registration's optional `Validate`
 hook, so predict reports it too — see
 [Validate hook](#validate-hook-spec-only-refusals-at-predict).
 
+### Post-fit operator (`PostFits`)
+
+> Step-by-step recipe with a worked marginal-ROI grid over a fitted
+> media-mix model and the embedder example that ships with it:
+> [Adding a Post-Fit Operator (Embedders)](adding-post-fit.md).
+
+A post-fit operator is a computation over a Compose batch's FINISHED
+fits — a response-curve table, a marginal-return grid — that returns
+named scalars and named tables. The category is extension-only: Pulse
+ships no built-in `POSTFIT_*` operator. Author it against
+`extend.PostFitFunc` and register it with `Extensions.PostFits`:
+
+```go
+pulse.PostFitRegistration{
+    Name: "POSTFIT_ACME_CURVE",
+    Params: []pulse.ParamMeta{{Name: "points", JSONType: "number", Required: true}},
+    Outputs: extend.PostFitSchema{
+        Scalars: []string{"peak"},
+        Tables: []extend.PostFitTableSchema{{Name: "curve", Columns: []extend.PostFitColumn{
+            {Name: "spend", Kind: extend.PostFitFloat}, {Name: "label", Kind: extend.PostFitString},
+        }}},
+    },
+    Run: func(in extend.PostFitInput) (extend.PostFitOutput, error) {
+        fit := in.Fit(in.Fits()[0])
+        coefs := fit.Coefficients() // a copy, full precision
+        // … read fit.Vcov(), fit.Adstock("tv"), fit.Draws(),
+        // in.Result("slot", "agg"), in.Optimizations(), in.Params() …
+        return extend.PostFitOutput{Scalars: map[string]float64{"peak": coefs["tv"]},
+            Tables: map[string]*types.PostFitTable{"curve": {Columns: []string{"spend", "label"}}}}, nil
+    },
+}
+```
+
+A Compose request runs it with a `post_fit` entry — `{label, type, fits,
+params}` — and reads the result from the response's `post_fit` root, one
+`{label, type, scalars, tables}` entry per request entry (an undefined
+`NaN` scalar or cell is `null` on the wire):
+
+```json
+"post_fit": [{"label": "curve", "type": "POSTFIT_ACME_CURVE", "fits": ["mmm"], "params": {"points": 20}}]
+```
+
+**Phase.** The batch runs slots/sweep → fits → optimize → **post-fit** →
+compare. When a `post_fit` entry is declared every slot has finished
+before the phase, so `in.Result` may read any ungrouped slot value
+(exactly the `result()` expression reader's rules).
+
+**What the operator sees.** Only `extend.PostFitInput`: the regression
+fits its entry names (`PostFitFit` — coefficients, standard errors, the
+`vcov` matrix when the fit computed one, each channel's adstock record
+with its lag weights, and a `REG_MMM_BAYES` fit's pooled draws under
+`params.return_draws`), the slot-result reader, every optimize block's
+solution (`PostFitSolution`) and its params. Every accessor returns a
+copy; no record is reachable.
+
+**Validation at `pulse.New`.** The naming policy, duplicates and the
+`ParamMeta` rules apply as in every category; a nil `Run` is
+`PULSE_EXTENSION_PARAM_INVALID` reason `missing_factory`; `Outputs` must
+declare at least one scalar or table, names non-empty and unique across
+both lists, each table at least one uniquely named column of kind
+`float` or `string` (reasons `empty_output_schema`, `empty_output_name`,
+`duplicate_output_name`, `empty_table`, `empty_column_name`,
+`duplicate_column_name`, `invalid_column_kind`); a post-fit param is
+never expression-capable (`expression_unsupported`).
+
+**Request rules** (before any fit or slot runs): a missing or repeated
+`label`, a missing or unregistered `type`, or a `fits` name that is
+empty, repeated, unknown or not a regression fit is
+`PULSE_POSTFIT_INVALID` (`details.reason`); declared params are checked
+like every extension slot's (`PULSE_REQUEST_UNKNOWN_FIELD` /
+`PULSE_REQUEST_PARAM_INVALID` at `post_fit[i].params`).
+
+**Output and failures.** Every run's output must be exactly the
+declared scalars and tables — each table's `Columns` its declared names
+in order, each row one cell per column (`float64` / `string` per kind,
+or `nil`); anything else is the fatal
+`PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH`. An operator error, or a named
+fit that failed on its data, fails the entry alone: it keeps `{label,
+type, error}` (a coded error keeps its code, any other is
+`PULSE_POSTFIT_FAILED`; a failed fit's entry carries the fit's code) and
+`PULSE_SLOT_FAILED` (slot_kind `post_fit`) lifts to the batch; under
+`Strict` the batch fails with the entry's code. A panic is
+`PROCESSING_PANIC` with `details.op` `compose_post_fit`.
+
+**Self-description.** A registered post-fit operator is described like
+any other extension: the manifest lists it under `extensions.post_fits`
+(its params and its declared `outputs` — scalar names, tables with their
+columns and cell kinds), the instance payload schema and the MCP compose
+tool offer its name as a `post_fit` `type` (an empty enum on an instance
+without any), and predict judges every `post_fit` entry with the same
+rules the run applies (`PULSE_POSTFIT_INVALID`, the params check),
+without running the operator. The `post_fit` request slot and response
+root ride `capability:compose_post_fit` (which depends on
+`capability:compose_fits`); the operator itself is a feature whose host
+is that capability, plus its optional `DependsOn`, and it may carry a
+`Purpose` (validated like the built-ins'; its intents reach the manifest
+entry). A feature profile that omits the operator hides it everywhere —
+a request naming it is refused as an unknown type, exactly as on an
+instance that never registered it. The response root is pinned outside
+the Compose-level `return`, like `optimizations` and `comparisons`:
+always emitted whole, at full precision, and a `return` path naming it
+is `PULSE_RETURN_INVALID`.
+
+**Explain and examples.** `Explain` describes each `post_fit` entry as a
+`post_fit[i]` step — the operator (with its `Purpose` plain sentence), the
+label, the fits it reads, its params and the phase — locates every
+post-fit refusal at that slot, and reads each `ComposedResponse.PostFit`
+entry as a descriptive finding (`scalars.<name>`, `tables.<name>.rows`;
+a failed entry is `not_computable`). An embedder example
+(`Extensions.Examples`) tags the operator in `_meta.operators` like any
+other: its `"type"` value is derived from the body.
+
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -1192,6 +1309,38 @@ Pulse passes `Fn` to expr-lang's `expr.Function(name, fn)`. expr-lang
 accepts typed functions via reflection — `func(v float64) float64` and
 `func(args ...any) (any, error)` both work. Use the variadic shape
 when zero-allocation calling matters.
+
+**Derivatives for `optimize`.** A Compose `optimize` block
+differentiates its objective and constraints exactly (forward mode).
+A block that calls your function keeps that exact gradient only if the
+registration carries the optional `Derivative` hook: given the call's
+arguments (as `Fn` received them), it returns one partial per
+argument, index-aligned — a string or bool argument's partial is never
+read, so return 0 there:
+
+```go
+{
+    Name: "damp",
+    Fn:   func(x, k float64) float64 { return x / (k + x) },
+    Derivative: func(args ...any) ([]float64, error) {
+        x, k := args[0].(float64), args[1].(float64)
+        d := (k + x) * (k + x)
+        return []float64{k / d, -x / d}, nil
+    },
+}
+```
+
+Without `Derivative` the whole block falls back to central finite
+differences, and Compose predict says so with
+`PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` (`details.functions` names
+your function). The manifest marks a function with a hook
+`"differentiable": true`. `pulse.New` refuses a `Derivative` on an `Fn`
+that is not a function, takes no argument that can be a number, or
+returns no number (`PULSE_EXTENSION_PARAM_INVALID`, `details.field`
+`Derivative`). At run time a `Derivative` that returns an error, or the
+wrong number of partials, fails the solve with `PROCESSING_RUNTIME`
+naming the function — never a silent fallback. Write the partials with
+the same care as `Fn`: a wrong slope still solves, to a wrong optimum.
 
 ### Lookup tables
 
@@ -2797,6 +2946,9 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | an attribute declaring `InheritsDictionary` emitted a value that is no code of its source's dictionary (on a run, or over the probe's three-entry source), or declares a non-`float64` `Emits` |
+| `PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH` | a post-fit operator returned output its declared `Outputs` do not admit (`details.reason`) |
+| `PULSE_POSTFIT_INVALID` | a `post_fit` entry's label, type or `fits` breaks a request rule |
+| `PULSE_POSTFIT_FAILED` | a post-fit operator returned an uncoded error (the entry fails alone) |
 | `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe, or a `Validate` hook refused or panicked on the probe spec (`details.stage` `validate`) |
 | `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |
@@ -2828,6 +2980,9 @@ CLAUDE.md Update Demand table in the same PR.
 - [Adding an Overlay Kind (Embedders)](adding-overlay.md) — the
   embedder recipe: hosts and handlers, registration declarations, the
   probe, p-values and `multiplicity`, weights.
+- [Adding a Post-Fit Operator (Embedders)](adding-post-fit.md) — the
+  embedder recipe: the operator over finished fits, its declared params
+  and outputs, an embedder example, reading the `post_fit` root.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.

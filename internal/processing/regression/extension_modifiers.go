@@ -202,7 +202,9 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 	// Wald normal intervals on the replicate SE, as the built-ins'
 	// resample re-attaches over the base fit's.
 	AttachExtensionIntervals(&out, spec)
-	out.Vcov, out.Correlation = nil, nil
+	// The replicate covariance is no φ̂-scaled (JᵀJ)⁻¹: drop the base
+	// fit's dispersion (a REG_MMM_HILL's) with its vcov.
+	out.Vcov, out.Correlation, out.Dispersion = nil, nil, 0
 	if spec.Vcov && base.Vcov != nil {
 		AttachVcovKeys(&out, keys, cov)
 	}

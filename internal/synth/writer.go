@@ -269,6 +269,11 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	if err := checkLookupCalls(s, lookups); err != nil {
 		return 0, 0, nil, err
 	}
+	// A Spec that bypassed validateSpec meets the partition refusal here,
+	// before the first row, with the same code and details.
+	if err := lagPartitionRefusal(s); err != nil {
+		return 0, 0, nil, err
+	}
 	maxRej := s.MaxRejectionRate
 	if maxRej == 0 {
 		maxRej = 0.5

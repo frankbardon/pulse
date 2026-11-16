@@ -40,8 +40,9 @@ import (
 const reasonDrawsThinWithoutDraws = "draws_thin_without_return_draws"
 
 // outputOnlyParams are the params keys that shape the output only and so
-// never enter the derived seed.
-var outputOnlyParams = []string{"return_draws", "draws_thin"}
+// never enter the derived seed: the draws keys, and carryover (how the
+// engine holdout scores, never the fit).
+var outputOnlyParams = []string{"return_draws", "draws_thin", "carryover"}
 
 // drawsConfig validates params.return_draws and params.draws_thin onto
 // cfg: draws_thin an integer in [1, maxBayesDraws], and only beside
@@ -94,6 +95,38 @@ func withoutOutputOnlyParams(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	return out
+}
+
+// orderAsTimeAlias folds an order the model reads exactly as the
+// deprecated params.time alias — order.field, the default gap policy,
+// no partition or the geo field — into params.time and clears it, so
+// `order: {field: "week"}` and `params: {time: "week"}` derive the same
+// seed (the same draws, bit for bit). Any other order, a params object
+// that does not decode, or none is returned unchanged.
+func orderAsTimeAlias(raw json.RawMessage, o *types.RegressionOrder) (json.RawMessage, *types.RegressionOrder) {
+	if o == nil || o.Field == "" || (o.Gaps != "" && o.Gaps != types.OrderGapsRefuse) {
+		return raw, o
+	}
+	obj := map[string]json.RawMessage{}
+	if len(raw) > 0 && json.Unmarshal(raw, &obj) != nil {
+		return raw, o
+	}
+	if o.Partition != "" {
+		var geo string
+		if g, ok := obj["geo"]; !ok || json.Unmarshal(g, &geo) != nil || geo != o.Partition {
+			return raw, o
+		}
+	}
+	field, err := json.Marshal(o.Field)
+	if err != nil {
+		return raw, o
+	}
+	obj["time"] = field
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return raw, o
+	}
+	return out, nil
 }
 
 // mulSat is a·b, saturating at math.MaxInt64 (both ≥ 0).

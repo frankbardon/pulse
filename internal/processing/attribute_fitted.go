@@ -739,9 +739,10 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema, p.classifier())
-	p.keySchema, p.u64Aliases = nil, nil
+	p.keySchema, p.groupKeys, p.u64Aliases = nil, nil, nil
 	if req != nil {
 		p.keySchema = p.exts.AttributeDictionaryView(req.Attributes, p.schema)
+		p.groupKeys = prevstate.WindowKeys(p.keySchema, p.schema, req.Windows)
 		p.u64Aliases = prevstate.U64Aliases(req.Attributes, p.schema)
 	}
 	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts, p.catalog())

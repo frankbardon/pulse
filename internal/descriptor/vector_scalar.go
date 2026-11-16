@@ -30,7 +30,7 @@ var vectorFieldAggregations = map[types.AggregationType]bool{
 // order. Judged:
 //
 //   - features: Field, FEAT_TARGET_ENCODE params.target,
-//     FEAT_TRAIN_TEST_SPLIT params.stratify;
+//     FEAT_TRAIN_TEST_SPLIT params.stratify / params.order_by;
 //   - filterers (and a vector attribute's params.fit_on filterers):
 //     Field, except FILTER_NULL (presence) and FILTER_EXPRESSION (whose
 //     expression binds a native field as a vector);
@@ -89,6 +89,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			judge(paramString(feat.Params, "target"), slot+" params.target", "")
 		case types.FEAT_TRAIN_TEST_SPLIT:
 			judge(paramString(feat.Params, "stratify"), slot+" params.stratify", "")
+			judge(paramString(feat.Params, "order_by"), slot+" params.order_by", "")
 		}
 	}
 
@@ -168,6 +169,10 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			judge(c.OrderBy, slot+" covariance.order_by", "")
 		}
 		judge(reg.JackknifeBy, slot+" jackknife_by", "")
+		if o := reg.Order; o != nil {
+			judge(o.Field, slot+" order.field", "")
+			judge(o.Partition, slot+" order.partition", "")
+		}
 	}
 
 	grouper := func(g *types.Group, slot string) {

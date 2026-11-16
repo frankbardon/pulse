@@ -205,6 +205,9 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 		reflect.TypeFor[types.OverlayKind]():     stringify(types.AllOverlayKinds()),
 		reflect.TypeFor[types.RegressionType]():  stringify(types.AllRegressionTypes()),
 		reflect.TypeFor[types.MatrixType]():      stringify(types.AllMatrixTypes()),
+		// Post-fit operators are extension-only: no built-in name, so
+		// a schema without registrations offers none (empty enum).
+		reflect.TypeFor[types.PostFitType](): {},
 	}
 	for t, vals := range m {
 		m[t] = filterNames(vals, inst.Enabled)
@@ -229,6 +232,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
 			{reflect.TypeFor[types.RegressionType](), snap.Regressions},
 			{reflect.TypeFor[types.OverlayKind](), snap.Overlays},
+			{reflect.TypeFor[types.PostFitType](), snap.PostFits},
 		} {
 			if len(c.ops) == 0 {
 				continue
@@ -283,6 +287,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
 	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
 	m[reflect.TypeFor[types.OptimizePosteriorObjective]()] = stringify(types.AllOptimizePosteriorObjectives())
+	m[reflect.TypeFor[types.OptimizeGradient]()] = stringify(types.AllOptimizeGradients())
 	// The nested-model comparison tests and distributions: closed
 	// vocabularies (a hidden capability:compose_fits drops the `compare`
 	// / `comparisons` slots, and the defs with them).
@@ -291,6 +296,8 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
+	// The regression order's gap policies (capability:regression_order).
+	m[reflect.TypeFor[types.OrderGaps]()] = stringify(types.AllOrderGaps())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
 	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify(descriptor.ExplainDetails())

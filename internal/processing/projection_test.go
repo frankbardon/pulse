@@ -359,6 +359,26 @@ func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
 	}
 }
 
+// TestNeededFields_FeatureOrderByFromParams: a temporal split's
+// params.order_by is a decoded column — projected away, every row would
+// read null and land in no partition.
+func TestNeededFields_FeatureOrderByFromParams(t *testing.T) {
+	t.Parallel()
+
+	schema := mkSchema("a", "week", "unused")
+	req := &types.Request{
+		Features: []*types.Feature{{
+			Type:   types.FEAT_TRAIN_TEST_SPLIT,
+			Params: json.RawMessage(`{"ratios":[0.8,0.2],"mode":"temporal","order_by":"week"}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"week"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 func TestNeededFields_FeatureTargetEncodeFromParams(t *testing.T) {
 	t.Parallel()
 

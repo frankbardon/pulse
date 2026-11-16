@@ -347,7 +347,13 @@ func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 				fmt.Sprintf("is a %s model with no channel: give at least one predictor its %s<channel> and %s<channel> coefficients", f.Type, MMMHalfSaturationPrefix, MMMShapePrefix),
 				map[string]any{"term": MMMHalfSaturationPrefix + "<channel>"})
 		}
-		params, _ := json.Marshal(map[string]any{"channels": channels, "adstock": inlineBayesKernel(f, channels), "saturation": inlineSaturation(f)})
+		pm := map[string]any{"channels": channels, "saturation": inlineSaturation(f)}
+		if f.Type == types.REG_MMM_BAYES {
+			// A REG_MMM_HILL body's adstock is a record, never in-model
+			// terms (params.adstock would add decay:<channel> terms).
+			pm["adstock"] = inlineBayesKernel(f, channels)
+		}
+		params, _ := json.Marshal(pm)
 		terms, _ := ModelRegressionTerms(&types.RegressionSpec{Type: f.Type, Params: params})
 		expected = append(expected, terms...)
 	}

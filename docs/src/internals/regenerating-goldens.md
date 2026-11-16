@@ -538,6 +538,19 @@ channel's whole (k, s) box). `TestReferenceOracle_MMMHill`
 (`internal/regmmm`) fits each case through `Process` at relative `1e-6`,
 the optimize oracles' tolerance: the engine's Levenberg–Marquardt stop
 rule leaves it ~1e-7 from the exact optimum.
+Its in-model adstock (`params.adstock`) has its own standalone script,
+NOT sourced by `gen_reference.R`, so regenerating it moves no other
+golden: `scripts/reference/gen_mmm_hill_adstock.R` (U71 E2-S3; same
+pins) writes `internal/regmmm/testdata/mmm_hill_adstock.json`, one case
+per kernel (geometric, delayed, weibull_cdf, weibull_pdf), the joint
+Hill + adstock objective fitted from the operator's five-decay start
+scan inside its boxes, the weights written independently (closed forms,
+`stats::pweibull` / `dweibull`), `nlsLM` on a finite-difference
+Jacobian cross-checked against `nls.lm` on the analytic one and
+Gauss-Newton polished. `make reference-mmm-hill-adstock` runs it (under
+a second) and appends the footer; `TestReferenceOracle_MMMHillAdstock`
+(`internal/regmmm`) fits each case through `Process` at relative `1e-6`
+(measured worst 3.7e-8) and the start at `1e-10`.
 `scripts/reference/gen_ordinal.R` (U65 E4-S1; MASS 7.3-66 + `sandwich`
 3.1-3 + `brant` 0.3.0 + `jsonlite`, runnable on its own) writes
 `ordinal.json`: `REG_ORDINAL` against `polr` (logit / probit / cloglog)
@@ -586,7 +599,7 @@ is the whole list in one place.
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
-| `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) and `REG_MMM_HILL` (`gen_mmm_hill.R`, `make reference`; on Linux it installs from the Posit noble binary repo); links gfortran, so install it with the workaround below |
+| `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) and `REG_MMM_HILL` (`gen_mmm_hill.R`, `make reference`; `gen_mmm_hill_adstock.R`, `make reference-mmm-hill-adstock`; on Linux it installs from the Posit noble binary repo); links gfortran, so install it with the workaround below |
 | `nloptr` | 2.2.1 | `optimize.Minimize`, `NLOPT_LD_SLSQP` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs

@@ -130,7 +130,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 114,
+    "error_codes_count": 115,
     "error_domains": [
       "CLI",
       "DATA",
@@ -187,6 +187,7 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PARAM_INVALID",
+      "PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_PURPOSE_INVALID",
       "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
@@ -499,6 +500,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-influence",
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+      },
+      {
         "name": "regression-margins",
         "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -713,6 +718,7 @@
       "matrix_ops": [],
       "regressions": [],
       "overlays": [],
+      "post_fits": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -913,4 +919,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4de369773163a5cdfea3d06d6ae3174a5883092441266a846d209afb676acab3
+// golden-hash: c77ab7cd78db06edc55d90915bc59c284469393065ed83ba99d9679ac015245f

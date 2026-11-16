@@ -184,7 +184,12 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	}
 	if model.FitReferenced(attr.Type, attr) {
 		// params.fit scores a bound fit instead of the OLS refit
-		// (attribute_reg_fit.go) — all four kinds.
+		// (attribute_reg_fit.go) — all four kinds; a fitted / residual
+		// slot carrying adstock (params.order) pre-passes the scored
+		// rows' raw spend (attribute_reg_fit_carry.go).
+		if model.FitCarries(attr.Type, attr) {
+			return &regFitCarryAttribute{regFitScoreAttribute: regFitScoreAttribute{attr: attr, kind: kind, schema: schema}}, nil
+		}
 		return newRegFitScoreAttribute(attr, schema, kind), nil
 	}
 	// The refit's params and penalty rule, shared with predict's

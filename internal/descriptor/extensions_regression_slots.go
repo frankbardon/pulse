@@ -38,7 +38,7 @@ const (
 	// multiplicity (the result's p-valued coefficients; a non-none
 	// method needs PValues, the multiplicity resolver's rule), rng_seed
 	// (the factory's spec.RNGSeed; the resample driver's seed),
-	// conf_level (the engine's Wald intervals) and holdout.
+	// conf_level (the engine's Wald intervals), holdout and order.
 	RegressionFieldAccepted RegressionFieldClass = "accepted"
 	// RegressionFieldOptOut: a shared slot honoured on every extension
 	// model unless its registration opts out (regressionSlotRules, an
@@ -297,7 +297,12 @@ var regressionFieldClasses = map[string]RegressionFieldClass{
 	// no Scorer is refused PULSE_MODEL_SCORE_INVALID no_scorer by the
 	// field-reference walk (model.HoldoutScorerRefusal).
 	"holdout": RegressionFieldAccepted,
-	"weight":  RegressionFieldWeightClass,
+	// order: the engine sorts the rows and applies the gap policy
+	// before any model sees them (regression.Arrange), so every model
+	// accepts it; one whose registration RequiresOrder is refused
+	// without it (ExtensionRegressionOrderRefusal).
+	"order":  RegressionFieldAccepted,
+	"weight": RegressionFieldWeightClass,
 }
 
 // RegressionFieldClassOf classifies the types.RegressionSpec JSON key:
@@ -386,6 +391,8 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 	}
 	// conf_level: every extension model accepts it (an accepted field).
 	out = append(out, descriptor.Param{Name: "conf_level", Type: "float", Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.", Slot: true})
+	// order: every extension model accepts it (an accepted field).
+	out = append(out, descriptor.Param{Name: "order", Type: "object", Description: orderParamDescription + " A top-level key of the regression entry.", Slot: true})
 	// multiplicity: an accepted field, listed when the model declares
 	// PValues (without them only method none is accepted).
 	if decl.PValues {

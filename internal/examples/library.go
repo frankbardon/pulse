@@ -284,9 +284,11 @@ func Parse(data []byte, strict bool) (*Example, Meta, error) {
 	}, m, nil
 }
 
-// operatorRe captures `"type": "PREFIX_..."` in a JSON request body.
-// Kept in sync with the regex used by cmd/annotate-examples.
-var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG|MAT)_[A-Z0-9_]+)"`)
+// operatorRe captures `"type": "PREFIX_..."` in a JSON request body:
+// every operator category a request names by `type` — POSTFIT included,
+// the extension-only post-fit category an embedder example tags (an
+// overlay kind rides `kind`, read separately).
+var operatorRe = regexp.MustCompile(`"type"\s*:\s*"((?:AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|REG|MAT|POSTFIT)_[A-Z0-9_]+)"`)
 
 // DeriveOperators returns the sorted, distinct operator names a body
 // carries as a `"type"` value — what `_meta.operators` must equal

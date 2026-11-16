@@ -14,6 +14,11 @@ import (
 type NamedFunc struct {
 	Name string
 	Fn   any
+	// Derivative is the embedder's optional ∂Fn/∂argᵢ hook
+	// (pulse.ExprFunction.Derivative), read only by an optimize block's
+	// forward-mode gradient (internal/optgrad.BoundRules); nil leaves
+	// the function without a derivative rule.
+	Derivative func(args ...any) ([]float64, error)
 }
 
 // ExtensionFunctions returns one expr.Function per entry with a non-nil

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -49,6 +51,9 @@ type holdoutParityCase struct {
 	name string
 	spec *types.RegressionSpec
 	pred string
+	// score is appended to the reference ATTR_REG_PREDICT's params (a
+	// carried score's order, or carryover false).
+	score string
 	// check runs case-specific assertions on the single-route result.
 	check func(t *testing.T, single *types.RegressionResult)
 }
@@ -110,7 +115,7 @@ func holdoutParityRoutes(t *testing.T, p *Pulse, c holdoutParityCase) *types.Reg
 			Params: json.RawMessage(`{"prediction_field":"p"}`), Weight: c.spec.Weight}
 	}
 	fitName := c.spec.Name
-	scorer := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"` + fitName + `"}`)}
+	scorer := &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"` + fitName + `"` + c.score + `}`)}
 	figures := &Request{Label: "held", Cohort: &types.Cohort{Filename: mat}, Filterers: expr(pred),
 		Attributes:   []*types.Attribute{scorer},
 		Aggregations: []*types.Aggregation{scoreAgg(types.AGG_RMSE, "rmse"), scoreAgg(types.AGG_MAE, "mae")}}
@@ -385,10 +390,17 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 // geo_time_gap), so it holds out each market's tail.
 var holdoutBuiltinPreds = map[types.RegressionType]string{types.REG_MMM_BAYES: "week > 46"}
 
+// holdoutBuiltinScores extends the reference score per type:
+// REG_MMM_BAYES adstocks in-model, so its holdout carries the train
+// rows' adstock into the held-out rows' raw spend — and the reference
+// ATTR_REG_PREDICT carries the same way, ordered by params.order.
+var holdoutBuiltinScores = map[types.RegressionType]string{types.REG_MMM_BAYES: `,"order":{"field":"week","partition":"market"}`}
+
 // TestHoldout_EveryScorableBuiltin: every built-in regression type with
 // a scorer takes a holdout and passes gates A and B (REG_MMM_BAYES
-// through its draws: its held-out rows score their columns as given,
-// params.holdout_from being its history-aware holdout); the ones without
+// through its draws, its held-out rows' raw spend adstocked with the
+// train rows' adstock carried in — a carried ATTR_REG_PREDICT's figure
+// exactly); the ones without
 // (REG_ORDINAL and REG_MULTINOMIAL, whose fits predict a distribution
 // over levels, not one score) have no case — their holdout slot is
 // refused alike by predict and the runtime (internal/regordinal
@@ -415,8 +427,59 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 			if spec.Type != typ {
 				t.Fatalf("case builds %s, want %s", spec.Type, typ)
 			}
-			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec, pred: holdoutBuiltinPreds[typ]})
+			holdoutParityRoutes(t, p, holdoutParityCase{name: spec.Name, spec: spec, pred: holdoutBuiltinPreds[typ], score: holdoutBuiltinScores[typ]})
 		})
+	}
+}
+
+// bayesHoldoutPreCarry are REG_MMM_BAYES's engine-holdout figures on
+// the parity case before carry-over existed (its held-out channel
+// columns scored as given), recorded on the commit before carry-over
+// (db020da99^) over the detmath fixture (windowParityRowsDigest) —
+// the same bits on arm64 and linux/amd64: params.carryover false must
+// reproduce them.
+var bayesHoldoutPreCarry = struct {
+	n             int
+	rmse, mae, r2 float64
+}{12, 55.203258668686779, 47.849859915911452, -11.474089794004604}
+
+// TestHoldout_BayesCarryoverOptOut: REG_MMM_BAYES under params.carryover
+// false scores its held-out channel columns as given — the pre-carry-
+// over figures (pinned, ≤ 1e-9 relative: recorded on one arch), equal
+// bit for bit to an ATTR_REG_PREDICT with carryover false (gates A and
+// B) — while the default carries the train rows' adstock in and moves
+// them (TestHoldout_EveryScorableBuiltin pins that route).
+func TestHoldout_BayesCarryoverOptOut(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	spec := holdoutBuiltinCases[types.REG_MMM_BAYES]()
+	spec.Params = json.RawMessage(`{"channels":["tv"],"time":"week","geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true,"carryover":false}`)
+	got := holdoutParityRoutes(t, p, holdoutParityCase{name: "bayes-no-carry", spec: spec, pred: "week > 46", score: `,"carryover":false`})
+	h, want := got.Holdout, bayesHoldoutPreCarry
+	near := func(what string, g, w float64) {
+		t.Helper()
+		if rel := math.Abs(g-w) / math.Max(1, math.Abs(w)); !(rel <= 1e-9) {
+			t.Errorf("carryover false %s = %.17g, pre-carry-over %.17g", what, g, w)
+		}
+	}
+	if h.N != want.n {
+		t.Errorf("carryover false n = %d, pre-carry-over %d", h.N, want.n)
+	}
+	near("rmse", h.RMSE, want.rmse)
+	near("mae", h.MAE, want.mae)
+	near("r2", h.R2, want.r2)
+
+	carried := holdoutBuiltinCases[types.REG_MMM_BAYES]()
+	carried.Holdout = "week > 46"
+	req := windowParityDerive()
+	req.Regressions = []*types.RegressionSpec{carried}
+	resp, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := resp.Regressions[0].Holdout; c == nil || c.RMSE == h.RMSE {
+		t.Errorf("carried holdout %+v did not move from the as-given %v", c, h.RMSE)
 	}
 }
 
@@ -531,6 +594,131 @@ func TestHoldout_ExtensionManifestParam(t *testing.T) {
 			if !stderrors.As(runErr, &ce) || len(env.Errors) != 1 || env.Errors[0].Code != string(ce.Code) ||
 				ce.Code != perr.PULSE_MODEL_SCORE_INVALID || env.Errors[0].Message != ce.Message || ce.Details["reason"] != "no_scorer" {
 				t.Fatalf("no-scorer model: predict errors %+v, run %v; want the same no_scorer refusal", env.Errors, runErr)
+			}
+		})
+	}
+}
+
+// TestBayesCarryover_FittedResidualMatchCarriedPredict (U71 E2-S5): over
+// a REG_MMM_BAYES geo panel (posterior-mean kernel, population value) a
+// carried params.fit ATTR_REG_FITTED scores each held-out row exactly
+// as the carried ATTR_REG_PREDICT does — the same Carrier, the mean
+// over the draws — and ATTR_REG_RESIDUAL is the row's target minus it,
+// both orchestrators.
+func TestBayesCarryover_FittedResidualMatchCarriedPredict(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	ctx := context.Background()
+	const mat = "bayes-fitted-carry.pulse"
+	if _, err := p.Materialize(ctx, windowParityDerive(), mat, MaterializeOptions{Overwrite: true}); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	expr := func(e string) []*types.Filterer {
+		return []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
+	}
+	const order = `,"order":{"field":"week","partition":"market"}}`
+	batch := func() *ComposedRequest {
+		return &ComposedRequest{
+			Fits: []types.FitSpec{{Name: "b", Request: &Request{Cohort: &types.Cohort{Filename: mat}, Filterers: expr("week <= 46"),
+				Regressions: []*types.RegressionSpec{holdoutBuiltinCases[types.REG_MMM_BAYES]()}}}},
+			Requests: []*Request{{Label: "held", Cohort: &types.Cohort{Filename: mat}, Filterers: expr("week > 46"),
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_REG_FITTED, Label: "f", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_REG_RESIDUAL, Label: "r", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_FORMULA, Label: "df", Expression: "abs(f - p)"},
+					{Type: types.ATTR_FORMULA, Label: "dr", Expression: "abs(sales - p - r)"},
+				},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: "f", Label: "n"},
+					{Type: types.AGG_SUM, Field: "p", Label: "p"},
+					{Type: types.AGG_MAX, Field: "df", Label: "df"},
+					{Type: types.AGG_MAX, Field: "dr", Label: "dr"},
+				}}},
+		}
+	}
+	if env, err := p.PredictCompose(ctx, batch()); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("predict: %v %+v", err, env.Errors)
+	}
+	for name, run := range composeRuns(p) {
+		out, err := run(batch())
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		row := out.Responses[0].Data[0]
+		if n, _ := row["n"].(float64); n == 0 {
+			t.Fatalf("%s: no held-out row scored: %v", name, row)
+		}
+		if df, _ := row["df"].(float64); df != 0 {
+			t.Errorf("%s: carried fitted differs from the carried score by up to %v", name, df)
+		}
+		if dr, _ := row["dr"].(float64); dr > 1e-9 {
+			t.Errorf("%s: carried residual differs from sales − score by up to %v", name, dr)
+		}
+	}
+}
+
+// TestBayesInfluence_RefusedByDesignPredictRuntimeParity (U71 E2-S6):
+// ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE and a standardized /
+// studentized ATTR_REG_RESIDUAL over a REG_MMM_BAYES fit are refused
+// PULSE_MODEL_SCORE_INVALID type_unsupported BY DESIGN (a posterior has
+// no hat matrix) — before the carry-over rule, so the slot without
+// params.order is told so rather than to add one — identically in
+// predict and at run time (Compose; ComposeParallel for one slot).
+func TestBayesInfluence_RefusedByDesignPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	ctx := context.Background()
+	const mat = "bayes-influence.pulse"
+	if _, err := p.Materialize(ctx, windowParityDerive(), mat, MaterializeOptions{Overwrite: true}); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	for _, slot := range []struct {
+		typ    types.AttributeType
+		params string
+	}{
+		{types.ATTR_REG_LEVERAGE, `{"fit":"b"}`},
+		{types.ATTR_REG_INFLUENCE, `{"fit":"b","order":{"field":"week","partition":"market"}}`},
+		{types.ATTR_REG_RESIDUAL, `{"fit":"b","kind":"studentized"}`},
+	} {
+		t.Run(string(slot.typ), func(t *testing.T) {
+			c := &ComposedRequest{
+				Fits: []types.FitSpec{{Name: "b", Request: &Request{Cohort: &types.Cohort{Filename: mat},
+					Regressions: []*types.RegressionSpec{holdoutBuiltinCases[types.REG_MMM_BAYES]()}}}},
+				Requests: []*Request{{Label: "s", Cohort: &types.Cohort{Filename: mat},
+					Attributes:   []*types.Attribute{{Type: slot.typ, Label: "v", Params: json.RawMessage(slot.params)}},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "v"}}}},
+			}
+			env, err := p.PredictCompose(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict errors = %+v, want exactly one", env.Errors)
+			}
+			pe := env.Errors[0]
+			if perr.Code(pe.Code) != perr.PULSE_MODEL_SCORE_INVALID || pe.Details["reason"] != "type_unsupported" ||
+				!strings.Contains(pe.Message, "by design") {
+				t.Fatalf("predict = %s %q %v, want PULSE_MODEL_SCORE_INVALID type_unsupported by design", pe.Code, pe.Message, pe.Details)
+			}
+			// One orchestrator per slot (each run samples the posterior):
+			// the refusal is the shared bind rule, so the slots between
+			// them cover both.
+			run := func() error { _, err := p.Compose(ctx, c); return err }
+			if slot.typ == types.ATTR_REG_INFLUENCE {
+				run = func() error {
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					return err
+				}
+			}
+			var ce *perr.CodedError
+			if err := run(); !stderrors.As(err, &ce) {
+				t.Fatalf("uncoded %v", err)
+			}
+			if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(ce.Details, pe.Details) {
+				t.Errorf("runtime %s %q %v\n predict %s %q %v", ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
 			}
 		})
 	}

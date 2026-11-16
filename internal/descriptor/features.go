@@ -107,11 +107,13 @@ var (
 	featComposeFits       = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeOpt        = FeatureComposeOptimize
 	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
+	featComposePostFit    = FeatureComposePostFit
 	featSweepBind         = FeatureComposeSweepBind
 	featComposeBanner     = FeatureName(FeatureKindCapability, "compose_banner")
 	featComposeBase       = FeatureName(FeatureKindCapability, "compose_base")
 	featModelSave         = FeatureModelSave
 	featRegHoldout        = FeatureRegressionHoldout
+	featRegOrder          = FeatureRegressionOrder
 	featModels            = FeatureModels
 	featForEach           = FeatureForEach
 	featProcessChain      = FeatureName(FeatureKindCapability, "process_chain")
@@ -228,6 +230,11 @@ const FeatureModelSave = "capability:model_save"
 // the out-of-sample figures it produces (RegressionResult.Holdout).
 const FeatureRegressionHoldout = "capability:regression_holdout"
 
+// FeatureRegressionOrder is capability:regression_order — the `order`
+// block on a regression slot (RegressionSpec.Order): the engine sorts
+// the rows and refuses a gap or a repeat before any fit.
+const FeatureRegressionOrder = "capability:regression_order"
+
 // FeatureLookupTables is capability:lookup_tables — the registered
 // LookupTables (Options.Extensions.LookupTables and the
 // Options.LookupTablesDir / PULSE_LOOKUP_TABLES_DIR files) and the
@@ -263,6 +270,15 @@ const FeatureComposeOptimize = "capability:compose_optimize"
 // fits schema) reads it too.
 const FeatureComposeSweepBind = "capability:compose_sweep_bind"
 
+// FeatureComposePostFit is capability:compose_post_fit — the
+// ComposedRequest `post_fit` entries (runs of embedder-registered
+// POSTFIT_<NAMESPACE>_<NAME> operators over the batch's finished fits)
+// and the ComposedResponse `post_fit` results. Every registered post-fit
+// operator depends on it, as a built-in MAT_* operator depends on
+// capability:matrices. Exported because the root facade (the feature
+// universe's extension edges) reads it too.
+const FeatureComposePostFit = "capability:compose_post_fit"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -287,6 +303,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("compose_banner"),     // ComposedRequest.Banner + ComposedResponse.Banner
 	capability("model_save"),         // RegressionSpec.Save + FitSpec.Save (model + population files)
 	capability("regression_holdout"), // RegressionSpec.Holdout + RegressionResult.Holdout
+	capability("regression_order"),   // RegressionSpec.Order (the engine-enforced row order)
 	capability("models"),             // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
 	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute / Aggregation / MatrixSpec / OptimizeSpec
 	capability("process_chain"),      // ProcessChain
@@ -334,6 +351,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The nested-model comparisons of two fits: ComposedRequest.Compare
 	// and ComposedResponse.Comparisons.
 	capability("compose_compare"),
+	// The runs of embedder-registered post-fit operators over the
+	// finished fits: ComposedRequest.PostFit and ComposedResponse.PostFit.
+	capability("compose_post_fit"),
 	// The Compose `base`: ComposedRequest.Base, merged into every
 	// explicit slot.
 	capability("compose_base"),
@@ -608,6 +628,7 @@ var requestSlotCapabilities = map[string]bool{
 	featForEach:    true,
 	featModelSave:  true,
 	featRegHoldout: true,
+	featRegOrder:   true,
 	// capability:params rides modelsHosts instead: a facet's filterers
 	// read params too.
 }
@@ -691,6 +712,8 @@ var slotTokens = map[string]slotTokenSet{
 	// `compare` / `comparisons` are everyday English; no guidance
 	// sentence names the slot.
 	featComposeCompare: {},
+	// `post_fit` names the slot only; no guidance sentence names it.
+	featComposePostFit: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
 	// `base` is everyday English; no guidance sentence names the slot.
@@ -701,6 +724,8 @@ var slotTokens = map[string]slotTokenSet{
 	// with a filter or a range grouper); no guidance sentence names the
 	// slot.
 	featRegHoldout: {},
+	// `order` is everyday English; no guidance sentence names the slot.
+	featRegOrder: {},
 	// `models` is everyday English; no guidance sentence names the slot.
 	featModels: {},
 	// `params` is every operator's own configuration key too (a
@@ -950,6 +975,9 @@ var hardEdges = map[string][]string{
 	// batch to solve it in (its coef() reads the batch's fits, but a
 	// block over params alone needs none).
 	featComposeOpt: {featCompose},
+	// A post-fit entry runs over the batch's finished fits: without
+	// `fits` (which needs Compose) there is no fit to read.
+	featComposePostFit: {featComposeFits},
 	// A base is merged into Compose slots: without Compose there are no
 	// slots to merge it into.
 	featComposeBase: {featCompose},
@@ -967,6 +995,9 @@ var hardEdges = map[string][]string{
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
 	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS)},
+	// An order sorts a regression slot's rows: without a regression
+	// there are no rows to order.
+	featRegOrder: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},
 	// Parameters are read only by an expression (an optimize block's
 	// included): without one there is nothing to read them.
 	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "WIN_FORMULA", featRegHoldout, featComposeOpt},
@@ -994,6 +1025,7 @@ var extensionRegressionEdges = map[string]bool{
 	"ATTR_REG_PREDICT": true,
 	featModelSave:      true,
 	featRegHoldout:     true,
+	featRegOrder:       false,
 	featComposeFits:    false,
 }
 

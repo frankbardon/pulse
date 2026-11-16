@@ -31,6 +31,7 @@ examples_tags: [regression, ordinal]
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Predictors' p-values join a family (thresholds carry none). |
 <!-- /feature -->
+| `order` | object | — | Row order. |
 | `name` | string | — | Result name. |
 
 ## Inputs
@@ -39,7 +40,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `std_errors` from the inverse observed information (or the sandwich), `statistics` z, `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean fitted P per level), `brant` `{statistic, df, p_value, terms}` — omnibus df (K − 2)·p, per predictor K − 2.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `std_errors` from the inverse observed information (or the sandwich), `statistics` z, `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` `{statistic, df, p_value, terms}` — omnibus df (K − 2)·p, per predictor K − 2.
 
 <!-- generated: reading-the-output -->
 
@@ -47,11 +48,11 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Gotchas
 
-- Positive β: higher x goes with higher levels; logit `exp(β)` is the odds ratio of being above any level.
-- Dictionary order is import order, not meaning: pass `levels` for a scale imported out of order.
+- Positive β: higher x, higher levels; logit `exp(β)` is the odds ratio of being above any level.
+- Dictionary order is import order: pass `levels` for a scale imported out of order.
 - A small Brant p-value says that predictor's effect differs across thresholds; the omnibus uses the symmetric covariance (the `brant` package's differs, its per-term figures agree).
 - Frequency weights = the `rep()` expansion; probability weights follow<!-- feature: REG_GLM --> `REG_GLM`'s rule<!-- /feature --> (w* = w·n_eff/Σw).
-- Refused at predict and run alike (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`, `save`; `holdout` is `PULSE_MODEL_SCORE_INVALID` (no scorer).
+- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`, `save`; `holdout` is `PULSE_MODEL_SCORE_INVALID` (no scorer).
 - Separation is `PROCESSING_REGRESSION_NO_CONVERGE`; the slot fails alone.
 
 ## See

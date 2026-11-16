@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,8 +27,11 @@ import (
 // column is: an ATTR_PREVIOUS_STATE output, whose values ARE its state
 // field's codes, is written as that field's categorical_* (or
 // packed_bool) type with its dictionary (prevstate.KeySchema, the view
-// every label-resolving consumer reads), nullable. Type and Dictionary
-// then carry that shape; both are zero when Inherits is empty.
+// every label-resolving consumer reads), nullable; so is a lagged
+// category (windowparams.CategoricalLags: a WIN_LAG / WIN_LEAD of a
+// categorical, Inherits naming the cohort field it copies). Type and
+// Dictionary then carry that shape; both are zero when Inherits is
+// empty.
 type MaterializeColumn struct {
 	Name        string
 	Description string
@@ -179,12 +183,20 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 		}
 		out = append(out, col)
 	}
+	// A lagged category (a WIN_LAG / WIN_LEAD of a categorical) is
+	// written as its source's categorical type on its dictionary, its
+	// cells that dictionary's codes — like a previous-state output.
+	lags := windowparams.CategoricalLags(req.Windows, schema)
 	for _, w := range req.Windows {
 		if w == nil {
 			continue
 		}
-		out = append(out, MaterializeColumn{Name: windowLabel(w), Window: true,
-			Description: derivedDescription(operatorPhrase(string(w.Type), w.Field, w.Params, windowClauses(w, inst)), from)})
+		col := MaterializeColumn{Name: windowLabel(w), Window: true,
+			Description: derivedDescription(operatorPhrase(string(w.Type), w.Field, w.Params, windowClauses(w, inst)), from)}
+		if l, ok := lags[col.Name]; ok {
+			col.Inherits, col.Type, col.Dictionary = l.Source, l.Field.Type, l.Field.Dictionary
+		}
+		out = append(out, col)
 	}
 	return out, nil
 }

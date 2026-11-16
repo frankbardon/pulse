@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -43,9 +44,25 @@ func (p *Processor) copyWindowMembers(req *types.Request, post vectors.PostWindo
 	if len(cols) == 0 {
 		return nil
 	}
+	// A lagged category (windowparams.CategoricalLags) lands as its
+	// source dictionary's code, which the run's grouper key view
+	// (Processor.groupKeys) resolves back to the label.
+	cats := windowparams.CategoricalLags(req.Windows, p.schema)
 	for i, rec := range filtered {
 		for _, c := range cols {
 			l := c.label
+			if cat, ok := cats[l]; ok {
+				code, err := categoricalCode(l, cat.Field.Dictionary, rows[i][l])
+				if err != nil {
+					return err
+				}
+				if code == nil {
+					rec.SetNull(l)
+				} else {
+					rec.Set(l, code.(float64))
+				}
+				continue
+			}
 			v, err := derivedFloat(l, rows[i][l])
 			if err != nil {
 				vt := fmt.Sprintf("%T", rows[i][l])

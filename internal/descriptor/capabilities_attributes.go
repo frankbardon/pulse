@@ -145,7 +145,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_FITTED),
 			Category:      "attribute",
 			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
-			Params:        regAttributeParams(true),
+			Params:        append(regAttributeParams(true), fitCarryParams...),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_FITTED), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one fitted value per record (NaN-free)",
@@ -155,7 +155,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
-			Params:        append(regAttributeParams(true), residualKindParam, residualTypeParam),
+			Params:        append(append(regAttributeParams(true), residualKindParam, residualTypeParam), fitCarryParams...),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
@@ -164,8 +164,8 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:           string(types.ATTR_REG_LEVERAGE),
 			Category:       "attribute",
-			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true).",
-			Params:         regAttributeParams(false),
+			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
+			Params:         append(regAttributeParams(false), fitCarryParams...),
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
@@ -175,8 +175,8 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:           string(types.ATTR_REG_INFLUENCE),
 			Category:       "attribute",
-			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight).",
-			Params:         append(regAttributeParams(false), influenceMeasureParam),
+			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
+			Params:         append(append(regAttributeParams(false), influenceMeasureParam), fitCarryParams...),
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_INFLUENCE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
@@ -186,7 +186,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.ATTR_REG_PREDICT),
 			Category:    "attribute",
-			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on pre-adstocked channels and, on a geo panel, the row's geo field. The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
 			Params: []descriptor.Param{
 				{
 					Name:        "fit",
@@ -212,6 +212,17 @@ func attributeCapabilities() []descriptor.Operator {
 					Default:     "point",
 					EnumValues:  []string{"point", "lower", "upper"},
 					Description: "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null. A REG_MMM_BAYES fit alone takes a whole-model lower / upper (no terms): the credible bound of its mean prediction across its draws at the fit's credible_level — an interval for μ, not a predictive interval.",
+				},
+				{
+					Name:        "carryover",
+					Type:        "bool",
+					Default:     true,
+					Description: "A fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the scored rows, which then hold RAW spend and need order; false scores pre-adstocked channel columns as given. Refused on any other fit.",
+				},
+				{
+					Name:        "order",
+					Type:        "object",
+					Description: "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass.",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalytics, // the scoring frame rule: IsNumericForAnalytics (TestCapabilities_RegPredictAcceptsScoringRule)
@@ -641,16 +652,25 @@ func otherForm(f metric.Form) metric.Form {
 // (the refit is the default form a draft writes) and say so.
 // residualKindParam is ATTR_REG_RESIDUAL's params.kind (U65 E1-S1).
 // U65 E1-S2 adds the refit's standardized / studentized kinds.
-var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit."}
+var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal)."}
 
 // regDesignFitParam is params.fit on a slot that reads the bound fit's
 // design (ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE; U65 E1-S2,
 // model.CheckFitDesign).
-var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS or REG_GLM fit with vcov: true and the classical covariance, no selection, resample or bounds (else PULSE_MODEL_SCORE_INVALID, details.requires). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows. The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound. Absent, the slot refits OLS."}
+var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."}
 
 // residualTypeParam is ATTR_REG_RESIDUAL's params.residual_type (U65
 // E1-S2): the residual kind standardized starts from.
 var residualTypeParam = descriptor.Param{Name: "residual_type", Type: "enum", Required: false, Default: model.ResidualTypePearson, EnumValues: model.ResidualTypes(), Description: "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R."}
+
+// fitCarryParams are a params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL's
+// (U71 E2-S5) and ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE's (E2-S6)
+// adstock carry-over keys — ATTR_REG_PREDICT's carryover / order rule
+// (model.FitCarries, carryRefusal).
+var fitCarryParams = []descriptor.Param{
+	{Name: "carryover", Type: "bool", Default: true, Description: "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual / leverage (the kernel parameters' partials through the carried lags); false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."},
+	{Name: "order", Type: "object", Description: "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."},
+}
 
 // influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
 var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}

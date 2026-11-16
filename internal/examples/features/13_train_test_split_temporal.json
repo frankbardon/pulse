@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "category": "features",
+    "description": "Hold out the latest orders: a temporal 80/20 split on order_date sends the earliest orders to train and the most recent to test, never splitting one day across the boundary.",
+    "intents": [
+      "prepare"
+    ],
+    "name": "feat_train_test_split_temporal",
+    "operators": [
+      "AGG_COUNT",
+      "FEAT_TRAIN_TEST_SPLIT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "feature-engineering",
+      "feature-pipeline",
+      "pre-filter"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "features": [
+    {
+      "type": "FEAT_TRAIN_TEST_SPLIT",
+      "params": {
+        "ratios": [
+          0.8,
+          0.2
+        ],
+        "mode": "temporal",
+        "order_by": "order_date"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "split"
+    }
+  ],
+  "sort": [
+    {
+      "field": "split"
+    }
+  ]
+}

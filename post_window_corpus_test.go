@@ -60,12 +60,14 @@ func requestObjects(v any, out *[]map[string]any) {
 // MMM decay sweeps (grid and lhs) read their adstock labels in formula
 // attributes, so they MUST classify post-window (checked, not skipped);
 // and the window-column aggregation examples (mmm-followups E4-S5)
-// aggregate a window label, so they MUST classify windows-first.
+// aggregate a window label, and the lagged-category crosstab
+// (mmm-optimize-depth E4-S1) keys an axis on one, so they MUST classify
+// windows-first.
 func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 	t.Parallel()
 
 	teaches := map[string]bool{"compose-mmm-decay-sweep": true, "compose-mmm-decay-lhs-sweep": true}
-	teachesWindowsFirst := map[string]bool{"win_column_aggregate": true, "win_column_by_quarter": true}
+	teachesWindowsFirst := map[string]bool{"win_column_aggregate": true, "win_column_by_quarter": true, "win_lag_category_flows": true}
 	var taught, taughtWindowsFirst int
 	probe := &types.Window{Type: types.WIN_ROW_NUMBER, Label: "post_window_probe", OrderBy: []types.OrderKey{{Field: "post_window_probe_key"}}}
 	var requests, probed int

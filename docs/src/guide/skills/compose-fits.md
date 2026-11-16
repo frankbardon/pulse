@@ -10,7 +10,7 @@ requires: [capability:compose_fits]
 
 # Compose fits
 
-A **fit** is a named model a Compose batch runs ONCE, before any slot, so every slot reads the same figures by name. Use it when slots (train / holdout, scenarios, a sweep) share one model.
+A **fit** is a named model a Compose batch runs ONCE, before any slot, so every slot reads the same figures by name. Use it when slots (train / holdout, scenarios, a sweep) share a model.
 
 ```jsonc
 {
@@ -32,8 +32,8 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 - `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute or one `matrices` entry, its listwise mean + co-moment); one `MAT_SEM` entry is a **SEM fit** ([`sem-fits`](sem-fits.md)).
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep ([`compose-sweep-bind`](compose-sweep-bind.md)).
-- Its own cohort, filters, features and weight decide the fit rows, independent of every slot. Its `return` is ignored.
-- Each fit runs once; serial and parallel are byte-identical.
+- Its own cohort, filters, features and weight decide the fit rows, independent of all slots. Its `return` is ignored.
+- Each fit runs once; serial = parallel, byte for byte.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window `ATTR_REG_PREDICT` runs after its windows; a `holdout` is scored at fit time ([`regression-model-options`](regression-model-options.md)).
 
@@ -52,7 +52,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 
 ## Saving
 
-`save` on an entry (or any regression spec) writes the fit under the data root once run, atomic and full precision, named after the fit: a regression as a model file (`models/mmm.pulse-model.json`), a vector fit as a population file (`pops/brand.pulse-population.json`), a SEM fit as `fits/brand.pulse-sem.json` ([`sem-fits`](sem-fits.md)). A wrong suffix or a path above the root is `PULSE_MODEL_SAVE_INVALID` (before any fit); a failed write `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in compose `warnings` (`details.fit`). Two saves of one file: `reason: duplicate`.
+`save` on an entry (or any regression spec) writes the fit under the data root once run, atomic and full precision, named after the fit: a regression as a model file (`models/mmm.pulse-model.json`), a vector fit as a population file (`pops/brand.pulse-population.json`), a SEM fit as `fits/brand.pulse-sem.json` ([`sem-fits`](sem-fits.md)). A wrong suffix or a path above the root is `PULSE_MODEL_SAVE_INVALID` (before any fit); a failed write `PULSE_MODEL_WRITE_FAILED`; replacing a file succeeds with `PULSE_MODEL_OVERWRITTEN` in compose `warnings` (`details.fit`). Two saves of a file: `reason: duplicate`.
 
 ## Loading
 
@@ -62,12 +62,12 @@ Registered populations (`PULSE_POPULATIONS_DIR` or the embedder; manifest `exten
 
 ## A failed fit
 
-A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, compose `warnings` gain `PULSE_SLOT_FAILED` (`details.fit`), nothing saves. Attributes reading it go null (`PULSE_FIT_UNAVAILABLE`), a matrix `params.fit` slot fails alone; a filter's `coef()`, a non-literal name, strict mode fail with its code.
+A fit its data refuses fails alone: its entry keeps identity + `error`, compose `warnings` gain `PULSE_SLOT_FAILED` (`details.fit`), nothing saves. Attributes reading it go null (`PULSE_FIT_UNAVAILABLE`), a matrix `params.fit` slot fails alone; a filter's `coef()`, a non-literal name, strict mode fail with its code.
 
 ## Refusals
 
 - `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression + battery), `vector_count`, `grouped`, `vector_source` (pairwise, group distance, reversed reliability), `regression_type`.
-- A fit request's own refusal keeps its code and gains `details.fit` (0-based entry index; the lowest when several fail).
+- A fit request's own refusal keeps its code and gains `details.fit` (0-based index; the lowest when several fail).
 
 ## Validate before executing
 
@@ -75,4 +75,4 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## See
 
-[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (sweep slots get the fits) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (its result) · [`regression-comparison`](regression-comparison.md) (nested-model tests) · [`compose-optimize`](compose-optimize.md).
+[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (sweep slots get the fits) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (its result) · [`regression-comparison`](regression-comparison.md) (nested-model tests) · [`compose-optimize`](compose-optimize.md) · [`compose-post-fit`](compose-post-fit.md).

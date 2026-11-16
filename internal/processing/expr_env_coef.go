@@ -56,6 +56,7 @@ func (r *ExtensionRegistry) ExprBoundWithModels(models *model.Set) exprenv.Bound
 	b.Coef = model.CoefBuiltin(models)
 	b.SweepAxis = model.SweepAxisBuiltin(models)
 	b.Response = model.ResponseBuiltin(models)
+	b.ResponseSlope = model.ResponseSlopeBuiltin(models)
 	return b
 }
 

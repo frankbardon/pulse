@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:b2ec6fb3035a28eaaa7f68d22b3b1f868b23bf9af22097d20794a79a0bd7ffd5",
+  "$comment": "feature_set_digest: fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -1052,6 +1052,15 @@
           },
           "type": "object"
         },
+        "post_fit": {
+          "items": {
+            "$ref": "#/$defs/PostFitSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "requests": {
           "items": {
             "$ref": "#/$defs/Request"
@@ -1106,6 +1115,15 @@
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "post_fit": {
+          "items": {
+            "$ref": "#/$defs/PostFitResult"
           },
           "type": [
             "array",
@@ -3953,6 +3971,13 @@
       ],
       "type": "string"
     },
+    "OptimizeGradient": {
+      "enum": [
+        "analytic",
+        "fd"
+      ],
+      "type": "string"
+    },
     "OptimizeInterval": {
       "additionalProperties": false,
       "properties": {
@@ -4065,6 +4090,18 @@
         },
         "error": {
           "$ref": "#/$defs/SlotError"
+        },
+        "gradient": {
+          "$ref": "#/$defs/OptimizeGradient"
+        },
+        "gradient_fallback": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "iterations": {
           "type": "integer"
@@ -4186,6 +4223,16 @@
         },
         "for_each": {
           "$ref": "#/$defs/ForEach"
+        },
+        "gradient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptimizeGradient"
+            },
+            {
+              "$ref": "#/$defs/VarMarker"
+            }
+          ]
         },
         "max_iterations": {
           "anyOf": [
@@ -4384,6 +4431,9 @@
           "for_each": {
             "$ref": "#/$defs/ForEach"
           },
+          "gradient": {
+            "$ref": "#/$defs/OptimizeGradient"
+          },
           "max_iterations": {
             "type": "integer"
           },
@@ -4481,6 +4531,12 @@
         "value"
       ],
       "type": "object"
+    },
+    "OrderGaps": {
+      "enum": [
+        "refuse"
+      ],
+      "type": "string"
     },
     "OrderKey": {
       "additionalProperties": false,
@@ -5064,6 +5120,115 @@
         "path"
       ],
       "type": "object"
+    },
+    "PostFitResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "label": {
+          "type": "string"
+        },
+        "scalars": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "tables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PostFitTable"
+          },
+          "type": "object"
+        },
+        "type": {
+          "$ref": "#/$defs/PostFitType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "then": {
+        "required": [
+          "label"
+        ]
+      },
+      "type": "object"
+    },
+    "PostFitSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "fits": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
+        "type": {
+          "$ref": "#/$defs/PostFitType"
+        }
+      },
+      "required": [
+        "label",
+        "type"
+      ],
+      "type": "object"
+    },
+    "PostFitTable": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "rows": {
+          "items": {
+            "items": true,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "columns",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "PostFitType": {
+      "enum": [],
+      "type": "string"
     },
     "PredictSchemaInfo": {
       "additionalProperties": false,
@@ -5702,6 +5867,24 @@
       },
       "type": "object"
     },
+    "RegressionOrder": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "gaps": {
+          "$ref": "#/$defs/OrderGaps"
+        },
+        "partition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "field"
+      ],
+      "type": "object"
+    },
     "RegressionResult": {
       "additionalProperties": false,
       "properties": {
@@ -6068,6 +6251,9 @@
         },
         "name": {
           "type": "string"
+        },
+        "order": {
+          "$ref": "#/$defs/RegressionOrder"
         },
         "params": {
           "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
@@ -7992,4 +8178,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3962dfdf3c0cb7f69bbf71124d0151cc0ad3d60f53d4a551f0b787d61fc03442
+// golden-hash: 0ddfa284e2d9e5568eb494e781e423c3d1b93634c1a5543f1cc4a12d3fd8503b

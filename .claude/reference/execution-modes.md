@@ -37,7 +37,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | Section (pre-split heading) | Slice |
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
-| Compose fits; Result pre-phase | `execution-modes/compose.md` |
+| Compose fits; Result pre-phase; Post-fit phase | `execution-modes/compose.md` |
 | Parallel Compose; Compose banner; Compose base; Item fan-out (`for_each`) | `execution-modes/compose-parallel-banner.md` |
 | Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |

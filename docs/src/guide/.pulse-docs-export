@@ -48,6 +48,7 @@ skills/cohort-width-overflow.md
 skills/compose-banner.md
 skills/compose-fits.md
 skills/compose-optimize.md
+skills/compose-post-fit.md
 skills/compose-requests.md
 skills/compose-sweep-bind.md
 skills/compose-sweep-sampling.md
@@ -312,9 +313,11 @@ skills/process-chain.md
 skills/regression-collinearity.md
 skills/regression-comparison.md
 skills/regression-inference.md
+skills/regression-influence.md
 skills/regression-margins.md
 skills/regression-model-options.md
 skills/regression-modeling.md
+skills/regression-order.md
 skills/regression-row-scores.md
 skills/regression-spec.md
 skills/request-envelope.md
