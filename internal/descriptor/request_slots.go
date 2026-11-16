@@ -67,7 +67,8 @@ import (
 //     capability:models
 //   - Request.Populations — capability:models
 //   - Request.Params, ComposedRequest.Params, ChainRequest.Params and
-//     FacetRequest.Params — capability:params
+//     FacetRequest.Params, and a sweep axis `target` (SweepAxis) —
+//     capability:params
 //   - Request.Output (materialize-only) — capability:materialize_output
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
@@ -237,7 +238,11 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "samples", visible: sweepSamplingGate},
 		{key: "rng_seed", visible: sweepSamplingGate},
 	},
-	reflect.TypeOf(types.SweepAxis{}): {{key: "range", visible: sweepSamplingGate}},
+	// An axis `target` writes request params (capability:params).
+	reflect.TypeOf(types.SweepAxis{}): {
+		{key: "range", visible: sweepSamplingGate},
+		{key: "target", visible: capabilityGate(featParams)},
+	},
 	// The adjusted outputs a correction writes beside a test's raw p
 	// ride the same capability, so a hidden instance's payload schema
 	// names no multiplicity surface at all (no request ever reaches
@@ -902,6 +907,23 @@ func nestedSweepSamplingRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *
 	return sweep.EnumerationModeRefusal(spec.Mode)
 }
 
+// nestedSweepTargetRefusal gates a ComposedRequest's sweep axes when
+// inst hides capability:params: the first axis setting `target` is
+// PULSE_REQUEST_UNKNOWN_FIELD at that axis (details.path
+// "sweep.axes[i].target"), valid_keys over its visible keys — the
+// refusal strict decode gives the JSON key.
+func nestedSweepTargetRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *errors.CodedError {
+	if spec == nil || inst.Enabled(featParams) {
+		return nil
+	}
+	for i := range spec.Axes {
+		if spec.Axes[i].Target != "" {
+			return unknownFieldErrorAt(fmt.Sprintf("sweep.axes[%d]", i), []string{"target"}, VisibleSlotKeys(&spec.Axes[i], inst))
+		}
+	}
+	return nil
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
 // the crosstab `cells` key, then every nested slot `weight`, then every
 // nested `multiplicity`, then every item `for_each`, then every
@@ -1034,6 +1056,9 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			return ce
 		}
 		if ce := nestedSweepSamplingRefusal(r.Sweep, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedSweepTargetRefusal(r.Sweep, inst); ce != nil {
 			return ce
 		}
 		for i, req := range r.Requests {

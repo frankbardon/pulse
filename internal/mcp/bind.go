@@ -2288,9 +2288,23 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 // capability:compose_sweep_sampling offers the enumeration modes only:
 // no random / lhs, `samples`, `rng_seed` or axis `range`.
 func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
+	out := samplingSweepSchema()
 	if !inst.Enabled(descx.FeatureComposeSweepSampling) {
-		return enumerationSweepSchema()
+		out = enumerationSweepSchema()
 	}
+	// An axis `target` writes request params: offered only where
+	// capability:params is.
+	if inst.Enabled(descx.FeatureParams) {
+		axis := out["properties"].(map[string]any)["axes"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+		axis["target"] = map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`,
+			"description": "params.<name>: each slot's request takes the axis value as params.<name> (overriding a declared value), read by its expressions — no placeholder needed. Never with a {\"$var\"} marker naming this axis."}
+	}
+	return out
+}
+
+// samplingSweepSchema is the full sweep schema: every mode, the sampling
+// keys and axis `range` (no axis `target`, which sweepSchema adds).
+func samplingSweepSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
 		"description": "Parameter sweep: one request body with axis placeholders (`{{axis}}` inside a string, {\"$var\": \"axis\"} as a whole value), expanded over the axes into compose slots appended after `requests`, before any slot runs.",
@@ -2348,7 +2362,7 @@ func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 // sampling modes: grid / zip over explicit axis values, the sampling
 // keys and their prose absent.
 func enumerationSweepSchema() map[string]any {
-	out := sweepSchema(nil)
+	out := samplingSweepSchema()
 	props := out["properties"].(map[string]any)
 	delete(props, "samples")
 	delete(props, "rng_seed")

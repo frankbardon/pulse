@@ -1793,7 +1793,11 @@ const (
 	// lengths under mode zip, a request body that is not a JSON object,
 	// overlays that are not a JSON array, or a malformed rank (empty
 	// `by`, unknown order, top below 1), an axis no placeholder names or
-	// a placeholder naming no axis, or a substituted request that does
+	// a placeholder naming no axis, an axis `target` that is not
+	// params.<identifier> or that another axis also targets
+	// (target_invalid, target_duplicate), a `{"$var"}` marker naming a
+	// targeted axis or standing at a targeted param
+	// (axis_target_conflict), or a substituted request that does
 	// not decode strictly or sets `label`. Refused identically by predict
 	// and the runtime before any slot runs. Details carry "field" (the
 	// sweep-rooted path), "reason", "axis" where one is involved and,
@@ -2126,7 +2130,8 @@ const (
 	// name_without_axis): no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
 	// unknown mode (the sampling modes random / lhs are compose-sweep
-	// only, as is an axis `range` — reason range_unsupported), unequal
+	// only, as is an axis `range` — reason range_unsupported — and an
+	// axis `target` — reason target_unsupported), unequal
 	// axis lengths under mode zip, an axis no placeholder in the item names or a placeholder naming no axis,
 	// placeholder syntax the substitution refuses, a substituted item
 	// that does not decode strictly, or a `for_each` inside a compose

@@ -578,8 +578,9 @@ func itemReferenceFault(path, list string, err error) *errors.CodedError {
 	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 		slot, _ := tce.Details["slot"].(string)
 		ce = exprSplice(errors.PULSE_FOR_EACH_EXPR_SPLICE, "for_each", field, name, slot,
-			"vary the value with a Compose sweep instead (its request carries `\"params\": {"+strconv.Quote(name)+
-				": {\"$var\": "+strconv.Quote(name)+"}}` and the expression reads `params."+name+"`), or, for an "+
+			"vary the value with a Compose sweep instead (its axis sets `\"target\": \"params."+name+"\"`, or its "+
+				"request carries `\"params\": {"+strconv.Quote(name)+": {\"$var\": "+strconv.Quote(name)+"}}`, and "+
+				"the expression reads `params."+name+"`), or, for an "+
 				"expression inside params, supply it whole with a `{\"$var\": "+strconv.Quote(name)+"}` axis marker "+
 				"whose values are the complete expressions")
 		carryTemplatedType(ce, tce)

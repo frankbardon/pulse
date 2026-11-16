@@ -29,7 +29,7 @@ Defer the doc/skill update to "a follow-up PR" and the follow-up will not happen
 | The Compose `optimize` block, `ComposedResponse.optimizations`, `internal/optblock`, `result()` and its pre-phase, `capability:compose_optimize` | `update-demand/compose-optimize.md` |
 | A `fits` entry's `from_sweep` (sweep-bound fits), `model.CheckFitsIn` / `SweepFitRequest`, `capability:compose_sweep_bind`, `sweep_axis()` / `response()` | `update-demand/compose-sweep-bind.md` |
 | `Request.Overlays` / `Response.Overlays`, pairwise / panel params, the Compose overlay fold, overlay error codes, `OverlayLayer.Warnings` | `update-demand/overlays.md` |
-| Facet, ProcessChain, joins, crosstab and fusion, `DecodeWorkers`, grouped tier-1 tests, time zones / `internal/temporal`, `Request.Params` | `update-demand/engine-modes.md` (+ `.claude/reference/execution-modes.md`) |
+| Facet, ProcessChain, joins, crosstab and fusion, `DecodeWorkers`, grouped tier-1 tests, time zones / `internal/temporal`, `Request.Params` (+ a sweep axis `target`, `FilterToFileRequest.Params`) | `update-demand/engine-modes.md` (+ `.claude/reference/execution-modes.md`) |
 | `Request.Weight` / any per-slot weight (the weighting row), `Pulse.Rake` (the Rake row), `multiplicity` (the Multiplicity row) | `update-demand/weighting-and-multiplicity.md` (+ `.claude/reference/weighting.md`) |
 | A new feature or the feature-profile model, request templates, the `observe` vocabulary | `update-demand/features-templates-observe.md` |
 | Synth profile document, fidelity report, generation model, type predicates | `update-demand/synth-model.md` (+ `.claude/reference/synthetic-data.md`) |

@@ -592,6 +592,13 @@ var fieldOverrides = map[fieldKey]any{
 		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
 	},
 	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// A sweep axis `target` (capability:params): the one form
+	// params.<identifier>.
+	{reflect.TypeFor[types.SweepAxis](), "target"}: map[string]any{
+		"type":        "string",
+		"pattern":     `^params\.[A-Za-z_][A-Za-z0-9_]*$`,
+		"description": "params.<name>: each sweep slot's request takes the axis value as params.<name>, overriding a value the body declares and declaring an absent one; the axis then needs no placeholder. A {\"$var\"} marker naming a targeted axis is refused (axis_target_conflict).",
+	},
 	// An inline model is the model-file document, its numbers literal
 	// or scalar expressions over params; the generic RawMessage rule
 	// would describe operator params.

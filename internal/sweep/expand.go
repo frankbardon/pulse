@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -174,6 +175,9 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	if ce := checkReferences(spec, opts); ce != nil {
 		return nil, ce
 	}
+	if ce := targetConflict(spec); ce != nil {
+		return nil, ce
+	}
 	n := Count(spec)
 	if preflight != nil {
 		total := len(c.Requests)
@@ -226,6 +230,7 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 			ce = fault
 			return false
 		}
+		applyTargets(req, spec.Axes, values)
 		label, fault := renderLabel(labelBody, spec, vars, values, slot)
 		if fault != nil {
 			ce = fault
@@ -438,6 +443,11 @@ func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 		return referenceFault(err)
 	}
 	for i, ax := range spec.Axes {
+		// A targeted axis is referenced by its target: it writes
+		// params.<name> into every slot without a placeholder.
+		if ax.Target != "" {
+			continue
+		}
 		without := make([]*template.Variable, 0, len(all)-1)
 		without = append(without, all[:i]...)
 		without = append(without, all[i+1:]...)
@@ -445,8 +455,9 @@ func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 			at := axisPath(i)
 			return invalid(at+".name", ax.Name, ReasonAxisUnreferenced,
 				"sweep axis "+describe(at, ax.Name)+" is referenced nowhere — no `{{"+ax.Name+"}}` or "+
-					"`{\"$var\": \""+ax.Name+"\"}` in the request, the label pattern or the overlays — so "+
-					"every slot it adds would run the same request; reference it or drop the axis",
+					"`{\"$var\": \""+ax.Name+"\"}` in the request, the label pattern or the overlays, and no "+
+					"`target` — so every slot it adds would run the same request; reference it, target a "+
+					"param with it, or drop the axis",
 				nil)
 		}
 	}
@@ -486,9 +497,10 @@ func referenceFault(err error) *errors.CodedError {
 	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 		slot, _ := tce.Details["slot"].(string)
 		ce = exprSplice(errors.PULSE_SWEEP_EXPR_SPLICE, "sweep", field, name, slot,
-			"carry the axis value through the request's params — `\"params\": {"+strconv.Quote(name)+
-				": {\"$var\": "+strconv.Quote(name)+"}}` read as `params."+name+"` — or sweep whole "+
-				"expressions with a `{\"$var\": "+strconv.Quote(name)+"}` marker supplying the slot")
+			"carry the axis value through the request's params — set the axis `\"target\": \"params."+name+
+				"\"` (or declare `\"params\": {"+strconv.Quote(name)+": {\"$var\": "+strconv.Quote(name)+"}}`) "+
+				"and read it as `params."+name+"` — or sweep whole expressions with a `{\"$var\": "+
+				strconv.Quote(name)+"}` marker supplying the slot")
 		carryTemplatedType(ce, tce)
 	} else if name != "" {
 		ce = invalidWith(field, ReasonPlaceholderUnknown,
@@ -602,4 +614,135 @@ func wrap(key string, raw json.RawMessage) json.RawMessage {
 	b.Write(raw)
 	b.WriteString("}")
 	return b.Bytes()
+}
+
+// applyTargets writes each targeted axis's value into req's params as
+// params.<name> — overriding a value the body declared, declaring an
+// absent one. The params map is a fresh copy, so no slot shares one.
+func applyTargets(req *types.Request, axes []types.SweepAxis, values map[string]any) {
+	var params types.Params
+	for _, ax := range axes {
+		name, ok := TargetParam(ax.Target)
+		if !ok {
+			continue
+		}
+		if params == nil {
+			params = make(types.Params, len(req.Params)+1)
+			for k, v := range req.Params {
+				params[k] = v
+			}
+		}
+		params[name] = values[ax.Name]
+	}
+	if params != nil {
+		req.Params = params
+	}
+}
+
+// targetConflict refuses two routes for one targeted value
+// (ReasonAxisTargetConflict): a `{"$var"}` marker naming a targeted
+// axis anywhere in the request body or the overlays, or a `{"$var"}`
+// marker as the body's own value at a targeted params.<name>. Nil when
+// no axis targets.
+func targetConflict(spec *types.SweepSpec) *errors.CodedError {
+	targeted := make(map[string]string, len(spec.Axes)) // axis → params name
+	byParam := make(map[string]string, len(spec.Axes))  // params name → axis
+	for _, ax := range spec.Axes {
+		if name, ok := TargetParam(ax.Target); ok {
+			targeted[ax.Name] = name
+			byParam[name] = ax.Name
+		}
+	}
+	if len(targeted) == 0 {
+		return nil
+	}
+	for _, part := range []struct {
+		field string
+		raw   json.RawMessage
+	}{{"sweep.request", spec.Request}, {"sweep.overlays", spec.Overlays}} {
+		raw := bytes.TrimSpace(part.raw)
+		if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+			continue
+		}
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+		var doc any
+		if err := dec.Decode(&doc); err != nil {
+			continue // Validate refused a malformed body already
+		}
+		if ce := markerConflict(doc, part.field, targeted); ce != nil {
+			return ce
+		}
+		if part.field != "sweep.request" {
+			continue
+		}
+		body, _ := doc.(map[string]any)
+		declared, _ := body["params"].(map[string]any)
+		for _, key := range sortedKeys(declared) {
+			axis, ok := byParam[key]
+			if !ok {
+				continue
+			}
+			if marker, isMarker := varMarker(declared[key]); isMarker {
+				field := "sweep.request.params." + key
+				return invalidWith(field, ReasonAxisTargetConflict,
+					"sweep request declares params."+key+" as a {\"$var\": "+strconv.Quote(marker)+"} marker, but axis "+
+						strconv.Quote(axis)+" targets params."+key+" — two routes for one value; drop the marker "+
+						"(the target writes the value) or drop the target",
+					map[string]any{"axis": axis, "target": TargetPrefix + key, "placeholder": marker})
+			}
+		}
+	}
+	return nil
+}
+
+// markerConflict walks doc for a `{"$var": name}` marker naming a
+// targeted axis, returning the first in document order (object keys
+// sorted) as ReasonAxisTargetConflict at its sweep-rooted path.
+func markerConflict(doc any, at string, targeted map[string]string) *errors.CodedError {
+	if name, ok := varMarker(doc); ok {
+		if param, hit := targeted[name]; hit {
+			return invalidWith(at, ReasonAxisTargetConflict,
+				"sweep axis "+strconv.Quote(name)+" targets params."+param+" and is also spliced by a {\"$var\": "+
+					strconv.Quote(name)+"} marker at "+at+" — two routes for one value; read params."+param+
+					" instead of the marker, or drop the target and keep the marker",
+				map[string]any{"axis": name, "target": TargetPrefix + param, "placeholder": name})
+		}
+		return nil
+	}
+	switch v := doc.(type) {
+	case map[string]any:
+		for _, k := range sortedKeys(v) {
+			if ce := markerConflict(v[k], at+"."+k, targeted); ce != nil {
+				return ce
+			}
+		}
+	case []any:
+		for i, e := range v {
+			if ce := markerConflict(e, at+"["+strconv.Itoa(i)+"]", targeted); ce != nil {
+				return ce
+			}
+		}
+	}
+	return nil
+}
+
+// varMarker reports whether v is a template slot marker — an object
+// whose ONLY key is `$var` with a string value — and the name it splices.
+func varMarker(v any) (string, bool) {
+	m, ok := v.(map[string]any)
+	if !ok || len(m) != 1 {
+		return "", false
+	}
+	name, ok := m["$var"].(string)
+	return name, ok
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

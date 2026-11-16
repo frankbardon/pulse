@@ -1276,4 +1276,8 @@ type SweepAxisSummary struct {
 	// Range is a sampled axis's interval as written (nil on a values
 	// axis).
 	Range *types.SweepRange `json:"range,omitempty"`
+	// Target echoes the axis's `target` (`params.<name>`): every sweep
+	// slot's request carries the slot's axis value as that param, and
+	// each slot is judged with it. Absent on an untargeted axis.
+	Target string `json:"target,omitempty"`
 }

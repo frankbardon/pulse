@@ -330,6 +330,12 @@ block. `pulse api facet`, `pulse api predict-facet` and the
 variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
 byte-identical to the earlier wire form.
 
+A Compose sweep axis may carry `target: "params.<name>"` (`SweepAxis`,
+same gate): each sweep slot's request then takes the axis value as
+`params.<name>` (declared, or overriding the body's and the batch's
+value). `FilterToFileRequest` (a library-only Go root, not a payload
+root) carries a `params` of its own with the same rules.
+
 ## Materialize output slot
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
@@ -1413,10 +1419,12 @@ there is no chain-level block.
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
 `SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
-overlays, rank}`: `axes` are `SweepAxis {name, values, range}` (`values`
+overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
 a non-empty list of scalars under `grid` / `zip`; `range` a
 `SweepRange {min, max, scale}` — `SweepScale` `linear` default, `log` —
-under `random` / `lhs`, never both), `mode` the closed enum `SweepMode`
+under `random` / `lhs`, never both; `target`, optional, a
+`params.<identifier>` string writing each slot's axis value into that
+request param — present only where `capability:params` is), `mode` the closed enum `SweepMode`
 (`grid` default, `zip`, `random`, `lhs`; the sampling modes draw
 `samples` slots seeded by `rng_seed`, 0 deriving one from the spec), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":

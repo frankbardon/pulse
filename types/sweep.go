@@ -70,8 +70,8 @@ type SweepSpec struct {
 	Rank *SweepRank `json:"rank,omitempty"`
 }
 
-// SweepAxis is one swept parameter: a placeholder Name and the Values it
-// takes. Values are JSON scalars — a number, string or boolean. Decoded
+// SweepAxis is one swept parameter: a placeholder Name (or, with
+// Target, a request param it writes) and the Values it takes. Values are JSON scalars — a number, string or boolean. Decoded
 // numbers are kept as json.Number so a `{{axis}}` substitution renders
 // them exactly as written; a Go caller may supply any integer or finite
 // float kind, a json.Number, a string or a bool. Under a sampling mode
@@ -89,6 +89,17 @@ type SweepAxis struct {
 	// Range is the continuous interval a sampling mode (random / lhs)
 	// draws the axis from. Required there, refused under grid / zip.
 	Range *SweepRange `json:"range,omitempty"`
+
+	// Target, when set, is `params.<name>` (an identifier): each
+	// expanded slot's request takes the axis value as its params.<name>
+	// — overriding a value the body declares, declaring an absent one —
+	// so an expression reading params.<name> varies with the axis and
+	// the body needs no placeholder for it. A compose sweep axis only
+	// (an item for_each axis refuses it: params are request-wide); two
+	// axes may not target one name, and a `{"$var"}` marker naming a
+	// targeted axis is refused (axis_target_conflict). Gated by
+	// capability:params. Empty is absent.
+	Target string `json:"target,omitempty"`
 }
 
 // SweepRange is a sampled sweep axis's closed interval [Min, Max] —

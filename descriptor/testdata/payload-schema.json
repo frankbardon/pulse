@@ -7433,6 +7433,11 @@
         "range": {
           "$ref": "#/$defs/SweepRange"
         },
+        "target": {
+          "description": "params.\u003cname\u003e: each sweep slot's request takes the axis value as params.\u003cname\u003e, overriding a value the body declares and declaring an absent one; the axis then needs no placeholder. A {\"$var\"} marker naming a targeted axis is refused (axis_target_conflict).",
+          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
         "values": {
           "description": "The scalar values the axis takes, in expansion order.",
           "items": {
@@ -8178,4 +8183,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 0ddfa284e2d9e5568eb494e781e423c3d1b93634c1a5543f1cc4a12d3fd8503b
+// golden-hash: 90d1f61c2f54d9efeab67d80c828d4f669aacd90925e7059caf9534afb57e0ed

@@ -591,9 +591,9 @@ func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
 	}
 	axes := make([]descriptor.SweepAxisSummary, len(spec.Axes))
 	for i, ax := range spec.Axes {
-		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
+		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values), Target: ax.Target}
 		if mode.Sampled() {
-			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range}
+			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range, Target: ax.Target}
 		}
 	}
 	out := &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}

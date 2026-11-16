@@ -108,17 +108,30 @@ param, in the request or the sweep overlays — is
 `PredictCompose` and the runtime alike (details `field`, `placeholder`,
 `slot`). Spliced text could rewrite the expression's logic. Carry the
 value through the slot request's `params` instead and read it in the
-expression:
+expression. An axis `target` (`params.<name>`, gated by
+`capability:params`) writes each slot's axis value into its
+`params.<name>` — declaring it, or overriding the body's own value and
+the batch's top-level one — so the body needs no placeholder:
 
 ```jsonc
 "sweep": {
-  "axes": [{"name": "w", "values": [2, 3]}],
+  "axes": [{"name": "w", "values": [2, 3], "target": "params.w"}],
   "request": {
-    "params": {"w": {"$var": "w"}},
     "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave >= params.w"}]
   }
 }
 ```
+
+The `{"$var"}` route — `"params": {"w": {"$var": "w"}}` with an
+untargeted axis — still works and runs the same slots. The two never
+mix on one value: a `{"$var"}` marker naming a targeted axis, or one
+standing as the body's own value at a targeted param, is
+`PULSE_SWEEP_INVALID` reason `axis_target_conflict`. A target must be
+`params.<identifier>` (`target_invalid`), one per param
+(`target_duplicate`), and only a sweep axis takes one — an item
+`for_each` axis is refused `PULSE_FOR_EACH_INVALID` reason
+`target_unsupported`. Predict refuses each identically and echoes an
+axis's `target` on its `sweep.axes` summary.
 
 A `{"$var": "axis"}` marker may still supply a whole expression, the
 axis values then being the complete expression strings.

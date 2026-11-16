@@ -12,6 +12,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -85,6 +86,19 @@ type FilterToFileRequest struct {
 	// to_day or a FILTER_DATE_RANGES applies it to a `datetime` field;
 	// empty runs and hashes exactly as before.
 	TimeZone string `json:"time_zone,omitempty"`
+
+	// Params names constants the predicate reads, read-only, as
+	// params.<name> — the Request.Params contract: the same value rules
+	// (a number, string or bool, or a list of one of those kinds; never
+	// null) and the same refusals (PULSE_PARAMS_INVALID,
+	// PULSE_PARAMS_UNDECLARED, PULSE_PARAMS_FIELD_COLLISION), raised
+	// before any record is read. An inline model's number expressions
+	// read them too. The values (in their typed form) key the dedup
+	// predicate hash, so a run with other values never reuses an
+	// output; nil declares none and hashes exactly as before. Requires
+	// capability:params; an instance hiding it refuses a set key as
+	// PULSE_REQUEST_UNKNOWN_FIELD.
+	Params types.Params `json:"params,omitempty"`
 }
 
 // FilterToFileResult is the structured response from FilterToFileWithRequest.
@@ -144,7 +158,16 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	if len(req.Models) > 0 && !inst.Enabled(descx.FeatureModels) {
 		// A hidden capability:models makes `models` an unknown key, the
 		// refusal Request and FacetRequest give it.
-		return nil, descx.UnknownFieldError([]string{"models"}, filterToFileVisibleKeys(req))
+		return nil, descx.UnknownFieldError([]string{"models"}, filterToFileVisibleKeys(req, inst))
+	}
+	if len(req.Params) > 0 && !inst.Enabled(descx.FeatureParams) {
+		// Likewise a hidden capability:params makes `params` unknown.
+		return nil, descx.UnknownFieldError([]string{"params"}, filterToFileVisibleKeys(req, inst))
+	}
+	// The params block is judged (PULSE_PARAMS_INVALID) before any
+	// hashing or reuse, so an invalid block never meets an output.
+	if _, cerr := exprenv.NormalizeParams(req.Params); cerr != nil {
+		return nil, cerr
 	}
 	expr, direct, err := req.canonicalPredicate(inst, p.registeredFilterer)
 	if err != nil {
@@ -171,7 +194,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	// The request's models load (every file read and decoded) before
 	// any hashing or record read; their content identities key the
 	// dedup hash.
-	ctx, err = p.svc.BindFilterModels(ctx, req.Models)
+	ctx, err = p.svc.BindFilterModels(ctx, req.Models, req.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +245,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	// translate (direct) build through the engine's filterer registry,
 	// as Process builds them. req.TimeZone is the zone the expression's
 	// to_day() reads.
-	rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr, direct, req.TimeZone)
+	rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr, direct, req.TimeZone, req.Params)
 	if err != nil {
 		_ = p.fsys.Remove(tempPath)
 		return nil, err
@@ -421,8 +444,8 @@ func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) 
 	out := make([]modelIdentity, len(refs))
 	for i, r := range refs {
 		if r.Inline != nil {
-			// An inline model is its own content (a filter-to-file
-			// request declares no params, so the body fixes every value).
+			// An inline model is its own content; a number expression
+			// over params reads values the predicate hash keys already.
 			sum := sha256.Sum256(r.Inline)
 			out[i] = modelIdentity{Name: r.Name, SHA256: hex.EncodeToString(sum[:])}
 			continue
@@ -438,14 +461,16 @@ func (p *Pulse) modelIdentities(refs []types.ModelRef) ([]modelIdentity, error) 
 }
 
 // filterToFileVisibleKeys is FilterToFileRequest's JSON keys minus the
-// hidden `models` — the valid_keys of the hidden-slot refusal.
-func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
+// ones inst hides — `models` (capability:models), `params`
+// (capability:params) — the valid_keys of the hidden-slot refusal.
+func filterToFileVisibleKeys(req *FilterToFileRequest, inst *descx.InstanceSnapshot) []string {
 	keys := descx.JSONObjectKeys(req)
 	out := keys[:0]
 	for _, k := range keys {
-		if k != "models" {
-			out = append(out, k)
+		if (k == "models" && !inst.Enabled(descx.FeatureModels)) || (k == "params" && !inst.Enabled(descx.FeatureParams)) {
+			continue
 		}
+		out = append(out, k)
 	}
 	return out
 }
@@ -464,7 +489,10 @@ func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
 // (predicateDependencies: the content digests of the registered tables
 // the predicate references) join the same way, so a predicate naming no
 // table hashes as it always has and a same-named table of other content
-// never shares an output.
+// never shares an output. The request's params join the same way, as
+// the JSON text each value marshals to (the text the run types it from,
+// exprenv.NormalizeParams), so a params-free request hashes as it
+// always has and other values never share an output.
 func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string, zones []descx.AppliedZone, tables []tableIdentity) string {
 	payload := struct {
 		Expression string              `json:"expression,omitempty"`
@@ -473,6 +501,7 @@ func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string,
 		Zone       string              `json:"zone,omitempty"`
 		Zones      []descx.AppliedZone `json:"zones,omitempty"`
 		Tables     []tableIdentity     `json:"tables,omitempty"`
+		Params     types.Params        `json:"params,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
@@ -480,6 +509,7 @@ func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string,
 		Zone:       zone,
 		Zones:      zones,
 		Tables:     tables,
+		Params:     r.Params,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

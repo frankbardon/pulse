@@ -500,6 +500,7 @@ pulse: type FilterToFileRequest field Filterers []*pulse/types.Filterer "json:\"
 pulse: type FilterToFileRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FilterToFileRequest field OutputDir string "json:\"output_dir\""
 pulse: type FilterToFileRequest field OutputName string "json:\"output_name,omitempty\""
+pulse: type FilterToFileRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
 pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
@@ -2361,6 +2362,7 @@ pulse/descriptor: type SweepAxisSummary struct
 pulse/descriptor: type SweepAxisSummary field Count int "json:\"count\""
 pulse/descriptor: type SweepAxisSummary field Name string "json:\"name\""
 pulse/descriptor: type SweepAxisSummary field Range *pulse/types.SweepRange "json:\"range,omitempty\""
+pulse/descriptor: type SweepAxisSummary field Target string "json:\"target,omitempty\""
 pulse/descriptor: type SweepSummary struct
 pulse/descriptor: type SweepSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type SweepSummary field ExpandedCount int "json:\"expanded_count\""
@@ -6812,6 +6814,7 @@ pulse/types: type StageRef field Name string "json:\"name,omitempty\""
 pulse/types: type SweepAxis struct
 pulse/types: type SweepAxis field Name string "json:\"name\""
 pulse/types: type SweepAxis field Range *pulse/types.SweepRange "json:\"range,omitempty\""
+pulse/types: type SweepAxis field Target string "json:\"target,omitempty\""
 pulse/types: type SweepAxis field Values []any "json:\"values,omitempty\""
 pulse/types: type SweepAxis method (*SweepAxis) UnmarshalJSON(data []byte) error
 pulse/types: type SweepMode string
@@ -6980,4 +6983,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2906183d27c224f573a25f7c67fd22d794c5212c385c3b664461c6bb428443ba
+// golden-hash: e900bcea7c4616320fac29f6ed5bc8cc016a48f96795bed8c28143123257ed53

@@ -19,6 +19,9 @@
 //   - axes is non-empty;
 //   - every axis name is an identifier ([A-Za-z_][A-Za-z0-9_]*), unique
 //     within the sweep;
+//   - an axis `target`, when set, is `params.<identifier>` named by no
+//     other axis (target_invalid, target_duplicate); an item for_each
+//     axis refuses any target (target_unsupported);
 //   - every axis carries a non-empty values list of scalars — a number
 //     (json.Number, any integer kind, a finite float), a string or a
 //     boolean; null, objects and arrays are refused;
@@ -51,6 +54,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -74,7 +78,32 @@ const (
 	// ReasonRangeUnsupported: an item for_each axis carries a `range` —
 	// the sampling modes are compose-sweep only.
 	ReasonRangeUnsupported = "range_unsupported"
+	// ReasonTargetInvalid: an axis `target` is not `params.<name>` with
+	// <name> an identifier.
+	ReasonTargetInvalid = "target_invalid"
+	// ReasonTargetDuplicate: two axes target the same params name.
+	ReasonTargetDuplicate = "target_duplicate"
+	// ReasonTargetUnsupported: an item for_each axis carries a `target`
+	// — params are request-wide, so only a compose sweep axis writes one.
+	ReasonTargetUnsupported = "target_unsupported"
+	// ReasonAxisTargetConflict: a targeted axis is also spliced by a
+	// `{"$var"}` marker, or the body's own value at the targeted
+	// params.<name> is a `{"$var"}` marker — two routes for one value.
+	ReasonAxisTargetConflict = "axis_target_conflict"
 )
+
+// TargetPrefix is the one target form an axis takes: `params.<name>`.
+const TargetPrefix = "params."
+
+// TargetParam returns the params name an axis target writes and whether
+// target is well formed (`params.<identifier>`).
+func TargetParam(target string) (string, bool) {
+	name, ok := strings.CutPrefix(target, TargetPrefix)
+	if !ok || !isIdentifier(name) {
+		return "", false
+	}
+	return name, true
+}
 
 // The reason values PULSE_SWEEP_MODE_MISMATCH carries under
 // details.reason.
@@ -199,11 +228,14 @@ type axisRules struct {
 	// sampling admits the sampling modes (random / lhs) and range axes:
 	// the compose sweep only.
 	sampling bool
+	// targets admits an axis `target` (`params.<name>`): the compose
+	// sweep only — an item's params are not request params.
+	targets bool
 }
 
 // sweepRules is the ComposedRequest `sweep` rule set: the only surface
 // with the sampling modes.
-var sweepRules = axisRules{root: "sweep", noun: "sweep", code: errors.PULSE_SWEEP_INVALID, sampling: true}
+var sweepRules = axisRules{root: "sweep", noun: "sweep", code: errors.PULSE_SWEEP_INVALID, sampling: true, targets: true}
 
 // EnumerationModeRefusal is the compose sweep's mode check on an
 // instance that hides the sampling modes
@@ -332,6 +364,9 @@ func (r axisRules) validateAxes(axes []types.SweepAxis, mode types.SweepMode) *e
 				map[string]any{"first": r.axisPath(first)})
 		}
 		seen[ax.Name] = i
+		if ce := r.validateTarget(at, ax, axes[:i]); ce != nil {
+			return ce
+		}
 		if sampled {
 			if ce := validateRangeAxis(at, ax, mode); ce != nil {
 				return ce
@@ -378,6 +413,37 @@ func (r axisRules) validateAxes(axes []types.SweepAxis, mode types.SweepMode) *e
 						"; zip walks the axes in lockstep, so every axis needs the same length",
 					map[string]any{"lengths": axisLengths(axes)})
 			}
+		}
+	}
+	return nil
+}
+
+// validateTarget is one axis's `target` rule: absent, or (compose sweep
+// only) `params.<identifier>` named by no earlier axis.
+func (r axisRules) validateTarget(at string, ax types.SweepAxis, earlier []types.SweepAxis) *errors.CodedError {
+	if ax.Target == "" {
+		return nil
+	}
+	name := describe(at, ax.Name)
+	if !r.targets {
+		return r.invalid(at+".target", ax.Name, ReasonTargetUnsupported,
+			r.noun+" axis "+name+" sets target "+strconv.Quote(ax.Target)+"; only a compose sweep axis targets "+
+				"request params (params are request-wide) — splice the value with a {\"$var\": "+strconv.Quote(ax.Name)+"} marker instead",
+			map[string]any{"value": ax.Target})
+	}
+	param, ok := TargetParam(ax.Target)
+	if !ok {
+		return r.invalid(at+".target", ax.Name, ReasonTargetInvalid,
+			r.noun+" axis "+name+" target "+strconv.Quote(ax.Target)+" is not params.<name> with <name> an identifier "+
+				"([A-Za-z_][A-Za-z0-9_]*)",
+			map[string]any{"value": ax.Target})
+	}
+	for j, prev := range earlier {
+		if p, _ := TargetParam(prev.Target); p == param {
+			return r.invalid(at+".target", ax.Name, ReasonTargetDuplicate,
+				r.noun+" axes "+describe(r.axisPath(j), prev.Name)+" and "+name+" both target "+strconv.Quote(ax.Target)+
+					"; one axis writes one param — drop a target or zip the values into one axis",
+				map[string]any{"value": ax.Target, "first": r.axisPath(j)})
 		}
 	}
 	return nil
