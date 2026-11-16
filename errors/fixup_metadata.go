@@ -1106,6 +1106,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Windows", "*"},
 				Hint:   "details.reason windows_first_reads_aggregate: an aggregation, grouper or crosstab axis reads a window output, so the windows run first over the records and no aggregation label exists yet — drop the window-output read from the aggregations (the windows then run over the aggregated rows again), or materialize the windows first and aggregate the derived cohort in a second request.",
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Windows", "*", "Params"},
+				Hint:   "details.reason default_not_a_label: a WIN_LAG / WIN_LEAD over a categorical fills a missing neighbour with params.default, a cell of the lagged category — set it to one of details.field's dictionary labels exactly (pulse inspect lists them), or drop it for null.",
+			},
 		},
 	},
 	PULSE_FIELD_TYPE_UNSUPPORTED: {
@@ -1125,6 +1130,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "Field"},
 				Hint:   "ATTR_PREVIOUS_STATE reads a categorical_* or packed_bool state: a state stored as coded integers has no labels to carry, so re-import it as a categorical (an explicit import schema typing the column categorical_u8) and name that field.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Windows", "*"},
+				Hint:   "details.reason categorical_window_output: details.field is a lagged category (a WIN_LAG / WIN_LEAD of a categorical, window details.window_index), read only as a GROUP_CATEGORY key (a request group or a crosstab axis) or by another WIN_LAG / WIN_LEAD — key it with GROUP_CATEGORY, or materialize the window first and read the stored categorical in a second request.",
 			},
 		},
 	},

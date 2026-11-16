@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Plan switching with a lagged category: WIN_LAG copies plan from the same customer's previous month-end snapshot (partition by customer, order by date). The lag of a categorical is a categorical on plan's dictionary, so a prev_plan x plan crosstab counts the moves with plan names on both axes (windows-first). Each customer's first snapshot has no previous plan (null) and drops from the row axis.",
+    "intents": [
+      "flows",
+      "change_over_time"
+    ],
+    "name": "win_lag_category_flows",
+    "operators": [
+      "AGG_COUNT",
+      "GROUP_CATEGORY",
+      "WIN_LAG"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "cross-tabulation"
+    ]
+  },
+  "cohort": {
+    "filename": "plan_history.pulse",
+    "data_dir": ".data"
+  },
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "prev_plan"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "plan"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "moves"
+    }
+  },
+  "windows": [
+    {
+      "type": "WIN_LAG",
+      "field": "plan",
+      "label": "prev_plan",
+      "partition_by": [
+        "customer_id"
+      ],
+      "order_by": [
+        {
+          "field": "seen_at"
+        }
+      ]
+    }
+  ]
+}

@@ -1052,6 +1052,13 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			w.out = append(w.out, cerr)
 		}
 	}
+	// 14. A lagged category (a WIN_LAG / WIN_LEAD of a categorical) read
+	// as anything but a GROUP_CATEGORY key or a copy window's field
+	// (vectors.CategoricalWindowRefusal — the engine's applyWindows
+	// raises the same).
+	if cerr := vectors.CategoricalWindowRefusal(req, schema, cls); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
 	return w.out, pw
 }
 

@@ -18,7 +18,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `offset` | int | `1` | Lookahead distance (≥ 0). |
-| `default` | any | — | Substitute when offset crosses partition end; absent: `null`. |
+| `default` | any | — | Substitute when offset crosses partition end; absent: `null`. Over a categorical: a dictionary label, else `PULSE_WINDOW_INVALID` `default_not_a_label`. |
 
 `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden).
 
@@ -28,13 +28,13 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Output
 
-One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word. When `i + offset >= partition_len` emits `default` if set, else `null`.
+One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word and a categorical its label — a lagged category on the source dictionary. When `i + offset >= partition_len` emits `default` if set, else `null`.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- Mirror of a lag — same partition / order / frame rules, opposite scan direction.
+- Mirror of a lag — same partition / order / frame rules (a lagged category included: `op-win-lag`), opposite scan direction.
 - `order_by` required, `frame` forbidden.
 - Result rows are NOT reordered by `order_by` — use `Request.Sort` for response order.
 

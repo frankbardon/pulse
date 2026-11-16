@@ -101,6 +101,12 @@ type Processor struct {
 	// request has no such slot. Only GROUP_CATEGORY is built against it
 	// (grouperSchema) — never a decode, stride or aggregator schema.
 	keySchema *encoding.Schema
+	// groupKeys is keySchema plus one virtual field per lagged category
+	// (prevstate.WindowKeys: a WIN_LAG / WIN_LEAD of a categorical,
+	// typed as its source on its dictionary) — the GROUP_CATEGORY key
+	// view (grouperSchema). Set by prepare; keySchema itself when the
+	// request lags no category, so expressions never see it.
+	groupKeys *encoding.Schema
 	// u64Aliases are the current run's formula aliases of u64 fields
 	// (prevstate.U64Aliases; nil: none), set by prepare beside
 	// keySchema: an expression reading one binds the field's word.
@@ -114,7 +120,7 @@ type Processor struct {
 // field itself), the cohort schema for every other grouper — whose
 // construction and keys stay exactly what they were.
 func (p *Processor) grouperSchema(grp *types.Group) *encoding.Schema {
-	return GrouperKeySchema(grp, p.schema, p.keySchema)
+	return GrouperKeySchema(grp, p.schema, p.groupKeys)
 }
 
 // GrouperKeySchema is the schema grp's grouper is built against over

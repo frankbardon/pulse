@@ -121,6 +121,16 @@ func windowValue(ft encoding.FieldType) bool {
 	return false
 }
 
+// copyValue is the copy windows' (WIN_LAG / WIN_LEAD) set: windowValue
+// plus categorical_*. A copy reads no number — its output is the source
+// cell verbatim — so a category copies as its dictionary label and the
+// output is a categorical column on the source's dictionary
+// (windowparams.CategoricalLags). set_*, decimal128, packed_bool and
+// datetime stay out with the rest of the value windows.
+func copyValue(ft encoding.FieldType) bool {
+	return windowValue(ft) || ft.IsCategorical()
+}
+
 // polyValue is FEAT_POLY's set: windowValue plus decimal128, which the
 // expansion reads through its float64 echo.
 func polyValue(ft encoding.FieldType) bool {
@@ -353,8 +363,9 @@ func add(class func(encoding.FieldType) bool, code errors.Code, slots []Slot, op
 
 func init() {
 	field := []Slot{SlotField}
+	add(copyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "WIN_LAG", "WIN_LEAD")
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field,
-		"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
+		"WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
 		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_DISTRIBUTED_LAG")
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotField, SlotBase}, "WIN_LIFT")
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")

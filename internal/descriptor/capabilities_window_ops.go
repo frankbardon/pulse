@@ -27,13 +27,13 @@ func windowCapabilities() []descriptor.Operator {
 			Description: "Return the value of Field from the row N positions before the current row in the ordered partition.",
 			Params: []descriptor.Param{
 				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 0; 0 reads the current row itself)."},
-				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookback row does not exist."},
+				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookback row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."},
 			},
 			AcceptsTypes: tableAcceptsTypes(types.WIN_LAG),
 			// No EmitsType: the output is a verbatim copy of the source
 			// cell, so its type is the source field's (a u64 keeps its
 			// exact word), and params.default is emitted as given.
-			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookback row's cell; params.default (any JSON value) where the offset crosses the partition start",
+			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookback row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition start, else null",
 			Streamable:    false,
 		},
 		{
@@ -42,11 +42,11 @@ func windowCapabilities() []descriptor.Operator {
 			Description: "Return the value of Field from the row N positions after the current row in the ordered partition.",
 			Params: []descriptor.Param{
 				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookahead offset (≥ 0; 0 reads the current row itself)."},
-				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookahead row does not exist."},
+				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookahead row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."},
 			},
 			AcceptsTypes: tableAcceptsTypes(types.WIN_LEAD),
 			// No EmitsType: a verbatim copy of the source cell (see WIN_LAG).
-			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookahead row's cell; params.default (any JSON value) where the offset crosses the partition end",
+			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookahead row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition end, else null",
 			Streamable:    false,
 		},
 		{

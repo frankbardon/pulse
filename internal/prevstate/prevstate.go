@@ -11,8 +11,12 @@
 // adds the extension attributes declaring an inherited dictionary
 // (Inherits, inherit.go).
 //
+// WindowKeys (window_keys.go) adds the lagged categories (a WIN_LAG /
+// WIN_LEAD of a categorical) to a view, for the GROUP_CATEGORY keys.
+//
 // It is a leaf: it imports only the public errors / encoding / types
-// packages, internal/fieldaccept and internal/paramread, never internal/processing or
+// packages, internal/fieldaccept, internal/paramread and
+// internal/windowparams, never internal/processing or
 // internal/service, so internal/descriptor may import it without
 // breaking TestPredictNoExecutionImports.
 package prevstate

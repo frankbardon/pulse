@@ -6701,10 +6701,13 @@
               "name": "default",
               "type": "any",
               "required": false,
-              "description": "Substitute value when the lookback row does not exist."
+              "description": "Substitute value when the lookback row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."
             }
           ],
           "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
             "date",
             "f32",
             "f64",
@@ -6714,7 +6717,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "matches the source field type: a verbatim copy of the lookback row's cell; params.default (any JSON value) where the offset crosses the partition start",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookback row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition start, else null",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -6740,10 +6743,13 @@
               "name": "default",
               "type": "any",
               "required": false,
-              "description": "Substitute value when the lookahead row does not exist."
+              "description": "Substitute value when the lookahead row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."
             }
           ],
           "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
             "date",
             "f32",
             "f64",
@@ -6753,7 +6759,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "matches the source field type: a verbatim copy of the lookahead row's cell; params.default (any JSON value) where the offset crosses the partition end",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookahead row's cell (a categorical copies its label, so the output is a categorical on the source dictionary — groupable by GROUP_CATEGORY); params.default where the offset crosses the partition end, else null",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -13553,6 +13559,10 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
+        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -13589,6 +13599,10 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
+        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -13624,6 +13638,10 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
+        ],
+        "compatible_windows": [
+          "WIN_LAG",
+          "WIN_LEAD"
         ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
@@ -15588,7 +15606,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 278,
+    "examples_count": 279,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21603,4 +21621,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8744c3e629daa02621017f688ebea0b78881417eda506e37182d75634c5e99c4
+// golden-hash: 0fab3ca842fd9845365872dc46a39dbfd267a4ce4b809d3a42eba78fc9efd3d8

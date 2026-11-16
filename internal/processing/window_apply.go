@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/scalarslot"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowscalar"
 
 	"github.com/frankbardon/pulse/internal/fieldaccept"
@@ -46,7 +47,7 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, req
 	if err != nil {
 		return err
 	}
-	for _, w := range windows {
+	for i, w := range windows {
 		if w == nil {
 			continue
 		}
@@ -63,6 +64,11 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, req
 		if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, p.schema); cerr != nil {
 			return cerr
 		}
+		// A copy window over a categorical: its params.default must be
+		// a dictionary label (predict validateWindows reports the same).
+		if ref := windowparams.CategoricalDefaultRefusal(windows, i, p.schema); ref != nil {
+			return ref.Coded()
+		}
 		// WIN_LIFT's base column, judged like its field (predict
 		// validateWindows reports the same error). A slot the shared
 		// reading refuses is left to the factory's refusal.
@@ -73,6 +79,13 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, req
 				}
 			}
 		}
+	}
+	// A lagged category (a WIN_LAG / WIN_LEAD of a categorical) read as
+	// anything but a GROUP_CATEGORY key or a copy window's field: the
+	// field-reference walk's refusal (vectors.CategoricalWindowRefusal),
+	// raised before any row for a processor driven without the service.
+	if cerr := vectors.CategoricalWindowRefusal(req, p.schema, p.classifier()); cerr != nil {
+		return cerr
 	}
 	// A WIN_FORMULA compiles against the registry's request-bound
 	// declarations (params, ExprFunctions, lookup, range_label) — the

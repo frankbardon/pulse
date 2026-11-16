@@ -460,8 +460,10 @@ const (
 
 	// PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC indicates a derived value a
 	// Pulse.Materialize run cannot store in its f64 column — a window
-	// copying a categorical, set or decimal source value, or a
-	// non-numeric lag/lead default. details carry column and value_type.
+	// copying a set or decimal source value (a lagged categorical is
+	// written as its source's categorical), an extension window writing
+	// strings, or a non-numeric lag/lead default over a numeric field.
+	// details carry column and value_type.
 	// The run fails with no target written.
 	PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC Code = "PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC"
 

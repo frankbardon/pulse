@@ -17,6 +17,11 @@ import (
 type DerivedColumn struct {
 	Name   string
 	Window bool
+	// Dictionary, set on a window column, marks a lagged category
+	// (windowparams.CategoricalLags): its cells are emitted as their
+	// codes in this, the source's dictionary (categoricalCode), which
+	// the sink writes as the inherited categorical column.
+	Dictionary *encoding.Dictionary
 }
 
 // DeriveWarnings returns the Response-level warnings the last
@@ -159,6 +164,14 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 		rec := filtered[i]
 		values := make([]any, len(cols))
 		for c, col := range cols {
+			if col.Window && col.Dictionary != nil {
+				v, err := categoricalCode(col.Name, col.Dictionary, rows[i][col.Name])
+				if err != nil {
+					return err
+				}
+				values[c] = v
+				continue
+			}
 			if col.Window {
 				v, err := derivedFloat(col.Name, rows[i][col.Name])
 				if err != nil {
@@ -201,6 +214,26 @@ func sortKeyRows(records []*Record, keys []types.OrderKey) ([]map[string]any, er
 		out[i] = m
 	}
 	return out, nil
+}
+
+// categoricalCode converts one lagged-category cell (a dictionary label,
+// windowparams.CategoricalLags) to its code in dict as a float64 — the
+// form a record and an inherited-dictionary column carry; nil stays
+// nil. A label dict lacks cannot occur (the cells are the source's
+// labels, a default is validated against dict) and is
+// PROCESSING_INTERNAL.
+func categoricalCode(column string, dict *encoding.Dictionary, v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	if s, ok := v.(string); ok && dict != nil {
+		if id, found := dict.IDFor(s); found {
+			return float64(id), nil
+		}
+	}
+	return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		"lagged category "+column+" holds a value outside its source dictionary",
+		map[string]any{"column": column, "value_type": fmt.Sprintf("%T", v)})
 }
 
 // derivedFloat converts one window output cell to the materialized
