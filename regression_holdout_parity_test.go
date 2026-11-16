@@ -434,12 +434,14 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 
 // bayesHoldoutPreCarry are REG_MMM_BAYES's engine-holdout figures on
 // the parity case before carry-over existed (its held-out channel
-// columns scored as given), recorded on the commit that added
-// carry-over (arm64): params.carryover false must reproduce them.
+// columns scored as given), recorded on the commit before carry-over
+// (db020da99^) over the detmath fixture (windowParityRowsDigest) —
+// the same bits on arm64 and linux/amd64: params.carryover false must
+// reproduce them.
 var bayesHoldoutPreCarry = struct {
 	n             int
 	rmse, mae, r2 float64
-}{12, 87.77602283475005, 80.63504090720453, -30.537788305256186}
+}{12, 55.203258668686779, 47.849859915911452, -11.474089794004604}
 
 // TestHoldout_BayesCarryoverOptOut: REG_MMM_BAYES under params.carryover
 // false scores its held-out channel columns as given — the pre-carry-

@@ -2,6 +2,8 @@ package pulse
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -202,8 +205,12 @@ func bitDiff(path string, a, b reflect.Value, diffs *[]string) {
 // tv / radio / search spend, sales and a frequency weight w. Sales
 // carry real adstock, lag and saturation structure so every fit is
 // well-conditioned; search enters negatively so bounds.nonnegative
-// binds. Products are float64()-barriered (agent-practices: generator
-// rule) though parity itself never depends on the inputs.
+// binds. Products are float64()-barriered and the transcendentals are
+// detmath's (agent-practices: generator rule): the rows are the same
+// bits on every arch. Parity never depends on the inputs, but a pinned
+// figure does — a short NUTS chain (TestHoldout_BayesCarryoverOptOut)
+// amplifies a one-ulp math.Sin difference (arm64 fuses inside the
+// stdlib) into a different posterior.
 const windowParityWeeks = 52
 
 func windowParitySchema() encoding.Schema {
@@ -233,17 +240,48 @@ func windowParityRows() []CohortRow {
 		ad, prevRadio := 0.0, 0.0
 		for wk := 1; wk <= windowParityWeeks; wk++ {
 			x := float64(wk + 17*mi)
-			tv := 400 + float64(300*math.Sin(x/3)) + float64(40*float64(wk%5))
-			radio := 120 + float64(80*math.Cos(x/4)) + float64(15*float64(wk%3))
-			search := 50 + float64(30*math.Sin(x/2+1)) + float64(5*float64(wk%7))
+			tv := 400 + float64(300*detmath.Sin(x/3)) + float64(40*float64(wk%5))
+			radio := 120 + float64(80*detmath.Cos(x/4)) + float64(15*float64(wk%3))
+			search := 50 + float64(30*detmath.Sin(x/2+1)) + float64(5*float64(wk%7))
 			ad = tv + float64(0.6*ad)
-			sales := 200 + float64(0.05*ad) + float64(0.3*prevRadio) - float64(4*math.Log1p(search)) +
-				float64(0.5*float64(wk)) + float64(3*math.Sin(float64(7*wk+mi)))
+			sales := 200 + float64(0.05*ad) + float64(0.3*prevRadio) - float64(4*detmath.Log1p(search)) +
+				float64(0.5*float64(wk)) + float64(3*detmath.Sin(float64(7*wk+mi)))
 			rows = append(rows, CohortRow{m, uint64(wk), tv, radio, search, sales, float64(1 + (wk+mi)%3)})
 			prevRadio = radio
 		}
 	}
 	return rows
+}
+
+// windowParityRowsDigest is the sha256 of every windowParityRows value
+// (float64 as its bits): the fixture is the same bits on every arch, so
+// a figure pinned over it (bayesHoldoutPreCarry) holds in amd64 CI. A
+// stdlib transcendental in the generator moves it on arm64 alone.
+const windowParityRowsDigest = "421b76d0b77aa2678a69a18cc24a097ba746c788d9524cd4de0d9cd1644ac0ec"
+
+func windowParityRowsSum() string {
+	h := sha256.New()
+	for _, r := range windowParityRows() {
+		for _, v := range r {
+			if f, ok := v.(float64); ok {
+				v = math.Float64bits(f)
+			}
+			fmt.Fprintf(h, "%v,", v)
+		}
+		h.Write([]byte{'\n'})
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// TestWindowParityRows_PortableBits: the fixture's bits are pinned, so a
+// generator that is not portable across arches (a math.Sin fused on
+// arm64 only) fails locally rather than as a pinned figure in amd64 CI.
+func TestWindowParityRows_PortableBits(t *testing.T) {
+	t.Parallel()
+
+	if got := windowParityRowsSum(); got != windowParityRowsDigest {
+		t.Errorf("windowParityRows digest = %s, want %s: generate with detmath and float64() barriers, never a stdlib transcendental", got, windowParityRowsDigest)
+	}
 }
 
 // windowParityPulse builds a hermetic instance (opts.FS replaced) with
