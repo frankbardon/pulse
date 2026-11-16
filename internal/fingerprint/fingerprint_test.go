@@ -62,6 +62,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/internal/gp"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/sweep/sweeptest"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -172,6 +173,20 @@ var directFigures = []directFigure{
 	{"sweep.de(rosenbrock+log,seed=7).best_x", func() float64 { return deSearch().x }},
 	{"sweep.de(rosenbrock+log,seed=7).best_lambda", func() float64 { return deSearch().lambda }},
 	{"sweep.de(rosenbrock+log,seed=7).sum", func() float64 { return deSearch().sum }},
+
+	// compose-sweep-2 E4-S1: the Gaussian-process surrogate behind mode
+	// bo (internal/gp) — the Matérn-5/2 ARD kernel over a mixed
+	// continuous / one-hot space, the reference Cholesky, the LML and
+	// its gradient, seeded SLSQP ML-II restarts, the posterior — fitted
+	// on gpFit's fixed design.
+	{"gp.Fit(mixed,seed=5).lml", func() float64 { return gpFit().lml }},
+	{"gp.Fit(mixed,seed=5).amplitude", func() float64 { return gpFit().amp }},
+	{"gp.Fit(mixed,seed=5).length_scale0", func() float64 { return gpFit().ls0 }},
+	{"gp.Fit(mixed,seed=5).length_scale1", func() float64 { return gpFit().ls1 }},
+	{"gp.Fit(mixed,seed=5).noise", func() float64 { return gpFit().noise }},
+	{"gp.Fit(mixed,seed=5).mean", func() float64 { return gpFit().mean }},
+	{"gp.Fit(mixed,seed=5).variance", func() float64 { return gpFit().variance }},
+	{"gp.LogMarginalLikelihood(mixed).grad_sum", func() float64 { return gpFit().gradSum }},
 }
 
 // deFigures is deSearch's outcome.
@@ -217,6 +232,55 @@ var deSearch = sync.OnceValue(func() deFigures {
 		}
 	}
 	out.best, out.x, out.lambda = b.Value, num(b.Axes["x"]), num(b.Axes["lambda"])
+	return out
+})
+
+// gpFigures is gpFit's outcome.
+type gpFigures struct{ lml, amp, ls0, ls1, noise, mean, variance, gradSum float64 }
+
+// gpFit fits internal/gp (default options, seed 5: five SLSQP starts) on
+// 14 points of a continuous × 3-level categorical space with targets
+// sin(5u)·(1 + level/2), every product rounded before its add, and
+// probes the posterior at (0.37, level 1); gradSum is the θ-gradient's
+// sum at fixed hyperparameters.
+var gpFit = sync.OnceValue(func() gpFigures {
+	sp, err := gp.NewSpace([]gp.Dim{{}, {Levels: 3}})
+	if err != nil {
+		panic(err)
+	}
+	var x [][]float64
+	var y []float64
+	for i := range 14 {
+		u := float64(i) / 13
+		k := (i * 7) % 3
+		row, err := sp.Encode([]float64{u, 0}, []int{0, k})
+		if err != nil {
+			panic(err)
+		}
+		x = append(x, row)
+		y = append(y, float64(detmath.Sin(5*u)*float64(1+float64(k)/2)))
+	}
+	m, err := gp.Fit(sp, x, y, gp.FitOptions{Seed: 5})
+	if err != nil {
+		panic(err)
+	}
+	probe, err := sp.Encode([]float64{0.37, 0}, []int{0, 1})
+	if err != nil {
+		panic(err)
+	}
+	mean, variance, err := m.Predict(probe)
+	if err != nil {
+		panic(err)
+	}
+	_, grad, err := gp.LogMarginalLikelihood(sp, x, y, gp.Hyper{Amplitude: 1.1, LengthScales: []float64{0.3, 0.8}, Noise: 1e-3}, gp.DefaultNugget)
+	if err != nil {
+		panic(err)
+	}
+	h := m.Hyper()
+	out := gpFigures{lml: m.LogMarginalLikelihood(), amp: h.Amplitude, ls0: h.LengthScales[0], ls1: h.LengthScales[1], noise: h.Noise, mean: mean, variance: variance}
+	for _, g := range grad {
+		out.gradSum += g
+	}
 	return out
 })
 

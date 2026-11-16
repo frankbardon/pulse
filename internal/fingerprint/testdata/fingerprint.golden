@@ -47,6 +47,14 @@ facet.mtcars.numeric:fields.wt.numeric.percentiles.p33.300000000000004 0x40067c4
 facet.mtcars.numeric:fields.wt.numeric.percentiles.p50 0x400a99999999999a 3.3250000000000002
 facet.mtcars.numeric:fields.wt.numeric.percentiles.p90 0x401030a3d70a3d72 4.0475000000000012
 facet.mtcars.numeric:fields.wt.numeric.stddev 0x3fef4f85fbc5649e 0.97845744298969684
+gp.Fit(mixed,seed=5).amplitude 0x3ff8bc7ea188faa2 1.5460192022289125
+gp.Fit(mixed,seed=5).length_scale0 0x3fdca98e90994900 0.44784893151258132
+gp.Fit(mixed,seed=5).length_scale1 0x4010b657b9f9b5ff 4.1780690249120189
+gp.Fit(mixed,seed=5).lml 0xc02250e23057f31e -9.157975683914227
+gp.Fit(mixed,seed=5).mean 0x3ff7699a84845ff0 1.4632821251343522
+gp.Fit(mixed,seed=5).noise 0x3eb0c6f7a0b5ed8f 1.0000000000000004e-06
+gp.Fit(mixed,seed=5).variance 0x3f73af292a735156 0.0048057182350088237
+gp.LogMarginalLikelihood(mixed).grad_sum 0x40110776efd5cfaf 4.2572896456003226
 linalg.CholeskyRidge(indefinite).L00 0x3ff00246528079d6 1.0005553457955236
 linalg.CholeskyRidge(indefinite).L10 0x3feffb74007aecdd 0.99944496244225045
 linalg.CholeskyRidge(indefinite).L11 0x3fa1e3964d96de81 0.034939476939539034
@@ -1707,4 +1715,4 @@ weighting.Welford.SumWSq 0x406c200000000000 225
 weighting.Welford.Variance(frequency) 0x4009ab02dbc8da8c 3.2085015459700283
 weighting.Welford.Variance(probability) 0x4009af242aed5831 3.2105182031328003
 
-// golden-hash: 48892266e8acba932127fbe32584663983d4b6cff301f7037768940439e4fe68
+// golden-hash: 4030fe28a595e7b36d241dce852efa43e5b7e984492ad8b7b7e807fbcbf24941
