@@ -7249,7 +7249,7 @@
         {
           "name": "FEAT_TRAIN_TEST_SPLIT",
           "category": "feature",
-          "description": "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows.",
+          "description": "Emit a deterministic split assignment column (0=train, 1=val, 2=test) for ML workflows: a seeded shuffle, or a time boundary (mode temporal).",
           "params": [
             {
               "name": "ratios",
@@ -7268,8 +7268,26 @@
               "name": "stratify",
               "type": "field",
               "required": false,
-              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance.",
+              "description": "Optional categorical or packed_bool field; ratios are applied per level for class balance. Random mode only.",
               "field_filter": "categorical",
+              "names_column": true
+            },
+            {
+              "name": "mode",
+              "type": "enum",
+              "required": false,
+              "default": "random",
+              "description": "random shuffles (seed, stratify); temporal sends the earliest rows by order_by to train and the latest to test, val between, never splitting rows that share an order value. Temporal refuses seed and stratify and runs buffered.",
+              "enum_values": [
+                "random",
+                "temporal"
+              ]
+            },
+            {
+              "name": "order_by",
+              "type": "field",
+              "required": false,
+              "description": "Temporal mode only: the date, datetime or unsigned integer field ordering the rows; a row whose value is null joins no partition (null split value).",
               "names_column": true
             }
           ],
@@ -15606,7 +15624,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 279,
+    "examples_count": 280,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -21621,4 +21639,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0fab3ca842fd9845365872dc46a39dbfd267a4ce4b809d3a42eba78fc9efd3d8
+// golden-hash: 2197a328fdc86ba446d5995abe4336a10c083a7a15740fed4a771a5bee03bf5e

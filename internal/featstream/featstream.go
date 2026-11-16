@@ -15,18 +15,25 @@
 //     reads (internal/targetencode.Streamable);
 //   - FEAT_BUCKETIZE in quantile mode: its field.
 //
+// One spec routes buffered by design, whatever it reads:
+//
+//   - FEAT_TRAIN_TEST_SPLIT in temporal mode (internal/splitmode): it
+//     sorts every row by params.order_by before it assigns one.
+//
 // The other built-ins either read only stored levels (FEAT_FREQUENCY_ENCODE
 // and FEAT_TRAIN_TEST_SPLIT read categorical / packed_bool levels, which a
 // derived numeric column never carries — null on both arms alike) or are
 // row-local (their pre-pass is a no-op and pass 2 emits in order).
 //
-// Leaf: the public encoding / types packages + targetencode + paramread
-// (a Probe: the operator itself decodes and records its params).
+// Leaf: the public encoding / types packages + targetencode + splitmode
+// + paramread (a Probe: the operator itself decodes and records its
+// params).
 package featstream
 
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/splitmode"
 	"github.com/frankbardon/pulse/internal/targetencode"
 	"github.com/frankbardon/pulse/types"
 )
@@ -49,6 +56,16 @@ func Streamable(feat *types.Feature, schema *encoding.Schema) (bool, string) {
 		}
 		if !targetencode.Streamable(feat.Field, p, schema) {
 			return false, "feature FEAT_TARGET_ENCODE reads a column an earlier feature derives (field, target or fit_on), which the streaming pre-pass does not see"
+		}
+	case types.FEAT_TRAIN_TEST_SPLIT:
+		var p struct {
+			Mode string `json:"mode"`
+		}
+		if len(feat.Params) > 0 && paramread.Probe(feat.Params, &p) != nil {
+			return true, ""
+		}
+		if splitmode.IsTemporal(p.Mode) {
+			return false, "feature FEAT_TRAIN_TEST_SPLIT in temporal mode sorts every row by params.order_by, so it runs buffered"
 		}
 	case types.FEAT_BUCKETIZE:
 		var p struct {

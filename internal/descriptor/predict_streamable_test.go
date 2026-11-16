@@ -841,6 +841,16 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"ordered min on categorical streams", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MIN, Field: "g", Params: json.RawMessage(`{"levels":["b","a"]}`)}}}, teSchema},
 		{"ordered max on categorical streams", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MAX, Field: "g", Params: json.RawMessage(`{"ordered":true}`)}}}, teSchema},
 		{"ordered median on categorical buffers", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "g", Params: json.RawMessage(`{"ordered":true}`)}}}, teSchema},
+		// E4-S2 #571: a temporal split sorts every row by order_by and
+		// routes buffered (featstream); a random split streams.
+		{"split random streams", &types.Request{
+			Features:     []*types.Feature{{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.8,0.2],"mode":"random","seed":3}`)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "split", Label: "n_val"}},
+		}, teSchema},
+		{"split temporal buffers", &types.Request{
+			Features:     []*types.Feature{{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.8,0.2],"mode":"temporal","order_by":"s"}`)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "split", Label: "n_val"}},
+		}, teSchema},
 		{"target encode streams", teReq(`{"target":"y"}`, nil), teSchema},
 		{"target encode fit_on stored streams", teReq(`{"target":"y","fit_on":"s == 0","folds":3,"rng_seed":1}`, nil), teSchema},
 		{"target encode fit_on derived buffers", teReq(`{"target":"y","fit_on":"split == 0"}`, func(r *types.Request) {
@@ -948,9 +958,9 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 				t.Errorf("predict.Streamable=%v but runtime CanStreamRequest=%v (reasons: %v)",
 					result.Streamable, runtime, result.StreamableReasons)
 			}
-			// The U59 MAT_SEM rows also pin the verdict their name states,
+			// The U59 MAT_SEM rows (and the E4-S2 split rows) also pin the verdict their name states,
 			// so the parity is not vacuous.
-			if strings.HasPrefix(c.name, "MAT_SEM") && runtime != strings.HasSuffix(c.name, " streams") {
+			if (strings.HasPrefix(c.name, "MAT_SEM") || strings.HasPrefix(c.name, "split ")) && runtime != strings.HasSuffix(c.name, " streams") {
 				t.Errorf("%s: streamable = %v", c.name, runtime)
 			}
 		})

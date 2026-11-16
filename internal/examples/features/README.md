@@ -56,6 +56,7 @@ errors.
 | `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
 | `10_full_ml_pipeline.json` | All eight | Compose the full preprocessing graph |
 | `12_date_features_datetime.json` | `FEAT_DATE_FEATURES` | Local calendar features + `hour` of a `datetime` (request `time_zone`) |
+| `13_train_test_split_temporal.json` | `FEAT_TRAIN_TEST_SPLIT` | Temporal 80/20 holdout on `order_date` (`mode: "temporal"`) |
 
 ## Required fields per example
 
@@ -72,6 +73,7 @@ errors.
 | 09 | categorical `category`, numeric `price` |
 | 10 | categorical `region`/`occupation`/`category`, numeric `income`/`label`, date `signup_date`, identifier `id` |
 | 12 | datetime `ordered_at`, identifier `id` |
+| 13 | date `order_date`, identifier `id` |
 
 If you adapt to a different cohort, run `pulse cohort inspect <file>.pulse --json`
 to see the actual schema and edit the request `field` values to match.

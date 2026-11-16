@@ -12,7 +12,7 @@ The feature operators this instance offers: what each is for, the questions it a
 | [`FEAT_POLY`](#op-feat_poly) | Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. | Does satisfaction rise with tenure and then level off? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want to fit the curve itself, not just build its columns.<br>[`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want one custom transform of the value. |
 | [`FEAT_SQRT`](#op-feat_sqrt) | Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. | Can I soften the few very large complaint counts without a full log? | intermediate | [`FEAT_LOG`](#op-feat_log) when the tail is very long and needs a stronger squeeze.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want each value in standard units from the mean. |
 | [`FEAT_TARGET_ENCODE`](#op-feat_target_encode) | Replaces each category with the average outcome of the records in that category, optionally pulled toward the overall average. | How do I give a model a single number for each of a thousand postcodes? | advanced | [`AGG_AVERAGE`](aggregator.md#op-agg_average) when you want to report each category's average outcome.<br>[`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own column.<br>[`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when you want how common each category is, without using the outcome. |
-| [`FEAT_TRAIN_TEST_SPLIT`](#op-feat_train_test_split) | Labels every record train (0), validation (1) or test (2) by a seeded shuffle, so a model can be checked on records it never learned from. | How do I hold back 20% of records to test a model on? | intermediate | `capability:sample` when you just want a random subset of rows to look at.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want to compare groups that already exist. |
+| [`FEAT_TRAIN_TEST_SPLIT`](#op-feat_train_test_split) | Labels every record train (0), validation (1) or test (2) by a seeded shuffle or by time, to check a model on records it never learned from. | How do I hold back 20% of records to test a model on? | intermediate | `capability:sample` when you just want a random subset of rows to look at.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want to compare groups that already exist. |
 
 ## Operators
 
@@ -298,7 +298,7 @@ Replaces each category with the average outcome of the records in that category,
 
 ### `FEAT_TRAIN_TEST_SPLIT`
 
-Labels every record train (0), validation (1) or test (2) by a seeded shuffle, so a model can be checked on records it never learned from.
+Labels every record train (0), validation (1) or test (2) by a seeded shuffle or by time, to check a model on records it never learned from.
 
 **Level:** intermediate
 
@@ -306,6 +306,7 @@ Labels every record train (0), validation (1) or test (2) by a seeded shuffle, s
 
 - How do I hold back 20% of records to test a model on?
 - Can I split records so each class keeps its share in train and test?
+- How do I hold out the latest weeks to test a forecast on?
 
 **Use cases by domain:**
 
@@ -318,6 +319,7 @@ Labels every record train (0), validation (1) or test (2) by a seeded shuffle, s
 - Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
 - Each share is the ratio times the record count, rounded; with stratify it is applied within each category.
 - The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.
+- In temporal mode records sharing an order value always land in the same set, and a record with no order value lands in none (its label is missing).
 - The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, so build those from the train rows in a separate request.
 
 **Use something else:**

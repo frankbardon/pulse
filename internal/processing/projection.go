@@ -322,6 +322,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			if name, ok := jsonStringField(f.Params, "stratify"); ok {
 				addKnown(name)
 			}
+			if name, ok := jsonStringField(f.Params, "order_by"); ok {
+				addKnown(name)
+			}
 		case types.FEAT_TARGET_ENCODE:
 			if name, ok := jsonStringField(f.Params, "target"); ok {
 				addKnown(name)

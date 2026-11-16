@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/splitmode"
 	"github.com/frankbardon/pulse/internal/targetencode"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -242,7 +243,10 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 	}
 	var p struct {
 		Ratios   []float64 `json:"ratios"`
+		Seed     *int64    `json:"seed"`
 		Stratify string    `json:"stratify"`
+		Mode     string    `json:"mode"`
+		OrderBy  string    `json:"order_by"`
 	}
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
@@ -280,9 +284,21 @@ func validateSplitParams(env *descriptor.Envelope, feat *types.Feature, schema *
 		)
 		return
 	}
+	// The mode rule (internal/splitmode), the constructor's word for
+	// word: a temporal split with a seed / stratify or without order_by,
+	// an order_by outside temporal mode, an unknown mode.
+	if cerr := splitmode.Check(splitmode.Params{Mode: p.Mode, OrderBy: p.OrderBy, SeedSet: p.Seed != nil, Stratify: p.Stratify}); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
 	// An unknown name is FieldRefRefusals' refusal; a non-categorical
-	// stratify column the accepted-types table's.
+	// stratify column, or an order_by that is no date, datetime or
+	// unsigned integer, the accepted-types table's.
 	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotStratify, p.Stratify, schema); cerr != nil {
+		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		return
+	}
+	if cerr := fieldaccept.Check(string(feat.Type), fieldaccept.SlotOrderBy, p.OrderBy, schema); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
 }

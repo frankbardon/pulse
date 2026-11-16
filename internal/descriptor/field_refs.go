@@ -114,7 +114,7 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     PULSE_VECTOR_FIELD_NOT_SCALAR, one per slot, reported first;
 //  1. features — the schema plus each earlier feature's outputs
 //     (Field; FEAT_TARGET_ENCODE params.target; FEAT_TRAIN_TEST_SPLIT
-//     params.stratify);
+//     params.stratify / params.order_by);
 //  2. filterers — the schema plus every feature output (attributes run
 //     after filters, so their labels are NOT visible to a filter — save
 //     a before-filters attribute's (ATTR_PREVIOUS_STATE), which an
@@ -317,6 +317,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				w.check(s, func() *errors.CodedError {
 					return refusal("feature FEAT_TRAIN_TEST_SPLIT: stratify references unknown field "+s,
 						map[string]any{"field": s, "feature": string(feat.Type)})
+				})
+			}
+			if o := paramString(feat.Params, "order_by"); o != "" {
+				w.check(o, func() *errors.CodedError {
+					return refusal("feature FEAT_TRAIN_TEST_SPLIT: order_by references unknown field "+o,
+						map[string]any{"field": o, "feature": string(feat.Type)})
 				})
 			}
 		default:

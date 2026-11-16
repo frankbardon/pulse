@@ -17,31 +17,32 @@ Feature operators emit derived columns; no `Response.Components`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `ratios` | list[float] | (required) | Two elements → train + val; three → all three splits. Must sum to `1.0` within `1e-6`. |
-| `seed` | int | `0` | Same seed ⇒ byte-identical assignments. |
-| `stratify` | string | — | Optional categorical or `packed_bool` field; ratios applied per category for class balance. |
+| `ratios` | list[float] | (required) | 2 → train + val; 3 → all three. Sum `1.0` (±`1e-6`). |
+| `seed` | int | `0` | Same seed ⇒ byte-identical assignments. Random only. |
+| `stratify` | string | — | Categorical or `packed_bool`; ratios per level. Random only. |
+| `mode` | enum | `random` | `random` shuffles; `temporal` cuts at a time boundary. |
+| `order_by` | string | — | Temporal only: `date`, `datetime` or unsigned integer field. |
 
 ## Inputs
 
-`Field` not consulted — assignments are positional / per-shuffle; may be omitted. `params.stratify` — `categorical_u8` / `u16` / `u32`, or `packed_bool` (levels `"0"`/`"1"`).
+`Field` unused. `stratify`: `categorical_*` / `packed_bool`. `order_by`: `u4`–`u64`, `date`, `datetime`.
 
 ## Output
 
-One `u8`-valued `f64` column at `Label` (default `split`), from `internal/processing/feature`: `feature.SplitTrain = 0`, `feature.SplitVal = 1`, `feature.SplitTest = 2`.
+`f64` column `Label` (default `split`): `0` train, `1` val, `2` test.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`.
-- GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
-- Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
-- Stratified mode seeds each group distinctly, so groups never share one shuffle.
+- Bad `ratios` (length, negative, sum) → `PROCESSING_CONFIG`.
+- Random: global pass (O(rows)), streams via `iter.Reset()`; stratified groups seed distinctly.
+- Temporal: earliest rows → train, latest → test; ties never straddle a boundary (it snaps to the nearest value edge). Null `order_by` → null split (in no partition). Buffered. `seed` / `stratify` set, `order_by` missing, or `order_by` outside temporal → `PROCESSING_CONFIG`.
 <!-- feature: FEAT_TARGET_ENCODE -->
-- Does not by itself protect `FEAT_TARGET_ENCODE`: place the encoder AFTER the split with `fit_on: "split == 0"`, else `PULSE_FEAT_TARGET_LEAKAGE_RISK` fires.
+- Place `FEAT_TARGET_ENCODE` AFTER the split with `fit_on: "split == 0"`, else `PULSE_FEAT_TARGET_LEAKAGE_RISK`.
 <!-- /feature -->
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `feature-engineering` (train / test / split semantics), `op-feat-target-encode`, `op-filter-include`
+- Skills: `feature-engineering`, `op-feat-target-encode`, `op-filter-include`
