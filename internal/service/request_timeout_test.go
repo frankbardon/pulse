@@ -306,38 +306,68 @@ func TestMapRequestTimeout_OnlyInnerCause(t *testing.T) {
 // each slot's Process — reach the Compose / ComposeParallel / chain
 // aggregation, which still reports the limit code.
 //
-// The budget starts at 1 ms. When it fires before any slot entered (a
-// loaded runner, often Windows, spends longer than that in the batch's
-// pre-pass, so ComposeParallel launches no slot) the precondition missed
-// rather than the contract: the run retries with a budget ten times
-// larger, up to 1 s, and the assertion runs on the first attempt in
-// which a nested entry ran.
+// The trip is scheduled by a barrier, not a clock (#691): the budget is
+// an hour, so no timer fires, and the nested entries hold at entryHook
+// until all `nested` of them have entered — then the last one trips the
+// batch with the RequestTimeout cause (the caller ctx cancelled with a
+// *requestTimeoutCause, which every bound ctx beneath it reports through
+// context.Cause exactly as its own fired deadline) and each waits it
+// out. Every nested entry has started before the trip, however slow the
+// pre-pass or the scheduler. ComposeParallel runs two workers so both
+// slots are in flight at once (the GOMAXPROCS default could be 1);
+// serial Compose and the chain have one nested entry in flight. The
+// real-timer trip is TestRequestTimeout_TripsOnEveryEntry's.
 func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
 	t.Parallel()
 
+	const budget = time.Hour
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
-	entries := timeoutEntries(svc)
-	for _, name := range []string{"Compose", "ComposeParallel/FailFast", "ComposeParallel/CollectAll", "ProcessChain"} {
-		t.Run(name, func(t *testing.T) {
-			for budget := time.Millisecond; ; budget *= 10 {
-				svc.SetLimits(withRequestTimeout(budget))
-				var calls atomic.Int64
-				svc.entryHook = func(ctx context.Context) {
-					if calls.Add(1) > 1 {
-						waitOutShortDeadlines(ctx)
-					}
+	svc.SetLimits(withRequestTimeout(budget))
+	for _, arm := range []struct {
+		name   string
+		nested int64
+		run    func(ctx context.Context) error
+	}{
+		{"Compose", 1, func(ctx context.Context) error {
+			_, err := svc.Compose(ctx, timeoutCompose())
+			return err
+		}},
+		{"ComposeParallel/FailFast", 2, func(ctx context.Context) error {
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, FailFast: true})
+			return err
+		}},
+		{"ComposeParallel/CollectAll", 2, func(ctx context.Context) error {
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
+			return err
+		}},
+		{"ProcessChain", 1, func(ctx context.Context) error {
+			_, err := svc.ProcessChain(ctx, &types.ChainRequest{
+				Cohort: &types.Cohort{Filename: "left.pulse"},
+				Stages: []*types.ChainStage{{Request: timeoutSum()}},
+			})
+			return err
+		}},
+	} {
+		t.Run(arm.name, func(t *testing.T) {
+			ctx, trip := context.WithCancelCause(context.Background())
+			defer trip(nil)
+			cause := &requestTimeoutCause{configured: budget, start: time.Now()}
+			var calls, entered atomic.Int64
+			svc.entryHook = func(ctx context.Context) {
+				if calls.Add(1) == 1 {
+					return // the outer entry runs on a live ctx
 				}
-				err := entries[name](context.Background())
-				if calls.Load() < 2 {
-					if budget < time.Second {
-						continue
-					}
-					t.Fatalf("no nested entry ran under a %v budget (calls = %d)", budget, calls.Load())
+				if entered.Add(1) == arm.nested {
+					trip(cause)
 				}
-				if !isLimitCode(err) {
-					t.Fatalf("err = %v (budget %v), want PULSE_LIMIT_EXCEEDED", err, budget)
-				}
-				return
+				<-ctx.Done()
+			}
+			err := arm.run(ctx)
+			if entered.Load() < arm.nested {
+				t.Fatalf("%d nested entries ran, want %d", entered.Load(), arm.nested)
+			}
+			if !isLimitCode(err) {
+				t.Fatalf("err = %v, want PULSE_LIMIT_EXCEEDED", err)
 			}
 		})
 	}
