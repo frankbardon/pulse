@@ -205,6 +205,7 @@ func apiComposeCmd() *cli.Command {
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile); optimize blocks end with one {\"optimizations\":[...]} line"},
+			&cli.BoolFlag{Name: "stream-fits", Usage: "Under --stream, end the stream with one {\"fits\":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -220,6 +221,7 @@ func apiComposeCmd() *cli.Command {
 			noDefaults := cmd.Bool("no-defaults")
 			echoRequest := cmd.Bool("echo-request")
 			noComponents := cmd.Bool("no-components")
+			streamFits := cmd.Bool("stream-fits")
 
 			composed, err := loadComposedRequest(reqPath)
 			if err != nil {
@@ -254,90 +256,10 @@ func apiComposeCmd() *cli.Command {
 			}
 
 			if stream {
-				// overlays surface only at terminal flush, not in per-row events
-				enc := json.NewEncoder(cmd.Writer)
-				if resp != nil {
-					for i, sub := range resp.Responses {
-						if sub == nil {
-							continue
-						}
-						for _, row := range sub.Data {
-							// Compose already pruned each slot's rows
-							// under its `return`; the row encoder adds
-							// the slot's precision. Unshaped slot: the
-							// row is written exactly as before.
-							body, err := returnshape.MarshalRow(sub, row)
-							if err != nil {
-								return err
-							}
-							if err := encodeFinite(enc, map[string]any{"index": i, "row": json.RawMessage(body)}); err != nil {
-								return err
-							}
-						}
-					}
-				}
-				// A batch that warned adds one {"warnings":[...]}
-				// record after the rows (slot entries located by
-				// details.request).
-				if err := writeStreamWarnings(enc, runtimeWarnings(resp)); err != nil {
-					return err
-				}
-				// A sampling sweep (random / lhs) adds one
-				// {"sweep_seed":N} record — the effective seed, so the
-				// streamed run can be replayed.
-				if resp != nil && resp.SweepSeed != nil {
-					if err := encodeFinite(enc, map[string]any{"sweep_seed": *resp.SweepSeed}); err != nil {
-						return err
-					}
-				}
-				// A ranked sweep ends the stream with one
-				// {"ranking":[...]} record, even when every slot was
-				// left out (an empty list).
-				if composed.Sweep != nil && composed.Sweep.Rank != nil {
-					ranking := []types.RankEntry{}
-					if resp != nil && resp.Ranking != nil {
-						ranking = resp.Ranking
-					}
-					line := map[string]any{"ranking": ranking}
-					// rank.profile adds the per-axis profile to the
-					// same record.
-					if composed.Sweep.Rank.Profile {
-						profile := map[string][]types.RankProfileEntry{}
-						if resp != nil && resp.RankingProfile != nil {
-							profile = resp.RankingProfile
-						}
-						line["ranking_profile"] = profile
-					}
-					if err := encodeFinite(enc, line); err != nil {
-						return err
-					}
-				}
-				// A banner ends the stream with one {"banner":{...}}
-				// record: the stitched tables are a matrix, never rows.
-				if composed.Banner != nil && resp != nil && resp.Banner != nil {
-					if err := encodeFinite(enc, map[string]any{"banner": resp.Banner}); err != nil {
-						return err
-					}
-				}
-				// Optimize blocks end the stream with one
-				// {"optimizations":[...]} record: each block's optimum
-				// is one solve, never rows, so it is written whole (a
-				// failed block as its {name, direction, error}).
-				if len(composed.Optimize) > 0 && resp != nil && len(resp.Optimizations) > 0 {
-					if err := encodeFinite(enc, map[string]any{"optimizations": resp.Optimizations}); err != nil {
-						return err
-					}
-				}
-				// Nested-model comparisons end the stream with one
-				// {"comparisons":[...]} record: each is one test over
-				// two fits, never rows (a failed one as its identity
-				// and error).
-				if len(composed.Compare) > 0 && resp != nil && len(resp.Comparisons) > 0 {
-					if err := encodeFinite(enc, map[string]any{"comparisons": resp.Comparisons}); err != nil {
-						return err
-					}
-				}
-				return nil
+				// The library writes the stream (rows, then the
+				// trailing records); --stream-fits adds the terminal
+				// fits line.
+				return pulse.WriteComposeStream(cmd.Writer, composed, resp, pulse.ComposeStreamOptions{TerminalFits: streamFits})
 			}
 
 			if jsonOut {

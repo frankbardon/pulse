@@ -34,8 +34,8 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 <!-- feature: capability:compose_sweep_bind -->
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep (`compose-sweep-bind`).
 <!-- /feature -->
-- Its own cohort, filters, features and weight decide the fit rows, independent of all slots. Its `return` is ignored.
-- Each fit runs once; serial = parallel, byte for byte.
+- Its own cohort, filters, features and weight decide the fit rows; its `return` is ignored.
+- Runs once; serial = parallel, byte for byte.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window<!-- feature: ATTR_REG_PREDICT --> `ATTR_REG_PREDICT`<!-- /feature --> runs after its windows; a `holdout` is scored at fit time (`regression-model-options`).
 
@@ -52,7 +52,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 
 ## Response
 
-`fits` on the compose response is keyed by fit name: a regression fit's full regression result, a vector fit's `{"vector": {operator, labels, members, basis, n, <!-- feature: capability:weighting -->n_weight_invalid, sum_weights, <!-- /feature -->n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`)<!-- feature: MAT_SEM -->, or a SEM fit's `{"sem": {…}}`<!-- /feature -->. Omitted without fits; outside the `return`, never rounded. A fit adds no row.
+`fits` on the compose response is keyed by fit name: a regression fit's full regression result, a vector fit's `{"vector": {operator, labels, members, basis, n, <!-- feature: capability:weighting -->n_weight_invalid, sum_weights, <!-- /feature -->n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`)<!-- feature: MAT_SEM -->, or a SEM fit's `{"sem": {…}}`<!-- /feature -->. Omitted without fits; outside the `return`, never rounded. A fit adds no row; `--stream-fits` streams `fits` as one final `{"fits":{…}}` line.
 
 <!-- feature: capability:model_save -->
 ## Saving
@@ -75,12 +75,12 @@ A fit its data refuses fails alone: its entry keeps identity + `error`, compose 
 ## Refusals
 
 - `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression + battery), `vector_count`, `grouped`, `vector_source` (pairwise, group distance, reversed reliability), `regression_type`.
-- A fit request's own refusal keeps its code and gains `details.fit` (0-based index; the lowest when several fail).
+- A fit request's own refusal keeps its code and gains `details.fit` (0-based; the lowest when several fail).
 
 ## Validate before executing
 
-`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector or SEM fit: `{name, cohort, vector|sem: {operator, labels, members}}`) — never fitted, so a data failure is unforeseen; every `params.fit` name and kind is judged.
+`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector or SEM fit: `{name, cohort, vector|sem: {operator, labels, members}}`) — never fitted (data failures unforeseen); every `params.fit` name and kind is judged.
 
 ## See
 
-`compose-requests` (slots, labels, parallel)<!-- feature: capability:compose_sweep --> · `compose-sweeps` (sweep slots get the fits)<!-- /feature --> · `regression-modeling` · `regression-inference` (its result)<!-- feature: capability:compose_compare --> · `regression-comparison` (nested-model tests)<!-- /feature --><!-- feature: capability:compose_optimize --> · `compose-optimize`<!-- /feature --><!-- feature: capability:compose_post_fit --> · `compose-post-fit`<!-- /feature -->.
+`compose-requests` (slots, labels)<!-- feature: capability:compose_sweep --> · `compose-sweeps` (sweep slots get the fits)<!-- /feature --> · `regression-modeling` · `regression-inference`<!-- feature: capability:compose_compare --> · `regression-comparison` (nested-model tests)<!-- /feature --><!-- feature: capability:compose_optimize --> · `compose-optimize`<!-- /feature --><!-- feature: capability:compose_post_fit --> · `compose-post-fit`<!-- /feature -->.

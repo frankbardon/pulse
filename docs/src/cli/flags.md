@@ -149,6 +149,19 @@ written whole, never as rows — and one with `compare` entries with one
 `{"comparisons": [...]}` line after it (each nested-model test is one
 figure set over two fits). See [Streaming & ProcessStream](../library/streaming.md).
 
+### `--stream-fits`
+
+Available on: `api compose`.
+
+Under `--stream`, end the stream with one `{"fits": {...}}` line — the
+buffered `fits` object, keyed by fit name (sweep-bound fits included, a
+failed fit as its identity and `error`) — after every row and every
+other trailing line, the sweep `ranking` line included. Written only
+when the request declares `fits`; without the flag the stream is
+unchanged, and without `--stream` the flag does nothing. Library:
+`pulse.WriteComposeStream` with `ComposeStreamOptions{TerminalFits:
+true}`.
+
 ### `--strict`
 
 Available on: `api process`, `api predict`, `api predict-compose`,

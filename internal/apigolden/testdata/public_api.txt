@@ -180,6 +180,8 @@ pulse: type ComposePredictResult field Slots []pulse/descriptor.ComposeSlotPredi
 pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
 pulse: type ComposePredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
+pulse: type ComposeStreamOptions struct
+pulse: type ComposeStreamOptions field TerminalFits bool
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
@@ -1429,6 +1431,7 @@ pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type WindowRegistration field Validate pulse/extend.SpecValidator[pulse/types.Window]
+pulse: func WriteComposeStream(w io.Writer, req *pulse.ComposedRequest, resp *pulse.ComposedResponse, opts pulse.ComposeStreamOptions) error
 pulse/descriptor: package descriptor
 pulse/descriptor: type Advisory = pulse/types.Advisory
 pulse/descriptor: type Advisory underlying struct
@@ -6991,4 +6994,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2dc0d437d8ec52a2e96337610031129dfa0d35ae69065f0810cc4d0b771222f8
+// golden-hash: 25ef2ab7a224198fc12c08da477b3e66466e37551e98bba957dbfb6d7354eb1c
