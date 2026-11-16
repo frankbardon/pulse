@@ -502,3 +502,38 @@ func TestTypeCheck_OncePerRepo(t *testing.T) {
 		}
 	}
 }
+
+// TestSpecSites_Regression pins the regression-slot sites that never
+// name an operator (#733): every REG_* op report and the new-op
+// regression template list them in the spec section.
+func TestSpecSites_Regression(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	want := []struct{ path, sym string }{
+		{"internal/regadapt/adapter.go", "func AdaptRegressionFactory"},
+		{"internal/processing/regression/ols_covariance.go", "func levelFields"},
+		{"internal/slotfail/slotfail.go", "var RegressionCodes"},
+		{"internal/descriptor/schema.go", "func enumValues"},
+		{"internal/cli/strict_acceptance_test.go", "func strictAcceptanceRows"},
+		{"examples/profiles/read-only-analyst.json", ""},
+	}
+	reports := map[string]func() (*Report, error){
+		"op REG_MMM_HILL":   func() (*Report, error) { return opReport(r, "REG_MMM_HILL", options{}) },
+		"op REG_OLS":        func() (*Report, error) { return opReport(r, "REG_OLS", options{}) },
+		"new-op regression": func() (*Report, error) { return newOpReport(r, "regression", options{}) },
+	}
+	for name, build := range reports {
+		t.Run(name, func(t *testing.T) {
+			rep, err := build()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, w := range want {
+				if _, ok := symbolNote(siteIn(rep, "spec", w.path), w.sym); !ok {
+					t.Errorf("spec section lacks %s · %q", w.path, w.sym)
+				}
+			}
+		})
+	}
+}

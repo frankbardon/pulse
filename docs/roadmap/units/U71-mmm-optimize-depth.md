@@ -44,6 +44,4 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 
 ## Handed-on
 
-| Item | To | Why |
-|---|---|---|
-| #733 `make sites` misses regression-slot sites (`regadapt`, `levelFields`, `slotfail`, schema enum, CLI strict test, example profile) | [U32](U32-docs-audit.md) | same tooling gap family as #706 / #715 |
+None: #732 (E2-S6) and #733 (E4-S5) were pulled back and closed in-effort on 2026-11-16.

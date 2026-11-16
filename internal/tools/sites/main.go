@@ -27,6 +27,10 @@
 //     <snake> / <kebab> placeholders;
 //   - gates are the test functions that name the operator, iterate the
 //     category registry, or reference a category-wide table;
+//   - spec sites (op and new-op) are what a change to the category's
+//     request spec struct (types.RegressionSpec) reaches without naming
+//     an operator: refusal pipelines, field-list derivers, code tables,
+//     vocabulary registrars, strict-input families, capability lists;
 //   - slot sites are go/types-resolved references to the types.Request /
 //     types.Response field, plus its wire-name string literals and the
 //     update-demand rows that name it.
