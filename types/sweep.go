@@ -23,6 +23,11 @@ import (
 // effective seed (RNGSeed, or one derived from the spec when zero), so
 // predict lists the same slots the runtime runs.
 //
+// An adaptive mode (capability:compose_sweep_adaptive) runs Budget
+// slots in rounds, each round's points chosen from the ranked values of
+// the rounds before; it needs Rank, and an axis carries Values or a
+// Range. Only round 0 is known before the run.
+//
 // It rides as the optional `sweep` slot on ComposedRequest, gated by
 // capability:compose_sweep. A nil spec is absent: the slot is
 // `omitempty`, so a sweep-free request is byte-identical on the wire and
@@ -48,6 +53,13 @@ type SweepSpec struct {
 	// effective seed is echoed as ComposedResponse.SweepSeed and
 	// predict's SweepSummary.RNGSeed. Refused under grid / zip.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
+
+	// Budget is the number of slots an adaptive mode evaluates, at least
+	// 1; required there and refused under every other mode. The slots
+	// run in rounds — each round's points chosen from the ranked values
+	// of the rounds before — and count toward MaxComposeSlots exactly as
+	// samples do. Zero is absent.
+	Budget int `json:"budget,omitempty"`
 
 	// Label is the per-slot label pattern, `{{axis}}` placeholders
 	// substituted per slot. Empty takes the default `<axis>=<value>`
@@ -178,7 +190,10 @@ const (
 	SweepModeLHS SweepMode = "lhs"
 )
 
-// AllSweepModes returns every SweepMode value.
+// AllSweepModes returns every SweepMode value the wire schema lists.
+// An adaptive mode joins it as its strategy ships; the engine's
+// registry (internal/sweep RegisterAdaptive) is what makes a mode
+// adaptive.
 func AllSweepModes() []SweepMode {
 	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS}
 }

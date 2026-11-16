@@ -104,6 +104,7 @@ var (
 	featCompose           = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep      = FeatureName(FeatureKindCapability, "compose_sweep")
 	featSweepSampling     = FeatureComposeSweepSampling
+	featSweepAdaptive     = FeatureComposeSweepAdaptive
 	featComposeFits       = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeOpt        = FeatureComposeOptimize
 	featComposeCompare    = FeatureName(FeatureKindCapability, "compose_compare")
@@ -256,6 +257,13 @@ const FeatureModels = "capability:models"
 // schema) reads it too.
 const FeatureComposeSweepSampling = "capability:compose_sweep_sampling"
 
+// FeatureComposeSweepAdaptive is capability:compose_sweep_adaptive —
+// the compose sweep's adaptive modes (each round's points chosen from
+// the ranked values of the rounds before) with their `budget`.
+// Exported because the MCP binder (the bound sweep schema) reads it
+// too.
+const FeatureComposeSweepAdaptive = "capability:compose_sweep_adaptive"
+
 // FeatureComposeOptimize is capability:compose_optimize — the
 // ComposedRequest `optimize` blocks (a block's `posterior` included:
 // it optimises over a REG_MMM_BAYES fit's draws and adds each
@@ -342,6 +350,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The compose sweep's seeded random / lhs modes: SweepSpec.Samples /
 	// RNGSeed, SweepAxis.Range and ComposedResponse.SweepSeed.
 	capability("compose_sweep_sampling"),
+	// The compose sweep's adaptive modes: SweepSpec.Budget and every
+	// registered adaptive SweepMode, run in rounds inside phase 0.
+	capability("compose_sweep_adaptive"),
 	// The compose `optimize` blocks: ComposedRequest.Optimize and
 	// ComposedResponse.Optimizations.
 	capability("compose_optimize"),
@@ -701,6 +712,8 @@ var slotTokens = map[string]slotTokenSet{
 	// MAT_SEM's and REG_RESAMPLE's key too; no guidance sentence names
 	// the `sweep_seed` echo.
 	featSweepSampling: {},
+	// `budget` is everyday English; no guidance sentence names it.
+	featSweepAdaptive: {},
 	// `optimize` / `optimizations` are everyday English; no guidance
 	// sentence names the slot yet.
 	featComposeOpt: {},
@@ -1057,6 +1070,10 @@ var groupEdges = map[string][][]string{
 	// winner: without the sweep there is no winner, without fits no
 	// entry to bind it as.
 	featSweepBind: {{featComposeSweep}, {featComposeFits}},
+	// An adaptive mode is a sweep mode that searches range axes: without
+	// the sweep there is nothing to search, without the sampling modes
+	// no range axis (and no rng_seed to pin the search).
+	featSweepAdaptive: {{featComposeSweep}, {featSweepSampling}},
 	// A nested-model comparison tests two `fits` entries, both REG_OLS
 	// or both REG_GLM: without fits there is nothing to compare, without
 	// one of the two regressions no fit it can read.

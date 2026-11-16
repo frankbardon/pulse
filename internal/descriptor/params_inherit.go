@@ -73,6 +73,18 @@ func InheritChainParams(c *types.ChainRequest) (*types.ChainRequest, *errors.Cod
 	return &out, nil
 }
 
+// InheritRequestParams is one slot's InheritComposeParams: r with the
+// ComposedRequest's top-level params merged beneath its own (r's key
+// wins) — r itself when parent is empty. The runtime applies it to an
+// adaptive sweep slot rendered after expansion, so the slot carries
+// exactly what an expanded one does.
+func InheritRequestParams(r *types.Request, parent types.Params) *types.Request {
+	if len(parent) == 0 {
+		return r
+	}
+	return withInheritedParams(r, parent)
+}
+
 // withInheritedParams is a shallow copy of r whose Params are parent
 // overlaid by r's own; nil stays nil.
 func withInheritedParams(r *types.Request, parent types.Params) *types.Request {

@@ -34,6 +34,13 @@
 //     scale of linear or log, min > 0 under log and, under integer, an
 //     integer inside [min, max] (PULSE_SWEEP_RANGE_INVALID), and samples
 //     is at least 1 (PULSE_SWEEP_SAMPLES_INVALID);
+//   - under an adaptive mode (a registered strategy, adaptive.go) an
+//     axis carries values or a range, never both; budget is at least 1
+//     and rank is set (PULSE_SWEEP_INVALID adaptive_requires_budget,
+//     budget_invalid, adaptive_requires_rank); samples and overlays are
+//     unset (PULSE_SWEEP_MODE_MISMATCH); then the mode's own knobs.
+//     budget under any other mode is PULSE_SWEEP_MODE_MISMATCH
+//     budget_without_adaptive;
 //   - request is a JSON object; overlays, when set, is a JSON array;
 //   - rank, when set, names a non-empty `by` of dotted segments with
 //     none empty; order is empty, asc or desc; top, when set, is at
@@ -53,6 +60,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -152,7 +160,17 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 	if ce := sweepRules.validateAxes(spec.Axes, spec.Mode); ce != nil {
 		return ce
 	}
-	if spec.Mode.Sampled() {
+	adaptive, isAdaptive := adaptiveFor(spec.Mode)
+	if !isAdaptive && spec.Budget != 0 {
+		return mismatch("sweep.budget", "", spec.Mode, ReasonBudgetWithoutAdaptive,
+			"sweep sets budget under mode "+modeName(spec.Mode)+", which is not adaptive — its slot count is "+
+				"fixed by the axes or samples; drop budget, or search the axes with an adaptive mode")
+	}
+	if isAdaptive {
+		if ce := validateAdaptive(spec, adaptive); ce != nil {
+			return ce
+		}
+	} else if spec.Mode.Sampled() {
 		if spec.Samples < 1 {
 			reason, msg := ReasonSamplesMissing, "sweep mode "+string(spec.Mode)+" draws `samples` slots but sets none; set samples to at least 1"
 			if spec.Samples < 0 {
@@ -253,6 +271,9 @@ type axisRules struct {
 	// targets admits an axis `target` (`params.<name>`): the compose
 	// sweep only — an item's params are not request params.
 	targets bool
+	// adaptiveHidden drops the adaptive modes from the accepted list
+	// (an instance hiding capability:compose_sweep_adaptive).
+	adaptiveHidden bool
 }
 
 // sweepRules is the ComposedRequest `sweep` rule set: the only surface
@@ -271,6 +292,20 @@ func EnumerationModeRefusal(mode types.SweepMode) *errors.CodedError {
 	if rules.knownMode(mode) {
 		return nil
 	}
+	return rules.modeUnknown(mode)
+}
+
+// NonAdaptiveModeRefusal is the compose sweep's mode check on an
+// instance that hides the adaptive modes
+// (capability:compose_sweep_adaptive): an adaptive mode is
+// PULSE_SWEEP_INVALID reason mode_unknown with `valid` naming the other
+// modes only — exactly the refusal an unknown mode gets. Nil otherwise.
+func NonAdaptiveModeRefusal(mode types.SweepMode) *errors.CodedError {
+	if !IsAdaptive(mode) {
+		return nil
+	}
+	rules := sweepRules
+	rules.adaptiveHidden = true
 	return rules.modeUnknown(mode)
 }
 
@@ -378,6 +413,7 @@ func (r axisRules) validateAxes(axes []types.SweepAxis, mode types.SweepMode) *e
 	if sampled && !r.sampling {
 		return r.modeUnknown(mode)
 	}
+	adaptive := r.sampling && IsAdaptive(mode)
 	seen := make(map[string]int, len(axes))
 	for i, ax := range axes {
 		at := r.axisPath(i)
@@ -397,6 +433,12 @@ func (r axisRules) validateAxes(axes []types.SweepAxis, mode types.SweepMode) *e
 		}
 		if sampled {
 			if ce := validateRangeAxis(at, ax, mode); ce != nil {
+				return ce
+			}
+			continue
+		}
+		if adaptive {
+			if ce := validateAdaptiveAxis(at, ax, mode); ce != nil {
 				return ce
 			}
 			continue
@@ -481,6 +523,15 @@ func (r axisRules) validateTarget(at string, ax types.SweepAxis, earlier []types
 // sweep, grid and zip for an item for_each.
 func (r axisRules) modes() []string {
 	if r.sampling {
+		if r.adaptiveHidden {
+			var out []string
+			for _, m := range modeNames() {
+				if !IsAdaptive(types.SweepMode(m)) {
+					out = append(out, m)
+				}
+			}
+			return out
+		}
 		return modeNames()
 	}
 	return []string{string(types.SweepModeGrid), string(types.SweepModeZip)}
@@ -586,10 +637,17 @@ func axisLengths(axes []types.SweepAxis) map[string]any {
 	return out
 }
 
+// modeNames are the compose sweep's modes: every SweepMode, then each
+// registered adaptive mode types does not list, by name.
 func modeNames() []string {
 	var out []string
 	for _, m := range types.AllSweepModes() {
 		out = append(out, string(m))
+	}
+	for _, m := range AdaptiveModes() {
+		if !slices.Contains(out, string(m)) {
+			out = append(out, string(m))
+		}
 	}
 	return out
 }

@@ -1418,7 +1418,7 @@ there is no chain-level block.
 `ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
-`SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
+`SweepSpec` is `{axes, mode, samples, rng_seed, budget, label, request,
 overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
 a non-empty list of scalars under `grid` / `zip`; `range` a
 `SweepRange {min, max, scale, integer}` — `SweepScale` `linear` default, `log`;
@@ -1440,16 +1440,21 @@ the `sweep` property and the `Sweep*` defs are absent. The sampling modes
 ride `capability:compose_sweep_sampling`: on an instance that hides it
 the `SweepMode` enum is `grid` / `zip`, and `samples`, `rng_seed`, the
 axis `range`, the `SweepRange` def and `ComposedResponse.sweep_seed` are
-absent. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
+absent. The adaptive modes ride `capability:compose_sweep_adaptive`:
+`budget` (an `omitempty` integer, the slot count an adaptive mode
+evaluates in rounds; required there with `rank`, refused elsewhere) is
+absent on an instance that hides it, and so are the adaptive
+`SweepMode` values. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
 `values` only, on every instance.
 A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
 and `details.reason`; a mode/axis mix-up is `PULSE_SWEEP_MODE_MISMATCH`,
 a bad range `PULSE_SWEEP_RANGE_INVALID`, a missing or sub-1 `samples`
 `PULSE_SWEEP_SAMPLES_INVALID`. `pulse_predict` with `composed` reports the
-expansion as `sweep {axes, mode, expanded_count, rng_seed, labels}` on the
-predict result; that summary is not payload-reachable and is not in this
-schema.
+expansion as `sweep {axes, mode, expanded_count, adaptive, rng_seed, labels}` on the
+predict result (an adaptive mode: `expanded_count` the budget,
+`adaptive: true`, and `null` for every label after round 0's); that
+summary is not payload-reachable and is not in this schema.
 
 A sampling sweep (`random` / `lhs`) adds `ComposedResponse.sweep_seed`,
 an `omitempty` integer: the effective seed it drew with, so pinning it as

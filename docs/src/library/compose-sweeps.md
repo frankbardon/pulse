@@ -87,6 +87,12 @@ refuses `samples`, `rng_seed` or an axis `range` as
 (`PULSE_SWEEP_INVALID`, reason `mode_unknown`, `valid` grid / zip), the
 same way predict does.
 
+The adaptive modes (each round's points chosen from the ranked values
+of the rounds before) need `budget` and `rank`, and are gated by
+`capability:compose_sweep_adaptive` (which needs the sweep and the
+sampling modes); an instance that hides it refuses `budget` as an
+unknown field and an adaptive mode as an unknown mode.
+
 An axis never mixes the two styles: a `range` under `grid` / `zip`, a
 `values` list under `random` / `lhs`, or `samples` / `rng_seed` under
 `grid` / `zip` is `PULSE_SWEEP_MODE_MISMATCH`. A bad range (missing

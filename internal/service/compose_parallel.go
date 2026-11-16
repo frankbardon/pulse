@@ -184,11 +184,10 @@ func (s *Service) composeParallel(
 	ei := execInfoFrom(ctx)
 
 	launched := 0
-	// pool runs the slots at idx on the worker pool, each over its bound
-	// set (models plus the slot's own loaded models, all resolved before
-	// the pool starts), then reports the run's failure exactly as the
-	// whole batch would (slotPoolFailure).
-	pool := func(idx []int, models *model.Set) error {
+	// launch runs the slots at idx on the worker pool, each over its
+	// bound set (models plus the slot's own loaded models, all resolved
+	// before the pool starts), recording each slot's error in errs.
+	launch := func(idx []int, models *model.Set) error {
 		// Every slot's bound set — the fits plus its own loaded models —
 		// before the pool starts.
 		slotSets := make(map[int]*model.Set, len(idx))
@@ -238,14 +237,57 @@ func (s *Service) composeParallel(
 		}
 		wg.Wait()
 		ei.Mark()
+		return nil
+	}
+	// pool is launch, then the run's failure reported exactly as the
+	// whole batch would (slotPoolFailure).
+	pool := func(idx []int, models *model.Set) error {
+		if err := launch(idx, models); err != nil {
+			return err
+		}
 		return slotPoolFailure(ctx, errs, o.FailFast)
+	}
+	// An adaptive sweep's rounds run on the same pool. Fail-fast stops
+	// at the failing round with the pool's own located error;
+	// otherwise each slot's error is handed back and cleared from errs,
+	// so no later pool run re-reports a penalised slot
+	// (compose_adaptive.go).
+	var adapt *adaptiveRun
+	if ext.adaptive != nil {
+		adapt = &adaptiveRun{requests: requests, responses: responses, pre: pre, mult: &multPlan,
+			round: func(idx []int, models *model.Set) ([]error, error) {
+				if err := launch(idx, models); err != nil {
+					return nil, err
+				}
+				if o.FailFast {
+					if err := slotPoolFailure(ctx, errs, true); err != nil {
+						return nil, err
+					}
+				}
+				// A done ctx stops the launch loop and fails in-flight
+				// slots: the batch's error, never a penalised point.
+				if err := runCtx.Err(); err != nil {
+					return nil, err
+				}
+				// Each slot's error located exactly as the serial loop
+				// locates it, so a penalised slot's first_error and a
+				// strict failure read the same on both orchestrators.
+				out := make([]error, len(idx))
+				for k, i := range idx {
+					if errs[i] != nil {
+						out[k] = fmt.Errorf("request %d: %w", i, locate(errs[i], "request", i))
+					}
+					errs[i] = nil
+				}
+				return out, nil
+			}}
 	}
 
 	// The fit pre-pass, exactly as on the serial path but with the fits
 	// themselves running concurrently on the same worker cap; a fit
 	// bound from the sweep runs the sweep slots on the pool, and their
 	// rank, first (runComposeFitPhases — ran marks them).
-	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, o.MaxWorkers, ext, requests, responses, multPlan, pool)
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, o.MaxWorkers, ext, requests, responses, multPlan, pool, adapt)
 	if err != nil {
 		return nil, err
 	}

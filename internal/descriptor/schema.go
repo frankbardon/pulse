@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -275,6 +276,11 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	modes := types.AllSweepModes()
 	if !inst.Enabled(featSweepSampling) {
 		modes = enumerationSweepModes
+	}
+	// The adaptive modes ride capability:compose_sweep_adaptive (the
+	// request-slot gate refuses a hidden one as an unknown mode).
+	if !inst.Enabled(featSweepAdaptive) {
+		modes = slices.DeleteFunc(slices.Clone(modes), sweep.IsAdaptive)
 	}
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
 	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())

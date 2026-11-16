@@ -35,6 +35,7 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 - An axis is a unique identifier `name` plus a non-empty list of scalar `values` (string, number, boolean). Numbers keep the digits as written.
 - `mode` `grid` (default) is the Cartesian product, first axis slowest: 2 x 3 values => 6 slots. `zip` walks equal-length axes in lockstep: 3 + 3 values => 3 slots.
 - `random` / `lhs` draw `samples` seeded slots from continuous axis ranges instead ([`compose-sweep-sampling`](compose-sweep-sampling.md)).
+- An adaptive mode needs `budget` (slot count) and `rank`; each round's points follow the ranked values before. Slot `i` is `sample=<i>_…`; a failed one is penalised (`PULSE_SLOT_FAILED`).
 
 ## Placeholders
 
@@ -45,11 +46,11 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 
 ## Labels
 
-Omit `label` for the default: the `axis=value` pairs joined by `_`. An authored pattern may use any axis. The request body must not set its own `label` (`request_label_set`), and a pattern rendering empty is refused (`label_empty`). Labels stay unique across explicit and sweep slots, else `PULSE_COMPOSE_LABEL_COLLISION`. Overlays name sweep slots by these labels.
+Omit `label` for the default `axis=value` pairs joined by `_`. The request body must not set its own `label` (`request_label_set`), and a pattern rendering empty is refused (`label_empty`). Labels stay unique across explicit and sweep slots, else `PULSE_COMPOSE_LABEL_COLLISION`. Overlays name sweep slots by these labels.
 
 ## Strict body
 
-The substituted body decodes STRICTLY into a `Request`, like a plain compose slot: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, the sweep `slot` / `values`); a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode`. Found before any slot runs.
+The substituted body decodes STRICTLY into a `Request`: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, sweep `slot` / `values`), a wrong-typed value `PULSE_SWEEP_INVALID` `request_decode` — before any slot runs.
 
 ## Decay-sweep pattern
 
@@ -57,19 +58,19 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 
 ## Overlays
 
-`sweep.overlays` is an array of compose overlay specs, substituted per expanded slot and appended after the request's own `overlays`. Use `{{axis}}` in `reference` / `targets` to point each copy at its slot label.
+`sweep.overlays`: compose overlay specs substituted per slot, appended after the request's own; `{{axis}}` in `reference` / `targets` points each copy at its slot.
 
 ## With explicit requests, limits, predict
 
 - `requests` and `sweep` combine: explicit slots first (indices unchanged), sweep slots after. A request with only a `sweep` is valid.
 - `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
 - `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`.
-- `--echo-request` / `EchoRequest` echoes the expanded slots. MCP fills a missing sweep-body `return` with the `standard` default.
+- `--echo-request` echoes the expanded slots. MCP fills a missing sweep-body `return` with `standard`.
 
 ## Rank
 
 `sweep.rank {by, order, top}` orders the SWEEP slots (never explicit ones) by one number and reports `ranking: [{label, value, rank, slot, axes}]` on the ComposedResponse, 1-based, `order` `asc` (default) or `desc`, `top` keeps the first N (>= 1). `by` is a dot path into each slot's unshaped response: an object key, or on a list the element whose `name` or `label` equals the segment (never an index), ending on a number, e.g. `regressions.fit.residual_std_err`. Two matching elements, or a `name` and `label` that differ, are ambiguous.
-- The batch is refused `PULSE_SWEEP_RANK_PATH` (`details.reason` `syntax`, `missing`, `not_number`, `ambiguous`) when `by` resolves in no slot, hits a non-number or is ambiguous; an empty segment is `syntax`.
+- The batch is refused `PULSE_SWEEP_RANK_PATH` (`details.reason` `syntax`, `missing`, `not_number`, `ambiguous`) when `by` resolves in no slot, hits a non-number or is ambiguous.
 - A null (NaN) value, or a path missing in this slot only, EXCLUDES that slot with a `PULSE_SWEEP_RANK_PATH` warning on its own response.
 - A computed fit figure that is exactly 0 (`r2`, `deviance`, …) ranks as 0 though the wire omits it; one the fit's type does not compute stays missing.
 - `slot`: the 0-based sweep index (`responses[explicit + slot]`); `axes`: each axis's typed value in that slot. Read a winner from `ranking[0].axes`, never its label.

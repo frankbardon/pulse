@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
+    "feature_set_digest": "fs1:0139f0e6d494bc8b0b2bac621377c89751780645c8971c7e6dde5ff6099dd44c",
     "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
     "commands": [
       {
@@ -21669,4 +21669,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 64d6d8996b06c56607f0f934b77d9ae6f175efe5d1f9e3fc07a48a535d8a8cc7
+// golden-hash: 06c67c1a0eed89300d65dbb4c10cef2abd9c6bde5bb42a745811e9f048ee3c88

@@ -2368,11 +2368,13 @@ pulse/descriptor: type SweepAxisSummary field Name string "json:\"name\""
 pulse/descriptor: type SweepAxisSummary field Range *pulse/types.SweepRange "json:\"range,omitempty\""
 pulse/descriptor: type SweepAxisSummary field Target string "json:\"target,omitempty\""
 pulse/descriptor: type SweepSummary struct
+pulse/descriptor: type SweepSummary field Adaptive bool "json:\"adaptive,omitempty\""
 pulse/descriptor: type SweepSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type SweepSummary field ExpandedCount int "json:\"expanded_count\""
 pulse/descriptor: type SweepSummary field Labels []string "json:\"labels,omitempty\""
 pulse/descriptor: type SweepSummary field Mode pulse/types.SweepMode "json:\"mode\""
 pulse/descriptor: type SweepSummary field RNGSeed *int64 "json:\"rng_seed,omitempty\""
+pulse/descriptor: type SweepSummary method (SweepSummary) MarshalJSON() ([]byte, error)
 pulse/descriptor: type Term struct
 pulse/descriptor: type Term field Forms []string "json:\"forms,omitempty\""
 pulse/descriptor: type Term field ID string "json:\"id\""
@@ -6855,6 +6857,7 @@ pulse/types: const SweepScaleLinear pulse/types.SweepScale = "linear"
 pulse/types: const SweepScaleLog pulse/types.SweepScale = "log"
 pulse/types: type SweepSpec struct
 pulse/types: type SweepSpec field Axes []pulse/types.SweepAxis "json:\"axes\""
+pulse/types: type SweepSpec field Budget int "json:\"budget,omitempty\""
 pulse/types: type SweepSpec field Label string "json:\"label,omitempty\""
 pulse/types: type SweepSpec field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
 pulse/types: type SweepSpec field Overlays encoding/json.RawMessage "json:\"overlays,omitempty\""
@@ -6999,4 +7002,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2fd1dd254b6dbf91bdbb8dd11867f985e9191fd4eaf6fabc95e5a93888ac359d
+// golden-hash: 4459944a6955c2f333ce66d19e9dc0bfdf2d1fb868a128bdf0736cd33955795b

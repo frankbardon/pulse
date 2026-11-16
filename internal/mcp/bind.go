@@ -30,6 +30,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -2286,11 +2287,16 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 // compose slots. Dropped with the slot when capability:compose_sweep is
 // hidden (dropHiddenSlots). An instance hiding
 // capability:compose_sweep_sampling offers the enumeration modes only:
-// no random / lhs, `samples`, `rng_seed` or axis `range`.
+// no random / lhs, `samples`, `rng_seed` or axis `range`. One hiding
+// capability:compose_sweep_adaptive (while offering sampling) offers
+// every mode but the adaptive ones, without `budget`.
 func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 	out := samplingSweepSchema()
-	if !inst.Enabled(descx.FeatureComposeSweepSampling) {
+	switch {
+	case !inst.Enabled(descx.FeatureComposeSweepSampling):
 		out = enumerationSweepSchema()
+	case !inst.Enabled(descx.FeatureComposeSweepAdaptive):
+		out = nonAdaptiveSweepSchema()
 	}
 	// An axis `target` writes request params: offered only where
 	// capability:params is.
@@ -2340,6 +2346,7 @@ func samplingSweepSchema() map[string]any {
 			},
 			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once)."),
 			"samples":  map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
+			"budget":   map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
 			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
 			"label":    map[string]any{"type": "string", "description": "Per-slot label pattern with {{axis}} placeholders; default `<axis>=<value>` pairs joined by `_`."},
 			"request":  map[string]any{"type": "object", "description": "The slot request body (the request shape) with axis placeholders."},
@@ -2361,12 +2368,24 @@ func samplingSweepSchema() map[string]any {
 	}
 }
 
+// nonAdaptiveSweepSchema is sweepSchema on an instance hiding the
+// adaptive modes: every other mode, no `budget`.
+func nonAdaptiveSweepSchema() map[string]any {
+	out := samplingSweepSchema()
+	props := out["properties"].(map[string]any)
+	delete(props, "budget")
+	mode := props["mode"].(map[string]any)
+	mode["enum"] = slices.DeleteFunc(slices.Clone(mode["enum"].([]string)), func(m string) bool { return sweep.IsAdaptive(types.SweepMode(m)) })
+	return out
+}
+
 // enumerationSweepSchema is sweepSchema on an instance hiding the
 // sampling modes: grid / zip over explicit axis values, the sampling
-// keys and their prose absent.
+// and adaptive keys and their prose absent.
 func enumerationSweepSchema() map[string]any {
 	out := samplingSweepSchema()
 	props := out["properties"].(map[string]any)
+	delete(props, "budget")
 	delete(props, "samples")
 	delete(props, "rng_seed")
 	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},

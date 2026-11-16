@@ -13,7 +13,7 @@ import (
 )
 
 // EffectiveSeed is the seed a sampling sweep (mode random / lhs) draws
-// with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
+// with, and an adaptive sweep's strategy searches with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
 // one rng_seed 0 derivation every seeded draw shares — over the spec's
 // wire form with rng_seed excluded (never the clock), so the same spec
 // draws the same slots on every run and every surface. rank.profile

@@ -43,6 +43,9 @@ type composeExpansion struct {
 	// sweepFits is the scope a from_sweep fit is judged against and
 	// resolved over (descx.SweepFitScope — predict builds the same).
 	sweepFits model.SweepScope
+	// adaptive is an adaptive sweep's executor (nil under every other
+	// mode): phase 0 runs its rounds (runAdaptiveSweep).
+	adaptive *sweep.Adaptive
 }
 
 // sweepAxes are the batch's sweep's axis names (the axes sweep_axis()
@@ -84,7 +87,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if err != nil {
 		return nil, nil, err
 	}
-	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed}
+	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed, adaptive: exp.SweepAdaptive}
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
 		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels), axes: exp.SweepAxes, axisSpec: composed.Sweep.Axes}
 	}

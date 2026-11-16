@@ -76,8 +76,17 @@ type Expansion struct {
 	Axes []map[string]any
 
 	// Seed is the effective seed a sampling sweep (mode random / lhs)
-	// drew with (EffectiveSeed); nil without one, and for grid / zip.
+	// drew with, or an adaptive sweep searches with (EffectiveSeed); nil
+	// without one, and for grid / zip.
 	Seed *int64
+
+	// Adaptive is an adaptive sweep's executor (nil under every other
+	// mode): the strategy, round 0 already proposed. Labels holds the
+	// round-0 slots' labels and "" for every later slot (its label is
+	// known once its round runs), Axes nil there; the effective request
+	// carries a placeholder for each (PendingLabel, the representative
+	// body).
+	Adaptive *Adaptive
 }
 
 // Count returns how many slots a structurally valid spec expands to:
@@ -91,6 +100,9 @@ func Count(spec *types.SweepSpec) int {
 	}
 	if spec.Mode.Sampled() {
 		return max(spec.Samples, 0)
+	}
+	if IsAdaptive(spec.Mode) {
+		return max(spec.Budget, 0)
 	}
 	return countAxes(spec.Axes, spec.Mode)
 }
@@ -215,6 +227,10 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	labels := make([]string, 0, n)
 	axes := make([]map[string]any, 0, n)
 
+	if m, ok := adaptiveFor(spec.Mode); ok {
+		return expandAdaptive(c, spec, m, labelBody, requests)
+	}
+
 	walk := func(visit func(slot int, values map[string]any) bool) {
 		forEachCombination(spec.Axes, spec.Mode, visit)
 	}
@@ -272,6 +288,41 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	}
 	out.Sweep = nil
 	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Axes: axes, Seed: seed}, nil
+}
+
+// expandAdaptive is Expand's adaptive arm: the strategy built and round
+// 0 proposed (newAdaptive), round 0's slots rendered with their real
+// bodies and labels, every later slot a placeholder (Adaptive.placeholder)
+// — budget slots after the explicit ones, the one slot list predict and
+// the runtime judge. Validate already refused sweep.overlays here.
+func expandAdaptive(c *types.ComposedRequest, spec *types.SweepSpec, m AdaptiveMode, labelBody json.RawMessage, requests []*types.Request) (*Expansion, error) {
+	seed := EffectiveSeed(spec)
+	a, ce := newAdaptive(spec, m, seed, labelBody)
+	if ce != nil {
+		return nil, ce
+	}
+	labels := make([]string, spec.Budget)
+	axes := make([]map[string]any, spec.Budget)
+	for i, p := range a.firstPts {
+		s, ce := a.render(i, p)
+		if ce != nil {
+			return nil, ce
+		}
+		a.firstSlots = append(a.firstSlots, s)
+		requests = append(requests, s.Request)
+		labels[i], axes[i] = s.Request.Label, s.Axes
+	}
+	for i := a.First; i < spec.Budget; i++ {
+		req, ce := a.placeholder(i)
+		if ce != nil {
+			return nil, ce
+		}
+		requests = append(requests, req)
+	}
+	out := *c
+	out.Requests = requests
+	out.Sweep = nil
+	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Axes: axes, Seed: &seed, Adaptive: a}, nil
 }
 
 // forEachCombination walks the axes' combinations in expansion order —

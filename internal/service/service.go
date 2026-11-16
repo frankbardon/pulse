@@ -1421,31 +1421,67 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	ei := execInfoFrom(ctx)
 	responses := make([]*types.Response, len(requests))
 	deferred := make([]func() error, len(requests))
+	// runOne runs slot i: its located error (slotErr), or a fatal one
+	// building its bound set.
+	runOne := func(i int, models *model.Set) (slotErr, fatal error) {
+		req := requests[i]
+		slotSet, err := pre.slotSet(models, i)
+		if err != nil {
+			return nil, err
+		}
+		slotCtx, end := startChild(bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(ctx, vetoes, multPlan, i), &deferred[i]), i), slotSet, req), i, req)
+		resp, err := s.Process(slotCtx, req)
+		end(err)
+		if err != nil {
+			return fmt.Errorf("request %d: %w", i, locate(err, "request", i)), nil
+		}
+		echoSlotLabel(resp, req)
+		responses[i] = resp
+		return nil, nil
+	}
 	runSlots := func(idx []int, models *model.Set) error {
 		ei.Lap(observe.PhasePlan)
 		defer ei.Mark()
 		for _, i := range idx {
-			req := requests[i]
-			slotSet, err := pre.slotSet(models, i)
+			slotErr, err := runOne(i, models)
 			if err != nil {
 				return err
 			}
-			slotCtx, end := startChild(bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(ctx, vetoes, multPlan, i), &deferred[i]), i), slotSet, req), i, req)
-			resp, err := s.Process(slotCtx, req)
-			end(err)
-			if err != nil {
-				return fmt.Errorf("request %d: %w", i, locate(err, "request", i))
+			if slotErr != nil {
+				return slotErr
 			}
-			echoSlotLabel(resp, req)
-			responses[i] = resp
 		}
 		return nil
+	}
+	// An adaptive sweep's rounds run on the same loop, each slot's
+	// failure collected rather than returned (compose_adaptive.go).
+	var adapt *adaptiveRun
+	if ext.adaptive != nil {
+		adapt = &adaptiveRun{requests: requests, responses: responses, pre: pre, mult: &multPlan,
+			round: func(idx []int, models *model.Set) ([]error, error) {
+				ei.Lap(observe.PhasePlan)
+				defer ei.Mark()
+				out := make([]error, len(idx))
+				for k, i := range idx {
+					slotErr, err := runOne(i, models)
+					if err != nil {
+						return nil, err
+					}
+					out[k] = slotErr
+				}
+				// A done ctx fails its slots; it is the batch's error,
+				// never a penalised point.
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				return out, nil
+			}}
 	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
 	// before any slot; every slot then carries the bound models. A fit
 	// bound from the sweep runs the sweep slots and their rank first
 	// (runComposeFitPhases — ran marks them).
-	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, 1, ext, requests, responses, multPlan, runSlots)
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(withComparisonFigures(fitCtx, cmpFigs), composed, pre, 1, ext, requests, responses, multPlan, runSlots, adapt)
 	if err != nil {
 		return nil, err
 	}
