@@ -87,24 +87,6 @@ refuses `samples`, `rng_seed` or an axis `range` as
 (`PULSE_SWEEP_INVALID`, reason `mode_unknown`, `valid` grid / zip), the
 same way predict does.
 
-The adaptive modes (each round's points chosen from the ranked values
-of the rounds before) need `budget` and `rank`, and are gated by
-`capability:compose_sweep_adaptive` (which needs the sweep and the
-sampling modes); an instance that hides it refuses `budget` (and `de`)
-as an unknown field and an adaptive mode as an unknown mode.
-
-`mode: "de"` is differential evolution (rand/1/bin): round 0 is a
-Latin-hypercube population, each later round one generation, and a
-`budget` remainder a final partial generation. Range axes are searched
-continuously (`integer` and `log` honoured), list axes by value index.
-The optional `de` block sets `population` (4 to `budget`; default 10 ×
-the axis count, capped at `budget`), `f` (in (0, 2], default 0.8) and
-`cr` (in [0, 1], default 0.9); a value out of range is
-`PULSE_SWEEP_INVALID`, and `de` under another mode
-`PULSE_SWEEP_MODE_MISMATCH`. Every list value of an adaptive sweep is
-rendered once at expansion, so one whose body does not decode is
-refused before anything runs, by predict and the run alike.
-
 An axis never mixes the two styles: a `range` under `grid` / `zip`, a
 `values` list under `random` / `lhs`, or `samples` / `rng_seed` under
 `grid` / `zip` is `PULSE_SWEEP_MODE_MISMATCH`. A bad range (missing
@@ -112,6 +94,89 @@ bound, `min >= max`, unknown `scale`, log with `min <= 0`, an `integer`
 range with no integer in it — reason `integer_range_empty`) is
 `PULSE_SWEEP_RANGE_INVALID`, and a missing or sub-1 `samples` is
 `PULSE_SWEEP_SAMPLES_INVALID`. An item `for_each` walks values only.
+
+### Adaptive modes: `de` and `bo`
+
+A grid or a sample fixes every point before any slot runs. An adaptive
+mode spends a slot `budget` in rounds and chooses each round's points
+from the ranked values of the rounds before, so most of the budget lands
+near the best region. Use it to find an optimum of one ranked number;
+use `lhs` / `random` to map the whole space evenly.
+
+```json
+{"sweep": {"mode": "bo", "budget": 40, "bo": {"n_init": 8, "batch": 2},
+  "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.95}},
+           {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}},
+           {"name": "form",   "values": ["linear", "log"]}],
+  "request": {"...": "..."},
+  "rank": {"by": "regressions.mmm.holdout.rmse"}}}
+```
+
+`budget` (at least 1) is the sweep's slot count and `rank` its
+objective: `rank.by` is minimised under `order: "asc"` and maximised
+under `desc`. Both are required (`PULSE_SWEEP_INVALID`, reasons
+`adaptive_requires_budget`, `budget_invalid`, `adaptive_requires_rank`).
+An axis is a `range` (searched continuously, `scale` and `integer`
+honoured) or a `values` list (searched by value index). `samples`
+(`samples_under_adaptive`) and `sweep.overlays`
+(`overlays_under_adaptive`) are refused under an adaptive mode, and
+`budget` under any other mode (`budget_without_adaptive`), all as
+`PULSE_SWEEP_MODE_MISMATCH`. The search is seeded like a sampling sweep
+(`rng_seed`, or a seed derived from the spec, echoed as `sweep_seed`),
+so a run replays bit for bit on any architecture, serial or parallel.
+Every list value is rendered once at expansion, so one whose body does
+not decode is refused before anything runs, by predict and the run
+alike. `MaxComposeSlots` bounds the budget before anything renders.
+
+`mode: "de"` is differential evolution (rand/1/bin): round 0 is a
+Latin-hypercube population, each later round one generation, and a
+`budget` remainder a final partial generation; a trial replaces its
+target when its value is no worse. The optional `de` block sets
+`population` (4 to `budget`; default 10 × the axis count, capped at
+`budget`), `f` (in (0, 2], default 0.8) and `cr` (in [0, 1], default
+0.9). Out-of-range knobs are `PULSE_SWEEP_INVALID`
+(`de_population_invalid`, `de_population_over_budget`, `de_f_invalid`,
+`de_cr_invalid`). Prefer it for cheap slots, a larger budget and a
+rugged objective.
+
+`mode: "bo"` is Bayesian optimisation: round 0 is an initial design,
+and each later round fits a Gaussian-process surrogate (Matérn 5/2)
+to every point so far and proposes the points that maximise expected
+improvement. A list axis enters the surrogate one-hot. The optional
+`bo` block sets `init` (`lhs`, the default, or `random`: how the
+initial design is drawn), `n_init` (the initial design's size; default
+2 × the axis count, capped at `budget`) and `batch` (points per later
+round, default 1; a batch above 1 is filled by constant liar). `n_init`
+and `batch` take 1 to `budget`. Out-of-range knobs are
+`PULSE_SWEEP_INVALID` (`bo_init_invalid`, `bo_n_init_invalid`,
+`bo_n_init_over_budget`, `bo_batch_invalid`, `bo_batch_over_budget`); a
+surrogate that cannot be fitted (a non-finite objective) fails the run
+with `PULSE_SWEEP_INVALID` reason `bo_surrogate_failed`
+(`details.mode`, `round`, `cause`). Prefer it for costly slots and a
+small budget. Under `ComposeParallel` a round's slots run concurrently,
+so a larger `batch` uses more workers per round.
+
+A `de` block under any mode but `de` is `PULSE_SWEEP_MODE_MISMATCH`
+(`de_without_de_mode`), and a `bo` block under any mode but `bo` the
+same (`bo_without_bo_mode`).
+
+Every adaptive label is `sample=<slot>_<pattern>` (the authored `label`
+pattern, or the default `axis=value` pairs), with `slot` the 0-based
+sweep index, so labels stay unique even when a point repeats. A slot
+that fails, or whose ranked value is null, is penalised — the search
+scores it as the worst value so far and goes on — and leaves the
+`ranking`; failures warn `PULSE_SLOT_FAILED` once for the batch
+(`details.failed_indices`). Fail-fast `ComposeParallel` aborts at the
+failing round and `Strict` fails the batch. A `result()` read may name
+an explicit or a round-0 slot; a later round's label is unknown until it
+runs, so naming it is `PULSE_RESULT_INVALID` `slot_unknown` in predict
+and at run time. `fits[].from_sweep` binds the winner as usual
+([Binding the winner as a fit](#binding-the-winner-as-a-fit)).
+
+The adaptive modes are gated by `capability:compose_sweep_adaptive`
+(which needs the sweep and the sampling modes); an instance that hides
+it refuses `budget`, `de` and `bo` as unknown fields and an adaptive
+mode as an unknown mode, the same way predict does.
 
 ## Placeholders
 
@@ -190,8 +255,12 @@ over-limit batch is `PULSE_LIMIT_EXCEEDED` before any slot runs
 applies the same limit, slot-gate and label checks as the runtime. It
 adds a `sweep` summary to the result: `axes` (name and value count —
 the `samples` count and the `range` for a sampled axis), `mode`,
-`expanded_count` (sweep slots only; `samples` under random / lhs), the
-effective `rng_seed` of a sampling sweep, and `labels`. A malformed
+`expanded_count` (sweep slots only; `samples` under random / lhs,
+`budget` under an adaptive mode), the effective `rng_seed` of a sampling
+or adaptive sweep, and `labels`. An adaptive sweep's summary adds
+`adaptive: true`, reports each range axis's `count` as the budget, and
+lists round 0's real labels followed by `null` for every later slot,
+whose points are chosen only as the run goes. A malformed
 sweep is `PULSE_SWEEP_INVALID` with `details.field` and
 `details.reason`.
 
@@ -226,7 +295,7 @@ it and `n` the ranked slots behind it. Only ranked slots count — a
 failed slot, or one left out of the ranking, is not an evaluated point
 — so a value nothing ranked has no entry and a `random` / `lhs` profile
 is as sparse as its sample. A list axis lists its values in declared
-order. A range axis (`random` / `lhs`) is binned instead:
+order. A range axis (sampling or adaptive) is binned instead:
 `rank.profile_bins` (default 10, at least 1, only beside `profile`)
 equal-width bins over `[min, max]`, equal log-width under `scale: log`,
 one entry per bin some ranked slot fell into, ascending, adding the

@@ -35,7 +35,7 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 - An axis is a unique identifier `name` plus a non-empty list of scalar `values` (string, number, boolean). Numbers keep the digits as written.
 - `mode` `grid` (default) is the Cartesian product, first axis slowest: 2 x 3 values => 6 slots. `zip` walks equal-length axes in lockstep: 3 + 3 values => 3 slots.
 - `random` / `lhs` draw `samples` seeded slots from continuous axis ranges instead ([`compose-sweep-sampling`](compose-sweep-sampling.md)).
-- An adaptive mode needs `budget` (slot count) and `rank`; each round's points follow the ranked values before. Slot `i` is `sample=<i>_…`; a failed one is penalised (`PULSE_SLOT_FAILED`).
+- `de` / `bo` search adaptively: a `budget` of slots in rounds steered by `rank` ([`compose-sweep-adaptive`](compose-sweep-adaptive.md)).
 
 ## Placeholders
 
@@ -81,4 +81,4 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 
 ## See
 
-[`compose-requests`](compose-requests.md) (slots, labels, overlay fold, parallel) · [`compose-sweep-sampling`](compose-sweep-sampling.md) (random / lhs) · [`overlay-system`](overlay-system.md) (overlay hosts) · [`item-fan-out`](item-fan-out.md) (axes on ONE item; fans out inside each slot) · [`request-templating`](request-templating.md) (the stored-template surface this is not).
+[`compose-requests`](compose-requests.md) (slots, labels, overlay fold, parallel) · [`compose-sweep-sampling`](compose-sweep-sampling.md) (random / lhs) · [`compose-sweep-adaptive`](compose-sweep-adaptive.md) (de / bo) · [`overlay-system`](overlay-system.md) (overlay hosts) · [`item-fan-out`](item-fan-out.md) (axes on ONE item; fans out inside each slot) · [`request-templating`](request-templating.md) (the stored-template surface this is not).

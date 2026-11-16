@@ -14134,6 +14134,10 @@
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
       {
+        "name": "compose-sweep-adaptive",
+        "description": "The compose sweep's adaptive search modes — de (differential evolution) and bo (Bayesian optimisation) spend a slot `budget` in rounds, each round's points chosen from the ranked values before. When to search rather than sample, the budget and rank rules, the de / bo knobs, labels, failures, predict's budget report and the refusals."
+      },
+      {
         "name": "compose-sweep-bind",
         "description": "fits[].from_sweep — bind the winning slot of a ranked Compose sweep as a named regression fit in the same batch, with its static signature, refusals and predict parity."
       },
@@ -21669,4 +21673,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 06c67c1a0eed89300d65dbb4c10cef2abd9c6bde5bb42a745811e9f048ee3c88
+// golden-hash: 33670e6f5c02dea3d1fa0895901e140912d2406a24e8c8a124b732d1eb925826

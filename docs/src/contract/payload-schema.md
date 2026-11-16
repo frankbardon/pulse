@@ -1423,7 +1423,7 @@ request, overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` 
 a non-empty list of scalars under `grid` / `zip`; `range` a
 `SweepRange {min, max, scale, integer}` — `SweepScale` `linear` default, `log`;
 `integer` draws whole numbers —
-under `random` / `lhs`, never both; `target`, optional, a
+under `random` / `lhs` (an adaptive mode takes either kind per axis), never both; `target`, optional, a
 `params.<identifier>` string writing each slot's axis value into that
 request param — present only where `capability:params` is), `mode` the closed enum `SweepMode`
 (`grid` default, `zip`, `random`, `lhs`, `de`, `bo`; the sampling modes draw
@@ -1462,7 +1462,7 @@ predict result (an adaptive mode: `expanded_count` the budget,
 `adaptive: true`, and `null` for every label after round 0's); that
 summary is not payload-reachable and is not in this schema.
 
-A sampling sweep (`random` / `lhs`) adds `ComposedResponse.sweep_seed`,
+A sampling sweep (`random` / `lhs`) or an adaptive one (`de` / `bo`) adds `ComposedResponse.sweep_seed`,
 an `omitempty` integer: the effective seed it drew with, so pinning it as
 `rng_seed` replays the run. Absent for `grid` / `zip`. Like `ranking` it
 is pinned outside the Compose-level `return`.
@@ -1488,7 +1488,7 @@ slot ran with, the best ranked `value` among those slots (`best`,
 following `rank.order`, always finite), the slot achieving it (`label`)
 and the ranked slots behind it (`n`). It reads the full ranking before
 `top`; unranked slots never count. Pinned outside the Compose-level
-`return` like `ranking`. A range axis (`random` / `lhs`) is binned into
+`return` like `ranking`. A range axis (sampling or adaptive) is binned into
 `rank.profile_bins` (default 10) equal-width bins — equal log-width
 under `scale: log` — one entry per non-empty bin, adding the optional
 numbers `lo` / `hi` (the bin edges; absent on a list axis), `value`

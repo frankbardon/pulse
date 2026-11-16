@@ -38,7 +38,7 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 - `random` / `lhs` draw `samples` seeded slots from continuous axis ranges instead (`compose-sweep-sampling`).
 <!-- /feature -->
 <!-- feature: capability:compose_sweep_adaptive -->
-- An adaptive mode needs `budget` (slot count) and `rank`; each round's points follow the ranked values before. Slot `i` is `sample=<i>_…`; a failed one is penalised (`PULSE_SLOT_FAILED`).
+- `de` / `bo` search adaptively: a `budget` of slots in rounds steered by `rank` (`compose-sweep-adaptive`).
 <!-- /feature -->
 
 ## Placeholders
@@ -89,4 +89,4 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 
 ## See
 
-`compose-requests` (slots, labels, overlay fold, parallel)<!-- feature: capability:compose_sweep_sampling --> · `compose-sweep-sampling` (random / lhs)<!-- /feature --> · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (axes on ONE item; fans out inside each slot)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.
+`compose-requests` (slots, labels, overlay fold, parallel)<!-- feature: capability:compose_sweep_sampling --> · `compose-sweep-sampling` (random / lhs)<!-- /feature --> · `compose-sweep-adaptive` (de / bo) · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (axes on ONE item; fans out inside each slot)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.

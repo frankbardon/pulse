@@ -50,6 +50,7 @@
     - [compose-optimize](skills/compose-optimize.md)
     - [compose-post-fit](skills/compose-post-fit.md)
     - [compose-requests](skills/compose-requests.md)
+    - [compose-sweep-adaptive](skills/compose-sweep-adaptive.md)
     - [compose-sweep-bind](skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](skills/compose-sweep-sampling.md)
     - [compose-sweeps](skills/compose-sweeps.md)
