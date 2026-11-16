@@ -243,12 +243,14 @@ func TestForEach_ComposeAndChain(t *testing.T) {
 		t.Fatalf("PredictChain refusal = %+v", cenv.Errors)
 	}
 
-	// A for_each inside a sweep body is refused, not expanded twice.
+	// A for_each inside a sweep body fans out per slot (compose-sweep-2
+	// E2-S2): the sweep is the outer loop, so one slot, its windows
+	// expanded in place.
 	sweepBody, _ := json.Marshal(forEachReq(t))
-	_, err = p.Compose(ctx, &pulse.ComposedRequest{Sweep: &types.SweepSpec{
+	cr, err := p.Compose(ctx, &pulse.ComposedRequest{Sweep: &types.SweepSpec{
 		Axes: []types.SweepAxis{{Name: "k", Values: []any{1}}}, Label: "k{{k}}", Request: sweepBody}})
-	if ce := codeOf(t, err); ce.Code != errors.PULSE_FOR_EACH_INVALID || ce.Details["reason"] != "nested_in_sweep" {
-		t.Fatalf("sweep body refusal = %s %v", ce.Code, ce.Details)
+	if err != nil || len(cr.Responses) != 1 || cr.Responses[0].Label != "k1" {
+		t.Fatalf("sweep body with a for_each: %v %+v", err, cr)
 	}
 }
 

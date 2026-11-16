@@ -459,11 +459,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_REGRESSION_UNREGISTERED: own(featModels),
 	errors.PULSE_MODEL_REF_INVALID:             own(featModels),
 	errors.PULSE_MODEL_FILE_UNREADABLE:         own(featModels),
-	// nested_in_sweep is raised by a sweep body, so either surface lists it.
-	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
-	// Raised only by an item expansion: a for_each inside a sweep body
-	// is refused nested_in_sweep first.
-	errors.PULSE_FOR_EACH_EXPR_SPLICE: own(featForEach),
+	// A sweep body's own scan raises both for a for_each item inside it
+	// (axis_shadowed; an item axis spliced into an expression) before
+	// the slot's gate runs, so either surface lists them.
+	errors.PULSE_FOR_EACH_INVALID:     own(featForEach, featComposeSweep),
+	errors.PULSE_FOR_EACH_EXPR_SPLICE: own(featForEach, featComposeSweep),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),

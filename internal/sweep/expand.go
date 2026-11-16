@@ -130,9 +130,12 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // and the default label leads with `sample=<ordinal>_`; Expansion.Seed
 // carries the effective seed.
 //
-// Order of checks: Validate; then the nested-for_each refusal (an item
-// in the body carrying `for_each` is PULSE_FOR_EACH_INVALID reason
-// nested_in_sweep); then the reference rule (every axis is
+// Order of checks: Validate; then the shadowed-axis refusal (an item
+// `for_each` in the body declaring an axis named like a sweep axis is
+// PULSE_FOR_EACH_INVALID reason axis_shadowed — an item for_each is
+// otherwise left in place: the sweep is the outer loop, and each slot's
+// items fan out after it renders, the slot count unchanged); then the
+// reference rule (every axis is
 // named by a placeholder in the request body, the AUTHORED label pattern
 // or the overlays — the default label does not count — and every
 // placeholder names an axis, and none sits inside an expression slot —
@@ -167,9 +170,11 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	if ce := Validate(spec); ce != nil {
 		return nil, ce
 	}
-	// An item for_each inside the body is refused before the placeholder
-	// scan, which would otherwise trip on the item's own axis names.
-	if ce := nestedForEachRefusal(spec.Request); ce != nil {
+	// An item for_each inside the body fans out per slot, after this
+	// render (its placeholders pass through the template walk); one whose
+	// axis shares a sweep axis's name is refused before the placeholder
+	// scan, which would otherwise see the name as a template collision.
+	if ce := shadowedAxisRefusal(spec); ce != nil {
 		return nil, ce
 	}
 	if ce := checkReferences(spec, opts); ce != nil {
@@ -440,7 +445,7 @@ func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 		all[i] = &template.Variable{Name: ax.Name, Type: template.VarString}
 	}
 	if err := template.ValidateWith(&template.Template{Target: template.TargetRequest, Variables: all, Body: body}, opts.validate()); err != nil {
-		return referenceFault(err)
+		return referenceFault(err, spec)
 	}
 	for i, ax := range spec.Axes {
 		// A targeted axis is referenced by its target: it writes
@@ -484,8 +489,10 @@ func referenceBody(spec *types.SweepSpec) json.RawMessage {
 
 // referenceFault maps a template validation fault on the scan document
 // to PULSE_SWEEP_INVALID: one naming a variable is a placeholder naming
-// no axis; any other is placeholder syntax the grammar refuses.
-func referenceFault(err error) *errors.CodedError {
+// no axis; any other is placeholder syntax the grammar refuses. An
+// expression splice is PULSE_SWEEP_EXPR_SPLICE for a sweep axis and
+// PULSE_FOR_EACH_EXPR_SPLICE for the axis of a for_each item in the body.
+func referenceFault(err error, spec *types.SweepSpec) *errors.CodedError {
 	var tce *errors.CodedError
 	if !stderrors.As(err, &tce) {
 		return internalFault("sweep", err)
@@ -494,7 +501,13 @@ func referenceFault(err error) *errors.CodedError {
 	field := scanPath(path)
 	name, _ := tce.Details[errors.DetailVariable].(string)
 	var ce *errors.CodedError
-	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
+	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE && !isSweepAxis(spec, name) {
+		// A placeholder naming no sweep axis passed the scan only as an
+		// axis of a for_each item in the body: that item's own rule.
+		slot, _ := tce.Details["slot"].(string)
+		ce = forEachExprSplice(field, name, slot)
+		carryTemplatedType(ce, tce)
+	} else if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 		slot, _ := tce.Details["slot"].(string)
 		ce = exprSplice(errors.PULSE_SWEEP_EXPR_SPLICE, "sweep", field, name, slot,
 			"carry the axis value through the request's params — set the axis `\"target\": \"params."+name+
@@ -745,4 +758,14 @@ func sortedKeys(m map[string]any) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// isSweepAxis reports whether name is one of spec's axes.
+func isSweepAxis(spec *types.SweepSpec, name string) bool {
+	for _, ax := range spec.Axes {
+		if ax.Name == name {
+			return true
+		}
+	}
+	return false
 }

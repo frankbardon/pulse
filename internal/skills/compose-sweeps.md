@@ -85,4 +85,4 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 
 ## See
 
-`compose-requests` (slots, labels, overlay fold, parallel)<!-- feature: capability:compose_sweep_sampling --> · `compose-sweep-sampling` (random / lhs)<!-- /feature --> · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (the same axes on ONE window / feature / attribute item; refused inside a sweep body)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.
+`compose-requests` (slots, labels, overlay fold, parallel)<!-- feature: capability:compose_sweep_sampling --> · `compose-sweep-sampling` (random / lhs)<!-- /feature --> · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (axes on ONE item; fans out inside each slot)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.

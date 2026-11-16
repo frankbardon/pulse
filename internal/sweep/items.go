@@ -24,10 +24,12 @@ const (
 	// type — a value of the wrong JSON type. An unknown key is
 	// PULSE_REQUEST_UNKNOWN_FIELD (details.path from the item).
 	ReasonItemDecode = "item_decode"
-	// ReasonNestedInSweep: a compose sweep body carries an item with a
-	// `for_each`. A sweep body is substituted once per slot; a second
-	// fan-out inside it is refused rather than expanded twice.
-	ReasonNestedInSweep = "nested_in_sweep"
+	// ReasonAxisShadowed: an item `for_each` inside a compose sweep body
+	// declares an axis with the same name as a sweep axis. The sweep
+	// substitutes into the body first and the item's axes scope over its
+	// own item, so a shared name would make `{{name}}` inside that item
+	// ambiguous — refused rather than one reading silently winning.
+	ReasonAxisShadowed = "axis_shadowed"
 	// ReasonPositionUnsupported: an aggregation carrying a `for_each`
 	// sits where no fan-out runs — a crosstab `cell`, `cells` or
 	// `margin_aggregations` entry (a banner cell lands there too). Only
@@ -577,12 +579,7 @@ func itemReferenceFault(path, list string, err error) *errors.CodedError {
 	var ce *errors.CodedError
 	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 		slot, _ := tce.Details["slot"].(string)
-		ce = exprSplice(errors.PULSE_FOR_EACH_EXPR_SPLICE, "for_each", field, name, slot,
-			"vary the value with a Compose sweep instead (its axis sets `\"target\": \"params."+name+"\"`, or its "+
-				"request carries `\"params\": {"+strconv.Quote(name)+": {\"$var\": "+strconv.Quote(name)+"}}`, and "+
-				"the expression reads `params."+name+"`), or, for an "+
-				"expression inside params, supply it whole with a `{\"$var\": "+strconv.Quote(name)+"}` axis marker "+
-				"whose values are the complete expressions")
+		ce = forEachExprSplice(field, name, slot)
 		carryTemplatedType(ce, tce)
 	} else if name != "" {
 		ce = forEachInvalid(field, ReasonPlaceholderUnknown,
@@ -647,39 +644,89 @@ func combinationDetails(values map[string]any, idx int) map[string]any {
 	return map[string]any{"index": idx, "values": vals}
 }
 
-// nestedForEachRefusal refuses a compose sweep body carrying an item
-// with a `for_each` (reason nested_in_sweep), read off the raw body so
-// it fires before the sweep's own placeholder scan would trip on the
-// item's axis names.
-func nestedForEachRefusal(body json.RawMessage) *errors.CodedError {
-	var probe struct {
-		Features     []map[string]json.RawMessage `json:"features"`
-		Attributes   []map[string]json.RawMessage `json:"attributes"`
-		Windows      []map[string]json.RawMessage `json:"windows"`
-		Aggregations []map[string]json.RawMessage `json:"aggregations"`
-		Matrices     []map[string]json.RawMessage `json:"matrices"`
+// shadowedAxisRefusal refuses an item `for_each` inside a compose
+// sweep body (request or overlays) declaring an axis that shares its
+// name with a sweep axis (reason axis_shadowed). The sweep is the outer
+// loop: it substitutes into the body first, and the template walk leaves
+// every placeholder naming an enclosing for_each axis for the item's own
+// expansion (internal/template, the structural rule) — so a shared name
+// would let the item's axis silently swallow the sweep's. Read off the
+// raw body with the template's structural rule (any object carrying a
+// `for_each` object whose `axes` list `{"name": …}` entries), so it
+// fires before the placeholder scan, and identically for predict and the
+// runtime (both call Expand). Objects walk in sorted-key order; the
+// first shadowing axis is returned.
+func shadowedAxisRefusal(spec *types.SweepSpec) *errors.CodedError {
+	sweepAxes := make(map[string]int, len(spec.Axes))
+	for i, ax := range spec.Axes {
+		sweepAxes[ax.Name] = i
 	}
-	if json.Unmarshal(body, &probe) != nil {
-		// Left to the strict body decode, which names the fault.
-		return nil
+	for _, part := range []struct {
+		field string
+		raw   json.RawMessage
+	}{{"sweep.request", spec.Request}, {"sweep.overlays", spec.Overlays}} {
+		var doc any
+		if json.Unmarshal(part.raw, &doc) != nil {
+			// Left to Validate / the strict decode, which name the fault.
+			continue
+		}
+		if ce := shadowedIn(doc, part.field, sweepAxes); ce != nil {
+			return ce
+		}
 	}
-	for _, l := range []struct {
-		name  string
-		items []map[string]json.RawMessage
-	}{
-		{listFeatures, probe.Features}, {listAttributes, probe.Attributes}, {listWindows, probe.Windows},
-		{listAggregations, probe.Aggregations}, {listMatrices, probe.Matrices},
-	} {
-		for i, item := range l.items {
-			if _, ok := item["for_each"]; ok {
-				path := itemPath(l.name, i)
-				return forEachInvalid("sweep.request."+path+".for_each", ReasonNestedInSweep,
-					"the compose sweep body item "+path+" carries a for_each; a sweep body is substituted once per slot "+
-						"and cannot fan an item out a second time — add the item's axes to the sweep, or move the item "+
-						"to an explicit request",
-					map[string]any{})
+	return nil
+}
+
+// shadowedIn walks doc for the first for_each axis named like a sweep
+// axis, at its sweep-rooted path.
+func shadowedIn(doc any, at string, sweepAxes map[string]int) *errors.CodedError {
+	switch v := doc.(type) {
+	case map[string]any:
+		if fe, ok := v["for_each"].(map[string]any); ok {
+			axes, _ := fe["axes"].([]any)
+			for j, el := range axes {
+				ax, _ := el.(map[string]any)
+				name, ok := ax["name"].(string)
+				if !ok {
+					continue
+				}
+				if i, hit := sweepAxes[strings.TrimSpace(name)]; hit {
+					field := at + ".for_each.axes[" + strconv.Itoa(j) + "].name"
+					sweepAxis := axisPath(i)
+					return forEachInvalid(field, ReasonAxisShadowed,
+						"for_each axis "+strconv.Quote(name)+" at "+field+" shadows the compose sweep axis "+sweepAxis+
+							" of the same name; the sweep substitutes into its body first and the item's own axes "+
+							"scope over the item, so `{{"+name+"}}` there would be ambiguous — rename the item axis "+
+							"or the sweep axis",
+						map[string]any{"axis": name, "sweep_axis": sweepAxis})
+				}
+			}
+		}
+		for _, k := range sortedKeys(v) {
+			if ce := shadowedIn(v[k], at+"."+k, sweepAxes); ce != nil {
+				return ce
+			}
+		}
+	case []any:
+		for i, e := range v {
+			if ce := shadowedIn(e, at+"["+strconv.Itoa(i)+"]", sweepAxes); ce != nil {
+				return ce
 			}
 		}
 	}
 	return nil
+}
+
+// forEachExprSplice is the PULSE_FOR_EACH_EXPR_SPLICE refusal of an item
+// axis placeholder inside an expression slot — raised by the item's own
+// scan, and by a compose sweep's reference scan when the placeholder
+// names an axis of a for_each item in the sweep body (never a sweep
+// axis), so a fanned-out item is judged by its own rule wherever it sits.
+func forEachExprSplice(field, name, slot string) *errors.CodedError {
+	return exprSplice(errors.PULSE_FOR_EACH_EXPR_SPLICE, "for_each", field, name, slot,
+		"vary the value with a Compose sweep instead (its axis sets `\"target\": \"params."+name+"\"`, or its "+
+			"request carries `\"params\": {"+strconv.Quote(name)+": {\"$var\": "+strconv.Quote(name)+"}}`, and "+
+			"the expression reads `params."+name+"`), or, for an "+
+			"expression inside params, supply it whole with a `{\"$var\": "+strconv.Quote(name)+"}` axis marker "+
+			"whose values are the complete expressions")
 }

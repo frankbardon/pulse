@@ -1894,8 +1894,9 @@ instance that hides it the `for_each` properties and the `ForEach` def
 are absent (`SweepAxis` stays while a compose sweep is visible). A
 malformed for_each is `PULSE_FOR_EACH_INVALID` with `details.field` (a
 request-rooted path such as `windows[0].for_each.axes[1]`) and
-`details.reason`; a `for_each` inside a sweep body is refused with
-reason `nested_in_sweep`. `Limits.MaxDerivedColumns` (default 1,000)
+`details.reason`; a `for_each` inside a sweep body fans out in each
+slot after the sweep renders it, and one whose axis shares a sweep
+axis's name is refused with reason `axis_shadowed`. `Limits.MaxDerivedColumns` (default 1,000)
 bounds plain plus expanded window, feature and attribute items and
 `Limits.MaxExpandedItems` (default 1,000) the aggregations and matrices
 a `for_each` adds (plain ones never count), both checked before any
