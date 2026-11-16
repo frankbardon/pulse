@@ -117,6 +117,7 @@ the batch's top-level one — so the body needs no placeholder:
 "sweep": {
   "axes": [{"name": "w", "values": [2, 3], "target": "params.w"}],
   "request": {
+    "params": {"w": 1},
     "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave >= params.w"}]
   }
 }
