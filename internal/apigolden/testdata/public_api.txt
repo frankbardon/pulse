@@ -205,6 +205,7 @@ pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "j
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
+pulse: type ComposedResponse field RankingProfile map[string][]pulse/types.RankProfileEntry "json:\"ranking_profile,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
@@ -5528,6 +5529,7 @@ pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeRes
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
+pulse/types: type ComposedResponse field RankingProfile map[string][]pulse/types.RankProfileEntry "json:\"ranking_profile,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
@@ -6480,6 +6482,11 @@ pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
 pulse/types: type RankEntry field Slot int "json:\"slot\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
+pulse/types: type RankProfileEntry struct
+pulse/types: type RankProfileEntry field Best float64 "json:\"best\""
+pulse/types: type RankProfileEntry field Label string "json:\"label\""
+pulse/types: type RankProfileEntry field N int "json:\"n\""
+pulse/types: type RankProfileEntry field Value any "json:\"value\""
 pulse/types: type ReferenceVectorTable struct
 pulse/types: type ReferenceVectorTable field Description string
 pulse/types: type ReferenceVectorTable field Labels []string
@@ -6830,6 +6837,7 @@ pulse/types: type SweepRange field Scale pulse/types.SweepScale "json:\"scale,om
 pulse/types: type SweepRank struct
 pulse/types: type SweepRank field By string "json:\"by\""
 pulse/types: type SweepRank field Order pulse/types.SweepRankOrder "json:\"order,omitempty\""
+pulse/types: type SweepRank field Profile bool "json:\"profile,omitempty\""
 pulse/types: type SweepRank field Top *int "json:\"top,omitempty\""
 pulse/types: const SweepRankAsc pulse/types.SweepRankOrder = "asc"
 pulse/types: const SweepRankDesc pulse/types.SweepRankOrder = "desc"
@@ -6983,4 +6991,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e900bcea7c4616320fac29f6ed5bc8cc016a48f96795bed8c28143123257ed53
+// golden-hash: 2dc0d437d8ec52a2e96337610031129dfa0d35ae69065f0810cc4d0b771222f8

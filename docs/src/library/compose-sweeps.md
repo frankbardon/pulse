@@ -192,6 +192,20 @@ even when its `return` excludes it, and `ranking` is never trimmed or
 rounded by the Compose `return`. Under `--stream` one trailing
 `{"ranking": [...]}` line follows the rows.
 
+`rank.profile: true` adds `ComposedResponse.RankingProfile`
+(`ranking_profile`): per axis, one `{value, best, label, n}` entry per
+axis value some ranked slot ran with. `best` is the best ranked value
+among the slots with that value (the minimum under `asc`, the maximum
+under `desc`, ties in expansion order), `label` the slot that achieved
+it and `n` the ranked slots behind it. Only ranked slots count — a
+failed slot, or one left out of the ranking, is not an evaluated point
+— so a value nothing ranked has no entry and a `random` / `lhs` profile
+is as sparse as its sample. A list axis lists its values in declared
+order; a drawn axis ascending. The profile reads the whole ranking
+before `top`, sits outside the Compose `return` like `ranking`, rides
+the same `--stream` ranking line, and never changes a sampling sweep's
+derived seed. Without `profile` the response is byte-identical.
+
 A figure serialised with `omitempty` disappears from the wire at exactly
 0. Rank reads such a figure off the typed response instead, so a fit
 whose `residual_std_err`, `r2`, `adj_r2`, `deviance`, `null_deviance` or

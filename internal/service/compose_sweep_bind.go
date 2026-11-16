@@ -106,11 +106,11 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 	if err := foldSweepSlotMultiplicity(mult, responses, bind.lo, bind.hi); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	ranking, err := rankComposeSweep(ext.rank, requests, responses)
+	ranking, profile, err := rankComposeSweep(ext.rank, requests, responses)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	ext.rank.ranked, ext.rank.done = ranking, true
+	ext.rank.ranked, ext.rank.profile, ext.rank.done = ranking, profile, true
 	if err := pass.bindWinner(bind, ranking, composed.Requests, ext.rank, s.strict); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -214,8 +214,9 @@ func (p *composeFitPass) resolved(bind *sweepBinding) []bool {
 
 // rankComposeSweep is the rank over the finished sweep slots (rank.explicit
 // on, labelled by the resolved requests) — sweep.Rank, which also warns
-// on each slot it leaves out.
-func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, error) {
+// on each slot it leaves out — plus the per-axis profile when the rank
+// asks for one (sweep.RankProfiled; nil otherwise).
+func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
 	n := rank.count
 	if rank.explicit+n > len(responses) {
 		n = max(len(responses)-rank.explicit, 0)
@@ -226,7 +227,7 @@ func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []
 			labels[i] = r.Label
 		}
 	}
-	return sweep.Rank(rank.spec, labels, rank.axes, responses[rank.explicit:rank.explicit+n])
+	return sweep.RankProfiled(rank.spec, rank.axisSpec, labels, rank.axes, responses[rank.explicit:rank.explicit+n])
 }
 
 // foldSweepSlotMultiplicity corrects the slot-local multiplicity

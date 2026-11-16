@@ -98,15 +98,15 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"compose sweep enabled", scopedOnly(featCompose, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"banner", "base", "compare", "fits", "optimize", "params", "post_fit"}},
 		{"compose fits enabled", scopedOnly(featCompose, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"banner", "base", "compare", "optimize", "params", "post_fit"}},
 		{"compose banner enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"base", "compare", "optimize", "params", "post_fit"}},
-		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "optimizations", "overlays", "post_fit", "ranking", "sweep_seed"}},
+		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "optimizations", "overlays", "post_fit", "ranking", "ranking_profile", "sweep_seed"}},
 		{"compose ranking enabled", scopedOnly(featCompose, featComposeSweep), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "optimizations", "overlays", "post_fit", "sweep_seed"}},
 		{"compose sweep seed enabled", scopedOnly(featCompose, featComposeSweep, featSweepSampling), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "optimizations", "overlays", "post_fit"}},
 		{"compose fits result enabled", scopedOnly(featCompose, featComposeSweep, featSweepSampling, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, []string{"banner", "comparisons", "optimizations", "post_fit"}},
-		{"compose post_fit result enabled", scopedOnly(featCompose, featComposeFits, featComposePostFit, "REG_OLS"), &types.ComposedResponse{}, []string{"banner", "comparisons", "optimizations", "overlays", "ranking", "sweep_seed"}},
+		{"compose post_fit result enabled", scopedOnly(featCompose, featComposeFits, featComposePostFit, "REG_OLS"), &types.ComposedResponse{}, []string{"banner", "comparisons", "optimizations", "overlays", "ranking", "ranking_profile", "sweep_seed"}},
 		{"compose banner result enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeSweep, featSweepSampling, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, []string{"comparisons", "optimizations", "post_fit"}},
 		{"compose optimize enabled", scopedOnly(featCompose, featComposeOpt), &types.ComposedRequest{}, []string{"banner", "base", "compare", "fits", "multiplicity", "overlays", "params", "post_fit", "sweep"}},
 		{"compose base enabled", scopedOnly(featCompose, featComposeBase), &types.ComposedRequest{}, []string{"banner", "compare", "fits", "multiplicity", "optimize", "overlays", "params", "post_fit", "sweep"}},
-		{"compose optimizations result enabled", scopedOnly(featCompose, featComposeOpt), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "overlays", "post_fit", "ranking", "sweep_seed"}},
+		{"compose optimizations result enabled", scopedOnly(featCompose, featComposeOpt), &types.ComposedResponse{}, []string{"banner", "comparisons", "fits", "overlays", "post_fit", "ranking", "ranking_profile", "sweep_seed"}},
 		// The overlay results ride the same gate as the request slot
 		// that produces them, on every result root.
 		{"response overlays hidden", scopedOnly(featProcess), &types.Response{}, []string{"matrices", "overlays"}},

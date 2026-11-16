@@ -63,7 +63,7 @@ func TestPayloadSchema_ComposeSweepHidden(t *testing.T) {
 			}
 			s := string(b)
 			for _, tok := range []string{`"sweep"`, `"ranking"`, `"SweepSpec"`, `"SweepAxis"`,
-				`"SweepRank"`, `"SweepMode"`, `"SweepRankOrder"`, `"RankEntry"`} {
+				`"SweepRank"`, `"SweepMode"`, `"SweepRankOrder"`, `"RankEntry"`, `"ranking_profile"`, `"RankProfileEntry"`} {
 				if got := strings.Contains(s, tok); got != c.want {
 					t.Errorf("%s present = %v, want %v", tok, got, c.want)
 				}

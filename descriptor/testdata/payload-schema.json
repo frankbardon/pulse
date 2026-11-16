@@ -1139,6 +1139,18 @@
             "null"
           ]
         },
+        "ranking_profile": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/RankProfileEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "responses": {
           "items": {
             "$ref": "#/$defs/Response"
@@ -5307,6 +5319,31 @@
       ],
       "type": "object"
     },
+    "RankProfileEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "best": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "value": true
+      },
+      "required": [
+        "best",
+        "label",
+        "n",
+        "value"
+      ],
+      "type": "object"
+    },
     "RecommendNeed": {
       "additionalProperties": false,
       "properties": {
@@ -7493,6 +7530,9 @@
         "order": {
           "$ref": "#/$defs/SweepRankOrder"
         },
+        "profile": {
+          "type": "boolean"
+        },
         "top": {
           "type": "integer"
         }
@@ -8183,4 +8223,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 90d1f61c2f54d9efeab67d80c828d4f669aacd90925e7059caf9534afb57e0ed
+// golden-hash: de64ca51df650e9e3c6ecd8564fa8b1afa0a83a1e6b61a3fd03818729c61b347

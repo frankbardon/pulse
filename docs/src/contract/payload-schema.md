@@ -1469,6 +1469,15 @@ a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
 
+`rank.profile: true` adds `ComposedResponse.ranking_profile`, an
+`omitempty` object keyed by axis name, each value an array of
+`RankProfileEntry {value, best, label, n}`: per axis value some ranked
+slot ran with, the best ranked `value` among those slots (`best`,
+following `rank.order`, always finite), the slot achieving it (`label`)
+and the ranked slots behind it (`n`). It reads the full ranking before
+`top`; unranked slots never count. Pinned outside the Compose-level
+`return` like `ranking`.
+
 ### Compose banner
 
 `ComposedRequest.banner` (`BannerSpec`) is

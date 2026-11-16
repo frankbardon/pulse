@@ -204,7 +204,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line; optimize blocks end with one {\"optimizations\":[...]} line"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile); optimize blocks end with one {\"optimizations\":[...]} line"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -298,7 +298,17 @@ func apiComposeCmd() *cli.Command {
 					if resp != nil && resp.Ranking != nil {
 						ranking = resp.Ranking
 					}
-					if err := encodeFinite(enc, map[string]any{"ranking": ranking}); err != nil {
+					line := map[string]any{"ranking": ranking}
+					// rank.profile adds the per-axis profile to the
+					// same record.
+					if composed.Sweep.Rank.Profile {
+						profile := map[string][]types.RankProfileEntry{}
+						if resp != nil && resp.RankingProfile != nil {
+							profile = resp.RankingProfile
+						}
+						line["ranking_profile"] = profile
+					}
+					if err := encodeFinite(enc, line); err != nil {
 						return err
 					}
 				}

@@ -2347,9 +2347,10 @@ func samplingSweepSchema() map[string]any {
 				"type":        "object",
 				"description": "Orders the finished sweep slots by one number and reports them in the response `ranking`.",
 				"properties": map[string]any{
-					"by":    map[string]any{"type": "string", "description": "Path of the ranked number in each slot's response."},
-					"order": enumStringField(stringSlice(types.AllSweepRankOrders()), "asc (default) or desc."),
-					"top":   map[string]any{"type": "integer", "minimum": 1, "description": "Keep only the first top entries; omit to rank every slot."},
+					"by":      map[string]any{"type": "string", "description": "Path of the ranked number in each slot's response."},
+					"order":   enumStringField(stringSlice(types.AllSweepRankOrders()), "asc (default) or desc."),
+					"top":     map[string]any{"type": "integer", "minimum": 1, "description": "Keep only the first top entries; omit to rank every slot."},
+					"profile": map[string]any{"type": "boolean", "description": "Add `ranking_profile`: per axis value, the best ranked value over the other axes, its slot label and n (ranked slots behind it)."},
 				},
 				"required": []string{"by"},
 			},

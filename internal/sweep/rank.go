@@ -88,6 +88,39 @@ func ParseRankPath(by string) ([]string, *errors.CodedError) {
 // Ties keep expansion order; Rank is 1-based; Top trims the ranking
 // only.
 func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, error) {
+	full, err := rankAll(r, labels, axes, responses)
+	if err != nil || full == nil {
+		return full, err
+	}
+	return trimTop(r, full), nil
+}
+
+// RankProfiled is Rank plus, when r.Profile is set, the per-axis
+// profile (Profile) read over the FULL ranking — before r.Top trims it.
+// spec is the sweep's declared axes; the profile is nil when r is nil
+// or r.Profile is false.
+func RankProfiled(r *types.SweepRank, spec []types.SweepAxis, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
+	full, err := rankAll(r, labels, axes, responses)
+	if err != nil || full == nil {
+		return full, nil, err
+	}
+	var profile map[string][]types.RankProfileEntry
+	if r.Profile {
+		profile = Profile(spec, full)
+	}
+	return trimTop(r, full), profile, nil
+}
+
+// trimTop keeps the first r.Top entries of a full ranking.
+func trimTop(r *types.SweepRank, full []types.RankEntry) []types.RankEntry {
+	if r.Top != nil && *r.Top < len(full) {
+		return full[:*r.Top]
+	}
+	return full
+}
+
+// rankAll is Rank without the Top trim: every ranked slot, Rank set.
+func rankAll(r *types.SweepRank, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -161,9 +194,6 @@ func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses 
 		}
 		return entries[a].Value < entries[b].Value
 	})
-	if r.Top != nil && *r.Top < len(entries) {
-		entries = entries[:*r.Top]
-	}
 	out := make([]types.RankEntry, len(entries))
 	for i, e := range entries {
 		e.Rank = i + 1

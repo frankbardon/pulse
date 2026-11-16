@@ -15,7 +15,8 @@ import (
 // with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
 // one rng_seed 0 derivation every seeded draw shares — over the spec's
 // wire form with rng_seed excluded (never the clock), so the same spec
-// draws the same slots on every run and every surface. The raw request
+// draws the same slots on every run and every surface. rank.profile is
+// left out: reading the ranking's profile never redraws the points. The raw request
 // and overlays bodies are hashed in regresample.CanonicalJSON form, so
 // key order and whitespace inside them never move the seed. It reads the
 // spec only; predict and the runtime call it on the same spec and
@@ -29,6 +30,13 @@ func EffectiveSeed(spec *types.SweepSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
+	if cp.Rank != nil && cp.Rank.Profile {
+		// The profile is a read of the finished ranking: turning it on
+		// never redraws the points.
+		rk := *cp.Rank
+		rk.Profile = false
+		cp.Rank = &rk
+	}
 	cp.Request = regresample.CanonicalJSON(cp.Request)
 	cp.Overlays = regresample.CanonicalJSON(cp.Overlays)
 	body, err := json.Marshal(&cp)

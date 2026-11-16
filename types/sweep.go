@@ -193,6 +193,12 @@ type SweepRank struct {
 	// Top, when set, keeps only the first Top ranked entries; at least
 	// 1. Nil keeps every slot.
 	Top *int `json:"top,omitempty"`
+
+	// Profile, when true, adds ComposedResponse.RankingProfile: per
+	// axis, per axis value, the best ranked value over the other axes.
+	// It reads the full ranking (Top trims the ranking only) and never
+	// moves a sampling sweep's derived seed. False is absent.
+	Profile bool `json:"profile,omitempty"`
 }
 
 // SweepRankOrder is the sort direction of a sweep rank.
@@ -208,6 +214,27 @@ const (
 // AllSweepRankOrders returns every SweepRankOrder value.
 func AllSweepRankOrders() []SweepRankOrder {
 	return []SweepRankOrder{SweepRankAsc, SweepRankDesc}
+}
+
+// RankProfileEntry is one axis value's entry in
+// ComposedResponse.RankingProfile: Best is the best ranked value among
+// the evaluated (ranked) slots that ran with Value — the first such slot
+// in rank order, so it follows SweepRank.Order and ties keep expansion
+// order — Label names that slot and N counts the ranked slots behind
+// the entry. Only ranked slots count: a value no ranked slot ran with
+// has no entry, so a sampled or partly failed sweep's profile is sparse.
+type RankProfileEntry struct {
+	// Value is the axis value, typed as in RankEntry.Axes.
+	Value any `json:"value"`
+
+	// Best is the best ranked value among the slots behind the entry.
+	Best float64 `json:"best"`
+
+	// Label is the final label of the slot that achieved Best.
+	Label string `json:"label"`
+
+	// N is the number of ranked slots that ran with Value.
+	N int `json:"n"`
 }
 
 // RankEntry is one ranked sweep slot in ComposedResponse.Ranking: the
