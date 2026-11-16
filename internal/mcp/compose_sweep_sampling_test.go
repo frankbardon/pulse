@@ -86,3 +86,37 @@ func TestSweepRandom_MCPRefusesHiddenSampling(t *testing.T) {
 		})
 	}
 }
+
+// TestSweepRange_MCPSchemaIntegerAndBins: the bound sweep schema offers
+// the range axis `integer` flag where it offers `range` (absent with it
+// on an instance hiding the sampling modes) and rank `profile_bins`
+// (an integer, minimum 1) beside `profile` on every sweep instance.
+func TestSweepRange_MCPSchemaIntegerAndBins(t *testing.T) {
+	t.Parallel()
+
+	_, hidden := instanceFor(t, &pulse.FeatureProfile{Features: sweepSamplingFeatures}, pulse.Extensions{})
+	_, enabled := instanceFor(t, &pulse.FeatureProfile{Features: append(append([]string(nil), sweepSamplingFeatures...),
+		"capability:compose_sweep_sampling")}, pulse.Extensions{})
+	for _, c := range []struct {
+		name    string
+		inst    *descx.InstanceSnapshot
+		integer bool
+	}{{"hidden", hidden, false}, {"enabled", enabled, true}} {
+		t.Run(c.name, func(t *testing.T) {
+			props := sweepSchema(c.inst)["properties"].(map[string]any)
+			axis := props["axes"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+			integer := false
+			if rg, ok := axis["range"].(map[string]any); ok {
+				in, ok := rg["properties"].(map[string]any)["integer"].(map[string]any)
+				integer = ok && in["type"] == "boolean"
+			}
+			if integer != c.integer {
+				t.Errorf("range.integer offered %v, want %v", integer, c.integer)
+			}
+			bins, ok := props["rank"].(map[string]any)["properties"].(map[string]any)["profile_bins"].(map[string]any)
+			if !ok || bins["type"] != "integer" || bins["minimum"] != 1 {
+				t.Errorf("rank.profile_bins %v", bins)
+			}
+		})
+	}
+}

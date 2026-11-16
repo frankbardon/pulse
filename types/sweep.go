@@ -113,6 +113,13 @@ type SweepRange struct {
 	// Scale is how draws spread over the interval (SweepScale*). Empty
 	// is linear.
 	Scale SweepScale `json:"scale,omitempty"`
+	// Integer, when true, draws whole numbers only: the draw spreads
+	// over [ceil(Min) − ½, floor(Max) + ½] on the axis Scale and rounds
+	// to the nearest integer, so every integer in [Min, Max] is reachable
+	// and (under linear) equally likely, and an lhs stratum maps to an
+	// integer interval. The interval must hold an integer. A drawn value
+	// renders in integer form (`3`, never `3e+00`). False is absent.
+	Integer bool `json:"integer,omitempty"`
 }
 
 // SweepScale names how a sampled axis spreads its draws.
@@ -199,7 +206,19 @@ type SweepRank struct {
 	// It reads the full ranking (Top trims the ranking only) and never
 	// moves a sampling sweep's derived seed. False is absent.
 	Profile bool `json:"profile,omitempty"`
+
+	// ProfileBins is how many bins the profile cuts each range axis
+	// (a random / lhs draw) into: equal-width over [min, max], equal
+	// log-width under scale log; each bin with a ranked slot is one
+	// RankProfileEntry carrying its Lo / Hi edges. At least 1, and only
+	// with Profile; nil is the default, 10. Like Profile it never moves
+	// a sampling sweep's derived seed. A list axis is never binned.
+	ProfileBins *int `json:"profile_bins,omitempty"`
 }
+
+// DefaultProfileBins is the bin count a range axis's rank profile takes
+// when SweepRank.ProfileBins is nil.
+const DefaultProfileBins = 10
 
 // SweepRankOrder is the sort direction of a sweep rank.
 type SweepRankOrder string
@@ -223,9 +242,23 @@ func AllSweepRankOrders() []SweepRankOrder {
 // order — Label names that slot and N counts the ranked slots behind
 // the entry. Only ranked slots count: a value no ranked slot ran with
 // has no entry, so a sampled or partly failed sweep's profile is sparse.
+//
+// A range axis (a random / lhs draw) is binned instead: one entry per
+// bin [Lo, Hi) some ranked slot fell into (the last bin closed at the
+// range max), Value the drawn value of the slot that achieved Best and
+// N the ranked slots in the bin. Lo / Hi are absent on a list axis.
 type RankProfileEntry struct {
-	// Value is the axis value, typed as in RankEntry.Axes.
+	// Value is the axis value, typed as in RankEntry.Axes; on a binned
+	// range axis, the value the best slot in the bin drew.
 	Value any `json:"value"`
+
+	// Lo is a range-axis bin's lower edge (inclusive). Absent on a list
+	// axis.
+	Lo *float64 `json:"lo,omitempty"`
+
+	// Hi is a range-axis bin's upper edge (exclusive, but the last bin's
+	// is the range max, inclusive). Absent on a list axis.
+	Hi *float64 `json:"hi,omitempty"`
 
 	// Best is the best ranked value among the slots behind the entry.
 	Best float64 `json:"best"`

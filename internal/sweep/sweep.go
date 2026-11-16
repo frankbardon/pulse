@@ -31,13 +31,13 @@
 //     samples / rng_seed are unset (PULSE_SWEEP_MODE_MISMATCH); under
 //     random / lhs every axis carries a range and no values
 //     (PULSE_SWEEP_MODE_MISMATCH), every range has finite min < max, a
-//     scale of linear or log and min > 0 under log
-//     (PULSE_SWEEP_RANGE_INVALID), and samples is at least 1
-//     (PULSE_SWEEP_SAMPLES_INVALID);
+//     scale of linear or log, min > 0 under log and, under integer, an
+//     integer inside [min, max] (PULSE_SWEEP_RANGE_INVALID), and samples
+//     is at least 1 (PULSE_SWEEP_SAMPLES_INVALID);
 //   - request is a JSON object; overlays, when set, is a JSON array;
 //   - rank, when set, names a non-empty `by` of dotted segments with
 //     none empty; order is empty, asc or desc; top, when set, is at
-//     least 1.
+//     least 1; profile_bins, when set, is at least 1 and rides profile.
 //
 // Checks run in that order, axes in declared order, and the first fault
 // is returned — a malformed non-empty `by` as PULSE_SWEEP_RANK_PATH
@@ -75,6 +75,11 @@ const (
 	ReasonRankByEmpty       = "rank_by_empty"
 	ReasonRankOrderUnknown  = "rank_order_unknown"
 	ReasonRankTopInvalid    = "rank_top_invalid"
+	// ReasonRankProfileBinsInvalid: rank.profile_bins is below 1.
+	ReasonRankProfileBinsInvalid = "rank_profile_bins_invalid"
+	// ReasonRankProfileBinsWithoutProfile: rank.profile_bins is set but
+	// rank.profile is not.
+	ReasonRankProfileBinsWithoutProfile = "rank_profile_bins_without_profile"
 	// ReasonRangeUnsupported: an item for_each axis carries a `range` —
 	// the sampling modes are compose-sweep only.
 	ReasonRangeUnsupported = "range_unsupported"
@@ -124,6 +129,9 @@ const (
 	ReasonRangeEmpty        = "range_empty"
 	ReasonScaleUnknown      = "scale_unknown"
 	ReasonLogMinNotPositive = "log_min_not_positive"
+	// ReasonIntegerRangeEmpty: an `integer` range holds no integer
+	// (ceil(min) > floor(max)).
+	ReasonIntegerRangeEmpty = "integer_range_empty"
 )
 
 // The reason values PULSE_SWEEP_SAMPLES_INVALID carries under
@@ -199,6 +207,20 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 			return invalid("sweep.rank.top", "", ReasonRankTopInvalid,
 				"sweep rank top is "+strconv.Itoa(*r.Top)+"; set it to at least 1, or omit it to rank every slot",
 				map[string]any{"value": *r.Top})
+		}
+		if b := r.ProfileBins; b != nil {
+			if !r.Profile {
+				return invalid("sweep.rank.profile_bins", "", ReasonRankProfileBinsWithoutProfile,
+					"sweep rank sets profile_bins without profile; profile_bins bins the ranking profile's range axes — "+
+						"set profile: true, or drop profile_bins",
+					map[string]any{"value": *b})
+			}
+			if *b < 1 {
+				return invalid("sweep.rank.profile_bins", "", ReasonRankProfileBinsInvalid,
+					"sweep rank profile_bins is "+strconv.Itoa(*b)+"; set it to at least 1, or omit it for "+
+						strconv.Itoa(types.DefaultProfileBins)+" bins",
+					map[string]any{"value": *b})
+			}
 		}
 	}
 	return nil
@@ -327,6 +349,12 @@ func validateRangeAxis(at string, ax types.SweepAxis, mode types.SweepMode) *err
 	if rg.Scale == types.SweepScaleLog && lo <= 0 {
 		return rangeInvalid(at+".range.min", ax.Name, ReasonLogMinNotPositive,
 			"sweep axis "+name+" range min is "+formatFloat(lo)+" under scale log; a log-uniform draw needs min > 0",
+			map[string]any{"min": lo, "max": hi})
+	}
+	if rg.Integer && math.Ceil(lo) > math.Floor(hi) {
+		return rangeInvalid(at+".range", ax.Name, ReasonIntegerRangeEmpty,
+			"sweep axis "+name+" range ["+formatFloat(lo)+", "+formatFloat(hi)+"] is integer but holds no integer; "+
+				"widen it to include one, or drop integer",
 			map[string]any{"min": lo, "max": hi})
 	}
 	return nil

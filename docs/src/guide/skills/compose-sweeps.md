@@ -74,8 +74,8 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 - A computed fit figure that is exactly 0 (`r2`, `deviance`, …) ranks as 0 though the wire omits it; one the fit's type does not compute stays missing.
 - `slot`: the 0-based sweep index (`responses[explicit + slot]`); `axes`: each axis's typed value in that slot. Read a winner from `ranking[0].axes`, never its label.
 - `fits[].from_sweep` binds the winner's regression as a named fit ([`compose-sweep-bind`](compose-sweep-bind.md)).
-- `profile: true` adds `ranking_profile` `{axis: [{value, best, label, n}]}`: per axis value, the best value over the other axes, its slot and the `n` ranked slots behind it (before `top`).
-- A ranked slot always computes the ranked part, even if its `return` excludes it. `ranking` / `ranking_profile` sit outside the compose `return`: always emitted, never rounded.
+- `profile: true` adds `ranking_profile` `{axis: [{value, best, label, n}]}`: per axis value (range axis: bin), the best value over the other axes, its slot and the `n` ranked slots behind it (before `top`).
+- A ranked slot computes the ranked part even if its `return` excludes it. `ranking` / `ranking_profile` sit outside the compose `return`: always emitted, never rounded.
 - `--stream` ends with one `{"ranking":[...]}` line (even `[]`; `ranking_profile` rides it); rank-free sweeps emit none.
 
 ## See

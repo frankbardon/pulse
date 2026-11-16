@@ -5328,8 +5328,20 @@
             "null"
           ]
         },
+        "hi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "label": {
           "type": "string"
+        },
+        "lo": {
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "n": {
           "type": "integer"
@@ -7505,6 +7517,9 @@
     "SweepRange": {
       "additionalProperties": false,
       "properties": {
+        "integer": {
+          "type": "boolean"
+        },
         "max": {
           "type": "number"
         },
@@ -7532,6 +7547,9 @@
         },
         "profile": {
           "type": "boolean"
+        },
+        "profile_bins": {
+          "type": "integer"
         },
         "top": {
           "type": "integer"
@@ -8223,4 +8241,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: de64ca51df650e9e3c6ecd8564fa8b1afa0a83a1e6b61a3fd03818729c61b347
+// golden-hash: 5f9e2521b9a4d73d30d523a90cfee830f841d40949a816cfe8ee7866eb03373a

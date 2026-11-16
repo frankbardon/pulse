@@ -80,8 +80,8 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 <!-- feature: capability:compose_sweep_bind -->
 - `fits[].from_sweep` binds the winner's regression as a named fit (`compose-sweep-bind`).
 <!-- /feature -->
-- `profile: true` adds `ranking_profile` `{axis: [{value, best, label, n}]}`: per axis value, the best value over the other axes, its slot and the `n` ranked slots behind it (before `top`).
-- A ranked slot always computes the ranked part, even if its `return` excludes it. `ranking` / `ranking_profile` sit outside the compose `return`: always emitted, never rounded.
+- `profile: true` adds `ranking_profile` `{axis: [{value, best, label, n}]}`: per axis value (range axis: bin), the best value over the other axes, its slot and the `n` ranked slots behind it (before `top`).
+- A ranked slot computes the ranked part even if its `return` excludes it. `ranking` / `ranking_profile` sit outside the compose `return`: always emitted, never rounded.
 - `--stream` ends with one `{"ranking":[...]}` line (even `[]`; `ranking_profile` rides it); rank-free sweeps emit none.
 
 ## See

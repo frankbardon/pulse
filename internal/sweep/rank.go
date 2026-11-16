@@ -106,7 +106,11 @@ func RankProfiled(r *types.SweepRank, spec []types.SweepAxis, labels []string, a
 	}
 	var profile map[string][]types.RankProfileEntry
 	if r.Profile {
-		profile = Profile(spec, full)
+		bins := 0
+		if r.ProfileBins != nil {
+			bins = *r.ProfileBins
+		}
+		profile = Profile(spec, full, bins)
 	}
 	return trimTop(r, full), profile, nil
 }

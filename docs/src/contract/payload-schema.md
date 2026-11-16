@@ -1421,7 +1421,8 @@ ordinary Compose slots, so a sweep adds no response shape of its own:
 `SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
 overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
 a non-empty list of scalars under `grid` / `zip`; `range` a
-`SweepRange {min, max, scale}` — `SweepScale` `linear` default, `log` —
+`SweepRange {min, max, scale, integer}` — `SweepScale` `linear` default, `log`;
+`integer` draws whole numbers —
 under `random` / `lhs`, never both; `target`, optional, a
 `params.<identifier>` string writing each slot's axis value into that
 request param — present only where `capability:params` is), `mode` the closed enum `SweepMode`
@@ -1432,7 +1433,7 @@ object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 body is decoded strictly at expansion; a `{{axis}}` inside an
 expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `ComposeOverlaySpec` objects with placeholders, and `rank` a
-`SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
+`SweepRank {by, order, top, profile, profile_bins}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
 It is gated by `capability:compose_sweep`: on an instance that hides it
 the `sweep` property and the `Sweep*` defs are absent. The sampling modes
@@ -1471,12 +1472,16 @@ always emitted, never rounded by `precision`.
 
 `rank.profile: true` adds `ComposedResponse.ranking_profile`, an
 `omitempty` object keyed by axis name, each value an array of
-`RankProfileEntry {value, best, label, n}`: per axis value some ranked
+`RankProfileEntry {value, lo, hi, best, label, n}`: per axis value some ranked
 slot ran with, the best ranked `value` among those slots (`best`,
 following `rank.order`, always finite), the slot achieving it (`label`)
 and the ranked slots behind it (`n`). It reads the full ranking before
 `top`; unranked slots never count. Pinned outside the Compose-level
-`return` like `ranking`.
+`return` like `ranking`. A range axis (`random` / `lhs`) is binned into
+`rank.profile_bins` (default 10) equal-width bins — equal log-width
+under `scale: log` — one entry per non-empty bin, adding the optional
+numbers `lo` / `hi` (the bin edges; absent on a list axis), `value`
+then the best slot's draw.
 
 ### Compose banner
 

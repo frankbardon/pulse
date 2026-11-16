@@ -57,7 +57,12 @@ spans decades; it needs `min > 0`). `lhs` is a Latin hypercube: each
 axis is cut into `samples` equal-probability strata and every stratum is
 drawn exactly once, so even a small `samples` covers every axis evenly.
 Draws stay inside `[min, max]` and render in their shortest round-trip
-form.
+form. `integer: true` on a range draws whole numbers only (a lag, a
+window width): the draw spreads over `[ceil(min) − ½, floor(max) + ½]`
+in the axis's scale and rounds, so every integer in `[min, max]` is
+reachable and renders in integer form (`3`, never `3.0`); under `lhs`
+each stratum maps to a run of integers. An `integer` range must hold an
+integer.
 
 The draws are a pure function of the spec and the seed, so predict lists
 the same slots the runtime runs and a run replays exactly. A non-zero
@@ -85,7 +90,8 @@ same way predict does.
 An axis never mixes the two styles: a `range` under `grid` / `zip`, a
 `values` list under `random` / `lhs`, or `samples` / `rng_seed` under
 `grid` / `zip` is `PULSE_SWEEP_MODE_MISMATCH`. A bad range (missing
-bound, `min >= max`, unknown `scale`, log with `min <= 0`) is
+bound, `min >= max`, unknown `scale`, log with `min <= 0`, an `integer`
+range with no integer in it — reason `integer_range_empty`) is
 `PULSE_SWEEP_RANGE_INVALID`, and a missing or sub-1 `samples` is
 `PULSE_SWEEP_SAMPLES_INVALID`. An item `for_each` walks values only.
 
@@ -202,10 +208,16 @@ it and `n` the ranked slots behind it. Only ranked slots count — a
 failed slot, or one left out of the ranking, is not an evaluated point
 — so a value nothing ranked has no entry and a `random` / `lhs` profile
 is as sparse as its sample. A list axis lists its values in declared
-order; a drawn axis ascending. The profile reads the whole ranking
-before `top`, sits outside the Compose `return` like `ranking`, rides
-the same `--stream` ranking line, and never changes a sampling sweep's
-derived seed. Without `profile` the response is byte-identical.
+order. A range axis (`random` / `lhs`) is binned instead:
+`rank.profile_bins` (default 10, at least 1, only beside `profile`)
+equal-width bins over `[min, max]`, equal log-width under `scale: log`,
+one entry per bin some ranked slot fell into, ascending, adding the
+bin's `lo` / `hi` edges (`[lo, hi)`, the last bin closed at `max`);
+`value` is the draw of the bin's best slot. The profile reads the whole
+ranking before `top`, sits outside the Compose `return` like `ranking`,
+rides the same `--stream` ranking line, and never changes a sampling
+sweep's derived seed (nor does `profile_bins`). Without `profile` the
+response is byte-identical.
 
 A figure serialised with `omitempty` disappears from the wire at exactly
 0. Rank reads such a figure off the typed response instead, so a fit

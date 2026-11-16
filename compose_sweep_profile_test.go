@@ -2,9 +2,11 @@ package pulse
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -170,5 +172,64 @@ func TestComposeSweepBind_RankProfile(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestComposeSweep_RankProfileBinnedIntegerRange: an lhs sweep over an
+// integer range axis with rank.profile_bins draws whole numbers (typed
+// as integers on the ranking's axes), and its profile is binned — each
+// entry's lo / hi a bin of [10, 60] holding its value, n summing to the
+// ranked slots — byte-identically from Compose and ComposeParallel;
+// predict accepts the request and reports the runtime's seed.
+func TestComposeSweep_RankProfileBinnedIntegerRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := sweepPulse(t, Options{})
+	c := decodeComposedJSON(t, `{"sweep":{"mode":"lhs","samples":10,
+		"axes":[{"name":"mu","range":{"min":10,"max":60,"integer":true}}],
+		"request":`+rankSweepBody+`,"rank":{"by":"tests.t.statistic","profile":true,"profile_bins":5}}}`)
+	var wires []string
+	for _, name := range []string{"Compose", "ComposeParallel"} {
+		resp, err := composeRuns(p)[name](c)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for _, r := range resp.Ranking {
+			v, ok := r.Axes["mu"].(json.Number)
+			if !ok || strings.ContainsAny(string(v), ".eE") {
+				t.Fatalf("%s: drawn mu %#v is not an integer number", name, r.Axes["mu"])
+			}
+		}
+		entries := resp.RankingProfile["mu"]
+		total := 0
+		for i, e := range entries {
+			total += e.N
+			f, _ := e.Value.(json.Number).Float64()
+			if e.Lo == nil || e.Hi == nil || *e.Hi-*e.Lo != 10 || f < *e.Lo || f > *e.Hi {
+				t.Fatalf("%s: entry %d %+v is not a [10, 60]/5 bin holding its value", name, i, e)
+			}
+		}
+		if len(entries) == 0 || total != len(resp.Ranking) {
+			t.Fatalf("%s: profile %+v over %d ranked", name, entries, len(resp.Ranking))
+		}
+		raw, err := json.Marshal(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(raw, []byte(`"lo":`)) {
+			t.Fatalf("%s: wire has no bin edges: %s", name, raw)
+		}
+		wires = append(wires, string(raw))
+		env, err := p.PredictCompose(ctx, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := env.Data.(*ComposePredictResult).Sweep; len(env.Errors) != 0 || s == nil || s.RNGSeed == nil || *s.RNGSeed != *resp.SweepSeed {
+			t.Fatalf("%s: predict %+v / %+v, runtime seed %v", name, env.Errors, s, resp.SweepSeed)
+		}
+	}
+	if wires[0] != wires[1] {
+		t.Fatalf("serial and parallel differ:\n%s\n%s", wires[0], wires[1])
 	}
 }

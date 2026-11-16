@@ -5643,6 +5643,7 @@ pulse/types: func DecodePairwiseParams(raw encoding/json.RawMessage) (pulse/type
 pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.PanelOverlayParams, error)
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
 pulse/types: const DefaultMultiplicityAlpha untyped float = 1/20
+pulse/types: const DefaultProfileBins untyped int = 10
 pulse/types: type ExtensionGroupFanOutFunc func(pulse/types.GroupType) (fansOut bool, known bool)
 pulse/types: const FEAT_BUCKETIZE pulse/types.FeatureType = "FEAT_BUCKETIZE"
 pulse/types: const FEAT_DATE_FEATURES pulse/types.FeatureType = "FEAT_DATE_FEATURES"
@@ -6487,7 +6488,9 @@ pulse/types: type RankEntry field Slot int "json:\"slot\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type RankProfileEntry struct
 pulse/types: type RankProfileEntry field Best float64 "json:\"best\""
+pulse/types: type RankProfileEntry field Hi *float64 "json:\"hi,omitempty\""
 pulse/types: type RankProfileEntry field Label string "json:\"label\""
+pulse/types: type RankProfileEntry field Lo *float64 "json:\"lo,omitempty\""
 pulse/types: type RankProfileEntry field N int "json:\"n\""
 pulse/types: type RankProfileEntry field Value any "json:\"value\""
 pulse/types: type ReferenceVectorTable struct
@@ -6834,6 +6837,7 @@ pulse/types: const SweepModeLHS pulse/types.SweepMode = "lhs"
 pulse/types: const SweepModeRandom pulse/types.SweepMode = "random"
 pulse/types: const SweepModeZip pulse/types.SweepMode = "zip"
 pulse/types: type SweepRange struct
+pulse/types: type SweepRange field Integer bool "json:\"integer,omitempty\""
 pulse/types: type SweepRange field Max *float64 "json:\"max\""
 pulse/types: type SweepRange field Min *float64 "json:\"min\""
 pulse/types: type SweepRange field Scale pulse/types.SweepScale "json:\"scale,omitempty\""
@@ -6841,6 +6845,7 @@ pulse/types: type SweepRank struct
 pulse/types: type SweepRank field By string "json:\"by\""
 pulse/types: type SweepRank field Order pulse/types.SweepRankOrder "json:\"order,omitempty\""
 pulse/types: type SweepRank field Profile bool "json:\"profile,omitempty\""
+pulse/types: type SweepRank field ProfileBins *int "json:\"profile_bins,omitempty\""
 pulse/types: type SweepRank field Top *int "json:\"top,omitempty\""
 pulse/types: const SweepRankAsc pulse/types.SweepRankOrder = "asc"
 pulse/types: const SweepRankDesc pulse/types.SweepRankOrder = "desc"
@@ -6994,4 +6999,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 25ef2ab7a224198fc12c08da477b3e66466e37551e98bba957dbfb6d7354eb1c
+// golden-hash: 2fd1dd254b6dbf91bdbb8dd11867f985e9191fd4eaf6fabc95e5a93888ac359d

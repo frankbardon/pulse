@@ -103,6 +103,15 @@ func TestSweepRandom_Refusals(t *testing.T) {
 			errors.PULSE_SWEEP_RANGE_INVALID, ReasonLogMinNotPositive, "sweep.axes[1].range.min"},
 		{"log min negative", func(s *types.SweepSpec) { s.Axes[1].Range.Min = fp(-1) },
 			errors.PULSE_SWEEP_RANGE_INVALID, ReasonLogMinNotPositive, "sweep.axes[1].range.min"},
+		{"integer range holds no integer", func(s *types.SweepSpec) {
+			s.Axes[0].Range = &types.SweepRange{Min: fp(0.2), Max: fp(0.8), Integer: true}
+		}, errors.PULSE_SWEEP_RANGE_INVALID, ReasonIntegerRangeEmpty, "sweep.axes[0].range"},
+		{"profile_bins below 1", func(s *types.SweepSpec) {
+			s.Rank = &types.SweepRank{By: "x", Profile: true, ProfileBins: intp(0)}
+		}, errors.PULSE_SWEEP_INVALID, ReasonRankProfileBinsInvalid, "sweep.rank.profile_bins"},
+		{"profile_bins without profile", func(s *types.SweepSpec) {
+			s.Rank = &types.SweepRank{By: "x", ProfileBins: intp(5)}
+		}, errors.PULSE_SWEEP_INVALID, ReasonRankProfileBinsWithoutProfile, "sweep.rank.profile_bins"},
 		{"samples missing", func(s *types.SweepSpec) { s.Samples = 0 },
 			errors.PULSE_SWEEP_SAMPLES_INVALID, ReasonSamplesMissing, "sweep.samples"},
 		{"samples negative", func(s *types.SweepSpec) { s.Mode, s.Samples = types.SweepModeRandom, -3 },
@@ -125,6 +134,14 @@ func TestSweepRandom_Refusals(t *testing.T) {
 	for _, mode := range []types.SweepMode{types.SweepModeRandom, types.SweepModeLHS} {
 		if err := Validate(sampledSpec(mode, 3)); err != nil {
 			t.Fatalf("valid %s spec refused: %v", mode, err)
+		}
+		// An integer range holding exactly one integer, and a bin count
+		// beside profile, are valid.
+		spec := sampledSpec(mode, 3)
+		spec.Axes[0].Range = &types.SweepRange{Min: fp(0.5), Max: fp(1.5), Integer: true}
+		spec.Rank = &types.SweepRank{By: "x", Profile: true, ProfileBins: intp(1)}
+		if err := Validate(spec); err != nil {
+			t.Fatalf("valid integer %s spec refused: %v", mode, err)
 		}
 	}
 }
