@@ -124,8 +124,8 @@ var fileFeatures = []fileFeature{
 		present: func(f *File) bool { return f.Dispersion != 0 },
 		rule: func(f *File) string {
 			switch {
-			case !BuiltinRegression(f.Type):
-				return fmt.Sprintf("carries a dispersion, which only a built-in fit has, but its type is %s", f.Type)
+			case !dispersionType(f.Type):
+				return fmt.Sprintf("carries a dispersion, which only a built-in or REG_MMM_HILL fit has, but its type is %s", f.Type)
 			case f.Vcov == nil:
 				return "carries a dispersion without a vcov (the dispersion rides a classical vcov)"
 			case f.Covariance != nil:
@@ -167,6 +167,14 @@ var fileFeatures = []fileFeature{
 		present: func(f *File) bool { return f.Saturation != "" },
 		rule:    saturationRule,
 	},
+}
+
+// dispersionType reports whether a fit of type t may carry an estimated
+// dispersion beside its classical vcov: a built-in fit, and
+// REG_MMM_HILL (σ̂² = SSR/(n − p) beside its tangent-plane vcov — what
+// its influence figures read, U71 E2-S6).
+func dispersionType(t types.RegressionType) bool {
+	return BuiltinRegression(t) || t == types.REG_MMM_HILL
 }
 
 // FileFeatures are the model-file features this build reads and writes,
@@ -259,7 +267,8 @@ type File struct {
 	Vcov *FileMatrix `json:"vcov,omitempty"`
 	// Dispersion (feature dispersion, beside a classical vcov) is the
 	// fit's estimated dispersion φ̂ — RegressionResult.Dispersion,
-	// present beside a classical vcov whose φ is estimated (REG_OLS σ̂²,
+	// present beside a classical vcov whose φ is estimated (REG_OLS and
+	// REG_MMM_HILL σ̂²,
 	// REG_GLM gamma's Pearson χ²/df, a fixed-θ negative binomial's under
 	// dispersion "estimated"); null when undefined (df ≤ 0).
 	Dispersion Float `json:"dispersion,omitempty"`
@@ -422,7 +431,7 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	if res.Vcov != nil {
 		f.Vcov = toFileMatrix(res.Vcov)
 	}
-	if res.Dispersion != 0 && BuiltinRegression(res.Type) && res.Covariance == nil {
+	if res.Dispersion != 0 && dispersionType(res.Type) && res.Covariance == nil {
 		// The engine sets it beside a classical vcov only.
 		f.Dispersion = Float(res.Dispersion)
 	}

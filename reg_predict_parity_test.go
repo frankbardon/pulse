@@ -208,12 +208,14 @@ func TestRegPredict_CarryRefusalsPredictRuntimeParity(t *testing.T) {
 	}
 }
 
-// TestRegFitted_CarryRefusalsPredictRuntimeParity (U71 E2-S5): a
-// params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL takes ATTR_REG_PREDICT's
+// TestRegFitted_CarryRefusalsPredictRuntimeParity (U71 E2-S5, E2-S6):
+// every params.fit regression attribute — ATTR_REG_FITTED /
+// ATTR_REG_RESIDUAL and, reading a REG_MMM_HILL fit's tangent plane,
+// ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE — takes ATTR_REG_PREDICT's
 // carry-over rule, each refusal identical (code, message, details) in
-// predict and on both orchestrators. ATTR_REG_LEVERAGE /
-// ATTR_REG_INFLUENCE read a REG_OLS / REG_GLM design only, so over an
-// adstocked fit they stay type_unsupported (nothing carries there).
+// predict and on both orchestrators; so is each design refusal of a
+// leverage / influence / scaled-residual slot over a HILL fit (no vcov,
+// params.prior, a resample).
 func TestRegFitted_CarryRefusalsPredictRuntimeParity(t *testing.T) {
 	t.Parallel()
 
@@ -246,15 +248,41 @@ func TestRegFitted_CarryRefusalsPredictRuntimeParity(t *testing.T) {
 		typ types.AttributeType
 		tc
 	}
+	// vcov: true, so a design-reading slot meets its carry-over rule
+	// (the design rule runs after it only on an order field the frame
+	// lacks or cannot order by).
+	for _, c := range carry {
+		c.fit.Regressions[0].Vcov = true
+	}
 	var runs []run
-	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL} {
+	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
 		for _, c := range carry {
 			runs = append(runs, run{typ, c})
 		}
 	}
-	for _, typ := range []types.AttributeType{types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
-		runs = append(runs, run{typ, tc{"design over an adstocked fit", `{"fit":"m"}`, "type_unsupported", hillAdstockRequest()}})
+	// The design rule over a HILL fit (model.CheckFitDesign): vcov,
+	// no prior, no resample — details.requires names the face.
+	withSpec := func(edit func(*types.RegressionSpec)) *Request {
+		r := hillAdstockRequest()
+		r.Regressions[0].Vcov = true
+		edit(r.Regressions[0])
+		return r
 	}
+	design := []tc{
+		{"design without vcov", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", hillAdstockRequest()},
+		{"design over a prior", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", withSpec(func(s *types.RegressionSpec) {
+			s.Params = json.RawMessage(`{"channels": ["x"], "adstock": "geometric", "max_lag": 6, "prior": {"channel": "x", "mean": 8, "precision": 1}}`)
+		})},
+		{"design over a resample", `{"fit":"m","order":{"field":"week"}}`, "params_invalid", withSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.JackknifeGroups = "jackknife", 4
+		})},
+	}
+	for _, typ := range []types.AttributeType{types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
+		for _, c := range design {
+			runs = append(runs, run{typ, c})
+		}
+	}
+	runs = append(runs, run{types.ATTR_REG_RESIDUAL, tc{"kind studentized without vcov", `{"fit":"m","kind":"studentized","order":{"field":"week"}}`, "params_invalid", hillAdstockRequest()}})
 	ctx := context.Background()
 	for _, r := range runs {
 		t.Run(string(r.typ)+" "+r.name, func(t *testing.T) {

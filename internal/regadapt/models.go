@@ -41,6 +41,7 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 		Factory:     factory,
 		Scorer:      regmmm.Scorers[t],
 		BoundScorer: regmmm.BoundScorers[t],
+		Dispersion:  regmmm.Dispersions[t],
 	}, true
 }
 
@@ -57,5 +58,10 @@ func init() {
 			scorer = AdaptRegressionScorer(a)
 		}
 		regression.RegisterModel(t, AdaptRegressionFactory(a), scorer)
+		if tf, ok := regmmm.Tangents[t]; ok {
+			// A nonlinear least-squares fit's tangent plane: what a
+			// leverage / influence slot over it reads (U71 E2-S6).
+			regression.RegisterModelTangent(t, tf)
+		}
 	}
 }

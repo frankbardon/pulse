@@ -33,7 +33,7 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `jackknife_by` | field | — | Resample. |
 | `rng_seed` | int | — | Resample. |
 | `conf_level` | float | `0.95` | CI coverage. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | `Vcov`, `Correlation`, `dispersion`. |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Replicate p-values join a family. |
 <!-- /feature -->

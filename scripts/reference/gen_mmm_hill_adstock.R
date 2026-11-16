@@ -53,6 +53,28 @@
 #   * the stored standard errors equal summary(nlsLM)'s (its
 #     finite-difference J) to 1e-4.
 #
+# Influence (U71 E2-S6, #732): the tangent-plane (Gauss-Newton) hat
+# values and influence figures at the polished x. J is this script's
+# analytic Jacobian of the fitted values, checked against
+# numDeriv::jacobian (Richardson) of the model to 1e-6 of each column's
+# scale; e = y - yhat. Since J'e = 0 at the stationary point, the
+# linear model lm(e ~ J - 1) has fitted values 0 and residuals e, so R's
+# own stats::hatvalues / rstandard / rstudent / cooks.distance / dffits
+# on it ARE the linearised model's figures:
+#   leverage      h = diag(J (J'J)^-1 J')          (sum = p)
+#   standardized  e / (sigma sqrt(1 - h))
+#   studentized   e / (sigma_(i) sqrt(1 - h))
+#   cooks         e^2 h / (p sigma^2 (1 - h)^2)
+#   dffits        e sqrt(h) / (sigma_(i) (1 - h))
+# self-checked against those closed forms to 1e-9. The rows are the
+# fit's own (the carried adstock of the fit's rows is its own).
+#
+# Beside the kernel cases, `plain` is one REG_MMM_HILL case WITHOUT
+# params.adstock (the channel arrives adstocked, as given), fitted and
+# self-checked the same way from Pulse's plain start (k at the
+# channel's mean, s = 1, [b0, beta, gamma] by least squares there), its
+# data drawn after the kernel cases' so theirs do not move.
+#
 # Figures, as REG_MMM_HILL defines them:
 #   estimates        (intercept), channel, control, k:<c>, s:<c>, then
 #                    the kernel's parameters (decay:, peak:, shape:,
@@ -65,6 +87,7 @@
 suppressPackageStartupMessages({
   library(jsonlite)
   library(minpack.lm)
+  library(numDeriv)
 })
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -72,7 +95,7 @@ out_dir <- if (length(args) >= 1) args[[1]] else "internal/regmmm/testdata"
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_mmm_hill_adstock.R pins R 4.6.1, got ", R.version.string)
-ma_pins <- c(minpack.lm = "1.2.4", jsonlite = "2.0.0")
+ma_pins <- c(minpack.lm = "1.2.4", jsonlite = "2.0.0", numDeriv = "2016.8.1.1")
 for (ma_p in names(ma_pins)) {
   if (as.character(packageVersion(ma_p)) != ma_pins[[ma_p]]) stop("gen_mmm_hill_adstock.R pins ", ma_p, " ", ma_pins[[ma_p]], ", found ", packageVersion(ma_p))
 }
@@ -149,6 +172,39 @@ conv <- function(x, w) {
 
 ma_cases <- list()
 
+# ma_influence is the tangent-plane influence of a fit at its polished
+# point p: J the analytic Jacobian of the fitted values (checked against
+# numDeriv's), e the residuals y - yhat, s2 = SSR / df.
+ma_influence <- function(name, J, e, s2, df, predf, p) {
+  Jn <- numDeriv::jacobian(predf, p)
+  for (j in seq_len(ncol(J))) {
+    sc <- max(abs(J[, j]))
+    if (max(abs(Jn[, j] - J[, j])) > 1e-6 * sc) stop("self-check failed: ", name, " analytic J vs numDeriv::jacobian, column ", j)
+  }
+  np <- ncol(J)
+  lin <- lm(e ~ J - 1)
+  if (max(abs(fitted(lin))) > 1e-6 * max(abs(e))) stop("self-check failed: ", name, " J'e is not 0 (not stationary)")
+  h <- hatvalues(lin)
+  if (abs(sum(h) - np) > 1e-9 * np) stop("self-check failed: ", name, " sum of hat values ", sum(h), " vs p ", np)
+  if (any(h < 0 | h > 1)) stop("self-check failed: ", name, " a hat value outside [0, 1]")
+  s2i <- (df * s2 - e^2 / (1 - h)) / (df - 1)
+  closed <- list(
+    standardized = e / sqrt(s2 * (1 - h)),
+    studentized = e / sqrt(s2i * (1 - h)),
+    cooks = e^2 * h / (np * s2 * (1 - h)^2),
+    dffits = e * sqrt(h) / (sqrt(s2i) * (1 - h))
+  )
+  out <- list(
+    leverage = h,
+    standardized = rstandard(lin),
+    studentized = rstudent(lin),
+    cooks = cooks.distance(lin),
+    dffits = dffits(lin)
+  )
+  for (k in names(closed)) near(out[[k]], closed[[k]], 1e-9, paste(name, k, "stats:: vs closed form"), floor = 1e-12)
+  lapply(out, vec)
+}
+
 # ma_case fits one kernel case: spend x (raw), control z, target y.
 ma_case <- function(name, kernel, L, y, x, z) {
   K <- kernels[[kernel]]
@@ -223,6 +279,7 @@ ma_case <- function(name, kernel, L, y, x, z) {
   s2 <- ssr / df
   se <- sqrt(diag(s2 * solve(crossprod(J))))
   near(se, summary(fit)$coefficients[, "Std. Error"], 1e-4, paste(name, "std errors vs summary(nlsLM)"))
+  inf <- ma_influence(name, J, -r, s2, df, pred, pf)
 
   ma_cases[[length(ma_cases) + 1]] <<- list(
     name = name,
@@ -240,7 +297,58 @@ ma_case <- function(name, kernel, L, y, x, z) {
     residual_std_err = num(sqrt(s2)),
     df = df,
     r_nlslm = vec(coef(fit)),
-    r_nlslm_deviance = num(deviance(fit))
+    r_nlslm_deviance = num(deviance(fit)),
+    influence = inf
+  )
+}
+
+# ma_plain fits REG_MMM_HILL without params.adstock: channel a (as
+# given), control z, target y — Pulse's plain start and bounds.
+ma_plain <- function(name, y, a, z) {
+  n <- length(y)
+  pn <- c("(intercept)", "tv", "price", "k:tv", "s:tv")
+  kref <- mean(a)
+  lower <- c(-Inf, 0, -Inf, 0.02 * kref, 0.5)
+  upper <- c(Inf, Inf, Inf, 20 * kref, 5)
+  names(lower) <- names(upper) <- pn
+  pred <- function(p) p[[1]] + p[[2]] * hill(a, p[[4]], p[[5]]) + p[[3]] * z
+  fn <- function(p) pred(p) - y
+  jac <- function(p) {
+    b <- p[[2]]; k <- p[[4]]; s <- p[[5]]
+    h <- hill(a, k, s); hh <- h * (1 - h)
+    cbind(1, h, z, -b * s / k * hh, b * ifelse(a > 0, log(a / k), 0) * hh)
+  }
+  X0 <- cbind(1, hill(a, kref, 1), z)
+  lin <- solve(crossprod(X0), crossprod(X0, y))[, 1]
+  if (!(lin[[2]] > 0)) lin[[2]] <- 1e-3
+  start <- c(lin, kref, 1); names(start) <- pn
+  an <- nls.lm(par = start, lower = lower, upper = upper, fn = fn, jac = jac, control = tight)
+  safe <- make.names(pn, unique = TRUE)
+  model_f <- function(...) pred(c(...))
+  form <- as.formula(paste("y ~ model_f(", paste(safe, collapse = ", "), ")"))
+  fit <- nlsLM(form, data = data.frame(y = y), start = setNames(as.list(start), safe),
+               lower = unname(lower), upper = unname(upper), control = tight)
+  near(coef(fit), an$par, 1e-6, paste(name, "nlsLM vs analytic nls.lm"), floor = 1)
+  pf <- an$par
+  for (it in 1:8) {
+    J <- jac(pf)
+    pf <- pf - solve(crossprod(J), crossprod(J, fn(pf)))[, 1]
+  }
+  near(an$par, pf, 1e-6, paste(name, "MINPACK x vs the polished stationary point"), floor = 1)
+  if (any(pf <= lower | pf >= upper)) stop("self-check failed: ", name, " a parameter reached a bound")
+  r <- fn(pf); J <- jac(pf)
+  ssr <- sum(r^2)
+  df <- n - length(pn)
+  s2 <- ssr / df
+  list(
+    name = name,
+    n = n,
+    columns = list(y = vec(y), tv = vec(a), price = vec(z)),
+    coefficients = as.list(pn),
+    estimates = vec(pf),
+    deviance = num(ssr),
+    df = df,
+    influence = ma_influence(name, J, -r, s2, df, pred, pf)
   )
 }
 
@@ -268,18 +376,28 @@ for (kn in names(truth)) {
   ma_case(kn, kn, tr$L, y, x, z)
 }
 
+# The plain case: an already-adstocked channel (rounded), drawn after
+# the kernel cases.
+xp <- spend(n, 40, 10)
+ap <- round(conv(xp, kernels$geometric$w(0.5, 6)), 4)
+zp <- round(10 + 0.8 * cos(seq_len(n) / 7) + rnorm(n, 0, 0.3), 4)
+yp <- round(50 + 25 * hill(ap, 1.0 * mean(ap), 1.7) - 2 * zp + rnorm(n, 0, 1), 4)
+ma_plain_case <- ma_plain("plain", yp, ap, zp)
+
 doc <- list(
   generator = "scripts/reference/gen_mmm_hill_adstock.R",
   r_version = R.version.string,
   packages = list(
     stats = as.character(packageVersion("stats")),
     minpack.lm = as.character(packageVersion("minpack.lm")),
-    jsonlite = as.character(packageVersion("jsonlite"))
+    jsonlite = as.character(packageVersion("jsonlite")),
+    numDeriv = as.character(packageVersion("numDeriv"))
   ),
   primitive = "REG_MMM_HILL params.adstock (joint Hill + adstock bounded least squares, one case per kernel)",
   r_function = "minpack.lm::nlsLM (finite-difference J, bounds, same start) = minpack.lm::nls.lm (analytic Jacobian) to 1e-6, Gauss-Newton polished to the stationary point; kernels from stats::pweibull / dweibull and closed forms",
   note = "estimates and std_errors in coefficient-table order (k and the kernel parameters in their own units)",
-  cases = ma_cases
+  cases = ma_cases,
+  plain = ma_plain_case
 )
 path <- file.path(out_dir, "mmm_hill_adstock.json")
 cat(toJSON(doc, auto_unbox = TRUE, json_verbatim = TRUE, pretty = TRUE), file = path)

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -652,5 +654,70 @@ func TestBayesCarryover_FittedResidualMatchCarriedPredict(t *testing.T) {
 		if dr, _ := row["dr"].(float64); dr > 1e-9 {
 			t.Errorf("%s: carried residual differs from sales − score by up to %v", name, dr)
 		}
+	}
+}
+
+// TestBayesInfluence_RefusedByDesignPredictRuntimeParity (U71 E2-S6):
+// ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE and a standardized /
+// studentized ATTR_REG_RESIDUAL over a REG_MMM_BAYES fit are refused
+// PULSE_MODEL_SCORE_INVALID type_unsupported BY DESIGN (a posterior has
+// no hat matrix) — before the carry-over rule, so the slot without
+// params.order is told so rather than to add one — identically in
+// predict and at run time (Compose; ComposeParallel for one slot).
+func TestBayesInfluence_RefusedByDesignPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	ctx := context.Background()
+	const mat = "bayes-influence.pulse"
+	if _, err := p.Materialize(ctx, windowParityDerive(), mat, MaterializeOptions{Overwrite: true}); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	for _, slot := range []struct {
+		typ    types.AttributeType
+		params string
+	}{
+		{types.ATTR_REG_LEVERAGE, `{"fit":"b"}`},
+		{types.ATTR_REG_INFLUENCE, `{"fit":"b","order":{"field":"week","partition":"market"}}`},
+		{types.ATTR_REG_RESIDUAL, `{"fit":"b","kind":"studentized"}`},
+	} {
+		t.Run(string(slot.typ), func(t *testing.T) {
+			c := &ComposedRequest{
+				Fits: []types.FitSpec{{Name: "b", Request: &Request{Cohort: &types.Cohort{Filename: mat},
+					Regressions: []*types.RegressionSpec{holdoutBuiltinCases[types.REG_MMM_BAYES]()}}}},
+				Requests: []*Request{{Label: "s", Cohort: &types.Cohort{Filename: mat},
+					Attributes:   []*types.Attribute{{Type: slot.typ, Label: "v", Params: json.RawMessage(slot.params)}},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v", Label: "v"}}}},
+			}
+			env, err := p.PredictCompose(ctx, c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(env.Errors) != 1 {
+				t.Fatalf("predict errors = %+v, want exactly one", env.Errors)
+			}
+			pe := env.Errors[0]
+			if perr.Code(pe.Code) != perr.PULSE_MODEL_SCORE_INVALID || pe.Details["reason"] != "type_unsupported" ||
+				!strings.Contains(pe.Message, "by design") {
+				t.Fatalf("predict = %s %q %v, want PULSE_MODEL_SCORE_INVALID type_unsupported by design", pe.Code, pe.Message, pe.Details)
+			}
+			// One orchestrator per slot (each run samples the posterior):
+			// the refusal is the shared bind rule, so the slots between
+			// them cover both.
+			run := func() error { _, err := p.Compose(ctx, c); return err }
+			if slot.typ == types.ATTR_REG_INFLUENCE {
+				run = func() error {
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					return err
+				}
+			}
+			var ce *perr.CodedError
+			if err := run(); !stderrors.As(err, &ce) {
+				t.Fatalf("uncoded %v", err)
+			}
+			if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(ce.Details, pe.Details) {
+				t.Errorf("runtime %s %q %v\n predict %s %q %v", ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
+			}
+		})
 	}
 }

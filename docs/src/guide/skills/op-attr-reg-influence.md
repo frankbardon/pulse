@@ -32,8 +32,10 @@ Refit keys are top-level, not `params`; `field` unread.
 |---|---|---|---|
 | `target` | field | (required) | Dependent field; absent with `fit`. |
 | `predictors` | list | (required) | Independent fields; absent with `fit`. |
-| `fit` | string | — | `params.fit`: a bound fit's figure ([`regression-row-scores`](regression-row-scores.md)). |
+| `fit` | string | — | `params.fit`: a bound fit's figure. |
 | `measure` | enum | `cooks` | `cooks` (R `cooks.distance`) or `dffits` (R `dffits`). |
+| `carryover` | bool | `true` | Carry adstock ([`regression-order`](regression-order.md)). |
+| `order` | object | — | `{field, partition?}`; needed to carry. |
 | `weight` | slot weight | inherited | `null` opts out; frequency only. |
 
 ## Inputs
@@ -44,12 +46,12 @@ Refit keys are top-level, not `params`; `field` unread.
 
 ## Output
 
-One `float64` per record; h the leverage, p′ = p + 1, r / t the standardized / studentized residual:
+One `float64` per record; h leverage, p′ = p + 1, r / t standardized / studentized residual:
 
 - `cooks` — r²·h / (p′·(1 − h)), ≥ 0.
 - `dffits` — t·√(h / (1 − h)).
 
-With `fit` (GLM forms: [`regression-row-scores`](regression-row-scores.md)) **dffits is signed by g′(μ): negative for a positive residual under a gamma inverse link.** **Null (never 0)** on a null / NaN / ±Inf input, a row the weighted refit excludes, and where undefined (df ≤ 1, h ≥ 1).
+With `fit` **dffits is signed by g′(μ): negative for a positive residual under a gamma inverse link.** **Null (never 0)** on a null / NaN / ±Inf input, a row the weighted refit excludes, or undefined (df ≤ 1, h ≥ 1).
 
 ## Reading the output
 
@@ -64,11 +66,11 @@ With `fit` (GLM forms: [`regression-row-scores`](regression-row-scores.md)) **df
 ## Gotchas
 
 - Refit: unpenalized OLS (`penalty`, a bad `measure`: `PROCESSING_CONFIG`); two-pass.
-- `fit`: an unweighted, unpenalized OLS / GLM fit with `vcov: true`, else `PULSE_MODEL_SCORE_INVALID` (`details.requires`).
+- `fit`: qualifying fits, refusals: [`regression-influence`](regression-influence.md).
 - A frequency weight: one copy's figure (h/w, df = Σw − p′); probability: `PULSE_WEIGHT_UNSUPPORTED`.
-- Pearson-based, as R. Screens (D > 1, 4/n, |DFFITS| > 2√(p′/n)): rules of thumb.
+- Pearson-based, as R. Screens D > 1, 4/n, |DFFITS| > 2√(p′/n).
 
 ## See
 
 - `pulse_examples_search tags=[regression, outlier-detection]`
-- Skills: [`regression-row-scores`](regression-row-scores.md), [`op-attr-reg-leverage`](op-attr-reg-leverage.md), [`op-attr-reg-residual`](op-attr-reg-residual.md)
+- Skills: [`regression-influence`](regression-influence.md), [`regression-row-scores`](regression-row-scores.md), [`op-attr-reg-leverage`](op-attr-reg-leverage.md), [`op-attr-reg-residual`](op-attr-reg-residual.md)

@@ -76,7 +76,8 @@ func designFromResult(res *types.RegressionResult) FitDesign {
 // resampled) vcov wherever φ is estimated. Weighted reads the explicit
 // weights only (weightInherited is the default-weight question).
 func designFromSpec(req *types.Request, reg *types.RegressionSpec) FitDesign {
-	robust, penalized, resample := reg.Covariance.Robust(), reg.Penalty != "", reg.Resample != ""
+	// A REG_MMM_HILL params.prior is a penalty on one β (MMMHillPrior).
+	robust, penalized, resample := reg.Covariance.Robust(), reg.Penalty != "" || MMMHillPrior(reg), reg.Resample != ""
 	return FitDesign{
 		Family:      reg.Family,
 		Vcov:        reg.Vcov,
@@ -122,10 +123,42 @@ func (c FitCatalog) WithDefaultWeight(fits []types.FitSpec, on bool) FitCatalog 
 }
 
 // estimatedDispersion reports whether a fit of type t and family
-// estimates its dispersion (REG_OLS σ̂², gamma's Pearson χ²/df); a
-// binomial or poisson fit fixes φ = 1.
+// estimates its dispersion (REG_OLS σ̂², REG_MMM_HILL's SSR/(n − p),
+// gamma's Pearson χ²/df); a binomial or poisson fit fixes φ = 1.
 func estimatedDispersion(t types.RegressionType, family string) bool {
-	return t == types.REG_OLS || family == "gamma"
+	return t == types.REG_OLS || t == types.REG_MMM_HILL || family == "gamma"
+}
+
+// DesignType reports whether a fit of type t defines the design a
+// leverage / influence slot reads: REG_OLS and REG_GLM (h = w·x̃ᵀ(XᵀWX)⁻¹x̃)
+// and REG_MMM_HILL (the tangent plane, h = gᵀ(JᵀJ)⁻¹g — tangent.go).
+func DesignType(t types.RegressionType) bool {
+	return t == types.REG_OLS || t == types.REG_GLM || t == types.REG_MMM_HILL
+}
+
+// designByDesignRefusal is the type_unsupported refusal of a
+// design-reading slot over a REG_MMM_BAYES fit — a permanent design
+// choice, not a gap: hat-matrix leverage and Cook's distance are
+// classical, defined on a point estimate's (XᵀWX)⁻¹, and a posterior
+// has none; its influence analogue (PSIS-LOO's Pareto k) is a different
+// statistic. Run by CheckFitReference before the draws and carry-over
+// rules, so no fix those name is offered for a slot that can never run.
+func designByDesignRefusal(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
+	if sig.Type != types.REG_MMM_BAYES || !FitDesignKind(t, p) {
+		return nil
+	}
+	return scoreInvalidFor(t, p.Fit, ReasonTypeUnsupported,
+		designPrefix(t, p)+"reads a bound fit's leverage, which a "+string(sig.Type)+" fit does not define, by design: hat-matrix leverage, Cook's distance and DFFITS are classical figures of a point estimate's (XᵀWX)⁻¹, and a posterior has none (its influence analogue, PSIS-LOO's Pareto k, is a different statistic). Score the posterior with ATTR_REG_FITTED / ATTR_REG_RESIDUAL, or bind a REG_OLS, REG_GLM or REG_MMM_HILL fit",
+		map[string]any{"type": string(sig.Type)})
+}
+
+// designPrefix names a residual slot's kind in a design refusal:
+// "kind studentized " on an ATTR_REG_RESIDUAL, "" otherwise.
+func designPrefix(t types.AttributeType, p FitParams) string {
+	if t == types.ATTR_REG_RESIDUAL {
+		return "kind " + p.Kind + " "
+	}
+	return ""
 }
 
 // FitDesignKind reports whether a (routed as t) with params p reads the
@@ -143,8 +176,9 @@ func FitDesignKind(t types.AttributeType, p FitParams) bool {
 
 // CheckFitDesign is the rule over a design-reading params.fit slot
 // (FitDesignKind) bound to sig: the fit is a built-in REG_OLS or REG_GLM
-// (a Bayesian-linear, extension or model regression is
-// type_unsupported), its covariance is the classical φ·(XᵀWX)⁻¹ it
+// or a REG_MMM_HILL (DesignType; a Bayesian-linear, extension or other
+// model regression is type_unsupported — REG_MMM_BAYES by design,
+// designByDesignRefusal), its covariance is the classical φ·(XᵀWX)⁻¹ it
 // carries (vcov, not robust, no penalty / selection / resample / bounds,
 // with an intercept), its dispersion is carried where it is estimated,
 // and it is unweighted. Every other fault is PULSE_MODEL_SCORE_INVALID
@@ -153,13 +187,13 @@ func FitDesignKind(t types.AttributeType, p FitParams) bool {
 func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
 	// A residual names its kind: "ATTR_REG_RESIDUAL kind studentized
 	// over a …".
-	prefix := ""
-	if t == types.ATTR_REG_RESIDUAL {
-		prefix = "kind " + p.Kind + " "
+	prefix := designPrefix(t, p)
+	if cerr := designByDesignRefusal(t, p, sig); cerr != nil {
+		return cerr
 	}
-	if sig.Type != types.REG_OLS && sig.Type != types.REG_GLM {
+	if !DesignType(sig.Type) {
 		return scoreInvalidFor(t, p.Fit, ReasonTypeUnsupported,
-			prefix+"reads a bound fit's leverage, which only a REG_OLS or REG_GLM fit defines; got a "+string(sig.Type)+" fit — bind a REG_OLS or REG_GLM fit, or drop params.fit to refit OLS on the slot's own target and predictors",
+			prefix+"reads a bound fit's leverage, which only a REG_OLS, REG_GLM or REG_MMM_HILL fit defines; got a "+string(sig.Type)+" fit — bind one of those, or drop params.fit to refit OLS on the slot's own target and predictors",
 			map[string]any{"type": string(sig.Type)})
 	}
 	d := sig.Influence
@@ -168,6 +202,8 @@ func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.C
 			map[string]any{"requires": requires, "type": string(sig.Type)})
 	}
 	switch {
+	case d.Penalized && sig.Type == types.REG_MMM_HILL:
+		return refuse("unpenalized", "over a REG_MMM_HILL fit with params.prior is not supported (the prior is a penalty: its vcov is σ²·(JᵀJ + P)⁻¹, not the tangent plane's σ²·(JᵀJ)⁻¹); bind a fit without params.prior")
 	case d.Penalized:
 		return refuse("unpenalized", "over a penalized bound fit is not supported (its leverage needs the regularized resolvent); bind an unpenalized fit")
 	case d.Selection:
@@ -184,6 +220,8 @@ func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.C
 		return refuse("unweighted", "influence over a weighted bound fit is not supported; refit unweighted (weight: null on the fit's regression), or drop params.fit to refit OLS on the slot's own fields")
 	case !d.Vcov:
 		return refuse("vcov", "reads the bound fit's coefficient covariance, which it does not carry; set vcov: true on the fit's regression")
+	case !d.Dispersion && sig.Type == types.REG_MMM_HILL:
+		return refuse("dispersion", "reads the bound fit's estimated dispersion σ̂² = SSR/(n − p), which it does not carry (a model file saved by an earlier build, or a fit with params.prior, which carries none); refit, or re-save the model with this build")
 	case !d.Dispersion && estimatedDispersion(sig.Type, d.Family):
 		return refuse("dispersion", "reads the bound fit's estimated dispersion, which it does not carry (a model file saved by an earlier build); refit, or re-save the model with this build")
 	}

@@ -1596,6 +1596,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-influence",
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+      },
+      {
         "name": "regression-margins",
         "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -2531,4 +2535,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 89c32f2084b1d66d44451b1225870dd3171b450cd36731ef72a873911b5a0f6e
+// golden-hash: 102b63cb6b781060a8a3fff6da4057bb70bbc64f09f6d00e76dbe975dab8e06f

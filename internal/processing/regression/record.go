@@ -1,6 +1,10 @@
 package regression
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/internal/model"
+)
 
 // Record is the minimal contract the regression engines need from the
 // parent processing.Record. Defining it locally keeps this subpackage
@@ -40,6 +44,18 @@ func InputValue(rec Record, name string) (float64, bool) {
 type carriedRecord struct {
 	Record
 	vals map[string]float64
+	// lags are each carried channel's spend at lags 0..max_lag (NaN at
+	// a lag the sum skipped), absent for a channel scored null.
+	lags map[string][]float64
+}
+
+var _ model.AdstockLagRow = carriedRecord{}
+
+// AdstockLags satisfies model.AdstockLagRow: channel's spend at the
+// lags its carried adstock summed.
+func (r carriedRecord) AdstockLags(channel string) ([]float64, bool) {
+	l, ok := r.lags[channel]
+	return l, ok
 }
 
 // NumericValue reads a channel's carried adstock (absent when null),

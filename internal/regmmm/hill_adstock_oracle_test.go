@@ -61,6 +61,9 @@ type hillAdstockOracleCase struct {
 	R2             float64              `json:"r2"`
 	ResidualStdErr float64              `json:"residual_std_err"`
 	DF             float64              `json:"df"`
+	// Influence is the fit's tangent-plane figures over its own rows
+	// (hill_influence_oracle_test.go).
+	Influence map[string][]float64 `json:"influence"`
 }
 
 // loadHillAdstockOracle reads the committed golden, checking its hash

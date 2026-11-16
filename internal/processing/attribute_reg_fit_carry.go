@@ -9,7 +9,10 @@ import (
 )
 
 // attribute_reg_fit_carry.go is a carried params.fit ATTR_REG_FITTED /
-// ATTR_REG_RESIDUAL (model.FitCarries: params.order set,
+// ATTR_REG_RESIDUAL, or (U71 E2-S6) ATTR_REG_LEVERAGE /
+// ATTR_REG_INFLUENCE over a REG_MMM_HILL fit's tangent plane — whose
+// kernel partials read the carried row's lags (model.AdstockLagRow)
+// (model.FitCarries: params.order set,
 // params.carryover not false) over a fit that adstocks its channels
 // in-model — the carried ATTR_REG_PREDICT's contract
 // (attribute_reg_predict_carry.go) on the fitted value and the
@@ -26,8 +29,8 @@ import (
 // site and predict agree), so the parallel reducers and a ProcessChain
 // stage leave it to the serial drive.
 
-// regFitCarryAttribute is the carried params.fit fitted / residual
-// computer.
+// regFitCarryAttribute is the carried params.fit computer (fitted,
+// residual, leverage, influence).
 type regFitCarryAttribute struct {
 	regFitScoreAttribute
 	carrier *regression.Carrier

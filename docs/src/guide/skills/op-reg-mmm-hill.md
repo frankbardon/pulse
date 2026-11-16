@@ -44,7 +44,7 @@ Use something else:
 | `jackknife_by` | field | — | Resample. |
 | `rng_seed` | int | — | Resample. |
 | `conf_level` | float | `0.95` | CI coverage. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | `Vcov`, `Correlation`, `dispersion`. |
 | `multiplicity` | object | — | Replicate p-values join a family. |
 | `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |

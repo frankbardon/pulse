@@ -458,7 +458,7 @@ How far the row's predictor values sit from the other rows' (from the predictors
 - A common rule of thumb flags leverage above 2p / n, twice the average (Hoaglin & Welsch 1978); it is a screening threshold, not a graded convention, and with few rows per coefficient it flags many rows.
 - It reads the predictors only, never the target: a high-leverage row can sit right on the line. Whether it moved the fit depends on its residual too (ATTR_REG_RESIDUAL); ATTR_REG_INFLUENCE combines the two (Cook's distance, DFFITS).
 - A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor gets null; a row a weighted fit leaves out (no usable weight) reads 0.
-- Unpenalized least squares only; a request with a penalty is refused. Over a bound fit (params.fit) it is that fit's leverage: for a generalized-linear fit it also weighs the row's fitted value (its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move.
+- Unpenalized least squares only; a request with a penalty is refused. Over a bound fit (params.fit) it is that fit's leverage: for a generalized-linear fit it also weighs the row's fitted value (its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move. Over a nonlinear media-mix fit it is the tangent-plane leverage, which also counts the curve's (and in-model adstock's) parameters: a row on the curve's steep stretch carries more.
 
 <a id="op-attr_reg_predict"></a>
 

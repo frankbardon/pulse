@@ -36,7 +36,7 @@ Refit keys are top-level; `fit` is `params.fit` ([`regression-row-scores`](regre
 | `alpha` | float | — | Strength. |
 | `l1_ratio` | float | — | L1 mix. |
 | `fit` | string | — | Bound fit (`fits` / `models`), no refit: `y − score`. |
-| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized` (`fit` needs `vcov`). |
+| `kind` | enum | `response` | `pearson`, `deviance`, `working`, `standardized`, `studentized`. |
 | `residual_type` | enum | `pearson` | kind `standardized` only; or `deviance`. |
 | `carryover` | bool | `true` | Carry adstock ([`regression-order`](regression-order.md)). |
 | `order` | object | — | `{field, partition?}`; needed to carry. |
@@ -67,7 +67,7 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
 ## Gotchas
 
 - Two-pass: refits per slot. With `params.fit` row-local (two-pass with `order`), no refit; refusals, failed fit (all null): [`regression-row-scores`](regression-row-scores.md).
-- Penalized residuals are shrunk; diagnose unpenalized. `kind` rules: [`regression-row-scores`](regression-row-scores.md).
+- Penalized residuals are shrunk; diagnose unpenalized. `kind` rules: [`regression-row-scores`](regression-row-scores.md), [`regression-influence`](regression-influence.md).
 
 ## See
 

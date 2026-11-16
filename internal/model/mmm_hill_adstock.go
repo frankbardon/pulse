@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -32,6 +33,25 @@ func MMMHillAdstock(spec *types.RegressionSpec) (string, bool) {
 		return "", false
 	}
 	return *p.Adstock, true
+}
+
+// MMMHillPrior reports whether a REG_MMM_HILL spec sets params.prior
+// (a Gaussian MAP prior on one channel's β): a penalty, so its Vcov is
+// σ²·(JᵀJ + P)⁻¹, not the tangent-plane σ²·(JᵀJ)⁻¹ the influence
+// figures read (FitDesign.Penalized), and the fit carries no
+// dispersion. Any other type, or params that do not decode, report
+// false.
+func MMMHillPrior(spec *types.RegressionSpec) bool {
+	if spec == nil || spec.Type != types.REG_MMM_HILL || len(spec.Params) == 0 {
+		return false
+	}
+	var p struct {
+		Prior *json.RawMessage `json:"prior"`
+	}
+	if paramread.Probe(spec.Params, &p) != nil || p.Prior == nil {
+		return false
+	}
+	return string(*p.Prior) != "null"
 }
 
 // The refusal reasons of an in-model adstocked REG_MMM_HILL slot.

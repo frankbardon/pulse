@@ -23,9 +23,9 @@ import (
 // A slot naming params.fit is ROW-LOCAL (FitReferenced): its fit exists
 // before the scan, so it takes no pre-pass — the routing every
 // attribute scheduler reads (vectors.FitBound) says so — unless it
-// carries adstock (FitCarries: an ATTR_REG_FITTED / ATTR_REG_RESIDUAL
-// over an in-model adstocked fit with params.order, ATTR_REG_PREDICT's
-// carry-over rule), whose pre-pass reads every scored row's raw spend.
+// carries adstock (FitCarries: any of the four over an in-model
+// adstocked fit with params.order, ATTR_REG_PREDICT's carry-over rule),
+// whose pre-pass reads every scored row's raw spend.
 
 // FitParams is the params block of an ATTR_REG_FITTED / ATTR_REG_RESIDUAL
 // slot, decoded by the one function the runtime and predict call
@@ -52,8 +52,8 @@ type FitParams struct {
 	// Measure is ATTR_REG_INFLUENCE's figure (InfluenceMeasures; empty
 	// selects cooks) — that attribute's key only.
 	Measure string `json:"measure,omitempty"`
-	// Carryover and Order are ATTR_REG_FITTED's / ATTR_REG_RESIDUAL's
-	// adstock carry-over keys, ATTR_REG_PREDICT's rule (mmm_carry.go,
+	// Carryover and Order are the adstock carry-over keys of all four
+	// (leverage / influence since U71 E2-S6), ATTR_REG_PREDICT's rule (mmm_carry.go,
 	// FitCarries): over a fit that adstocks in-model the slot carries
 	// the fit's adstock into its rows (raw spend, ordered by Order)
 	// unless Carryover is false (channel columns as given).
@@ -185,42 +185,25 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 		}
 		if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
 			return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
-				"params must be an object {fit, measure}: "+err.Error(), nil)
+				"params must be an object {fit, measure, carryover, order}: "+err.Error(), nil)
 		}
-		return FitParams{Fit: p.Fit, Measure: p.Measure}, nil
-	case types.ATTR_REG_FITTED:
-		var p fittedCarryParams
-		paramread.Declare(paramread.Attribute, string(attr), &p)
-		if empty {
-			return FitParams{}, nil
-		}
-		if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
-			return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
-				"params must be an object {fit, carryover, order}: "+err.Error(), nil)
-		}
-		return FitParams{Fit: p.Fit, Carryover: p.Carryover, Order: p.Order}, nil
+		return FitParams{Fit: p.Fit, Measure: p.Measure, Carryover: p.Carryover, Order: p.Order}, nil
 	}
-	// ATTR_REG_LEVERAGE reads {fit} only.
-	var f fittedParams
-	paramread.Declare(paramread.Attribute, string(attr), &f)
+	// ATTR_REG_FITTED and ATTR_REG_LEVERAGE read {fit, carryover, order}.
+	var p fittedCarryParams
+	paramread.Declare(paramread.Attribute, string(attr), &p)
 	if empty {
 		return FitParams{}, nil
 	}
-	if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &f); err != nil {
+	if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
 		return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
-			"params must be an object {fit}: "+err.Error(), nil)
+			"params must be an object {fit, carryover, order}: "+err.Error(), nil)
 	}
-	return FitParams{Fit: f.Fit}, nil
+	return FitParams{Fit: p.Fit, Carryover: p.Carryover, Order: p.Order}, nil
 }
 
-// fittedParams is a params.fit ATTR_REG_LEVERAGE's params block: the
-// bound fit only.
-type fittedParams struct {
-	Fit string `json:"fit"`
-}
-
-// fittedCarryParams is ATTR_REG_FITTED's params block: the bound fit
-// and the adstock carry-over keys (FitCarries).
+// fittedCarryParams is ATTR_REG_FITTED's / ATTR_REG_LEVERAGE's params
+// block: the bound fit and the adstock carry-over keys (FitCarries).
 type fittedCarryParams struct {
 	Fit       string      `json:"fit"`
 	Carryover *bool       `json:"carryover,omitempty"`
@@ -238,8 +221,10 @@ type residualParams struct {
 
 // influenceFitParams is a params.fit ATTR_REG_INFLUENCE's params block.
 type influenceFitParams struct {
-	Fit     string `json:"fit"`
-	Measure string `json:"measure,omitempty"`
+	Fit       string      `json:"fit"`
+	Measure   string      `json:"measure,omitempty"`
+	Carryover *bool       `json:"carryover,omitempty"`
+	Order     *ScoreOrder `json:"order,omitempty"`
 }
 
 // DefaultFitLabel is a params.fit slot's output label when it sets
@@ -251,16 +236,16 @@ func DefaultFitLabel(attr *types.Attribute) string {
 }
 
 // fitCarryType reports whether a params.fit slot of type t takes the
-// adstock carry-over keys: ATTR_REG_FITTED and ATTR_REG_RESIDUAL. The
-// design-reading ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE read a REG_OLS
-// / REG_GLM fit's design only (CheckFitDesign), which never adstocks
-// in-model, so nothing carries there.
+// adstock carry-over keys: all four. ATTR_REG_LEVERAGE /
+// ATTR_REG_INFLUENCE (U71 E2-S6) read a REG_MMM_HILL fit's tangent
+// plane (tangent.go), whose channel partials a carried row takes
+// through its adstock lags.
 func fitCarryType(t types.AttributeType) bool {
-	return t == types.ATTR_REG_FITTED || t == types.ATTR_REG_RESIDUAL
+	return fitReferenceType(t)
 }
 
 // FitCarries reports whether attr (route typ) is a params.fit
-// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot that carries adstock —
+// regression attribute slot (fitCarryType) that carries adstock —
 // params.order set, params.carryover not false — and so takes the
 // two-pass drive (its pre-pass reads every scored row's raw spend):
 // ScoreCarries' rule, judged from the slot's params alone so every
@@ -278,7 +263,7 @@ func FitCarries(typ types.AttributeType, attr *types.Attribute) bool {
 }
 
 // FitOrderFields are the params.order field and partition a params.fit
-// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot names (non-empty only), the
+// regression attribute slot names (non-empty only), the
 // columns a carried slot orders its rows by.
 func FitOrderFields(typ types.AttributeType, attr *types.Attribute) []string {
 	if attr == nil || !fitCarryType(typ) || !FitReferenced(typ, attr) {
@@ -348,6 +333,11 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 		}
 		return p, sig, typeUnsupportedFor(t, p.Fit, sig.Type)
 	}
+	// A design-reading slot over a REG_MMM_BAYES fit can never run (by
+	// design): refused before the draws and carry-over rules name a fix.
+	if cerr := designByDesignRefusal(t, p, sig); cerr != nil {
+		return p, sig, cerr
+	}
 	if cerr := mmmDrawsRefusal(t, p.Fit, sig); cerr != nil {
 		return p, sig, cerr
 	}
@@ -395,7 +385,9 @@ func checkResidualKind(t types.AttributeType, p FitParams, sig Signature) *error
 	if !knownResidualKind(p.Kind) {
 		return unknownResidualKind(t, p.Fit, p.Kind)
 	}
-	if p.Kind != ResidualResponse && !familyResidualType(sig.Type) {
+	// A scaled kind reads the fit's design, not its family: over a
+	// REG_MMM_HILL fit (Gaussian) CheckFitDesign judges it.
+	if p.Kind != ResidualResponse && !familyResidualType(sig.Type) && !(ScaledResidualKind(p.Kind) && sig.Type == types.REG_MMM_HILL) {
 		return scoreInvalidFor(t, p.Fit, ReasonParamsInvalid,
 			"params.kind "+p.Kind+" reads the fit's error family, which a "+string(sig.Type)+" fit does not declare; use kind response",
 			map[string]any{"kind": p.Kind, "type": string(sig.Type)})

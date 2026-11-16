@@ -298,9 +298,13 @@ func (c *Carrier) orderError(key, reason, msg string, extra map[string]any) erro
 
 // Row is rec with each channel read as its carried adstock (null when
 // rec cannot be placed or its own spend is null); every other read is
-// rec's.
+// rec's. The row also holds each carried channel's spend at lags
+// 0..max_lag, the very terms the sum read (NaN at a lag it skipped):
+// model.AdstockLagRow, what a nonlinear fit's tangent plane reads for
+// its kernel parameters' partials (U71 E2-S6).
 func (c *Carrier) Row(rec Record) Record {
 	vals := make(map[string]float64, len(c.channels))
+	lags := make(map[string][]float64, len(c.channels))
 	key, v, ok := c.place(rec)
 	for j, ch := range c.channels {
 		vals[ch] = math.NaN()
@@ -313,18 +317,22 @@ func (c *Carrier) Row(rec Record) Record {
 		}
 		m := c.spend[key]
 		acc := 0.0
+		ls := make([]float64, len(c.weights[j]))
 		for l, w := range c.weights[j] {
 			s := own
 			if l > 0 {
 				p, ok := m[v-int64(l)*c.step]
 				if !ok || math.IsNaN(p[j]) {
+					ls[l] = math.NaN()
 					continue
 				}
 				s = p[j]
 			}
+			ls[l] = s
 			acc += float64(w * s)
 		}
 		vals[ch] = acc
+		lags[ch] = ls
 	}
-	return carriedRecord{Record: rec, vals: vals}
+	return carriedRecord{Record: rec, vals: vals, lags: lags}
 }

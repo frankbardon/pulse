@@ -49,6 +49,25 @@ func RegisterModel(t types.RegressionType, f Factory, scorer model.ScorerFactory
 	}
 }
 
+// modelTangents are the nonlinear model regressions' tangent-plane
+// factories (RegisterModelTangent), read by NewBoundInfluence.
+var modelTangents = map[types.RegressionType]model.TangentFactory{}
+
+// RegisterModelTangent installs model regression t's tangent-plane
+// factory (U71 E2-S6: REG_MMM_HILL's), the gradient a leverage /
+// influence slot over a bound fit of t reads. internal/regadapt calls
+// it from its init beside RegisterModel; a type that is no model
+// regression, or a second registration, panics at boot.
+func RegisterModelTangent(t types.RegressionType, f model.TangentFactory) {
+	if !model.ModelRegression(t) {
+		panic("regression: RegisterModelTangent of " + string(t) + ", which is no model regression")
+	}
+	if _, exists := modelTangents[t]; exists {
+		panic("regression: duplicate tangent registration for " + string(t))
+	}
+	modelTangents[t] = f
+}
+
 // Lookup returns the factory for a regression type, if registered.
 func Lookup(t types.RegressionType) (Factory, bool) {
 	f, ok := regressionRegistry[t]

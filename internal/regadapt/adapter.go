@@ -54,6 +54,12 @@ type RegressionAdapter struct {
 	// model's lower / upper bound, which model.CheckScoreFor admits for
 	// that type alone.
 	BoundScorer func(fit extend.FittedRegression, bound string) (extend.RowScorer, error)
+	// Dispersion, when set (a model regression's only —
+	// internal/regmmm.Dispersions), reads the estimated dispersion φ̂
+	// the model's Vcov carries (Vcov = φ̂·(JᵀJ)⁻¹), attached as
+	// RegressionResult.Dispersion beside the Vcov; ok=false attaches
+	// none.
+	Dispersion func(spec *types.RegressionSpec, out extend.RegressionOutput) (float64, bool)
 }
 
 // regProbeDetails marks a registration probe's weighted pass on a
@@ -292,6 +298,11 @@ func (d *RegressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 			v[i] = slices.Clone(row)
 		}
 		regression.AttachVcovKeys(res, keys, v)
+		if d.reg.Dispersion != nil {
+			if phi, ok := d.reg.Dispersion(d.spec, out); ok {
+				res.Dispersion = phi
+			}
+		}
 	}
 	if len(out.Outputs) > 0 {
 		res.Outputs = maps.Clone(out.Outputs)

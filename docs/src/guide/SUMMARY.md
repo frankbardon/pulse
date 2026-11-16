@@ -313,6 +313,7 @@
     - [regression-collinearity](skills/regression-collinearity.md)
     - [regression-comparison](skills/regression-comparison.md)
     - [regression-inference](skills/regression-inference.md)
+    - [regression-influence](skills/regression-influence.md)
     - [regression-margins](skills/regression-margins.md)
     - [regression-model-options](skills/regression-model-options.md)
     - [regression-modeling](skills/regression-modeling.md)

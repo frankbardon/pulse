@@ -90,12 +90,13 @@ func TestFitBound(t *testing.T) {
 	}
 }
 
-// TestFitBound_CarriedRegressionSlotIsNotBound (U71 E2-S5): a params.fit
-// ATTR_REG_FITTED / ATTR_REG_RESIDUAL that carries adstock
+// TestFitBound_CarriedRegressionSlotIsNotBound (U71 E2-S5, E2-S6): a
+// params.fit regression attribute — fitted, residual, leverage or
+// influence — that carries adstock
 // (params.order, carryover not false) pre-passes the scored rows' raw
 // spend, so it is not fit-bound (every routing site schedules it
 // two-pass); carryover false, or no order, keeps it bound and
-// row-local. Leverage / influence take no carry keys.
+// row-local.
 func TestFitBound_CarriedRegressionSlotIsNotBound(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
@@ -109,6 +110,9 @@ func TestFitBound_CarriedRegressionSlotIsNotBound(t *testing.T) {
 		{types.ATTR_REG_RESIDUAL, `{"fit":"m","order":{"field":"week"},"carryover":false}`, true},
 		{types.ATTR_REG_RESIDUAL, `{"fit":"m","carryover":false}`, true},
 		{types.ATTR_REG_LEVERAGE, `{"fit":"m"}`, true},
+		{types.ATTR_REG_LEVERAGE, `{"fit":"m","order":{"field":"week"}}`, false},
+		{types.ATTR_REG_INFLUENCE, `{"fit":"m","measure":"dffits","order":{"field":"week"}}`, false},
+		{types.ATTR_REG_INFLUENCE, `{"fit":"m","carryover":false}`, true},
 	} {
 		a := &types.Attribute{Type: c.typ, Params: json.RawMessage(c.params)}
 		if got := FitBound(c.typ, a); got != c.bound {

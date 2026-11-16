@@ -629,6 +629,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"carried fit-bound reg fitted with a grouper buffers", regScored(types.ATTR_REG_FITTED, `{"fit":"m","order":{"field":"a"}}`, grouped), vecSchema},
 		{"carried fit-bound reg residual with a grouper buffers", regScored(types.ATTR_REG_RESIDUAL, `{"fit":"m","order":{"field":"a"}}`, grouped), vecSchema},
 		{"fit-bound reg fitted with carryover false and a grouper streams", regScored(types.ATTR_REG_FITTED, `{"fit":"m","carryover":false}`, grouped), vecSchema},
+		// U71 E2-S6: a carried leverage / influence slot (a REG_MMM_HILL
+		// fit's tangent plane through the carried lags) is two-pass too.
+		{"carried fit-bound reg leverage with a grouper buffers", regScored(types.ATTR_REG_LEVERAGE, `{"fit":"m","order":{"field":"a"}}`, grouped), vecSchema},
+		{"carried fit-bound reg influence with a grouper buffers", regScored(types.ATTR_REG_INFLUENCE, `{"fit":"m","order":{"field":"a"}}`, grouped), vecSchema},
+		{"fit-bound reg leverage with carryover false and a grouper streams", regScored(types.ATTR_REG_LEVERAGE, `{"fit":"m","carryover":false}`, grouped), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		// U51 E3-S3: a GROUP_ROUNDED grouping streams (and now merges).
 		{"grouped GROUP_ROUNDED sum streams", &types.Request{

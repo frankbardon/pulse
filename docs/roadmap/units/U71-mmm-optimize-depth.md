@@ -39,12 +39,11 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 - Analytic gradients are the default for `optimize`; `gradient: "fd"` restores the old solves. A block calling a function without a derivative rule falls back WHOLE to finite differences, with a predict advisory.
 - The `gradient` / `gradient_fallback` echo is ABSENT on a failed `{name, direction, error}` optimize entry (the slot-error contract); owner 2026-11-15: keep as is. Not a deferral.
 - Carry-over is the default for an in-model adstocked fit, so `REG_MMM_BAYES` holdout figures move; `carryover: false` restores them.
-- Leverage / influence over an MMM fit stay a coded refusal (owner-delegated 2026-11-15); the real work is #732.
+- Leverage / influence over a `REG_MMM_HILL` fit read its tangent plane (#732, pulled back in-effort as E2-S6, owner 2026-11-16); over `REG_MMM_BAYES` they stay a coded `type_unsupported` refusal by design (a posterior has no hat matrix; PSIS-LOO Pareto k would be a new operator). Not a deferral.
 - A post-fit operator is embedder-only: a recipe served through `Extensions.Examples`, not a shipped example.
 
 ## Handed-on
 
 | Item | To | Why |
 |---|---|---|
-| #732 leverage / influence over `REG_MMM_HILL` / `REG_MMM_BAYES` fits | [U69](U69-regression-depth-2.md) | needs a Jacobian hat matrix (Hill), a posterior vcov contract (Bayes) and an R oracle; U69 owns the regression refusals that remain |
 | #733 `make sites` misses regression-slot sites (`regadapt`, `levelFields`, `slotfail`, schema enum, CLI strict test, example profile) | [U32](U32-docs-audit.md) | same tooling gap family as #706 / #715 |
