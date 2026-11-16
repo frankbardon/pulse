@@ -56,12 +56,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/sweep/sweeptest"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/linalg/detmath"
@@ -160,7 +162,63 @@ var directFigures = []directFigure{
 	{"linalg.CholeskyRidge(indefinite).L00", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(0, 0) }},
 	{"linalg.CholeskyRidge(indefinite).L10", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 0) }},
 	{"linalg.CholeskyRidge(indefinite).L11", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 1) }},
+
+	// compose-sweep-2 E3-S3: the compose sweep's mode de (internal/sweep
+	// de.go) — the seeded Latin-hypercube population, the barriered
+	// rand/1/bin mutant, RangeValue's linear and log maps — searching
+	// deSearch through the real adaptive executor. The trajectory sum
+	// moves if any slot of any round moves.
+	{"sweep.de(rosenbrock+log,seed=7).best", func() float64 { return deSearch().best }},
+	{"sweep.de(rosenbrock+log,seed=7).best_x", func() float64 { return deSearch().x }},
+	{"sweep.de(rosenbrock+log,seed=7).best_lambda", func() float64 { return deSearch().lambda }},
+	{"sweep.de(rosenbrock+log,seed=7).sum", func() float64 { return deSearch().sum }},
 }
+
+// deFigures is deSearch's outcome.
+type deFigures struct{ best, x, lambda, sum float64 }
+
+// deSearch runs a 600-slot mode-de sweep (seed 7, default knobs:
+// population 30) over x, y on [-2, 2] and lambda log-scaled on
+// [1e-3, 1e2], minimising 2-D Rosenbrock plus (ln lambda − ln 0.1)²,
+// every product rounded before its add.
+var deSearch = sync.OnceValue(func() deFigures {
+	num := func(v any) float64 {
+		f, err := strconv.ParseFloat(string(v.(json.Number)), 64)
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}
+	lo, hi, llo, lhi := -2.0, 2.0, 1e-3, 1e2
+	spec := &types.SweepSpec{
+		Mode: types.SweepModeDE, Budget: 600, RNGSeed: 7,
+		Axes: []types.SweepAxis{
+			{Name: "x", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "y", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "lambda", Range: &types.SweepRange{Min: &llo, Max: &lhi, Scale: types.SweepScaleLog}},
+		},
+		Request: json.RawMessage(`{"params":{"x":{"$var":"x"},"y":{"$var":"y"},"l":{"$var":"lambda"}}}`),
+		Rank:    &types.SweepRank{By: "v"},
+	}
+	ev, err := sweeptest.Search(spec, func(a map[string]any) (float64, bool) {
+		x, y := num(a["x"]), num(a["y"])
+		d1, d2, dl := 1-x, y-float64(x*x), detmath.Log(num(a["lambda"]))-detmath.Log(0.1)
+		return float64(d1*d1) + float64(100*float64(d2*d2)) + float64(dl*dl), true
+	})
+	if err != nil {
+		panic(err)
+	}
+	out := deFigures{best: ev[0].Value}
+	b := ev[0]
+	for _, e := range ev {
+		out.sum += e.Value
+		if e.Value < b.Value {
+			b = e
+		}
+	}
+	out.best, out.x, out.lambda = b.Value, num(b.Axes["x"]), num(b.Axes["lambda"])
+	return out
+})
 
 // rank1Sym fails the first Cholesky attempt on an exact zero pivot;
 // indefiniteSym (smallest eigenvalue about -5e-4) needs the first four

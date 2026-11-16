@@ -185,6 +185,17 @@ checks; the script's header has the venv install line. CI never runs
 Python. `TestMCMC_*MatchesArviZ` hold `RHat`, `ESSBulk` and `ESSTail` to
 `1e-9` relative.
 
+The compose sweep's mode `de` is held to SciPy's
+`differential_evolution` (rand1bin, constant F, CR, Latin-hypercube
+init, deferred updating, no polish) on 2-D Rosenbrock over 20 seeds:
+`scripts/reference/scipy/gen_sweep_de.py` (PEP 723, pinned NumPy 2.3.3
+and SciPy 1.16.2) writes `internal/sweep/testdata/de_oracle.json` with
+its footer, and `make reference-sweep-de` runs it under `uv run`. The
+two engines draw from different random streams, so the trajectories
+cannot match: the heavy `TestDE_MatchesScipyOracle` pins the outcome —
+every seed within `1e-3` of the optimum on both sides, the median best
+values within two decades.
+
 **Publish the check.** The book's [How Pulse is validated](../guide/validation.md) page lists, per operator, the external reference, tolerance and test file behind it. It is generated from `validationRegistry` in `internal/descriptor/validation_registry.go`, which Explain's operator mode (`pulse explain OP`, `pulse_explain {operator}`) also returns, so the book and the engine cannot disagree. When you add, tighten or remove a reference check, update the operator's row in the same PR and run `make docs`. The gates fail on an inferential built-in with no row, on a cited test file that does not exist, and on one that does not exercise the operator. A cited file must name it, by wire name or by a `types` constant spelling it (`OverlayKindChiSqRow`), or read a golden under its package's `testdata/` that does. A runner reading a table, or a kernel oracle, may instead reach it through a file cited beside it in the same reference and package that names it: the runner uses a name that file declares, and the kernel oracle calls a function that file also calls.
 
 ### NIST StRD certification

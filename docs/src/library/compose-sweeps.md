@@ -90,8 +90,20 @@ same way predict does.
 The adaptive modes (each round's points chosen from the ranked values
 of the rounds before) need `budget` and `rank`, and are gated by
 `capability:compose_sweep_adaptive` (which needs the sweep and the
-sampling modes); an instance that hides it refuses `budget` as an
-unknown field and an adaptive mode as an unknown mode.
+sampling modes); an instance that hides it refuses `budget` (and `de`)
+as an unknown field and an adaptive mode as an unknown mode.
+
+`mode: "de"` is differential evolution (rand/1/bin): round 0 is a
+Latin-hypercube population, each later round one generation, and a
+`budget` remainder a final partial generation. Range axes are searched
+continuously (`integer` and `log` honoured), list axes by value index.
+The optional `de` block sets `population` (4 to `budget`; default 10 ×
+the axis count, capped at `budget`), `f` (in (0, 2], default 0.8) and
+`cr` (in [0, 1], default 0.9); a value out of range is
+`PULSE_SWEEP_INVALID`, and `de` under another mode
+`PULSE_SWEEP_MODE_MISMATCH`. Every list value of an adaptive sweep is
+rendered once at expansion, so one whose body does not decode is
+refused before anything runs, by predict and the run alike.
 
 An axis never mixes the two styles: a `range` under `grid` / `zip`, a
 `values` list under `random` / `lhs`, or `samples` / `rng_seed` under

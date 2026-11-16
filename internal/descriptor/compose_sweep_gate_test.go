@@ -103,7 +103,7 @@ func TestPayloadSchema_SweepShape(t *testing.T) {
 	if vals["minItems"] != float64(1) || !reflect.DeepEqual(vals["items"], map[string]any{"type": []any{"number", "string", "boolean"}}) {
 		t.Errorf("SweepAxis values %v", vals)
 	}
-	if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, []string{"grid", "lhs", "random", "zip"}) {
+	if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, []string{"de", "grid", "lhs", "random", "zip"}) {
 		t.Errorf("SweepMode enum %v", got)
 	}
 	if got := doc.Defs["SweepScale"].Enum; !reflect.DeepEqual(got, []string{"linear", "log"}) {
@@ -230,6 +230,11 @@ func TestSweepRandom_SamplingHiddenSchema(t *testing.T) {
 			modes := []string{"grid", "zip"}
 			if c.want {
 				modes = []string{"grid", "lhs", "random", "zip"}
+			}
+			// The full registry adds the adaptive mode de
+			// (capability:compose_sweep_adaptive, not enabled above).
+			if c.inst == nil {
+				modes = append([]string{"de"}, modes...)
 			}
 			if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, modes) {
 				t.Errorf("SweepMode enum %v, want %v", got, modes)

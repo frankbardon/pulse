@@ -40,7 +40,8 @@
 //     budget_invalid, adaptive_requires_rank); samples and overlays are
 //     unset (PULSE_SWEEP_MODE_MISMATCH); then the mode's own knobs.
 //     budget under any other mode is PULSE_SWEEP_MODE_MISMATCH
-//     budget_without_adaptive;
+//     budget_without_adaptive, and `de` under a mode other than de
+//     de_without_de_mode (mode de's knobs: de.go);
 //   - request is a JSON object; overlays, when set, is a JSON array;
 //   - rank, when set, names a non-empty `by` of dotted segments with
 //     none empty; order is empty, asc or desc; top, when set, is at
@@ -165,6 +166,10 @@ func Validate(spec *types.SweepSpec) *errors.CodedError {
 		return mismatch("sweep.budget", "", spec.Mode, ReasonBudgetWithoutAdaptive,
 			"sweep sets budget under mode "+modeName(spec.Mode)+", which is not adaptive — its slot count is "+
 				"fixed by the axes or samples; drop budget, or search the axes with an adaptive mode")
+	}
+	if spec.DE != nil && spec.Mode != types.SweepModeDE {
+		return mismatch("sweep.de", "", spec.Mode, ReasonDEWithoutDE,
+			"sweep sets de under mode "+modeName(spec.Mode)+"; the de knobs tune mode de only — drop de, or set mode de")
 	}
 	if isAdaptive {
 		if ce := validateAdaptive(spec, adaptive); ce != nil {

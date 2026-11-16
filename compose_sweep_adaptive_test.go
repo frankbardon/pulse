@@ -35,6 +35,15 @@ func adaptiveSweep(t *testing.T, budget int, extra string) *ComposedRequest {
 		"label":"mu{{mu}}_r{{rep}}","request":`+rankSweepBody+`,"rank":{"by":"tests.t.statistic","order":"desc"}`+extra+`}}`)
 }
 
+// deSweep is adaptiveSweep under mode de (extra spliced into the sweep
+// object).
+func deSweep(t *testing.T, budget int, extra string) *ComposedRequest {
+	t.Helper()
+	c := adaptiveSweep(t, budget, extra)
+	c.Sweep.Mode = types.SweepModeDE
+	return c
+}
+
 func sweepLabels(resp *ComposedResponse) []string {
 	var out []string
 	for _, r := range resp.Responses {
@@ -112,8 +121,10 @@ func TestComposeSweepAdaptive_RunsBudgetInRounds(t *testing.T) {
 
 // TestComposeSweepAdaptive_RefusalParity: each adaptive refusal — no
 // budget, no rank, a budget under a non-adaptive mode, a budget over
-// MaxComposeSlots, a result() read of a later round's slot — is
-// predict ≡ both orchestrators: code, message and details.
+// MaxComposeSlots, a result() read of a later round's slot, each mode
+// de knob out of range, `de` under another mode, a list value whose
+// body does not decode (no round 0 slot drew it) — is predict ≡ both
+// orchestrators: code, message and details.
 func TestComposeSweepAdaptive_RefusalParity(t *testing.T) {
 	t.Parallel()
 
@@ -138,6 +149,18 @@ func TestComposeSweepAdaptive_RefusalParity(t *testing.T) {
 			perr.PULSE_SWEEP_MODE_MISMATCH, sweep.ReasonBudgetWithoutAdaptive},
 		{"budget over the slot limit", Limits{MaxComposeSlots: 5}, adaptiveSweep(t, 5, ""), perr.PULSE_LIMIT_EXCEEDED, ""},
 		{"read of a later round", Limits{}, withOpt(adaptiveSweep(t, 5, ""), read(sweep.PendingLabel(4))), perr.PULSE_RESULT_INVALID, "slot_unknown"},
+		// Mode de's knobs (E3-S3).
+		{"de population below 4", Limits{}, deSweep(t, 10, `,"de":{"population":3}`), perr.PULSE_SWEEP_INVALID, sweep.ReasonDEPopulationInvalid},
+		{"de population over budget", Limits{}, deSweep(t, 10, `,"de":{"population":11}`), perr.PULSE_SWEEP_INVALID, sweep.ReasonDEPopulationOverBudget},
+		{"de f out of range", Limits{}, deSweep(t, 10, `,"de":{"f":2.5}`), perr.PULSE_SWEEP_INVALID, sweep.ReasonDEFInvalid},
+		{"de cr out of range", Limits{}, deSweep(t, 10, `,"de":{"cr":-0.5}`), perr.PULSE_SWEEP_INVALID, sweep.ReasonDECRInvalid},
+		{"de under test_fixed", Limits{}, adaptiveSweep(t, 5, `,"de":{"f":0.5}`), perr.PULSE_SWEEP_MODE_MISMATCH, sweep.ReasonDEWithoutDE},
+		// A list value no round 0 slot drew, refused up front (E3-S3).
+		{"undecodable list value", Limits{}, decodeComposedJSON(t, `{"sweep":{"mode":"`+string(sweeptest.Mode)+`","budget":7,"rng_seed":3,
+			"axes":[{"name":"mu","range":{"min":10,"max":60}},{"name":"flag","values":[true,false,true,false,true,false,true,false,true,"nope"]}],
+			"request":{"cohort":{"filename":"`+parityCohort+`"},"disable_components":{"$var":"flag"},
+			"tests":[{"type":"TEST_T","field":"age","label":"t","params":{"mu":{"$var":"mu"}}}]},"rank":{"by":"tests.t.statistic"}}}`),
+			perr.PULSE_SWEEP_INVALID, sweep.ReasonRequestDecode},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,7 +239,11 @@ func TestComposeSweepAdaptive_HiddenParity(t *testing.T) {
 		code perr.Code
 	}{
 		"budget": {nil, perr.PULSE_REQUEST_UNKNOWN_FIELD},
-		"mode":   {func(c *ComposedRequest) { c.Sweep.Budget = 0 }, perr.PULSE_SWEEP_INVALID},
+		"de knobs": {func(c *ComposedRequest) {
+			c.Sweep.Mode, c.Sweep.DE = types.SweepModeDE, &types.SweepDE{CR: &[]float64{0.5}[0]}
+		}, perr.PULSE_REQUEST_UNKNOWN_FIELD},
+		"mode de": {func(c *ComposedRequest) { c.Sweep.Mode, c.Sweep.Budget = types.SweepModeDE, 0 }, perr.PULSE_SWEEP_INVALID},
+		"mode":    {func(c *ComposedRequest) { c.Sweep.Budget = 0 }, perr.PULSE_SWEEP_INVALID},
 	}
 	build := func(edit func(*ComposedRequest)) *ComposedRequest {
 		c := adaptiveSweep(t, 4, "")
@@ -254,5 +281,42 @@ func TestComposeSweepAdaptive_HiddenParity(t *testing.T) {
 	}
 	if out, err := control.p.Compose(ctx, build(nil)); err != nil || len(out.Responses) != 5 {
 		t.Fatalf("control adaptive sweep: %v", err)
+	}
+}
+
+// TestComposeSweepDE_RunsInGenerations: mode de with population 4 and
+// budget 10 runs the population, a generation and a partial one (4, 4,
+// 2 slots); serial and parallel run the same slots and rank them
+// identically; predict reports the budget, round 0's labels and the
+// run's seed.
+func TestComposeSweepDE_RunsInGenerations(t *testing.T) {
+	t.Parallel()
+
+	p := sweepPulse(t, Options{})
+	var first *ComposedResponse
+	for name, run := range composeRuns(p) {
+		resp, err := run(deSweep(t, 10, `,"de":{"population":4,"f":0.7,"cr":0.5}`))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(resp.Responses) != 11 || len(resp.Ranking) != 10 || resp.SweepSeed == nil {
+			t.Fatalf("%s: %d responses, %d ranked", name, len(resp.Responses), len(resp.Ranking))
+		}
+		if first == nil {
+			first = resp
+			continue
+		}
+		if !reflect.DeepEqual(sweepLabels(first), sweepLabels(resp)) || !reflect.DeepEqual(first.Ranking, resp.Ranking) {
+			t.Fatalf("serial and parallel differ:\n%v\n%v", sweepLabels(first), sweepLabels(resp))
+		}
+	}
+	env, err := p.PredictCompose(context.Background(), deSweep(t, 10, `,"de":{"population":4,"f":0.7,"cr":0.5}`))
+	if err != nil || len(env.Errors) != 0 {
+		t.Fatalf("predict: %v %+v", err, env.Errors)
+	}
+	s := env.Data.(*ComposePredictResult).Sweep
+	want := append(sweepLabels(first)[1:5], "", "", "", "", "", "")
+	if s == nil || !s.Adaptive || s.ExpandedCount != 10 || s.Mode != types.SweepModeDE || *s.RNGSeed != *first.SweepSeed || !reflect.DeepEqual(s.Labels, want) {
+		t.Fatalf("predict summary %+v, labels want %q", s, want)
 	}
 }

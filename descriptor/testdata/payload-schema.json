@@ -7505,8 +7505,24 @@
       ],
       "type": "object"
     },
+    "SweepDE": {
+      "additionalProperties": false,
+      "properties": {
+        "cr": {
+          "type": "number"
+        },
+        "f": {
+          "type": "number"
+        },
+        "population": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "SweepMode": {
       "enum": [
+        "de",
         "grid",
         "lhs",
         "random",
@@ -7588,6 +7604,9 @@
         },
         "budget": {
           "type": "integer"
+        },
+        "de": {
+          "$ref": "#/$defs/SweepDE"
         },
         "label": {
           "type": "string"
@@ -8244,4 +8263,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 39bf609ff0dcbe1d6e9dd8f1e0c4da55f866585bd38972c8c3570b7b81b9ad03
+// golden-hash: e90093c103c66a3d2c4491509e54e136dc603d4c83128b9740318392f1330d51

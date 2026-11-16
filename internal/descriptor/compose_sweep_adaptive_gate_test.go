@@ -41,6 +41,16 @@ func TestSweepAdaptive_HiddenRefusal(t *testing.T) {
 		slices.Contains(ce.Details["valid_keys"].([]string), "budget") {
 		t.Fatalf("budget: got %s %v", ce.Code, ce.Details)
 	}
+	// Mode de's knobs ride the same gate (E3-S3), named beside budget.
+	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Mode, s.DE = types.SweepModeDE, &types.SweepDE{} }), hidden))
+	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"budget", "de"}) ||
+		slices.Contains(ce.Details["valid_keys"].([]string), "de") {
+		t.Fatalf("de: got %s %v", ce.Code, ce.Details)
+	}
+	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Mode, s.Budget = types.SweepModeDE, 0 }), hidden))
+	if valid, _ := ce.Details["valid"].([]string); ce.Code != errors.PULSE_SWEEP_INVALID || slices.Contains(valid, "de") {
+		t.Fatalf("mode de: got %s %v", ce.Code, ce.Details)
+	}
 	ce = asCoded(t, SlotRefusal(adaptive(func(s *types.SweepSpec) { s.Budget = 0 }), hidden))
 	valid, _ := ce.Details["valid"].([]string)
 	if ce.Code != errors.PULSE_SWEEP_INVALID || ce.Details["reason"] != "mode_unknown" ||
@@ -64,9 +74,10 @@ func TestSweepAdaptive_HiddenRefusal(t *testing.T) {
 	}
 }
 
-// TestSweepAdaptive_HiddenSchema: `budget` is on the SweepSpec def of
-// the full registry and of an instance offering the adaptive modes, and
-// absent from one hiding them.
+// TestSweepAdaptive_HiddenSchema: `budget`, `de` (with its SweepDE def)
+// and the mode de are on the SweepSpec def of the full registry and of
+// an instance offering the adaptive modes, and absent from one hiding
+// them.
 func TestSweepAdaptive_HiddenSchema(t *testing.T) {
 	t.Parallel()
 
@@ -86,6 +97,7 @@ func TestSweepAdaptive_HiddenSchema(t *testing.T) {
 		var doc struct {
 			Defs map[string]struct {
 				Properties map[string]any `json:"properties"`
+				Enum       []string       `json:"enum"`
 			} `json:"$defs"`
 		}
 		if err := json.Unmarshal(b, &doc); err != nil {
@@ -93,6 +105,11 @@ func TestSweepAdaptive_HiddenSchema(t *testing.T) {
 		}
 		if _, got := doc.Defs["SweepSpec"].Properties["budget"]; got != c.want {
 			t.Errorf("%s: budget present %v, want %v", c.name, got, c.want)
+		}
+		_, de := doc.Defs["SweepSpec"].Properties["de"]
+		_, deDef := doc.Defs["SweepDE"]
+		if de != c.want || deDef != c.want || slices.Contains(doc.Defs["SweepMode"].Enum, "de") != c.want {
+			t.Errorf("%s: de key %v, SweepDE def %v, mode enum %v; want present %v", c.name, de, deDef, doc.Defs["SweepMode"].Enum, c.want)
 		}
 	}
 }

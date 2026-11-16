@@ -241,6 +241,8 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		// the same capability (nestedSweepAdaptiveRefusal, the
 		// SweepMode enum).
 		{key: "budget", visible: capabilityGate(featSweepAdaptive)},
+		// Mode de's knobs ride the adaptive modes too.
+		{key: "de", visible: capabilityGate(featSweepAdaptive)},
 	},
 	// An axis `target` writes request params (capability:params).
 	reflect.TypeOf(types.SweepAxis{}): {
@@ -913,7 +915,7 @@ func nestedSweepSamplingRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *
 }
 
 // nestedSweepAdaptiveRefusal gates a ComposedRequest's sweep when inst
-// hides capability:compose_sweep_adaptive: a set `budget` is
+// hides capability:compose_sweep_adaptive: a set `budget` or `de` is
 // PULSE_REQUEST_UNKNOWN_FIELD at the sweep (details.path "sweep",
 // valid_keys over its visible keys), and an adaptive mode is the
 // unknown-mode refusal (sweep.NonAdaptiveModeRefusal), its `valid`
@@ -922,8 +924,15 @@ func nestedSweepAdaptiveRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *
 	if spec == nil || inst.Enabled(featSweepAdaptive) {
 		return nil
 	}
+	var hidden []string
 	if spec.Budget != 0 {
-		return unknownFieldErrorAt("sweep", []string{"budget"}, VisibleSlotKeys(spec, inst))
+		hidden = append(hidden, "budget")
+	}
+	if spec.DE != nil {
+		hidden = append(hidden, "de")
+	}
+	if len(hidden) > 0 {
+		return unknownFieldErrorAt("sweep", hidden, VisibleSlotKeys(spec, inst))
 	}
 	return sweep.NonAdaptiveModeRefusal(spec.Mode)
 }

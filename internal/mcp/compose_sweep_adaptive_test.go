@@ -9,8 +9,8 @@ import (
 )
 
 // TestSweepAdaptive_MCPSchemaVariants: the bound sweep schema carries
-// `budget` on an instance offering capability:compose_sweep_adaptive
-// (the full one, which also lists every mode), and drops it on one
+// `budget`, `de` and mode de on an instance offering capability:compose_sweep_adaptive
+// (the full one, which also lists every mode), and drops them on one
 // hiding it — whether only the adaptive modes are hidden (the
 // non-adaptive variant: every sampling key kept) or the sampling modes
 // with them (the enumeration variant).
@@ -36,8 +36,13 @@ func TestSweepAdaptive_MCPSchemaVariants(t *testing.T) {
 		if budget != c.budget || samples != c.samples {
 			t.Errorf("%s: budget %v samples %v, want %v %v", c.name, budget, samples, c.budget, c.samples)
 		}
-		if modes := props["mode"].(map[string]any)["enum"].([]string); c.samples && !slices.Contains(modes, "lhs") {
+		modes := props["mode"].(map[string]any)["enum"].([]string)
+		if c.samples && !slices.Contains(modes, "lhs") {
 			t.Errorf("%s: modes %v", c.name, modes)
+		}
+		// Mode de and its knobs ride the adaptive capability (E3-S3).
+		if _, de := props["de"]; de != c.budget || slices.Contains(modes, "de") != c.budget {
+			t.Errorf("%s: de key %v, modes %v; want de offered %v", c.name, de, modes, c.budget)
 		}
 	}
 }

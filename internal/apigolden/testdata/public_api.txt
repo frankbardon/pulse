@@ -6832,8 +6832,13 @@ pulse/types: type SweepAxis field Range *pulse/types.SweepRange "json:\"range,om
 pulse/types: type SweepAxis field Target string "json:\"target,omitempty\""
 pulse/types: type SweepAxis field Values []any "json:\"values,omitempty\""
 pulse/types: type SweepAxis method (*SweepAxis) UnmarshalJSON(data []byte) error
+pulse/types: type SweepDE struct
+pulse/types: type SweepDE field CR *float64 "json:\"cr,omitempty\""
+pulse/types: type SweepDE field F *float64 "json:\"f,omitempty\""
+pulse/types: type SweepDE field Population *int "json:\"population,omitempty\""
 pulse/types: type SweepMode string
 pulse/types: type SweepMode method (SweepMode) Sampled() bool
+pulse/types: const SweepModeDE pulse/types.SweepMode = "de"
 pulse/types: const SweepModeGrid pulse/types.SweepMode = "grid"
 pulse/types: const SweepModeLHS pulse/types.SweepMode = "lhs"
 pulse/types: const SweepModeRandom pulse/types.SweepMode = "random"
@@ -6858,6 +6863,7 @@ pulse/types: const SweepScaleLog pulse/types.SweepScale = "log"
 pulse/types: type SweepSpec struct
 pulse/types: type SweepSpec field Axes []pulse/types.SweepAxis "json:\"axes\""
 pulse/types: type SweepSpec field Budget int "json:\"budget,omitempty\""
+pulse/types: type SweepSpec field DE *pulse/types.SweepDE "json:\"de,omitempty\""
 pulse/types: type SweepSpec field Label string "json:\"label,omitempty\""
 pulse/types: type SweepSpec field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
 pulse/types: type SweepSpec field Overlays encoding/json.RawMessage "json:\"overlays,omitempty\""
@@ -7002,4 +7008,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4459944a6955c2f333ce66d19e9dc0bfdf2d1fb868a128bdf0736cd33955795b
+// golden-hash: 574491b91d9013a10db1eb08db88d18fbaf870dd6d09da3ccb26297b50c04def

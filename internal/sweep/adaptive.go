@@ -453,6 +453,31 @@ func (a *Adaptive) placeholder(i int) (*types.Request, *errors.CodedError) {
 	return s.Request, nil
 }
 
+// probeListValues renders every list-axis value a later round could
+// propose once — the value at its axis, every other axis at the
+// representative point — as sweep slot First (the first placeholder),
+// so a value whose body does not decode (or whose label renders empty)
+// is refused at expansion, by predict and the runtime alike, with the
+// PULSE_SWEEP_INVALID a later round would have raised; the rendered
+// slot is discarded. The representative value (index 0) is the
+// placeholders' own; a sweep without a later round has nothing to
+// probe.
+func (a *Adaptive) probeListValues() *errors.CodedError {
+	if a.First >= a.Budget {
+		return nil
+	}
+	for i, d := range a.dims {
+		for j := 1; j < d.Levels; j++ {
+			p := Representative(a.dims)
+			p.Index[i] = j
+			if _, ce := a.render(a.First, p); ce != nil {
+				return ce
+			}
+		}
+	}
+	return nil
+}
+
 // Run evaluates the sweep: round 0 (the slots Expand rendered), then
 // round after round until Budget slots ran. Each round eval is handed
 // the round's rendered slots in slot-index order and returns one

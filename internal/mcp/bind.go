@@ -2344,10 +2344,20 @@ func samplingSweepSchema() map[string]any {
 					"required": []string{"name"},
 				},
 			},
-			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once)."),
-			"samples":  map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
-			"budget":   map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
-			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
+			"mode":    enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once); de: adaptive differential evolution over `budget` slots, needs rank."),
+			"samples": map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
+			"budget":  map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
+			"de": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"description":          "Mode de's knobs (differential evolution, rand/1/bin); refused under every other mode. Round 0 is the population, each later round one generation; a budget remainder runs as a partial last generation.",
+				"properties": map[string]any{
+					"population": map[string]any{"type": "integer", "minimum": 4, "description": "Population size, at most the budget; default 10 × the axis count, capped at the budget."},
+					"f":          map[string]any{"type": "number", "exclusiveMinimum": 0, "maximum": 2, "description": "Differential weight in (0, 2]; default 0.8."},
+					"cr":         map[string]any{"type": "number", "minimum": 0, "maximum": 1, "description": "Crossover probability in [0, 1]; default 0.9."},
+				},
+			},
+			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs / adaptive modes: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
 			"label":    map[string]any{"type": "string", "description": "Per-slot label pattern with {{axis}} placeholders; default `<axis>=<value>` pairs joined by `_`."},
 			"request":  map[string]any{"type": "object", "description": "The slot request body (the request shape) with axis placeholders."},
 			"overlays": map[string]any{"type": "array", "items": map[string]any{"type": "object"}, "description": "Compose overlay specs with axis placeholders, substituted per slot and appended to `overlays`."},
@@ -2374,6 +2384,7 @@ func nonAdaptiveSweepSchema() map[string]any {
 	out := samplingSweepSchema()
 	props := out["properties"].(map[string]any)
 	delete(props, "budget")
+	delete(props, "de")
 	mode := props["mode"].(map[string]any)
 	mode["enum"] = slices.DeleteFunc(slices.Clone(mode["enum"].([]string)), func(m string) bool { return sweep.IsAdaptive(types.SweepMode(m)) })
 	return out
@@ -2386,6 +2397,7 @@ func enumerationSweepSchema() map[string]any {
 	out := samplingSweepSchema()
 	props := out["properties"].(map[string]any)
 	delete(props, "budget")
+	delete(props, "de")
 	delete(props, "samples")
 	delete(props, "rng_seed")
 	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},

@@ -61,6 +61,11 @@ type SweepSpec struct {
 	// samples do. Zero is absent.
 	Budget int `json:"budget,omitempty"`
 
+	// DE is mode de's knobs (SweepDE); nil takes every default. Refused
+	// under every other mode. Absent is nil, so a spec without it keeps
+	// its derived seed.
+	DE *SweepDE `json:"de,omitempty"`
+
 	// Label is the per-slot label pattern, `{{axis}}` placeholders
 	// substituted per slot. Empty takes the default `<axis>=<value>`
 	// pairs joined by `_` — prefixed `sample=<index>_` under a sampling
@@ -80,6 +85,24 @@ type SweepSpec struct {
 	// Rank, when set, orders the finished slots by one number and
 	// reports them in ComposedResponse.Ranking.
 	Rank *SweepRank `json:"rank,omitempty"`
+}
+
+// SweepDE is mode de's knobs — differential evolution, strategy
+// rand/1/bin. Each nil field takes its default.
+type SweepDE struct {
+	// Population is the population size: at least 4 (rand/1 draws three
+	// members distinct from the target) and at most the budget. Nil is
+	// 10 × the axis count, capped at the budget. Round 0 evaluates the
+	// initial population; every later round is one generation of
+	// Population trials, so budget ÷ Population rounds run and a
+	// remainder r runs as a final partial generation (trials for the
+	// first r members).
+	Population *int `json:"population,omitempty"`
+	// F is the differential weight (mutation scale), in (0, 2]. Nil is
+	// 0.8.
+	F *float64 `json:"f,omitempty"`
+	// CR is the binomial crossover probability, in [0, 1]. Nil is 0.9.
+	CR *float64 `json:"cr,omitempty"`
 }
 
 // SweepAxis is one swept parameter: a placeholder Name (or, with
@@ -188,6 +211,11 @@ const (
 	// every stratum is drawn exactly once per axis, the strata paired
 	// across axes by a seeded permutation. Compose sweep only.
 	SweepModeLHS SweepMode = "lhs"
+	// SweepModeDE searches the axes by differential evolution
+	// (rand/1/bin) over SweepSpec.Budget slots — an adaptive mode
+	// (capability:compose_sweep_adaptive), tuned by SweepSpec.DE.
+	// Compose sweep only.
+	SweepModeDE SweepMode = "de"
 )
 
 // AllSweepModes returns every SweepMode value the wire schema lists.
@@ -195,7 +223,7 @@ const (
 // registry (internal/sweep RegisterAdaptive) is what makes a mode
 // adaptive.
 func AllSweepModes() []SweepMode {
-	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS}
+	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS, SweepModeDE}
 }
 
 // Sampled reports whether m is a sampling mode (random or lhs).

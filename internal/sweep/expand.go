@@ -319,6 +319,9 @@ func expandAdaptive(c *types.ComposedRequest, spec *types.SweepSpec, m AdaptiveM
 		}
 		requests = append(requests, req)
 	}
+	if ce := a.probeListValues(); ce != nil {
+		return nil, ce
+	}
 	out := *c
 	out.Requests = requests
 	out.Sweep = nil
