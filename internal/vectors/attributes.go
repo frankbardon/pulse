@@ -921,10 +921,13 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // INFLUENCE) naming a bound regression
 // fit (params.fit — model.FitReferenced) is bound the same way: it
 // scores that fit instead of refitting OLS in a pre-pass; so is an
-// ATTR_SEM_SCORE naming a bound SEM fit (params.fit, kind sem).
+// ATTR_SEM_SCORE naming a bound SEM fit (params.fit, kind sem). A
+// params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL that carries adstock
+// (model.FitCarries: params.order) is NOT bound: its pre-pass reads
+// every scored row's raw spend, so it takes the two-pass drive.
 func FitBound(typ types.AttributeType, a *types.Attribute) bool {
 	if model.FitReferenced(typ, a) {
-		return true
+		return !model.FitCarries(typ, a)
 	}
 	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE && typ != types.ATTR_SEM_SCORE {
 		return false

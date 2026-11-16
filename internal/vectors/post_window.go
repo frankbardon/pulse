@@ -249,7 +249,9 @@ func attributeReads(attr *types.Attribute, route types.AttributeType, cat model.
 		return out
 	case model.FitReferenced(route, attr):
 		name, _ := model.FitReference(route, attr)
-		return boundTerms(cat, name, model.FitReadsTarget(route))
+		// A carried fitted / residual slot orders its rows by
+		// params.order's columns.
+		return append(boundTerms(cat, name, model.FitReadsTarget(route)), model.FitOrderFields(route, attr)...)
 	}
 	names, _ := AttributeInputNames(attr)
 	out := make([]string, 0, len(names))

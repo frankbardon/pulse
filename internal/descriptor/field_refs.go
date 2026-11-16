@@ -483,6 +483,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 					}
 				}
 				w.checkScoreFields(attr.Type, p.Fit, sig, schema)
+				w.checkCarryOrder(attr.Type, p.Fit, p.Order, schema)
 				if model.FitReadsTarget(attrRoute) && sig.Target != "" {
 					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
 					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
@@ -525,7 +526,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 				}
 			}
 			w.checkScoreFields(attr.Type, p.Fit, sig, schema)
-			w.checkScoreOrder(p, schema)
+			w.checkCarryOrder(attr.Type, p.Fit, p.Order, schema)
 		default:
 			if vectors.IsVectorAttribute(attrRoute) {
 				// A vector-input attribute reads its members (step 9,
@@ -1913,15 +1914,20 @@ func (s filterLateLabelSet) annotateCompile(ce *errors.CodedError) {
 	s.annotate(name, ce)
 }
 
-// checkScoreOrder judges a carried score's params.order on the scoring
-// frame (CheckScore has passed, so the order is the carrying one):
-// field and partition present, and — a schema field — of a type that
-// orders (keys) rows (internal/regorder), else
-// model.CarryOrderFieldInvalid.
-func (w *fieldRefWalk) checkScoreOrder(p model.ScoreParams, schema *encoding.Schema) {
-	if p.Order == nil {
+// checkCarryOrder judges a carried slot's params.order on the scoring
+// frame (CheckScore / CheckFitReference has passed, so the order is the
+// carrying one) — an ATTR_REG_PREDICT score's, or a params.fit
+// ATTR_REG_FITTED / ATTR_REG_RESIDUAL's: field and partition present,
+// and — a schema field — of a type that orders (keys) rows
+// (internal/regorder), else model.CarryOrderFieldInvalidFor.
+func (w *fieldRefWalk) checkCarryOrder(t types.AttributeType, fit string, order *model.ScoreOrder, schema *encoding.Schema) {
+	if order == nil {
 		return
 	}
+	p := struct {
+		Fit   string
+		Order *model.ScoreOrder
+	}{fit, order}
 	for _, c := range []struct {
 		slot, name string
 		ok         func(encoding.FieldType) bool
@@ -1932,10 +1938,10 @@ func (w *fieldRefWalk) checkScoreOrder(p model.ScoreParams, schema *encoding.Sch
 		if c.name == "" {
 			continue
 		}
-		w.check(c.name, func() *errors.CodedError { return model.CarryOrderFieldInvalid(p.Fit, c.slot, c.name, "") })
+		w.check(c.name, func() *errors.CodedError { return model.CarryOrderFieldInvalidFor(t, p.Fit, c.slot, c.name, "") })
 		if schema != nil {
 			if f := schema.Field(c.name); f != nil && !c.ok(f.Type) {
-				w.out = append(w.out, model.CarryOrderFieldInvalid(p.Fit, c.slot, c.name, f.Type.String()))
+				w.out = append(w.out, model.CarryOrderFieldInvalidFor(t, p.Fit, c.slot, c.name, f.Type.String()))
 			}
 		}
 	}

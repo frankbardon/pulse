@@ -145,7 +145,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_FITTED),
 			Category:      "attribute",
 			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
-			Params:        regAttributeParams(true),
+			Params:        append(regAttributeParams(true), fitCarryParams...),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_FITTED), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one fitted value per record (NaN-free)",
@@ -155,7 +155,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
 			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
-			Params:        append(regAttributeParams(true), residualKindParam, residualTypeParam),
+			Params:        append(append(regAttributeParams(true), residualKindParam, residualTypeParam), fitCarryParams...),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one residual per record",
@@ -662,6 +662,14 @@ var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: 
 // residualTypeParam is ATTR_REG_RESIDUAL's params.residual_type (U65
 // E1-S2): the residual kind standardized starts from.
 var residualTypeParam = descriptor.Param{Name: "residual_type", Type: "enum", Required: false, Default: model.ResidualTypePearson, EnumValues: model.ResidualTypes(), Description: "With kind standardized only (any other kind refuses it, PULSE_MODEL_SCORE_INVALID): pearson (default) standardizes the Pearson residual, deviance the deviance residual sign(y − μ)·√d — R 4.6.1 rstandard(type = \"deviance\"), dev.res/(√φ·√(1 − h)). Equal on a least-squares (Gaussian) fit; studentized, Cook's distance and DFFITS stay Pearson-based, as in R."}
+
+// fitCarryParams are a params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL's
+// adstock carry-over keys (U71 E2-S5) — ATTR_REG_PREDICT's carryover /
+// order rule (model.FitCarries, carryRefusal).
+var fitCarryParams = []descriptor.Param{
+	{Name: "carryover", Type: "bool", Default: true, Description: "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual; false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."},
+	{Name: "order", Type: "object", Description: "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."},
+}
 
 // influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
 var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}

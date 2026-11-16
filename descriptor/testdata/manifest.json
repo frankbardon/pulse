@@ -4192,6 +4192,19 @@
               "type": "string",
               "required": false,
               "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual; false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -4509,6 +4522,19 @@
                 "pearson",
                 "deviance"
               ]
+            },
+            {
+              "name": "carryover",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "With params.fit over a fit that adstocks in-model (REG_MMM_BAYES; REG_MMM_HILL with params.adstock) only: true (default) carries its adstock from the fit's last periods (outputs.adstock_state) into the rows, which then hold RAW spend and need order — on the fit's own rows the fit's own fitted value / residual; false reads pre-adstocked channel columns as given. Refused on any other fit, as ATTR_REG_PREDICT's."
+            },
+            {
+              "name": "order",
+              "type": "object",
+              "required": false,
+              "description": "{field, partition?}: with params.fit, the frame's period field (unsigned integer, date or datetime) and series field ordering a carried slot's rows; required to carry (else order_required), refused otherwise. Each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
             }
           ],
           "accepts_types": [
@@ -21577,4 +21603,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b7ce50ff639bb917b2625251ee6a474e34c7c03dddc48b195005b17a693fcbdd
+// golden-hash: 8744c3e629daa02621017f688ebea0b78881417eda506e37182d75634c5e99c4

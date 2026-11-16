@@ -594,3 +594,63 @@ func TestHoldout_ExtensionManifestParam(t *testing.T) {
 		})
 	}
 }
+
+// TestBayesCarryover_FittedResidualMatchCarriedPredict (U71 E2-S5): over
+// a REG_MMM_BAYES geo panel (posterior-mean kernel, population value) a
+// carried params.fit ATTR_REG_FITTED scores each held-out row exactly
+// as the carried ATTR_REG_PREDICT does — the same Carrier, the mean
+// over the draws — and ATTR_REG_RESIDUAL is the row's target minus it,
+// both orchestrators.
+func TestBayesCarryover_FittedResidualMatchCarriedPredict(t *testing.T) {
+	t.Parallel()
+
+	p := windowParityPulse(t, Options{})
+	ctx := context.Background()
+	const mat = "bayes-fitted-carry.pulse"
+	if _, err := p.Materialize(ctx, windowParityDerive(), mat, MaterializeOptions{Overwrite: true}); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	expr := func(e string) []*types.Filterer {
+		return []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
+	}
+	const order = `,"order":{"field":"week","partition":"market"}}`
+	batch := func() *ComposedRequest {
+		return &ComposedRequest{
+			Fits: []types.FitSpec{{Name: "b", Request: &Request{Cohort: &types.Cohort{Filename: mat}, Filterers: expr("week <= 46"),
+				Regressions: []*types.RegressionSpec{holdoutBuiltinCases[types.REG_MMM_BAYES]()}}}},
+			Requests: []*Request{{Label: "held", Cohort: &types.Cohort{Filename: mat}, Filterers: expr("week > 46"),
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_REG_FITTED, Label: "f", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_REG_RESIDUAL, Label: "r", Params: json.RawMessage(`{"fit":"b"` + order)},
+					{Type: types.ATTR_FORMULA, Label: "df", Expression: "abs(f - p)"},
+					{Type: types.ATTR_FORMULA, Label: "dr", Expression: "abs(sales - p - r)"},
+				},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: "f", Label: "n"},
+					{Type: types.AGG_SUM, Field: "p", Label: "p"},
+					{Type: types.AGG_MAX, Field: "df", Label: "df"},
+					{Type: types.AGG_MAX, Field: "dr", Label: "dr"},
+				}}},
+		}
+	}
+	if env, err := p.PredictCompose(ctx, batch()); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("predict: %v %+v", err, env.Errors)
+	}
+	for name, run := range composeRuns(p) {
+		out, err := run(batch())
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		row := out.Responses[0].Data[0]
+		if n, _ := row["n"].(float64); n == 0 {
+			t.Fatalf("%s: no held-out row scored: %v", name, row)
+		}
+		if df, _ := row["df"].(float64); df != 0 {
+			t.Errorf("%s: carried fitted differs from the carried score by up to %v", name, df)
+		}
+		if dr, _ := row["dr"].(float64); dr > 1e-9 {
+			t.Errorf("%s: carried residual differs from sales − score by up to %v", name, dr)
+		}
+	}
+}

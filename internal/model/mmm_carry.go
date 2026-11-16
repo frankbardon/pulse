@@ -32,6 +32,8 @@ import (
 //   - ATTR_REG_PREDICT with params.order {field[, partition]} reads the
 //     scoring frame's RAW spend, orders its rows by that field and
 //     adstocks them the same way, the fit's adstock_state carried in.
+//     A params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL takes the same
+//     rule (FitCarries, carryRefusalFor — U71 E2-S5).
 //
 // params.carryover false opts out (the regression's params for the
 // holdout, ATTR_REG_PREDICT's for a score): the scorer then reads the
@@ -333,6 +335,18 @@ func ScoreCarries(attr *types.Attribute) bool {
 // does not carry, and params.carryover on a fit that does not adstock
 // in-model, are refused.
 func carryRefusal(p ScoreParams, sig Signature) *errors.CodedError {
+	return carryRefusalFor(types.ATTR_REG_PREDICT, p.Carryover, p.Order, p.Fit, sig)
+}
+
+// carryRefusalFor is carryRefusal over a scoring slot of type t (an
+// ATTR_REG_PREDICT score, or a params.fit ATTR_REG_FITTED /
+// ATTR_REG_RESIDUAL — fit_reference.go) with params.carryover carry,
+// params.order order and params.fit fit.
+func carryRefusalFor(t types.AttributeType, carry *bool, order *ScoreOrder, fit string, sig Signature) *errors.CodedError {
+	p := ScoreParams{Fit: fit, Carryover: carry, Order: order}
+	scoreInvalid := func(fit, reason, what string, extra map[string]any) *errors.CodedError {
+		return scoreInvalidFor(t, fit, reason, what, extra)
+	}
 	if !sig.Carries {
 		if p.Carryover != nil {
 			return scoreInvalid(p.Fit, ReasonCarryoverUnused,
@@ -375,11 +389,18 @@ func carryRefusal(p ScoreParams, sig Signature) *errors.CodedError {
 // or partition the scoring frame lacks (fieldType "") or holds as a
 // type that cannot order (or key) rows.
 func CarryOrderFieldInvalid(fit, slot, field, fieldType string) *errors.CodedError {
+	return CarryOrderFieldInvalidFor(types.ATTR_REG_PREDICT, fit, slot, field, fieldType)
+}
+
+// CarryOrderFieldInvalidFor is CarryOrderFieldInvalid over a scoring
+// slot of type t (a carried params.fit ATTR_REG_FITTED /
+// ATTR_REG_RESIDUAL included).
+func CarryOrderFieldInvalidFor(t types.AttributeType, fit, slot, field, fieldType string) *errors.CodedError {
 	details := map[string]any{"slot": slot, "field": field}
 	what := fmt.Sprintf("params.%s %q is not a column of the scoring frame", slot, field)
 	if fieldType != "" {
 		details["field_type"] = fieldType
 		what = fmt.Sprintf("params.%s %q is a %s field; order by an unsigned integer period, a date or a datetime (a partition: categorical, unsigned integer, date, datetime or packed_bool)", slot, field, fieldType)
 	}
-	return scoreInvalid(fit, ReasonCarryOrderField, what, details)
+	return scoreInvalidFor(t, fit, ReasonCarryOrderField, what, details)
 }

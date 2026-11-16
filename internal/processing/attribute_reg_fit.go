@@ -85,39 +85,46 @@ func (a *regFitScoreAttribute) SetExtensions(r *ExtensionRegistry) { a.exts = r 
 // model.CheckFitReference, then each column the score reads that is a
 // schema field must be numeric — the field-reference pass's order.
 func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
+	_, _, err := a.bind(models)
+	return err
+}
+
+// bind is bindModels, returning the decoded params and the bound fit
+// (nil for a failed fit, whose slot scores null).
+func (a *regFitScoreAttribute) bind(models *model.Set) (model.FitParams, *model.Bound, error) {
 	p, sig, cerr := model.CheckFitReference(a.attr, models, a.exts.ScorableRegression)
 	if cerr != nil {
-		return cerr
+		return p, nil, cerr
 	}
 	if a.schema != nil {
 		for _, col := range sig.Terms {
 			if f := a.schema.Field(col); f != nil && !f.Type.IsNumericForAnalytics() {
-				return model.PredictorNotNumericFor(a.attr.Type, p.Fit, col, f.Type.String())
+				return p, nil, model.PredictorNotNumericFor(a.attr.Type, p.Fit, col, f.Type.String())
 			}
 		}
 		if model.FitReadsTarget(a.attr.Type) && sig.Target != "" {
 			if f := a.schema.Field(sig.Target); f != nil && !f.Type.IsNumericForAnalytics() {
-				return model.TargetNotNumeric(a.attr.Type, p.Fit, sig.Target, f.Type.String())
+				return p, nil, model.TargetNotNumeric(a.attr.Type, p.Fit, sig.Target, f.Type.String())
 			}
 		}
 	}
 	if se, failed := models.Failed(p.Fit); failed {
 		a.unavailable = model.FitUnavailable(p.Fit, a.label(), se)
-		return nil
+		return p, nil, nil
 	}
 	b, err := models.Lookup(p.Fit)
 	if err != nil {
-		return err
+		return p, nil, err
 	}
 	scorer, err := b.Scorer(a.exts.RegressionScorer, model.ScoreParams{Fit: p.Fit})
 	if err != nil {
-		return err
+		return p, nil, err
 	}
 	a.scorer, a.fit, a.target, a.residualKind, a.measure, a.residualType = scorer, p.Fit, b.Target, p.Kind, p.Measure, p.ResidualType
 	if model.FitDesignKind(a.attr.Type, p) {
 		d, err := regression.NewBoundInfluence(b)
 		if err != nil {
-			return err
+			return p, nil, err
 		}
 		a.design = d
 	}
@@ -131,13 +138,13 @@ func (a *regFitScoreAttribute) bindModels(models *model.Set) error {
 		}
 		fam, err := regression.NewResidualFamily(b.Family, b.Link, theta)
 		if err != nil {
-			return err
+			return p, nil, err
 		}
 		a.family = fam
 	} else {
 		a.family, _ = regression.NewResidualFamily("", "", 0)
 	}
-	return nil
+	return p, b, nil
 }
 
 // label is the slot's output label: its own, or the params.fit default.
@@ -181,6 +188,13 @@ func (a *regFitScoreAttribute) resetTally() { resetScorerTally(a.scorer) }
 // (regression.InputValue), the figure is undefined, or the fit failed
 // on its data.
 func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
+	return a.rowOf(rec)
+}
+
+// rowOf is Row over any row reader — the record itself, or a carried
+// slot's row with its channels read as their carried adstock
+// (attribute_reg_fit_carry.go).
+func (a *regFitScoreAttribute) rowOf(rec regression.Record) (float64, error) {
 	if a.unavailable != nil {
 		return math.NaN(), nil
 	}

@@ -222,3 +222,97 @@ func TestHillCarryover_ResampleSeedIgnoresCarryover(t *testing.T) {
 		}
 	}
 }
+
+// TestHillCarryover_FittedResidualCarryFromTheFit (U71 E2-S5): a
+// params.fit ATTR_REG_FITTED / ATTR_REG_RESIDUAL over the in-model
+// adstocked fit carries its adstock exactly as a carried
+// ATTR_REG_PREDICT does. Scored over the fit's own rows (weeks < 90)
+// the carried fitted values are the hand-written model over the whole
+// series and the squared carried residuals sum to the fit's own SSR
+// (its deviance) — the fit's own in-sample figures; over the later
+// weeks they carry from the fitted tail. params.carryover false reads x
+// as given (hill(x)), the pre-change value. Both orchestrators.
+func TestHillCarryover_FittedResidualCarryFromTheFit(t *testing.T) {
+	t.Parallel()
+
+	p, err := New(Options{FS: hillAdstockFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := func(label, where string) *Request {
+		return &Request{
+			Label: label, Cohort: &types.Cohort{Filename: hillAdstockCohort},
+			Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: where}},
+			Attributes: []*types.Attribute{
+				{Type: types.ATTR_REG_FITTED, Label: "fit", Params: json.RawMessage(`{"fit":"hill","order":{"field":"week"}}`)},
+				{Type: types.ATTR_REG_RESIDUAL, Label: "res", Params: json.RawMessage(`{"fit":"hill","order":{"field":"week"}}`)},
+				{Type: types.ATTR_FORMULA, Label: "res2", Expression: "res * res"},
+				{Type: types.ATTR_REG_FITTED, Label: "given", Params: json.RawMessage(`{"fit":"hill","carryover":false}`)},
+				{Type: types.ATTR_REG_RESIDUAL, Label: "given_res", Params: json.RawMessage(`{"fit":"hill","carryover":false}`)},
+				{Type: types.ATTR_REG_PREDICT, Label: "given_score", Params: json.RawMessage(`{"fit":"hill","carryover":false}`)},
+			},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "fit", Label: "fit"},
+				{Type: types.AGG_SUM, Field: "res", Label: "res"},
+				{Type: types.AGG_SUM, Field: "res2", Label: "res2"},
+				{Type: types.AGG_SUM, Field: "given", Label: "given"},
+				{Type: types.AGG_SUM, Field: "given_res", Label: "given_res"},
+				{Type: types.AGG_SUM, Field: "given_score", Label: "given_score"},
+			},
+		}
+	}
+	batch := func() *ComposedRequest {
+		fit := hillAdstockRequest()
+		fit.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "week < 90"}}
+		return &ComposedRequest{
+			Fits:     []types.FitSpec{{Name: "hill", Request: fit}},
+			Requests: []*Request{frame("in", "week < 90"), frame("out", "week >= 90")},
+		}
+	}
+	if env, err := p.PredictCompose(context.Background(), batch()); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("predict: %v %+v", err, env.Errors[0])
+	}
+	x, y := hillAdstockSeries()
+	for name, run := range composeRuns(p) {
+		out, err := run(batch())
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		res := out.Fits["hill"].RegressionResult
+		for i, span := range [][2]int{{0, hillCarrySplit}, {hillCarrySplit, len(x)}} {
+			var wantFit, wantRes, wantGiven, wantGivenRes float64
+			for v := span[0]; v < span[1]; v++ {
+				f := hillHand(res, x, v, 0)
+				wantFit += f
+				wantRes += y[v] - f
+				h := 1 / (1 + math.Pow(res.Coefficients["k:x"]/x[v], res.Coefficients["s:x"]))
+				g := res.Coefficients[model.InterceptKey] + res.Coefficients["x"]*h
+				if x[v] == 0 {
+					g = res.Coefficients[model.InterceptKey]
+				}
+				wantGiven += g
+				wantGivenRes += y[v] - g
+			}
+			row := out.Responses[i].Data[0]
+			num := func(k string) float64 { v, _ := row[k].(float64); return v }
+			if !relNear(num("fit"), wantFit, 1e-9) {
+				t.Errorf("%s %s: carried fitted sum %v, hand-written %v", name, out.Responses[i].Label, num("fit"), wantFit)
+			}
+			if !relNear(num("res"), wantRes, 1e-7) {
+				t.Errorf("%s %s: carried residual sum %v, hand-written %v", name, out.Responses[i].Label, num("res"), wantRes)
+			}
+			if !relNear(num("given"), wantGiven, 1e-9) || !relNear(num("given_res"), wantGivenRes, 1e-7) {
+				t.Errorf("%s %s: carryover false sums %v / %v, hand-written hill(x) %v / %v", name, out.Responses[i].Label,
+					num("given"), num("given_res"), wantGiven, wantGivenRes)
+			}
+			// carryover false is the pre-change row-local path: the
+			// score of the channel columns as given, bit for bit.
+			if math.Float64bits(num("given")) != math.Float64bits(num("given_score")) {
+				t.Errorf("%s %s: carryover false fitted sum %v, row-local score %v", name, out.Responses[i].Label, num("given"), num("given_score"))
+			}
+			if i == 0 && !relNear(num("res2"), res.Deviance, 1e-9) {
+				t.Errorf("%s: in-sample Σ carried residual² %v, the fit's own SSR %v", name, num("res2"), res.Deviance)
+			}
+		}
+	}
+}

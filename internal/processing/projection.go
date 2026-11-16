@@ -237,6 +237,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		// predictors and — a residual or influence slot
 		// (model.FitReadsTarget) — its target.
 		if name, ok := model.FitReference(a.Type, a); ok {
+			// A carried fitted / residual slot orders its rows by
+			// params.order.
+			addAllKnown(model.FitOrderFields(a.Type, a))
 			if b, lerr := models.Lookup(name); lerr == nil {
 				addAllKnown(b.Predictors)
 				addAllKnown(b.Signature().ScoreFields)

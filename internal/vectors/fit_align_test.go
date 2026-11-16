@@ -89,3 +89,30 @@ func TestFitBound(t *testing.T) {
 		t.Fatal("a nil slot is not bound")
 	}
 }
+
+// TestFitBound_CarriedRegressionSlotIsNotBound (U71 E2-S5): a params.fit
+// ATTR_REG_FITTED / ATTR_REG_RESIDUAL that carries adstock
+// (params.order, carryover not false) pre-passes the scored rows' raw
+// spend, so it is not fit-bound (every routing site schedules it
+// two-pass); carryover false, or no order, keeps it bound and
+// row-local. Leverage / influence take no carry keys.
+func TestFitBound_CarriedRegressionSlotIsNotBound(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		typ    types.AttributeType
+		params string
+		bound  bool
+	}{
+		{types.ATTR_REG_FITTED, `{"fit":"m"}`, true},
+		{types.ATTR_REG_FITTED, `{"fit":"m","order":{"field":"week"}}`, false},
+		{types.ATTR_REG_RESIDUAL, `{"fit":"m","order":{"field":"week"},"carryover":true}`, false},
+		{types.ATTR_REG_RESIDUAL, `{"fit":"m","order":{"field":"week"},"carryover":false}`, true},
+		{types.ATTR_REG_RESIDUAL, `{"fit":"m","carryover":false}`, true},
+		{types.ATTR_REG_LEVERAGE, `{"fit":"m"}`, true},
+	} {
+		a := &types.Attribute{Type: c.typ, Params: json.RawMessage(c.params)}
+		if got := FitBound(c.typ, a); got != c.bound {
+			t.Errorf("%s %s: FitBound = %v, want %v", c.typ, c.params, got, c.bound)
+		}
+	}
+}
