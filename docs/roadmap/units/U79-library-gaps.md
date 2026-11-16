@@ -64,7 +64,7 @@ E1-S4, E1-S5 and E7-S3 were added during the effort to close known limits found 
 
 | Item | To | Why |
 |---|---|---|
-| #380 `for_each` inside a Compose `sweep` body | [U72](U72-compose-sweep-2.md) | U79 extended the `nested_in_sweep` refusal to aggregation, matrix and optimize `for_each`; lifting it stays with the sweep's lexical-scoping work |
+| #380 `for_each` inside a Compose `sweep` body | [U72](U72-compose-sweep-2.md) | U79 extended the `nested_in_sweep` refusal to aggregation and matrix `for_each`; lifting it stays with the sweep's lexical-scoping work. (Corrected by U72: an `optimize` block's `for_each` was never refused — the block is a sibling of the sweep, not inside its body, and runs beside it. #380 is done: compose-sweep-2 E2-S2 lifted the refusal for every request item kind.) |
 | #704 non-fail-fast `ComposeParallel` returns early when sweep phase 0 fails | [U72](U72-compose-sweep-2.md) | pre-existing; inconsistent with the aggregate contract every later phase follows (sibling of #580) |
 | #705 `Explain` does not describe Compose `optimize` blocks | [U71](U71-mmm-optimize-depth.md) | pre-existing; U71 owns the optimize surface |
 | #706 `make sites` covers `types.Request` only, not `ComposedRequest` | [U32](U32-docs-audit.md) | extends #560; the tool missed several site families on this effort's Compose-level slots |
