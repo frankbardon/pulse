@@ -343,6 +343,11 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		// An in-model adstocked fit carries its adstock state when the
 		// file holds it, exactly as the bound model does.
 		sig.Carries, sig.CarryState = fileCarryFace(files[j])
+		// Its outputs name a categorical-outcome fit's levels, exactly
+		// as the bound model's do.
+		if OutcomeType(files[j].Type) {
+			sig.Outcomes, sig.OutcomesKnown = OutcomesOf(decodeOutputs(files[j].Outputs))
+		}
 		out[r.Name] = sig
 	}
 	return out

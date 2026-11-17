@@ -45,7 +45,10 @@
 # asserted equal to the rep()-expanded fit (and the expanded Brant
 # test); probability weights read w* = w n_eff / sum(w) (Kish n_eff), the
 # frequency formula on w* — no two_log_lik / aic. Fitted probabilities
-# are the weighted means over the fitted rows of P(Y = k | x_i).
+# are the weighted means over the fitted rows of P(Y = k | x_i); the row
+# scores (row_eta = x'beta, row_probabilities = P(Y = k | x_i) per row, the
+# matrix predict(polr, type = "probs") returns) are at the polished MLE,
+# on the classical-covariance cases (a robust covariance moves no score).
 #
 # Seeded (set.seed(20261102)); draws its own rows, so no other golden
 # moves. Rows are [x..., y, w, g] (y the 1-based level index, g the
@@ -273,6 +276,19 @@ ord_case <- function(name, d, preds, link = "logit", kind = "", cov = "classical
               n_obs = n, coefficients = ord_g17(theta), std_errors = ord_g17(se), vcov = ord_mat(V),
               deviance = ord_num(-2 * ll), null_deviance = ord_num(-2 * ll0), fitted_probabilities = ord_g17(fp))
   if (!is.null(levels_param)) doc$levels_param <- levels_param
+  # Row scores (ATTR_REG_PREDICT, U68 #650): eta = x'beta and P(Y = k | x)
+  # per fitted row at the polished MLE — predict(polr, type = "probs") and
+  # polr's $lp, which read polr's own optimum, agree to 1e-6. A robust
+  # covariance moves no score, so only the classical cases carry them.
+  if (cov == "classical") {
+    eta <- drop(X %*% theta[seq_len(ncol(X))])
+    ord_check(paste(name, "polr lp vs polished eta"), pf$lp, eta, 1e-6, floor = 1)
+    probs <- predict(pf, newdata = dd, type = "probs")
+    if (is.null(dim(probs))) stop(name, ": predict(type = probs) is not a matrix")
+    ord_check(paste(name, "predict(polr, type = probs) vs polished"), probs, pt$P, 1e-6, floor = 1)
+    doc$row_eta <- ord_g17(eta)
+    doc$row_probabilities <- ord_mat(pt$P)
+  }
   if (kind != "probability") {
     doc$two_log_lik <- ord_num(2 * ll)
     doc$aic <- ord_num(-2 * ll + 2 * q)
@@ -374,7 +390,8 @@ write_golden("ordinal", list(
     "on the analytic gradient / Hessian (polr reltol 1e-14 agrees to 1e-6); vcov = the inverse analytic observed",
     "information (classical) or the hc0 / hc1 / cluster (CR1) sandwich on the per-row scores; deviance = -2 loglik,",
     "null_deviance = the thresholds-only fit's; fitted_probabilities = weighted mean P(Y = k | x); brant = brant::brant's",
-    "statistic with the binary glms at their fixed point (omnibus, per-term). rows [x..., y, w, g];",
+    "statistic with the binary glms at their fixed point (omnibus, per-term); row_eta = x'beta and",
+    "row_probabilities = P(Y = k | x) per row (predict(polr, type = 'probs') agrees to 1e-6). rows [x..., y, w, g];",
     "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w)."),
   cases = ord_cases
 ))

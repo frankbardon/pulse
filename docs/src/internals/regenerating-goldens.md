@@ -606,7 +606,12 @@ untransposed cross block and glm's default stop; the golden keeps the
 symmetric covariance). Frequency weights are asserted equal to the
 `rep()` expansion. `TestOrdinalOracle_Design` and
 `TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
-figure at relative `1e-10` (measured within 2e-12).
+figure at relative `1e-10` (measured within 2e-12). Each classical case
+also carries its per-row scores at the MLE (U68): `row_eta` (xᵀβ,
+`polr`'s `$lp` agreeing to 1e-6) and `row_probabilities` (P(Y = k | x),
+`predict(polr, type = "probs")` agreeing to 1e-6), which
+`TestOrdinalOracle_RowScores` and `TestRegOrdinal_ScoresMatchPolrEndToEnd`
+hold the `ATTR_REG_PREDICT` columns to at `1e-10`.
 
 ### The R toolchain
 

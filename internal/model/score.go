@@ -79,6 +79,16 @@ type ScoreParams struct {
 	// Order orders a carried score's rows: the scoring frame's field
 	// (and series partition). Only a carried score takes it.
 	Order *ScoreOrder `json:"order,omitempty"`
+	// Level names one level of a REG_ORDINAL fit (outputs.levels, as
+	// written): the outcome a probability / cumulative output reads.
+	Level string `json:"level,omitempty"`
+	// Category names one category of a categorical-outcome fit whose
+	// selector is the category (no scorable type takes it yet).
+	Category string `json:"category,omitempty"`
+	// Output is a categorical-outcome fit's column (probability.go):
+	// OutputProbability, OutputCumulative, OutputExpected or
+	// OutputClass; absent, the type's default.
+	Output string `json:"output,omitempty"`
 }
 
 // Signature is the static face of a bound model: what a scoring
@@ -134,6 +144,15 @@ type Signature struct {
 	// always the intercept and Terms.
 	Coefficients      []string
 	CoefficientsKnown bool
+
+	// Outcomes are a categorical-outcome fit's levels in fitted order
+	// (REG_ORDINAL's outputs.levels) when known (OutcomesKnown): the
+	// runtime's Set and a loaded model file know them; predict's static
+	// FitCatalog of a `fits` entry only when the request pins them
+	// (params.levels) — otherwise the data decide them and the run
+	// judges a named level.
+	Outcomes      []string
+	OutcomesKnown bool
 
 	// Members are a vector fit's member labels in axis order — the
 	// names a consuming slot aligns to — when known: the runtime's Set
@@ -255,6 +274,9 @@ func (b *Bound) Signature() Signature {
 		coefs = b.Result.Coefficients
 	}
 	sig.Geos, sig.GeosKnown = MMMGeos(coefs), true
+	if OutcomeType(b.Type) && b.Result != nil {
+		sig.Outcomes, sig.OutcomesKnown = OutcomesOf(b.Result.Outputs)
+	}
 	if b.Type == types.REG_MMM_BAYES {
 		var outs map[string]any
 		if b.Result != nil {
@@ -335,6 +357,9 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 				slices.Sort(terms)
 				sig.Coefficients, sig.CoefficientsKnown = terms, true
 			}
+			// A categorical-outcome fit's levels, when the request pins
+			// them (a named level is judged against them).
+			sig.Outcomes, sig.OutcomesKnown = staticOutcomes(reg)
 			// A from_sweep fit (its request resolved off the first
 			// sweep slot) reads its winning axes through sweep_axis();
 			// their names are the batch's sweep's (WithSweepAxes).
@@ -442,7 +467,9 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 // ScorableType). An extension regression's fit is scorable only when
 // its registration supplies a Scorer (else reason no_scorer), and its
 // scorer scores the whole model: params.terms (terms_unsupported) and a
-// lower / upper params.bound (bound_unsupported) are refused on it.
+// lower / upper params.bound (bound_unsupported) are refused on it. Last
+// comes the outcome rule (checkOutcome, probability.go) over params.level
+// / category / output: a categorical-outcome fit's column.
 func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (ScoreParams, Signature, *errors.CodedError) {
 	if scorable == nil {
 		scorable = ScorableType
@@ -453,7 +480,7 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	}
 	if attr.Field != "" || attr.Target != "" || len(attr.Predictors) > 0 || attr.Penalty != "" || attr.Alpha != 0 || attr.L1Ratio != 0 {
 		return p, Signature{}, scoreInvalid(p.Fit, ReasonSlotFields,
-			"takes no field, target, predictors, penalty, alpha or l1_ratio — the fitted model supplies them; name the fit under params.fit and the output under label", nil)
+			"takes no field, target, predictors, penalty, alpha or l1_ratio — the fitted model supplies them; name the fit under params.fit and the score's column under label", nil)
 	}
 	if p.Fit == "" {
 		return p, Signature{}, scoreInvalid("", ReasonFitMissing, "requires params.fit, the name of a bound model", nil)
@@ -522,9 +549,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 			fmt.Sprintf("params.scale %q is not one of response, link", p.Scale),
 			map[string]any{"scale": p.Scale, "valid": []string{ScaleResponse, ScaleLink}})
 	}
-	if p.Scale != "" && sig.Type != types.REG_GLM {
+	if p.Scale != "" && sig.Type != types.REG_GLM && !OutcomeType(sig.Type) {
 		return p, sig, scoreInvalid(p.Fit, ReasonScaleNotGLM,
-			fmt.Sprintf("params.scale applies to a generalized-linear fit only; %q is %s, whose scores are on the target's scale", p.Fit, sig.Type),
+			fmt.Sprintf("params.scale applies to a generalized-linear or ordinal fit only; %q is %s, whose scores are on the target's scale", p.Fit, sig.Type),
 			map[string]any{"scale": p.Scale, "type": string(sig.Type)})
 	}
 	switch p.Bound {
@@ -548,6 +575,9 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 			fmt.Sprintf("params.bound %q is not one of point, lower, upper", p.Bound),
 			map[string]any{"bound": p.Bound, "valid": []string{BoundPoint, BoundLower, BoundUpper}})
 	}
+	if cerr := checkOutcome(p, sig); cerr != nil {
+		return p, sig, cerr
+	}
 	return p, sig, nil
 }
 
@@ -563,7 +593,7 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 	}
 	if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_REG_PREDICT), raw, &p); err != nil {
 		return ScoreParams{}, scoreInvalid("", ReasonParamsInvalid,
-			"params must be an object {fit, terms?, scale?, bound?, carryover?, order?}: "+err.Error(), nil)
+			"params must be an object {fit, terms?, scale?, bound?, carryover?, order?, level?, category?, output?}: "+err.Error(), nil)
 	}
 	return p, nil
 }

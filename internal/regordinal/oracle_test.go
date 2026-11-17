@@ -43,6 +43,10 @@ type oracleCase struct {
 	FittedProbabilities []float64    `json:"fitted_probabilities"`
 	Brant               *oracleBrant `json:"brant"`
 	Rows                [][]float64  `json:"rows"`
+	// RowEta / RowProbabilities are the per-row scores at the MLE (x'β
+	// and predict(polr, type = "probs")), on the classical cases.
+	RowEta           []float64   `json:"row_eta"`
+	RowProbabilities [][]float64 `json:"row_probabilities"`
 }
 
 type oracleBrant struct {

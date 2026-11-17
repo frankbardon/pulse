@@ -22,8 +22,10 @@ const HoldoutKey = "holdout"
 // PROCESSING_CONFIG reason draws_required (MMMBayesDrawsRefusal): its
 // scorer averages over the draws. A REG_MMM_HILL spec with
 // params.adstock is PROCESSING_CONFIG reason adstock_holdout
-// (MMMHillAdstockHoldoutRefusal). Nil when spec sets no holdout or its
-// fit can be scored.
+// (MMMHillAdstockHoldoutRefusal). A categorical-outcome fit (OutcomeType:
+// REG_ORDINAL) scores a probability vector, not the one figure a
+// holdout's RMSE / MAE / R² compare with the target, so it is refused as
+// unscorable too. Nil when spec sets no holdout or its fit can be scored.
 func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *errors.CodedError {
 	if spec == nil || spec.Holdout == "" {
 		return nil
@@ -31,7 +33,7 @@ func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *er
 	if scorable == nil {
 		scorable = ScorableType
 	}
-	if scorable(spec.Type) {
+	if scorable(spec.Type) && !OutcomeType(spec.Type) {
 		// A REG_MMM_HILL params.adstock fit under carryover false would
 		// score raw spend as adstocked columns (mmm_hill_adstock.go).
 		if cerr := MMMHillAdstockHoldoutRefusal(spec); cerr != nil {
@@ -44,8 +46,12 @@ func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *er
 	if spec.Name != "" {
 		details["name"] = spec.Name
 	}
+	what := "nothing can score its fit (a registered regression needs RegressionRegistration.Scorer)"
+	if OutcomeType(spec.Type) {
+		what = "its fit scores a probability per level, not the one figure a holdout compares with the target"
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SCORE_INVALID,
-		"regression "+string(spec.Type)+" cannot take a holdout: nothing can score its fit (a registered regression needs RegressionRegistration.Scorer); drop holdout",
+		"regression "+string(spec.Type)+" cannot take a holdout: "+what+"; drop holdout",
 		details)
 }
 

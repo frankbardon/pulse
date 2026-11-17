@@ -4391,7 +4391,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
           "params": [
             {
               "name": "fit",
@@ -4410,7 +4410,7 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
+              "description": "REG_GLM and REG_ORDINAL only: response applies the inverse link (the fit's fitted means; an ordinal fit's params.output); link returns the linear predictor (ordinal: η = xᵀβ, no output or level).",
               "enum_values": [
                 "response",
                 "link"
@@ -4440,6 +4440,30 @@
               "type": "object",
               "required": false,
               "description": "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
+            },
+            {
+              "name": "output",
+              "type": "enum",
+              "required": false,
+              "description": "REG_ORDINAL only: probability P(y = level) and cumulative P(y ≤ level) (both need level; probability is the default with one), expected Σ k·P(y = k) over the levels numbered 1..K (the default without level), class the 1-based position of the most probable level. Refused on any other fit (outcome_unsupported).",
+              "enum_values": [
+                "probability",
+                "cumulative",
+                "expected",
+                "class"
+              ]
+            },
+            {
+              "name": "level",
+              "type": "string",
+              "required": false,
+              "description": "REG_ORDINAL only: one level of the fit (outputs.levels, as written: \"high\", \"3\") for output probability / cumulative; an unknown level is outcome_unknown. for_each over the levels gives one column each. Refused on any other fit."
+            },
+            {
+              "name": "category",
+              "type": "string",
+              "required": false,
+              "description": "Reserved for a categorical-outcome fit that names a category; no scorable regression type takes it yet (outcome_unsupported)."
             }
           ],
           "accepts_types": [
@@ -10093,6 +10117,13 @@
             "slot": true
           },
           {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "weight",
             "type": "object",
             "required": false,
@@ -15211,7 +15242,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, an ordinal fit's per-level columns, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -21673,4 +21704,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 33670e6f5c02dea3d1fa0895901e140912d2406a24e8c8a124b732d1eb925826
+// golden-hash: 1dc629409f58c32ee3568d99f23352cd32de6e0f912eb31c477f570fed36c28a

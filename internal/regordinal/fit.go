@@ -264,16 +264,7 @@ func (d *design) newton(l link) (*solution, *fitFailure) {
 // probabilities is P(Y = k | x_i) for row i at θ, written into out
 // (len k).
 func (d *design) probabilities(l link, theta []float64, i int, out []float64) {
-	eta := d.linear(theta, i)
-	prev := 0.0
-	for k := 0; k < d.k; k++ {
-		cur := 1.0
-		if k < d.k-1 {
-			cur, _, _ = l.eval(theta[d.p+k] - eta)
-		}
-		out[k] = cur - prev
-		prev = cur
-	}
+	cumulativeProbabilities(l, theta[d.p:], d.linear(theta, i), out[:d.k])
 }
 
 // fittedProbabilities is Σ_i w_i·P(Y = k | x_i) / Σ_i w_i per level.

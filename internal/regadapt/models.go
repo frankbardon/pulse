@@ -23,7 +23,7 @@ import (
 // no root package; an engine-package test imports it directly.
 
 // ModelRegressionAdapter returns model regression t's adapter — its
-// descriptor declaration, its factory and its optional scorer — and
+// descriptor declaration, its factory and its optional scorers — and
 // whether t is one.
 func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 	decl, ok := descx.ModelRegressionDeclaration(t)
@@ -34,13 +34,18 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 	if !ok {
 		factory = regordinal.Factories[t]
 	}
+	scorer, ok := regmmm.Scorers[t]
+	if !ok {
+		scorer = regordinal.Scorers[t]
+	}
 	return RegressionAdapter{
 		Name:        t,
 		Decl:        decl,
 		WeightAware: descx.ModelRegressionWeightAware(t),
 		Factory:     factory,
-		Scorer:      regmmm.Scorers[t],
+		Scorer:      scorer,
 		BoundScorer: regmmm.BoundScorers[t],
+		ParamScorer: regordinal.ParamScorers[t],
 		Dispersion:  regmmm.Dispersions[t],
 	}, true
 }

@@ -56,8 +56,12 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 		WeightAware: true,
 		Target:      descriptor.Param{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "any", Description: "Ordered response: a categorical or numeric field, 3 to 100 levels; a top-level key of the regression entry.", Slot: true},
 		Decl: ExtensionRegression{
-			Vcov:            true,
-			PValues:         true,
+			Vcov:    true,
+			PValues: true,
+			// Scored per row by regordinal.ParamScorer (ATTR_REG_PREDICT:
+			// params.level / output / scale), so it saves and loads; its
+			// holdout stays refused (model.HoldoutScorerRefusal).
+			Scorer:          true,
 			NoResample:      true,
 			CovarianceTypes: regordinal.CovarianceTypes(),
 			OutputKeys:      regordinal.OutputKeys(),
@@ -205,6 +209,11 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 		for _, p := range extensionRegressionSlotParams(d) {
 			if p.Name == "target" && m.Target.Name != "" {
 				p = m.Target
+			}
+			if p.Name == "holdout" && model.OutcomeType(t) {
+				// A categorical-outcome fit scores, yet its holdout is
+				// refused (model.HoldoutScorerRefusal): undeclared.
+				continue
 			}
 			params = append(params, p)
 			if p.Name == "resample" {

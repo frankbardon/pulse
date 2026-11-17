@@ -54,6 +54,12 @@ type RegressionAdapter struct {
 	// model's lower / upper bound, which model.CheckScoreFor admits for
 	// that type alone.
 	BoundScorer func(fit extend.FittedRegression, bound string) (extend.RowScorer, error)
+	// ParamScorer, when set (a model regression's only —
+	// internal/regordinal.ParamScorers), builds the scorer for the whole
+	// ATTR_REG_PREDICT reference instead of Scorer: a categorical-outcome
+	// fit's params.level / output / scale column, which
+	// model.CheckScoreFor admits for that type alone.
+	ParamScorer func(fit extend.FittedRegression, p model.ScoreParams) (extend.RowScorer, error)
 	// Dispersion, when set (a model regression's only —
 	// internal/regmmm.Dispersions), reads the estimated dispersion φ̂
 	// the model's Vcov carries (Vcov = φ̂·(JᵀJ)⁻¹), attached as
@@ -489,12 +495,20 @@ func FittedRegression(b *model.Bound) (extend.FittedRegression, error) {
 // AdaptRegressionScorer wraps the registration's Scorer as the engine's
 // model.ScorerFactory. model.CheckScoreFor already refused params.terms
 // and — but for a type with a BoundScorer — a lower / upper bound on the
-// fit, so p carries only the fit name and that bound.
+// fit, and params.level / category / output / scale but on a type with a
+// ParamScorer, so p carries only the fit name, that bound and those.
 func AdaptRegressionScorer(reg RegressionAdapter) model.ScorerFactory {
 	return func(b *model.Bound, p model.ScoreParams) (model.RowScorer, error) {
 		fit, err := FittedRegression(b)
 		if err != nil {
 			return nil, err
+		}
+		if reg.ParamScorer != nil {
+			ref := reg
+			ref.Scorer = func(fit extend.FittedRegression) (extend.RowScorer, error) {
+				return reg.ParamScorer(fit, p)
+			}
+			return BuildRegressionScorer(ref, fit, false)
 		}
 		if reg.BoundScorer != nil {
 			bound := reg

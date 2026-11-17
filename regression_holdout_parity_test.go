@@ -400,10 +400,10 @@ var holdoutBuiltinScores = map[types.RegressionType]string{types.REG_MMM_BAYES: 
 // a scorer takes a holdout and passes gates A and B (REG_MMM_BAYES
 // through its draws, its held-out rows' raw spend adstocked with the
 // train rows' adstock carried in — a carried ATTR_REG_PREDICT's figure
-// exactly); the ones without
-// (REG_ORDINAL and REG_MULTINOMIAL, whose fits predict a distribution
-// over levels, not one score) have no case — their holdout slot is
-// refused alike by predict and the runtime (internal/regordinal
+// exactly). REG_MULTINOMIAL has no scorer, and REG_ORDINAL scores a
+// probability per level (ATTR_REG_PREDICT columns), not the one figure a
+// holdout compares: neither has a case — their holdout slot is refused
+// alike by predict and the runtime (internal/regordinal
 // TestRegOrdinal_RefusalsPredictMatchRuntime,
 // TestMultinomial_PredictMatchesRuntime).
 func TestHoldout_EveryScorableBuiltin(t *testing.T) {
@@ -411,9 +411,18 @@ func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 
 	p := windowParityPulse(t, Options{})
 	for _, typ := range types.AllRegressionTypes() {
+		if typ == types.REG_ORDINAL {
+			if _, listed := holdoutBuiltinCases[typ]; listed {
+				t.Errorf("%s scores a probability per level; its holdout is refused, so it takes no parity case", typ)
+			}
+			if _, scorable := regression.BuiltinScorer(typ); !scorable {
+				t.Errorf("%s has no scorer: its ATTR_REG_PREDICT columns need one", typ)
+			}
+			continue
+		}
 		if _, scorable := regression.BuiltinScorer(typ); !scorable {
-			if _, listed := holdoutBuiltinCases[typ]; listed || (typ != types.REG_MULTINOMIAL && typ != types.REG_ORDINAL) {
-				t.Errorf("%s has no scorer: only REG_MULTINOMIAL and REG_ORDINAL are expected to, without a holdout parity case", typ)
+			if _, listed := holdoutBuiltinCases[typ]; listed || typ != types.REG_MULTINOMIAL {
+				t.Errorf("%s has no scorer: only REG_MULTINOMIAL is expected to, without a holdout parity case", typ)
 			}
 			continue
 		}

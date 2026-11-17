@@ -49,10 +49,11 @@ func newInstance(t testing.TB, mut func(*pulse.Options)) *pulse.Pulse {
 
 // cohortSpec describes one test cohort: p predictors x1..xp (f64), the
 // response y (u8, or categorical_u8 over dict), a weight w (f64) and a
-// cluster id g (u8).
+// cluster id g (u8), and with id a row number id (u32).
 type cohortSpec struct {
 	p    int
 	dict []string // nil: a numeric y
+	id   bool
 }
 
 func (c cohortSpec) schema() encoding.Schema {
@@ -72,6 +73,9 @@ func (c cohortSpec) schema() encoding.Schema {
 	fields = append(fields,
 		encoding.Field{Name: "w", Type: encoding.FieldTypeF64},
 		encoding.Field{Name: "g", Type: encoding.FieldTypeU8})
+	if c.id {
+		fields = append(fields, encoding.Field{Name: "id", Type: encoding.FieldTypeU32})
+	}
 	s := encoding.Schema{Fields: fields}
 	off := 0
 	for i := range s.Fields {
@@ -102,6 +106,9 @@ func writeCohort(t testing.TB, p *pulse.Pulse, name string, cs cohortSpec, rows 
 			row = append(row, uint64(r[cs.p]))
 		}
 		row = append(row, r[cs.p+1], uint64(r[cs.p+2]))
+		if cs.id {
+			row = append(row, uint64(i))
+		}
 		if err := b.Append(row); err != nil {
 			t.Fatalf("Append row %d: %v", i, err)
 		}
@@ -420,7 +427,6 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"collinearity":   {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
 		"covariance_hc3": {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
 		"covariance_hac": {`,"covariance":{"type":"hac","order_by":"x1"}`, perr.PROCESSING_CONFIG, "covariance"},
-		"save":           {`,"save":"m.pulse-model.json"`, perr.PROCESSING_CONFIG, "save"},
 		"link_top_level": {`,"link":"probit"`, perr.PROCESSING_CONFIG, "link"},
 		"family":         {`,"family":"binomial"`, perr.PROCESSING_CONFIG, "family"},
 		"max_iters":      {`,"max_iters":10`, perr.PROCESSING_CONFIG, "max_iters"},
@@ -477,6 +483,8 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"cloglog":      `,"params":{"link":"cloglog"}`,
 		"brant":        `,"params":{"brant":{}}`,
 		"levels":       `,"params":{"levels":["1","2","3"]}`,
+		// Its scorer (ATTR_REG_PREDICT) makes the fit saveable.
+		"save": `,"save":"m.pulse-model.json"`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()
