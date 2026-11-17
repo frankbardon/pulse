@@ -312,8 +312,8 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		if err != nil {
 			return nil, err
 		}
-		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
-			o.setFiguresOffer(e.figures)
+		if o, ok := eng.(FiguresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.SetFiguresOffer(e.figures)
 		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {
@@ -331,8 +331,8 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 		if err != nil {
 			return nil, err
 		}
-		if o, ok := eng.(figuresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
-			o.setFiguresOffer(e.figures)
+		if o, ok := eng.(FiguresOfferer); ok && e.figures != nil && e.spec.Selection == "" {
+			o.SetFiguresOffer(e.figures)
 		}
 		be, ok := eng.(BufferedEngine)
 		if !ok {

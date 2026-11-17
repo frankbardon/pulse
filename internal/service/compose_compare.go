@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regcompare"
 	"github.com/frankbardon/pulse/internal/slotfail"
@@ -17,7 +18,7 @@ import (
 // without any. It runs right after the optimize blocks' rules, before
 // any fit or slot — the point predict (validateComposeExpanded) runs it.
 func (s *Service) compareRefusal(composed *types.ComposedRequest) ([]regcompare.Plan, error) {
-	plans, cerr := regcompare.Check(composed.Compare, composed.Fits, s.defaultWeight)
+	plans, cerr := regcompare.Check(composed.Compare, composed.Fits, s.defaultWeight, descx.ComparableRegressions(s.instance, nil))
 	if cerr != nil {
 		return nil, cerr
 	}

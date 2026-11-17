@@ -9,8 +9,11 @@ package types
 // rows: their requests equal but for the regression's predictors,
 // intercept and reporting knobs (name, vcov, conf_level, margins,
 // collinearity, save, multiplicity) and the request's label, return,
-// disable_components and multiplicity, both REG_OLS or both REG_GLM on
-// one family and link — refused PULSE_COMPARISON_INVALID otherwise, at
+// disable_components and multiplicity, both REG_OLS, both REG_GLM on
+// one family and link, or both one model whose declaration carries
+// Compare (REG_ORDINAL — its terms the predictors, its params.levels
+// equal — or an embedder model, pulse.RegressionRegistration.Compare) —
+// refused PULSE_COMPARISON_INVALID otherwise, at
 // predict and at run alike — and, once fitted, on the same row count
 // (PULSE_COMPARISON_ROWS_DIFFER, the comparison failing alone). Equal
 // requests and nested terms make the full fit's rows a subset of the
@@ -37,7 +40,8 @@ type FitComparisonSpec struct {
 	// anova default: ComparisonTestF on REG_OLS and on a REG_GLM family
 	// that estimates its dispersion (gamma; a fixed-θ negative binomial
 	// under dispersion "estimated"), ComparisonTestLRT on every other
-	// family.
+	// family and on a declared model (REG_ORDINAL: anova.polr), whose F
+	// test is refused (no estimated dispersion).
 	Test ComparisonTest `json:"test,omitempty"`
 
 	// Multiplicity is the comparison's multiple-comparison correction:

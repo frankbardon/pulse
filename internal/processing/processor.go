@@ -146,7 +146,8 @@ func (p *Processor) SetModels(models *model.Set) {
 
 // regressionResolver is the factory resolver every regression slot is
 // built through: the registry's (built-ins + extensions), wrapped so its
-// REG_OLS / REG_GLM engines offer their nested-model comparison figures
+// REG_OLS / REG_GLM engines (and every extension-shaped engine whose
+// model declares Compare) offer their nested-model comparison figures
 // to the bound set's capture when the request is a Compose fit a
 // comparison reads (model.Set.WithCapture; regression.OfferingFigures).
 // Without a capture it is the registry's resolver itself.

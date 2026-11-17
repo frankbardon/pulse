@@ -2,7 +2,10 @@ package model
 
 // RegressionFigures are the whole-fit figures a Compose nested-model
 // comparison (types.ComposedRequest.Compare, internal/regcompare) reads
-// off a REG_OLS / REG_GLM fit beyond its wire result. They never reach
+// off a REG_OLS / REG_GLM fit — or an extension-shaped model's whose
+// declaration carries Compare (extend.CompareRegression, mapped by
+// internal/regadapt: dispersion 1, WaldDF 0) — beyond its wire result.
+// They never reach
 // a result or the public API: a fit request a comparison names runs
 // with a VectorCapture on its bound set (Set.WithCapture), and the
 // regression engine offers its figures there at finalize
@@ -11,7 +14,9 @@ package model
 // offers through one channel. A run without a capture computes none.
 type RegressionFigures struct {
 	// Terms are the fitted coefficients in Covariance order:
-	// "(intercept)" when the fit has one, then the predictors.
+	// "(intercept)" when the fit has one, then the predictors (a
+	// declared model's own order: REG_ORDINAL's predictors, then its
+	// thresholds).
 	Terms []string
 
 	// Coefficients are the estimates aligned with Terms.

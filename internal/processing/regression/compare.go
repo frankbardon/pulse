@@ -15,13 +15,15 @@ import (
 // The Compose runtime runs every fit a comparison names with a
 // model.VectorCapture on its bound set; the processor then resolves its
 // regression factories through OfferingFigures, which hands each
-// REG_OLS / REG_GLM engine the capture's offer. Nothing here reaches a
+// REG_OLS / REG_GLM engine — and every extension-shaped engine whose
+// model declares Compare (internal/regadapt) — the capture's offer. Nothing here reaches a
 // result or the public API, and a run without a capture computes none.
 
-// figuresOfferer is an engine that can offer its comparison figures at
-// finalize: the OLS, GLM and modifier engines.
-type figuresOfferer interface {
-	setFiguresOffer(offer func(*model.RegressionFigures))
+// FiguresOfferer is an engine that can offer its comparison figures at
+// finalize: the OLS, GLM and modifier engines, and an extension-shaped
+// model's engine (internal/regadapt) whose declaration carries Compare.
+type FiguresOfferer interface {
+	SetFiguresOffer(offer func(*model.RegressionFigures))
 }
 
 // OfferingFigures wraps resolve so every engine its factories build that
@@ -40,8 +42,8 @@ func OfferingFigures(resolve Resolver, offer func(*model.RegressionFigures)) Res
 		return func(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, error) {
 			eng, err := f(spec, schema)
 			if err == nil {
-				if o, ok := eng.(figuresOfferer); ok {
-					o.setFiguresOffer(offer)
+				if o, ok := eng.(FiguresOfferer); ok {
+					o.SetFiguresOffer(offer)
 				}
 			}
 			return eng, err
@@ -83,6 +85,6 @@ func olsFitFigures(solve *olsSolveResult, predictors []string, cov [][]float64, 
 	}
 }
 
-func (e *olsEngine) setFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
-func (e *glmEngine) setFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
-func (e *modifierEngine) setFiguresOffer(offer func(*model.RegressionFigures)) { e.figures = offer }
+func (e *olsEngine) SetFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
+func (e *glmEngine) SetFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
+func (e *modifierEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) { e.figures = offer }

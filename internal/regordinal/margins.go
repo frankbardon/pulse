@@ -38,13 +38,18 @@ import (
 // record order and every product is barriered, so the effects are
 // bit-identical across worker counts and architectures.
 
-// fitState is one successful fit, kept for Margins: the design, θ̂, the
+// fitState is one successful fit, kept for Margins and CompareFigures: the design, θ̂, the
 // coefficient covariance the standard errors read, and the level order.
 type fitState struct {
 	d      *design
 	theta  []float64
 	vcov   [][]float64
 	levels []string
+	// thresholds, deviance and dfResidual are read by CompareFigures
+	// (compare.go): the threshold names, −2ℓ̂ and N* − q.
+	thresholds []string
+	deviance   float64
+	dfResidual float64
 }
 
 // Margins reports the slot's marginal effects over the last fit

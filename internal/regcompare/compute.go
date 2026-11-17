@@ -61,6 +61,23 @@ func Compute(p Plan, restricted, full *types.RegressionResult, g0, g1 *model.Reg
 		}
 		return out, nil
 	}
+	if p.Declared {
+		if r0, r1 := otherTerms(g0, nil), otherTerms(g1, p.Terms); !slices.Equal(r0, r1) {
+			// A declared model's non-predictor terms (an ordinal
+			// model's thresholds) are named by its fitted levels: the
+			// fits estimated different ones, so they are not nested.
+			out.Error = &types.SlotError{
+				Code:    string(errors.PULSE_COMPARISON_ROWS_DIFFER),
+				Message: "fits " + p.Restricted + " and " + p.Full + " estimated different terms beside the tested ones (outcome levels), so they cannot be compared",
+				Details: map[string]any{
+					"reason":     "terms_differ",
+					"restricted": p.Restricted, "full": p.Full,
+					"restricted_terms": r0, "full_terms": r1,
+				},
+			}
+			return out, nil
+		}
+	}
 	q := float64(len(p.Terms))
 	out.Distribution = p.Distribution
 	out.Terms = slices.Clone(p.Terms)
@@ -157,4 +174,17 @@ func wald(g *model.RegressionFigures, terms []string) float64 {
 		w += float64(b[a] * x.At(a))
 	}
 	return w
+}
+
+// otherTerms is g's terms outside tested, sorted: the terms both fits of
+// a nested pair must share.
+func otherTerms(g *model.RegressionFigures, tested []string) []string {
+	out := []string{}
+	for _, t := range g.Terms {
+		if !slices.Contains(tested, t) {
+			out = append(out, t)
+		}
+	}
+	slices.Sort(out)
+	return out
 }

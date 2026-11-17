@@ -59,6 +59,14 @@ type nestedCase struct {
 
 func loadNested(t *testing.T) []nestedCase {
 	t.Helper()
+	cases, _ := loadNestedDoc(t)
+	return cases
+}
+
+// loadNestedDoc is nested.json's OLS / GLM cases and its REG_ORDINAL
+// ordinal_cases (U68 E5-S1).
+func loadNestedDoc(t *testing.T) (cases, ordinal []nestedCase) {
+	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "processing", "testdata", "reference", "nested.json"))
 	if err != nil {
 		t.Fatalf("read nested.json: %v (regenerate with `make reference`)", err)
@@ -76,14 +84,15 @@ func loadNested(t *testing.T) []nestedCase {
 		RVersion string            `json:"r_version"`
 		Packages map[string]string `json:"packages"`
 		Cases    []nestedCase      `json:"cases"`
+		Ordinal  []nestedCase      `json:"ordinal_cases"`
 	}
 	if err := json.Unmarshal([]byte(body), &doc); err != nil {
 		t.Fatalf("decode nested.json: %v", err)
 	}
-	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["lmtest"] != "0.9.40" || len(doc.Cases) != 21 {
-		t.Fatalf("nested.json: R %q, lmtest %q, %d cases", doc.RVersion, doc.Packages["lmtest"], len(doc.Cases))
+	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["lmtest"] != "0.9.40" || len(doc.Cases) != 21 || len(doc.Ordinal) != 4 {
+		t.Fatalf("nested.json: R %q, lmtest %q, %d cases, %d ordinal cases", doc.RVersion, doc.Packages["lmtest"], len(doc.Cases), len(doc.Ordinal))
 	}
-	return doc.Cases
+	return doc.Cases, doc.Ordinal
 }
 
 const nestedCohort = "nested.pulse"
@@ -113,11 +122,13 @@ func (c nestedCase) service(t *testing.T) *Service {
 // fit is the case's fit request over predictors.
 func (c nestedCase) fit(predictors []string, intercept bool) *types.Request {
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors}
-	if !intercept {
+	if c.Family == "ordinal" {
+		spec.Type = types.REG_ORDINAL
+	} else if !intercept {
 		f := false
 		spec.Intercept = &f
 	}
-	if c.Family != "gaussian" {
+	if c.Family != "gaussian" && c.Family != "ordinal" {
 		spec.Type, spec.Family, spec.Link, spec.Tol, spec.MaxIters = types.REG_GLM, c.Family, c.Link, 1e-13, 200
 		spec.Theta, spec.Dispersion = c.Theta, c.Dispersion
 	}
@@ -159,8 +170,28 @@ func nestedRel(got, want float64) float64 {
 // terms are R's.
 func TestReferenceOracle_NestedMatchesR(t *testing.T) {
 	t.Parallel()
+	checkNestedOracle(t, loadNested(t))
+}
+
+// TestReferenceOracle_NestedOrdinalMatchesR: two REG_ORDINAL fits
+// compared through the declared-compare hook (regordinal's
+// extend.CompareRegression, U68 E5-S1) — the likelihood ratio, its df
+// (the added predictors), the residual df Σw − (predictors + thresholds)
+// and the deviances agree with anova.polr, and the Wald statistic on the
+// full fit's classical or hc1 covariance with the R Wald on the polished
+// polr information, at 1e-10 relative; the frequency-weighted case
+// against polr(weights = w).
+func TestReferenceOracle_NestedOrdinalMatchesR(t *testing.T) {
+	t.Parallel()
+	_, ordinal := loadNestedDoc(t)
+	checkNestedOracle(t, ordinal)
+}
+
+// checkNestedOracle runs every case through Compose and holds it to R.
+func checkNestedOracle(t *testing.T, cases []nestedCase) {
+	t.Helper()
 	worst := map[string]float64{}
-	for _, c := range loadNested(t) {
+	for _, c := range cases {
 		resp, err := c.service(t).Compose(context.Background(), c.batch())
 		if err != nil {
 			t.Fatalf("%s: Compose: %v", c.Name, err)

@@ -49,11 +49,11 @@ examples_tags: [regression, ordinal]
 
 ## Inputs
 
-A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped, as is a null cluster. Too few / many levels on the fitted rows, or a listed level no row carries, fails the slot alone (`INSUFFICIENT_DATA`, `reason`).
+A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped, as is a null cluster. Too few / many levels, or a listed level no row carries: `INSUFFICIENT_DATA`, fails alone.
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus df (K − 2)·p, per-predictor `terms` K − 2). `exponentiate` adds `exponentiated` {e^β, e^β·SE, `ci_*` e^bound}, predictors only; `margins`: dP(level)/dx per `"<level>:<term>"`.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β, SE, `ci_*`; predictors); `margins`: dP(level)/dx per `"<level>:<term>"`.
 
 <!-- generated: reading-the-output -->
 
@@ -66,7 +66,8 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 - Frequency weights = the `rep()` expansion; probability weights follow<!-- feature: REG_GLM --> `REG_GLM`'s rule<!-- /feature --> (w* = w·n_eff/Σw).
 - Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.
 - `resample` / `selection` keep the first fit's levels: a bootstrap draw lacking one is skipped, a jackknife one fails (`replicate_empty_level`). AIC / BIC k counts thresholds.
-- Separation: `NO_CONVERGE`; fails alone.
+- Separation: `NO_CONVERGE`, fails alone.
+- `compare`: `lrt` (`anova.polr`) / `wald`, same `levels`; `regression-comparison`.
 
 ## See
 

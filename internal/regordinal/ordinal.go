@@ -202,7 +202,8 @@ type model struct {
 	cov         types.CovarianceType
 	cluster     string
 	probability bool
-	// fitted is the last successful Fit's state, read by Margins.
+	// fitted is the last successful Fit's state, read by Margins and
+	// CompareFigures.
 	fitted *fitState
 }
 
@@ -348,7 +349,8 @@ func (m *model) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 			return extend.RegressionOutput{}, err
 		}
 	}
-	m.fitted = &fitState{d: d, theta: sol.theta, vcov: vcov, levels: levels}
+	m.fitted = &fitState{d: d, theta: sol.theta, vcov: vcov, levels: levels,
+		thresholds: thresholds, deviance: -float64(2 * sol.ll), dfResidual: nStar - float64(q)}
 	return m.output(d, sol, vcov, levels, thresholds), nil
 }
 

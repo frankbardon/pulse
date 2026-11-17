@@ -71,7 +71,12 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			// Marginal effects of each predictor on each level's
 			// probability (regordinal's extend.MarginsRegression; U68
 			// E4-S1), keyed "<level>:<term>".
-			Margins:         true,
+			Margins: true,
+			// Nested-model comparisons (Compose compare: lrt =
+			// anova.polr's deviance change, wald on the full fit's
+			// covariance) through regordinal's
+			// extend.CompareRegression (U68 E5-S1).
+			Compare:         true,
 			CovarianceTypes: regordinal.CovarianceTypes(),
 			OutputKeys:      regordinal.OutputKeys(),
 			OutputSchema:    slices.Clone(regordinal.OutputSchema),

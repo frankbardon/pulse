@@ -1074,10 +1074,11 @@ var groupEdges = map[string][][]string{
 	// the sweep there is nothing to search, without the sampling modes
 	// no range axis (and no rng_seed to pin the search).
 	featSweepAdaptive: {{featComposeSweep}, {featSweepSampling}},
-	// A nested-model comparison tests two `fits` entries, both REG_OLS
-	// or both REG_GLM: without fits there is nothing to compare, without
-	// one of the two regressions no fit it can read.
-	featComposeCompare: {{featComposeFits}, {string(types.REG_GLM), string(types.REG_OLS)}},
+	// A nested-model comparison tests two `fits` entries, both REG_OLS,
+	// both REG_GLM or both REG_ORDINAL (a built-in declaring Compare, U68
+	// E5-S1): without fits there is nothing to compare, without one of
+	// the regressions no fit it can read.
+	featComposeCompare: {{featComposeFits}, {string(types.REG_GLM), string(types.REG_OLS), string(types.REG_ORDINAL)}},
 	// A multi-group fit is an inline SEM fit (MAT_SEM's or
 	// ATTR_SEM_SCORE's) that always models the means.
 	featSEMGroups: {{string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)}, {featSEMMeans}},

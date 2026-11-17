@@ -1067,6 +1067,7 @@ pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse: type RegressionOutputMeta field Key string "json:\"key\""
 pulse: type RegressionRegistration struct
 pulse: type RegressionRegistration field Accepts []pulse/encoding.FieldType
+pulse: type RegressionRegistration field Compare bool
 pulse: type RegressionRegistration field CovarianceTypes []pulse/types.CovarianceType
 pulse: type RegressionRegistration field DependsOn []string
 pulse: type RegressionRegistration field Description string
@@ -3248,6 +3249,14 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type CompareOutput struct
+pulse/extend: type CompareOutput field Coefficients []float64
+pulse/extend: type CompareOutput field Covariance [][]float64
+pulse/extend: type CompareOutput field DFResidual float64
+pulse/extend: type CompareOutput field Deviance float64
+pulse/extend: type CompareOutput field Terms []string
+pulse/extend: type CompareRegression interface
+pulse/extend: type CompareRegression imethod CompareFigures() (pulse/extend.CompareOutput, error)
 pulse/extend: type ComposeOverlayFunc func(spec *pulse/types.ComposeOverlaySpec, host pulse/extend.ComposeOverlayHost) (pulse/extend.OverlayOutput, error)
 pulse/extend: type ComposeOverlayHost interface
 pulse/extend: type ComposeOverlayHost imethod Reference() pulse/extend.ComposeOverlaySlot
@@ -7057,4 +7066,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c8864e2fdab29f363d02023e7211635b3357af1f7e0470145f99df487b7bf3ec
+// golden-hash: 77d178dc18f2e1bda502d7f10a1ae3a9c87f2b78bf54db81bf1b1227aa70af7e

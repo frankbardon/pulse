@@ -389,7 +389,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// Then the nested-model comparisons — the runtime's compareRefusal,
 	// run right after its optimize rules; nothing past it runs on a
 	// refusal.
-	cmpPlans, cerr := regcompare.Check(req.Compare, req.Fits, opts.defaultWeight())
+	cmpPlans, cerr := regcompare.Check(req.Compare, req.Fits, opts.defaultWeight(), ComparableRegressions(opts.instance(), extensionsFromOpts(opts)))
 	if cerr != nil {
 		addCodedError(env, cerr)
 		result.Valid = false

@@ -130,6 +130,43 @@ type MarginalEffect struct {
 	StdErr   *float64
 }
 
+// CompareRegression is the optional sibling for a model whose fits a
+// Compose nested-model comparison (types.ComposedRequest.Compare) can
+// read, implemented beside its declared form when its registration
+// declares Compare. The engine calls Fit, FitContext or Finalize first
+// and, when that fit succeeded on a fit a comparison names,
+// CompareFigures exactly once on the same value — so the model keeps
+// what the figures need from the fit. Never called otherwise. The
+// engine runs the tests: a likelihood ratio on the two fits'
+// deviances, D₀ − D₁ on χ²(q), and a Wald test b_Sᵀ V_SS⁻¹ b_S on χ²(q)
+// over the full fit's tested coefficients and covariance; q is the
+// number of predictors the full fit adds. A returned error fails the
+// fit as a fit error does. Shape faults are
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason compare_shape).
+type CompareRegression interface {
+	CompareFigures() (CompareOutput, error)
+}
+
+// CompareOutput is a fit's comparison figures. Terms names every
+// estimated parameter — each predictor of the spec, plus any the model
+// fits beside them (an intercept, an ordinal model's thresholds) — and
+// two nested fits are comparable only when every non-predictor term is
+// common to both. Coefficients are aligned with Terms; Covariance is the
+// coefficient covariance the standard errors read (classical or
+// robust), square over Terms in their order. Deviance is −2 times the
+// maximized log-likelihood (up to a constant both fits share); a model
+// fitted by penalized or quasi-likelihood has no deviance a likelihood
+// ratio reads. DFResidual is the residual df (rows, or Σw under a
+// frequency weight, less the parameter count). A non-finite figure nulls
+// the statistic it feeds.
+type CompareOutput struct {
+	Terms        []string
+	Coefficients []float64
+	Covariance   [][]float64
+	Deviance     float64
+	DFResidual   float64
+}
+
 // RegressionFactory builds a fresh Regression for one regression slot
 // of one request from the slot's spec and the cohort schema. During
 // probe-validation at pulse.New it is called against a small synthetic

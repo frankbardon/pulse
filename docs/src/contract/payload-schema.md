@@ -1795,7 +1795,10 @@ that converged (null when none did).
 comparison of two regression `fits` entries, run once after the fits
 with no record data (R's `anova(m0, m1)` / `lmtest::waldtest`). `test`
 is the `ComparisonTest` enum `f` / `lrt` / `wald` (absent: `f` on
-`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise);
+`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise —
+and on a model declaring comparisons, `REG_ORDINAL`, whose `f` is
+refused and whose two fits need equal `params.levels`, reason
+`levels_differ`);
 `multiplicity` (gated by `capability:multiplicity`) inherits the batch
 block, family `compose` only. Predict and the runtime refuse an entry
 identically before any fit or slot runs — `PULSE_COMPARISON_INVALID`
@@ -1818,7 +1821,10 @@ row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
 full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
 (`slot_kind` `comparisons`). Both slots are gated by
 `capability:compose_compare` (a dependency on `capability:compose_fits`
-and `REG_OLS` or `REG_GLM`). `pulse_predict` with `composed` lists the
+and `REG_OLS`, `REG_GLM` or `REG_ORDINAL`). Two declared fits whose
+non-tested terms (ordinal thresholds) differ once fitted fail the
+comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` `reason:
+terms_differ`. `pulse_predict` with `composed` lists the
 entries as `compare [{name, restricted, full, test, distribution,
 terms}]` on the predict result (not payload-reachable). The figures a
 comparison reads off each fit beyond its wire result (its residual

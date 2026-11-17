@@ -4,7 +4,7 @@ description: Nested-model comparison of two Compose regression fits — the F te
 type: guide
 kind: design
 applies_to: compose, predict
-covers: [compare, comparisons, nested model, model comparison, anova, F test, likelihood ratio test, LRT, Wald test, waldtest, lrtest, deviance, ComposedRequest, FitComparisonSpec, FitComparisonResult]
+covers: [compare, comparisons, nested model, model comparison, anova, anova.polr, F test, likelihood ratio test, LRT, Wald test, waldtest, lrtest, deviance, ComposedRequest, FitComparisonSpec, FitComparisonResult]
 requires: [capability:compose_compare]
 ---
 
@@ -44,6 +44,12 @@ The full fit's rows (listwise over more columns) are then a subset of the restri
 
 D is the residual deviance (OLS: the weighted RSS), φ̂₁ the full fit's estimated dispersion (OLS σ̂², the Pearson χ²/df), φ₁ = 1 where the family fixes it. Default (omitted `test`): R's anova default — `f` where the dispersion is estimated (least squares, gamma, a fixed-θ negative binomial under `dispersion: estimated`), `lrt` otherwise. `wald` reads the classical or robust `covariance` the fit chose (HC, cluster, HAC) and the coefficient table's distribution: F = W/q on its df where the p-values are Student t (least squares, classical gamma), χ² otherwise. A classical least-squares Wald equals the F test.
 
+<!-- feature: REG_ORDINAL -->
+## Ordinal fits
+
+Two `REG_ORDINAL` fits compare too (the model declares comparisons; an embedder model can, `extend.CompareRegression`). Terms are the predictors (thresholds are never tested); both fits need the same `params.levels`, or both none. `lrt` (default) = `anova.polr`: D₀ − D₁ on χ²(added predictors), `dispersion` 1; `wald` = χ² on the full fit's classical or robust covariance; `f` is refused (`estimated_dispersion`). Thresholds differing once fitted fail the comparison alone: `PULSE_COMPARISON_ROWS_DIFFER`, `reason: terms_differ`.
+<!-- /feature -->
+
 <!-- feature: capability:weighting -->
 ## Weights
 
@@ -62,11 +68,11 @@ A comparison is one hypothesis: like a test it inherits the batch `multiplicity`
 
 ## Refusals
 
-`PULSE_COMPARISON_INVALID`, `details.reason` (`compare` = entry index), identical at predict and run: `name_missing` / `name_duplicate`, `fit_missing` / `fit_unknown` (`available`) / `fit_kind` / `from_sweep` / `same_fit`, `type_unsupported` / `type_mismatch`, `test_unknown`, `not_nested` (`missing`; swapped sides say so), `no_extra_terms`, `request_mismatch` (`keys`), and `requires`: `unpenalized`, `no_selection`, `unbounded`, `no_resample` (Wald), `estimated_dispersion` (`f` on a fixed dispersion)<!-- feature: capability:weighting -->, `no_probability_weight` (`alternative: wald`)<!-- /feature -->. Predict lists each valid entry's resolved `test`, `distribution` and `terms` under `compare`.
+`PULSE_COMPARISON_INVALID`, `details.reason` (`compare` = entry index), identical at predict and run: `name_missing` / `name_duplicate`, `fit_missing` / `fit_unknown` (`available`) / `fit_kind` / `from_sweep` / `same_fit`, `type_unsupported` / `type_mismatch`, `test_unknown`, `not_nested` (`missing`; swapped sides say so), `no_extra_terms`, `request_mismatch` (`keys`), and `requires`: `unpenalized`, `no_selection`, `unbounded`, `no_resample` (Wald), `estimated_dispersion` (`f` on a fixed dispersion)<!-- feature: capability:weighting -->, `no_probability_weight` (`alternative: wald`)<!-- /feature -->. Predict lists each valid entry's resolved `test`, `distribution` and `terms` under `compare`.<!-- feature: REG_ORDINAL --> Ordinal fits whose `params.levels` differ: `levels_differ`.<!-- /feature -->
 
 ## Against R
 
-Pinned to R 4.6.1 (`anova`, MASS 7.3-66, `sandwich` 3.1-3, `lmtest` 0.9-40) at 1e-10 — least squares, logit, probit, poisson, gamma inverse / log, negative binomial; HC3; frequency weights; a restricted fit through the origin: oracle `nested.json`.
+Pinned to R 4.6.1 (`anova`, MASS 7.3-66, `sandwich` 3.1-3, `lmtest` 0.9-40) at 1e-10 — least squares, logit, probit, poisson, gamma inverse / log, negative binomial; HC3; frequency weights; a restricted fit through the origin<!-- feature: REG_ORDINAL -->; ordinal `anova.polr` and Wald (classical, hc1)<!-- /feature -->: oracle `nested.json`.
 
 ## See
 

@@ -118,7 +118,16 @@ type RegressionDriver struct {
 	// view is the reused single-row weighted view of the streaming arm
 	// (a Record is valid only for the call that received it).
 	view regWeightedRecord
+	// figures, when set (regression.OfferingFigures on a fit a Compose
+	// comparison names), receives the fit's comparison figures — read
+	// off extend.CompareRegression after a successful fit when the
+	// declaration carries Compare.
+	figures func(*model.RegressionFigures)
 }
+
+// SetFiguresOffer hands the driver the comparison-figures offer
+// (regression.FiguresOfferer through its engines; pulse.New's probe).
+func (d *RegressionDriver) SetFiguresOffer(offer func(*model.RegressionFigures)) { d.figures = offer }
 
 func NewRegressionDriver(reg RegressionAdapter, spec *types.RegressionSpec, model extend.Regression) *RegressionDriver {
 	d := &RegressionDriver{reg: reg, spec: spec, model: model}
@@ -327,7 +336,86 @@ func (d *RegressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 			return nil, err
 		}
 	}
+	if d.figures != nil && d.reg.Decl.Compare {
+		if err := d.offerFigures(); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
+}
+
+// offerFigures asks the fitted model for its nested-model comparison
+// figures (extend.CompareRegression, declared by the registration's
+// Compare), holds them to the spec (VerifyCompareOutput) and offers them
+// to the comparison capture: a likelihood with no dispersion (1) and a
+// Wald z table (WaldDF 0). A model error fails the fit as a fit error
+// does.
+func (d *RegressionDriver) offerFigures() error {
+	m, ok := d.model.(extend.CompareRegression)
+	if !ok {
+		return regMismatch(d.reg, "missing_compare",
+			"declares Compare but its model does not implement extend.CompareRegression", nil, false)
+	}
+	out, err := m.CompareFigures()
+	if err != nil {
+		return err
+	}
+	if err := VerifyCompareOutput(d.reg, d.spec, out, false); err != nil {
+		return err
+	}
+	cov := make([][]float64, len(out.Covariance))
+	for i, row := range out.Covariance {
+		cov[i] = slices.Clone(row)
+	}
+	d.figures(&model.RegressionFigures{
+		Terms:        slices.Clone(out.Terms),
+		Coefficients: slices.Clone(out.Coefficients),
+		Covariance:   cov,
+		Deviance:     out.Deviance,
+		DFResidual:   out.DFResidual,
+		Dispersion:   1,
+	})
+	return nil
+}
+
+// VerifyCompareOutput holds a model's comparison figures to its spec —
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason compare_shape: no
+// term, an empty or repeated term, a predictor Terms does not name,
+// Coefficients not aligned with Terms, or a Covariance that is not
+// square over Terms. The probe and every compared run apply it.
+func VerifyCompareOutput(reg RegressionAdapter, spec *types.RegressionSpec, out extend.CompareOutput, weighted bool) error {
+	shape := func(msg string, extra map[string]any) error {
+		return regMismatch(reg, "compare_shape", msg, extra, weighted)
+	}
+	if len(out.Terms) == 0 {
+		return shape("returned comparison figures with no term", nil)
+	}
+	for i, t := range out.Terms {
+		if t == "" || slices.Contains(out.Terms[:i], t) {
+			return shape(fmt.Sprintf("returned a comparison term %q that is empty or repeated", t), map[string]any{"term": t})
+		}
+	}
+	for _, p := range spec.Predictors {
+		if !slices.Contains(out.Terms, p) {
+			return shape(fmt.Sprintf("returned comparison terms %v without the predictor %q", out.Terms, p), map[string]any{"predictor": p})
+		}
+	}
+	q := len(out.Terms)
+	if len(out.Coefficients) != q {
+		return shape(fmt.Sprintf("returned %d comparison coefficients for %d terms", len(out.Coefficients), q),
+			map[string]any{"coefficients": len(out.Coefficients), "terms": q})
+	}
+	if len(out.Covariance) != q {
+		return shape(fmt.Sprintf("returned a comparison covariance of %d rows for %d terms", len(out.Covariance), q),
+			map[string]any{"rows": len(out.Covariance), "terms": q})
+	}
+	for i, row := range out.Covariance {
+		if len(row) != q {
+			return shape(fmt.Sprintf("returned a comparison covariance row %d of %d columns for %d terms", i, len(row), q),
+				map[string]any{"row": i, "columns": len(row), "terms": q})
+		}
+	}
+	return nil
 }
 
 // attachMargins asks the fitted model for the slot's marginal effects
@@ -724,6 +812,12 @@ func (e *regressionEngine) FitBufferedContext(ctx context.Context, records []reg
 	return e.d.fitRows(ctx, recs)
 }
 
+// SetFiguresOffer hands the driver the comparison-figures offer
+// (regression.FiguresOfferer).
+func (e *regressionEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) {
+	e.d.SetFiguresOffer(offer)
+}
+
 // streamingRegressionEngine adds the engine's streaming drive
 // (regression.StreamingEngine) for a Streamable model.
 type streamingRegressionEngine struct {
@@ -866,6 +960,18 @@ type regressionModifierEngine struct {
 	reg    RegressionAdapter
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
+	// figures, when set (regression.FiguresOfferer), is handed to the
+	// base fit's driver alone — the first refit of an unselected slot,
+	// over every row and predictor (a comparison refuses selection) —
+	// never to a replicate's.
+	figures func(*model.RegressionFigures)
+	offered bool
+}
+
+// SetFiguresOffer keeps the comparison-figures offer for the base fit
+// (regression.FiguresOfferer).
+func (e *regressionModifierEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) {
+	e.figures = offer
 }
 
 // Fit fits over no rows (the engine's record-less entry point).
@@ -961,6 +1067,11 @@ func (e *regressionModifierEngine) refit(ctx context.Context, spec *types.Regres
 		}
 	}
 	d := NewRegressionDriver(e.reg, &inner, model)
+	if e.figures != nil && !e.offered && e.spec.Selection == "" {
+		// The base fit: RunExtensionModifiers fits it first.
+		e.offered = true
+		d.SetFiguresOffer(e.figures)
+	}
 	out, err := d.fitOutput(ctx, views)
 	if err != nil {
 		return nil, nil, err

@@ -45,6 +45,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		SupportsSelection: reg.SupportsSelection,
 		NoResample:        reg.NoResample,
 		Margins:           reg.Margins,
+		Compare:           reg.Compare,
 		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
 		Scorer:            reg.Scorer != nil,
 		Accepts:           slices.Clone(reg.Accepts),
@@ -307,6 +308,11 @@ func probeRegression(reg RegressionRegistration, schema *encoding.Schema, recs [
 			return err
 		}
 	}
+	if reg.Compare {
+		if err := probeRegressionCompare(reg, d, out, weighted); err != nil {
+			return err
+		}
+	}
 	if reg.Scorer == nil || weighted {
 		return nil
 	}
@@ -360,6 +366,48 @@ func probeRegressionMargins(reg RegressionRegistration, base *types.RegressionSp
 			}
 		}
 		return fail(fmt.Sprintf("returned error: %v", err), map[string]any{"margins_error": err.Error()})
+	}
+	return nil
+}
+
+// probeRegressionCompare maps the probe fit's output once more with a
+// comparison-figures offer installed, so a Compare-declaring model's
+// extend.CompareRegression runs through the run-time driver: a value
+// without the interface, or figures not shaped over the predictors, is
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (missing_compare /
+// compare_shape); a CompareFigures panic or a non-data error is
+// PULSE_EXTENSION_FACTORY_PANIC (details.stage compare). A
+// data-dependent refusal is tolerated, as on the fit.
+func probeRegressionCompare(reg RegressionRegistration, d *regressionDriver, out extend.RegressionOutput, weighted bool) (err error) {
+	fail := func(what string, extra map[string]any) error {
+		details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "stage": "compare"}
+		maps.Copy(details, extra)
+		return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("regression %q CompareFigures %s during probe-validation", reg.Name, what), probeDetails(details, weighted))
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
+		}
+	}()
+	offered := false
+	d.SetFiguresOffer(func(*model.RegressionFigures) { offered = true })
+	defer d.SetFiguresOffer(nil)
+	if _, err := d.Result(out); err != nil {
+		var coded *errors.CodedError
+		if stderrors.As(err, &coded) {
+			if regressionDataRefusal(coded.Code) {
+				return nil
+			}
+			if coded.Code == errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH {
+				return err
+			}
+		}
+		return fail(fmt.Sprintf("returned error: %v", err), map[string]any{"compare_error": err.Error()})
+	}
+	if !offered {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("regression %q probe offered no comparison figures", reg.Name), map[string]any{"name": string(reg.Name)})
 	}
 	return nil
 }
