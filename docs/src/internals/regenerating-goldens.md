@@ -518,7 +518,14 @@ levels) and weighted on the weighted cases, is each case's
 `holdout_rows` (U68 E1-S3), with `holdout` the weighted `log_loss`,
 `brier` and `accuracy` `mn_scores` folds from those probabilities
 (`empty_level` adds a row at its dropped level, which no figure
-counts).
+counts). Each case's `robust` block (U68 E3-S1) is the closed-form
+score sandwich at the polished MLE (`sandwich` has no `multinom`
+method): B = `solve(H)`, the unit score (y − π) ⊗ x over the
+non-reference blocks, the meat on the case's weights — `hc0`, `hc1`
+(N*/(N* − d)) and `cluster` (CR1 over `clusters`, a fixed function of
+the row index, so no random number is drawn) — each with its `vcov`,
+standard errors, Wald p-values and intervals
+(`TestReferenceOracle_MultinomialRobustMatchesR`).
 `TestReferenceOracle_MultinomialMatchesR`
 (`internal/processing/regression`) holds every figure — the row scores
 read through the bound fit's production scorer — at relative `1e-10`.

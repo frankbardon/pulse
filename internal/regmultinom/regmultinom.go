@@ -15,8 +15,7 @@
 //     beside a penalty ("unpenalized": the penalized fit is symmetric,
 //     U68 E2-S3), bounds ("unbounded"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
-//     a robust covariance ("classical_covariance"), margins
-//     ("no_margins"), collinearity ("no_collinearity") — each a
+//     margins ("no_margins"), collinearity ("no_collinearity") — each a
 //     follow-up, never a silent no-op — and a negative max_iters / tol
 //     ("max_iters ≥ 0", "tol ≥ 0");
 //   - CheckTarget: the target is a categorical cohort field (its
@@ -36,7 +35,10 @@
 // scores each held-out row's category probabilities (U68 E1-S3:
 // regression.HoldoutOutcomeFigures — log_loss, brier, accuracy). A
 // numeric schema target is refused by the accepted-types table
-// (internal/fieldaccept).
+// (internal/fieldaccept). A robust covariance runs (U68 E3-S1: hc0 /
+// hc1 / cluster, the score sandwich): its rules, hc2 / hc3 / hac and the
+// penalty / resample / selection refusals included, are
+// internal/regcov's.
 package regmultinom
 
 import (
@@ -84,7 +86,6 @@ var unsupportedKnobs = []unsupported{
 	{"credible_level", "no_prior", "credible_level is a posterior's", func(s *types.RegressionSpec) bool { return s.CredibleLevel != 0 }},
 	{"solver", "no_solver", "solver picks REG_OLS's least-squares method", func(s *types.RegressionSpec) bool { return s.Solver != "" }},
 	{"intercept", "intercept", "every category's linear predictor carries an intercept", func(s *types.RegressionSpec) bool { return s.Intercept != nil && !*s.Intercept }},
-	{"covariance", "classical_covariance", "a robust multinomial covariance is not built (the coefficient covariance is the inverse information)", func(s *types.RegressionSpec) bool { return s.Covariance.Robust() }},
 	{"margins", "no_margins", "marginal effects are reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Margins != nil }},
 	{"collinearity", "no_collinearity", "the variance inflation block is reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Collinearity != nil }},
 }

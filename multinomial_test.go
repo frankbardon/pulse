@@ -156,6 +156,11 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 		mnSpec(func(s *types.RegressionSpec) {
 			s.Name, s.Penalty, s.Alpha, s.Resample, s.JackknifeBy = "m_lasso", "l1", 0.01, "jackknife", "f"
 		}),
+		// A robust covariance (U68 E3-S1): a weighted cluster sandwich.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Vcov, s.Covariance = "m_cl", true, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
+		}),
 	}
 	single, sharded := mnModes(t)
 	for _, group := range [][]scorerParityMode{single, sharded} {
@@ -227,9 +232,31 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		{"jackknife_groups and jackknife_by", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
 			s.Resample, s.JackknifeGroups, s.JackknifeBy = "jackknife", 4, "f"
 		})), errors.PROCESSING_CONFIG, ""},
-		{"robust covariance", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+		// U68 E3-S1: hc0 / hc1 / cluster run (below); hc2 / hc3 / hac are
+		// the shared covariance rule's type refusal, and a robust type
+		// beside a penalty / resample / selection its refusal as on
+		// REG_OLS / REG_GLM (internal/regcov).
+		{"covariance hc2", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC2}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance hc3", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance hac", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "id"}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha = "l2", 0.1
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample = "jackknife"
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Selection, s.Criterion = "forward", "aic"
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0}
-		})), errors.PROCESSING_CONFIG, "classical_covariance"},
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
 		{"margins", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} })), errors.PROCESSING_CONFIG, "no_margins"},
 		{"collinearity", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} })), errors.PROCESSING_CONFIG, "no_collinearity"},
 		{"intercept", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Intercept = new(bool) })), errors.PROCESSING_CONFIG, "intercept"},
@@ -366,6 +393,46 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		}
 		if r := resp.Regressions[0]; r.Error != nil || len(r.Advisories) != 0 || r.Multiplicity == nil || r.Multiplicity.M != 6 {
 			t.Fatalf("resampled penalised fit: %+v", r)
+		}
+	})
+	// A robust covariance runs (U68 E3-S1) and predict accepts it: hc0,
+	// hc1 and cluster (on f's three levels) each replace the standard
+	// errors and vcov, keep the coefficients and echo the estimator.
+	t.Run("robust covariance runs", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Vcov = true }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Vcov, s.Covariance = "hc0", true, &types.RegressionCovariance{Type: types.CovarianceHC0}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Covariance = "hc1", &types.RegressionCovariance{Type: types.CovarianceHC1}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Covariance = "cl", &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		classical := resp.Regressions[0]
+		want := map[string]types.CovarianceType{"hc0": types.CovarianceHC0, "hc1": types.CovarianceHC1, "cl": types.CovarianceCluster}
+		for _, r := range resp.Regressions[1:] {
+			if r.Error != nil || r.Covariance == nil || r.Covariance.Type != want[r.Name] || (r.Name == "cl" && r.Covariance.Clusters != 3) {
+				t.Fatalf("%s: %+v (covariance %+v)", r.Name, r, r.Covariance)
+			}
+			for k, b := range classical.Coefficients {
+				if r.Coefficients[k] != b || r.StdErrors[k] == classical.StdErrors[k] {
+					t.Errorf("%s %s: coef %v se %v, classical %v %v", r.Name, k, r.Coefficients[k], r.StdErrors[k], b, classical.StdErrors[k])
+				}
+			}
+		}
+		if classical.Covariance != nil || resp.Regressions[1].Vcov == nil {
+			t.Errorf("classical echo %+v, hc0 vcov %v", classical.Covariance, resp.Regressions[1].Vcov)
 		}
 	})
 	// A holdout runs (U68 E1-S3) and predict accepts it: no refusal on

@@ -228,7 +228,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Covariance"},
-				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR (REG_MULTINOMIAL computes the types details.supported lists: hc0, hc1, cluster); reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
 			},
 		},
 	},

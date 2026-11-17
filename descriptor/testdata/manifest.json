@@ -9656,7 +9656,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
+        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
         "streamable": false,
         "streamable_hint": "Always buffered; Newton-Raphson requires multiple passes over the data.",
         "params": [
@@ -9815,7 +9815,14 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors. A penalty refuses it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "description": "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors (the robust sandwich under covariance). A penalty refuses it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.",
             "slot": true
           },
           {
@@ -21912,4 +21919,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 28dbaa1edf106eef7b28caff4d691043ecef7173bdcbb30c8792e7f015e4e31c
+// golden-hash: 17dc67f2bd8f170ca912d776060c951b7ed197dbb3e8cff578782ea1bddbb0fa

@@ -47,6 +47,18 @@
 #     y(, w)] and their weighted proper scores at the polished MLE
 #     (mn_scores: log_loss, brier, accuracy); on empty_level one more row
 #     at the dropped level, which no figure counts.
+#   robust (U68 E3-S1): the score sandwich V = B M B at the polished
+#     MLE, B = solve(H) (the classical vcov) and the per-row unit score
+#     s_i = (y_ik - pi_ik) (x) x_i over the non-reference blocks
+#     (category-major, the keys' order): hc0 M = sum_i w_i s_i s_i';
+#     hc1 = hc0 N* / (N* - d); cluster (CR1) M = sum_g S_g S_g', S_g =
+#     sum_{i in g} w_i s_i, scaled G / (G - 1) (N* - 1) / (N* - d) —
+#     d = K (p + 1) coefficients, N* = sum w (n unweighted, sum f under
+#     frequency, n_eff under probability: the w* above), the frequency
+#     sandwich on w* of every Pulse robust covariance. The clusters are
+#     a fixed function of the row index (no random draw): (5 (i - 1))
+#     mod 7 + 1. Each type carries vcov, std_errors, Wald z p_values and
+#     the normal ci_lower / ci_upper at conf.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -120,6 +132,30 @@ mn_parts <- function(beta, X, Yi, w) {
 }
 
 mn_cases <- list()
+
+# mn_robust: the closed-form sandwich of every robust type (header).
+mn_robust <- function(X, Yi, P, w, V, beta, conf) {
+  R <- Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE]
+  S <- do.call(cbind, lapply(seq_len(ncol(R)), function(k) X * R[, k]))
+  nstar <- sum(w); d <- ncol(S)
+  cl <- (5 * (seq_len(nrow(X)) - 1)) %% 7 + 1
+  hc0 <- V %*% crossprod(S, S * w) %*% V
+  Sg <- rowsum(S * w, cl)
+  G <- nrow(Sg)
+  vcovs <- list(
+    hc0 = hc0,
+    hc1 = hc0 * (nstar / (nstar - d)),
+    cluster = V %*% crossprod(Sg) %*% V * ((G / (G - 1)) * ((nstar - 1) / (nstar - d))))
+  q <- qnorm(0.5 + conf / 2)
+  out <- lapply(vcovs, function(v) {
+    se <- sqrt(diag(v))
+    list(vcov = mn_g17(as.vector(v)), std_errors = mn_g17(se), p_values = mn_g17(2 * pnorm(-abs(beta / se))),
+      ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se))
+  })
+  out$clusters <- I(cl)
+  out$n_clusters <- G
+  out
+}
 
 # The scored grid: new rows no fit saw, inside and outside the data's
 # range (no RNG draw, so the fitted cases' data are unchanged).
@@ -229,7 +265,8 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))),
     score_rows = lapply(seq_len(nrow(mn_score_grid)), function(i) mn_g17(c(mn_score_grid$x1[i], mn_score_grid$x2[i]))),
     score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))),
-    holdout_rows = hrows, holdout = holdout)
+    holdout_rows = hrows, holdout = holdout,
+    robust = mn_robust(X, Yi, pp$P, w, V, beta, conf))
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -402,7 +439,8 @@ write_golden("multinomial", list(
     "vcov row-major over keys; fitted_probabilities row-major n x L over categories;",
     "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference;",
     "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
-    "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order."),
+    "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order;",
+    "robust = the closed-form score sandwich per type (hc0, hc1, cluster CR1 over clusters, one per row) in the keys' order."),
   cases = mn_cases,
   modifiers = list(jackknife = mn_jackknife, selection = mn_selection)
 ))

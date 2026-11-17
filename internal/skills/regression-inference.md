@@ -20,7 +20,7 @@ Every fit with standard errors carries `ci_lower` / `ci_upper` (keyed like `coef
 | Bayesian linear | posterior t, = `credible_intervals` at one level | 2a_N |
 | Resample | normal on the resampled SE | absent |
 
-Present exactly where `std_errors` is: lasso / elastic net (multinomial: any penalty) null on every key (no analytical inference; advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df: it differs from ±1.96·SE in the third digit on small samples.
+Present exactly where `std_errors` is: lasso / elastic net (multinomial: any penalty) null on every key (no analytical inference; advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`.
 
 ## Covariance
 
@@ -64,12 +64,15 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 `REG_GLM` takes it too: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`), dispersion-free, still Wald z with no `df` (cluster and gamma too); weighted, it follows w*.
 <!-- /feature -->
 <!-- feature: REG_BAYES_LINEAR -->
-`REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`) — honest under heteroskedastic or dependent rows, but no longer the conjugate model's probability statement.
+`REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`) — no longer the conjugate posterior.
+<!-- /feature -->
+<!-- feature: REG_MULTINOMIAL -->
+`REG_MULTINOMIAL`: `hc0`, `hc1`, `cluster` over the scores (y − π) ⊗ x, Wald z; `hc2` / `hc3` / `hac` refused (reason `type`).
 <!-- /feature -->
 
 ## Refusals
 
-`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null, NaN or ±Inf `cluster` / `order_by` value drops the row.
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null or non-finite `cluster` / `order_by` drops the row.
 
 Predict refuses identically, before any fit.
 

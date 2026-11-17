@@ -52,9 +52,6 @@ func TestCheck_Refusals(t *testing.T) {
 		{"credible_level", "credible_level", "no_prior", func(s *types.RegressionSpec) { s.CredibleLevel = 0.9 }},
 		{"solver", "solver", "no_solver", func(s *types.RegressionSpec) { s.Solver = "qr" }},
 		{"intercept", "intercept", "intercept", func(s *types.RegressionSpec) { s.Intercept = &off }},
-		{"covariance", "covariance", "classical_covariance", func(s *types.RegressionSpec) {
-			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
-		}},
 		{"margins", "margins", "no_margins", func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} }},
 		{"collinearity", "collinearity", "no_collinearity", func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} }},
 		{"negative max_iters", "max_iters", "max_iters ≥ 0", func(s *types.RegressionSpec) { s.MaxIters = -1 }},
@@ -86,6 +83,15 @@ func TestCheck_Refusals(t *testing.T) {
 	pen.Penalty, pen.Alpha, pen.L1Ratio, pen.Unpenalized = "elasticnet", 0.1, 0.5, []string{"x"}
 	if cerr := Check(pen); cerr != nil {
 		t.Fatalf("penalty knobs refused: %v", cerr)
+	}
+	// U68 E3-S1: a robust covariance passes this rule (every type: hc2 /
+	// hc3 / hac and the modifier pairings are regcov's refusals).
+	for _, ct := range types.AllCovarianceTypes() {
+		rob := base()
+		rob.Covariance = &types.RegressionCovariance{Type: ct}
+		if cerr := Check(rob); cerr != nil {
+			t.Fatalf("covariance %s refused by regmultinom: %v", ct, cerr)
+		}
 	}
 	ols := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Reference: "lo"}
 	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "reference" || cerr.Details["requires"] != "type REG_MULTINOMIAL" {

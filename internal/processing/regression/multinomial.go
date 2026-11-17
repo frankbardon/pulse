@@ -261,6 +261,10 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 	p := len(spec.Predictors)
 	q := p + 1
 	rw := newRowWeights(spec)
+	// A robust covariance's cluster key (nil for a classical spec, so
+	// its design is unchanged); a null key drops the row listwise.
+	keyOf := robustKeyReader(spec)
+	var keys []robustRowKey
 
 	x := make([]float64, 0, len(records)*q)
 	labels := make([]string, 0, len(records))
@@ -291,6 +295,13 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 		w, ok := rw.of(rec)
 		if !ok {
 			continue
+		}
+		if keyOf != nil {
+			key, ok := keyOf(rec)
+			if !ok {
+				continue
+			}
+			keys = append(keys, key)
 		}
 		x = append(x, 1)
 		x = append(x, xBuf...)
@@ -347,18 +358,33 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 		return nil, nil, e.noConverge(pr, iters, "information_singular")
 	}
 
-	keys := e.keys(pr)
+	// A robust covariance replaces the inverse information behind the
+	// standard errors, the Wald p-values, the intervals and vcov
+	// (multinomial_covariance.go).
+	var robust *sandwichFit
+	var robustSE []float64
+	if spec.Covariance.Robust() {
+		robust, robustSE, err = e.multinomialSandwich(pr, beta, inv, keys, rw.basis.NStar(sumW, sumWSq))
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	coefKeys := e.keys(pr)
 	coefs := make(map[string]float64, d)
 	ses := make(map[string]float64, d)
 	ps := make(map[string]float64, d)
 	variances := make([]float64, d)
-	for j, key := range keys {
+	for j, key := range coefKeys {
 		v := inv.At(j, j)
 		if v < 0 {
 			v = 0
 		}
 		variances[j] = v
 		se := math.Sqrt(v)
+		if robust != nil {
+			se = robustSE[j]
+		}
 		coefs[key], ses[key] = beta[j], se
 		ps[key] = waldZTwoSidedP(beta[j], se)
 	}
@@ -389,10 +415,15 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 	}
 	rw.note(res, sumW, sumWSq)
 	attachIntervals(res, resolvedConfLevel(spec), 0, false)
-	if spec.Vcov {
-		AttachVcovKeys(res, keys, symVcov(d, inv.At, 1, variances))
+	if robust != nil {
+		res.Covariance = robust.info
+		if spec.Vcov {
+			AttachVcovKeys(res, coefKeys, robust.v)
+		}
+	} else if spec.Vcov {
+		AttachVcovKeys(res, coefKeys, symVcov(d, inv.At, 1, variances))
 	}
-	return res, keys, nil
+	return res, coefKeys, nil
 }
 
 // targetLabel reads rec's target label: its categorical dictionary

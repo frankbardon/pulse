@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -12,7 +14,9 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -72,6 +76,24 @@ type multinomialCase struct {
 		Brier    []float64 `json:"brier"`
 		Accuracy []float64 `json:"accuracy"`
 	} `json:"holdout"`
+	// Robust is the closed-form score sandwich per robust type (U68
+	// E3-S1), the cluster CR1 over Clusters (one id per row).
+	Robust struct {
+		HC0       multinomialRobust `json:"hc0"`
+		HC1       multinomialRobust `json:"hc1"`
+		Cluster   multinomialRobust `json:"cluster"`
+		Clusters  []float64         `json:"clusters"`
+		NClusters int               `json:"n_clusters"`
+	} `json:"robust"`
+}
+
+// multinomialRobust is one robust type's figures, in the keys' order.
+type multinomialRobust struct {
+	Vcov      []float64 `json:"vcov"`
+	StdErrors []float64 `json:"std_errors"`
+	PValues   []float64 `json:"p_values"`
+	CILower   []float64 `json:"ci_lower"`
+	CIUpper   []float64 `json:"ci_upper"`
 }
 
 func loadMultinomial(t *testing.T) []multinomialCase {
@@ -306,4 +328,156 @@ func multinomialFitted(t *testing.T, spec *types.RegressionSpec, res *types.Regr
 		t.Fatalf("NewMultinomialFitted: %v", err)
 	}
 	return f
+}
+
+// TestReferenceOracle_MultinomialRobustMatchesR (U68 E3-S1): under
+// covariance hc0, hc1 and cluster every case — unweighted, frequency-
+// and probability-weighted — keeps its classical coefficients and
+// reports the closed-form score sandwich V = B·M·B of gen_multinomial.R
+// (B the inverse information, the unit score (y − π) ⊗ x over the
+// non-reference blocks, w* in the meat, hc1 by N*/(N* − d), CR1 by
+// G/(G − 1)·(N* − 1)/(N* − d)) in its std errors, Wald z p-values,
+// normal intervals and vcov at 1e-10 relative, √diag(vcov) == std
+// errors bit for bit, and the covariance echo naming the type (and the
+// cluster field and its count).
+func TestReferenceOracle_MultinomialRobustMatchesR(t *testing.T) {
+	t.Parallel()
+
+	maxErr := 0.0
+	for _, c := range loadMultinomial(t) {
+		if len(c.Robust.Clusters) != len(c.Rows) || c.Robust.NClusters < 2 {
+			t.Fatalf("%s: golden robust block malformed (%d clusters for %d rows)", c.Name, len(c.Robust.Clusters), len(c.Rows))
+		}
+		recs := c.records()
+		for i, rec := range recs {
+			lr := rec.(labeledRecord)
+			lr.values["g"] = c.Robust.Clusters[i]
+		}
+		for _, typ := range []struct {
+			cov  types.CovarianceType
+			want multinomialRobust
+		}{
+			{types.CovarianceHC0, c.Robust.HC0},
+			{types.CovarianceHC1, c.Robust.HC1},
+			{types.CovarianceCluster, c.Robust.Cluster},
+		} {
+			t.Run(c.Name+"/"+string(typ.cov), func(t *testing.T) {
+				spec := c.spec()
+				spec.Covariance = &types.RegressionCovariance{Type: typ.cov}
+				if typ.cov == types.CovarianceCluster {
+					spec.Covariance.Cluster = "g"
+				}
+				levels := c.Levels
+				eng, err := newMultinomialEngine(spec, categoricalSchema("y", levels, "x1", "x2", "w", "g"))
+				if err != nil {
+					t.Fatalf("newMultinomialEngine: %v", err)
+				}
+				res, err := eng.(*multinomialEngine).FitBuffered(recs)
+				if err != nil {
+					t.Fatalf("FitBuffered: %v", err)
+				}
+				near := func(what string, got, want float64) {
+					t.Helper()
+					e := math.Abs(got-want) / math.Max(math.Abs(want), 1e-14/multinomialTol)
+					maxErr = math.Max(maxErr, e)
+					if e > multinomialTol {
+						t.Errorf("%s = %.17g, R %.17g (rel %.3g)", what, got, want, e)
+					}
+				}
+				d := len(c.Keys)
+				if res.Vcov == nil || !slices.Equal(res.Vcov.RowKeys, c.Keys) {
+					t.Fatalf("vcov keys %v, R %v", res.Vcov, c.Keys)
+				}
+				for j, k := range c.Keys {
+					near("coef["+k+"]", res.Coefficients[k], c.Coefficients[j])
+					near("se["+k+"]", res.StdErrors[k], typ.want.StdErrors[j])
+					near("p["+k+"]", res.PValues[k], typ.want.PValues[j])
+					near("ci_lower["+k+"]", res.CILower[k], typ.want.CILower[j])
+					near("ci_upper["+k+"]", res.CIUpper[k], typ.want.CIUpper[j])
+					if math.Sqrt(res.Vcov.Values[j][j]) != res.StdErrors[k] {
+						t.Errorf("√vcov[%s] %v != std error %v", k, math.Sqrt(res.Vcov.Values[j][j]), res.StdErrors[k])
+					}
+					for i := 0; i < d; i++ {
+						near("vcov", res.Vcov.Values[j][i], typ.want.Vcov[j*d+i])
+					}
+				}
+				if res.DF != 0 || res.ConfLevel != c.ConfLevel {
+					t.Errorf("df %v conf_level %v: want Wald normal at %v", res.DF, res.ConfLevel, c.ConfLevel)
+				}
+				cv := res.Covariance
+				if cv == nil || cv.Type != typ.cov {
+					t.Fatalf("covariance echo %+v, want type %s", cv, typ.cov)
+				}
+				if typ.cov == types.CovarianceCluster && (cv.Cluster != "g" || cv.Clusters != c.Robust.NClusters) {
+					t.Errorf("cluster echo %+v, want g over %d clusters", cv, c.Robust.NClusters)
+				}
+			})
+		}
+	}
+	t.Logf("max relative error: %v", maxErr)
+}
+
+// TestMultinomial_RobustRows (U68 E3-S1): a row whose cluster is null
+// drops listwise (the fit equals the one without it); rows spanning one
+// cluster fail with VCOV_UNSUPPORTED reason clusters; a classical
+// covariance block is the absent one byte for byte, with no echo.
+func TestMultinomial_RobustRows(t *testing.T) {
+	t.Parallel()
+
+	c := loadMultinomial(t)[0]
+	recs := c.records()
+	for i, rec := range recs {
+		rec.(labeledRecord).values["g"] = c.Robust.Clusters[i]
+	}
+	fit := func(cov *types.RegressionCovariance, rows []Record) (*types.RegressionResult, error) {
+		spec := c.spec()
+		spec.Covariance = cov
+		eng, err := newMultinomialEngine(spec, categoricalSchema("y", c.Levels, "x1", "x2", "g"))
+		if err != nil {
+			t.Fatalf("newMultinomialEngine: %v", err)
+		}
+		return eng.(*multinomialEngine).FitBuffered(rows)
+	}
+	cl := &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g"}
+	base, err := fit(cl, recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := labeledRecord{mockRecord: mockRecord{values: map[string]float64{"x1": 9, "x2": -9, "y": 0}}, labels: map[string]string{"y": c.Levels[0]}}
+	withNull, err := fit(cl, append(slices.Clone(recs), extra))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := json.Marshal(base)
+	b, _ := json.Marshal(withNull)
+	if string(a) != string(b) || withNull.NObs != len(recs) {
+		t.Errorf("a null-cluster row moved the fit (n_obs %d, want %d)", withNull.NObs, len(recs))
+	}
+
+	one := make([]Record, len(recs))
+	for i, rec := range recs {
+		lr := rec.(labeledRecord)
+		v := maps.Clone(lr.values)
+		v["g"] = 1
+		one[i] = labeledRecord{mockRecord: mockRecord{values: v}, labels: lr.labels}
+	}
+	_, err = fit(cl, one)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED || ce.Details["reason"] != regcov.ReasonClusters {
+		t.Errorf("one cluster: %v, want VCOV_UNSUPPORTED reason clusters", err)
+	}
+
+	absent, err := fit(nil, recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	classical, err := fit(&types.RegressionCovariance{Type: types.CovarianceClassical}, recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ = json.Marshal(absent)
+	b, _ = json.Marshal(classical)
+	if string(a) != string(b) || classical.Covariance != nil {
+		t.Errorf("classical differs from absent:\n%s\nvs\n%s", b, a)
+	}
 }

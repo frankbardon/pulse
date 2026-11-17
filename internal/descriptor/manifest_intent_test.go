@@ -77,8 +77,11 @@ var scopedManifestExceptions = map[string]float64{
 	// (U68 E2-S3; feature growth: four required structural Params on its
 	// row — penalty, alpha, l1_ratio, unpenalized — the slim manifest
 	// blanks every description, so there is no prose to trim) measured
-	// 16.69% (44,082 of 264,140 bytes).
-	IntentDrivers: 0.167,
+	// 16.69% (44,082 of 264,140 bytes). A robust covariance on
+	// REG_MULTINOMIAL (U68 E3-S1; feature growth: one structural
+	// `covariance` Param on its row, its description blanked by the slim
+	// manifest) measured 16.72% (44,166 of 264,224 bytes).
+	IntentDrivers: 0.168,
 }
 
 func compactJSON(t *testing.T, v any) []byte {
