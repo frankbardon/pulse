@@ -34,6 +34,11 @@ type ExtensionRegression struct {
 	// SupportsSelection reports that the model can be refit over a
 	// predictor subset, so the selection driver may wrap it.
 	SupportsSelection bool
+	// Margins reports that the model reports marginal effects
+	// (RegressionRegistration.Margins; its fitted value implements
+	// extend.MarginsRegression), so a spec's margins block is honoured —
+	// judged by regmargins.CheckDeclared — rather than refused.
+	Margins bool
 	// NoResample reports that the model opts out of the engine's
 	// resample driver (RegressionRegistration.NoResample): resample and
 	// its knobs are refused, not honoured.

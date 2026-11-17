@@ -731,7 +731,34 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 			"Unlike log_loss and brier it respects the order: predicting a neighbouring level costs less than a distant one.",
 		},
 	},
-})
+}, interpRegOrdinalMargins)
+
+// interpRegOrdinalMargins reads REG_ORDINAL's per-level margins block
+// (U68 E4-S1): one effect per level and term, keyed "<level>:<term>".
+var interpRegOrdinalMargins = []descriptor.Interpretation{
+	{
+		Field: "margins.estimates.*",
+		Means: "The marginal effect of this term on one level's probability (requested by margins), keyed \"<level>:<term>\" (margins.outcomes lists the levels): " +
+			"the change in P(Y = level) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). " +
+			"On the link scale it is the change in the cumulative link of P(Y <= level) — minus the coefficient, the same at every level but the last.",
+		Sign: map[string]string{
+			"+": "a higher value of the predictor makes this level more likely, other predictors held fixed",
+			"-": "a higher value of the predictor makes this level less likely, other predictors held fixed",
+		},
+		Caveats: append([]string{
+			"A term's effects over all levels sum to 0: probability moves between levels. A positive coefficient lowers the lowest level and raises the highest; a middle level's effect can take either sign.",
+		}, regMarginsCommon...),
+	},
+	{
+		Field: "margins.std_errors.*",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).",
+	},
+	{
+		Field:   "margins.p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"A Wald z, as the coefficients': the p-value and interval use the normal distribution."},
+	},
+}
 
 // regOutcomeHoldout reads the proper scores a holdout over a
 // categorical-outcome fit (REG_ORDINAL, REG_MULTINOMIAL) reports: each

@@ -214,6 +214,25 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			// lower_bound basis (the model may report more — a
 			// nonlinear parameter — or fewer). A model not declaring
 			// PValues emits none.
+			//
+			// A declared margins block the shared rules admit adds its
+			// effects' p-values, at least one per term (a per-level
+			// model reports one per outcome and term — how many outcomes
+			// is the model's, so the basis is lower_bound): a member
+			// regression corrects them as their own family
+			// (MultiplicityFamilyMargins, the runtime fold's
+			// collectRegressionSites), anything else leaves them
+			// uncorrected.
+			if r.Margins != nil && decl.Margins && ExtensionRegressionSlotRefusal(r, decl) == nil {
+				effects := len(regmargins.Terms(r))
+				corrected := member && decl.PValues
+				addPValues(out, effects, descriptor.PValueBasisLowerBound, corrected)
+				if corrected && visit != nil && effects > 0 {
+					mrm := regressions[i]
+					mrm.Family = types.MultiplicityFamilyMargins
+					visit(effects, descriptor.PValueBasisLowerBound, mrm)
+				}
+			}
 			if !decl.PValues {
 				continue
 			}

@@ -1,10 +1,10 @@
 ```yaml
 name: regression-margins
-description: Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills.
+description: Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear and ordinal fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [margins, marginal effects, average marginal effect, AME, MEM, dydx, slopes, avg_slopes, delta method, regressions]
+covers: [margins, marginal effects, average marginal effect, AME, MEM, dydx, slopes, avg_slopes, delta method, regressions, per-level effects]
 ```
 
 # Regression marginal effects
@@ -30,7 +30,11 @@ A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports
 
 ## Output
 
-`regressions[i].margins`: `type`, `scale`, `terms` (order), then maps keyed by term — `estimates`, `std_errors`, `statistics`, `p_values`, `ci_lower`, `ci_upper` — plus `conf_level`, `df` (only for a Student t) and `at` (`mem`). Rides the `standard` preset.
+`regressions[i].margins`: `type`, `scale`, `terms` (order), then maps keyed by term — `estimates`, `std_errors`, `statistics`, `p_values`, `ci_lower`, `ci_upper` — plus `conf_level`, `df` (only for a Student t) and `at` (`mem`). A per-level fit adds `outcomes` (the levels, in order) and keys every map `"<level>:<term>"`. Rides the `standard` preset.
+
+## Per-level effects (`REG_ORDINAL`)
+
+One effect per level and term on P(Y = level): −β_j·[f(ζ_k − η) − f(ζ_{k−1} − η)], averaged (`ame`) or at the means (`mem`). A term's effects sum to 0 over the levels — probability moves between them, so a middle level can go either way. `scale: link` is the effect on each cumulative link P(Y ≤ level): −β_j for every level but the last, with the coefficient's SE. Delta method on the coefficient and threshold covariance (classical, `hc0`, `hc1`, `cluster`); Wald z. A `multiplicity` block corrects all levels × terms as one family.
 
 ## Inference
 
@@ -51,7 +55,8 @@ OLS needs no extra pass (the effect is β), so it streams with the fit. A GLM is
 |---|---|
 | bad `type` / `scale` | `type ame or mem` / `scale response or link` |
 | a term not a predictor, or repeated | `a predictor` |
-| `REG_BAYES_LINEAR`, an extension or model regression | `type REG_OLS or REG_GLM` |
+| `REG_BAYES_LINEAR` | `type REG_OLS or REG_GLM` |
+| an extension or model regression not declaring margins | `declared_margins` |
 | `penalty` / `selection` / `resample` / `bounds` | `unpenalized` / `no_selection` / `no_resample` / `unbounded` |
 | a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |
 
@@ -59,11 +64,12 @@ A derived predictor (a log column, a one-hot dummy) is differentiated as given: 
 
 ## Against R
 
-Pinned to analytic closed forms in R 4.6.1 at 1e-9 and to `marginaleffects` 1.0.0 (`avg_slopes`, `slopes(newdata = "mean")`) within its numerical-derivative accuracy (~1e-8): oracle `margins.json`.
+Pinned to analytic closed forms in R 4.6.1 at 1e-9 and to `marginaleffects` 1.0.0 (`avg_slopes`, `slopes(newdata = "mean")`; on `polr` for ordinal) within its numerical-derivative accuracy (~1e-8): oracle `margins.json`.
 
 ## See
 
 - [`op-reg-glm`](op-reg-glm.md) — the GLM params.
 - [`op-reg-ols`](op-reg-ols.md) — the OLS params.
+- [`op-reg-ordinal`](op-reg-ordinal.md) — the ordinal params.
 - [`regression-inference`](regression-inference.md) — standard errors, robust covariance, intervals.
 - [`multiplicity-correction`](multiplicity-correction.md) — families and methods.

@@ -10326,6 +10326,13 @@
             "slot": true
           },
           {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the model's marginal effect of each term (ame default, or mem at the weighted means; scale response default, or link) with its delta-method std error on the fit's own covariance; the engine adds statistic, p-value and interval at conf_level (t on the fit's df, else normal). A categorical-outcome model reports one effect per outcome level, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with margins.outcomes listing the levels. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor (independent_predictors). A multiplicity block corrects the effects as a family of their own (family margins). A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "covariance",
             "type": "object",
             "required": false,
@@ -15457,7 +15464,7 @@
       },
       {
         "name": "regression-margins",
-        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear and ordinal fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
@@ -21936,4 +21943,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6696dc5095dde2f06a06c4e1a5715949ab4a50c3eee95e213ec5242e5a016c93
+// golden-hash: 5824fac3fd20bcb39bc2e21cd082e1f8c5e2e9bcf65f2f6cd57536463da04e85

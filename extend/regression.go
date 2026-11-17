@@ -74,6 +74,62 @@ type ContextRegression interface {
 	FitContext(ctx context.Context, rows Rows) (RegressionOutput, error)
 }
 
+// MarginsRegression is the optional sibling for a model that reports
+// marginal effects (types.RegressionSpec.Margins), implemented beside
+// its declared form when its registration declares Margins. The engine
+// calls Fit, FitContext or Finalize first and, when that fit succeeded
+// on a slot carrying a margins block, Margins exactly once on the same
+// value — so the model keeps what the effects need (its design, its
+// coefficient covariance) from the fit. The model computes each
+// effect and its standard error (the delta method on the covariance its
+// standard errors read, classical or robust); the engine writes the
+// statistic, p-value and interval at conf_level on the coefficient
+// table's rule (a Student t on the fit's reported RegressionFit.DF,
+// else the standard normal), the result's types.RegressionMarginsResult,
+// and the multiplicity family. A returned error fails the slot as a fit
+// error does. Shape faults are
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason margins_shape).
+type MarginsRegression interface {
+	Margins(req MarginsRequest) (MarginsOutput, error)
+}
+
+// MarginsRequest is the slot's resolved margins block: its type
+// (types.MarginsAME or types.MarginsMEM), its scale
+// (types.MarginsScaleResponse or types.MarginsScaleLink) and its terms
+// (the block's terms, else every predictor, in order).
+type MarginsRequest struct {
+	Type  string
+	Scale string
+	Terms []string
+}
+
+// MarginsOutput is a model's marginal effects. Without Outcomes there
+// is one effect per requested term, keyed by the term. With Outcomes —
+// the outcome levels a categorical-response model reports an effect on
+// each of, in its own order — there is one effect per outcome and term,
+// keyed "<outcome>:<term>" on the result, whose Outcomes lists them.
+// Effects may come in any order; each (Outcome, Term) pair exactly once.
+type MarginsOutput struct {
+	Outcomes []string
+	Effects  []MarginalEffect
+	// At, read under type mem only, maps each predictor to the value the
+	// effects are evaluated at (the weighted means, say); nil reports
+	// none. Each key must be a predictor of the spec.
+	At map[string]float64
+}
+
+// MarginalEffect is one effect: the outcome it is on (empty without
+// MarginsOutput.Outcomes), the term, the estimate and, when the model
+// computes it, its standard error. A nil StdErr is absent: the
+// effect's standard error, statistic, p-value and interval are null on
+// the wire, keys kept.
+type MarginalEffect struct {
+	Outcome  string
+	Term     string
+	Estimate float64
+	StdErr   *float64
+}
+
 // RegressionFactory builds a fresh Regression for one regression slot
 // of one request from the slot's spec and the cohort schema. During
 // probe-validation at pulse.New it is called against a small synthetic

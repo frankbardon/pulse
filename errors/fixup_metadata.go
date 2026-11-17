@@ -2153,11 +2153,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
-		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code).",
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code); or, declaring Margins, a fitted model without extend.MarginsRegression (missing_margins) or marginal effects not covering every requested term (per outcome) exactly once (margins_shape).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics).",
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics); and when the registration declares Margins, implement extend.MarginsRegression on the fitted model and return one MarginalEffect per requested term — per listed Outcome when Outcomes is set — and At keys that are predictors.",
 			},
 		},
 	},

@@ -5886,6 +5886,15 @@
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
         },
+        "outcomes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "p_adjusted": {
           "additionalProperties": {
             "type": [
@@ -8361,4 +8370,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 5c4710255f5e3be8dea96b8f9d5e947c2546ea9c1079e747f62e9fd6e7e799a7
+// golden-hash: ddb3d5e20f01730945ab936ffd6036f7f9bba04fa7ac52b6f2829796a14ee82e

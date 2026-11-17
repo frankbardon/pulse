@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -321,7 +322,107 @@ func (d *RegressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 		res.Outputs = maps.Clone(out.Outputs)
 	}
 	res.Warnings = cloneRegressionWarnings(out.Warnings)
+	if d.spec.Margins != nil && d.reg.Decl.Margins {
+		if err := d.attachMargins(res); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
+}
+
+// attachMargins asks the fitted model for the slot's marginal effects
+// (extend.MarginsRegression, declared by the registration's Margins),
+// holds them to the request (VerifyMarginsOutput) and writes
+// res.Margins with the engine's inference
+// (regression.AttachExtensionMargins). A model error fails the slot as a
+// fit error does.
+func (d *RegressionDriver) attachMargins(res *types.RegressionResult) error {
+	m, ok := d.model.(extend.MarginsRegression)
+	if !ok {
+		return regMismatch(d.reg, "missing_margins",
+			"declares Margins but its model does not implement extend.MarginsRegression", nil, false)
+	}
+	req := extend.MarginsRequest{
+		Type:  d.spec.Margins.EffectiveType(),
+		Scale: d.spec.Margins.EffectiveScale(),
+		Terms: regmargins.Terms(d.spec),
+	}
+	out, err := m.Margins(req)
+	if err != nil {
+		return err
+	}
+	est, se, err := VerifyMarginsOutput(d.reg, d.spec, req, out, false)
+	if err != nil {
+		return err
+	}
+	var at map[string]float64
+	if req.Type == types.MarginsMEM {
+		at = out.At
+	}
+	regression.AttachExtensionMargins(res, d.spec, out.Outcomes, est, se, at)
+	return nil
+}
+
+// regMismatch is a PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH of reg
+// with details {category, name, reason[, extra]}.
+func regMismatch(reg RegressionAdapter, reason, msg string, extra map[string]any, weighted bool) error {
+	details := map[string]any{"category": extCategoryRegression, "name": string(reg.Name), "reason": reason}
+	maps.Copy(details, extra)
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+		fmt.Sprintf("regression %q %s", reg.Name, msg), regProbeDetails(details, weighted))
+}
+
+// VerifyMarginsOutput holds a model's marginal effects to the request —
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason margins_shape: an
+// empty or repeated outcome, an effect on a term req does not list or on
+// an outcome out.Outcomes does not (an outcome set without Outcomes), a
+// repeated (outcome, term) pair, a missing one, or (type mem) an At key
+// that is not a predictor. It returns the estimates and standard errors
+// keyed regmargins.Key(outcome, term), a nil StdErr NaN. The probe and
+// every run apply it.
+func VerifyMarginsOutput(reg RegressionAdapter, spec *types.RegressionSpec, req extend.MarginsRequest, out extend.MarginsOutput, weighted bool) (est, se map[string]float64, err error) {
+	shape := func(msg string, extra map[string]any) error {
+		return regMismatch(reg, "margins_shape", msg, extra, weighted)
+	}
+	for i, o := range out.Outcomes {
+		if o == "" || slices.Contains(out.Outcomes[:i], o) {
+			return nil, nil, shape(fmt.Sprintf("returned an outcome %q that is empty or repeated", o), map[string]any{"outcome": o})
+		}
+	}
+	want := len(req.Terms)
+	if len(out.Outcomes) > 0 {
+		want *= len(out.Outcomes)
+	}
+	est = make(map[string]float64, want)
+	se = make(map[string]float64, want)
+	for _, e := range out.Effects {
+		if !slices.Contains(req.Terms, e.Term) {
+			return nil, nil, shape(fmt.Sprintf("returned an effect on %q, which is not a requested term %v", e.Term, req.Terms),
+				map[string]any{"term": e.Term})
+		}
+		if (len(out.Outcomes) == 0 && e.Outcome != "") || (len(out.Outcomes) > 0 && !slices.Contains(out.Outcomes, e.Outcome)) {
+			return nil, nil, shape(fmt.Sprintf("returned an effect on outcome %q, which its Outcomes %v does not list", e.Outcome, out.Outcomes),
+				map[string]any{"outcome": e.Outcome, "term": e.Term})
+		}
+		key := regmargins.Key(e.Outcome, e.Term)
+		if _, dup := est[key]; dup {
+			return nil, nil, shape(fmt.Sprintf("returned the effect %q twice", key), map[string]any{"effect": key})
+		}
+		est[key] = e.Estimate
+		se[key] = figureOrNaN(e.StdErr)
+	}
+	if len(est) != want {
+		return nil, nil, shape(fmt.Sprintf("returned %d effects, want %d (one per requested term, per outcome when Outcomes is set)", len(est), want),
+			map[string]any{"effects": len(est), "want": want})
+	}
+	if req.Type == types.MarginsMEM {
+		for k := range out.At {
+			if !slices.Contains(spec.Predictors, k) {
+				return nil, nil, shape(fmt.Sprintf("returned At[%q], which is not a predictor", k), map[string]any{"at": k})
+			}
+		}
+	}
+	return est, se, nil
 }
 
 // cloneRegressionWarnings copies a model's warnings (each entry and its

@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regexponent"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
@@ -233,15 +234,19 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
-		// margins: the built-ins' delta-method effects need the model's
-		// link derivatives and its coefficient covariance, which no
-		// registration declares, so no extension model honours it.
+		// margins: the model computes its own effects and their
+		// delta-method standard errors (extend.MarginsRegression), so a
+		// registration declaring Margins honours the block — whose shape
+		// and fit regmargins.CheckDeclared then judges as on a built-in.
 		slot: "margins", keys: []string{"margins"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("margins", s.Margins != nil) },
-		refusal: func(*types.RegressionSpec) string {
-			return "takes no margins (the REG_OLS / REG_GLM marginal effects); compute the model's own effects through params or its outputs"
+		declared: func(d ExtensionRegression, _ *types.RegressionSpec) bool {
+			return d.Margins
 		},
-		requires: "type REG_OLS or REG_GLM",
+		refusal: func(*types.RegressionSpec) string {
+			return "does not declare marginal effects (its registration's Margins is false); drop margins, or compute the model's own effects through params or its outputs"
+		},
+		requires: "declared_margins",
 	},
 	{
 		// collinearity: the built-ins' VIF reads the fit's own design
@@ -349,7 +354,9 @@ func RegressionFieldClassOf(key string) (class RegressionFieldClass, slot string
 // details {regression, slot} (regression = the spec's type; name when
 // the spec carries one; key when the set key is a companion of the
 // slot). A declared covariance then passes the shared shape rule
-// (regcov.CheckDeclared). Nil when every set slot is declared.
+// (regcov.CheckDeclared), a declared margins block the shared margins
+// rule (regmargins.CheckDeclared: shape, then unpenalized / no_selection
+// / no_resample / unbounded). Nil when every set slot is declared.
 func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRegression) *errors.CodedError {
 	if spec == nil {
 		return nil
@@ -375,7 +382,10 @@ func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRe
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"regression "+string(spec.Type)+" "+r.refusal(spec), details)
 	}
-	return regcov.CheckDeclared(spec)
+	if cerr := regcov.CheckDeclared(spec); cerr != nil {
+		return cerr
+	}
+	return regmargins.CheckDeclared(spec)
 }
 
 // regressionSlotParamsFor lists the manifest Params (Slot) of the
@@ -422,6 +432,9 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 	}
 	if accepts("vcov", probe) {
 		out = append(out, descriptor.Param{Name: "vcov", Type: "bool", Default: false, Description: "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.", Slot: true})
+	}
+	if accepts("margins", probe) {
+		out = append(out, descriptor.Param{Name: "margins", Type: "object", Description: extensionMarginsParamDescription, Slot: true})
 	}
 	var covTypes []string
 	for _, ct := range types.AllCovarianceTypes() {

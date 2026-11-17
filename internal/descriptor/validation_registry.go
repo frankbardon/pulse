@@ -67,6 +67,10 @@ const (
 	// ordModE2E pins its resample and selection modifiers to the same
 	// golden's modifiers block (U68 E2-S1, #651).
 	ordModE2E = "internal/regordinal/modifiers_e2e_test.go"
+	// ordMargins / ordMarginsE2E pin its per-level margins to
+	// margins.json's ordinal_cases (U68 E4-S1, #652).
+	ordMargins    = "internal/regordinal/margins_oracle_test.go"
+	ordMarginsE2E = "internal/regordinal/margins_e2e_test.go"
 	// wRefusal pins the permanent weight refusals (WeightRefused).
 	wRefusal = "internal/integration/weight_refusal_pin_test.go"
 
@@ -316,8 +320,10 @@ var validationRegistry = map[string]ValidationRecord{
 			{Against: rPin + " + MASS 7.3-66 `predict(polr, newdata, type = \"probs\")` on fixed held-out rows: the `holdout` proper scores — log loss, multi-class Brier, accuracy and the ranked probability score — as weighted closed forms, unweighted, frequency- and probability-weighted, through a holdout fit end to end", Tol: tol10, Tests: []string{ordE2E}, Weighted: true},
 			valR("+ MASS 7.3-66 `exp(coef(polr))` and the delta method (`exp(confint.default(polr))` on the classical unweighted cases): the `exponentiate` cumulative odds ratios of the predictors, their standard errors exp(β)·SE and the exponentiated Wald interval, on every link, weighting and covariance (classical, hc0, hc1, cluster)", tol10, "internal/regordinal/exponentiate_e2e_test.go"),
 			valR("+ MASS 7.3-66 `polr`, the manual-deletion jackknife: every leave-one-out and delete-a-cluster refit polished to its MLE (each agreeing with `polr` on the same deletion to 1e-6), the jackknife standard errors of the predictors and thresholds; `MASS::stepAIC` on `polr` (forward / backward / both, k = 2 and log(n)): the selected terms (forward in entry order) and the final model's MLE and deviance — `resample` and `selection`, every refit at the full fit's levels", "1e-8 relative", ordModE2E),
+			valR("+ MASS 7.3-66 `polr` at its polished MLE + `sandwich` 3.1-3: analytic per-level marginal effects (`margins`: ame / mem of each predictor on each level's probability, −β·[f(ζ_k − η) − f(ζ_{k−1} − η)], and the link-scale −β) with their delta-method standard errors on the analytic, hc1 and CR1 covariances, Wald statistics, p-values and intervals, on logit / probit / cloglog; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes` on polr (Richardson Jacobian) at 1e-7", tol9, ordMargins, ordMarginsE2E),
+			{Against: rPin + " analytic per-level marginal effects of `polr(weights = f)` (logit ame / mem) against its `rep()`-expanded fit, and `marginaleffects` `avg_slopes(wts = \".w\")`", Tol: tol9, Tests: []string{ordMargins, ordMarginsE2E}, Weighted: true},
 		},
-		Gap: "The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Penalty, margins and collinearity are refused (no oracle), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series). The bootstrap has no R oracle (its replicates are Pulse's seeded draws): it is pinned seed-stable and worker-invariant, and its level-loss skip by construction. Selection rows can differ across candidates when a predictor has nulls (each candidate fits the rows its predictors admit), unlike stepAIC, which refuses a changed row count.",
+		Gap: "The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Penalty and collinearity are refused (no oracle), and margins beside resample (no_resample), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series). The bootstrap has no R oracle (its replicates are Pulse's seeded draws): it is pinned seed-stable and worker-invariant, and its level-loss skip by construction. Selection rows can differ across candidates when a predictor has nulls (each candidate fits the rows its predictors admit), unlike stepAIC, which refuses a changed row count.",
 	},
 	"REG_MMM_BAYES": {
 		Refs: []ValidationRef{

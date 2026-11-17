@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -181,13 +182,14 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 		// their own, one per regression (keyed by the regression's index
 		// in its scope, never pooled — a `compose` block pools the
 		// coefficients only), so a coefficient's p_adjusted is the same
-		// with margins or without. One site per term in the block's order;
-		// an undefined (null) p is excluded from m. Its echo is the
-		// margins block's own.
+		// with margins or without. One site per effect in the block's
+		// order (per term, or per outcome and term — "<outcome>:<term>" —
+		// on a per-level block: regmargins.ResultKeys); an undefined
+		// (null) p is excluded from m. Its echo is the margins block's own.
 		if mg := r.Margins; mg != nil {
 			mecho := &types.AppliedMultiplicity{Method: method, Family: types.MultiplicityFamilyMargins, Alpha: alpha}
 			key := scope + "regressions[" + strconv.Itoa(i) + "]#" + string(types.MultiplicityFamilyMargins)
-			for _, term := range mg.Terms {
+			for _, term := range regmargins.ResultKeys(mg) {
 				fams.add(key, types.MultiplicityFamilyMargins, method, multSite{
 					p: mg.PValues[term],
 					write: func(adjusted float64, m, excluded int) {

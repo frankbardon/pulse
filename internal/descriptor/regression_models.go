@@ -68,10 +68,14 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			// levels (regordinal.ReplicatePin, U68 E2-S1); selection's
 			// AIC / BIC read its deviance, k = predictors + thresholds.
 			SupportsSelection: true,
-			CovarianceTypes:   regordinal.CovarianceTypes(),
-			OutputKeys:        regordinal.OutputKeys(),
-			OutputSchema:      slices.Clone(regordinal.OutputSchema),
-			Params:            ordinalParams,
+			// Marginal effects of each predictor on each level's
+			// probability (regordinal's extend.MarginsRegression; U68
+			// E4-S1), keyed "<level>:<term>".
+			Margins:         true,
+			CovarianceTypes: regordinal.CovarianceTypes(),
+			OutputKeys:      regordinal.OutputKeys(),
+			OutputSchema:    slices.Clone(regordinal.OutputSchema),
+			Params:          ordinalParams,
 		},
 	},
 	types.REG_MMM_BAYES: {

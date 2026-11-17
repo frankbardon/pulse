@@ -202,6 +202,8 @@ type model struct {
 	cov         types.CovarianceType
 	cluster     string
 	probability bool
+	// fitted is the last successful Fit's state, read by Margins.
+	fitted *fitState
 }
 
 // levelOf reads row rec's response: its label and its natural order key
@@ -346,6 +348,7 @@ func (m *model) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 			return extend.RegressionOutput{}, err
 		}
 	}
+	m.fitted = &fitState{d: d, theta: sol.theta, vcov: vcov, levels: levels}
 	return m.output(d, sol, vcov, levels, thresholds), nil
 }
 

@@ -1054,6 +1054,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if reg == nil || opRoute(inst, reg.Type) != reg.Type {
 			continue
 		}
+		// An extension or model regression's block is judged only once
+		// its registration declares margins (the shared-slot table
+		// refuses it otherwise, on the same request).
+		if _, decl, ok := regressionExtensionFor(inst, w.snap, reg.Type); ok && !decl.Margins {
+			continue
+		}
 		if cerr := regmargins.CheckDependent(reg, w.deps); cerr != nil {
 			w.out = append(w.out, cerr)
 		}

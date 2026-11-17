@@ -996,7 +996,8 @@ the additive `omitempty` `RegressionSpec` string `dispersion`
 `summary.glm`). Every other family leaves `theta` and `theta_std_err`
 absent.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
-terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
+terms, scale}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
+model declaring `Margins`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
 (`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
@@ -1007,7 +1008,12 @@ and — gated on `capability:multiplicity` like the coefficient twins —
 (`AppliedMultiplicity`, `family: "margins"`) echo: under the
 regression's own block the terms form one family per regression, apart
 from the coefficients'. An undefined figure is `null`,
-key kept. A request without `margins` is byte-identical.
+key kept. A request without `margins` is byte-identical. On a
+per-level fit (`REG_ORDINAL`, or an extension model whose
+`extend.MarginsRegression` lists outcomes) the block adds the additive
+`omitempty` string array `outcomes` (the levels, in order) and every
+map is keyed `"<outcome>:<term>"`; absent, the maps are keyed by term
+(`REG_OLS` / `REG_GLM` bytes unchanged).
 An additive `omitempty` `RegressionSpec` object `collinearity`
 (`{basis, groups}`, `REG_OLS` / `REG_GLM`; `basis` `model` |
 `predictors`, `groups` an array of `{name, predictors}`) adds the

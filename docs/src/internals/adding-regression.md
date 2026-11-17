@@ -184,6 +184,7 @@ way).
 | `Penalty` | reads `penalty` / `alpha` / `l1_ratio` itself | `PROCESSING_CONFIG` `{slot: "penalty"}` |
 | `CovarianceTypes` | the robust types it computes itself (`cluster`, `hac`, …) | `PROCESSING_CONFIG` `{slot: "covariance"}` |
 | `SupportsSelection` | a refit over a predictor subset is meaningful; every fit reports `Fit.Deviance` | `PROCESSING_CONFIG` `{slot: "selection"}`; a fit without a deviance is `_OUTPUT_MISMATCH` `missing_deviance` |
+| `Margins` | the fitted model implements `extend.MarginsRegression`: after the fit the engine asks it once for each requested term's effect and delta-method SE (per outcome for a categorical response — `Outcomes`, keys `"<outcome>:<term>"`) and writes the statistic, p-value and interval | `PROCESSING_CONFIG` `{slot: "margins", requires: "declared_margins"}`; declared, a model without the interface is `_OUTPUT_MISMATCH` `missing_margins`, effects off the request `margins_shape` |
 | `Scorer` | scores rows from the fit, enabling `ATTR_REG_PREDICT`, `save` and `holdout` | `PULSE_MODEL_SCORE_INVALID` `no_scorer` (`ATTR_REG_PREDICT`, `holdout`); `save` refused |
 | `FieldInputs` | fields the model reads beyond target, predictors and weight | a buffered request decodes every field |
 | `Validate` | an `extend.SpecValidator[types.RegressionSpec]`: refuse a spec from the spec alone (a `params` value out of range), so predict reports it too | nothing is refused: a refusal raised in the factory surfaces only at run time |

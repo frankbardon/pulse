@@ -1343,6 +1343,15 @@
           },
           "type": "object"
         },
+        "outcomes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "p_values": {
           "additionalProperties": {
             "type": [
@@ -2469,4 +2478,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: a1afd9001e9b507a1184ddf2eafeefe730f8180c7335cd26147d9aadab5545a2
+// golden-hash: ff0b6d8c6790dea2df5fcd5a3a3b938660bfe19dc50d1dbebfe34c75cba924e0

@@ -505,7 +505,7 @@
       },
       {
         "name": "regression-margins",
-        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear and ordinal fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
@@ -920,4 +920,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: abe285349c19ee2eda8b33391c148a08577209d01ba98f304d3cacfddb914bd6
+// golden-hash: 2fb49344c59ef6f8f21a444f78c479aa146190d2e83bfb08a8752211457c99a0

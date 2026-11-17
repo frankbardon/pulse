@@ -1056,3 +1056,31 @@ The ranked probability score on the held-out rows: per row the squared gaps betw
 **Caveats:**
 
 - Unlike log_loss and brier it respects the order: predicting a neighbouring level costs less than a distant one.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term on one level's probability (requested by margins), keyed "&lt;level&gt;:&lt;term&gt;" (margins.outcomes lists the levels): the change in P(Y = level) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale it is the change in the cumulative link of P(Y <= level) — minus the coefficient, the same at every level but the last.
+
+**Sign:**
+
+- `+`: a higher value of the predictor makes this level more likely, other predictors held fixed
+- `-`: a higher value of the predictor makes this level less likely, other predictors held fixed
+
+**Caveats:**
+
+- A term's effects over all levels sum to 0: probability moves between levels. A positive coefficient lowers the lowest level and raises the highest; a middle level's effect can take either sign.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- A Wald z, as the coefficients': the p-value and interval use the normal distribution.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).

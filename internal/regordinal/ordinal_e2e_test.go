@@ -412,15 +412,16 @@ func TestRegOrdinal_WorkerInvariant(t *testing.T) {
 }
 
 // TestRegOrdinal_OutputsMatchApplicability: a plain fit — with the
-// opt-in exponentiated block (U68 E3-S2), which the row lists — emits
-// exactly the RegressionResult keys the applicability row lists.
+// opt-in exponentiated (U68 E3-S2) and margins (U68 E4-S1) blocks, which
+// the row lists — emits exactly the RegressionResult keys the
+// applicability row lists.
 func TestRegOrdinal_OutputsMatchApplicability(t *testing.T) {
 	t.Parallel()
 	c := goldenCase(t, "logit_two")
 	p := newInstance(t, nil)
 	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
 	s := caseSpec(c, nil)
-	s.Vcov, s.Exponentiate = false, true
+	s.Vcov, s.Exponentiate, s.Margins = false, true, &types.RegressionMargins{}
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(mustJSON(t, fitOne(t, p, "ord.pulse", s))), &keys); err != nil {
 		t.Fatal(err)
@@ -469,24 +470,29 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		code  perr.Code
 		slot  string
 	}{
-		"penalty":        {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
-		"margins":        {`,"margins":{}`, perr.PROCESSING_CONFIG, "margins"},
-		"collinearity":   {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
-		"covariance_hc3": {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
-		"covariance_hac": {`,"covariance":{"type":"hac","order_by":"x1"}`, perr.PROCESSING_CONFIG, "covariance"},
-		"link_top_level": {`,"link":"probit"`, perr.PROCESSING_CONFIG, "link"},
-		"family":         {`,"family":"binomial"`, perr.PROCESSING_CONFIG, "family"},
-		"max_iters":      {`,"max_iters":10`, perr.PROCESSING_CONFIG, "max_iters"},
-		"intercept":      {`,"intercept":false`, perr.PROCESSING_CONFIG, "intercept"},
-		"bounds":         {`,"bounds":{"nonnegative":["x1"]}`, perr.PROCESSING_CONFIG, "bounds"},
-		"prior":          {`,"prior":"nig"`, perr.PROCESSING_CONFIG, "prior"},
-		"params_link":    {`,"params":{"link":"cauchit"}`, perr.PROCESSING_CONFIG, "params.link"},
-		"params_levels":  {`,"params":{"levels":["1","2","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
-		"params_two":     {`,"params":{"levels":["1","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
-		"params_brant":   {`,"params":{"link":"probit","brant":{}}`, perr.PROCESSING_CONFIG, "params.brant"},
-		"params_unknown": {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
-		"brant_key":      {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
-		"conf_level":     {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
+		"penalty": {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
+		// margins runs (U68 E4-S1) under the built-ins' shape and fit
+		// rules: resample stays refused (no_resample, U69 #639).
+		"margins_resample":  {`,"margins":{},"resample":"jackknife"`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_selection": {`,"margins":{},"selection":"forward","criterion":"aic"`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_type":      {`,"margins":{"type":"avg"}`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_terms":     {`,"margins":{"terms":["x3"]}`, perr.PROCESSING_CONFIG, "margins"},
+		"collinearity":      {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
+		"covariance_hc3":    {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
+		"covariance_hac":    {`,"covariance":{"type":"hac","order_by":"x1"}`, perr.PROCESSING_CONFIG, "covariance"},
+		"link_top_level":    {`,"link":"probit"`, perr.PROCESSING_CONFIG, "link"},
+		"family":            {`,"family":"binomial"`, perr.PROCESSING_CONFIG, "family"},
+		"max_iters":         {`,"max_iters":10`, perr.PROCESSING_CONFIG, "max_iters"},
+		"intercept":         {`,"intercept":false`, perr.PROCESSING_CONFIG, "intercept"},
+		"bounds":            {`,"bounds":{"nonnegative":["x1"]}`, perr.PROCESSING_CONFIG, "bounds"},
+		"prior":             {`,"prior":"nig"`, perr.PROCESSING_CONFIG, "prior"},
+		"params_link":       {`,"params":{"link":"cauchit"}`, perr.PROCESSING_CONFIG, "params.link"},
+		"params_levels":     {`,"params":{"levels":["1","2","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
+		"params_two":        {`,"params":{"levels":["1","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
+		"params_brant":      {`,"params":{"link":"probit","brant":{}}`, perr.PROCESSING_CONFIG, "params.brant"},
+		"params_unknown":    {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
+		"brant_key":         {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
+		"conf_level":        {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
 		// The weighted modifiers follow the built-ins' weight rule (U68
 		// E2-S1): no weighted bootstrap, no weighted information criterion.
 		"bootstrap_weighted": {`,"resample":"bootstrap","weight":{"field":"w","kind":"frequency"}`, perr.PULSE_WEIGHT_UNSUPPORTED, ""},
@@ -547,6 +553,12 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"jackknife_weighted": `,"resample":"jackknife","weight":{"field":"w","kind":"probability"}`,
 		// Its cumulative odds ratios (U68 E3-S2).
 		"exponentiate": `,"exponentiate":true,"covariance":{"type":"hc1"}`,
+		// Its per-level marginal effects (U68 E4-S1).
+		"margins":          `,"margins":{}`,
+		"margins_mem":      `,"margins":{"type":"mem","terms":["x2"]}`,
+		"margins_link":     `,"margins":{"scale":"link"},"covariance":{"type":"cluster","cluster":"g"}`,
+		"margins_holm":     `,"margins":{},"multiplicity":{"method":"holm"}`,
+		"margins_weighted": `,"margins":{},"weight":{"field":"w","kind":"frequency"}`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()

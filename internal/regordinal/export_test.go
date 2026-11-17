@@ -11,3 +11,7 @@ var LoadOracle = loadOracle
 type OracleModifiers = oracleModifiers
 
 var LoadModifiers = loadModifiers
+
+type MarginsOracleCase = marginsOracleCase
+
+var LoadMarginsOracle = loadMarginsOracle

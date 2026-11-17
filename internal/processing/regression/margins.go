@@ -215,3 +215,34 @@ func designMeans(xRows, prior []float64, k int) []float64 {
 // identityLink reports whether fam's mean is its linear predictor
 // (μ′ = 1, μ″ = 0), where every effect is the coefficient.
 func identityLink(fam glmFamily) bool { return fam.Link == "identity" }
+
+// AttachExtensionMargins writes res.Margins from the effects a model
+// regression computed itself (extend.MarginsRegression, held to the
+// request by the adapter): est and se keyed by regmargins.Key(outcome,
+// term) for every outcome of outcomes (none: keyed by term) and every
+// resolved term, a NaN se undefined. The inference is the coefficient
+// table's (AttachExtensionIntervals): a Student t on the fit's reported
+// df, else the standard normal, at conf_level, through setMargin — so an
+// extension's effect reads its statistic, p-value and interval exactly
+// as a built-in's. at (mem only; nil none) is echoed as the block's At.
+func AttachExtensionMargins(res *types.RegressionResult, spec *types.RegressionSpec, outcomes []string, est, se, at map[string]float64) {
+	if spec == nil || spec.Margins == nil {
+		return
+	}
+	inf := marginsInference{level: resolvedConfLevel(spec), df: res.DF,
+		studentT: res.Resample == "" && slices.Contains(res.ReportedFigures, "df")}
+	out := newMarginsResult(spec, regmargins.Terms(spec), inf)
+	if len(outcomes) > 0 {
+		out.Outcomes = slices.Clone(outcomes)
+	}
+	for _, key := range regmargins.ResultKeys(out) {
+		setMargin(out, key, est[key], se[key], inf)
+	}
+	if out.Type == types.MarginsMEM && len(at) > 0 {
+		out.At = make(map[string]float64, len(at))
+		for k, v := range at {
+			out.At[k] = v
+		}
+	}
+	res.Margins = out
+}

@@ -455,6 +455,24 @@ which the Go loader then refuses) and refuses any other R than 4.6.1.
 `TestReferenceOracle_MarginsMatchR` holds the analytic figures at
 relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
 `marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
+Its `ordinal_cases` block (U68 E4-S1, drawn last under its own seed so
+no GLM case moves) pins `REG_ORDINAL`'s per-level effects: the closed
+forms at the polr MLE (polished by Newton, as `gen_ordinal.R` does) —
+logit / probit / cloglog, `ame` / `mem`, response and link scale, the
+analytic, hc1 and cluster covariances, a frequency-weighted pair against
+the `rep()` expansion — and `marginaleffects` on polr set to that MLE,
+its Jacobian Richardson-extrapolated (`marginaleffects_numDeriv`, d =
+0.03, r = 4; the default forward difference agrees to only ~1e-3 on
+polr). `TestOrdinalMarginsOracle_ClosedForms` /
+`TestRegOrdinal_MarginsMatchREndToEnd` hold them at `1e-9`,
+`TestOrdinalMarginsOracle_Marginaleffects` at `1e-7`
+(`internal/regordinal`). Regenerate `margins.json` alone, under its own
+`R_LIBS` (the `Matrix` row below): `R_LIBS=<lib with Matrix 1.7-6,
+insight 1.7.0, marginaleffects 1.0.0> Rscript
+scripts/reference/gen_margins.R internal/processing/testdata/reference`,
+then append the hash footer as the Makefile's `reference` target does.
+A rerun moves the existing cases by a few ulps (well inside every
+tolerance).
 
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s

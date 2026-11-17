@@ -345,7 +345,9 @@ type RegressionSpec struct {
 	// link: ∂η/∂x, which is the coefficient), with delta-method standard
 	// errors on the fit's own coefficient covariance (classical or the
 	// robust Covariance) and the coefficient table's reference
-	// distribution. REG_OLS and REG_GLM only; refused with
+	// distribution. REG_OLS, REG_GLM and a model regression declaring
+	// margins (REG_ORDINAL: each level's probability, keys
+	// "<level>:<term>" — RegressionMarginsResult.Outcomes); refused with
 	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
 	// internal/regmargins) beside a Penalty, Selection, Resample or
 	// Bounds, on another type, or when a predictor is derived from
@@ -521,7 +523,7 @@ func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
 func AllMarginsScales() []string { return []string{MarginsScaleResponse, MarginsScaleLink} }
 
 // RegressionMargins is RegressionSpec.Margins: which marginal effects a
-// REG_OLS / REG_GLM fit reports. Every field has a default, so
+// REG_OLS / REG_GLM fit (or a model declaring margins) reports. Every field has a default, so
 // `"margins": {}` asks for the average marginal effect of every
 // predictor on the response scale.
 type RegressionMargins struct {
@@ -641,8 +643,10 @@ type RegressionCollinearityResult struct {
 
 // RegressionMarginsResult is RegressionResult.Margins: one marginal
 // effect per term with its delta-method inference. The maps are keyed by
-// term (a predictor name), like the coefficient table; Terms keeps the
-// order. An undefined figure is null on the wire, key kept.
+// term (a predictor name), like the coefficient table — or, when
+// Outcomes is present, "<outcome>:<term>", one effect per outcome level
+// and term; Terms (and Outcomes) keep the order. An undefined figure is
+// null on the wire, key kept.
 type RegressionMarginsResult struct {
 	// Type and Scale echo the resolved RegressionMargins.
 	Type  string `json:"type"`
@@ -650,6 +654,14 @@ type RegressionMarginsResult struct {
 
 	// Terms lists the reported predictors in their resolved order.
 	Terms []string `json:"terms"`
+
+	// Outcomes lists, in the model's level order, the outcome levels a
+	// categorical-response fit reports one effect on each of (REG_ORDINAL:
+	// each level's probability; on the link scale each level but the
+	// last, the cumulative P(Y ≤ level)). Present, every per-effect map
+	// is keyed "<outcome>:<term>" (the coefficients' "<category>:<term>"
+	// convention); absent, keyed by term.
+	Outcomes []string `json:"outcomes,omitempty"`
 
 	// Estimates maps each term to its marginal effect: under type ame
 	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response

@@ -1073,6 +1073,7 @@ pulse: type RegressionRegistration field Description string
 pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
+pulse: type RegressionRegistration field Margins bool
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field NoResample bool
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
@@ -3282,6 +3283,21 @@ pulse/extend: type FittedRegression field Type pulse/types.RegressionType
 pulse/extend: type Grouper interface
 pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
+pulse/extend: type MarginalEffect struct
+pulse/extend: type MarginalEffect field Estimate float64
+pulse/extend: type MarginalEffect field Outcome string
+pulse/extend: type MarginalEffect field StdErr *float64
+pulse/extend: type MarginalEffect field Term string
+pulse/extend: type MarginsOutput struct
+pulse/extend: type MarginsOutput field At map[string]float64
+pulse/extend: type MarginsOutput field Effects []pulse/extend.MarginalEffect
+pulse/extend: type MarginsOutput field Outcomes []string
+pulse/extend: type MarginsRegression interface
+pulse/extend: type MarginsRegression imethod Margins(req pulse/extend.MarginsRequest) (pulse/extend.MarginsOutput, error)
+pulse/extend: type MarginsRequest struct
+pulse/extend: type MarginsRequest field Scale string
+pulse/extend: type MarginsRequest field Terms []string
+pulse/extend: type MarginsRequest field Type string
 pulse/extend: type MatrixFactory func(spec *pulse/types.MatrixSpec, schema *pulse/encoding.Schema) (pulse/extend.MatrixOperator, error)
 pulse/extend: type MatrixInput struct
 pulse/extend: type MatrixInput field CoMoment *pulse/linalg.CoMoment
@@ -6557,6 +6573,7 @@ pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_l
 pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
 pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type RegressionMarginsResult field Outcomes []string "json:\"outcomes,omitempty\""
 pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionMarginsResult field PValues map[string]float64 "json:\"p_values\""
 pulse/types: type RegressionMarginsResult field Scale string "json:\"scale\""
@@ -7030,4 +7047,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7dff89fa0a7d838ee50e0a6fea95cdf659d99a381f59162a65f5e3380ec518ad
+// golden-hash: deed0cdfddb7e8f3bd7d5a050e78e077edebade18827c5e7fd0510c5c2579ddb
