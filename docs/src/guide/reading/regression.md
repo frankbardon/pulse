@@ -952,7 +952,7 @@ A predictor's coefficient is the shift of the latent scale for a one-unit increa
 **Caveats:**
 
 - Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score by that many standard deviations, under cloglog it is a log hazard ratio.
-- It assumes the effect is the same at every step (proportional odds); params.brant tests it.
+- It assumes the effect is the same at every step (proportional odds); params.brant (logit) or params.nominal_test (any link) tests it.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
 - With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
@@ -1057,12 +1057,13 @@ Newton-Raphson steps taken before the coefficients and thresholds stopped changi
 
 #### `outputs.*`
 
-outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.
+outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it; outputs.nominal_test, with params.nominal_test, the same question on any link as a likelihood-ratio test against a fit that frees the predictor's effect at every step (every predictor for the omnibus).
 
 **Caveats:**
 
 - The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.
 - A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.
+- A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight it is a working-likelihood ratio, not a design-based test.
 
 #### `holdout.log_loss`
 

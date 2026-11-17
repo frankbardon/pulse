@@ -1063,7 +1063,9 @@ regressions (`REG_MMM_HILL`, `REG_MMM_BAYES`, `REG_ORDINAL`) answer in
 the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
 beside the predictors (no intercept), leaves their `p_values` `null`,
 and fills `outputs` `link`, `levels`, `thresholds`,
-`fitted_probabilities` and, with `params.brant`, `brant`.
+`fitted_probabilities` and, with `params.brant`, `brant` (with
+`params.nominal_test`, `nominal_test`: `{statistic, df, p_value, terms}`,
+a failed partial fit's figures `null`).
 `REG_MMM_HILL` with `params.adstock` appends `decay:<channel>` (and
 `peak:<channel>`) after `s:<channel>`, adds `outputs.condition_number`
 (`null` when the joint block does not invert) and, above 1e6, carries

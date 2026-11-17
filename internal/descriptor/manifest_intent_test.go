@@ -86,8 +86,12 @@ var scopedManifestExceptions = map[string]float64{
 	// measured 16.81% (44,478 of 264,536 bytes). Margins and term tests
 	// on REG_MULTINOMIAL (U68 E4-S2; feature growth: two structural
 	// Params on its row — margins, term_tests — descriptions blanked by
-	// the slim manifest) measured 16.88% (44,685 of 264,743 bytes).
-	IntentDrivers: 0.1688,
+	// the slim manifest) measured 16.88% (44,685 of 264,743 bytes). The
+	// nominal test on REG_ORDINAL (U68 E6-S1; feature growth: one
+	// structural `nominal_test` Param and one output key on its row,
+	// descriptions blanked by the slim manifest) measured 16.92% (44,803
+	// of 264,861 bytes).
+	IntentDrivers: 0.1692,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

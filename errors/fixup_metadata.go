@@ -208,12 +208,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_REGRESSION_DIAGNOSTIC: {
-		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
+		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation; for an ordinal regression's params.nominal_test, a partial proportional-odds fit that did not converge or whose cumulative probabilities cross (details.reason nominal_test_no_converge / nominal_test_crossing, details.term or scope omnibus), that figure null. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Regressions", "*", "Params"},
-				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears; the regression's skill lists its thresholds and params.",
+				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears (a nominal_test failure: the predictor in details.term separates a step of the scale, or merge sparse levels); the regression's skill lists its thresholds and params.",
 			},
 		},
 	},

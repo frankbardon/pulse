@@ -15,7 +15,9 @@
 # target writes). CI never runs R: the golden is committed. Base R
 # (stats) + jsonlite 2.0.0 + MASS 7.3-66 (polr) + sandwich 3.1-3
 # (sandwich / vcovCL cross-checks) + brant 0.3.0 (installed from the
-# Posit noble binary repo; versions recorded in the golden).
+# Posit noble binary repo) + ordinal 2026.7-26 (clm, nominal_test; with
+# ucminf 1.2.3, installed with the Homebrew Fortran workaround; versions
+# recorded in the golden).
 #
 # What is the reference, and why it is polished:
 #   * polr maximises the log-likelihood with optim's BFGS and reports the
@@ -47,6 +49,21 @@
 #     exp(beta -/+ qnorm(0.975) SE), on the case's covariance (classical
 #     or robust); a classical unweighted case also matches
 #     exp(confint.default(polr)) to 1e-4 (polr's numerical vcov).
+#   * Nominal test (U68 E6-S1, params.nominal_test, every link): the
+#     likelihood-ratio test of proportional odds against the partial
+#     proportional-odds model (ordinal::nominal_test, which refits clm
+#     with nominal = ~term) — per predictor (that predictor's slope free
+#     at every cumulative split, df J - 2) and an omnibus (every
+#     predictor free, df (J - 2) p; clm(nominal = ~ all) against clm).
+#     Each partial fit is polished by Newton on its ANALYTIC gradient
+#     and Hessian (ord_ppo_parts) from the polished proportional-odds
+#     MLE; the script stops unless clm's logLik agrees with the polished
+#     one to 1e-8 and nominal_test's LRT with the polished statistic to
+#     1e-6. A partial fit that does not converge (a split a predictor
+#     separates) or whose fitted cumulative probabilities cross at a
+#     fitted row is null (nominal_test$failed says which; clm reports a
+#     convergence code other than 0 there and nominal_test still prints
+#     a number, kept as r_reported).
 #
 # Weights follow REG_GLM's rule: frequency weights are polr(weights = f),
 # asserted equal to the rep()-expanded fit (and the expanded Brant
@@ -73,6 +90,7 @@ suppressPackageStartupMessages(library(jsonlite))
 suppressPackageStartupMessages(library(MASS))
 suppressPackageStartupMessages(library(sandwich))
 suppressPackageStartupMessages(library(brant))
+suppressPackageStartupMessages(library(ordinal))
 
 if (!exists("out_dir")) {
   args <- commandArgs(trailingOnly = TRUE)
@@ -87,7 +105,8 @@ if (!exists("write_golden")) {
   }
 }
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_ordinal.R pins R 4.6.1, got ", R.version.string)
-ord_pins <- c(MASS = "7.3.66", sandwich = "3.1.3", brant = "0.3.0", jsonlite = "2.0.0")
+ord_pins <- c(MASS = "7.3.66", sandwich = "3.1.3", brant = "0.3.0", jsonlite = "2.0.0",
+              ordinal = "2026.7.26", ucminf = "1.2.3")
 for (p in names(ord_pins)) {
   if (as.character(packageVersion(p)) != ord_pins[[p]]) stop("gen_ordinal.R pins ", p, " ", ord_pins[[p]], ", got ", packageVersion(p))
 }
@@ -97,6 +116,14 @@ ord_g17 <- function(v) {
   if (any(!is.finite(v))) stop("non-finite reference value")
   structure(paste0("[", paste(sprintf("%.17g", v), collapse = ","), "]"), class = "json")
 }
+# ord_g17_na is ord_g17 with NA written as null (a nominal-test figure
+# whose partial fit failed); ord_num_na likewise.
+ord_g17_na <- function(v) {
+  v <- unname(as.numeric(v))
+  if (any(is.infinite(v) | is.nan(v))) stop("non-finite reference value")
+  structure(paste0("[", paste(ifelse(is.na(v), "null", sprintf("%.17g", v)), collapse = ","), "]"), class = "json")
+}
+ord_num_na <- function(x) if (is.na(x)) structure("null", class = "json") else ord_num(x)
 ord_num <- function(x) {
   if (length(x) != 1 || !is.finite(x)) stop("ord_num takes a finite scalar")
   structure(sprintf("%.17g", x), class = "json")
@@ -108,7 +135,7 @@ ord_check <- function(what, got, want, tol, floor = 1e-12) {
   got <- as.numeric(got); want <- as.numeric(want)
   if (length(got) != length(want)) stop(what, ": length mismatch")
   err <- max(abs(got - want) / pmax(abs(want), floor))
-  if (err > tol) stop(what, ": ", err, " > ", tol)
+  if (is.na(err) || err > tol) stop(what, ": ", err, " > ", tol)
 }
 
 # The links: polr's methods. F the cdf, f its density, fp f'.
@@ -263,13 +290,122 @@ ord_brant <- function(X, y, w, J, asym = FALSE, tight = TRUE) {
        terms = terms, terms_df = J - 2, terms_p = pchisq(terms, J - 2, lower.tail = FALSE))
 }
 
+# The partial proportional-odds model (nominal test): eta_ik = zeta_k -
+# sum_j x_ij beta_jk, beta_jk = beta_j for a parallel predictor. theta
+# holds per predictor one slope (parallel) or J - 1 split slopes
+# (nominal), then the J - 1 thresholds; idx[j, k] is predictor j's
+# slope at split k.
+ord_ppo_index <- function(nom, J) {
+  p <- length(nom); idx <- matrix(0L, p, J - 1); at <- 0L
+  for (j in seq_len(p)) {
+    if (nom[j]) { idx[j, ] <- at + seq_len(J - 1); at <- at + J - 1L } else { at <- at + 1L; idx[j, ] <- at }
+  }
+  list(idx = idx, zeta = at + seq_len(J - 1), q = at + J - 1L)
+}
+# ord_ppo_dir is d eta_ik / d theta.
+ord_ppo_dir <- function(ix, x, k) {
+  v <- numeric(ix$q); v[ix$zeta[k]] <- 1
+  for (j in seq_along(x)) v[ix$idx[j, k]] <- v[ix$idx[j, k]] - x[j]
+  v
+}
+# ord_ppo_parts: loglik, gradient and Hessian (A, B the upper / lower
+# eta's gradients): s = (f(a) A - f(b) B) / p, H = sum w ((f'(a) A A' -
+# f'(b) B B') / p - s s').
+ord_ppo_parts <- function(theta, X, y, w, J, L, nom) {
+  ix <- ord_ppo_index(nom, J)
+  q <- ix$q; ll <- 0; grad <- numeric(q); H <- matrix(0, q, q)
+  for (i in seq_along(y)) {
+    up <- y[i] < J; lo <- y[i] > 1
+    A <- if (up) ord_ppo_dir(ix, X[i, ], y[i]) else numeric(q)
+    B <- if (lo) ord_ppo_dir(ix, X[i, ], y[i] - 1) else numeric(q)
+    a <- sum(A * theta); b <- sum(B * theta)
+    Fa <- if (up) L$F(a) else 1; Fb <- if (lo) L$F(b) else 0
+    fa <- if (up) L$f(a) else 0; fb <- if (lo) L$f(b) else 0
+    fpa <- if (up) L$fp(a) else 0; fpb <- if (lo) L$fp(b) else 0
+    pr <- Fa - Fb
+    s <- (fa * A - fb * B) / pr
+    ll <- ll + w[i] * log(pr)
+    grad <- grad + w[i] * s
+    H <- H + w[i] * ((fpa * tcrossprod(A) - fpb * tcrossprod(B)) / pr - tcrossprod(s))
+  }
+  list(ll = ll, grad = grad, H = H)
+}
+# ord_ppo_fit polishes the partial model for nominal set nom from the
+# proportional-odds MLE theta (beta, zeta): list(ll, failed) — failed
+# "" or why the figure is null ("no_converge" / "crossing").
+ord_ppo_fit <- function(theta, X, y, w, J, L, nom) {
+  ix <- ord_ppo_index(nom, J)
+  p <- ncol(X)
+  th <- numeric(ix$q)
+  for (j in seq_len(p)) th[ix$idx[j, ]] <- theta[j]
+  th[ix$zeta] <- theta[p + seq_len(J - 1)]
+  ok <- FALSE
+  for (it in 1:100) {
+    pt <- tryCatch(suppressWarnings(ord_ppo_parts(th, X, y, w, J, L, nom)), error = function(e) NULL)
+    if (is.null(pt) || !is.finite(pt$ll)) break
+    step <- tryCatch(solve(pt$H, pt$grad), error = function(e) NULL)
+    if (is.null(step) || any(!is.finite(step))) break
+    th <- th - step
+    if (max(abs(step) / pmax(abs(th), 1)) < 1e-14) { ok <- TRUE; break }
+  }
+  if (!ok) return(list(ll = NA, failed = "no_converge"))
+  pt <- ord_ppo_parts(th, X, y, w, J, L, nom)
+  if (max(abs(pt$grad)) > 1e-9) stop("partial proportional-odds fit: gradient not zero at the polished point")
+  eta <- sapply(seq_len(J - 1), function(k) apply(X, 1, function(x) sum(ord_ppo_dir(ix, x, k) * th)))
+  if (J > 2 && any(eta[, -1, drop = FALSE] <= eta[, -(J - 1), drop = FALSE])) return(list(ll = NA, failed = "crossing"))
+  list(ll = pt$ll, failed = "")
+}
+# ord_nominal is the nominal test of a polished proportional-odds fit
+# theta (log-likelihood ll): per-predictor and omnibus LR statistics,
+# cross-checked against ordinal::nominal_test / clm on the converged
+# figures. dd carries yf, the predictors and .ws.
+ord_nominal <- function(name, theta, ll, X, y, w, J, L, link, dd, preds) {
+  p <- ncol(X)
+  one <- function(nom) {
+    r <- ord_ppo_fit(theta, X, y, w, J, L, nom)
+    st <- 2 * (r$ll - ll)
+    df <- (J - 2) * sum(nom)
+    list(stat = st, df = df, p = if (is.na(st)) NA else pchisq(st, df, lower.tail = FALSE), failed = r$failed)
+  }
+  terms <- lapply(seq_len(p), function(j) { nom <- rep(FALSE, p); nom[j] <- TRUE; one(nom) })
+  omni <- one(rep(TRUE, p))
+  f <- as.formula(paste("yf ~", paste(preds, collapse = " + ")))
+  # do.call puts the data and link in the call itself: nominal_test
+  # refits through update(), which evaluates the call in its own frame.
+  m0 <- do.call(clm, list(formula = f, data = dd, weights = quote(.ws), link = link))
+  ord_check(paste(name, "clm logLik vs polished"), as.numeric(logLik(m0)), ll, 1e-8)
+  nt <- nominal_test(m0)
+  failed <- list()
+  for (j in seq_len(p)) {
+    if (terms[[j]]$failed == "") {
+      ord_check(paste(name, "nominal_test LRT", preds[j]), nt[preds[j], "LRT"], terms[[j]]$stat, 1e-6, floor = 1)
+      if (nt[preds[j], "Df"] != terms[[j]]$df) stop(name, ": nominal_test df")
+    } else {
+      failed[[length(failed) + 1]] <- list(scope = "term", term = preds[j], reason = terms[[j]]$failed,
+                                           r_reported = ord_num_na(nt[preds[j], "LRT"]))
+    }
+  }
+  m1 <- suppressWarnings(clm(f, nominal = as.formula(paste("~", paste(preds, collapse = " + "))), data = dd,
+                             weights = .ws, link = link, convergence = "silent"))
+  if (omni$failed == "") {
+    if (m1$convergence$code != 0) stop(name, ": clm(nominal = ~ all) did not converge where the polished fit did")
+    ord_check(paste(name, "omnibus clm LRT"), 2 * (as.numeric(logLik(m1)) - as.numeric(logLik(m0))), omni$stat, 1e-6, floor = 1)
+  } else {
+    failed[[length(failed) + 1]] <- list(scope = "omnibus", reason = omni$failed,
+                                         r_reported = ord_num_na(2 * (as.numeric(logLik(m1)) - as.numeric(logLik(m0)))))
+  }
+  list(statistic = ord_num_na(omni$stat), df = omni$df, p_value = ord_num_na(omni$p),
+       terms = ord_g17_na(sapply(terms, `[[`, "stat")), terms_df = J - 2,
+       terms_p = ord_g17_na(sapply(terms, `[[`, "p")), failed = failed)
+}
+
 ord_cases <- list()
 
 # ord_case fits one case: d has the predictor columns, y (1..J) and w;
 # kind "" | "frequency" | "probability"; cov "classical" | "hc0" | "hc1"
 # | "cluster" (on d$g); brant TRUE runs the test (logit only).
 ord_case <- function(name, d, preds, link = "logit", kind = "", cov = "classical", brant_test = FALSE,
-                     labels = NULL, levels_param = NULL) {
+                     labels = NULL, levels_param = NULL, nominal_test = FALSE) {
   L <- ord_links[[link]]
   if (kind == "") d$w <- 1
   J <- max(d$y)
@@ -389,6 +525,20 @@ ord_case <- function(name, d, preds, link = "logit", kind = "", cov = "classical
       ord_check(paste(name, "brant weighted vs expanded"), c(be$omnibus[1], be$terms), c(br$omnibus[1], br$terms), 1e-9)
     }
   }
+  if (nominal_test) {
+    doc$nominal_test <- ord_nominal(name, theta, ll, X, d$y, ws, J, L, link, dd, preds)
+    if (kind == "frequency") {
+      ex <- d[rep(seq_len(n), d$w), ]
+      Xe <- as.matrix(ex[, preds, drop = FALSE])
+      for (j in seq_along(preds)) {
+        nom <- seq_along(preds) == j
+        a <- ord_ppo_fit(theta, X, d$y, ws, J, L, nom)
+        b <- ord_ppo_fit(theta, Xe, ex$y, rep(1, nrow(ex)), J, L, nom)
+        if (a$failed != b$failed) stop(name, ": nominal weighted vs expanded verdict for ", preds[j])
+        if (a$failed == "") ord_check(paste(name, "nominal weighted vs expanded", preds[j]), b$ll, a$ll, 1e-12)
+      }
+    }
+  }
   doc$rows <- lapply(seq_len(n), function(i) ord_g17(c(unlist(d[i, preds]), d$y[i], d$w[i], d$g[i])))
   ord_cases[[length(ord_cases) + 1]] <<- doc
 }
@@ -412,7 +562,7 @@ ord_draw <- function(n, beta, cuts, link = "logit") {
 }
 
 d <- ord_draw(220, c(0.9, -0.6), c(-0.5, 0.8))
-ord_case("logit_two", d, c("x1", "x2"), brant_test = TRUE)
+ord_case("logit_two", d, c("x1", "x2"), brant_test = TRUE, nominal_test = TRUE)
 ord_case("logit_two_hc0", d, c("x1", "x2"), cov = "hc0")
 ord_case("logit_two_hc1", d, c("x1", "x2"), cov = "hc1")
 ord_case("logit_two_cluster", d, c("x1", "x2"), cov = "cluster")
@@ -422,19 +572,19 @@ ord_case("logit_four_labeled", d, c("x1", "x2", "x3"), brant_test = TRUE,
          labels = c("low", "mid", "high", "top"))
 
 d <- ord_draw(240, c(0.6, -0.5, 0.3), c(-0.8, 0.1, 0.9), link = "probit")
-ord_case("probit_three", d, c("x1", "x2", "x3"), link = "probit")
+ord_case("probit_three", d, c("x1", "x2", "x3"), link = "probit", nominal_test = TRUE)
 
 d <- ord_draw(250, c(0.5, -0.7), c(-1.2, -0.3, 0.4, 1.3), link = "cloglog")
-ord_case("cloglog_five", d, c("x1", "x2"), link = "cloglog")
+ord_case("cloglog_five", d, c("x1", "x2"), link = "cloglog", nominal_test = TRUE)
 
 d <- ord_draw(90, c(0.8, -0.5), c(-0.4, 0.7))
 d$w <- sample(1:4, 90, replace = TRUE)
-ord_case("logit_freq", d, c("x1", "x2"), kind = "frequency", brant_test = TRUE)
+ord_case("logit_freq", d, c("x1", "x2"), kind = "frequency", brant_test = TRUE, nominal_test = TRUE)
 ord_case("logit_freq_hc1", d, c("x1", "x2"), kind = "frequency", cov = "hc1")
 
 d <- ord_draw(150, c(0.8, -0.5), c(-0.4, 0.7))
 d$w <- round(runif(150, 0.2, 3), 3)
-ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE)
+ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE, nominal_test = TRUE)
 
 # levels_subset: the response carries a fifth value 0 that params.levels
 # leaves out — R's factor(y, levels = 1:J) makes those rows NA and polr
@@ -442,6 +592,24 @@ ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE
 # are added back by the Go test.
 d <- ord_draw(200, c(0.6, 0.4), c(-0.6, 0.5))
 ord_case("levels_subset", d, c("x1", "x2"), levels_param = c("1", "2", "3"))
+
+# Nominal test (U68 E6-S1): weighted probit and cloglog cases, and a
+# pinned non-convergent one — x3 is 0 on every lowest-level row, so the
+# partial fit freeing x3 sends its first split's slope to infinity
+# (clm reports convergence code 1; the figure is null) while the
+# proportional-odds fit and the x1 / x2 tests stand. Drawn after every
+# case above, so none of their rows move.
+d <- ord_draw(180, c(0.7, -0.5), c(-0.6, 0.4, 1.2), link = "probit")
+d$w <- sample(1:3, 180, replace = TRUE)
+ord_case("probit_freq_nominal", d, c("x1", "x2"), link = "probit", kind = "frequency", nominal_test = TRUE)
+
+d <- ord_draw(200, c(0.6, -0.6), c(-0.9, 0.2), link = "cloglog")
+d$w <- round(runif(200, 0.3, 2.5), 3)
+ord_case("cloglog_prob_nominal", d, c("x1", "x2"), link = "cloglog", kind = "probability", nominal_test = TRUE)
+
+d <- ord_draw(120, c(0.9, -0.4), c(-0.5, 0.8))
+d$x3 <- ifelse(d$y == 1, 0, rbinom(120, 1, 0.5))
+ord_case("nominal_noconverge", d, c("x1", "x2", "x3"), nominal_test = TRUE)
 
 # Resample and selection (U68 E2-S1, #651): REG_ORDINAL refit by the
 # engine's modifier drivers. Drawn AFTER every case above under its own
@@ -562,7 +730,10 @@ write_golden("ordinal", list(
     "holdout = the weighted proper scores of the holdout_rows [x..., y, w, g] at the MLE: log_loss = mean -ln P(y),",
     "brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y], rps = mean sum_{k<K} (F_k - [y <= k])^2 / (K - 1).",
     "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w).",
-    "exponentiated = the predictors' exp(beta), exp(beta) SE and exp(beta -/+ qnorm(0.975) SE) on the case's covariance."),
+    "exponentiated = the predictors' exp(beta), exp(beta) SE and exp(beta -/+ qnorm(0.975) SE) on the case's covariance.",
+    "nominal_test = 2 (loglik partial - loglik po) of the partial proportional-odds fit (one predictor, then every",
+    "predictor, non-parallel; ordinal::nominal_test / clm agree to 1e-6) polished to its MLE; null when the partial",
+    "fit does not converge or crosses (nominal_test$failed)."),
   cases = ord_cases,
   modifiers = list(jackknife = ord_jackknife, selection = ord_selection)
 ))

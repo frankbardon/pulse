@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-ordinal
-description: REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered.
+description: REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant and nominal tests, weights, refusals. Always buffered.
 kind: operator
 category: REG
 operator: REG_ORDINAL
@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`link` / `levels` / `brant` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
+`link` / `levels` / `brant` / `nominal_test` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -35,6 +35,7 @@ Use something else:
 | `link` | enum | `logit` | `logit`, `probit`, `cloglog`. |
 | `levels` | array | — | Level order, lowest first. |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
+| `nominal_test` | object | — | `{}` adds `outputs.nominal_test`; any link. |
 | `conf_level` | float | `0.95` | CI level. |
 | `vcov` | bool | `false` | — |
 | `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
@@ -60,7 +61,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β, SE, `ci_*`; predictors); `margins`: dP(level)/dx per `"<level>:<term>"`.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β, SE, `ci_*`; predictors); `margins`: dP(level)/dx per `"<level>:<term>"`.
 
 ## Reading the output
 
@@ -78,12 +79,12 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 ## Gotchas
 
 - Dictionary order = import order; else pass `levels`.
-- Small Brant p: the predictor's effect differs across thresholds.
+- Small Brant / nominal p: an effect varies by step.
 - Frequency weights = the `rep()` expansion; probability weights follow `REG_GLM`'s rule (w* = w·n_eff/Σw).
 - Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.
-- `resample` / `selection` keep the first fit's levels: a bootstrap draw lacking one is skipped, a jackknife one fails (`replicate_empty_level`). AIC / BIC k counts thresholds.
+- `resample` / `selection` refits keep the full fit's levels (`replicate_empty_level`); AIC / BIC k counts thresholds.
 - Separation: `NO_CONVERGE`, fails alone.
-- `compare`: `lrt` (`anova.polr`) / `wald`, same `levels`; [`regression-comparison`](regression-comparison.md).
+- `compare`: `lrt` / `wald`, same `levels` ([`regression-comparison`](regression-comparison.md)).
 
 ## See
 

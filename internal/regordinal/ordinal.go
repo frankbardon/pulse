@@ -3,7 +3,8 @@
 // extension contract (extend.Regression) and registered by
 // internal/regadapt as a model regression (internal/model.ModelRegression):
 // its params, factory and model, the Brant test of the proportional-odds
-// assumption (brant.go) and the robust covariances. The declaration
+// assumption (brant.go), the likelihood-ratio test against the partial
+// proportional-odds fit (nominal.go) and the robust covariances. The declaration
 // (description, params, outputs) is internal/descriptor's
 // model-regression table, which both predict and the engine adapter
 // read; purpose and interpretation are the descriptor's built-in
@@ -47,11 +48,16 @@ const ThresholdSeparator = pmodel.OrdinalThresholdSeparator
 // brantParams is params.brant: an opt-in block with no keys today.
 type brantParams struct{}
 
+// nominalTestParams is params.nominal_test: an opt-in block with no
+// keys today.
+type nominalTestParams struct{}
+
 // params is the params object.
 type params struct {
-	Link   string       `json:"link,omitempty"`
-	Levels []string     `json:"levels,omitempty"`
-	Brant  *brantParams `json:"brant,omitempty"`
+	Link        string             `json:"link,omitempty"`
+	Levels      []string           `json:"levels,omitempty"`
+	Brant       *brantParams       `json:"brant,omitempty"`
+	NominalTest *nominalTestParams `json:"nominal_test,omitempty"`
 }
 
 // OutputSchema is REG_ORDINAL's declared Outputs.
@@ -61,6 +67,7 @@ var OutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "thresholds", JSONType: "array", Description: "The threshold coefficients' names, in order (no p-value)."},
 	{Key: "fitted_probabilities", JSONType: "object", Description: "Per level: the weighted mean fitted P(Y = level | x) over the fitted rows."},
 	{Key: "brant", JSONType: "object", Description: "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."},
+	{Key: "nominal_test", JSONType: "object", Description: "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."},
 }
 
 // OutputKeys are OutputSchema's keys, in order.
@@ -166,7 +173,8 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 		return nil, err
 	}
 	m := &model{spec: spec, link: l, levels: slices.Clone(p.Levels), brant: p.Brant != nil,
-		cov: spec.Covariance.EffectiveType()}
+		nominalTest: p.NominalTest != nil,
+		cov:         spec.Covariance.EffectiveType()}
 	if spec.Covariance != nil {
 		m.cluster = spec.Covariance.Cluster
 	}
@@ -199,6 +207,7 @@ type model struct {
 	link        link
 	levels      []string // params.levels; nil = the data's own order
 	brant       bool
+	nominalTest bool
 	cov         types.CovarianceType
 	cluster     string
 	probability bool
@@ -517,5 +526,38 @@ func (m *model) output(d *design, sol *solution, vcov [][]float64, levels, thres
 		}
 		out.Outputs["brant"] = map[string]any{"statistic": b.stat, "df": b.df, "p_value": b.p, "terms": terms}
 	}
+	if m.nominalTest {
+		m.attachNominalTest(&out, d, sol)
+	}
 	return out
+}
+
+// attachNominalTest adds outputs.nominal_test and a
+// PROCESSING_REGRESSION_DIAGNOSTIC warning per figure left null.
+func (m *model) attachNominalTest(out *extend.RegressionOutput, d *design, sol *solution) {
+	nt := d.nominalTest(m.link, sol)
+	figure := func(f nominalFigure) map[string]any {
+		return map[string]any{"statistic": f.stat, "df": f.df, "p_value": f.p}
+	}
+	terms := make(map[string]any, d.p)
+	for a, name := range m.spec.Predictors {
+		terms[name] = figure(nt.terms[a])
+	}
+	o := figure(nt.omnibus)
+	o["terms"] = terms
+	out.Outputs["nominal_test"] = o
+	for _, f := range nt.failures {
+		what, details := "every predictor", map[string]any{"reason": f.reason, "scope": "omnibus", "iterations": f.iters}
+		if f.term >= 0 {
+			what = m.spec.Predictors[f.term]
+			details["scope"], details["term"] = "term", what
+		}
+		msg := fmt.Sprintf("%s: params.nominal_test: the partial proportional-odds fit with %s non-parallel did not converge (%s); its statistic and p-value are null", Name, what, f.cause)
+		if f.reason == ReasonNominalNoConverge {
+			details["cause"] = f.cause
+		} else {
+			msg = fmt.Sprintf("%s: params.nominal_test: the partial proportional-odds fit with %s non-parallel crosses its cumulative probabilities at a fitted row; its statistic and p-value are null", Name, what)
+		}
+		out.Warnings = append(out.Warnings, &types.ResponseWarning{Code: string(perr.PROCESSING_REGRESSION_DIAGNOSTIC), Message: msg, Details: details})
+	}
 }

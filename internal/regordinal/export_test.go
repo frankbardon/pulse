@@ -15,3 +15,11 @@ var LoadModifiers = loadModifiers
 type MarginsOracleCase = marginsOracleCase
 
 var LoadMarginsOracle = loadMarginsOracle
+
+type OracleNominal = oracleNominal
+
+var NominalErr = nominalErr
+
+var NominalReasons = nominalReasons
+
+const NominalRel = nominalRel

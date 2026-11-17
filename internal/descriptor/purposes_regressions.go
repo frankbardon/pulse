@@ -262,7 +262,7 @@ var (
 			regIndependentRows,
 			"The levels are ordered: params.levels gives the order, else a categorical's dictionary order or a number's ascending values; an unordered outcome needs another model.",
 			"Proportional odds: each predictor moves every threshold of the scale by the same amount (one coefficient per predictor); " +
-				"params.brant tests it, and a small Brant p-value says some effect differs across the scale.",
+				"params.brant (logit) or params.nominal_test (any link) tests it, and a small p-value says some effect differs across the scale.",
 			"The link sets the shape of the scale's steps: logit (default) reads coefficients as log odds ratios, probit as shifts of a normal latent score, " +
 				"cloglog as log hazard ratios.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, a Wald z on the fitted information.",

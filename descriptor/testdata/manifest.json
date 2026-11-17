@@ -10413,6 +10413,12 @@
             "type": "object",
             "required": false,
             "description": "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."
+          },
+          {
+            "name": "nominal_test",
+            "type": "object",
+            "required": false,
+            "description": "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."
           }
         ],
         "intents": [
@@ -10448,6 +10454,11 @@
             "key": "brant",
             "json_type": "object",
             "description": "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."
+          },
+          {
+            "key": "nominal_test",
+            "json_type": "object",
+            "description": "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."
           }
         ]
       }
@@ -15199,7 +15210,7 @@
       },
       {
         "name": "op-reg-ordinal",
-        "description": "REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered."
+        "description": "REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant and nominal tests, weights, refusals. Always buffered."
       },
       {
         "name": "op-synth-bernoulli",
@@ -21959,4 +21970,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9efaa510e0c50e87398d28936500d42f2c237bc315150968611e909bc2fb1413
+// golden-hash: 9488fe8ac4b050efc9e5f7561845ef862c4ea3851ff484c0addf172b3e41c0b0

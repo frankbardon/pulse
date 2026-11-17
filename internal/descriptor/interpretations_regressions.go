@@ -709,7 +709,7 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 		Caveats: []string{
 			"Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score " +
 				"by that many standard deviations, under cloglog it is a log hazard ratio.",
-			"It assumes the effect is the same at every step (proportional odds); params.brant tests it.",
+			"It assumes the effect is the same at every step (proportional odds); params.brant (logit) or params.nominal_test (any link) tests it.",
 			regCoefCausal,
 			regCoefUnits,
 			regCoefCollinear,
@@ -780,10 +780,12 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 		Field: "outputs.*",
 		Means: "outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; " +
 			"outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: " +
-			"a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.",
+			"a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it; " +
+			"outputs.nominal_test, with params.nominal_test, the same question on any link as a likelihood-ratio test against a fit that frees the predictor's effect at every step (every predictor for the omnibus).",
 		Caveats: []string{
 			"The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.",
 			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
+			"A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight it is a working-likelihood ratio, not a design-based test.",
 		},
 	},
 }, regOutcomeHoldout, regExponentiated("the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).",

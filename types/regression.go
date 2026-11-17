@@ -68,7 +68,9 @@ const (
 	// default; probit; cloglog). It names its own threshold
 	// coefficients ("<level>|<next level>") beside the predictors and
 	// fits no intercept; params.brant adds the Brant test of the
-	// proportional-odds assumption. Always buffered (Newton–Raphson over
+	// proportional-odds assumption (logit) and params.nominal_test the
+	// likelihood-ratio test against the partial proportional-odds fit
+	// (any link). Always buffered (Newton–Raphson over
 	// every admitted row).
 	REG_ORDINAL RegressionType = "REG_ORDINAL"
 )

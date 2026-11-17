@@ -206,20 +206,36 @@ type fitFailure struct {
 	iters  int
 }
 
-// newton maximises ℓ from the start: each step solves I·δ = ∇ℓ and is
-// halved until it stays inside the parameter space (increasing
-// thresholds, every row probability positive) and does not lower ℓ.
-// It stops when the relative step max_j |δ_j| / max(|θ_j|, 1) falls to
-// stepTol — then the information is re-evaluated at the final θ.
+// newton maximises ℓ from the start (maximise, on the
+// proportional-odds likelihood).
 func (d *design) newton(l link) (*solution, *fitFailure) {
-	theta := d.start(l)
-	ll, ok := d.loglik(l, theta)
+	return maximise(d.start(l), objective{
+		loglik:   func(theta []float64) (float64, bool) { return d.loglik(l, theta) },
+		gradInfo: func(theta []float64) ([]float64, *linalg.Sym) { return d.gradInfo(l, theta) },
+	})
+}
+
+// objective is a log-likelihood to maximise: ℓ (false outside the
+// parameter space) and its gradient and observed information.
+type objective struct {
+	loglik   func(theta []float64) (float64, bool)
+	gradInfo func(theta []float64) ([]float64, *linalg.Sym)
+}
+
+// maximise runs Newton–Raphson on obj from theta (modified in place):
+// each step solves I·δ = ∇ℓ and is halved until it stays inside the
+// parameter space (obj.loglik true) and does not lower ℓ. It stops when
+// the relative step max_j |δ_j| / max(|θ_j|, 1) of a full (unhalved)
+// step falls to stepTol — then the information is re-evaluated at the
+// final θ.
+func maximise(theta []float64, obj objective) (*solution, *fitFailure) {
+	ll, ok := obj.loglik(theta)
 	if !ok {
 		return nil, &fitFailure{reason: "start"}
 	}
 	next := make([]float64, len(theta))
 	for it := 1; it <= maxNewton; it++ {
-		grad, info := d.gradInfo(l, theta)
+		grad, info := obj.gradInfo(theta)
 		step, err := linalg.SolveSPD(info, linalg.NewVec(grad))
 		if err != nil {
 			return nil, &fitFailure{reason: "singular_information", iters: it}
@@ -232,7 +248,7 @@ func (d *design) newton(l link) (*solution, *fitFailure) {
 			for j := range theta {
 				next[j] = theta[j] + delta[j]
 			}
-			if v, ok := d.loglik(l, next); ok && v >= ll-float64(1e-12*math.Abs(ll)) {
+			if v, ok := obj.loglik(next); ok && v >= ll-float64(1e-12*math.Abs(ll)) {
 				nll, accepted = v, true
 				break
 			}
@@ -254,7 +270,7 @@ func (d *design) newton(l link) (*solution, *fitFailure) {
 		// A halved step is no evidence of convergence: only a full
 		// Newton step this small is.
 		if rel <= stepTol && !halved {
-			_, info := d.gradInfo(l, theta)
+			_, info := obj.gradInfo(theta)
 			return &solution{theta: theta, ll: ll, info: info, iters: it}, nil
 		}
 	}

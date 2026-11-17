@@ -85,6 +85,9 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Exponentiate: true},
 		// The opt-in per-level margins (U68 E4-S1).
 		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Margins: &types.RegressionMargins{}},
+		// The opt-in Brant and nominal (partial proportional-odds) tests
+		// (U68 E6-S1).
+		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Params: json.RawMessage(`{"brant":{},"nominal_test":{}}`)},
 	},
 }
 

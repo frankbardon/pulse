@@ -169,6 +169,7 @@ var ordinalParams = []descriptor.Param{
 	{Name: "link", Type: "enum", EnumValues: regordinal.Links(), Default: regordinal.LinkLogit, Description: "Cumulative link F in P(Y ≤ k | x) = F(ζ_k − xᵀβ) (polr's method): logit (default), probit or cloglog."},
 	{Name: "levels", Type: "list", Description: "Level order, lowest first: a categorical's labels or a number's values as written (\"2.5\"); 3 to 100, each once. A row whose response is unlisted is dropped (R's factor NA); a listed level no row carries fails the slot. Absent: dictionary order, or ascending values."},
 	{Name: "brant", Type: "object", Description: "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."},
+	{Name: "nominal_test", Type: "object", Description: "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."},
 }
 
 // bayesOutputKeys are REG_MMM_BAYES's declared Outputs keys, in order.

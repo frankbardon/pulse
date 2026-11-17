@@ -127,6 +127,9 @@ func caseSpec(c regordinal.OracleCase, levelsParam []string) *types.RegressionSp
 	if c.Brant != nil {
 		params["brant"] = map[string]any{}
 	}
+	if c.NominalTest != nil {
+		params["nominal_test"] = map[string]any{}
+	}
 	if levelsParam != nil {
 		params["levels"] = levelsParam
 	}
@@ -222,6 +225,7 @@ func checkAgainstGolden(t *testing.T, c regordinal.OracleCase, res *types.Regres
 		v, _ := fp[lv].(float64)
 		check("fitted_probability "+lv, v, c.FittedProbabilities[k])
 	}
+	checkNominalOutput(t, c, res)
 	if c.Brant == nil {
 		if _, ok := out["brant"]; ok {
 			t.Errorf("outputs.brant present without params.brant")
@@ -239,6 +243,60 @@ func checkAgainstGolden(t *testing.T, c regordinal.OracleCase, res *types.Regres
 		tm, _ := terms[name].(map[string]any)
 		check("brant "+name, tm["statistic"].(float64), c.Brant.Terms[a])
 		check("brant p "+name, tm["p_value"].(float64), c.Brant.TermsP[a])
+	}
+}
+
+// checkNominalOutput compares outputs.nominal_test and the result's
+// warnings with the golden: absent without params.nominal_test (no key,
+// no warning); else every figure (NaN where R's partial fit failed) and
+// one PROCESSING_REGRESSION_DIAGNOSTIC warning per null figure, terms
+// first, then the omnibus.
+func checkNominalOutput(t *testing.T, c regordinal.OracleCase, res *types.RegressionResult) {
+	t.Helper()
+	nt, ok := res.Outputs["nominal_test"].(map[string]any)
+	if c.NominalTest == nil {
+		if _, present := res.Outputs["nominal_test"]; present || len(res.Warnings) > 0 {
+			t.Errorf("outputs.nominal_test %v / warnings %v without params.nominal_test", res.Outputs["nominal_test"], res.Warnings)
+		}
+		return
+	}
+	if !ok {
+		t.Fatalf("outputs.nominal_test = %v, want an object", res.Outputs["nominal_test"])
+	}
+	want := c.NominalTest
+	check := func(what string, got any, w *float64) {
+		t.Helper()
+		v, isNum := got.(float64)
+		if e := regordinal.NominalErr(v, w); !isNum || !(e <= regordinal.NominalRel) {
+			t.Errorf("nominal %s = %v, R %v", what, got, w)
+		}
+	}
+	check("statistic", nt["statistic"], want.Statistic)
+	check("p_value", nt["p_value"], want.PValue)
+	if nt["df"] != want.DF {
+		t.Errorf("nominal df %v, want %v", nt["df"], want.DF)
+	}
+	terms, _ := nt["terms"].(map[string]any)
+	if len(terms) != len(c.Predictors) {
+		t.Fatalf("nominal terms %v, want one per predictor %v", terms, c.Predictors)
+	}
+	for a, name := range c.Predictors {
+		tm, _ := terms[name].(map[string]any)
+		check("statistic "+name, tm["statistic"], want.Terms[a])
+		check("p_value "+name, tm["p_value"], want.TermsP[a])
+		if tm["df"] != want.TermsDF {
+			t.Errorf("nominal %s df %v, want %v", name, tm["df"], want.TermsDF)
+		}
+	}
+	if len(res.Warnings) != len(want.Failed) {
+		t.Fatalf("warnings %v, want one per failed partial fit %+v", res.Warnings, want.Failed)
+	}
+	for i, f := range want.Failed {
+		w := res.Warnings[i]
+		if w.Code != string(perr.PROCESSING_REGRESSION_DIAGNOSTIC) || w.Details["reason"] != regordinal.NominalReasons[f.Reason] ||
+			w.Details["scope"] != f.Scope || (f.Scope == "term") != (w.Details["term"] == f.Term) {
+			t.Errorf("warning %d = %s %v, want %s %s %q", i, w.Code, w.Details, f.Reason, f.Scope, f.Term)
+		}
 	}
 }
 
@@ -492,6 +550,7 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"params_brant":      {`,"params":{"link":"probit","brant":{}}`, perr.PROCESSING_CONFIG, "params.brant"},
 		"params_unknown":    {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
 		"brant_key":         {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
+		"nominal_test_key":  {`,"params":{"nominal_test":{"terms":["x1"]}}`, perr.PROCESSING_CONFIG, "params"},
 		"conf_level":        {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
 		// The weighted modifiers follow the built-ins' weight rule (U68
 		// E2-S1): no weighted bootstrap, no weighted information criterion.
@@ -539,7 +598,11 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"probit":       `,"params":{"link":"probit"}`,
 		"cloglog":      `,"params":{"link":"cloglog"}`,
 		"brant":        `,"params":{"brant":{}}`,
-		"levels":       `,"params":{"levels":["1","2","3"]}`,
+		// The nominal test runs on every link (U68 E6-S1).
+		"nominal_test":         `,"params":{"nominal_test":{}}`,
+		"nominal_test_probit":  `,"params":{"link":"probit","nominal_test":{}}`,
+		"nominal_test_cloglog": `,"params":{"link":"cloglog","nominal_test":{}}`,
+		"levels":               `,"params":{"levels":["1","2","3"]}`,
 		// Its scorer (ATTR_REG_PREDICT) makes the fit saveable.
 		"save": `,"save":"m.pulse-model.json"`,
 		// Its probability vector scores a holdout (U68 E1-S3).

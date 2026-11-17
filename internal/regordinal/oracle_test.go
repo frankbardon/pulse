@@ -15,7 +15,8 @@ import (
 )
 
 // oracle_test.go pins the fit's arithmetic to R 4.6.1 (MASS 7.3-66 polr,
-// brant 0.3.0, sandwich 3.1-3): scripts/reference/gen_ordinal.R →
+// brant 0.3.0, sandwich 3.1-3, ordinal 2026.7-26 nominal_test):
+// scripts/reference/gen_ordinal.R →
 // internal/processing/testdata/reference/ordinal.json. The golden is the
 // MLE (polr polished by Newton on the analytic derivatives), so the
 // comparison is held at oracleRel = 1e-10 relative; the measured worst
@@ -42,7 +43,10 @@ type oracleCase struct {
 	AIC                 *float64     `json:"aic"`
 	FittedProbabilities []float64    `json:"fitted_probabilities"`
 	Brant               *oracleBrant `json:"brant"`
-	Rows                [][]float64  `json:"rows"`
+	// NominalTest is the likelihood-ratio test against the partial
+	// proportional-odds fit (U68 E6-S1, ordinal::nominal_test).
+	NominalTest *oracleNominal `json:"nominal_test"`
+	Rows        [][]float64    `json:"rows"`
 	// RowEta / RowProbabilities are the per-row scores at the MLE (x'β
 	// and predict(polr, type = "probs")), on the classical cases.
 	RowEta           []float64   `json:"row_eta"`
@@ -81,6 +85,45 @@ type oracleBrant struct {
 	Terms     []float64 `json:"terms"`
 	TermsDF   float64   `json:"terms_df"`
 	TermsP    []float64 `json:"terms_p"`
+}
+
+// oracleNominal is a case's nominal test: a null figure (a partial fit
+// that did not converge or crosses) is nil, named in Failed.
+type oracleNominal struct {
+	Statistic *float64   `json:"statistic"`
+	DF        float64    `json:"df"`
+	PValue    *float64   `json:"p_value"`
+	Terms     []*float64 `json:"terms"`
+	TermsDF   float64    `json:"terms_df"`
+	TermsP    []*float64 `json:"terms_p"`
+	Failed    []struct {
+		Scope  string `json:"scope"`
+		Term   string `json:"term"`
+		Reason string `json:"reason"`
+	} `json:"failed"`
+}
+
+// nominalReasons maps the golden's failure reasons to the warning's.
+var nominalReasons = map[string]string{"no_converge": ReasonNominalNoConverge, "crossing": ReasonNominalCrossing}
+
+// nominalRel is the nominal test's tolerance, relative with a floor of
+// 1: the statistic is a difference of two log-likelihoods, so its
+// absolute error scales with |ℓ|, not with the (often small) statistic.
+const nominalRel = 1e-10
+
+// nominalErr is |got − want| / max(|want|, 1), +Inf when exactly one of
+// them is undefined (want nil).
+func nominalErr(got float64, want *float64) float64 {
+	if want == nil {
+		if math.IsNaN(got) {
+			return 0
+		}
+		return math.Inf(1)
+	}
+	if math.IsNaN(got) {
+		return math.Inf(1)
+	}
+	return math.Abs(got-*want) / math.Max(math.Abs(*want), 1)
 }
 
 // oracleModifiers is ordinal.json's resample / selection block (U68
@@ -155,7 +198,7 @@ func loadOracleDoc(t *testing.T) ([]oracleCase, oracleModifiers) {
 	if err := json.Unmarshal(body, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.RVersion != "R version 4.6.1 (2026-06-24)" || doc.Packages["MASS"] != "7.3.66" || doc.Packages["brant"] != "0.3.0" || doc.Packages["sandwich"] != "3.1.3" {
+	if doc.RVersion != "R version 4.6.1 (2026-06-24)" || doc.Packages["MASS"] != "7.3.66" || doc.Packages["brant"] != "0.3.0" || doc.Packages["sandwich"] != "3.1.3" || doc.Packages["ordinal"] != "2026.7.26" {
 		t.Fatalf("ordinal.json records R %q, packages %v", doc.RVersion, doc.Packages)
 	}
 	if len(doc.Cases) < 10 {
@@ -265,7 +308,63 @@ func TestOrdinalOracle_Design(t *testing.T) {
 					}
 				}
 			}
+			if c.NominalTest != nil {
+				nt := d.nominalTest(l, sol)
+				checkNominal(t, nt, *c.NominalTest, c.Predictors, note)
+			}
 		})
 	}
 	t.Logf("max relative error vs R: %v", worst)
+}
+
+// checkNominal compares a nominal test with its golden: every figure
+// (null where R's partial fit failed) and the failures, terms first.
+func checkNominal(t *testing.T, nt nominalResult, want oracleNominal, preds []string, note func(string, float64)) {
+	t.Helper()
+	check := func(what string, got float64, want *float64) {
+		t.Helper()
+		e := nominalErr(got, want)
+		if !math.IsInf(e, 1) {
+			note(strings.Fields(what)[0], e)
+		}
+		if !(e <= nominalRel) {
+			t.Errorf("%s = %.17g, R %v (err %.3g)", what, got, fmtPtr(want), e)
+		}
+	}
+	check("nominal_statistic", nt.omnibus.stat, want.Statistic)
+	check("nominal_p", nt.omnibus.p, want.PValue)
+	if nt.omnibus.df != want.DF {
+		t.Errorf("nominal df = %v, R %v", nt.omnibus.df, want.DF)
+	}
+	if len(nt.terms) != len(want.Terms) {
+		t.Fatalf("nominal terms %d, R %d", len(nt.terms), len(want.Terms))
+	}
+	for a, tm := range nt.terms {
+		check("nominal_term_statistic "+preds[a], tm.stat, want.Terms[a])
+		check("nominal_term_p "+preds[a], tm.p, want.TermsP[a])
+		if tm.df != want.TermsDF {
+			t.Errorf("nominal term df = %v, R %v", tm.df, want.TermsDF)
+		}
+	}
+	if len(nt.failures) != len(want.Failed) {
+		t.Fatalf("nominal failures %+v, R %+v", nt.failures, want.Failed)
+	}
+	for i, f := range nt.failures {
+		w := want.Failed[i]
+		term := ""
+		if f.term >= 0 {
+			term = preds[f.term]
+		}
+		scope := map[bool]string{true: "term", false: "omnibus"}[f.term >= 0]
+		if scope != w.Scope || term != w.Term || f.reason != nominalReasons[w.Reason] {
+			t.Errorf("nominal failure %d = %s %q %s, R %s %q %s", i, scope, term, f.reason, w.Scope, w.Term, w.Reason)
+		}
+	}
+}
+
+func fmtPtr(v *float64) any {
+	if v == nil {
+		return "null"
+	}
+	return *v
 }

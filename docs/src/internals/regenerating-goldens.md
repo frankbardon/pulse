@@ -722,7 +722,14 @@ numerically, so the script stops unless polr (reltol 1e-14) agrees to
 probabilities, and the Brant test re-run with the binary logits at their
 fixed point (the package's own figure reproduced exactly with its
 untransposed cross block and glm's default stop; the golden keeps the
-symmetric covariance). Frequency weights are asserted equal to the
+symmetric covariance). The nominal test (U68 E6-S1, `ordinal`
+2026.7-26) polishes each partial proportional-odds fit by Newton on its
+analytic derivatives from the polished MLE and stops unless `clm`'s
+logLik agrees to 1e-8 and `nominal_test`'s LRT (the omnibus: `clm`
+with every predictor nominal) to 1e-6; a non-converging or crossing
+partial fit is recorded `null` (`nominal_test.failed`, R's own figure
+as `r_reported`); the `nominal_noconverge` case pins one, `logit_freq`'s
+x1 a crossing. Frequency weights are asserted equal to the
 `rep()` expansion. `TestOrdinalOracle_Design` and
 `TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
 figure at relative `1e-10` (measured within 2e-12). Every case carries
@@ -764,6 +771,7 @@ is the whole list in one place.
 | `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; `gen_margins.R`'s `multinomial_cases`; `gen_nested.R`'s `multinomial_cases`, `anova.multinom`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`, `stepAIC`; `anova.polr` in `gen_nested.R`); `REG_MULTINOMIAL` modifiers (`gen_multinomial.R`: `stepAIC`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
+| `ordinal` | 2026.7-26 | the `REG_ORDINAL` nominal test (`gen_ordinal.R`: `clm`, `nominal_test`); with its import `ucminf` 1.2.3 (pinned; compiles Fortran, so install both with the workaround below) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6); the multinomial `term_tests` (`gen_multinomial.R`: `linearHypothesis`, `Anova`) |
 | `ppcor` | 1.1 | partial correlation |
@@ -804,7 +812,7 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0", MASS = "7.3-66")
+            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

@@ -607,6 +607,7 @@ source(file.path(script_dir, "gen_multinomial_penalty.R"), local = FALSE)
 # probabilities and the Brant test with the binary logits at their
 # fixed point; frequency weights against the rep() expansion,
 # probability weights on w*; U68 E2-S1: the manual-deletion jackknife
-# and MASS::stepAIC on polr); MASS 7.3-66 + sandwich 3.1-3 + brant 0.3.0
-# + jsonlite. Seeded RNG.
+# and MASS::stepAIC on polr; U68 E6-S1: the nominal test against the
+# partial proportional-odds fit, ordinal::nominal_test); MASS 7.3-66 +
+# sandwich 3.1-3 + brant 0.3.0 + ordinal 2026.7-26 + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)

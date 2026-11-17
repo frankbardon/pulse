@@ -107,8 +107,9 @@ const (
 	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
 	// fit whose own diagnostic crossed its threshold while the fit still
 	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
-	// post-warmup divergences, tree-depth saturation. details.reason
-	// names the diagnostic; the rest of details carries its figures. An
+	// post-warmup divergences, tree-depth saturation, or REG_ORDINAL's
+	// params.nominal_test partial fit that did not converge or crosses
+	// (that figure null). details.reason names the diagnostic; the rest of details carries its figures. An
 	// extension regression emits it through
 	// extend.RegressionOutput.Warnings; under Strict it fails the slot
 	// with this code.
