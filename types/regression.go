@@ -781,13 +781,6 @@ type RegressionResult struct {
 	// some failed. Bootstrap only.
 	BootstrapSucceeded int `json:"bootstrap_succeeded,omitempty"`
 
-	// BootstrapSkipped counts the replicates the bootstrap skipped —
-	// BootstrapRequested − BootstrapSucceeded: a refit that failed with
-	// a data-dependent refusal (rank deficiency, no convergence, a
-	// REG_ORDINAL replicate that lost a response level the full fit
-	// has). Absent (zero) when every replicate refit. Bootstrap only.
-	BootstrapSkipped int `json:"bootstrap_skipped,omitempty"`
-
 	// JackknifeGroups is the delete-a-group jackknife's replicate count
 	// g — RegressionSpec.JackknifeGroups, or the distinct JackknifeBy
 	// values among the fitted rows. Absent on a leave-one-out jackknife

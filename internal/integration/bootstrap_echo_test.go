@@ -35,12 +35,6 @@ func TestProcess_BootstrapItersEchoed(t *testing.T) {
 		if !strings.Contains(string(b), `"bootstrap_requested":`+itoa(tc.want)) || !strings.Contains(string(b), `"bootstrap_succeeded":`) {
 			t.Errorf("wire form lacks the echo: %s", b)
 		}
-		// bootstrap_skipped is absent exactly when no replicate was
-		// skipped (U68 E2-S1): existing outputs stay byte-identical.
-		if skipped := r.BootstrapRequested - r.BootstrapSucceeded; strings.Contains(string(b), `"bootstrap_skipped":`) != (skipped > 0) ||
-			(skipped > 0 && !strings.Contains(string(b), `"bootstrap_skipped":`+itoa(skipped))) {
-			t.Errorf("bootstrap_skipped on the wire disagrees with %d skipped: %s", skipped, b)
-		}
 	}
 }
 

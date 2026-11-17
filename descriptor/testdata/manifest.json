@@ -8983,7 +8983,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
             "slot": true
           },
           {
@@ -9496,7 +9496,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
             "slot": true
           },
           {
@@ -9899,7 +9899,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
             "slot": true
           },
           {
@@ -10110,7 +10110,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
             "slot": true
           },
           {
@@ -21791,4 +21791,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5d3c883f6840064613ee0a2337efd61f93a453f6cca37e455414f96d8b56d9e8
+// golden-hash: a4d19b3d7267bce4e472b4a978646c1a0dc103cc13e83ad553bdc6b88fd3c66f

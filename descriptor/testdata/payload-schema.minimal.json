@@ -1388,9 +1388,6 @@
         "bootstrap_requested": {
           "type": "integer"
         },
-        "bootstrap_skipped": {
-          "type": "integer"
-        },
         "bootstrap_succeeded": {
           "type": "integer"
         },
@@ -2421,4 +2418,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3ebae1c8bd9ba7722c759e2075b51fc021372556fcd614acfeb829effd959fbd
+// golden-hash: 3bef66c135af9d3c355f3326c5744b0fb62f487f097062639c1de3ed8a8147e7

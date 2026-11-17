@@ -20,7 +20,7 @@ import (
 // replicate that lost a level would report other threshold names. The
 // pin fixes params.levels at the slot's first fit's levels, so a refit
 // whose rows lack one fails with ReasonReplicateEmptyLevel: a bootstrap
-// skips that replicate (bootstrap_skipped counts it), a jackknife
+// skips that replicate (requested − succeeded counts it), a jackknife
 // fails the slot alone (every replicate enters its variance), a
 // selection candidate is dropped.
 

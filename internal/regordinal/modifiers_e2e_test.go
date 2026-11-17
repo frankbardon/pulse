@@ -21,7 +21,7 @@ import (
 // (ordinal.json's modifiers block: the manual-deletion jackknife on
 // polr and MASS::stepAIC on polr, gen_ordinal.R), and pins the level
 // pin (decision D5): a bootstrap replicate that lost a level is skipped
-// and counted (bootstrap_skipped), a jackknife replicate that lost one
+// (bootstrap_requested − bootstrap_succeeded counts it), a jackknife replicate that lost one
 // fails the slot alone with reason replicate_empty_level.
 
 // modRel is the oracle tolerance: every figure is a polished MLE (or a
@@ -148,8 +148,8 @@ func TestRegOrdinal_SelectionMatchesStepAIC(t *testing.T) {
 }
 
 // TestRegOrdinal_BootstrapSeedStable: a seeded bootstrap is bit-for-bit
-// stable across runs and DecodeWorkers / ShardWorkers counts; with no
-// replicate skipped, bootstrap_skipped is absent on the wire.
+// stable across runs and DecodeWorkers / ShardWorkers counts, every
+// replicate refitting (succeeded = requested).
 func TestRegOrdinal_BootstrapSeedStable(t *testing.T) {
 	t.Parallel()
 	jk := regordinal.LoadModifiers(t).Jackknife
@@ -158,19 +158,12 @@ func TestRegOrdinal_BootstrapSeedStable(t *testing.T) {
 		p := newInstance(t, func(o *pulse.Options) { o.DecodeWorkers, o.ShardWorkers = w, w })
 		writeCohort(t, p, "jk.pulse", cohortSpec{p: len(jk.Predictors)}, jk.Rows, nil)
 		res := fitOne(t, p, "jk.pulse", modSpec(t, jk.Predictors, `,"resample":"bootstrap","bootstrap_iters":40,"rng_seed":11`))
-		if res.BootstrapRequested != 40 || res.BootstrapSucceeded != 40 || res.BootstrapSkipped != 0 {
-			t.Fatalf("bootstrap %d / %d / %d skipped, want 40 / 40 / 0", res.BootstrapRequested, res.BootstrapSucceeded, res.BootstrapSkipped)
+		if res.BootstrapRequested != 40 || res.BootstrapSucceeded != 40 {
+			t.Fatalf("bootstrap %d requested / %d succeeded, want 40 / 40", res.BootstrapRequested, res.BootstrapSucceeded)
 		}
 		b := mustJSON(t, res)
 		if first == "" {
 			first = b
-			var wire map[string]any
-			if err := json.Unmarshal([]byte(b), &wire); err != nil {
-				t.Fatal(err)
-			}
-			if _, ok := wire["bootstrap_skipped"]; ok {
-				t.Errorf("bootstrap_skipped on the wire with none skipped: %s", b)
-			}
 			continue
 		}
 		if b != first {
@@ -201,8 +194,8 @@ func rareLevelRows(rows [][]float64, p, keep int, g float64) [][]float64 {
 
 // TestRegOrdinal_ReplicateLevelLoss: every replicate keeps the full
 // fit's levels (D5). A bootstrap replicate whose draw lost the rare
-// fourth level is skipped and counted (bootstrap_skipped = requested −
-// succeeded); a jackknife replicate that loses it — the leave-one-out
+// fourth level is skipped (bootstrap_succeeded < bootstrap_requested);
+// a jackknife replicate that loses it — the leave-one-out
 // deletion of its only row, or the deleted cluster holding every row of
 // it — fails the slot alone (PULSE_SLOT_FAILED,
 // PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason replicate_empty_level)
@@ -222,11 +215,11 @@ func TestRegOrdinal_ReplicateLevelLoss(t *testing.T) {
 	t.Run("bootstrap_skips", func(t *testing.T) {
 		t.Parallel()
 		res := fitOne(t, p, "rare.pulse", modSpec(t, jk.Predictors, `,"resample":"bootstrap","bootstrap_iters":60,"rng_seed":5`))
-		if res.BootstrapSkipped == 0 || res.BootstrapSkipped != res.BootstrapRequested-res.BootstrapSucceeded || res.BootstrapSucceeded < 10 {
-			t.Fatalf("bootstrap %d requested, %d succeeded, %d skipped: want some skipped, counted", res.BootstrapRequested, res.BootstrapSucceeded, res.BootstrapSkipped)
+		if res.BootstrapRequested != 60 || res.BootstrapSucceeded >= res.BootstrapRequested || res.BootstrapSucceeded < 10 {
+			t.Fatalf("bootstrap %d requested, %d succeeded: want some skipped", res.BootstrapRequested, res.BootstrapSucceeded)
 		}
 		b := mustJSON(t, res)
-		if want := fmt.Sprintf(`"bootstrap_skipped":%d`, res.BootstrapSkipped); !strings.Contains(b, want) {
+		if want := fmt.Sprintf(`"bootstrap_succeeded":%d`, res.BootstrapSucceeded); !strings.Contains(b, want) {
 			t.Errorf("wire form lacks %s: %s", want, b)
 		}
 		if !slices.Equal(anyStrings(res.Outputs["levels"]), []string{"1", "2", "3", "4"}) {
