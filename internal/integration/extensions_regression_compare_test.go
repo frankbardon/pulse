@@ -154,7 +154,7 @@ func TestExtensions_RegressionCompareRefusalsPredictMatchesRuntime(t *testing.T)
 		reason   string
 		requires string
 	}{
-		{"undeclared", compareBatch(cohort, regCompareUndeclared, ""), "type_unsupported", "type REG_OLS, REG_GLM or declared_compare"},
+		{"undeclared", compareBatch(cohort, regCompareUndeclared, ""), "type_unsupported", "type REG_OLS, REG_GLM, REG_MULTINOMIAL or declared_compare"},
 		{"f", compareBatch(cohort, regCompareOLS, types.ComparisonTestF), "requires", "estimated_dispersion"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

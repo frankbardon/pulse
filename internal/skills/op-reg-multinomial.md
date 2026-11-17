@@ -54,11 +54,11 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 
 ## Inputs
 
-`target`: a `categorical_*` cohort field (derived: `requires: categorical_target`). A null predictor drops the row.
+`target`: a `categorical_*` field (derived: `requires: categorical_target`). Null predictors drop the row.
 
 ## Output
 
-`Reference`, `Categories`; `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance`, `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`. `exponentiate`: `Exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `TermTests`, per predictor on df K−1 `wald_*` (the fit's covariance) and `lr_*` (vs the refit without it).
+`Reference`, `Categories`; `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance`, `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`. `exponentiate`: `Exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `TermTests`, per predictor, df K−1: `wald_*`, `lr_*` (vs the refit without it).
 
 <!-- generated: reading-the-output -->
 
@@ -70,11 +70,14 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 - Empty levels drop; an empty `reference` (`reference_empty`) or one level (`one_category`) fails alone.
 - Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `collinearity`; `margins` / `term_tests` beside a modifier or `penalty`.
 - `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI unless `resample`; no `vcov`.
-- `resample` / `selection` keep the fit's categories: a bootstrap draw missing one is skipped, a jackknife one fails (`replicate_empty_level`).
+- `resample` / `selection` keep the categories: a bootstrap draw missing one is skipped, a jackknife fails (`replicate_empty_level`).
 <!-- feature: ATTR_REG_PREDICT -->
 - `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `Categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
 <!-- /feature -->
 - Probability weight: no `TwoLogLik` / `AIC` / `lr_*`.
+<!-- feature: capability:compose_compare -->
+- `compare`: df (K−1)·terms; same `reference`.
+<!-- /feature -->
 - Separation → `PROCESSING_REGRESSION_SEPARATION`.
 
 ## See

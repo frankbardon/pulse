@@ -73,6 +73,12 @@ func (e *multinomialEngine) fitModified(ctx context.Context, records []Record) (
 		inner.Resample, inner.JackknifeGroups, inner.JackknifeBy, inner.BootstrapIters, inner.RNGSeed = "", 0, "", 0, 0
 		inner.Selection, inner.Criterion = "", ""
 		refit := &multinomialEngine{spec: &inner, levels: e.levels}
+		if pin == nil && e.spec.Selection == "" {
+			// The base fit — the first refit of an unselected slot, over
+			// every row and predictor — offers the comparison figures; a
+			// replicate never does (a comparison refuses selection).
+			refit.figures = e.figures
+		}
 		res, keys, err := refit.fitRows(recs, pin)
 		if err != nil {
 			return nil, nil, err

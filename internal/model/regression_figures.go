@@ -2,11 +2,11 @@ package model
 
 // RegressionFigures are the whole-fit figures a Compose nested-model
 // comparison (types.ComposedRequest.Compare, internal/regcompare) reads
-// off a REG_OLS / REG_GLM fit — or an extension-shaped model's whose
-// declaration carries Compare (extend.CompareRegression, mapped by
-// internal/regadapt: dispersion 1, WaldDF 0) — beyond its wire result.
-// They never reach
-// a result or the public API: a fit request a comparison names runs
+// off a REG_OLS / REG_GLM / REG_MULTINOMIAL fit — or an
+// extension-shaped model's whose declaration carries Compare
+// (extend.CompareRegression, mapped by internal/regadapt: dispersion 1,
+// WaldDF 0) — beyond its wire result. They never reach a result or the
+// public API: a fit request a comparison names runs
 // with a VectorCapture on its bound set (Set.WithCapture), and the
 // regression engine offers its figures there at finalize
 // (VectorCapture.OfferRegressionFigures) — the same handle a vector or
@@ -16,8 +16,17 @@ type RegressionFigures struct {
 	// Terms are the fitted coefficients in Covariance order:
 	// "(intercept)" when the fit has one, then the predictors (a
 	// declared model's own order: REG_ORDINAL's predictors, then its
-	// thresholds).
+	// thresholds; REG_MULTINOMIAL's "<category>:<term>" keys,
+	// category-major).
 	Terms []string
+
+	// TermKeys maps a term to its coefficient keys in Terms where a term
+	// fits more than one coefficient — REG_MULTINOMIAL's one
+	// "<category>:<term>" key per non-reference category, so a nested
+	// comparison tests (K − 1)·q coefficients for q added predictors.
+	// Nil when every term is its own key (REG_OLS, REG_GLM, a declared
+	// model's).
+	TermKeys map[string][]string
 
 	// Coefficients are the estimates aligned with Terms.
 	Coefficients []float64

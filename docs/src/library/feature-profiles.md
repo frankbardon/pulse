@@ -191,7 +191,7 @@ one name in every group must be enabled:
 | `capability:compose_base` | `capability:compose` (the batch `base` merged into every explicit slot; hidden, a set `base` is an unknown field) |
 | `capability:materialize_output` | `capability:materialize` (the materialize-only request `output` slot, which lays out the written cohort; hidden, a set `output` is an unknown field) |
 | `capability:compose_sweep_bind` | `capability:compose_sweep` and `capability:compose_fits` (a `fits` entry's `from_sweep`, binding the ranked sweep winner as a named fit; hidden, a set `from_sweep` is an unknown field) |
-| `capability:compose_compare` | `capability:compose_fits`, and `REG_GLM`, `REG_OLS` or `REG_ORDINAL` (the batch `compare` nested-model comparisons of two fits and the `comparisons` they produce; hidden, a set `compare` is an unknown field while `fits` stay) |
+| `capability:compose_compare` | `capability:compose_fits`, and `REG_GLM`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL` (the batch `compare` nested-model comparisons of two fits and the `comparisons` they produce; hidden, a set `compare` is an unknown field while `fits` stay) |
 | `capability:compose_post_fit` | `capability:compose_fits` (the batch `post_fit` runs of embedder-registered post-fit operators and the `post_fit` results they produce; hidden, a set `post_fit` is an unknown field while `fits` stay, and no post-fit operator can be enabled) |
 | `capability:sem_bootstrap` | `MAT_SEM` (its `resample`, `bootstrap_iters`, `rng_seed` and `ci_level` params) |
 | `capability:sem_ordinal` | `ATTR_SEM_SCORE` or `MAT_SEM` (their `estimator`, `ordered` and `parameterization` params: the DWLS / WLSMV ordinal fit, and its EBM scores) |

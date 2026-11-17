@@ -168,7 +168,8 @@ func regressionExtensionFor(inst *InstanceSnapshot, snap *ExtensionsSnapshot, t 
 }
 
 // ComparableRegressions is the predicate regcompare.Check reads for a
-// type beyond REG_OLS / REG_GLM: an extension-shaped REG_* model the
+// type beyond REG_OLS / REG_GLM / REG_MULTINOMIAL (the built-ins the rule
+// admits itself): an extension-shaped REG_* model the
 // instance offers (snap, else the instance's own projection; a model
 // regression too) whose declaration carries Compare. Predict
 // (validateComposeExpanded) and the Compose runtime (compareRefusal)

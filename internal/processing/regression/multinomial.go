@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
@@ -56,6 +57,10 @@ import (
 type multinomialEngine struct {
 	spec   *types.RegressionSpec
 	levels []string // the target's dictionary, in order
+	// figures, when set (OfferingFigures), receives the unpenalized
+	// fit's nested-model comparison figures (multinomialFigures);
+	// under a modifier, the base fit's alone.
+	figures func(*model.RegressionFigures)
 
 	finalized bool
 }
@@ -428,6 +433,12 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 	}
 	if spec.Vcov {
 		AttachVcovKeys(res, coefKeys, coefCov())
+	}
+	if e.figures != nil {
+		// The figures a Compose nested-model comparison reads
+		// (compare.go): −2ℓ, anova.multinom's residual df and the
+		// covariance the standard errors read.
+		e.figures(multinomialFigures(pr, spec.Predictors, coefKeys, beta, coefCov(), deviance, rw.basis.NStar(sumW, sumWSq)))
 	}
 	if spec.Margins != nil || spec.TermTests {
 		// Per-category marginal effects and the joint term tests

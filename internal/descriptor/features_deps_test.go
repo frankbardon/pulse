@@ -92,7 +92,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// a sweep-bound fit needs the sweep's winner and a fits entry
 		"capability:compose_sweep_bind": {{"capability:compose_sweep"}, {"capability:compose_fits"}},
 		// a comparison tests two fits, both REG_OLS or both REG_GLM
-		"capability:compose_compare": {{"capability:compose_fits"}, {"REG_GLM", "REG_OLS", "REG_ORDINAL"}},
+		"capability:compose_compare": {{"capability:compose_fits"}, {"REG_GLM", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL"}},
 		"capability:crosstab_cells":  {{"capability:crosstab"}}, // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL", "capability:matrices"}},

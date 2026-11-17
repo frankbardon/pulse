@@ -533,6 +533,17 @@ information or hc1 sandwich, cross-checked against the same Wald on
 `vcov(polr)` / `sandwich(polr, adjust = TRUE)` at 1e-4; the frequency
 case is `polr(weights = w)` against its `rep()` expansion.
 `TestReferenceOracle_NestedOrdinalMatchesR` holds them at `1e-10`.
+Its `multinomial_cases` block (U68 E5-S2, drawn after the ordinal
+block under its own seed) compares two `REG_MULTINOMIAL` fits: each
+`multinom` is Newton-polished to its MLE (the script stops unless
+`multinom` agrees to 1e-6); `lrt` is `anova.multinom` (LR stat. to
+1e-5, Df and `Resid. df` = (K − 1)·N* − edf exactly — on the `rep()`
+expansion for the frequency case), `wald` the Wald over every
+`"<level>:<term>"` key of the added predictors on the polished
+information or hc1 sandwich, the classical one cross-checked against
+`vcov(multinom)` at 1e-4; one case names a reference.
+`TestReferenceOracle_NestedMultinomialMatchesR` holds them at `1e-10`;
+it needs `nnet` 7.3-21.
 Regenerate this golden alone (`Rscript scripts/reference/gen_nested.R
 internal/processing/testdata/reference`, then the hash footer): a
 rerun moves the existing cases' last digits (~1e-14 relative) — no
@@ -750,7 +761,7 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
-| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; `gen_margins.R`'s `multinomial_cases`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
+| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; `gen_margins.R`'s `multinomial_cases`; `gen_nested.R`'s `multinomial_cases`, `anova.multinom`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`, `stepAIC`; `anova.polr` in `gen_nested.R`); `REG_MULTINOMIAL` modifiers (`gen_multinomial.R`: `stepAIC`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |

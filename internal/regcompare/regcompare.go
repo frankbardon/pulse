@@ -11,9 +11,11 @@
 //
 //   - both names bind request-bound regression `fits` entries (not a
 //     vector / SEM fit, not `from_sweep`), two different ones, both
-//     REG_OLS, both REG_GLM or both one model whose declaration carries
-//     Compare (REG_ORDINAL, an embedder's: the declared predicate, read
-//     by predict and the runtime off the same instance view);
+//     REG_OLS, both REG_GLM, both REG_MULTINOMIAL (admitted by the rule
+//     itself as a declared-like plan) or both one model whose
+//     declaration carries Compare (REG_ORDINAL, an embedder's: the
+//     declared predicate, read by predict and the runtime off the same
+//     instance view);
 //   - the restricted fit's terms — its predictors, plus "(intercept)"
 //     when it fits one — are all terms of the full fit, which adds at
 //     least one (the tested terms, in the full fit's order);
@@ -50,6 +52,15 @@
 // are other terms), and Compute fails the comparison alone
 // (PULSE_COMPARISON_ROWS_DIFFER, reason terms_differ) when the fits'
 // non-tested terms still differ by name.
+//
+// REG_MULTINOMIAL is planned the same way (Plan.Declared): its terms are
+// its predictors, and its figures map each to the K − 1
+// "<category>:<term>" keys it fits (model.RegressionFigures.TermKeys),
+// so lrt is anova.multinom — the deviance change on χ²((K − 1)·q) — and
+// wald reads every key of the added predictors; two fits naming
+// different references are refused reference_differs (their
+// coefficients are other contrasts), and fits whose category sets differ
+// fail alone at Compute (terms_differ).
 //
 // Default (empty test): R's anova default — f on REG_OLS and a family
 // that estimates its dispersion, lrt otherwise. Refused (reason
@@ -95,9 +106,19 @@ const (
 	RequiresEstimatedDispersion = "estimated_dispersion"
 	RequiresNoProbabilityWeight = "no_probability_weight"
 	// RequiresComparableType is type_unsupported's requires: REG_OLS,
-	// REG_GLM or a model whose declaration carries Compare.
-	RequiresComparableType = "type REG_OLS, REG_GLM or declared_compare"
+	// REG_GLM, REG_MULTINOMIAL or a model whose declaration carries
+	// Compare.
+	RequiresComparableType = "type REG_OLS, REG_GLM, REG_MULTINOMIAL or declared_compare"
 )
+
+// builtinComparable reports a built-in regression type the rule admits
+// itself, never through the declared predicate: REG_OLS, REG_GLM and
+// REG_MULTINOMIAL (a declared-like plan, U68 E5-S2: its terms its
+// predictors, its figures one "<category>:<term>" key per non-reference
+// category and term).
+func builtinComparable(t types.RegressionType) bool {
+	return t == types.REG_OLS || t == types.REG_GLM || t == types.REG_MULTINOMIAL
+}
 
 // Plan is one comparison as Check resolved it: what Compute runs and
 // predict summarises.
@@ -263,8 +284,8 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		field string
 		spec  *types.RegressionSpec
 	}{{"restricted", r0}, {"full", r1}} {
-		if side.spec.Type != types.REG_OLS && side.spec.Type != types.REG_GLM && (declared == nil || !declared(side.spec.Type)) {
-			return p, invalid(i, c.Name, "type_unsupported", "the "+side.field+" fit is "+string(side.spec.Type)+"; a comparison reads REG_OLS, REG_GLM or a model declaring comparisons",
+		if !builtinComparable(side.spec.Type) && (declared == nil || !declared(side.spec.Type)) {
+			return p, invalid(i, c.Name, "type_unsupported", "the "+side.field+" fit is "+string(side.spec.Type)+"; a comparison reads REG_OLS, REG_GLM, REG_MULTINOMIAL or a model declaring comparisons",
 				map[string]any{"field": side.field, "value": string(side.spec.Type), "requires": RequiresComparableType})
 		}
 	}
@@ -322,6 +343,11 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		return p, invalid(i, c.Name, "no_extra_terms", "the full fit adds no term to the restricted one", nil)
 	}
 	if keys := rowsDiffer(f0.Request, f1.Request); len(keys) > 0 {
+		if p.Type == types.REG_MULTINOMIAL && slices.Contains(keys, "regressions[0].reference") {
+			return p, invalid(i, c.Name, "reference_differs",
+				"the fits' reference categories differ, so their \"<category>:<term>\" coefficients are other contrasts and the models are not nested",
+				map[string]any{"restricted_reference": r0.Reference, "full_reference": r1.Reference})
+		}
 		if p.Declared && slices.Contains(keys, "regressions[0].params") {
 			if l0, l1 := paramLevels(r0), paramLevels(r1); string(l0) != string(l1) {
 				return p, invalid(i, c.Name, "levels_differ",

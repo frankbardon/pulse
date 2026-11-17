@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U77, U78]
 soft_depends_on: [U65]
 blocks: [U32]
-todo_items: [650, 651, 652, 653, 654, 655, 656, 657, 658, 659]
+todo_items: [650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 734]
 branch: regression-ordinal-multinomial
 ---
 
@@ -36,3 +36,4 @@ Epics and stories are written by this unit's own flow-interview; this doc is the
 - [ ] **#657** Relative-risk ratios on `REG_MULTINOMIAL` as a reporting knob (Stata `mlogit, rrr`): exp(β) with its delta-method SE and the exponentiated interval, absent byte-identical · [U68](units/U68-regression-ordinal-multinomial.md)
 - [ ] **#658** `penalty`, `selection` and `resample` on `REG_MULTINOMIAL` (glmnet `family = "multinomial"`, `MASS::stepAIC` on `multinom`, jackknife / bootstrap replicates), lifting `requires: unpenalized` / `no_selection` / `no_resample` · [U68](units/U68-regression-ordinal-multinomial.md)
 - [ ] **#659** Marginal effects (`margins`, each category's probability: ∂π_k/∂x) and a joint test of a predictor across every category (Wald / LR on its K coefficients, `car::Anova(multinom)`) on `REG_MULTINOMIAL`, lifting `requires: no_margins` · [U68](units/U68-regression-ordinal-multinomial.md)
+- [ ] **#734** Nested-model comparisons (`compare`) of two `REG_MULTINOMIAL` fits: the likelihood ratio (`anova(multinom0, multinom1)`) and the Wald test over every `"<category>:<term>"` coefficient of the added predictors on the full fit's classical or robust covariance, df (K − 1)·(added predictors), the same category set and reference required (`reference_differs`), lifting `type_unsupported` · [U68](units/U68-regression-ordinal-multinomial.md)

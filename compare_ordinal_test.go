@@ -124,8 +124,8 @@ func TestCompare_OrdinalPredictMatchesRuntime(t *testing.T) {
 		return cmpBatch(marginsCohort, map[string]*types.RegressionSpec{"m0": r0, "m1": r1},
 			types.FitComparisonSpec{Name: "c", Restricted: "m0", Full: "m1", Test: test})
 	}
-	multinomial := func(preds ...string) *types.RegressionSpec {
-		return &types.RegressionSpec{Type: types.REG_MULTINOMIAL, Target: "c", Predictors: preds}
+	bayes := func(preds ...string) *types.RegressionSpec {
+		return &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: preds}
 	}
 	for _, tc := range []struct {
 		name     string
@@ -137,7 +137,7 @@ func TestCompare_OrdinalPredictMatchesRuntime(t *testing.T) {
 		{"levels differ", pair(cmpOrdinal(`["0","1","2","3"]`, "x1"), cmpOrdinal(`["0","1","2"]`, "x1", "x2"), ""), "levels_differ", ""},
 		{"not nested", pair(cmpOrdinal("", "x2"), cmpOrdinal("", "x1", "y"), ""), "not_nested", ""},
 		{"mixed types", pair(cmpOLS("x1"), cmpOrdinal("", "x1", "x2"), ""), "type_mismatch", ""},
-		{"undeclared type", pair(multinomial("x1"), multinomial("x1", "x2"), ""), "type_unsupported", "type REG_OLS, REG_GLM or declared_compare"},
+		{"undeclared type", pair(bayes("x1"), bayes("x1", "x2"), ""), "type_unsupported", "type REG_OLS, REG_GLM, REG_MULTINOMIAL or declared_compare"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := p.PredictCompose(ctx, tc.req)
@@ -183,8 +183,9 @@ func TestCompare_OrdinalPredictMatchesRuntime(t *testing.T) {
 
 // TestCompare_ComparableRegressions: the declared predicate predict and
 // the runtime both hand regcompare.Check admits REG_ORDINAL (its
-// declaration carries Compare) and no other type — REG_OLS / REG_GLM are
-// admitted by the rule itself, never through the predicate.
+// declaration carries Compare) and no other type — REG_OLS / REG_GLM /
+// REG_MULTINOMIAL are admitted by the rule itself, never through the
+// predicate.
 func TestCompare_ComparableRegressions(t *testing.T) {
 	t.Parallel()
 

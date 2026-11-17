@@ -28,7 +28,8 @@
 # (stats) + jsonlite 2.0.0 + MASS 7.3-66 (glm.nb, theta.ml,
 # negative.binomial, anova.negbin; polr and anova.polr for the ordinal
 # block) + sandwich 3.1-3 (vcovHC; sandwich on polr) + lmtest
-# 0.9-40 (waldtest, lrtest; with zoo 1.9-1), installed from the Posit
+# 0.9-40 (waldtest, lrtest; with zoo 1.9-1) + nnet 7.3-21 (multinom and
+# anova.multinom for the multinomial block), installed from the Posit
 # noble binary repo; versions recorded in the golden.
 #
 # Every figure is re-derived from its closed form and the script stops on
@@ -56,6 +57,7 @@ suppressPackageStartupMessages(library(jsonlite))
 suppressPackageStartupMessages(library(MASS))
 suppressPackageStartupMessages(library(sandwich))
 suppressPackageStartupMessages(library(lmtest))
+suppressPackageStartupMessages(library(nnet))
 
 if (!exists("out_dir")) {
   args <- commandArgs(trailingOnly = TRUE)
@@ -70,7 +72,7 @@ if (!exists("write_golden")) {
   }
 }
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_nested.R pins R 4.6.1, got ", R.version.string)
-nested_pins <- c(lmtest = "0.9.40", zoo = "1.9.1", sandwich = "3.1.3", MASS = "7.3.66", jsonlite = "2.0.0")
+nested_pins <- c(lmtest = "0.9.40", zoo = "1.9.1", sandwich = "3.1.3", MASS = "7.3.66", jsonlite = "2.0.0", nnet = "7.3.21")
 for (p in names(nested_pins)) {
   if (as.character(packageVersion(p)) != nested_pins[[p]]) stop("gen_nested.R pins ", p, " ", nested_pins[[p]], ", got ", packageVersion(p))
 }
@@ -455,6 +457,152 @@ d <- ordn_draw(90, c(0.7, -0.4, 0.5), c(-1, 0, 1.1))
 d$w <- sample(1:4, 90, replace = TRUE)
 ordn_case("ordinal_lrt_freq", d, "x1", c("x1", "x2", "x3"), "lrt", kind = "frequency")
 
+# Multinomial comparisons (U68 E5-S2, D7): two REG_MULTINOMIAL
+# (nnet::multinom) fits on the same rows, drawn AFTER every case above
+# under their own seed, so no case's rows move. Each fit is multinom
+# polished to its MLE by Newton on the analytic gradient and Hessian
+# (gen_multinomial.R's reasoning: multinom's BFGS stops ~1e-8 off and its
+# vcov is a finite-difference Hessian); the script stops unless multinom
+# agrees with the polished point to 1e-6. With K non-reference levels
+# and q added predictors, every test reads the K q "<level>:<term>"
+# coefficients of the added predictors:
+#   lrt   anova(m0, m1) (anova.multinom): LR stat. = the deviance change
+#         -2 ll0 + 2 ll1 on chi-square(K q); the polished closed form
+#         must agree with anova's to 1e-5 and its Df exactly. Resid. df
+#         = K N* - edf, edf = K (p + 1) — anova's nrow (L - 1) - edf, N*
+#         the rep() expansion's sum(w) under a frequency weight (anova on
+#         the expanded fits is the check).
+#   wald  t(b_S) solve(V_SS) b_S on chi-square(K q) over every key of the
+#         added predictors, V the inverse analytic information (or the
+#         hc1 sandwich B M B N*/(N* - d), gen_multinomial.R's mn_robust);
+#         the classical Wald on vcov(multinom) must agree to 1e-4.
+# Frequency weights are multinom(weights = w), asserted equal to the
+# rep()-expanded fit. A named reference reorders the fitted levels
+# (reference first). The rows are [x1, x2, x3, y, w], y the 1-based
+# index of the row's level in `levels` (the target's dictionary order).
+set.seed(20261118)
+mnst_parts <- function(beta, X, Yi, w) {
+  k <- ncol(Yi) - 1; q <- ncol(X)
+  B <- matrix(beta, nrow = q)
+  eta <- cbind(0, X %*% B)
+  m <- apply(eta, 1, max)
+  e <- exp(eta - m)
+  P <- e / rowSums(e)
+  ll <- sum(w * (rowSums(Yi * eta) - m - log(rowSums(e))))
+  g <- as.vector(t(X) %*% (w * (Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE])))
+  H <- matrix(0, k * q, k * q)
+  for (a in 1:k) for (b in 1:k) {
+    s <- if (a == b) P[, a + 1] * (1 - P[, a + 1]) else -P[, a + 1] * P[, b + 1]
+    H[(a - 1) * q + 1:q, (b - 1) * q + 1:q] <- t(X) %*% (X * (w * s))
+  }
+  list(P = P, ll = ll, g = g, H = H)
+}
+# mnst_fit is multinom(yy ~ preds, weights = w) and its polished MLE:
+# beta (category-major over the non-reference levels, (intercept) then
+# preds), the keys, -2 ll, the residual df K sum(w) - d, the classical
+# and hc1 covariances.
+mnst_fit <- function(name, d, preds, levels, ref) {
+  observed <- levels[levels %in% levels[d$y]]
+  fitted_levels <- c(ref, setdiff(observed, ref))
+  yy <- factor(levels[d$y], levels = fitted_levels)
+  dd <- data.frame(d[, preds, drop = FALSE], yy = yy, .w = d$w)
+  f <- as.formula(paste("yy ~", paste(preds, collapse = " + ")))
+  m <- suppressWarnings(multinom(f, data = dd, weights = .w, Hess = TRUE, maxit = 1000, reltol = 1e-16, trace = FALSE))
+  X <- cbind(1, as.matrix(d[, preds, drop = FALSE]))
+  Yi <- sapply(fitted_levels, function(l) as.numeric(as.character(yy) == l))
+  beta <- as.vector(t(coef(m)))
+  for (it in 1:100) {
+    pp <- mnst_parts(beta, X, Yi, d$w)
+    step <- solve(pp$H, pp$g)
+    beta <- beta + step
+    if (max(abs(step)) <= 1e-15 * max(1, max(abs(beta)))) break
+  }
+  if (it == 100) stop(name, ": Newton polish did not converge")
+  pp <- mnst_parts(beta, X, Yi, d$w)
+  if (max(abs(pp$g)) > 1e-9) stop(name, ": gradient not zero at the polished MLE")
+  err <- max(abs(as.vector(t(coef(m))) - beta) / pmax(abs(beta), 1))
+  if (err > 1e-6) stop(name, ": multinom vs polished MLE ", err)
+  V <- solve(pp$H)
+  k <- length(fitted_levels) - 1
+  keys <- as.vector(t(outer(fitted_levels[-1], c("(intercept)", preds), paste, sep = ":")))
+  R <- Yi[, -1, drop = FALSE] - pp$P[, -1, drop = FALSE]
+  S <- do.call(cbind, lapply(seq_len(k), function(j) X * R[, j]))
+  nstar <- sum(d$w); dd_ <- length(beta)
+  hc1 <- V %*% crossprod(S, S * d$w) %*% V * (nstar / (nstar - dd_))
+  names(beta) <- keys
+  dimnames(V) <- dimnames(hc1) <- list(keys, keys)
+  list(m = m, beta = beta, k = k, dev = -2 * pp$ll, rdf = k * nstar - dd_, V = V, hc1 = hc1,
+    fitted_levels = fitted_levels)
+}
+multinomial_cases <- list()
+mnst_case <- function(name, d, levels, restricted, full, test, covariance = "", kind = "", reference = "") {
+  if (kind == "") d$w <- 1
+  ref <- if (reference == "") levels[levels %in% levels[d$y]][1] else reference
+  m0 <- mnst_fit(paste(name, "m0"), d, restricted, levels, ref)
+  m1 <- mnst_fit(paste(name, "m1"), d, full, levels, ref)
+  terms <- setdiff(full, restricted)
+  q <- m1$k * length(terms)
+  disp <- NULL
+  if (kind == "frequency") {
+    ex <- d[rep(seq_len(nrow(d)), d$w), ]; ex$w <- 1
+    e0 <- mnst_fit(paste(name, "expanded m0"), ex, restricted, levels, ref)
+    e1 <- mnst_fit(paste(name, "expanded m1"), ex, full, levels, ref)
+    nested_check(paste(name, "weighted vs expanded"), e1$beta, m1$beta, 1e-9)
+    a_m0 <- e0$m; a_m1 <- e1$m
+  } else {
+    a_m0 <- m0$m; a_m1 <- m1$m
+  }
+  a <- anova(a_m0, a_m1)
+  nested_check(paste(name, "anova.multinom Resid. df"), a$`Resid. df`, c(m0$rdf, m1$rdf), 1e-12)
+  nested_check(paste(name, "anova.multinom Df"), a$`   Df`[2], q, 1e-12)
+  if (test == "lrt") {
+    stat <- m0$dev - m1$dev
+    nested_check(paste(name, "anova.multinom LR stat."), a$`LR stat.`[2], stat, 1e-5)
+    disp <- 1
+  } else {
+    idx <- which(sub("^.*:", "", names(m1$beta)) %in% terms)
+    if (length(idx) != q) stop(name, ": tested keys")
+    V <- if (covariance == "hc1") m1$hc1 else m1$V
+    b <- m1$beta[idx]
+    stat <- as.numeric(t(b) %*% solve(V[idx, idx, drop = FALSE], b))
+    if (covariance == "") {
+      Vr <- vcov(m1$m)
+      br <- as.vector(t(coef(m1$m)))[idx]
+      nested_check(paste(name, "Wald on vcov(multinom)"), as.numeric(t(br) %*% solve(Vr[idx, idx, drop = FALSE], br)), stat, 1e-4)
+    }
+  }
+  p <- pchisq(stat, q, lower.tail = FALSE)
+  rows <- lapply(seq_len(nrow(d)), function(i) nested_g17(c(d$x1[i], d$x2[i], d$x3[i], d$y[i], d$w[i])))
+  case <- list(name = name, test = test, n = nrow(d), family = "multinomial", link = "logit", theta = 0, dispersion = "",
+    covariance = covariance, weight = kind, levels = I(levels), reference = reference,
+    restricted = I(restricted), full = I(full), restricted_intercept = TRUE,
+    terms = I(terms), distribution = "chisq", rows = rows,
+    statistic = nested_num(stat), df = nested_num(q), p_value = nested_num(p),
+    restricted_df_residual = nested_num(m0$rdf), full_df_residual = nested_num(m1$rdf),
+    restricted_deviance = nested_num(m0$dev), full_deviance = nested_num(m1$dev),
+    dispersion_used = nested_num(disp))
+  multinomial_cases[[length(multinomial_cases) + 1]] <<- Filter(Negate(is.null), case)
+}
+# mnst_draw: n rows, a response over length(levels) levels from the
+# baseline-category logit with intercepts a and slope rows B (one per
+# non-first level) over [x1, x2, x3]; one inverse-CDF uniform per row.
+mnst_draw <- function(n, a, B) {
+  d <- nested_design(n)
+  eta <- cbind(0, sweep(as.matrix(d[, c("x1", "x2", "x3")]) %*% t(B), 2, a, "+"))
+  P <- exp(eta - apply(eta, 1, max)); P <- P / rowSums(P)
+  u <- runif(n)
+  d$y <- 1 + rowSums(u > t(apply(P, 1, cumsum)))
+  d$w <- 1
+  d
+}
+d <- mnst_draw(240, c(0.3, -0.2), rbind(c(0.8, -0.5, 0.3), c(-0.4, 0.7, 0.25)))
+mnst_case("multinomial_lrt", d, c("lo", "mid", "hi"), "x1", c("x1", "x2", "x3"), "lrt")
+mnst_case("multinomial_wald", d, c("lo", "mid", "hi"), "x1", c("x1", "x2", "x3"), "wald")
+mnst_case("multinomial_wald_hc1", d, c("lo", "mid", "hi"), c("x1", "x2"), c("x1", "x2", "x3"), "wald", covariance = "hc1")
+d <- mnst_draw(110, c(0.2, -0.3, 0.1), rbind(c(0.6, -0.4, 0.2), c(-0.5, 0.5, 0.3), c(0.3, 0.3, -0.6)))
+d$w <- sample(1:3, 110, replace = TRUE)
+mnst_case("multinomial_lrt_freq_ref", d, c("q1", "q2", "q3", "q4"), "x1", c("x1", "x2"), "lrt", kind = "frequency", reference = "q3")
+
 write_golden("nested", list(
   generator = "scripts/reference/gen_nested.R",
   r_version = R.version.string,
@@ -470,5 +618,12 @@ write_golden("nested", list(
     "lrt = anova.polr (statistic = deviance change, df = added predictors, dispersion_used 1);",
     "wald = t(b_S) solve(V_SS) b_S, V the inverse analytic information or the hc1 sandwich, chi-square on q.",
     "rows [x1, x2, x3, y, w], y the 1-based level; weight frequency = polr(weights = w)."),
-  ordinal_cases = ordinal_cases
+  ordinal_cases = ordinal_cases,
+  multinomial_note = paste(
+    "REG_MULTINOMIAL (nnet::multinom) restricted yy ~ restricted vs full yy ~ full, each polished to its MLE, the reference",
+    "`reference` (or the first observed level of `levels`); lrt = anova.multinom (statistic = deviance change, df = (L - 1) x added",
+    "predictors, Resid. df = (L - 1) N* - edf, dispersion_used 1); wald = t(b_S) solve(V_SS) b_S over every '<level>:<term>' key of",
+    "the added predictors, V the inverse analytic information or the hc1 sandwich, chi-square on the same df.",
+    "rows [x1, x2, x3, y, w], y the 1-based index into levels; weight frequency = multinom(weights = w) (anova on the rep() expansion)."),
+  multinomial_cases = multinomial_cases
 ))

@@ -10,7 +10,9 @@ package types
 // intercept and reporting knobs (name, vcov, conf_level, margins,
 // collinearity, save, multiplicity) and the request's label, return,
 // disable_components and multiplicity, both REG_OLS, both REG_GLM on
-// one family and link, or both one model whose declaration carries
+// one family and link, both REG_MULTINOMIAL (its terms the predictors,
+// its reference equal; each tested term's K − 1 "<category>:<term>"
+// coefficients tested) or both one model whose declaration carries
 // Compare (REG_ORDINAL — its terms the predictors, its params.levels
 // equal — or an embedder model, pulse.RegressionRegistration.Compare) —
 // refused PULSE_COMPARISON_INVALID otherwise, at
@@ -40,8 +42,9 @@ type FitComparisonSpec struct {
 	// anova default: ComparisonTestF on REG_OLS and on a REG_GLM family
 	// that estimates its dispersion (gamma; a fixed-θ negative binomial
 	// under dispersion "estimated"), ComparisonTestLRT on every other
-	// family and on a declared model (REG_ORDINAL: anova.polr), whose F
-	// test is refused (no estimated dispersion).
+	// family, on REG_MULTINOMIAL (anova.multinom) and on a declared model
+	// (REG_ORDINAL: anova.polr) — whose F test is refused (no estimated
+	// dispersion).
 	Test ComparisonTest `json:"test,omitempty"`
 
 	// Multiplicity is the comparison's multiple-comparison correction:
@@ -128,7 +131,9 @@ type FitComparisonResult struct {
 
 	// Terms are the tested coefficients: the full fit's terms the
 	// restricted fit lacks, in the full fit's order ("(intercept)"
-	// first when only the full fit has one). DF = len(Terms).
+	// first when only the full fit has one; on REG_MULTINOMIAL the added
+	// predictors). DF = len(Terms), (K − 1)·len(Terms) on
+	// REG_MULTINOMIAL.
 	Terms []string `json:"terms"`
 
 	// Statistic is F (Distribution f) or χ² (chisq); null when
@@ -136,7 +141,9 @@ type FitComparisonResult struct {
 	// definite).
 	Statistic float64 `json:"statistic"`
 
-	// DF is the numerator degrees of freedom q (the number of Terms).
+	// DF is the numerator degrees of freedom q: the number of tested
+	// coefficients — of Terms, or K − 1 per term on REG_MULTINOMIAL
+	// (every non-reference category's "<category>:<term>").
 	DF float64 `json:"df"`
 
 	// DFResidual is the F statistic's denominator df: the full fit's
@@ -154,7 +161,8 @@ type FitComparisonResult struct {
 
 	// RestrictedDFResidual and FullDFResidual are each fit's residual
 	// df N* − rank (N* = n, Σw under a frequency weight, Kish n_eff
-	// under a probability weight; R's Res.Df).
+	// under a probability weight; R's Res.Df) — on REG_MULTINOMIAL
+	// (K − 1)·N* − rank, anova.multinom's Resid. df.
 	RestrictedDFResidual float64 `json:"restricted_df_residual"`
 	FullDFResidual       float64 `json:"full_df_residual"`
 

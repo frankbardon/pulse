@@ -1880,10 +1880,12 @@ const (
 	// entry (a nested-model comparison of two `fits`) that cannot run:
 	// a missing or repeated name, a fit name that is missing, unknown,
 	// not a request-bound regression fit, or the same on both sides; fits
-	// that are not both REG_OLS, both REG_GLM or both one model declaring
-	// Compare (REG_ORDINAL, an embedder's); an unknown test; terms that
-	// are not nested; declared fits whose params.levels differ
-	// ("levels_differ"); fit requests that are not on the same rows;
+	// that are not both REG_OLS, both REG_GLM, both REG_MULTINOMIAL or
+	// both one model declaring Compare (REG_ORDINAL, an embedder's); an
+	// unknown test; terms that are not nested; declared fits whose
+	// params.levels differ ("levels_differ"); multinomial fits whose
+	// reference differs ("reference_differs"); fit requests that are not
+	// on the same rows;
 	// or a fit or test the comparison does not support (reason
 	// "requires", with "requires" naming the condition). Refused
 	// identically by predict and the runtime before any fit or slot
@@ -1925,8 +1927,9 @@ const (
 	// error; PULSE_SLOT_FAILED lifts to the batch). Details carry
 	// "restricted", "full", "restricted_n_obs" and "full_n_obs" — or,
 	// reason "terms_differ", two fits of a declared model (REG_ORDINAL)
-	// that estimated different non-tested terms (thresholds), under
-	// "restricted_terms" / "full_terms".
+	// or of REG_MULTINOMIAL that estimated different non-tested terms
+	// (thresholds; another category set), under "restricted_terms" /
+	// "full_terms".
 	PULSE_COMPARISON_ROWS_DIFFER Code = "PULSE_COMPARISON_ROWS_DIFFER"
 
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a
