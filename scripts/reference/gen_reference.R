@@ -592,7 +592,9 @@ source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)
 # Newton-polished to the MLE — three levels at two coverages, four levels
 # in a non-alphabetical dictionary order with a named reference, frequency
 # weights against the rep() expansion, probability weights on w*, an
-# empty dictionary level dropped); nnet 7.3-21 + jsonlite. Seeded RNG.
+# empty dictionary level dropped; U68 E2-S2: the manual-deletion
+# jackknife and MASS::stepAIC on multinom); nnet 7.3-21 + MASS 7.3-66 +
+# jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_multinomial.R"), local = FALSE)
 # The REG_ORDINAL golden (U65 E4-S1: ordinal.json: MASS polr logit /
 # probit / cloglog polished by Newton to its MLE on the analytic

@@ -1248,7 +1248,14 @@ the intercept). Absent is byte-identical and `format_version` stays
 `params.output: class`: the most probable category's 0-based index in
 `categories`; `params.scale: link`: the category's log-odds against the
 reference), and `coef()` reads its `"<level>:<term>"` keys. A `holdout`
-reports its proper scores (Regression holdout, U68 E1-S3).
+reports its proper scores (Regression holdout, U68 E1-S3). Under
+`resample` / `selection` (U68 E2-S2) the result echoes them as a
+built-in's does (`resample`, `bootstrap_requested` /
+`bootstrap_succeeded`, `jackknife_groups`, `selection`, `criterion`,
+`selected_features`), the per-coefficient maps keep the
+`"<level>:<term>"` keys, and a resampled fit adds `statistics` (the
+Wald z on the replicate SE); every refit keeps the full fit's
+`categories` and `reference`.
 
 ## Per-group aggregation components
 

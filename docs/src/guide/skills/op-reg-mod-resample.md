@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-mod-resample
-description: Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+description: Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM, multinomial or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_RESAMPLE
@@ -20,12 +20,12 @@ Flat keys on the host spec. A **wrapper, not a fit**: the host refits per replic
 | `resample` | enum | — | `""`, `jackknife`, `bootstrap` (non-parametric). |
 | `bootstrap_iters` | int | `1000` | Bootstrap replicates, used as given (`<= 0` → `1000`). |
 | `jackknife_groups` | int | — | Jackknife only: delete-a-group over `g` seeded random groups (2 ≤ g ≤ fitted rows, sizes within one). Absent = leave-one-out. |
-| `jackknife_by` | field | — | Jackknife only: delete-a-cluster, one replicate per distinct value (≥ 2); a null, NaN or ±Inf value drops the row from the fit. Exclusive with `jackknife_groups` (`PROCESSING_CONFIG`). |
+| `jackknife_by` | field | — | Jackknife only: delete-a-cluster, one replicate per distinct value (≥ 2); a null or non-finite value drops the row. Exclusive with `jackknife_groups` (`PROCESSING_CONFIG`). |
 | `rng_seed` | int | — | Seeds the bootstrap and the `jackknife_groups` draw. |
 
 ## Inputs
 
-Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host (`REG_ORDINAL` keeps the full fit's levels); the Bayesian fit refuses it (credible intervals convey uncertainty).
+Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host (`REG_ORDINAL` keeps the full fit's levels), or `REG_MULTINOMIAL` (keeps its categories); the Bayesian fit refuses it.
 
 ## Output
 

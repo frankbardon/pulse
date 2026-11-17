@@ -522,6 +522,16 @@ counts).
 `TestReferenceOracle_MultinomialMatchesR`
 (`internal/processing/regression`) holds every figure — the row scores
 read through the bound fit's production scorer — at relative `1e-10`.
+A `modifiers` block (U68 E2-S2), drawn after every case under its own
+seed so no case's rows move, adds the resample / selection oracles: the
+manual-deletion jackknife on `multinom` (every leave-one-out and
+delete-a-cluster refit Newton-polished from the full fit and checked
+against `multinom` on the same deletion to 1e-6) and `MASS::stepAIC` on
+`multinom` (forward / backward / both, k = 2 and log(n)), re-run as a
+greedy search over the polished deviances that must pick the same terms
+with every step's winner more than 1e-3 ahead; it needs MASS 7.3-66 and
+refuses another. `TestMultinomial_JackknifeMatchesR` /
+`TestMultinomial_SelectionMatchesStepAIC` hold them at `1e-8`.
 
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
@@ -649,7 +659,7 @@ is the whole list in one place.
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
 | `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
-| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`) |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`, `stepAIC`); `REG_MULTINOMIAL` modifiers (`gen_multinomial.R`: `stepAIC`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
 | `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |

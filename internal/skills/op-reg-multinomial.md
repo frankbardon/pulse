@@ -19,31 +19,38 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | (required) | A categorical cohort field; its dictionary order is the category order. |
-| `predictors` | []field | (required) | ≥1 numeric predictor. |
-| `reference` | string | — | Baseline category, one of the target's labels; absent: the first fitted level. |
-| `max_iters` | int | `50` | Newton-Raphson iteration cap. |
-| `tol` | float | `0.00000001` | Relative step tolerance (quadratic convergence: the MLE to double precision). |
-| `conf_level` | float | `0.95` | Wald `CILower` / `CIUpper` mass. |
-| `vcov` | bool | `false` | Inverse information over the keys + `Correlation`. |
-| `weight` | slot weight | — | `null` opts out; frequency or probability. |
+| `target` | field | (required) | Categorical cohort field; dictionary order = category order. |
+| `predictors` | []field | (required) | ≥1 numeric. |
+| `reference` | string | — | Baseline label; absent: first fitted level. |
+| `max_iters` | int | `50` | Newton cap. |
+| `tol` | float | `0.00000001` | Relative step tolerance. |
+| `conf_level` | float | `0.95` | Wald CI level. |
+| `vcov` | bool | `false` | Inverse information, `Correlation`. |
+| `weight` | slot weight | — | Frequency or probability. |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | — | Default family: every non-intercept key; `coefficients` lists `<level>:<term>` keys. |
+| `multiplicity` | object | — | Default: every non-intercept `<level>:<term>` key. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
 | `holdout` | expr | — | Proper scores: `regression-row-scores`. |
 <!-- /feature -->
+| `resample` | enum | — | `op-reg-mod-resample`. |
+| `bootstrap_iters` | int | `1000` | — |
+| `jackknife_groups` | int | — | — |
+| `jackknife_by` | field | — | — |
+| `rng_seed` | int | — | — |
+| `selection` | enum | — | `op-reg-mod-selection`. |
+| `criterion` | enum | — | `aic`, `bic`. |
 | `order` | object | — | Row order. |
-| `save` | string | — | Model file; row scores: `regression-row-scores`. |
+| `save` | string | — | Model file (`regression-row-scores`). |
 | `name` | string | — | Result name. |
 
 ## Inputs
 
-`target`: categorical (`categorical_u8/u16/u32`); a numeric target is `PULSE_FIELD_TYPE_UNSUPPORTED`, a derived column `PROCESSING_CONFIG` (`requires: categorical_target`). `predictors`: see `## Contract`; a null, NaN or ±Inf drops the row from `n_obs`.
+`target`: a `categorical_*` cohort field (numeric: `PULSE_FIELD_TYPE_UNSUPPORTED`; derived: `requires: categorical_target`). A null or non-finite predictor drops the row.
 
 ## Output
 
-`RegressionResult`: `Reference`, `Categories` (fitted levels, dictionary order); `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level, the intercept `"<level>:(intercept)"`; `Deviance` (−2ℓ), `NullDeviance`, `PseudoR2` (McFadden), `TwoLogLik`, `AIC` (+ 2·K·(p+1)), `NObs`, `ConvergedIters` (+ weighted `SumWeights` / `NEff`).
+`Reference`, `Categories` (fitted levels, dictionary order); `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level (intercept `(intercept)`); `Deviance` (−2ℓ), `NullDeviance`, `PseudoR2` (McFadden), `TwoLogLik`, `AIC`, `NObs`, `ConvergedIters`.
 
 <!-- generated: reading-the-output -->
 
@@ -51,9 +58,10 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Gotchas
 
-- A coefficient is the log odds of ITS level against the reference; e^β is a relative risk ratio.
-- A level no fitted row carries is dropped (multinom's "group is empty"); a named `reference` with no rows fails the slot alone (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason: reference_empty`), fewer than two fitted levels too (`one_category`).
-- Refused (`PROCESSING_CONFIG`, `details.requires`): `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, `selection`, `resample`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`.
+- A coefficient is ITS level's log odds vs the reference; e^β is a relative risk ratio.
+- An empty level is dropped; an empty named `reference` (`reference_empty`) or < 2 fitted levels (`one_category`) fail the slot alone (`INSUFFICIENT_DATA`).
+- Refused (`PROCESSING_CONFIG`): `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`.
+- `resample` / `selection` refit at the first fit's categories and reference: a bootstrap draw missing one is skipped, a jackknife one fails (`replicate_empty_level`). A predictor moves for every category: k = (K−1)·(terms + 1).
 <!-- feature: ATTR_REG_PREDICT -->
 - Bound, `ATTR_REG_PREDICT` scores a row: `category` → P(y = it); `output: class` → 0-based index in `Categories`; `scale: link` → log-odds vs the reference. `coef()` reads `"<level>:<term>"`.
 <!-- /feature -->

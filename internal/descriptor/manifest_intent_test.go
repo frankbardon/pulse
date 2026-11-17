@@ -70,8 +70,11 @@ var scopedManifestExceptions = map[string]float64{
 	// (42,037 of 262,095 bytes), up from 15.99%. Resample and selection
 	// on REG_ORDINAL (U68 E2-S1; feature growth: its row's seven
 	// modifier Params — resample, its four knobs, selection, criterion)
-	// measured 16.27% (42,773 of 262,831 bytes).
-	IntentDrivers: 0.163,
+	// measured 16.27% (42,773 of 262,831 bytes). Resample and selection
+	// on REG_MULTINOMIAL (U68 E2-S2; feature growth: the same seven
+	// modifier Params on its row plus its `modifiers` block) measured
+	// 16.56% (43,686 of 263,744 bytes).
+	IntentDrivers: 0.166,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

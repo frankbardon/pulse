@@ -1,12 +1,14 @@
 package regression
 
 import (
+	"context"
 	"math"
 	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regmultinom"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
@@ -70,6 +72,11 @@ func newMultinomialEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 	}
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
+	}
+	// Selection names its criterion — predict's rule itself (the
+	// extension adapter's too).
+	if cerr := regresample.CheckSelectionCriterion(spec); cerr != nil {
+		return nil, cerr
 	}
 	if len(spec.Predictors) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
@@ -225,12 +232,34 @@ func (pr *multinomialProblem) system(beta []float64) (ll float64, grad, info []f
 }
 
 // FitBuffered builds the design (listwise null deletion, the target read
-// as its categorical label), then runs Newton-Raphson to the MLE.
+// as its categorical label), then runs Newton-Raphson to the MLE — under
+// the Resample / Selection modifiers, many times (FitBufferedContext).
 func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), records)
+}
+
+// FitBufferedContext is FitBuffered under ctx (ContextBufferedEngine):
+// with no modifier it is the one fit (ctx unread, so the result is
+// byte-identical to a fit before the modifiers existed); under
+// Resample / Selection every refit reads ctx first
+// (multinomial_modifiers.go).
+func (e *multinomialEngine) FitBufferedContext(ctx context.Context, records []Record) (*types.RegressionResult, error) {
 	if e.finalized {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "multinomialEngine.FitBuffered called after Finalize")
 	}
 	e.finalized = true
+	if e.spec.Resample != "" || e.spec.Selection != "" {
+		return e.fitModified(ctx, records)
+	}
+	res, _, err := e.fitRows(records, nil)
+	return res, err
+}
+
+// fitRows is one fit of e.spec over records: the design, then Newton to
+// the MLE. pin, when set, fixes the categories and reference (a
+// modifier refit's, multinomialPin). It returns the result and its
+// coefficient keys in order.
+func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*types.RegressionResult, []string, error) {
 	spec := e.spec
 	p := len(spec.Predictors)
 	q := p + 1
@@ -244,9 +273,10 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	for _, rec := range records {
 		label, ok, err := targetLabel(rec, spec.Target)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if !ok {
+		if !ok || (pin != nil && !slices.Contains(pin.cats, label)) {
+			// A pinned refit fits the pinned categories' rows only.
 			continue
 		}
 		complete := true
@@ -279,14 +309,14 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	}
 	n := len(labels)
 	if rw.basis.FloorN(int64(n), sumW) < float64(q) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"REG_MULTINOMIAL requires n ≥ p + 1 observations after listwise null deletion",
 			map[string]any{"n": n, "p": p, "required": q})
 	}
 
-	pr, err := e.problem(x, labels, prior, n, q)
+	pr, err := e.problem(x, labels, prior, n, q, pin)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if aliased := aliasedColumns(x, prior, n, q); len(aliased) > 0 {
 		names := make([]string, len(aliased))
@@ -296,24 +326,24 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 				names[i] = spec.Predictors[j-1]
 			}
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"REG_MULTINOMIAL design matrix is rank deficient: a column is a linear combination of the columns before it (collinear predictors, or a constant predictor aliased with the intercept); drop it",
 			map[string]any{"columns": names, "n": n, "p": p})
 	}
 
 	beta, iters, err := e.newton(pr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ll, _, info := pr.system(beta)
 	d := pr.dim()
 	f, ok := factorSPD(d, info)
 	if !ok {
-		return nil, e.noConverge(pr, iters, "information_singular")
+		return nil, nil, e.noConverge(pr, iters, "information_singular")
 	}
 	inv, ierr := f.Inverse()
 	if ierr != nil {
-		return nil, e.noConverge(pr, iters, "information_singular")
+		return nil, nil, e.noConverge(pr, iters, "information_singular")
 	}
 
 	keys := e.keys(pr)
@@ -361,7 +391,7 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	if spec.Vcov {
 		AttachVcovKeys(res, keys, symVcov(d, inv.At, 1, variances))
 	}
-	return res, nil
+	return res, keys, nil
 }
 
 // targetLabel reads rec's target label: its categorical dictionary
@@ -379,11 +409,16 @@ func targetLabel(rec Record, target string) (string, bool, error) {
 // problem orders the fitted categories (the dictionary order; a label
 // outside the dictionary — impossible for a cohort field — after it,
 // sorted), drops the levels no row carries, resolves the reference and
-// indexes every row's category.
-func (e *multinomialEngine) problem(x []float64, labels []string, prior []float64, n, q int) (*multinomialProblem, error) {
+// indexes every row's category. Under a pin the categories and the
+// reference are the pin's, and a pinned category no row carries is the
+// replicate_empty_level refusal (pinnedProblem).
+func (e *multinomialEngine) problem(x []float64, labels []string, prior []float64, n, q int, pin *multinomialPin) (*multinomialProblem, error) {
 	seen := map[string]bool{}
 	for _, l := range labels {
 		seen[l] = true
+	}
+	if pin != nil {
+		return pin.problem(x, labels, prior, n, q, seen)
 	}
 	var cats []string
 	for _, l := range e.levels {
@@ -412,6 +447,12 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 				map[string]any{"reference": e.spec.Reference, "categories": cats, "reason": "reference_empty"})
 		}
 	}
+	return newMultinomialProblem(x, labels, prior, n, q, cats, ref), nil
+}
+
+// newMultinomialProblem indexes every row's category over cats (ref the
+// reference's index).
+func newMultinomialProblem(x []float64, labels []string, prior []float64, n, q int, cats []string, ref int) *multinomialProblem {
 	index := make(map[string]int, len(cats))
 	for i, c := range cats {
 		index[c] = i
@@ -426,7 +467,7 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 			nonRef = append(nonRef, c)
 		}
 	}
-	return &multinomialProblem{x: x, y: y, prior: prior, n: n, q: q, cats: cats, ref: ref, nonRef: nonRef}, nil
+	return &multinomialProblem{x: x, y: y, prior: prior, n: n, q: q, cats: cats, ref: ref, nonRef: nonRef}
 }
 
 // shares are the w*-weighted category shares.

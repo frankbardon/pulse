@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -428,14 +429,10 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 
 // RegressionSelectionCriterionRefusal is the rule that a selection
 // names its criterion — SERVICE_VALIDATION, details {selection}, when
-// spec sets selection without criterion. Predict applies it to every
-// regression; the extension adapter applies the same call before an
-// extension model's selection driver runs.
+// spec sets selection without criterion (regresample.CheckSelectionCriterion,
+// the leaf the REG_MULTINOMIAL engine calls too). Predict applies it to
+// every regression; the extension adapter applies the same call before
+// an extension model's selection driver runs.
 func RegressionSelectionCriterionRefusal(spec *types.RegressionSpec) *errors.CodedError {
-	if spec == nil || spec.Selection == "" || spec.Criterion != "" {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-		"regression Selection requires a Criterion (aic | bic)",
-		map[string]any{"selection": spec.Selection})
+	return regresample.CheckSelectionCriterion(spec)
 }

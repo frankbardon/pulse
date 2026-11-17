@@ -9701,6 +9701,72 @@
             "slot": true
           },
           {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Orthogonal resampling layer: every replicate refits at the full fit's categories and reference; a bootstrap replicate missing one is skipped, a jackknife one fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason replicate_empty_level).",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ],
+            "slot": true
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
+          },
+          {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed, echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper, term-level: a predictor enters or leaves across every non-reference category at once (MASS::stepAIC on multinom).",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ],
+            "slot": true
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection: deviance + k·(K−1)·(terms + 1), k = 2 (aic) or ln(n_obs) (bic).",
+            "enum_values": [
+              "aic",
+              "bic"
+            ],
+            "slot": true
+          },
+          {
             "name": "conf_level",
             "type": "float",
             "required": false,
@@ -9720,7 +9786,7 @@
             "name": "weight",
             "type": "object",
             "required": false,
-            "description": "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.",
+            "description": "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out. Bootstrap / selection refuse one (PULSE_WEIGHT_UNSUPPORTED); a weighted jackknife runs.",
             "slot": true
           },
           {
@@ -9757,6 +9823,25 @@
             "required": false,
             "description": "Result alias; also the saved model's name (default: the save file's stem).",
             "slot": true
+          }
+        ],
+        "modifiers": [
+          {
+            "name": "resample",
+            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
+            "enum_values": [
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "selection",
+            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
+            "enum_values": [
+              "backward",
+              "forward",
+              "stepwise"
+            ]
           }
         ],
         "intents": [
@@ -15017,11 +15102,11 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM, multinomial or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM or ordinal fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM, ordinal or multinomial fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-multinomial",
@@ -21791,4 +21876,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a4d19b3d7267bce4e472b4a978646c1a0dc103cc13e83ad553bdc6b88fd3c66f
+// golden-hash: e1f92cdd700e01b414647e8e12d7cdb0d30431add8a9e38179ce1216d62acf99

@@ -11,7 +11,8 @@ import (
 )
 
 // extension_modifiers.go drives the Resample and Selection modifiers
-// around an extension (registered) REG_* model with the built-in
+// around an extension (registered) REG_* model — and REG_MULTINOMIAL,
+// a built-in refit the same way (multinomial_modifiers.go) — with the built-in
 // drivers' own replicate loops (resample_core.go) and greedy search
 // (selection.go). The model is opaque: every refit is one fresh fit of
 // the registration over a row subset (resample) or under a predictor
@@ -35,7 +36,8 @@ type ExtensionFit func(recs []Record, predictors []string) (res *types.Regressio
 // 2k, BIC = deviance + ln(n)·k, with k the fit's coefficient count and
 // n its n_obs. A candidate fit that reports no deviance is
 // PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason missing_deviance)
-// via missingDeviance; a candidate's data-dependent refusal (the
+// via missingDeviance (nil: every fit reports one — a built-in's,
+// REG_MULTINOMIAL); a candidate's data-dependent refusal (the
 // per-slot codes) drops it, any other error stops the run.
 //
 // Resample refits the model over the fitted rows (the target, every
@@ -110,7 +112,7 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 		if err != nil {
 			return nil, err
 		}
-		if !slices.Contains(res.ReportedFigures, "deviance") {
+		if missingDeviance != nil && !slices.Contains(res.ReportedFigures, "deviance") {
 			return nil, missingDeviance()
 		}
 		return &refitResult{N: res.NObs, Deviance: res.Deviance, Params: len(keys)}, nil

@@ -12,8 +12,7 @@
 //     REG_MULTINOMIAL");
 //   - a RegressionSpec knob the multinomial fit does not offer: a GLM
 //     family / link / theta / dispersion ("no_family"), a penalty
-//     ("unpenalized"), bounds ("unbounded"), selection ("no_selection"),
-//     a resample and its knobs ("no_resample"), the Bayesian prior
+//     ("unpenalized"), bounds ("unbounded"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
 //     a robust covariance ("classical_covariance"), margins
 //     ("no_margins"), collinearity ("no_collinearity") — each a
@@ -23,6 +22,10 @@
 //     dictionary order is the category order; requires
 //     "categorical_target"), and `reference` one of its labels (requires
 //     "a level of the target").
+//
+// Resample and selection run (U68 E2-S2: every refit keeps the full
+// fit's categories and reference; selection is term-level), so the
+// shared rules (criterion, the jackknife knobs, weights) are theirs.
 //
 // `save` writes a model file carrying the fit's categories (U68 E1-S2:
 // the fit scores one category per ATTR_REG_PREDICT slot). A holdout
@@ -72,13 +75,6 @@ var unsupportedKnobs = []unsupported{
 	{"l1_ratio", "unpenalized", "l1_ratio is an elastic-net penalty's mix", func(s *types.RegressionSpec) bool { return s.L1Ratio != 0 }},
 	{"unpenalized", "unpenalized", "unpenalized is a ridge penalty's", func(s *types.RegressionSpec) bool { return len(s.Unpenalized) != 0 }},
 	{"bounds", "unbounded", "coefficient bounds are a REG_OLS knob", func(s *types.RegressionSpec) bool { return s.Bounds.Active() }},
-	{"selection", "no_selection", "subset selection over a multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Selection != "" }},
-	{"criterion", "no_selection", "criterion drives a selection", func(s *types.RegressionSpec) bool { return s.Criterion != "" }},
-	{"resample", "no_resample", "a resampled multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Resample != "" }},
-	{"jackknife_groups", "no_resample", "jackknife_groups is a jackknife's", func(s *types.RegressionSpec) bool { return s.JackknifeGroups != 0 }},
-	{"jackknife_by", "no_resample", "jackknife_by is a jackknife's", func(s *types.RegressionSpec) bool { return s.JackknifeBy != "" }},
-	{"bootstrap_iters", "no_resample", "bootstrap_iters is a bootstrap's", func(s *types.RegressionSpec) bool { return s.BootstrapIters != 0 }},
-	{"rng_seed", "no_resample", "rng_seed seeds a resample", func(s *types.RegressionSpec) bool { return s.RNGSeed != 0 }},
 	{"prior", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return s.Prior != "" }},
 	{"prior_mu", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return len(s.PriorMu) != 0 }},
 	{"prior_precision", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return !s.PriorPrecision.IsZero() }},

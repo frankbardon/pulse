@@ -46,13 +46,6 @@ func TestCheck_Refusals(t *testing.T) {
 		{"l1_ratio", "l1_ratio", "unpenalized", func(s *types.RegressionSpec) { s.L1Ratio = 0.5 }},
 		{"unpenalized", "unpenalized", "unpenalized", func(s *types.RegressionSpec) { s.Unpenalized = []string{"x"} }},
 		{"bounds", "bounds", "unbounded", func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"x"}} }},
-		{"selection", "selection", "no_selection", func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }},
-		{"criterion", "criterion", "no_selection", func(s *types.RegressionSpec) { s.Criterion = "aic" }},
-		{"resample", "resample", "no_resample", func(s *types.RegressionSpec) { s.Resample = "jackknife" }},
-		{"jackknife_groups", "jackknife_groups", "no_resample", func(s *types.RegressionSpec) { s.JackknifeGroups = 3 }},
-		{"jackknife_by", "jackknife_by", "no_resample", func(s *types.RegressionSpec) { s.JackknifeBy = "x" }},
-		{"bootstrap_iters", "bootstrap_iters", "no_resample", func(s *types.RegressionSpec) { s.BootstrapIters = 10 }},
-		{"rng_seed", "rng_seed", "no_resample", func(s *types.RegressionSpec) { s.RNGSeed = 3 }},
 		{"prior", "prior", "no_prior", func(s *types.RegressionSpec) { s.Prior = "nig" }},
 		{"prior_mu", "prior_mu", "no_prior", func(s *types.RegressionSpec) { s.PriorMu = []float64{0, 0} }},
 		{"prior_shape", "prior_shape", "no_prior", func(s *types.RegressionSpec) { s.PriorShape = 1 }},
@@ -83,6 +76,9 @@ func TestCheck_Refusals(t *testing.T) {
 	ok.Reference, ok.MaxIters, ok.Tol, ok.ConfLevel, ok.Vcov = "mid", 10, 1e-9, 0.9, true
 	ok.Save = "m.pulse-model.json" // U68 E1-S2: a multinomial fit saves
 	ok.Covariance = &types.RegressionCovariance{Type: types.CovarianceClassical}
+	// U68 E2-S2: the resample and selection modifiers run.
+	ok.Resample, ok.JackknifeBy, ok.BootstrapIters, ok.RNGSeed = "jackknife", "g", 10, 3
+	ok.Selection, ok.Criterion = "stepwise", "bic"
 	if cerr := Check(ok); cerr != nil {
 		t.Fatalf("offered knobs refused: %v", cerr)
 	}

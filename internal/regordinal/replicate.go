@@ -19,15 +19,10 @@ import (
 // a subset's levels would otherwise derive from its own rows — a
 // replicate that lost a level would report other threshold names. The
 // pin fixes params.levels at the slot's first fit's levels, so a refit
-// whose rows lack one fails with ReasonReplicateEmptyLevel: a bootstrap
+// whose rows lack one fails with pmodel.ReasonReplicateEmptyLevel: a bootstrap
 // skips that replicate (requested − succeeded counts it), a jackknife
 // fails the slot alone (every replicate enters its variance), a
 // selection candidate is dropped.
-
-// ReasonReplicateEmptyLevel is the PROCESSING_REGRESSION_INSUFFICIENT_DATA
-// reason of a pinned refit whose rows carry no row at one of the first
-// fit's levels.
-const ReasonReplicateEmptyLevel = "replicate_empty_level"
 
 // reasonEmptyLevel is resolveLevels' params.levels refusal reason.
 const reasonEmptyLevel = "empty_level"
@@ -80,7 +75,7 @@ func replicateRefusal(err error, levels []string) error {
 	}
 	lv, _ := ce.Details["level"].(string)
 	return insufficient(fmt.Sprintf("a refit's rows carry no %q response, a level the full fit has (every resample replicate and selection candidate keeps the full fit's levels %v): a jackknife needs every replicate, so the slot fails; a bootstrap skips the replicate", lv, levels),
-		map[string]any{"reason": ReasonReplicateEmptyLevel, "level": lv, "levels": slices.Clone(levels)})
+		map[string]any{"reason": pmodel.ReasonReplicateEmptyLevel, "level": lv, "levels": slices.Clone(levels)})
 }
 
 // stringsOutput reads the string-list output key of res.

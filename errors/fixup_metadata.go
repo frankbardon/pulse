@@ -193,7 +193,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Regressions", "*", "Resample"},
-				Hint:   "On details.reason replicate_empty_level (a REG_ORDINAL jackknife replicate lost a response level the full fit has), switch resample to bootstrap, which skips such replicates, or choose jackknife_by groups that each leave every level behind, or merge the sparse level.",
+				Hint:   "On details.reason replicate_empty_level (a REG_ORDINAL or REG_MULTINOMIAL jackknife replicate lost a response level or category the full fit has, named by details.level), switch resample to bootstrap, which skips such replicates, or choose jackknife_by groups that each leave every level behind, or merge the sparse level.",
 			},
 		},
 	},

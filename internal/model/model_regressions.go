@@ -183,6 +183,16 @@ type ReplicatePin struct {
 	NoPValue []string
 }
 
+// ReasonReplicateEmptyLevel is the PROCESSING_REGRESSION_INSUFFICIENT_DATA
+// details.reason of a pinned modifier refit (a resample replicate or a
+// selection candidate) whose rows carry no row at one of the response
+// levels the slot's first fit has: a REG_ORDINAL level
+// (internal/regordinal.ReplicatePin) or a REG_MULTINOMIAL category
+// (internal/processing/regression, U68 E2-S2). details.level names it,
+// details.levels the pinned set. A bootstrap skips such a replicate, a
+// jackknife fails the slot alone, a selection drops the candidate.
+const ReasonReplicateEmptyLevel = "replicate_empty_level"
+
 // OrdinalThresholdSeparator joins two adjacent levels into a REG_ORDINAL
 // threshold's coefficient name, "<level>|<next level>" (polr's zeta).
 const OrdinalThresholdSeparator = "|"

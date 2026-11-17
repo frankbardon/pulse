@@ -112,7 +112,8 @@ func mnReq(cohort string, specs ...*types.RegressionSpec) *Request {
 }
 
 // TestMultinomial_WorkerInvariant: the fits — unweighted with vcov,
-// frequency- and probability-weighted, a named reference — are
+// frequency- and probability-weighted, a named reference, under the
+// resample and selection modifiers — are
 // byte-identical across decode workers (one file) and shard workers
 // (the archive), and their categories follow the dictionary order.
 func TestMultinomial_WorkerInvariant(t *testing.T) {
@@ -134,6 +135,17 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 		mnSpec(func(s *types.RegressionSpec) {
 			s.Name, s.Holdout = "m_hold", "id % 4 == 0"
 			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		// The modifiers (U68 E2-S2): a weighted delete-a-cluster
+		// jackknife, a bootstrap at the derived seed (rng_seed 0) and a
+		// stepwise selection resampled by a seeded grouped jackknife.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Resample, s.JackknifeBy, s.Vcov = "m_jk", "jackknife", "f", true
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample, s.BootstrapIters = "m_boot", "bootstrap", 25 }),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups, s.RNGSeed = "m_sel", "stepwise", "aic", "jackknife", 6, 4
 		}),
 	}
 	single, sharded := mnModes(t)
@@ -185,8 +197,20 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 	}{
 		{"family", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Family = "binomial" })), errors.PROCESSING_CONFIG, "no_family"},
 		{"penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), errors.PROCESSING_CONFIG, "unpenalized"},
-		{"selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" })), errors.PROCESSING_CONFIG, "no_selection"},
-		{"resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Resample = "jackknife" })), errors.PROCESSING_CONFIG, "no_resample"},
+		// U68 E2-S2: a weighted bootstrap or selection is the built-in
+		// rule's refusal (a weighted jackknife runs, below).
+		{"weighted bootstrap", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.BootstrapIters = "bootstrap", 20
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		})), errors.PULSE_WEIGHT_UNSUPPORTED, ""},
+		{"weighted selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Selection, s.Criterion = "forward", "aic"
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		})), errors.PULSE_WEIGHT_UNSUPPORTED, ""},
+		{"selection without criterion", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Selection = "forward" })), errors.SERVICE_VALIDATION, ""},
+		{"jackknife_groups and jackknife_by", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.JackknifeGroups, s.JackknifeBy = "jackknife", 4, "f"
+		})), errors.PROCESSING_CONFIG, ""},
 		{"robust covariance", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0}
 		})), errors.PROCESSING_CONFIG, "classical_covariance"},
@@ -224,6 +248,39 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 			}
 		})
 	}
+	// The resample and selection modifiers run (U68 E2-S2) and predict
+	// accepts them: no refusal on either side.
+	t.Run("modifiers run", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample = "jk", "jackknife" }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Resample, s.JackknifeBy = "jk_w", "jackknife", "f"
+				s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Resample, s.BootstrapIters, s.RNGSeed = "boot", "bootstrap", 20, 3
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups = "sel", "backward", "bic", "jackknife", 5
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		for _, r := range resp.Regressions {
+			if r.Error != nil || r.Resample == "" || len(r.StdErrors) == 0 {
+				t.Fatalf("%s: %+v", r.Name, r)
+			}
+		}
+		if r := resp.Regressions[3]; r.Selection != "backward" || r.JackknifeGroups != 5 || len(r.Coefficients) != 2*(len(r.SelectedFeatures)+1) {
+			t.Errorf("selection + resample: %+v", r)
+		}
+	})
 	// A holdout runs (U68 E1-S3) and predict accepts it: no refusal on
 	// either side, the slot buffered.
 	t.Run("holdout runs", func(t *testing.T) {
@@ -343,5 +400,81 @@ func TestMultinomial_FailsAlone(t *testing.T) {
 	pr, err := p.Predict(ctx, req)
 	if err != nil || !pr.Valid {
 		t.Fatalf("predict %+v %v, want valid", pr, err)
+	}
+}
+
+// TestMultinomial_ReplicateCategoryLossFailsAlone: a leave-one-out
+// jackknife whose deletion empties a category the full fit has fails the
+// slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason
+// replicate_empty_level, details.level the category; PULSE_SLOT_FAILED)
+// while predict — which reads no row — accepts the request; Strict fails
+// the request with the slot's own code. A bootstrap over the same rows
+// skips the replicates that lost it (U68 E2-S2, decision D5).
+func TestMultinomial_ReplicateCategoryLossFailsAlone(t *testing.T) {
+	t.Parallel()
+
+	// hi kept on one interior row (the hi row of 50..110 with the
+	// smallest |x2|), every other hi row relabelled mid.
+	keep, best := -1, math.Inf(1)
+	for i := 50; i <= 110; i++ {
+		if r := mnRow(i); r[4] == "hi" {
+			if v, _ := strconv.ParseFloat(r[2], 64); math.Abs(v) < best {
+				keep, best = i, math.Abs(v)
+			}
+		}
+	}
+	var rows [][]string
+	for i := 0; i < mnRowsN; i++ {
+		r := mnRow(i)
+		if r[4] == "hi" && i != 2 && i != keep {
+			r[4] = "mid"
+		}
+		if i == 2 {
+			r[4] = "lo" // the dictionary order stays mid, lo, hi
+		}
+		rows = append(rows, r)
+	}
+	fsys := afero.NewMemMapFs()
+	createTestPulseFile(t, fsys, "one_hi.pulse", mnColumns, rows)
+	newP := func(strict bool) *Pulse {
+		p, err := New(Options{FS: fsys, Strict: strict})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	ctx := context.Background()
+	p := newP(false)
+	req := mnReq("one_hi.pulse",
+		mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample = "jk", "jackknife" }),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Resample, s.BootstrapIters, s.RNGSeed = "boot", "bootstrap", 40, 9
+		}),
+	)
+	if pr, err := p.Predict(ctx, req); err != nil || !pr.Valid || len(pr.Errors) != 0 {
+		t.Fatalf("predict: %v %+v", err, pr)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v (the slot should fail alone)", err)
+	}
+	jk, boot := resp.Regressions[0], resp.Regressions[1]
+	if jk.Error == nil || jk.Error.Code != string(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA) ||
+		jk.Error.Details["reason"] != "replicate_empty_level" || jk.Error.Details["level"] != "hi" || jk.Coefficients != nil {
+		t.Fatalf("jackknife slot %+v", jk.Error)
+	}
+	warned := false
+	for _, w := range resp.Warnings {
+		warned = warned || w.Code == string(errors.PULSE_SLOT_FAILED)
+	}
+	if !warned {
+		t.Errorf("no PULSE_SLOT_FAILED warning in %+v", resp.Warnings)
+	}
+	if boot.Error != nil || boot.BootstrapSucceeded >= boot.BootstrapRequested || !slices.Equal(boot.Categories, []string{"mid", "lo", "hi"}) {
+		t.Fatalf("bootstrap %+v: want some replicates skipped, every category kept", boot)
+	}
+	_, serr := newP(true).Process(ctx, req)
+	if ce := codedOf(t, serr); ce.Code != errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA || ce.Details["reason"] != "replicate_empty_level" {
+		t.Errorf("Strict Process: %v, want the slot's own INSUFFICIENT_DATA", serr)
 	}
 }

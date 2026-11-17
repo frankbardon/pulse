@@ -10,9 +10,10 @@
 #
 # (then append the `// golden-hash:` footer the Makefile's reference
 # target writes). CI never runs R: the golden is committed. R 4.6.1 +
-# jsonlite + nnet 7.3-21 (a recommended package this R build does not
-# ship: install it into the user library from the Posit noble binary
-# repo, docs/src/internals/regenerating-goldens.md, The R toolchain).
+# jsonlite + MASS 7.3-66 (stepAIC, the modifiers block) + nnet 7.3-21
+# (a recommended package this R build does not ship: install it into
+# the user library from the Posit noble binary repo,
+# docs/src/internals/regenerating-goldens.md, The R toolchain).
 #
 # The model, per row i with predictors x_i (intercept first) and L
 # observed levels, the reference r:
@@ -57,10 +58,16 @@
 # Seeded (set.seed(20261102)). Rows are [x1, x2, y] or [x1, x2, y, w],
 # y the 0-based index of the row's level in `levels` (the target's
 # dictionary order).
+#
+# The `modifiers` block (U68 E2-S2) adds the resample / selection
+# oracles — the manual-deletion jackknife and MASS::stepAIC (MASS
+# 7.3-66) on multinom — drawn after every case under its own seed (see
+# the block below).
 
 suppressPackageStartupMessages({
   library(jsonlite)
   library(nnet)
+  library(MASS)
 })
 
 if (!exists("out_dir")) {
@@ -77,6 +84,7 @@ if (!exists("write_golden")) {
 }
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_multinomial.R pins R 4.6.1, got ", R.version.string)
 if (as.character(packageVersion("nnet")) != "7.3.21") stop("gen_multinomial.R pins nnet 7.3-21, got ", packageVersion("nnet"))
+if (as.character(packageVersion("MASS")) != "7.3.66") stop("gen_multinomial.R pins MASS 7.3-66, got ", packageVersion("MASS"))
 
 mn_g17 <- function(v) {
   v <- unname(as.numeric(v))
@@ -256,11 +264,138 @@ d <- mn_draw(90, cbind(c(0.2, 0.6, 0.3), c(-0.1, -0.7, 0.5)))
 d$y <- ifelse(d$y == 0, 0, d$y + 1)
 mn_case("empty_level", d, c("a", "unused", "b", "c"))
 
+# Resample and selection (U68 E2-S2, #658): REG_MULTINOMIAL refit by the
+# engine's modifier drivers, every refit at the full fit's categories and
+# reference. Drawn AFTER every case above under its own seed, so no
+# case's rows move. Rows are [x..., y, g] (y the 0-based level index, g
+# a cluster id).
+#   * jackknife: the manual-deletion jackknife on multinom — n
+#     leave-one-out refits (each Newton-polished to its MLE from the full
+#     fit and checked against multinom on the same deletion to 1e-6), SE
+#     = sqrt((n - 1)/n sum_i (beta_(i) - mean)^2) over every coefficient;
+#     jackknife_by g: one refit per deleted cluster (sorted values),
+#     (G - 1)/G. Every deletion keeps every category (asserted).
+#   * selection: MASS::stepAIC on multinom — forward and both from y ~ 1,
+#     backward from the full model, scope the five predictors, k = 2 (AIC)
+#     and log(n) (BIC); a term enters or leaves across every non-reference
+#     category at once, and the criterion is extractAIC's deviance + k *
+#     edf, edf = (K - 1) (terms + 1). A greedy search over the POLISHED
+#     deviances re-runs each path and must pick the same terms, every
+#     step's winner ahead of the runner-up by more than 1e-3 (so
+#     multinom's ~1e-8 optimum cannot flip a step); selected lists the
+#     terms in stepAIC's order, coefficients the final model's polished
+#     MLE (category-major over (intercept) then the selected terms).
+set.seed(20261129)
+mn_mdraw <- function(n, B, p) {
+  d <- as.data.frame(matrix(round(rnorm(n * p), 3), n, p))
+  names(d) <- paste0("x", seq_len(p))
+  X <- cbind(1, as.matrix(d))
+  eta <- cbind(0, X %*% B)
+  P <- exp(eta) / rowSums(exp(eta))
+  d$y <- apply(P, 1, function(pp) sample.int(length(pp), 1, prob = pp)) - 1
+  d$g <- sample(1:8, n, replace = TRUE)
+  d
+}
+mn_mlevels <- c("a", "b", "c")
+# mn_mfit: multinom of y on preds over d (reference "a"), Newton-polished
+# from start (default: multinom's own optimum); returns beta and the
+# deviance.
+mn_mfit <- function(d, preds, start = NULL) {
+  yy <- factor(mn_mlevels[d$y + 1], levels = mn_mlevels)
+  if (any(table(yy) == 0)) stop("modifier refit lost a category")
+  dd <- data.frame(d[, preds, drop = FALSE], yy = yy)
+  f <- if (length(preds) == 0) yy ~ 1 else as.formula(paste("yy ~", paste(preds, collapse = " + ")))
+  m <- multinom(f, data = dd, maxit = 1000, reltol = 1e-16, trace = FALSE)
+  X <- cbind(1, as.matrix(d[, preds, drop = FALSE]))
+  Yi <- sapply(mn_mlevels, function(l) as.numeric(as.character(yy) == l))
+  w <- rep(1, nrow(d))
+  beta <- if (is.null(start)) as.vector(t(coef(m))) else start
+  for (it in 1:100) {
+    pp <- mn_parts(beta, X, Yi, w)
+    step <- solve(pp$H, pp$g)
+    beta <- beta + step
+    if (max(abs(step)) <= 1e-15 * max(1, max(abs(beta)))) break
+  }
+  pp <- mn_parts(beta, X, Yi, w)
+  if (max(abs(pp$g)) > 1e-9) stop("modifier refit: gradient not zero at the polished MLE")
+  mn_check("modifier refit multinom vs polished", as.vector(t(coef(m))), beta, 1e-6)
+  list(beta = beta, dev = -2 * pp$ll)
+}
+mn_jk_se <- function(reps, scale) {
+  mu <- colMeans(reps)
+  sqrt(scale * colSums(sweep(reps, 2, mu)^2))
+}
+mn_mrows <- function(d, preds) lapply(seq_len(nrow(d)), function(i) mn_g17(c(unlist(d[i, preds]), d$y[i], d$g[i])))
+mn_mkeys <- function(preds) as.vector(t(outer(mn_mlevels[-1], c("(intercept)", preds), paste, sep = ":")))
+
+d <- mn_mdraw(80, cbind(c(0.2, 0.9, -0.5), c(-0.3, -0.6, 0.8)), 2)
+preds <- c("x1", "x2")
+full <- mn_mfit(d, preds)
+loo <- t(sapply(seq_len(nrow(d)), function(i) mn_mfit(d[-i, ], preds, full$beta)$beta))
+gs <- sort(unique(d$g))
+grp <- t(sapply(gs, function(g) mn_mfit(d[d$g != g, ], preds, full$beta)$beta))
+mn_jackknife <- list(name = "jackknife", levels = mn_mlevels, predictors = preds, keys = mn_mkeys(preds),
+  coefficients = mn_g17(full$beta),
+  std_errors = mn_g17(mn_jk_se(loo, (nrow(d) - 1) / nrow(d))),
+  by_groups = length(gs),
+  by_std_errors = mn_g17(mn_jk_se(grp, (length(gs) - 1) / length(gs))),
+  rows = mn_mrows(d, preds))
+
+d <- mn_mdraw(220, cbind(c(0.3, 1.0, -0.8, 0.25, 0, 0), c(-0.2, -0.7, 0.9, 0, 0, 0)), 5)
+preds <- paste0("x", 1:5)
+dsel <- d
+dsel$yy <- factor(mn_mlevels[dsel$y + 1], levels = mn_mlevels)
+K1 <- length(mn_mlevels) - 1
+# mn_greedy re-runs one stepAIC path over polished deviances; it returns
+# the terms in entry order, stopping when no move lowers the criterion
+# and refusing a step whose winner leads the runner-up (or the stay) by
+# less than 1e-3.
+mn_greedy <- function(direction, k) {
+  crit <- function(active) mn_mfit(dsel, active)$dev + k * K1 * (length(active) + 1)
+  active <- if (direction == "backward") preds else character(0)
+  cur <- crit(active)
+  repeat {
+    moves <- list()
+    if (direction != "backward") for (t in setdiff(preds, active)) moves[[length(moves) + 1]] <- c(active, t)
+    if (direction != "forward") for (t in active) moves[[length(moves) + 1]] <- setdiff(active, t)
+    if (length(moves) == 0) break
+    cs <- sapply(moves, crit)
+    o <- order(cs)
+    gaps <- c(cur, cs[o[-1]]) - cs[o[1]]
+    if (any(abs(gaps) < 1e-3)) stop("selection ", direction, " k=", k, ": a step is within 1e-3 of a tie")
+    if (cs[o[1]] >= cur) break
+    active <- moves[[o[1]]]
+    cur <- cs[o[1]]
+  }
+  active
+}
+sc <- list(lower = ~1, upper = as.formula(paste("~", paste(preds, collapse = " + "))))
+m0 <- multinom(yy ~ 1, data = dsel, maxit = 1000, reltol = 1e-16, trace = FALSE)
+m1 <- multinom(as.formula(paste("yy ~", paste(preds, collapse = " + "))), data = dsel, maxit = 1000, reltol = 1e-16, trace = FALSE)
+mn_selection_runs <- list()
+for (crit_name in c("aic", "bic")) {
+  k <- if (crit_name == "aic") 2 else log(nrow(dsel))
+  for (direction in c("forward", "backward", "stepwise")) {
+    st <- stepAIC(if (direction == "backward") m1 else m0, scope = sc, k = k, trace = 0,
+                  direction = if (direction == "stepwise") "both" else direction)
+    sel <- setdiff(colnames(coef(st)), "(Intercept)")
+    mine <- mn_greedy(if (direction == "stepwise") "both" else direction, k)
+    if (!setequal(sel, mine) || (direction == "forward" && !identical(sel, mine))) stop("stepAIC ", direction, " ", crit_name, " picks ", paste(sel, collapse = ","), ", the polished search ", paste(mine, collapse = ","))
+    fit <- mn_mfit(dsel, sel)
+    mn_check(paste("stepAIC", direction, crit_name, "extractAIC"), extractAIC(st, k = k)[2], fit$dev + k * K1 * (length(sel) + 1), 1e-6)
+    mn_selection_runs[[length(mn_selection_runs) + 1]] <- list(direction = direction, criterion = crit_name,
+      selected = I(sel), steps = I(as.character(st$anova$Step)), keys = I(mn_mkeys(sel)),
+      coefficients = mn_g17(fit$beta), deviance = mn_g17(fit$dev))
+  }
+}
+mn_selection <- list(name = "selection", levels = mn_mlevels, predictors = preds,
+  n_obs = nrow(dsel), runs = mn_selection_runs, rows = mn_mrows(dsel, preds))
+
 write_golden("multinomial", list(
   generator = "scripts/reference/gen_multinomial.R",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
-    nnet = as.character(packageVersion("nnet"))),
+    nnet = as.character(packageVersion("nnet")), MASS = as.character(packageVersion("MASS"))),
   note = paste(
     "multinom(y ~ x1 + x2) Newton-polished to the MLE. keys category-major: <level>:(intercept), <level>:x1, <level>:x2 per",
     "non-reference level in fitted order (categories: reference first, then the observed levels in dictionary order);",
@@ -268,5 +403,6 @@ write_golden("multinomial", list(
     "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference;",
     "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
     "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order."),
-  cases = mn_cases
+  cases = mn_cases,
+  modifiers = list(jackknife = mn_jackknife, selection = mn_selection)
 ))

@@ -1,6 +1,6 @@
 ---
 name: op-reg-mod-selection
-description: Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM or ordinal fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
+description: Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM, ordinal or multinomial fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_SELECTION
@@ -41,6 +41,9 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 <!-- /feature -->
 <!-- feature: REG_ORDINAL -->
 | `REG_ORDINAL` | yes — candidates keep the first fit's levels; k counts thresholds (`stepAIC` on `polr`) |
+<!-- /feature -->
+<!-- feature: REG_MULTINOMIAL -->
+| `REG_MULTINOMIAL` | yes — a predictor enters / leaves for every category, k = (K−1)·(terms + 1); candidates keep the first fit's categories (`stepAIC` on `multinom`) |
 <!-- /feature -->
 
 ## Output

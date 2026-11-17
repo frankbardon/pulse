@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
+	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
 )
@@ -246,8 +247,8 @@ func TestRegOrdinal_ReplicateLevelLoss(t *testing.T) {
 			}
 			res := resp.Regressions[0]
 			if res.Error == nil || res.Error.Code != string(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA) ||
-				res.Error.Details["reason"] != regordinal.ReasonReplicateEmptyLevel || res.Error.Details["level"] != "4" {
-				t.Fatalf("slot error %s, want INSUFFICIENT_DATA reason %s level 4", mustJSON(t, res.Error), regordinal.ReasonReplicateEmptyLevel)
+				res.Error.Details["reason"] != pmodel.ReasonReplicateEmptyLevel || res.Error.Details["level"] != "4" {
+				t.Fatalf("slot error %s, want INSUFFICIENT_DATA reason %s level 4", mustJSON(t, res.Error), pmodel.ReasonReplicateEmptyLevel)
 			}
 			if _, ok := res.Error.Details["jackknife_group"]; ok != tc.group {
 				t.Errorf("details.jackknife_group present %v, want %v (%v)", ok, tc.group, res.Error.Details)
@@ -257,8 +258,8 @@ func TestRegOrdinal_ReplicateLevelLoss(t *testing.T) {
 			}
 			_, serr := strict.Process(ctx, r)
 			var ce *perr.CodedError
-			if !asCoded(serr, &ce) || ce.Code != perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA || ce.Details["reason"] != regordinal.ReasonReplicateEmptyLevel {
-				t.Errorf("Strict Process: %v, want the slot's own INSUFFICIENT_DATA (%s)", serr, regordinal.ReasonReplicateEmptyLevel)
+			if !asCoded(serr, &ce) || ce.Code != perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA || ce.Details["reason"] != pmodel.ReasonReplicateEmptyLevel {
+				t.Errorf("Strict Process: %v, want the slot's own INSUFFICIENT_DATA (%s)", serr, pmodel.ReasonReplicateEmptyLevel)
 			}
 		})
 	}
