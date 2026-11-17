@@ -56,12 +56,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/internal/gp"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/internal/sweep/sweeptest"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/linalg/detmath"
@@ -160,7 +163,186 @@ var directFigures = []directFigure{
 	{"linalg.CholeskyRidge(indefinite).L00", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(0, 0) }},
 	{"linalg.CholeskyRidge(indefinite).L10", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 0) }},
 	{"linalg.CholeskyRidge(indefinite).L11", func() float64 { l, _ := ridgeFactor(indefiniteSym); return l.At(1, 1) }},
+
+	// compose-sweep-2 E3-S3: the compose sweep's mode de (internal/sweep
+	// de.go) — the seeded Latin-hypercube population, the barriered
+	// rand/1/bin mutant, RangeValue's linear and log maps — searching
+	// deSearch through the real adaptive executor. The trajectory sum
+	// moves if any slot of any round moves.
+	{"sweep.de(rosenbrock+log,seed=7).best", func() float64 { return deSearch().best }},
+	{"sweep.de(rosenbrock+log,seed=7).best_x", func() float64 { return deSearch().x }},
+	{"sweep.de(rosenbrock+log,seed=7).best_lambda", func() float64 { return deSearch().lambda }},
+	{"sweep.de(rosenbrock+log,seed=7).sum", func() float64 { return deSearch().sum }},
+
+	// compose-sweep-2 E4-S1: the Gaussian-process surrogate behind mode
+	// bo (internal/gp) — the Matérn-5/2 ARD kernel over a mixed
+	// continuous / one-hot space, the reference Cholesky, the LML and
+	// its gradient, seeded SLSQP ML-II restarts, the posterior — fitted
+	// on gpFit's fixed design.
+	{"gp.Fit(mixed,seed=5).lml", func() float64 { return gpFit().lml }},
+	{"gp.Fit(mixed,seed=5).amplitude", func() float64 { return gpFit().amp }},
+	{"gp.Fit(mixed,seed=5).length_scale0", func() float64 { return gpFit().ls0 }},
+	{"gp.Fit(mixed,seed=5).length_scale1", func() float64 { return gpFit().ls1 }},
+	{"gp.Fit(mixed,seed=5).noise", func() float64 { return gpFit().noise }},
+	{"gp.Fit(mixed,seed=5).mean", func() float64 { return gpFit().mean }},
+	{"gp.Fit(mixed,seed=5).variance", func() float64 { return gpFit().variance }},
+	{"gp.LogMarginalLikelihood(mixed).grad_sum", func() float64 { return gpFit().gradSum }},
+
+	// compose-sweep-2 E4-S2: the compose sweep's mode bo (internal/sweep
+	// bo.go) — the Latin-hypercube initial design, the per-round ML-II
+	// GP fit, expected improvement (detmath Erfc / Exp), the candidate
+	// scoring and SLSQP polish, the constant-liar batch fill, a one-hot
+	// list axis — searching boSearch through the real adaptive executor.
+	// The trajectory sum moves if any slot of any round moves.
+	{"sweep.bo(rosenbrock+log+list,seed=7).best", func() float64 { return boSearch().best }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).best_x", func() float64 { return boSearch().x }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).best_lambda", func() float64 { return boSearch().lambda }},
+	{"sweep.bo(rosenbrock+log+list,seed=7).sum", func() float64 { return boSearch().sum }},
 }
+
+// deFigures is deSearch's outcome.
+type deFigures struct{ best, x, lambda, sum float64 }
+
+// deSearch runs a 600-slot mode-de sweep (seed 7, default knobs:
+// population 30) over x, y on [-2, 2] and lambda log-scaled on
+// [1e-3, 1e2], minimising 2-D Rosenbrock plus (ln lambda − ln 0.1)²,
+// every product rounded before its add.
+var deSearch = sync.OnceValue(func() deFigures {
+	num := func(v any) float64 {
+		f, err := strconv.ParseFloat(string(v.(json.Number)), 64)
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}
+	lo, hi, llo, lhi := -2.0, 2.0, 1e-3, 1e2
+	spec := &types.SweepSpec{
+		Mode: types.SweepModeDE, Budget: 600, RNGSeed: 7,
+		Axes: []types.SweepAxis{
+			{Name: "x", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "y", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "lambda", Range: &types.SweepRange{Min: &llo, Max: &lhi, Scale: types.SweepScaleLog}},
+		},
+		Request: json.RawMessage(`{"params":{"x":{"$var":"x"},"y":{"$var":"y"},"l":{"$var":"lambda"}}}`),
+		Rank:    &types.SweepRank{By: "v"},
+	}
+	ev, err := sweeptest.Search(spec, func(a map[string]any) (float64, bool) {
+		x, y := num(a["x"]), num(a["y"])
+		d1, d2, dl := 1-x, y-float64(x*x), detmath.Log(num(a["lambda"]))-detmath.Log(0.1)
+		return float64(d1*d1) + float64(100*float64(d2*d2)) + float64(dl*dl), true
+	})
+	if err != nil {
+		panic(err)
+	}
+	out := deFigures{best: ev[0].Value}
+	b := ev[0]
+	for _, e := range ev {
+		out.sum += e.Value
+		if e.Value < b.Value {
+			b = e
+		}
+	}
+	out.best, out.x, out.lambda = b.Value, num(b.Axes["x"]), num(b.Axes["lambda"])
+	return out
+})
+
+// boSearch runs a 24-slot mode-bo sweep (seed 7, n_init 6, batch 3)
+// over x, y on [-2, 2], lambda log-scaled on [1e-3, 1e2] and a list axis
+// kind (a, b, c), minimising 2-D Rosenbrock plus (ln lambda − ln 0.1)²
+// plus 1 off kind b, every product rounded before its add.
+var boSearch = sync.OnceValue(func() deFigures {
+	num := func(v any) float64 {
+		f, err := strconv.ParseFloat(string(v.(json.Number)), 64)
+		if err != nil {
+			panic(err)
+		}
+		return f
+	}
+	lo, hi, llo, lhi, nInit, batch := -2.0, 2.0, 1e-3, 1e2, 6, 3
+	spec := &types.SweepSpec{
+		Mode: types.SweepModeBO, Budget: 24, RNGSeed: 7,
+		BO: &types.SweepBO{NInit: &nInit, Batch: &batch},
+		Axes: []types.SweepAxis{
+			{Name: "x", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "y", Range: &types.SweepRange{Min: &lo, Max: &hi}},
+			{Name: "lambda", Range: &types.SweepRange{Min: &llo, Max: &lhi, Scale: types.SweepScaleLog}},
+			{Name: "kind", Values: []any{"a", "b", "c"}},
+		},
+		Request: json.RawMessage(`{"params":{"x":{"$var":"x"},"y":{"$var":"y"},"l":{"$var":"lambda"},"k":{"$var":"kind"}}}`),
+		Rank:    &types.SweepRank{By: "v"},
+	}
+	ev, err := sweeptest.Search(spec, func(a map[string]any) (float64, bool) {
+		x, y := num(a["x"]), num(a["y"])
+		d1, d2, dl := 1-x, y-float64(x*x), detmath.Log(num(a["lambda"]))-detmath.Log(0.1)
+		v := float64(d1*d1) + float64(100*float64(d2*d2)) + float64(dl*dl)
+		if a["kind"] != "b" {
+			v++
+		}
+		return v, true
+	})
+	if err != nil {
+		panic(err)
+	}
+	out := deFigures{}
+	b := ev[0]
+	for _, e := range ev {
+		out.sum += e.Value
+		if e.Value < b.Value {
+			b = e
+		}
+	}
+	out.best, out.x, out.lambda = b.Value, num(b.Axes["x"]), num(b.Axes["lambda"])
+	return out
+})
+
+// gpFigures is gpFit's outcome.
+type gpFigures struct{ lml, amp, ls0, ls1, noise, mean, variance, gradSum float64 }
+
+// gpFit fits internal/gp (default options, seed 5: five SLSQP starts) on
+// 14 points of a continuous × 3-level categorical space with targets
+// sin(5u)·(1 + level/2), every product rounded before its add, and
+// probes the posterior at (0.37, level 1); gradSum is the θ-gradient's
+// sum at fixed hyperparameters.
+var gpFit = sync.OnceValue(func() gpFigures {
+	sp, err := gp.NewSpace([]gp.Dim{{}, {Levels: 3}})
+	if err != nil {
+		panic(err)
+	}
+	var x [][]float64
+	var y []float64
+	for i := range 14 {
+		u := float64(i) / 13
+		k := (i * 7) % 3
+		row, err := sp.Encode([]float64{u, 0}, []int{0, k})
+		if err != nil {
+			panic(err)
+		}
+		x = append(x, row)
+		y = append(y, float64(detmath.Sin(5*u)*float64(1+float64(k)/2)))
+	}
+	m, err := gp.Fit(sp, x, y, gp.FitOptions{Seed: 5})
+	if err != nil {
+		panic(err)
+	}
+	probe, err := sp.Encode([]float64{0.37, 0}, []int{0, 1})
+	if err != nil {
+		panic(err)
+	}
+	mean, variance, err := m.Predict(probe)
+	if err != nil {
+		panic(err)
+	}
+	_, grad, err := gp.LogMarginalLikelihood(sp, x, y, gp.Hyper{Amplitude: 1.1, LengthScales: []float64{0.3, 0.8}, Noise: 1e-3}, gp.DefaultNugget)
+	if err != nil {
+		panic(err)
+	}
+	h := m.Hyper()
+	out := gpFigures{lml: m.LogMarginalLikelihood(), amp: h.Amplitude, ls0: h.LengthScales[0], ls1: h.LengthScales[1], noise: h.Noise, mean: mean, variance: variance}
+	for _, g := range grad {
+		out.gradSum += g
+	}
+	return out
+})
 
 // rank1Sym fails the first Cholesky attempt on an exact zero pivot;
 // indefiniteSym (smallest eigenvalue about -5e-4) needs the first four

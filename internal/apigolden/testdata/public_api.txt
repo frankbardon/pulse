@@ -180,6 +180,8 @@ pulse: type ComposePredictResult field Slots []pulse/descriptor.ComposeSlotPredi
 pulse: type ComposePredictResult field Sweep *pulse/descriptor.SweepSummary "json:\"sweep,omitempty\""
 pulse: type ComposePredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse: type ComposePredictResult field Valid bool "json:\"valid\""
+pulse: type ComposeStreamOptions struct
+pulse: type ComposeStreamOptions field TerminalFits bool
 pulse: type ComposedRequest = pulse/types.ComposedRequest
 pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
@@ -205,6 +207,7 @@ pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "j
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
+pulse: type ComposedResponse field RankingProfile map[string][]pulse/types.RankProfileEntry "json:\"ranking_profile,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
@@ -500,6 +503,7 @@ pulse: type FilterToFileRequest field Filterers []*pulse/types.Filterer "json:\"
 pulse: type FilterToFileRequest field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse: type FilterToFileRequest field OutputDir string "json:\"output_dir\""
 pulse: type FilterToFileRequest field OutputName string "json:\"output_name,omitempty\""
+pulse: type FilterToFileRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
 pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
@@ -1427,6 +1431,7 @@ pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type WindowRegistration field Validate pulse/extend.SpecValidator[pulse/types.Window]
+pulse: func WriteComposeStream(w io.Writer, req *pulse.ComposedRequest, resp *pulse.ComposedResponse, opts pulse.ComposeStreamOptions) error
 pulse/descriptor: package descriptor
 pulse/descriptor: type Advisory = pulse/types.Advisory
 pulse/descriptor: type Advisory underlying struct
@@ -2361,12 +2366,15 @@ pulse/descriptor: type SweepAxisSummary struct
 pulse/descriptor: type SweepAxisSummary field Count int "json:\"count\""
 pulse/descriptor: type SweepAxisSummary field Name string "json:\"name\""
 pulse/descriptor: type SweepAxisSummary field Range *pulse/types.SweepRange "json:\"range,omitempty\""
+pulse/descriptor: type SweepAxisSummary field Target string "json:\"target,omitempty\""
 pulse/descriptor: type SweepSummary struct
+pulse/descriptor: type SweepSummary field Adaptive bool "json:\"adaptive,omitempty\""
 pulse/descriptor: type SweepSummary field Axes []pulse/descriptor.SweepAxisSummary "json:\"axes\""
 pulse/descriptor: type SweepSummary field ExpandedCount int "json:\"expanded_count\""
 pulse/descriptor: type SweepSummary field Labels []string "json:\"labels,omitempty\""
 pulse/descriptor: type SweepSummary field Mode pulse/types.SweepMode "json:\"mode\""
 pulse/descriptor: type SweepSummary field RNGSeed *int64 "json:\"rng_seed,omitempty\""
+pulse/descriptor: type SweepSummary method (SweepSummary) MarshalJSON() ([]byte, error)
 pulse/descriptor: type Term struct
 pulse/descriptor: type Term field Forms []string "json:\"forms,omitempty\""
 pulse/descriptor: type Term field ID string "json:\"id\""
@@ -5338,6 +5346,7 @@ pulse/types: func AllOrderGaps() []pulse/types.OrderGaps
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
+pulse/types: func AllSweepBOInits() []pulse/types.SweepBOInit
 pulse/types: func AllSweepModes() []pulse/types.SweepMode
 pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllSweepScales() []pulse/types.SweepScale
@@ -5526,6 +5535,7 @@ pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeRes
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field PostFit []pulse/types.PostFitResult "json:\"post_fit,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
+pulse/types: type ComposedResponse field RankingProfile map[string][]pulse/types.RankProfileEntry "json:\"ranking_profile,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
@@ -5636,6 +5646,7 @@ pulse/types: func DecodePairwiseParams(raw encoding/json.RawMessage) (pulse/type
 pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.PanelOverlayParams, error)
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
 pulse/types: const DefaultMultiplicityAlpha untyped float = 1/20
+pulse/types: const DefaultProfileBins untyped int = 10
 pulse/types: type ExtensionGroupFanOutFunc func(pulse/types.GroupType) (fansOut bool, known bool)
 pulse/types: const FEAT_BUCKETIZE pulse/types.FeatureType = "FEAT_BUCKETIZE"
 pulse/types: const FEAT_DATE_FEATURES pulse/types.FeatureType = "FEAT_DATE_FEATURES"
@@ -6478,6 +6489,13 @@ pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
 pulse/types: type RankEntry field Slot int "json:\"slot\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
+pulse/types: type RankProfileEntry struct
+pulse/types: type RankProfileEntry field Best float64 "json:\"best\""
+pulse/types: type RankProfileEntry field Hi *float64 "json:\"hi,omitempty\""
+pulse/types: type RankProfileEntry field Label string "json:\"label\""
+pulse/types: type RankProfileEntry field Lo *float64 "json:\"lo,omitempty\""
+pulse/types: type RankProfileEntry field N int "json:\"n\""
+pulse/types: type RankProfileEntry field Value any "json:\"value\""
 pulse/types: type ReferenceVectorTable struct
 pulse/types: type ReferenceVectorTable field Description string
 pulse/types: type ReferenceVectorTable field Labels []string
@@ -6812,21 +6830,38 @@ pulse/types: type StageRef field Name string "json:\"name,omitempty\""
 pulse/types: type SweepAxis struct
 pulse/types: type SweepAxis field Name string "json:\"name\""
 pulse/types: type SweepAxis field Range *pulse/types.SweepRange "json:\"range,omitempty\""
+pulse/types: type SweepAxis field Target string "json:\"target,omitempty\""
 pulse/types: type SweepAxis field Values []any "json:\"values,omitempty\""
 pulse/types: type SweepAxis method (*SweepAxis) UnmarshalJSON(data []byte) error
+pulse/types: type SweepBO struct
+pulse/types: type SweepBO field Batch *int "json:\"batch,omitempty\""
+pulse/types: type SweepBO field Init pulse/types.SweepBOInit "json:\"init,omitempty\""
+pulse/types: type SweepBO field NInit *int "json:\"n_init,omitempty\""
+pulse/types: type SweepBOInit string
+pulse/types: const SweepBOInitLHS pulse/types.SweepBOInit = "lhs"
+pulse/types: const SweepBOInitRandom pulse/types.SweepBOInit = "random"
+pulse/types: type SweepDE struct
+pulse/types: type SweepDE field CR *float64 "json:\"cr,omitempty\""
+pulse/types: type SweepDE field F *float64 "json:\"f,omitempty\""
+pulse/types: type SweepDE field Population *int "json:\"population,omitempty\""
 pulse/types: type SweepMode string
 pulse/types: type SweepMode method (SweepMode) Sampled() bool
+pulse/types: const SweepModeBO pulse/types.SweepMode = "bo"
+pulse/types: const SweepModeDE pulse/types.SweepMode = "de"
 pulse/types: const SweepModeGrid pulse/types.SweepMode = "grid"
 pulse/types: const SweepModeLHS pulse/types.SweepMode = "lhs"
 pulse/types: const SweepModeRandom pulse/types.SweepMode = "random"
 pulse/types: const SweepModeZip pulse/types.SweepMode = "zip"
 pulse/types: type SweepRange struct
+pulse/types: type SweepRange field Integer bool "json:\"integer,omitempty\""
 pulse/types: type SweepRange field Max *float64 "json:\"max\""
 pulse/types: type SweepRange field Min *float64 "json:\"min\""
 pulse/types: type SweepRange field Scale pulse/types.SweepScale "json:\"scale,omitempty\""
 pulse/types: type SweepRank struct
 pulse/types: type SweepRank field By string "json:\"by\""
 pulse/types: type SweepRank field Order pulse/types.SweepRankOrder "json:\"order,omitempty\""
+pulse/types: type SweepRank field Profile bool "json:\"profile,omitempty\""
+pulse/types: type SweepRank field ProfileBins *int "json:\"profile_bins,omitempty\""
 pulse/types: type SweepRank field Top *int "json:\"top,omitempty\""
 pulse/types: const SweepRankAsc pulse/types.SweepRankOrder = "asc"
 pulse/types: const SweepRankDesc pulse/types.SweepRankOrder = "desc"
@@ -6836,6 +6871,9 @@ pulse/types: const SweepScaleLinear pulse/types.SweepScale = "linear"
 pulse/types: const SweepScaleLog pulse/types.SweepScale = "log"
 pulse/types: type SweepSpec struct
 pulse/types: type SweepSpec field Axes []pulse/types.SweepAxis "json:\"axes\""
+pulse/types: type SweepSpec field BO *pulse/types.SweepBO "json:\"bo,omitempty\""
+pulse/types: type SweepSpec field Budget int "json:\"budget,omitempty\""
+pulse/types: type SweepSpec field DE *pulse/types.SweepDE "json:\"de,omitempty\""
 pulse/types: type SweepSpec field Label string "json:\"label,omitempty\""
 pulse/types: type SweepSpec field Mode pulse/types.SweepMode "json:\"mode,omitempty\""
 pulse/types: type SweepSpec field Overlays encoding/json.RawMessage "json:\"overlays,omitempty\""
@@ -6980,4 +7018,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2906183d27c224f573a25f7c67fd22d794c5212c385c3b664461c6bb428443ba
+// golden-hash: 7afe43627c74c732f0525c61ad34dfd4e81b9d9b3bc819ac50a131a2430f5f43

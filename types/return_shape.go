@@ -50,6 +50,11 @@ const returnedKey = "returned"
 // precision (its values are copies of the slots' unshaped figures).
 const rankingKey = "ranking"
 
+// rankingProfileKey is the ComposedResponse.RankingProfile JSON key:
+// like `ranking`, outside the plan's path space, so a set profile is
+// always emitted at full precision.
+const rankingProfileKey = "ranking_profile"
+
 // fitsKey is the ComposedResponse.Fits JSON key: like `ranking`,
 // outside the plan's path space, so a set fits map is always emitted at
 // full precision (the bound models are scored from those figures).
@@ -82,11 +87,12 @@ const comparisonsKey = "comparisons"
 const postFitKey = "post_fit"
 
 // pinnedRootKey reports whether name is a root key the plan never
-// prunes: the `returned` marker, the sweep `ranking` and `sweep_seed`,
+// prunes: the `returned` marker, the sweep `ranking`, `ranking_profile`
+// and `sweep_seed`,
 // the Compose `fits`, the stitched `banner`, the `optimizations`, the
 // `comparisons` and the `post_fit` results.
 func pinnedRootKey(name string) bool {
-	return name == returnedKey || name == rankingKey || name == sweepSeedKey || name == fitsKey || name == bannerKey || name == optimizationsKey || name == comparisonsKey || name == postFitKey
+	return name == returnedKey || name == rankingKey || name == rankingProfileKey || name == sweepSeedKey || name == fitsKey || name == bannerKey || name == optimizationsKey || name == comparisonsKey || name == postFitKey
 }
 
 // structuralTypes are the result types whose MarshalJSON is exactly
@@ -658,7 +664,7 @@ func (e *planEncoder) encodeStruct(v reflect.Value, path []returnplan.Segment, w
 	buf.WriteByte('{')
 	first := true
 	for _, f := range jsonFields(v) {
-		if len(path) == 0 && (f.name == rankingKey || f.name == fitsKey || f.name == optimizationsKey || f.name == comparisonsKey || f.name == postFitKey) {
+		if len(path) == 0 && (f.name == rankingKey || f.name == rankingProfileKey || f.name == fitsKey || f.name == optimizationsKey || f.name == comparisonsKey || f.name == postFitKey) {
 			if isEmptyJSONValue(f.value) {
 				continue
 			}

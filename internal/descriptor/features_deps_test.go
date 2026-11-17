@@ -86,7 +86,9 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:materialize_output":     {{"capability:materialize"}},   // the output slot lays out a materialize run's cohort
 		"capability:compose_sweep":          {{"capability:compose"}},       // a sweep expands into Compose slots
 		"capability:compose_sweep_sampling": {{"capability:compose_sweep"}}, // a sampling mode is a sweep mode
-		"capability:compose_optimize":       {{"capability:compose"}},       // an optimize block is a Compose slot
+		// an adaptive mode is a sweep mode searching range axes
+		"capability:compose_sweep_adaptive": {{"capability:compose_sweep"}, {"capability:compose_sweep_sampling"}},
+		"capability:compose_optimize":       {{"capability:compose"}}, // an optimize block is a Compose slot
 		// a sweep-bound fit needs the sweep's winner and a fits entry
 		"capability:compose_sweep_bind": {{"capability:compose_sweep"}, {"capability:compose_fits"}},
 		// a comparison tests two fits, both REG_OLS or both REG_GLM

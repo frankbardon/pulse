@@ -378,7 +378,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	checked, oerr := OptimizeCheck(req, sweepFits.Axes, predictExprFunctionNames(opts), predictDifferentiableNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles, aggregationKinds(opts.instance(), extensionsFromOpts(opts)))
+	checked, oerr := OptimizeCheck(AdaptiveStaticView(req, exp.Explicit, exp.SweepAdaptive), sweepFits.Axes, predictExprFunctionNames(opts), predictDifferentiableNames(opts), ExprTables(extensionsFromOpts(opts), opts.instance()), opts.populations(), opts.loadModelFiles, aggregationKinds(opts.instance(), extensionsFromOpts(opts)))
 	if oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
@@ -589,15 +589,19 @@ func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
 	if mode == "" {
 		mode = types.SweepModeGrid
 	}
+	adaptive := sweep.IsAdaptive(mode)
 	axes := make([]descriptor.SweepAxisSummary, len(spec.Axes))
 	for i, ax := range spec.Axes {
-		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
-		if mode.Sampled() {
-			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range}
+		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values), Target: ax.Target}
+		switch {
+		case mode.Sampled():
+			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range, Target: ax.Target}
+		case adaptive && ax.Range != nil:
+			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Budget, Range: ax.Range, Target: ax.Target}
 		}
 	}
-	out := &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
-	if mode.Sampled() {
+	out := &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec), Adaptive: adaptive}
+	if mode.Sampled() || adaptive {
 		// The runtime's seed: one function of the spec (sweep.EffectiveSeed).
 		seed := sweep.EffectiveSeed(spec)
 		out.RNGSeed = &seed

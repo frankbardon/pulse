@@ -50,7 +50,7 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 - Each rendered item decodes STRICTLY into its slot type: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path` from the item (`windows[0].bogus`), the combination in `index` / `values`.
 - Every other fault is `PULSE_FOR_EACH_INVALID` with `details.field` (e.g. `windows[0].for_each.axes[1]`) and `details.reason`: the sweep's structural reasons, `axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`, `item_decode`.
-- A `for_each` inside a compose `sweep` body is refused (`nested_in_sweep`): add the item's axes to the sweep instead. On a crosstab or banner cell it is `position_unsupported`.
+- In a compose `sweep` body the sweep renders first, then each slot fans its items out (slots unchanged); an item axis named like a sweep axis is `axis_shadowed`. On a crosstab or banner cell it is `position_unsupported`.
 - Each rendered matrix needs its own `name` (`"name": "{{step}}"`); a repeat is the usual duplicate-name refusal.
 
 ## Optimize blocks

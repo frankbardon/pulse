@@ -86,6 +86,26 @@ func optimizeCheck(req *types.ComposedRequest, sweepAxes []string, exprFunctions
 	})
 }
 
+// AdaptiveStaticView is req as the static result() check judges it: an
+// adaptive sweep's placeholder slots — the ones a later round fills,
+// whose labels are known only once it runs — are nil, so a result()
+// call naming one (its `sample=<slot>` placeholder label included) is
+// refused statically (slot_unknown) by predict and the runtime alike,
+// while a read of an explicit or round-0 slot passes and runs after
+// phase 0. explicit is the number of explicit slots. req itself
+// without an adaptive sweep.
+func AdaptiveStaticView(req *types.ComposedRequest, explicit int, a *sweep.Adaptive) *types.ComposedRequest {
+	if req == nil || a == nil || a.First >= a.Budget {
+		return req
+	}
+	out := *req
+	out.Requests = slices.Clone(req.Requests)
+	for i := explicit + a.First; i < explicit+a.Budget && i < len(out.Requests); i++ {
+		out.Requests[i] = nil
+	}
+	return &out
+}
+
 // ResultCatalog is the result() catalog of the batch's effective slots
 // with each aggregation judged non-numeric by kinds.IsNonScalarSlot —
 // the one builder predict (OptimizeCheck) and the runtime (its entry

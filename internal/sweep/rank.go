@@ -88,6 +88,43 @@ func ParseRankPath(by string) ([]string, *errors.CodedError) {
 // Ties keep expansion order; Rank is 1-based; Top trims the ranking
 // only.
 func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, error) {
+	full, err := rankAll(r, labels, axes, responses)
+	if err != nil || full == nil {
+		return full, err
+	}
+	return trimTop(r, full), nil
+}
+
+// RankProfiled is Rank plus, when r.Profile is set, the per-axis
+// profile (Profile) read over the FULL ranking — before r.Top trims it.
+// spec is the sweep's declared axes; the profile is nil when r is nil
+// or r.Profile is false.
+func RankProfiled(r *types.SweepRank, spec []types.SweepAxis, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
+	full, err := rankAll(r, labels, axes, responses)
+	if err != nil || full == nil {
+		return full, nil, err
+	}
+	var profile map[string][]types.RankProfileEntry
+	if r.Profile {
+		bins := 0
+		if r.ProfileBins != nil {
+			bins = *r.ProfileBins
+		}
+		profile = Profile(spec, full, bins)
+	}
+	return trimTop(r, full), profile, nil
+}
+
+// trimTop keeps the first r.Top entries of a full ranking.
+func trimTop(r *types.SweepRank, full []types.RankEntry) []types.RankEntry {
+	if r.Top != nil && *r.Top < len(full) {
+		return full[:*r.Top]
+	}
+	return full
+}
+
+// rankAll is Rank without the Top trim: every ranked slot, Rank set.
+func rankAll(r *types.SweepRank, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -109,17 +146,10 @@ func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses 
 		if resp == nil {
 			continue
 		}
-		raw, err := json.Marshal(resp)
+		res, err := slotValue(resp, segs)
 		if err != nil {
 			return nil, err
 		}
-		var doc any
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.UseNumber()
-		if err := dec.Decode(&doc); err != nil {
-			return nil, err
-		}
-		res := resolveRankPath(doc, segs)
 		switch res.reason {
 		case "":
 			resolved = true
@@ -128,13 +158,6 @@ func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses 
 			resolved = true
 			nulls = append(nulls, i)
 		case RankReasonMissing:
-			if res.seg == len(segs)-1 && typedZero(resp, segs) {
-				// A computed figure that is exactly 0: `omitempty` hid
-				// it from the wire, the typed value still carries it.
-				resolved = true
-				entries = append(entries, types.RankEntry{Label: labels[i], Value: 0, Slot: i, Axes: slotAxes(axes, i)})
-				continue
-			}
 			misses = append(misses, miss{slot: i, seg: res.seg})
 		default:
 			return nil, rankRefusal(r.By, labels[i], segs, res)
@@ -161,15 +184,62 @@ func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses 
 		}
 		return entries[a].Value < entries[b].Value
 	})
-	if r.Top != nil && *r.Top < len(entries) {
-		entries = entries[:*r.Top]
-	}
 	out := make([]types.RankEntry, len(entries))
 	for i, e := range entries {
 		e.Rank = i + 1
 		out[i] = e
 	}
 	return out, nil
+}
+
+// slotValue is one finished slot's answer for the path segs, read off
+// its wire form (rankAll's rule): the value, or the failing reason and
+// segment. A final segment the wire lacks because `omitempty` dropped a
+// computed exact 0 resolves to 0 (typedZero).
+func slotValue(resp *types.Response, segs []string) (rankResolution, error) {
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		return rankResolution{}, err
+	}
+	var doc any
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if err := dec.Decode(&doc); err != nil {
+		return rankResolution{}, err
+	}
+	res := resolveRankPath(doc, segs)
+	if res.reason == RankReasonMissing && res.seg == len(segs)-1 && typedZero(resp, segs) {
+		// A computed figure that is exactly 0: `omitempty` hid it from
+		// the wire, the typed value still carries it.
+		return rankResolution{value: 0}, nil
+	}
+	return res, nil
+}
+
+// Objective is one finished sweep slot's ranked value — the number Rank
+// would read at r.By in resp, by the same rule — for an adaptive mode's
+// next round. ok is false when Rank would leave the slot out (its value
+// is null, or the path is missing in it); a path Rank would refuse in
+// the slot (a non-number, an ambiguous list segment) is that
+// PULSE_SWEEP_RANK_PATH refusal, label naming the slot. It warns
+// nothing: the final Rank over every slot does.
+func Objective(r *types.SweepRank, label string, resp *types.Response) (float64, bool, error) {
+	segs, perr := ParseRankPath(r.By)
+	if perr != nil {
+		return 0, false, perr
+	}
+	res, err := slotValue(resp, segs)
+	if err != nil {
+		return 0, false, err
+	}
+	switch res.reason {
+	case "":
+		return res.value, true, nil
+	case RankReasonNull, RankReasonMissing:
+		return 0, false, nil
+	default:
+		return 0, false, rankRefusal(r.By, label, segs, res)
+	}
 }
 
 // slotAxes is a copy of slot i's axis values, nil when axes has no

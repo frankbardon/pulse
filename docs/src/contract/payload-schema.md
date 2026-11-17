@@ -330,6 +330,12 @@ block. `pulse api facet`, `pulse api predict-facet` and the
 variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
 byte-identical to the earlier wire form.
 
+A Compose sweep axis may carry `target: "params.<name>"` (`SweepAxis`,
+same gate): each sweep slot's request then takes the axis value as
+`params.<name>` (declared, or overriding the body's and the batch's
+value). `FilterToFileRequest` (a library-only Go root, not a payload
+root) carries a `params` of its own with the same rules.
+
 ## Materialize output slot
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort
@@ -1412,37 +1418,51 @@ there is no chain-level block.
 `ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
-`SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
-overlays, rank}`: `axes` are `SweepAxis {name, values, range}` (`values`
+`SweepSpec` is `{axes, mode, samples, rng_seed, budget, de, bo, label,
+request, overlays, rank}`: `axes` are `SweepAxis {name, values, range, target}` (`values`
 a non-empty list of scalars under `grid` / `zip`; `range` a
-`SweepRange {min, max, scale}` — `SweepScale` `linear` default, `log` —
-under `random` / `lhs`, never both), `mode` the closed enum `SweepMode`
-(`grid` default, `zip`, `random`, `lhs`; the sampling modes draw
+`SweepRange {min, max, scale, integer}` — `SweepScale` `linear` default, `log`;
+`integer` draws whole numbers —
+under `random` / `lhs` (an adaptive mode takes either kind per axis), never both; `target`, optional, a
+`params.<identifier>` string writing each slot's axis value into that
+request param — present only where `capability:params` is), `mode` the closed enum `SweepMode`
+(`grid` default, `zip`, `random`, `lhs`, `de`, `bo`; the sampling modes draw
 `samples` slots seeded by `rng_seed`, 0 deriving one from the spec), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
 body is decoded strictly at expansion; a `{{axis}}` inside an
 expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `ComposeOverlaySpec` objects with placeholders, and `rank` a
-`SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
+`SweepRank {by, order, top, profile, profile_bins}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
 It is gated by `capability:compose_sweep`: on an instance that hides it
 the `sweep` property and the `Sweep*` defs are absent. The sampling modes
 ride `capability:compose_sweep_sampling`: on an instance that hides it
 the `SweepMode` enum is `grid` / `zip`, and `samples`, `rng_seed`, the
 axis `range`, the `SweepRange` def and `ComposedResponse.sweep_seed` are
-absent. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
+absent. The adaptive modes ride `capability:compose_sweep_adaptive`:
+`budget` (an `omitempty` integer, the slot count an adaptive mode
+evaluates in rounds; required there with `rank`, refused elsewhere) is
+absent on an instance that hides it, and so are the adaptive
+`SweepMode` values (`de`, `bo`), mode `de`'s knobs `de` — a `SweepDE
+{population, f, cr}` (an integer and two numbers, each `omitempty`;
+refused under any other mode) — with the `SweepDE` def, and mode `bo`'s
+knobs `bo` — a `SweepBO {init, n_init, batch}` (`init` the closed enum
+`SweepBOInit`, `lhs` or `random`, and two integers, each `omitempty`;
+refused under any other mode) — with the `SweepBO` and `SweepBOInit`
+defs. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
 `values` only, on every instance.
 A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
 and `details.reason`; a mode/axis mix-up is `PULSE_SWEEP_MODE_MISMATCH`,
 a bad range `PULSE_SWEEP_RANGE_INVALID`, a missing or sub-1 `samples`
 `PULSE_SWEEP_SAMPLES_INVALID`. `pulse_predict` with `composed` reports the
-expansion as `sweep {axes, mode, expanded_count, rng_seed, labels}` on the
-predict result; that summary is not payload-reachable and is not in this
-schema.
+expansion as `sweep {axes, mode, expanded_count, adaptive, rng_seed, labels}` on the
+predict result (an adaptive mode: `expanded_count` the budget,
+`adaptive: true`, and `null` for every label after round 0's); that
+summary is not payload-reachable and is not in this schema.
 
-A sampling sweep (`random` / `lhs`) adds `ComposedResponse.sweep_seed`,
+A sampling sweep (`random` / `lhs`) or an adaptive one (`de` / `bo`) adds `ComposedResponse.sweep_seed`,
 an `omitempty` integer: the effective seed it drew with, so pinning it as
 `rng_seed` replays the run. Absent for `grid` / `zip`. Like `ranking` it
 is pinned outside the Compose-level `return`.
@@ -1460,6 +1480,19 @@ is left out with a `PULSE_SWEEP_RANK_PATH` warning on its own response;
 a non-number, ambiguous or nowhere-resolving path refuses the batch with
 the same code. `ranking` is pinned outside the Compose-level `return`:
 always emitted, never rounded by `precision`.
+
+`rank.profile: true` adds `ComposedResponse.ranking_profile`, an
+`omitempty` object keyed by axis name, each value an array of
+`RankProfileEntry {value, lo, hi, best, label, n}`: per axis value some ranked
+slot ran with, the best ranked `value` among those slots (`best`,
+following `rank.order`, always finite), the slot achieving it (`label`)
+and the ranked slots behind it (`n`). It reads the full ranking before
+`top`; unranked slots never count. Pinned outside the Compose-level
+`return` like `ranking`. A range axis (sampling or adaptive) is binned into
+`rank.profile_bins` (default 10) equal-width bins — equal log-width
+under `scale: log` — one entry per non-empty bin, adding the optional
+numbers `lo` / `hi` (the bin edges; absent on a list axis), `value`
+then the best slot's draw.
 
 ### Compose banner
 
@@ -1886,8 +1919,9 @@ instance that hides it the `for_each` properties and the `ForEach` def
 are absent (`SweepAxis` stays while a compose sweep is visible). A
 malformed for_each is `PULSE_FOR_EACH_INVALID` with `details.field` (a
 request-rooted path such as `windows[0].for_each.axes[1]`) and
-`details.reason`; a `for_each` inside a sweep body is refused with
-reason `nested_in_sweep`. `Limits.MaxDerivedColumns` (default 1,000)
+`details.reason`; a `for_each` inside a sweep body fans out in each
+slot after the sweep renders it, and one whose axis shares a sweep
+axis's name is refused with reason `axis_shadowed`. `Limits.MaxDerivedColumns` (default 1,000)
 bounds plain plus expanded window, feature and attribute items and
 `Limits.MaxExpandedItems` (default 1,000) the aggregations and matrices
 a `for_each` adds (plain ones never count), both checked before any

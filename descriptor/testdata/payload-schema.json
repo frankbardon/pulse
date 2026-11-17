@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:684dff64430a5145d997b2fc7f3d14de6ef279c6641bce826d4884db70d21f80",
+  "$comment": "feature_set_digest: fs1:0139f0e6d494bc8b0b2bac621377c89751780645c8971c7e6dde5ff6099dd44c",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -1138,6 +1138,18 @@
             "array",
             "null"
           ]
+        },
+        "ranking_profile": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/RankProfileEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": "object"
         },
         "responses": {
           "items": {
@@ -5307,6 +5319,43 @@
       ],
       "type": "object"
     },
+    "RankProfileEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "best": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "lo": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "value": true
+      },
+      "required": [
+        "best",
+        "label",
+        "n",
+        "value"
+      ],
+      "type": "object"
+    },
     "RecommendNeed": {
       "additionalProperties": false,
       "properties": {
@@ -7433,6 +7482,11 @@
         "range": {
           "$ref": "#/$defs/SweepRange"
         },
+        "target": {
+          "description": "params.\u003cname\u003e: each sweep slot's request takes the axis value as params.\u003cname\u003e, overriding a value the body declares and declaring an absent one; the axis then needs no placeholder. A {\"$var\"} marker naming a targeted axis is refused (axis_target_conflict).",
+          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
         "values": {
           "description": "The scalar values the axis takes, in expansion order.",
           "items": {
@@ -7451,8 +7505,47 @@
       ],
       "type": "object"
     },
+    "SweepBO": {
+      "additionalProperties": false,
+      "properties": {
+        "batch": {
+          "type": "integer"
+        },
+        "init": {
+          "$ref": "#/$defs/SweepBOInit"
+        },
+        "n_init": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SweepBOInit": {
+      "enum": [
+        "lhs",
+        "random"
+      ],
+      "type": "string"
+    },
+    "SweepDE": {
+      "additionalProperties": false,
+      "properties": {
+        "cr": {
+          "type": "number"
+        },
+        "f": {
+          "type": "number"
+        },
+        "population": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "SweepMode": {
       "enum": [
+        "bo",
+        "de",
         "grid",
         "lhs",
         "random",
@@ -7463,6 +7556,9 @@
     "SweepRange": {
       "additionalProperties": false,
       "properties": {
+        "integer": {
+          "type": "boolean"
+        },
         "max": {
           "type": "number"
         },
@@ -7487,6 +7583,12 @@
         },
         "order": {
           "$ref": "#/$defs/SweepRankOrder"
+        },
+        "profile": {
+          "type": "boolean"
+        },
+        "profile_bins": {
+          "type": "integer"
         },
         "top": {
           "type": "integer"
@@ -7522,6 +7624,15 @@
             "array",
             "null"
           ]
+        },
+        "bo": {
+          "$ref": "#/$defs/SweepBO"
+        },
+        "budget": {
+          "type": "integer"
+        },
+        "de": {
+          "$ref": "#/$defs/SweepDE"
         },
         "label": {
           "type": "string"
@@ -8178,4 +8289,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 0ddfa284e2d9e5568eb494e781e423c3d1b93634c1a5543f1cc4a12d3fd8503b
+// golden-hash: 55cfd8020c9a4f216a193bfd002163ba6bdb4a3371b63fdd5c68fa7f9a396b10

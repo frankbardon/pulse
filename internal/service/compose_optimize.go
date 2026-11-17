@@ -25,7 +25,13 @@ func (s *Service) optimizeRefusal(composed *types.ComposedRequest, ext *composeE
 	if len(composed.Optimize) == 0 {
 		return nil, nil
 	}
-	loaded, cerr := descx.OptimizeRefusal(composed, ext.sweepAxes(), s.exprFunctionNames(), s.extensions.TablesCatalog(), s.populationCatalog(), s.optimizeLoader, s.extensions.AggregationKinds())
+	// An adaptive sweep's placeholder slots are out of the static
+	// catalog, exactly as predict judges it (AdaptiveStaticView).
+	static := composed
+	if ext != nil && ext.adaptive != nil {
+		static = descx.AdaptiveStaticView(composed, ext.rank.explicit, ext.adaptive)
+	}
+	loaded, cerr := descx.OptimizeRefusal(static, ext.sweepAxes(), s.exprFunctionNames(), s.extensions.TablesCatalog(), s.populationCatalog(), s.optimizeLoader, s.extensions.AggregationKinds())
 	if cerr != nil {
 		return nil, cerr
 	}

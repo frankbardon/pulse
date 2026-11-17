@@ -123,12 +123,18 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 // expression compile error. timeZone is the request zone the
 // expression's to_day() reads (Request.TimeZone's rule; "" inherits
 // Options.DefaultTimeZone, else UTC).
-func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr string, direct []*types.Filterer, timeZone string) (int64, error) {
+//
+// params is the request's params block (FilterToFileRequest.Params, the
+// Request.Params contract): the predicate's params.<name> reads fold
+// through it, and a non-empty block is judged by the shared field rule
+// (PULSE_PARAMS_INVALID / _UNDECLARED / _FIELD_COLLISION) before any
+// record is read. Nil declares none — the run is the params-free one.
+func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr string, direct []*types.Filterer, timeZone string, params types.Params) (int64, error) {
 	if filterExpr == "" && len(direct) == 0 {
 		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty filter expression")
 	}
-	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, direct: direct, timeZone: timeZone})
+	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, direct: direct, timeZone: timeZone, params: params})
 }
 
 // FilterToFileOptions is the options form of the filter-to-file run
@@ -239,6 +245,10 @@ type filterPlan struct {
 	// timeZone is the request zone the expression's to_day() reads
 	// (FilterToFileRequest.TimeZone); "" inherits the instance default.
 	timeZone string
+	// params is the request's params block (FilterToFileRequest.Params)
+	// the predicate's params.<name> reads fold through; nil declares
+	// none.
+	params types.Params
 	// flatten writes an archive input as ONE single-file cohort
 	// (FilterToFileOptions.Flatten); a no-op on a single-file input.
 	flatten bool
@@ -261,8 +271,11 @@ func (p filterPlan) hasPredicate() bool {
 // LoadFiles, the instance's registered populations as the outer set) —
 // marked bound, so a FilterToFile* call under it compiles its
 // predicate's coef() against them. No refs binds the populations alone.
-func (s *Service) BindFilterModels(ctx context.Context, refs []types.ModelRef) (context.Context, error) {
-	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: refs})
+//
+// params are the request's params, read by an inline model's number
+// expressions (model.Refs.Params); nil declares none.
+func (s *Service) BindFilterModels(ctx context.Context, refs []types.ModelRef, params types.Params) (context.Context, error) {
+	ctx, err := s.bindRequestModels(ctx, model.Refs{Models: refs, Params: params})
 	if err != nil {
 		return ctx, err
 	}
@@ -1061,10 +1074,12 @@ func (s *Service) buildPredicateFilter(schema *encoding.Schema, plan filterPlan)
 		return nil, err
 	}
 	req = s.zoned(req, zones)
+	// The request's params fold into the registry the predicate
+	// compiles through (the extensions themselves without any).
 	fns, err := processing.BuildFiltersWithModels(
 		req.Filterers,
 		schema,
-		s.extensions,
+		s.paramsExtensions(plan.params),
 		plan.models,
 	)
 	if err != nil {
@@ -1090,8 +1105,15 @@ func (s *Service) buildPredicateFilter(schema *encoding.Schema, plan filterPlan)
 // predicate runs first when both are present, so per-row work
 // short-circuits on misses without paying the predicate's cost.
 func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
-	if len(plan.filterers) > 0 {
-		if err := s.checkFieldRefs(context.Background(), &types.Request{Filterers: plan.filterers}, schema); err != nil {
+	// The shared field rule judges a structured predicate — and, once
+	// the request declares params, the predicate whatever its shape, so
+	// every params refusal is the walk's own (as Process raises it).
+	walked := plan.filterers
+	if len(walked) == 0 && len(plan.params) > 0 {
+		walked = plan.predicateFilterers()
+	}
+	if len(walked) > 0 {
+		if err := s.checkFieldRefs(context.Background(), &types.Request{Filterers: walked, Params: plan.params}, schema); err != nil {
 			return nil, err
 		}
 	}

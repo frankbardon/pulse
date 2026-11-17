@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -75,8 +76,17 @@ type Expansion struct {
 	Axes []map[string]any
 
 	// Seed is the effective seed a sampling sweep (mode random / lhs)
-	// drew with (EffectiveSeed); nil without one, and for grid / zip.
+	// drew with, or an adaptive sweep searches with (EffectiveSeed); nil
+	// without one, and for grid / zip.
 	Seed *int64
+
+	// Adaptive is an adaptive sweep's executor (nil under every other
+	// mode): the strategy, round 0 already proposed. Labels holds the
+	// round-0 slots' labels and "" for every later slot (its label is
+	// known once its round runs), Axes nil there; the effective request
+	// carries a placeholder for each (PendingLabel, the representative
+	// body).
+	Adaptive *Adaptive
 }
 
 // Count returns how many slots a structurally valid spec expands to:
@@ -90,6 +100,9 @@ func Count(spec *types.SweepSpec) int {
 	}
 	if spec.Mode.Sampled() {
 		return max(spec.Samples, 0)
+	}
+	if IsAdaptive(spec.Mode) {
+		return max(spec.Budget, 0)
 	}
 	return countAxes(spec.Axes, spec.Mode)
 }
@@ -129,9 +142,12 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // and the default label leads with `sample=<ordinal>_`; Expansion.Seed
 // carries the effective seed.
 //
-// Order of checks: Validate; then the nested-for_each refusal (an item
-// in the body carrying `for_each` is PULSE_FOR_EACH_INVALID reason
-// nested_in_sweep); then the reference rule (every axis is
+// Order of checks: Validate; then the shadowed-axis refusal (an item
+// `for_each` in the body declaring an axis named like a sweep axis is
+// PULSE_FOR_EACH_INVALID reason axis_shadowed — an item for_each is
+// otherwise left in place: the sweep is the outer loop, and each slot's
+// items fan out after it renders, the slot count unchanged); then the
+// reference rule (every axis is
 // named by a placeholder in the request body, the AUTHORED label pattern
 // or the overlays — the default label does not count — and every
 // placeholder names an axis, and none sits inside an expression slot —
@@ -166,12 +182,17 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	if ce := Validate(spec); ce != nil {
 		return nil, ce
 	}
-	// An item for_each inside the body is refused before the placeholder
-	// scan, which would otherwise trip on the item's own axis names.
-	if ce := nestedForEachRefusal(spec.Request); ce != nil {
+	// An item for_each inside the body fans out per slot, after this
+	// render (its placeholders pass through the template walk); one whose
+	// axis shares a sweep axis's name is refused before the placeholder
+	// scan, which would otherwise see the name as a template collision.
+	if ce := shadowedAxisRefusal(spec); ce != nil {
 		return nil, ce
 	}
 	if ce := checkReferences(spec, opts); ce != nil {
+		return nil, ce
+	}
+	if ce := targetConflict(spec); ce != nil {
 		return nil, ce
 	}
 	n := Count(spec)
@@ -206,6 +227,10 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	labels := make([]string, 0, n)
 	axes := make([]map[string]any, 0, n)
 
+	if m, ok := adaptiveFor(spec.Mode); ok {
+		return expandAdaptive(c, spec, m, labelBody, requests)
+	}
+
 	walk := func(visit func(slot int, values map[string]any) bool) {
 		forEachCombination(spec.Axes, spec.Mode, visit)
 	}
@@ -226,6 +251,7 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 			ce = fault
 			return false
 		}
+		applyTargets(req, spec.Axes, values)
 		label, fault := renderLabel(labelBody, spec, vars, values, slot)
 		if fault != nil {
 			ce = fault
@@ -262,6 +288,44 @@ func Expand(c *types.ComposedRequest, opts Options, preflight func(slots int) er
 	}
 	out.Sweep = nil
 	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Axes: axes, Seed: seed}, nil
+}
+
+// expandAdaptive is Expand's adaptive arm: the strategy built and round
+// 0 proposed (newAdaptive), round 0's slots rendered with their real
+// bodies and labels, every later slot a placeholder (Adaptive.placeholder)
+// — budget slots after the explicit ones, the one slot list predict and
+// the runtime judge. Validate already refused sweep.overlays here.
+func expandAdaptive(c *types.ComposedRequest, spec *types.SweepSpec, m AdaptiveMode, labelBody json.RawMessage, requests []*types.Request) (*Expansion, error) {
+	seed := EffectiveSeed(spec)
+	a, ce := newAdaptive(spec, m, seed, labelBody)
+	if ce != nil {
+		return nil, ce
+	}
+	labels := make([]string, spec.Budget)
+	axes := make([]map[string]any, spec.Budget)
+	for i, p := range a.firstPts {
+		s, ce := a.render(i, p)
+		if ce != nil {
+			return nil, ce
+		}
+		a.firstSlots = append(a.firstSlots, s)
+		requests = append(requests, s.Request)
+		labels[i], axes[i] = s.Request.Label, s.Axes
+	}
+	for i := a.First; i < spec.Budget; i++ {
+		req, ce := a.placeholder(i)
+		if ce != nil {
+			return nil, ce
+		}
+		requests = append(requests, req)
+	}
+	if ce := a.probeListValues(); ce != nil {
+		return nil, ce
+	}
+	out := *c
+	out.Requests = requests
+	out.Sweep = nil
+	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Axes: axes, Seed: &seed, Adaptive: a}, nil
 }
 
 // forEachCombination walks the axes' combinations in expansion order —
@@ -435,9 +499,14 @@ func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 		all[i] = &template.Variable{Name: ax.Name, Type: template.VarString}
 	}
 	if err := template.ValidateWith(&template.Template{Target: template.TargetRequest, Variables: all, Body: body}, opts.validate()); err != nil {
-		return referenceFault(err)
+		return referenceFault(err, spec)
 	}
 	for i, ax := range spec.Axes {
+		// A targeted axis is referenced by its target: it writes
+		// params.<name> into every slot without a placeholder.
+		if ax.Target != "" {
+			continue
+		}
 		without := make([]*template.Variable, 0, len(all)-1)
 		without = append(without, all[:i]...)
 		without = append(without, all[i+1:]...)
@@ -445,8 +514,9 @@ func checkReferences(spec *types.SweepSpec, opts Options) *errors.CodedError {
 			at := axisPath(i)
 			return invalid(at+".name", ax.Name, ReasonAxisUnreferenced,
 				"sweep axis "+describe(at, ax.Name)+" is referenced nowhere — no `{{"+ax.Name+"}}` or "+
-					"`{\"$var\": \""+ax.Name+"\"}` in the request, the label pattern or the overlays — so "+
-					"every slot it adds would run the same request; reference it or drop the axis",
+					"`{\"$var\": \""+ax.Name+"\"}` in the request, the label pattern or the overlays, and no "+
+					"`target` — so every slot it adds would run the same request; reference it, target a "+
+					"param with it, or drop the axis",
 				nil)
 		}
 	}
@@ -473,8 +543,10 @@ func referenceBody(spec *types.SweepSpec) json.RawMessage {
 
 // referenceFault maps a template validation fault on the scan document
 // to PULSE_SWEEP_INVALID: one naming a variable is a placeholder naming
-// no axis; any other is placeholder syntax the grammar refuses.
-func referenceFault(err error) *errors.CodedError {
+// no axis; any other is placeholder syntax the grammar refuses. An
+// expression splice is PULSE_SWEEP_EXPR_SPLICE for a sweep axis and
+// PULSE_FOR_EACH_EXPR_SPLICE for the axis of a for_each item in the body.
+func referenceFault(err error, spec *types.SweepSpec) *errors.CodedError {
 	var tce *errors.CodedError
 	if !stderrors.As(err, &tce) {
 		return internalFault("sweep", err)
@@ -483,12 +555,19 @@ func referenceFault(err error) *errors.CodedError {
 	field := scanPath(path)
 	name, _ := tce.Details[errors.DetailVariable].(string)
 	var ce *errors.CodedError
-	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
+	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE && !isSweepAxis(spec, name) {
+		// A placeholder naming no sweep axis passed the scan only as an
+		// axis of a for_each item in the body: that item's own rule.
+		slot, _ := tce.Details["slot"].(string)
+		ce = forEachExprSplice(field, name, slot)
+		carryTemplatedType(ce, tce)
+	} else if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
 		slot, _ := tce.Details["slot"].(string)
 		ce = exprSplice(errors.PULSE_SWEEP_EXPR_SPLICE, "sweep", field, name, slot,
-			"carry the axis value through the request's params — `\"params\": {"+strconv.Quote(name)+
-				": {\"$var\": "+strconv.Quote(name)+"}}` read as `params."+name+"` — or sweep whole "+
-				"expressions with a `{\"$var\": "+strconv.Quote(name)+"}` marker supplying the slot")
+			"carry the axis value through the request's params — set the axis `\"target\": \"params."+name+
+				"\"` (or declare `\"params\": {"+strconv.Quote(name)+": {\"$var\": "+strconv.Quote(name)+"}}`) "+
+				"and read it as `params."+name+"` — or sweep whole expressions with a `{\"$var\": "+
+				strconv.Quote(name)+"}` marker supplying the slot")
 		carryTemplatedType(ce, tce)
 	} else if name != "" {
 		ce = invalidWith(field, ReasonPlaceholderUnknown,
@@ -602,4 +681,145 @@ func wrap(key string, raw json.RawMessage) json.RawMessage {
 	b.Write(raw)
 	b.WriteString("}")
 	return b.Bytes()
+}
+
+// applyTargets writes each targeted axis's value into req's params as
+// params.<name> — overriding a value the body declared, declaring an
+// absent one. The params map is a fresh copy, so no slot shares one.
+func applyTargets(req *types.Request, axes []types.SweepAxis, values map[string]any) {
+	var params types.Params
+	for _, ax := range axes {
+		name, ok := TargetParam(ax.Target)
+		if !ok {
+			continue
+		}
+		if params == nil {
+			params = make(types.Params, len(req.Params)+1)
+			for k, v := range req.Params {
+				params[k] = v
+			}
+		}
+		params[name] = values[ax.Name]
+	}
+	if params != nil {
+		req.Params = params
+	}
+}
+
+// targetConflict refuses two routes for one targeted value
+// (ReasonAxisTargetConflict): a `{"$var"}` marker naming a targeted
+// axis anywhere in the request body or the overlays, or a `{"$var"}`
+// marker as the body's own value at a targeted params.<name>. Nil when
+// no axis targets.
+func targetConflict(spec *types.SweepSpec) *errors.CodedError {
+	targeted := make(map[string]string, len(spec.Axes)) // axis → params name
+	byParam := make(map[string]string, len(spec.Axes))  // params name → axis
+	for _, ax := range spec.Axes {
+		if name, ok := TargetParam(ax.Target); ok {
+			targeted[ax.Name] = name
+			byParam[name] = ax.Name
+		}
+	}
+	if len(targeted) == 0 {
+		return nil
+	}
+	for _, part := range []struct {
+		field string
+		raw   json.RawMessage
+	}{{"sweep.request", spec.Request}, {"sweep.overlays", spec.Overlays}} {
+		raw := bytes.TrimSpace(part.raw)
+		if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+			continue
+		}
+		dec := json.NewDecoder(bytes.NewReader(raw))
+		dec.UseNumber()
+		var doc any
+		if err := dec.Decode(&doc); err != nil {
+			continue // Validate refused a malformed body already
+		}
+		if ce := markerConflict(doc, part.field, targeted); ce != nil {
+			return ce
+		}
+		if part.field != "sweep.request" {
+			continue
+		}
+		body, _ := doc.(map[string]any)
+		declared, _ := body["params"].(map[string]any)
+		for _, key := range sortedKeys(declared) {
+			axis, ok := byParam[key]
+			if !ok {
+				continue
+			}
+			if marker, isMarker := varMarker(declared[key]); isMarker {
+				field := "sweep.request.params." + key
+				return invalidWith(field, ReasonAxisTargetConflict,
+					"sweep request declares params."+key+" as a {\"$var\": "+strconv.Quote(marker)+"} marker, but axis "+
+						strconv.Quote(axis)+" targets params."+key+" — two routes for one value; drop the marker "+
+						"(the target writes the value) or drop the target",
+					map[string]any{"axis": axis, "target": TargetPrefix + key, "placeholder": marker})
+			}
+		}
+	}
+	return nil
+}
+
+// markerConflict walks doc for a `{"$var": name}` marker naming a
+// targeted axis, returning the first in document order (object keys
+// sorted) as ReasonAxisTargetConflict at its sweep-rooted path.
+func markerConflict(doc any, at string, targeted map[string]string) *errors.CodedError {
+	if name, ok := varMarker(doc); ok {
+		if param, hit := targeted[name]; hit {
+			return invalidWith(at, ReasonAxisTargetConflict,
+				"sweep axis "+strconv.Quote(name)+" targets params."+param+" and is also spliced by a {\"$var\": "+
+					strconv.Quote(name)+"} marker at "+at+" — two routes for one value; read params."+param+
+					" instead of the marker, or drop the target and keep the marker",
+				map[string]any{"axis": name, "target": TargetPrefix + param, "placeholder": name})
+		}
+		return nil
+	}
+	switch v := doc.(type) {
+	case map[string]any:
+		for _, k := range sortedKeys(v) {
+			if ce := markerConflict(v[k], at+"."+k, targeted); ce != nil {
+				return ce
+			}
+		}
+	case []any:
+		for i, e := range v {
+			if ce := markerConflict(e, at+"["+strconv.Itoa(i)+"]", targeted); ce != nil {
+				return ce
+			}
+		}
+	}
+	return nil
+}
+
+// varMarker reports whether v is a template slot marker — an object
+// whose ONLY key is `$var` with a string value — and the name it splices.
+func varMarker(v any) (string, bool) {
+	m, ok := v.(map[string]any)
+	if !ok || len(m) != 1 {
+		return "", false
+	}
+	name, ok := m["$var"].(string)
+	return name, ok
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// isSweepAxis reports whether name is one of spec's axes.
+func isSweepAxis(spec *types.SweepSpec, name string) bool {
+	for _, ax := range spec.Axes {
+		if ax.Name == name {
+			return true
+		}
+	}
+	return false
 }

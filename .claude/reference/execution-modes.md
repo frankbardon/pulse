@@ -29,6 +29,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Compose fits** (`ComposedRequest.Fits`, `ComposedResponse.Fits`) — a pre-pass that fits each named one-regression request ONCE before any slot and binds the result into every slot by name; section below. `skills/compose-fits.md`.
 - **Scalar-expression slots** (an optimize bound / start; a `WIN_DISTRIBUTED_LAG` / `WIN_EWMA` scalar param, pre-resolved by `internal/windowscalar`) — a number or an expression evaluated ONCE before execution by `internal/scalarslot`; predict lists a model-dependent one under `unresolved_scalars`. `skills/compose-optimize.md`, `skills/op-win-distributed-lag.md`.
 - **Result pre-phase** (`result(slot, aggregation)` in an optimize block) — the slots it reads run once after the fits and before the blocks; section below. `skills/compose-optimize.md`.
+- **Adaptive sweeps** (an adaptive `sweep.mode`, `budget`) — rounds chosen from the ranked values before, run as barriers inside phase 0; section below. `skills/compose-sweeps.md`.
 - **Compose base** (`ComposedRequest.Base`) — Compose sugar: one Request partial merged into every explicit slot before the sweep / banner expansion; section below. `skills/compose-requests.md`.
 - **Compose banner** (`ComposedRequest.Banner`, `ComposedResponse.Banner`) — Compose sugar: sections × column groups (+ Total) expanded into crosstab slots and stitched back with per-block letters; section below. `skills/compose-banner.md`.
 
@@ -38,6 +39,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
 | Compose fits; Result pre-phase; Post-fit phase | `execution-modes/compose.md` |
+| Adaptive sweeps (strategy registry, budget, rounds inside phase 0, penalised failures, predict budget) | `execution-modes/compose-adaptive.md` |
 | Parallel Compose; Compose banner; Compose base; Item fan-out (`for_each`) | `execution-modes/compose-parallel-banner.md` |
 | Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |
 | Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |

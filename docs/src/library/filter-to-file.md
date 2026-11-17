@@ -27,6 +27,7 @@ type FilterToFileRequest struct {
     OutputName string             // Optional override; default: {srcHash}_{predHash}.pulse
     Models     []types.ModelRef   // Saved models the predicate's coef() reads
     TimeZone   string             // IANA zone to_day() and FILTER_DATE_RANGES read
+    Params     types.Params       // Constants the predicate reads as params.<name>
 }
 
 type FilterToFileResult struct {
@@ -166,6 +167,28 @@ The CLI's `pulse cohort filter --time-zone Zone` gives `to_day()` the
 same zone (as the instance default); see
 [`--time-zone`](../cli/flags.md#--time-zone-cohort-filter).
 
+### Params
+
+`Params` (`params`) names constants the predicate reads, read-only, as
+`params.<name>` — the `Request.Params` contract: the same value rules
+and the same refusals (`PULSE_PARAMS_INVALID`,
+`PULSE_PARAMS_UNDECLARED`, `PULSE_PARAMS_FIELD_COLLISION`), raised
+before any record is read, with the code and message `Process` gives
+the same predicate. Both predicate shapes read them, and an inline
+model's number expressions do too:
+
+```go
+res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
+    SourcePath: "survey.pulse",
+    Expression: `age >= params.min_age && wave in params.waves`,
+    Params:     types.Params{"min_age": 30, "waves": []any{2, 3}},
+    OutputDir:  "derived/",
+})
+```
+
+`Params` rides `capability:params`: an instance whose feature profile
+hides it refuses a set `Params` as `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 ## Deterministic output naming
 
 When `OutputName` is empty, the basename is computed as:
@@ -193,6 +216,9 @@ When `OutputName` is empty, the basename is computed as:
   slot, so a request differing only in resolved zone never reuses
   another's output. A predicate that reads no zone, or reads UTC, or
   reads a `date` field (no zone applies), hashes as it always has.
+- With `Params` set, the block joins the payload (each value as the
+  JSON text it marshals to), so a run with other values never reuses
+  an output; a request without `Params` hashes as it always has.
 - Every registered table the predicate references joins the payload
   as a content digest — see below.
 

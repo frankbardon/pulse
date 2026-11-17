@@ -101,6 +101,10 @@ With `FailFast = false`:
   (`compose parallel: N/M requests failed`); `details.first_error` holds
   the lowest-index failure's text. A caller that needs the slots that
   succeeded must call `Process` per request.
+- When a sweep-bound fit's phase 0 (its sweep slots) fails, the batch
+  stops there: no other slot runs, and the aggregate also carries
+  `details.skipped_indices`, the indices of the slots that never ran.
+  An aggregate from a later phase has no `skipped_indices` key.
 
 A ctx that is already done before every slot launched returns the
 ctx error (with no slot error to report), never a response with

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	perrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/runwarn"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -140,65 +141,12 @@ func WriteJSONPublic(w io.Writer, data any) error {
 }
 
 // runtimeWarnings is the CLI's single reading of every run-time warning
-// a result carries — Response.Warnings (one Response, every Compose
-// slot, every chain stage), ComposedResponse.Warnings and
-// FacetResult.Warnings — as the {code, message, details} entries the
-// --json envelope's top-level `warnings` and the --stream trailing
-// warnings record both carry. A Compose slot's entry gains
-// details.request (the slot index) and a chain stage's details.stage,
-// unless the warning already locates itself; the result's own entries
-// are never mutated (data keeps them unchanged). Overlay-layer
-// warnings stay on their layer. Nil for a warning-free result, so a
-// clean run's envelope and stream are byte-identical.
+// a result carries (internal/runwarn.Entries, shared with the Compose
+// NDJSON writer): the {code, message, details} entries the --json
+// envelope's top-level `warnings` and the --stream trailing warnings
+// record both carry. Nil for a warning-free result.
 func runtimeWarnings(result any) []*descriptor.EnvelopeEntry {
-	var out []*descriptor.EnvelopeEntry
-	add := func(ws []*types.ResponseWarning, key string, at int) {
-		for _, w := range ws {
-			if w == nil {
-				continue
-			}
-			details := w.Details
-			if key != "" {
-				if _, set := details[key]; !set {
-					details = make(map[string]any, len(w.Details)+1)
-					for k, v := range w.Details {
-						details[k] = v
-					}
-					details[key] = at
-				}
-			}
-			out = append(out, &descriptor.EnvelopeEntry{Code: w.Code, Message: w.Message, Details: details})
-		}
-	}
-	switch r := result.(type) {
-	case *types.Response:
-		if r != nil {
-			add(r.Warnings, "", 0)
-		}
-	case *types.ComposedResponse:
-		if r != nil {
-			for i, sub := range r.Responses {
-				if sub != nil {
-					add(sub.Warnings, "request", i)
-				}
-			}
-			add(r.Warnings, "", 0)
-		}
-	case *types.ChainResponse:
-		if r != nil {
-			// Final aliases the last stage: walk Stages only.
-			for i, st := range r.Stages {
-				if st != nil {
-					add(st.Warnings, "stage", i)
-				}
-			}
-		}
-	case *types.FacetResult:
-		if r != nil {
-			add(r.Warnings, "", 0)
-		}
-	}
-	return out
+	return runwarn.Entries(result)
 }
 
 // withRuntimeWarnings promotes result's run-time warnings

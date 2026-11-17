@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -250,16 +251,135 @@ func TestExpandItems_StrictDecode(t *testing.T) {
 
 }
 
-// A compose sweep body carrying an item for_each is refused before the
-// sweep's own placeholder scan.
-func TestExpand_NestedForEachInSweep(t *testing.T) {
+// sweepItemBodies is one sweep body per request item kind, each
+// fanning one item out over the item axis `f` while the sweep axis `a`
+// substitutes into the same item first (compose-sweep-2 E2-S2): a
+// placeholder naming the item axis passes the sweep render untouched,
+// one naming the sweep axis renders per slot.
+var sweepItemBodies = map[string]string{
+	"features":     `"features": [{"for_each": {"axes": [{"name": "f", "values": ["x", "y"]}]}, "type": "FEAT_LOG", "field": "{{f}}", "label": "l_{{f}}_{{a}}"}]`,
+	"attributes":   `"attributes": [{"for_each": {"axes": [{"name": "f", "values": ["x", "y"]}]}, "type": "ATTR_ZSCORE", "field": "{{f}}", "label": "z_{{f}}_{{a}}"}]`,
+	"windows":      `"windows": [{"for_each": {"axes": [{"name": "f", "values": ["x", "y"]}]}, "type": "WIN_LAG", "field": "{{f}}", "label": "w_{{f}}_{{a}}", "order_by": []}]`,
+	"aggregations": `"aggregations": [{"type": "AGG_COUNT", "field": "x"}, {"for_each": {"axes": [{"name": "f", "values": ["x", "y"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "s_{{f}}_{{a}}"}]`,
+	"matrices":     `"matrices": [{"for_each": {"axes": [{"name": "f", "values": ["x", "y"]}]}, "type": "MAT_COVARIANCE", "name": "m_{{f}}_{{a}}", "fields": ["{{f}}", "z"]}]`,
+}
+
+// itemLabels reads the labels (a matrix's name) of the list kind holds.
+func itemLabels(r *types.Request, kind string) []string {
+	var out []string
+	switch kind {
+	case "features":
+		for _, it := range r.Features {
+			out = append(out, it.Label)
+		}
+	case "attributes":
+		for _, it := range r.Attributes {
+			out = append(out, it.Label)
+		}
+	case "windows":
+		for _, it := range r.Windows {
+			out = append(out, it.Label)
+		}
+	case "aggregations":
+		for _, it := range r.Aggregations {
+			out = append(out, it.Label)
+		}
+	case "matrices":
+		for _, it := range r.Matrices {
+			out = append(out, it.Name)
+		}
+	}
+	return out
+}
+
+// A compose sweep body carrying an item for_each expands: the sweep is
+// the OUTER loop — one slot per sweep combination, the slot count
+// unchanged — and each slot keeps the item's for_each, its own
+// placeholders intact, the sweep's substituted; the slot's item
+// expansion then fans it out in place.
+func TestExpand_ForEachInSweepBody(t *testing.T) {
 	t.Parallel()
 
-	c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "request": {
-		"label_unused": "{{a}}",
-		"windows": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "WIN_LAG", "field": "x", "label": "{{d}}", "order_by": []}]}}}`)
+	for kind, body := range sweepItemBodies {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+			c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1, 2]}], "label": "s{{a}}", "request": {`+body+`}}}`)
+			exp := mustExpand(t, c)
+			if got := len(exp.Composed.Requests); got != 2 || Count(c.Sweep) != 2 {
+				t.Fatalf("slots = %d, Count = %d; want 2 (the item fan-out never adds a slot)", got, Count(c.Sweep))
+			}
+			for slot, a := range []string{"1", "2"} {
+				req := exp.Composed.Requests[slot]
+				if !HasForEach(req) {
+					t.Fatalf("slot %d lost the item for_each", slot)
+				}
+				out, fan := mustExpandItems(t, req)
+				if len(fan) != 1 || fan[0].Count != 2 {
+					t.Fatalf("slot %d fan-outs = %+v", slot, fan)
+				}
+				labels := itemLabels(out, kind)
+				want := []string{"_x_" + a, "_y_" + a}
+				got := labels[len(labels)-2:]
+				for i := range want {
+					if !strings.HasSuffix(got[i], want[i]) {
+						t.Fatalf("slot %d %s = %v, want suffixes %v", slot, kind, labels, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// An item axis named like a sweep axis is refused axis_shadowed, in the
+// request body (every kind) and wherever an object carries a for_each
+// (a crosstab cell, an overlay) — before the placeholder scan, which
+// would otherwise read the shared name as a template collision.
+func TestExpand_ForEachAxisShadowed(t *testing.T) {
+	t.Parallel()
+
+	for kind, body := range sweepItemBodies {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+			shadowed := strings.Replace(body, `"name": "f"`, `"name": "a"`, 1)
+			c := decodeComposed(t, `{"sweep": {"axes": [{"name": "z", "values": [0]}, {"name": "a", "values": [1, 2]}], "label": "s{{a}}{{z}}", "request": {`+shadowed+`}}}`)
+			idx := "0"
+			if kind == "aggregations" {
+				idx = "1"
+			}
+			_, err := Expand(c, Options{}, nil)
+			ce := requireForEachInvalid(t, err, ReasonAxisShadowed, "sweep.request."+kind+"["+idx+"].for_each.axes[0].name")
+			if ce.Details["axis"] != "a" || ce.Details["sweep_axis"] != "sweep.axes[1]" {
+				t.Fatalf("details = %v", ce.Details)
+			}
+		})
+	}
+	c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "label": "s{{a}}", "request": {
+		"crosstab": {"cell": {"for_each": {"axes": [{"name": "a", "values": ["x"]}]}, "type": "AGG_SUM", "field": "{{a}}"}}}}}`)
 	_, err := Expand(c, Options{}, nil)
-	requireForEachInvalid(t, err, ReasonNestedInSweep, "sweep.request.windows[0].for_each")
+	requireForEachInvalid(t, err, ReasonAxisShadowed, "sweep.request.crosstab.cell.for_each.axes[0].name")
+}
+
+// An item axis spliced into an expression inside a sweep body is the
+// item's own refusal, PULSE_FOR_EACH_EXPR_SPLICE — never the sweep's,
+// whose advice (target a sweep param) would name an axis the sweep does
+// not have; a sweep axis there stays PULSE_SWEEP_EXPR_SPLICE.
+func TestExpand_ForEachExprSpliceInSweepBody(t *testing.T) {
+	t.Parallel()
+
+	for placeholder, code := range map[string]errors.Code{
+		"k": errors.PULSE_FOR_EACH_EXPR_SPLICE,
+		"a": errors.PULSE_SWEEP_EXPR_SPLICE,
+	} {
+		c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "label": "s{{a}}", "request": {
+			"aggregations": [{"for_each": {"axes": [{"name": "k", "values": [2, 3]}]}, "type": "AGG_CONSTANT", "label": "c{{k}}",
+				"params": {"expr": "{{`+placeholder+`}} + 1"}}]}}}`)
+		_, err := Expand(c, Options{}, nil)
+		var ce *errors.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != code || ce.Details["placeholder"] != placeholder ||
+			ce.Details["field"] != "sweep.request.aggregations[0].params.expr" {
+			t.Fatalf("{{%s}}: %v, want %s", placeholder, err, code)
+		}
+	}
 }
 
 // Aggregations and matrices fan out AFTER the windows (library-gaps
@@ -410,23 +530,6 @@ func TestExpandItems_MisplacedAggregationRefused(t *testing.T) {
 			}
 			_, _, err := ExpandItems(r, Options{}, nil)
 			requireForEachInvalid(t, err, ReasonPositionUnsupported, name)
-		})
-	}
-}
-
-// A compose sweep body carrying an aggregation or matrix for_each is
-// refused nested_in_sweep like the other kinds.
-func TestExpand_NestedForEachInSweep_NewKinds(t *testing.T) {
-	t.Parallel()
-
-	for field, body := range map[string]string{
-		"sweep.request.aggregations[1].for_each": `"aggregations": [{"type": "AGG_COUNT", "field": "x"}, {"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "AGG_SUM", "field": "x", "label": "s{{d}}"}]`,
-		"sweep.request.matrices[0].for_each":     `"matrices": [{"for_each": {"axes": [{"name": "d", "values": [1]}]}, "type": "MAT_COVARIANCE", "name": "m{{d}}", "fields": ["a", "b"]}]`,
-	} {
-		t.Run(field, func(t *testing.T) {
-			c := decodeComposed(t, `{"sweep": {"axes": [{"name": "a", "values": [1]}], "label": "l{{a}}", "request": {`+body+`}}}`)
-			_, err := Expand(c, Options{}, nil)
-			requireForEachInvalid(t, err, ReasonNestedInSweep, field)
 		})
 	}
 }

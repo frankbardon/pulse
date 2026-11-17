@@ -114,7 +114,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_post_fit`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:regression_order`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_sweep_adaptive`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_post_fit`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:regression_order`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -186,6 +186,7 @@ one name in every group must be enabled:
 | `capability:sem_groups` | `MAT_SEM` or `ATTR_SEM_SCORE`, and `capability:sem_meanstructure` (a multi-group fit always models the means) |
 | `capability:sem_defined` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `name := expr` defined-parameter model lines) |
 | `capability:compose_sweep_sampling` | `capability:compose_sweep` (the sweep's seeded `random` / `lhs` modes, `samples`, `rng_seed`, axis `range` and the `sweep_seed` echo; hidden, a sweep offers `grid` / `zip` only and refuses `lhs` as an unknown mode) |
+| `capability:compose_sweep_adaptive` | `capability:compose_sweep` and `capability:compose_sweep_sampling` (the sweep's adaptive modes — each round's points chosen from the ranked values of the rounds before — and their `budget`; an adaptive mode searches range axes; hidden, `budget` is an unknown field and an adaptive mode an unknown mode) |
 | `capability:compose_optimize` | `capability:compose` (the batch `optimize` blocks and the `optimizations` they produce; hidden, a set `optimize` is an unknown field) |
 | `capability:compose_base` | `capability:compose` (the batch `base` merged into every explicit slot; hidden, a set `base` is an unknown field) |
 | `capability:materialize_output` | `capability:materialize` (the materialize-only request `output` slot, which lays out the written cohort; hidden, a set `output` is an unknown field) |
@@ -367,8 +368,9 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   drops the `matrix` block. Every `MAT_*` operator depends on
   `capability:matrices`.
 - **Request parameters.** Without `capability:params` a request `params`
-  object (inside Compose requests and chain stages too, and the
-  top-level `params` of a Compose batch or a chain) fails
+  object (inside Compose requests and chain stages too, the top-level
+  `params` of a Compose batch or a chain, a `FacetRequest`'s or a
+  `FilterToFileRequest`'s), and a Compose sweep axis `target`, fail
   `PULSE_REQUEST_UNKNOWN_FIELD`, and the payload schema and the MCP tool
   input schemas drop the key. An expression reading `params.<name>` is
   then refused `PULSE_PARAMS_UNDECLARED`, as on any request declaring no

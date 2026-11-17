@@ -137,6 +137,13 @@ var _ = pulse.Options{
 // ComposeOptions is a root alias with the parallel-compose knobs.
 var _ = pulse.ComposeOptions{MaxWorkers: 2, FailFast: true}
 
+// WriteComposeStream writes a finished Compose run as the CLI's NDJSON;
+// ComposeStreamOptions.TerminalFits adds the terminal fits line.
+var (
+	_ func(io.Writer, *pulse.ComposedRequest, *pulse.ComposedResponse, pulse.ComposeStreamOptions) error = pulse.WriteComposeStream
+	_                                                                                                    = pulse.ComposeStreamOptions{TerminalFits: true}
+)
+
 // Root aliases and root-native types an embedder spells by name.
 var (
 	_ pulse.BuildIndexResult

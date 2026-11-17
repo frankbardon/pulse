@@ -330,40 +330,180 @@ func TestForEachItems_HiddenCapability(t *testing.T) {
 	}
 }
 
-// TestForEachItems_NestedInSweep: a compose sweep body fanning an
-// aggregation or matrix out is refused nested_in_sweep by predict and
-// the runtime alike.
-func TestForEachItems_NestedInSweep(t *testing.T) {
+// sweepForEachCases is one compose sweep per request item kind
+// (compose-sweep-2 E2-S2): the body fans one item out over the item axis
+// `f` while the sweep axis `a` labels the slots (and, for an
+// aggregation, the fanned-out item too), each beside its hand-expanded
+// twin — the same slots written as explicit requests.
+var sweepForEachCases = map[string]struct{ body, twin string }{
+	"features": {
+		`"features": [{"for_each": {"axes": [{"name": "f", "values": ["tv", "search"]}]}, "type": "FEAT_LOG", "field": "{{f}}", "label": "{{f}}_log"}],
+		 "aggregations": [{"type": "AGG_SUM", "field": "tv_log", "label": "t"}, {"type": "AGG_SUM", "field": "search_log", "label": "s"}]`,
+		`"features": [{"type": "FEAT_LOG", "field": "tv", "label": "tv_log"}, {"type": "FEAT_LOG", "field": "search", "label": "search_log"}],
+		 "aggregations": [{"type": "AGG_SUM", "field": "tv_log", "label": "t"}, {"type": "AGG_SUM", "field": "search_log", "label": "s"}]`,
+	},
+	"attributes": {
+		`"attributes": [{"for_each": {"axes": [{"name": "f", "values": ["tv", "search"]}]}, "type": "ATTR_ZSCORE", "field": "{{f}}", "label": "{{f}}_z"}],
+		 "aggregations": [{"type": "AGG_MAX", "field": "tv_z", "label": "t"}, {"type": "AGG_MAX", "field": "search_z", "label": "s"}]`,
+		`"attributes": [{"type": "ATTR_ZSCORE", "field": "tv", "label": "tv_z"}, {"type": "ATTR_ZSCORE", "field": "search", "label": "search_z"}],
+		 "aggregations": [{"type": "AGG_MAX", "field": "tv_z", "label": "t"}, {"type": "AGG_MAX", "field": "search_z", "label": "s"}]`,
+	},
+	"windows": {
+		`"windows": [{"for_each": {"axes": [{"name": "f", "values": ["tv", "search"]}]}, "type": "WIN_LAG", "field": "{{f}}", "label": "{{f}}_lag", "order_by": [{"field": "week"}]}],
+		 "aggregations": [{"type": "AGG_SUM", "field": "tv_lag", "label": "t"}, {"type": "AGG_SUM", "field": "search_lag", "label": "s"}]`,
+		`"windows": [{"type": "WIN_LAG", "field": "tv", "label": "tv_lag", "order_by": [{"field": "week"}]}, {"type": "WIN_LAG", "field": "search", "label": "search_lag", "order_by": [{"field": "week"}]}],
+		 "aggregations": [{"type": "AGG_SUM", "field": "tv_lag", "label": "t"}, {"type": "AGG_SUM", "field": "search_lag", "label": "s"}]`,
+	},
+	"aggregations": {
+		`"aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}, {"for_each": {"axes": [{"name": "f", "values": ["tv", "search"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "{{f}}_{{a}}"}]`,
+		`"aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}, {"type": "AGG_SUM", "field": "tv", "label": "tv_$A"}, {"type": "AGG_SUM", "field": "search", "label": "search_$A"}]`,
+	},
+	"matrices": {
+		`"aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}],
+		 "matrices": [{"for_each": {"axes": [{"name": "f", "values": ["tv", "search"]}]}, "type": "MAT_COVARIANCE", "name": "m_{{f}}", "fields": ["{{f}}", "week"]}]`,
+		`"aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}],
+		 "matrices": [{"type": "MAT_COVARIANCE", "name": "m_tv", "fields": ["tv", "week"]}, {"type": "MAT_COVARIANCE", "name": "m_search", "fields": ["search", "week"]}]`,
+	},
+}
+
+// decodeComposedRaw strictly-enough decodes one Compose request.
+func decodeComposedRaw(t *testing.T, raw string) *pulse.ComposedRequest {
+	t.Helper()
+	var c pulse.ComposedRequest
+	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		t.Fatal(err)
+	}
+	return &c
+}
+
+// predictComposeSlots reads a valid PredictCompose's slot count and the
+// sweep's expanded count off the wire form.
+func predictComposeSlots(t *testing.T, p *pulse.Pulse, c *pulse.ComposedRequest) (slots, expanded int) {
+	t.Helper()
+	env, err := p.PredictCompose(context.Background(), c)
+	if err != nil || len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose: %v %+v", err, env.Errors)
+	}
+	raw, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		Valid bool              `json:"valid"`
+		Slots []json.RawMessage `json:"slots"`
+		Sweep struct {
+			ExpandedCount int `json:"expanded_count"`
+		} `json:"sweep"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil || !out.Valid {
+		t.Fatalf("predict data %s (%v)", raw, err)
+	}
+	return len(out.Slots), out.Sweep.ExpandedCount
+}
+
+// TestForEachItems_InSweepBody: a compose sweep body carrying a
+// for_each item runs for every request item kind — the sweep is the
+// OUTER loop, one slot per combination (predict's slot count equals the
+// sweep count), and each slot fans its items out in place, so every
+// slot answers exactly as its hand-expanded twin.
+func TestForEachItems_InSweepBody(t *testing.T) {
 	t.Parallel()
 
 	p := channelCohort(t, pulse.Options{})
 	ctx := context.Background()
-	for field, item := range map[string]string{
-		"sweep.request.aggregations[0].for_each": `"aggregations": [{"for_each": {"axes": [{"name": "f", "values": ["tv"]}]}, "type": "AGG_SUM", "field": "{{f}}", "label": "s{{a}}"}]`,
-		"sweep.request.matrices[0].for_each":     `"matrices": [{"for_each": {"axes": [{"name": "f", "values": ["tv"]}]}, "type": "MAT_COVARIANCE", "name": "m{{a}}", "fields": ["{{f}}", "search"]}]`,
-	} {
-		t.Run(field, func(t *testing.T) {
-			raw := `{"sweep": {"axes": [{"name": "a", "values": [1, 2]}], "label": "s{{a}}", "request": {"cohort": {"filename": "ch.pulse"}, ` + item + `}}}`
-			decode := func() *pulse.ComposedRequest {
-				var c pulse.ComposedRequest
-				if err := json.Unmarshal([]byte(raw), &c); err != nil {
-					t.Fatal(err)
-				}
-				return &c
+	for kind, tc := range sweepForEachCases {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+			sweep := func() *pulse.ComposedRequest {
+				return decodeComposedRaw(t, `{"sweep": {"axes": [{"name": "a", "values": [1, 2]}], "label": "s{{a}}",
+					"request": {"cohort": {"filename": "ch.pulse"}, `+tc.body+`}}}`)
 			}
-			_, err := p.Compose(ctx, decode())
+			twinSlot := func(a string) string {
+				return `{"label": "s` + a + `", "cohort": {"filename": "ch.pulse"}, ` + strings.ReplaceAll(tc.twin, "$A", a) + `}`
+			}
+			got, err := p.Compose(ctx, sweep())
+			if err != nil {
+				t.Fatalf("Compose: %v", err)
+			}
+			want, err := p.Compose(ctx, decodeComposedRaw(t, `{"requests": [`+twinSlot("1")+`, `+twinSlot("2")+`]}`))
+			if err != nil {
+				t.Fatalf("Compose (twin): %v", err)
+			}
+			if len(got.Responses) != 2 || len(want.Responses) != 2 {
+				t.Fatalf("slots = %d, twin %d; want 2", len(got.Responses), len(want.Responses))
+			}
+			for i := range got.Responses {
+				if len(got.Responses[i].Data) == 0 && len(got.Responses[i].Matrices) == 0 {
+					t.Fatalf("slot %d answered nothing", i)
+				}
+				g, _ := json.Marshal([]any{got.Responses[i].Label, got.Responses[i].Data, got.Responses[i].Matrices})
+				w, _ := json.Marshal([]any{want.Responses[i].Label, want.Responses[i].Data, want.Responses[i].Matrices})
+				if string(g) != string(w) {
+					t.Fatalf("slot %d = %s\nwant %s", i, g, w)
+				}
+			}
+			if slots, expanded := predictComposeSlots(t, p, sweep()); slots != 2 || expanded != 2 {
+				t.Fatalf("predict slots = %d, expanded_count = %d; want 2 (the item fan-out adds no slot)", slots, expanded)
+			}
+		})
+	}
+}
+
+// TestForEachItems_InSweepAxisShadowed: an item axis named like a sweep
+// axis is refused axis_shadowed by predict and the runtime alike — the
+// same code, field and details — for every request item kind.
+func TestForEachItems_InSweepAxisShadowed(t *testing.T) {
+	t.Parallel()
+
+	p := channelCohort(t, pulse.Options{})
+	ctx := context.Background()
+	for kind, tc := range sweepForEachCases {
+		t.Run(kind, func(t *testing.T) {
+			t.Parallel()
+			body := strings.ReplaceAll(strings.Replace(tc.body, `"name": "f"`, `"name": "a"`, 1), "{{f}}", "{{a}}")
+			raw := `{"sweep": {"axes": [{"name": "a", "values": [1, 2]}], "label": "s{{a}}", "request": {"cohort": {"filename": "ch.pulse"}, ` + body + `}}}`
+			_, err := p.Compose(ctx, decodeComposedRaw(t, raw))
 			ce := codeOf(t, err)
-			if ce.Code != errors.PULSE_FOR_EACH_INVALID || ce.Details["reason"] != "nested_in_sweep" || ce.Details["field"] != field {
+			if ce.Code != errors.PULSE_FOR_EACH_INVALID || ce.Details["reason"] != "axis_shadowed" ||
+				!strings.HasPrefix(ce.Details["field"].(string), "sweep.request."+kind+"[") || ce.Details["axis"] != "a" {
 				t.Fatalf("runtime = %s %v", ce.Code, ce.Details)
 			}
-			env, err := p.PredictCompose(ctx, decode())
+			env, err := p.PredictCompose(ctx, decodeComposedRaw(t, raw))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_FOR_EACH_INVALID) || !reflect.DeepEqual(env.Errors[0].Details, ce.Details) {
+			if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_FOR_EACH_INVALID) ||
+				!reflect.DeepEqual(env.Errors[0].Details, ce.Details) || env.Errors[0].Message != ce.Message {
 				t.Fatalf("predict errors = %+v, runtime %v", env.Errors, ce.Details)
 			}
 		})
+	}
+}
+
+// TestForEachItems_OptimizeBesideSweep: a Compose `optimize` block's
+// for_each fans out beside a sweep — the block sits at the Compose level,
+// outside the sweep body, so its axes never meet the sweep's: even a
+// shared axis name is not shadowing. Predict and the runtime agree on
+// the slots and the blocks.
+func TestForEachItems_OptimizeBesideSweep(t *testing.T) {
+	t.Parallel()
+
+	p := channelCohort(t, pulse.Options{})
+	ctx := context.Background()
+	raw := `{"sweep": {"axes": [{"name": "a", "values": [1, 2]}], "label": "s{{a}}",
+		"request": {"cohort": {"filename": "ch.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]}},
+		"optimize": [{"name": "o_{{a}}", "direction": "maximize", "variables": [{"name": "x", "lower": 0, "upper": 10}],
+			"objective": "0 - (x - 3) * (x - 3)", "for_each": {"axes": [{"name": "a", "values": ["p", "q"]}]}}]}`
+	got, err := p.Compose(ctx, decodeComposedRaw(t, raw))
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	if len(got.Responses) != 2 || len(got.Optimizations) != 2 ||
+		got.Optimizations[0].Name != "o_p" || got.Optimizations[1].Name != "o_q" {
+		t.Fatalf("slots %d, optimizations %+v", len(got.Responses), got.Optimizations)
+	}
+	if slots, expanded := predictComposeSlots(t, p, decodeComposedRaw(t, raw)); slots != 2 || expanded != 2 {
+		t.Fatalf("predict slots = %d, expanded_count = %d", slots, expanded)
 	}
 }
 

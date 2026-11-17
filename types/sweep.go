@@ -23,6 +23,11 @@ import (
 // effective seed (RNGSeed, or one derived from the spec when zero), so
 // predict lists the same slots the runtime runs.
 //
+// An adaptive mode (capability:compose_sweep_adaptive) runs Budget
+// slots in rounds, each round's points chosen from the ranked values of
+// the rounds before; it needs Rank, and an axis carries Values or a
+// Range. Only round 0 is known before the run.
+//
 // It rides as the optional `sweep` slot on ComposedRequest, gated by
 // capability:compose_sweep. A nil spec is absent: the slot is
 // `omitempty`, so a sweep-free request is byte-identical on the wire and
@@ -49,6 +54,23 @@ type SweepSpec struct {
 	// predict's SweepSummary.RNGSeed. Refused under grid / zip.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
 
+	// Budget is the number of slots an adaptive mode evaluates, at least
+	// 1; required there and refused under every other mode. The slots
+	// run in rounds — each round's points chosen from the ranked values
+	// of the rounds before — and count toward MaxComposeSlots exactly as
+	// samples do. Zero is absent.
+	Budget int `json:"budget,omitempty"`
+
+	// DE is mode de's knobs (SweepDE); nil takes every default. Refused
+	// under every other mode. Absent is nil, so a spec without it keeps
+	// its derived seed.
+	DE *SweepDE `json:"de,omitempty"`
+
+	// BO is mode bo's knobs (SweepBO); nil takes every default. Refused
+	// under every other mode. Absent is nil, so a spec without it keeps
+	// its derived seed.
+	BO *SweepBO `json:"bo,omitempty"`
+
 	// Label is the per-slot label pattern, `{{axis}}` placeholders
 	// substituted per slot. Empty takes the default `<axis>=<value>`
 	// pairs joined by `_` — prefixed `sample=<index>_` under a sampling
@@ -70,8 +92,60 @@ type SweepSpec struct {
 	Rank *SweepRank `json:"rank,omitempty"`
 }
 
-// SweepAxis is one swept parameter: a placeholder Name and the Values it
-// takes. Values are JSON scalars — a number, string or boolean. Decoded
+// SweepDE is mode de's knobs — differential evolution, strategy
+// rand/1/bin. Each nil field takes its default.
+type SweepDE struct {
+	// Population is the population size: at least 4 (rand/1 draws three
+	// members distinct from the target) and at most the budget. Nil is
+	// 10 × the axis count, capped at the budget. Round 0 evaluates the
+	// initial population; every later round is one generation of
+	// Population trials, so budget ÷ Population rounds run and a
+	// remainder r runs as a final partial generation (trials for the
+	// first r members).
+	Population *int `json:"population,omitempty"`
+	// F is the differential weight (mutation scale), in (0, 2]. Nil is
+	// 0.8.
+	F *float64 `json:"f,omitempty"`
+	// CR is the binomial crossover probability, in [0, 1]. Nil is 0.9.
+	CR *float64 `json:"cr,omitempty"`
+}
+
+// SweepBO is mode bo's knobs — Bayesian optimisation over a Gaussian-
+// process surrogate with expected-improvement acquisition. Each unset
+// field takes its default.
+type SweepBO struct {
+	// Init is the initial design round 0 evaluates (SweepBOInit*). Empty
+	// is lhs.
+	Init SweepBOInit `json:"init,omitempty"`
+	// NInit is the initial design's size: at least 1 and at most the
+	// budget. Nil is 2 × the axis count, capped at the budget.
+	NInit *int `json:"n_init,omitempty"`
+	// Batch is the number of points each later round proposes (fewer
+	// when less budget is left): at least 1 and at most the budget.
+	// Nil is 1. A batch above 1 fills by constant liar.
+	Batch *int `json:"batch,omitempty"`
+}
+
+// SweepBOInit names mode bo's initial design.
+type SweepBOInit string
+
+const (
+	// SweepBOInitLHS draws the initial design as a Latin hypercube (the
+	// lhs draw). The default.
+	SweepBOInitLHS SweepBOInit = "lhs"
+	// SweepBOInitRandom draws the initial design uniformly (the random
+	// draw).
+	SweepBOInitRandom SweepBOInit = "random"
+)
+
+// AllSweepBOInits returns every SweepBOInit value the wire schema
+// lists.
+func AllSweepBOInits() []SweepBOInit {
+	return []SweepBOInit{SweepBOInitLHS, SweepBOInitRandom}
+}
+
+// SweepAxis is one swept parameter: a placeholder Name (or, with
+// Target, a request param it writes) and the Values it takes. Values are JSON scalars — a number, string or boolean. Decoded
 // numbers are kept as json.Number so a `{{axis}}` substitution renders
 // them exactly as written; a Go caller may supply any integer or finite
 // float kind, a json.Number, a string or a bool. Under a sampling mode
@@ -89,6 +163,17 @@ type SweepAxis struct {
 	// Range is the continuous interval a sampling mode (random / lhs)
 	// draws the axis from. Required there, refused under grid / zip.
 	Range *SweepRange `json:"range,omitempty"`
+
+	// Target, when set, is `params.<name>` (an identifier): each
+	// expanded slot's request takes the axis value as its params.<name>
+	// — overriding a value the body declares, declaring an absent one —
+	// so an expression reading params.<name> varies with the axis and
+	// the body needs no placeholder for it. A compose sweep axis only
+	// (an item for_each axis refuses it: params are request-wide); two
+	// axes may not target one name, and a `{"$var"}` marker naming a
+	// targeted axis is refused (axis_target_conflict). Gated by
+	// capability:params. Empty is absent.
+	Target string `json:"target,omitempty"`
 }
 
 // SweepRange is a sampled sweep axis's closed interval [Min, Max] —
@@ -102,6 +187,13 @@ type SweepRange struct {
 	// Scale is how draws spread over the interval (SweepScale*). Empty
 	// is linear.
 	Scale SweepScale `json:"scale,omitempty"`
+	// Integer, when true, draws whole numbers only: the draw spreads
+	// over [ceil(Min) − ½, floor(Max) + ½] on the axis Scale and rounds
+	// to the nearest integer, so every integer in [Min, Max] is reachable
+	// and (under linear) equally likely, and an lhs stratum maps to an
+	// integer interval. The interval must hold an integer. A drawn value
+	// renders in integer form (`3`, never `3e+00`). False is absent.
+	Integer bool `json:"integer,omitempty"`
 }
 
 // SweepScale names how a sampled axis spreads its draws.
@@ -158,11 +250,25 @@ const (
 	// every stratum is drawn exactly once per axis, the strata paired
 	// across axes by a seeded permutation. Compose sweep only.
 	SweepModeLHS SweepMode = "lhs"
+	// SweepModeDE searches the axes by differential evolution
+	// (rand/1/bin) over SweepSpec.Budget slots — an adaptive mode
+	// (capability:compose_sweep_adaptive), tuned by SweepSpec.DE.
+	// Compose sweep only.
+	SweepModeDE SweepMode = "de"
+	// SweepModeBO searches the axes by Bayesian optimisation (a
+	// Gaussian-process surrogate, expected improvement) over
+	// SweepSpec.Budget slots — an adaptive mode
+	// (capability:compose_sweep_adaptive), tuned by SweepSpec.BO.
+	// Compose sweep only.
+	SweepModeBO SweepMode = "bo"
 )
 
-// AllSweepModes returns every SweepMode value.
+// AllSweepModes returns every SweepMode value the wire schema lists.
+// An adaptive mode joins it as its strategy ships; the engine's
+// registry (internal/sweep RegisterAdaptive) is what makes a mode
+// adaptive.
 func AllSweepModes() []SweepMode {
-	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS}
+	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS, SweepModeDE, SweepModeBO}
 }
 
 // Sampled reports whether m is a sampling mode (random or lhs).
@@ -182,7 +288,25 @@ type SweepRank struct {
 	// Top, when set, keeps only the first Top ranked entries; at least
 	// 1. Nil keeps every slot.
 	Top *int `json:"top,omitempty"`
+
+	// Profile, when true, adds ComposedResponse.RankingProfile: per
+	// axis, per axis value, the best ranked value over the other axes.
+	// It reads the full ranking (Top trims the ranking only) and never
+	// moves a sampling sweep's derived seed. False is absent.
+	Profile bool `json:"profile,omitempty"`
+
+	// ProfileBins is how many bins the profile cuts each range axis
+	// (a random / lhs draw) into: equal-width over [min, max], equal
+	// log-width under scale log; each bin with a ranked slot is one
+	// RankProfileEntry carrying its Lo / Hi edges. At least 1, and only
+	// with Profile; nil is the default, 10. Like Profile it never moves
+	// a sampling sweep's derived seed. A list axis is never binned.
+	ProfileBins *int `json:"profile_bins,omitempty"`
 }
+
+// DefaultProfileBins is the bin count a range axis's rank profile takes
+// when SweepRank.ProfileBins is nil.
+const DefaultProfileBins = 10
 
 // SweepRankOrder is the sort direction of a sweep rank.
 type SweepRankOrder string
@@ -197,6 +321,41 @@ const (
 // AllSweepRankOrders returns every SweepRankOrder value.
 func AllSweepRankOrders() []SweepRankOrder {
 	return []SweepRankOrder{SweepRankAsc, SweepRankDesc}
+}
+
+// RankProfileEntry is one axis value's entry in
+// ComposedResponse.RankingProfile: Best is the best ranked value among
+// the evaluated (ranked) slots that ran with Value — the first such slot
+// in rank order, so it follows SweepRank.Order and ties keep expansion
+// order — Label names that slot and N counts the ranked slots behind
+// the entry. Only ranked slots count: a value no ranked slot ran with
+// has no entry, so a sampled or partly failed sweep's profile is sparse.
+//
+// A range axis (a random / lhs draw) is binned instead: one entry per
+// bin [Lo, Hi) some ranked slot fell into (the last bin closed at the
+// range max), Value the drawn value of the slot that achieved Best and
+// N the ranked slots in the bin. Lo / Hi are absent on a list axis.
+type RankProfileEntry struct {
+	// Value is the axis value, typed as in RankEntry.Axes; on a binned
+	// range axis, the value the best slot in the bin drew.
+	Value any `json:"value"`
+
+	// Lo is a range-axis bin's lower edge (inclusive). Absent on a list
+	// axis.
+	Lo *float64 `json:"lo,omitempty"`
+
+	// Hi is a range-axis bin's upper edge (exclusive, but the last bin's
+	// is the range max, inclusive). Absent on a list axis.
+	Hi *float64 `json:"hi,omitempty"`
+
+	// Best is the best ranked value among the slots behind the entry.
+	Best float64 `json:"best"`
+
+	// Label is the final label of the slot that achieved Best.
+	Label string `json:"label"`
+
+	// N is the number of ranked slots that ran with Value.
+	N int `json:"n"`
 }
 
 // RankEntry is one ranked sweep slot in ComposedResponse.Ranking: the

@@ -33,7 +33,7 @@ requires: [capability:params]
 
 ## Where they bind
 
-<!-- feature: ATTR_FORMULA -->`ATTR_FORMULA`,<!-- /feature --><!-- feature: FILTER_EXPRESSION --> `FILTER_EXPRESSION`,<!-- /feature --> `total()` and the holdout expression.<!-- feature: OVERLAY_FORMULA --> `OVERLAY_FORMULA` reads them too.<!-- /feature --> Not synth rules, not `FilterToFile`.<!-- feature: capability:facet --> A `FacetSchema` request's filterers read the facet's own `params` (same rules, same refusals).<!-- /feature --> Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
+<!-- feature: ATTR_FORMULA -->`ATTR_FORMULA`,<!-- /feature --><!-- feature: FILTER_EXPRESSION --> `FILTER_EXPRESSION`,<!-- /feature --> `total()` and the holdout expression.<!-- feature: OVERLAY_FORMULA --> `OVERLAY_FORMULA` reads them too.<!-- /feature --> `FilterToFileWithRequest` takes its own `params` (the values key its dedup hash). Not synth rules.<!-- feature: capability:facet --> A `FacetSchema` request's filterers read the facet's own `params` (same rules, same refusals).<!-- /feature --> Params are READ-ONLY constants folded per run: an expression cannot write one, and a run sees only its own values.
 
 ## Refusals (predict raises the same)
 
@@ -44,6 +44,9 @@ requires: [capability:params]
 ## Compose and chains
 
 A top-level `params` on a Compose batch or a process chain merges into EVERY sub-request (slots, fits, chain stages); a sub-request's own key wins. A Compose-level formula overlay reads the top-level params. `--echo-request` shows the merged view. Same on the CLI `api` leaves and the MCP tools.
+<!-- feature: capability:compose_sweep -->
+A sweep axis `"target": "params.x"` writes each slot's axis value into its `params.x` (declared, or overriding the body's and the batch's) — no placeholder needed. A `{"$var"}` marker naming a targeted axis, or standing at `params.x`, is refused `axis_target_conflict`; the `"params": {"x": {"$var": "x"}}` route still works. An item `for_each` cannot target params (`target_unsupported`).
+<!-- /feature -->
 
 ## Gotchas
 

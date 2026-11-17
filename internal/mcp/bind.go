@@ -30,6 +30,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -2286,11 +2287,30 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 // compose slots. Dropped with the slot when capability:compose_sweep is
 // hidden (dropHiddenSlots). An instance hiding
 // capability:compose_sweep_sampling offers the enumeration modes only:
-// no random / lhs, `samples`, `rng_seed` or axis `range`.
+// no random / lhs, `samples`, `rng_seed` or axis `range`. One hiding
+// capability:compose_sweep_adaptive (while offering sampling) offers
+// every mode but the adaptive ones, without `budget`.
 func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
-	if !inst.Enabled(descx.FeatureComposeSweepSampling) {
-		return enumerationSweepSchema()
+	out := samplingSweepSchema()
+	switch {
+	case !inst.Enabled(descx.FeatureComposeSweepSampling):
+		out = enumerationSweepSchema()
+	case !inst.Enabled(descx.FeatureComposeSweepAdaptive):
+		out = nonAdaptiveSweepSchema()
 	}
+	// An axis `target` writes request params: offered only where
+	// capability:params is.
+	if inst.Enabled(descx.FeatureParams) {
+		axis := out["properties"].(map[string]any)["axes"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+		axis["target"] = map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`,
+			"description": "params.<name>: each slot's request takes the axis value as params.<name> (overriding a declared value), read by its expressions — no placeholder needed. Never with a {\"$var\"} marker naming this axis."}
+	}
+	return out
+}
+
+// samplingSweepSchema is the full sweep schema: every mode, the sampling
+// keys and axis `range` (no axis `target`, which sweepSchema adds).
+func samplingSweepSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
 		"description": "Parameter sweep: one request body with axis placeholders (`{{axis}}` inside a string, {\"$var\": \"axis\"} as a whole value), expanded over the axes into compose slots appended after `requests`, before any slot runs.",
@@ -2313,9 +2333,10 @@ func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 							"type":        "object",
 							"description": "random / lhs: the interval the axis is drawn from (instead of values).",
 							"properties": map[string]any{
-								"min":   map[string]any{"type": "number", "description": "Lower bound (> 0 under scale log)."},
-								"max":   map[string]any{"type": "number", "description": "Upper bound, above min."},
-								"scale": enumStringField(stringSlice(types.AllSweepScales()), "linear (default): uniform; log: log-uniform."),
+								"min":     map[string]any{"type": "number", "description": "Lower bound (> 0 under scale log)."},
+								"max":     map[string]any{"type": "number", "description": "Upper bound, above min."},
+								"scale":   enumStringField(stringSlice(types.AllSweepScales()), "linear (default): uniform; log: log-uniform."),
+								"integer": map[string]any{"type": "boolean", "description": "Draw whole numbers only (rounded, every integer in [min, max] reachable); the range must hold one."},
 							},
 							"required": []string{"min", "max"},
 						},
@@ -2323,9 +2344,30 @@ func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 					"required": []string{"name"},
 				},
 			},
-			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once)."),
-			"samples":  map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
-			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
+			"mode":    enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once); de: adaptive differential evolution over `budget` slots, needs rank; bo: adaptive Bayesian optimisation (GP surrogate, expected improvement) over `budget` slots, needs rank."),
+			"samples": map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
+			"budget":  map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
+			"de": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"description":          "Mode de's knobs (differential evolution, rand/1/bin); refused under every other mode. Round 0 is the population, each later round one generation; a budget remainder runs as a partial last generation.",
+				"properties": map[string]any{
+					"population": map[string]any{"type": "integer", "minimum": 4, "description": "Population size, at most the budget; default 10 × the axis count, capped at the budget."},
+					"f":          map[string]any{"type": "number", "exclusiveMinimum": 0, "maximum": 2, "description": "Differential weight in (0, 2]; default 0.8."},
+					"cr":         map[string]any{"type": "number", "minimum": 0, "maximum": 1, "description": "Crossover probability in [0, 1]; default 0.9."},
+				},
+			},
+			"bo": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"description":          "Mode bo's knobs (Bayesian optimisation: a Gaussian-process surrogate, expected-improvement acquisition); refused under every other mode. Round 0 is the initial design, each later round `batch` points.",
+				"properties": map[string]any{
+					"init":   enumStringField(stringSlice(types.AllSweepBOInits()), "The initial design: lhs (default, Latin hypercube) or random."),
+					"n_init": map[string]any{"type": "integer", "minimum": 1, "description": "Initial design size, at most the budget; default 2 × the axis count, capped at the budget."},
+					"batch":  map[string]any{"type": "integer", "minimum": 1, "description": "Points per later round, at most the budget; default 1. Above 1 fills by constant liar."},
+				},
+			},
+			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs / adaptive modes: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
 			"label":    map[string]any{"type": "string", "description": "Per-slot label pattern with {{axis}} placeholders; default `<axis>=<value>` pairs joined by `_`."},
 			"request":  map[string]any{"type": "object", "description": "The slot request body (the request shape) with axis placeholders."},
 			"overlays": map[string]any{"type": "array", "items": map[string]any{"type": "object"}, "description": "Compose overlay specs with axis placeholders, substituted per slot and appended to `overlays`."},
@@ -2333,9 +2375,11 @@ func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 				"type":        "object",
 				"description": "Orders the finished sweep slots by one number and reports them in the response `ranking`.",
 				"properties": map[string]any{
-					"by":    map[string]any{"type": "string", "description": "Path of the ranked number in each slot's response."},
-					"order": enumStringField(stringSlice(types.AllSweepRankOrders()), "asc (default) or desc."),
-					"top":   map[string]any{"type": "integer", "minimum": 1, "description": "Keep only the first top entries; omit to rank every slot."},
+					"by":           map[string]any{"type": "string", "description": "Path of the ranked number in each slot's response."},
+					"order":        enumStringField(stringSlice(types.AllSweepRankOrders()), "asc (default) or desc."),
+					"top":          map[string]any{"type": "integer", "minimum": 1, "description": "Keep only the first top entries; omit to rank every slot."},
+					"profile":      map[string]any{"type": "boolean", "description": "Add `ranking_profile`: per axis value, the best ranked value over the other axes, its slot label and n (ranked slots behind it); a range axis per bin, with its lo / hi edges."},
+					"profile_bins": map[string]any{"type": "integer", "minimum": 1, "description": "With profile: the bins each range axis is cut into, equal-width (equal log-width under scale log); default 10."},
 				},
 				"required": []string{"by"},
 			},
@@ -2344,12 +2388,28 @@ func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
 	}
 }
 
+// nonAdaptiveSweepSchema is sweepSchema on an instance hiding the
+// adaptive modes: every other mode, no `budget`.
+func nonAdaptiveSweepSchema() map[string]any {
+	out := samplingSweepSchema()
+	props := out["properties"].(map[string]any)
+	delete(props, "budget")
+	delete(props, "de")
+	delete(props, "bo")
+	mode := props["mode"].(map[string]any)
+	mode["enum"] = slices.DeleteFunc(slices.Clone(mode["enum"].([]string)), func(m string) bool { return sweep.IsAdaptive(types.SweepMode(m)) })
+	return out
+}
+
 // enumerationSweepSchema is sweepSchema on an instance hiding the
 // sampling modes: grid / zip over explicit axis values, the sampling
-// keys and their prose absent.
+// and adaptive keys and their prose absent.
 func enumerationSweepSchema() map[string]any {
-	out := sweepSchema(nil)
+	out := samplingSweepSchema()
 	props := out["properties"].(map[string]any)
+	delete(props, "budget")
+	delete(props, "de")
+	delete(props, "bo")
 	delete(props, "samples")
 	delete(props, "rng_seed")
 	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},

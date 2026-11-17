@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"encoding/json"
+
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -1010,21 +1012,49 @@ type SweepSummary struct {
 	// Axes are the sweep's axes in declared order.
 	Axes []SweepAxisSummary `json:"axes"`
 	// Mode is the resolved combination mode: grid (the default), zip,
-	// random or lhs.
+	// random, lhs or an adaptive mode.
 	Mode types.SweepMode `json:"mode"`
 	// ExpandedCount is the number of slots the sweep adds — the axis
 	// product under grid, the common axis length under zip, samples
-	// under random / lhs — excluding the explicit requests. Explicit plus
-	// expanded is what MaxComposeSlots bounds.
+	// under random / lhs, budget under an adaptive mode — excluding the
+	// explicit requests. Explicit plus expanded is what MaxComposeSlots
+	// bounds.
 	ExpandedCount int `json:"expanded_count"`
-	// RNGSeed is a sampling sweep's effective seed — the seed the
-	// runtime draws with and echoes as ComposedResponse.SweepSeed (the
-	// pinned rng_seed, else the one derived from the spec). Absent for
-	// grid / zip.
+	// Adaptive reports an adaptive mode: the slots run in rounds, each
+	// round's points chosen from the ranked values of the rounds
+	// before, so only round 0's labels are known before the run. False
+	// is absent.
+	Adaptive bool `json:"adaptive,omitempty"`
+	// RNGSeed is a sampling or adaptive sweep's effective seed — the
+	// seed the runtime draws (or searches) with and echoes as
+	// ComposedResponse.SweepSeed (the pinned rng_seed, else the one
+	// derived from the spec). Absent for grid / zip.
 	RNGSeed *int64 `json:"rng_seed,omitempty"`
 	// Labels are the sweep slots' labels in expansion order. Absent
-	// when expansion was refused before every slot rendered.
+	// when expansion was refused before every slot rendered. Under an
+	// adaptive mode a slot a later round fills is "" here and null on
+	// the wire (its label is known once its round runs); a real label
+	// is never empty.
 	Labels []string `json:"labels,omitempty"`
+}
+
+// MarshalJSON writes the summary with an adaptive sweep's unknown
+// labels ("") as null; every other field as tagged.
+func (s SweepSummary) MarshalJSON() ([]byte, error) {
+	type plain SweepSummary
+	if !s.Adaptive || len(s.Labels) == 0 {
+		return json.Marshal(plain(s))
+	}
+	labels := make([]*string, len(s.Labels))
+	for i := range s.Labels {
+		if s.Labels[i] != "" {
+			labels[i] = &s.Labels[i]
+		}
+	}
+	return json.Marshal(struct {
+		plain
+		Labels []*string `json:"labels"`
+	}{plain(s), labels})
 }
 
 // FitSummary is one ComposeValidationResult.Fits entry: a ComposedRequest
@@ -1271,9 +1301,14 @@ type SweepAxisSummary struct {
 	// Name is the axis's placeholder name.
 	Name string `json:"name"`
 	// Count is how many values the axis carries — under a sampling mode
-	// (random / lhs), how many it draws (the sweep's samples).
+	// (random / lhs), how many it draws (the sweep's samples); on an
+	// adaptive mode's range axis, the budget.
 	Count int `json:"count"`
-	// Range is a sampled axis's interval as written (nil on a values
-	// axis).
+	// Range is a sampled (or adaptive range) axis's interval as written
+	// (nil on a values axis).
 	Range *types.SweepRange `json:"range,omitempty"`
+	// Target echoes the axis's `target` (`params.<name>`): every sweep
+	// slot's request carries the slot's axis value as that param, and
+	// each slot is judged with it. Absent on an untargeted axis.
+	Target string `json:"target,omitempty"`
 }

@@ -184,17 +184,24 @@ func TestSweepRandom_RefusalParity(t *testing.T) {
 		return `{"sweep":{` + a + `,"request":` + rankSweepBody + `}}`
 	}
 	cases := []struct {
-		name string
-		raw  string
-		code perr.Code
+		name   string
+		raw    string
+		code   perr.Code
+		reason string
 	}{
-		{"range under grid", axis(`"axes":[{"name":"mu","range":{"min":1,"max":2}}]`), perr.PULSE_SWEEP_MODE_MISMATCH},
-		{"values under random", axis(`"mode":"random","samples":2,"axes":[{"name":"mu","values":[1,2]}]`), perr.PULSE_SWEEP_MODE_MISMATCH},
-		{"samples under zip", axis(`"mode":"zip","samples":2,"axes":[{"name":"mu","values":[1,2]}]`), perr.PULSE_SWEEP_MODE_MISMATCH},
-		{"min >= max", axis(`"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":3,"max":3}}]`), perr.PULSE_SWEEP_RANGE_INVALID},
-		{"log min <= 0", axis(`"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":0,"max":3,"scale":"log"}}]`), perr.PULSE_SWEEP_RANGE_INVALID},
-		{"missing samples", axis(`"mode":"random","axes":[{"name":"mu","range":{"min":1,"max":3}}]`), perr.PULSE_SWEEP_SAMPLES_INVALID},
-		{"over the slot limit", axis(`"mode":"lhs","samples":5,"axes":[{"name":"mu","range":{"min":1,"max":3}}]`), perr.PULSE_LIMIT_EXCEEDED},
+		{"range under grid", axis(`"axes":[{"name":"mu","range":{"min":1,"max":2}}]`), perr.PULSE_SWEEP_MODE_MISMATCH, "range_under_enumeration"},
+		{"integer range under zip", axis(`"mode":"zip","axes":[{"name":"mu","range":{"min":1,"max":2,"integer":true}}]`), perr.PULSE_SWEEP_MODE_MISMATCH, "range_under_enumeration"},
+		{"integer range holds no integer", axis(`"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":1.2,"max":1.8,"integer":true}}]`), perr.PULSE_SWEEP_RANGE_INVALID, "integer_range_empty"},
+		{"profile_bins below 1", `{"sweep":{"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":1,"max":3}}],"request":` + rankSweepBody +
+			`,"rank":{"by":"tests.t.statistic","profile":true,"profile_bins":0}}}`, perr.PULSE_SWEEP_INVALID, "rank_profile_bins_invalid"},
+		{"profile_bins without profile", `{"sweep":{"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":1,"max":3}}],"request":` + rankSweepBody +
+			`,"rank":{"by":"tests.t.statistic","profile_bins":4}}}`, perr.PULSE_SWEEP_INVALID, "rank_profile_bins_without_profile"},
+		{"values under random", axis(`"mode":"random","samples":2,"axes":[{"name":"mu","values":[1,2]}]`), perr.PULSE_SWEEP_MODE_MISMATCH, ""},
+		{"samples under zip", axis(`"mode":"zip","samples":2,"axes":[{"name":"mu","values":[1,2]}]`), perr.PULSE_SWEEP_MODE_MISMATCH, ""},
+		{"min >= max", axis(`"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":3,"max":3}}]`), perr.PULSE_SWEEP_RANGE_INVALID, "range_empty"},
+		{"log min <= 0", axis(`"mode":"lhs","samples":2,"axes":[{"name":"mu","range":{"min":0,"max":3,"scale":"log"}}]`), perr.PULSE_SWEEP_RANGE_INVALID, "log_min_not_positive"},
+		{"missing samples", axis(`"mode":"random","axes":[{"name":"mu","range":{"min":1,"max":3}}]`), perr.PULSE_SWEEP_SAMPLES_INVALID, ""},
+		{"over the slot limit", axis(`"mode":"lhs","samples":5,"axes":[{"name":"mu","range":{"min":1,"max":3}}]`), perr.PULSE_LIMIT_EXCEEDED, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -205,6 +212,9 @@ func TestSweepRandom_RefusalParity(t *testing.T) {
 			}
 			if len(env.Errors) == 0 || env.Errors[0].Code != string(tc.code) {
 				t.Fatalf("predict errors %+v, want %s", env.Errors, tc.code)
+			}
+			if tc.reason != "" && env.Errors[0].Details["reason"] != tc.reason {
+				t.Fatalf("predict reason %v, want %s", env.Errors[0].Details["reason"], tc.reason)
 			}
 			for name, run := range composeRuns(p) {
 				_, rerr := run(c)

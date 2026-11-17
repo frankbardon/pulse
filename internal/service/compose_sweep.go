@@ -26,6 +26,10 @@ type composeRank struct {
 	// (done set): the one the response reports, never recomputed.
 	ranked []types.RankEntry
 	done   bool
+	// axisSpec is the sweep's declared axes, which order the per-axis
+	// profile (spec.Profile); profile is the one phase 0 computed.
+	axisSpec []types.SweepAxis
+	profile  map[string][]types.RankProfileEntry
 }
 
 // composeExpansion is what the as-written request hands the finished
@@ -39,6 +43,9 @@ type composeExpansion struct {
 	// sweepFits is the scope a from_sweep fit is judged against and
 	// resolved over (descx.SweepFitScope — predict builds the same).
 	sweepFits model.SweepScope
+	// adaptive is an adaptive sweep's executor (nil under every other
+	// mode): phase 0 runs its rounds (runAdaptiveSweep).
+	adaptive *sweep.Adaptive
 }
 
 // sweepAxes are the batch's sweep's axis names (the axes sweep_axis()
@@ -80,9 +87,9 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if err != nil {
 		return nil, nil, err
 	}
-	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed}
+	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed, adaptive: exp.SweepAdaptive}
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
-		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels), axes: exp.SweepAxes}
+		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels), axes: exp.SweepAxes, axisSpec: composed.Sweep.Axes}
 	}
 	// The top-level params merge into every slot (sweep and banner
 	// slots included) and every fit request, each sub-request's own key
@@ -156,7 +163,8 @@ func applyComposeSweep(ext *composeExpansion, requests []*types.Request, out *ty
 	return applyComposeRank(ext.rank, requests, out)
 }
 
-// applyComposeRank fills out.Ranking from the sweep slots (the slots
+// applyComposeRank fills out.Ranking (and, with rank.profile,
+// out.RankingProfile) from the sweep slots (the slots
 // from rank.explicit on, labelled by the resolved requests). It runs
 // after every fold, before the facade shapes anything, so each slot is
 // read unshaped. No rank leaves out untouched.
@@ -167,13 +175,13 @@ func applyComposeRank(rank *composeRank, requests []*types.Request, out *types.C
 	if rank.done {
 		// A sweep-bound batch ranked in phase 0, and bound its fits
 		// from that ranking: report it as computed.
-		out.Ranking = rank.ranked
+		out.Ranking, out.RankingProfile = rank.ranked, rank.profile
 		return nil
 	}
-	ranking, err := rankComposeSweep(rank, requests, out.Responses)
+	ranking, profile, err := rankComposeSweep(rank, requests, out.Responses)
 	if err != nil {
 		return err
 	}
-	out.Ranking = ranking
+	out.Ranking, out.RankingProfile = ranking, profile
 	return nil
 }

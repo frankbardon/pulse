@@ -2,6 +2,7 @@ package sweep
 
 import (
 	"encoding/json"
+	"math"
 	"math/bits"
 	"math/rand/v2"
 	"strconv"
@@ -12,10 +13,11 @@ import (
 )
 
 // EffectiveSeed is the seed a sampling sweep (mode random / lhs) draws
-// with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
+// with, and an adaptive sweep's strategy searches with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
 // one rng_seed 0 derivation every seeded draw shares — over the spec's
 // wire form with rng_seed excluded (never the clock), so the same spec
-// draws the same slots on every run and every surface. The raw request
+// draws the same slots on every run and every surface. rank.profile
+// and rank.profile_bins are left out: reading the ranking's profile never redraws the points. The raw request
 // and overlays bodies are hashed in regresample.CanonicalJSON form, so
 // key order and whitespace inside them never move the seed. It reads the
 // spec only; predict and the runtime call it on the same spec and
@@ -29,6 +31,13 @@ func EffectiveSeed(spec *types.SweepSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
+	if cp.Rank != nil && (cp.Rank.Profile || cp.Rank.ProfileBins != nil) {
+		// The profile (and its bin count) is a read of the finished
+		// ranking: turning it on never redraws the points.
+		rk := *cp.Rank
+		rk.Profile, rk.ProfileBins = false, nil
+		cp.Rank = &rk
+	}
 	cp.Request = regresample.CanonicalJSON(cp.Request)
 	cp.Overlays = regresample.CanonicalJSON(cp.Overlays)
 	body, err := json.Marshal(&cp)
@@ -72,19 +81,36 @@ func (s *sampler) below(n uint64) uint64 {
 	return hi
 }
 
-// rangeValue maps a unit draw u in [0, 1) onto a validated range:
+// RangeValue maps a unit-cube coordinate u in [0, 1) onto a validated
+// range axis — the one point mapping every proposer shares (the random /
+// lhs draws here; an adaptive mode's continuous candidates):
 // min + u·(max − min) under linear, exp(log min + u·(log max − log min))
-// under log (linalg/detmath, portable). Every product is rounded
-// before its add (float64(a*b)), so no architecture fuses it; the
-// result is clamped into [min, max] against the final rounding.
-func rangeValue(rg *types.SweepRange, u float64) float64 {
+// under log (linalg/detmath, portable). Under Integer the same map runs
+// over [ceil(min) − ½, floor(max) + ½] and rounds half up, so every
+// integer in [min, max] is reachable and u's order is kept (an lhs
+// stratum maps to a run of integers). Every product is rounded before
+// its add (float64(a*b)), so no architecture fuses it; the result is
+// clamped into [min, max] (into [ceil(min), floor(max)] under Integer)
+// against the final rounding, so a finite u outside [0, 1) lands on a
+// bound.
+func RangeValue(rg *types.SweepRange, u float64) float64 {
 	lo, hi := *rg.Min, *rg.Max
+	if rg.Integer {
+		lo, hi = math.Ceil(lo), math.Floor(hi)
+	}
+	a, b := lo, hi
+	if rg.Integer {
+		a, b = lo-0.5, hi+0.5
+	}
 	var v float64
 	if rg.Scale == types.SweepScaleLog {
-		a, b := detmath.Log(lo), detmath.Log(hi)
-		v = detmath.Exp(a + float64(u*(b-a)))
+		la, lb := detmath.Log(a), detmath.Log(b)
+		v = detmath.Exp(la + float64(u*(lb-la)))
 	} else {
-		v = lo + float64(u*(hi-lo))
+		v = a + float64(u*(b-a))
+	}
+	if rg.Integer {
+		v = math.Floor(v + 0.5)
 	}
 	if v < lo {
 		v = lo
@@ -95,9 +121,19 @@ func rangeValue(rg *types.SweepRange, u float64) float64 {
 	return v
 }
 
+// RangeNumber is RangeValue as an axis value: a json.Number in shortest
+// round-trip form, or integer form under Integer (`1000000`, never
+// `1e+06`), so `{{axis}}` renders it and `$var` splices it exactly.
+func RangeNumber(rg *types.SweepRange, u float64) json.Number {
+	v := RangeValue(rg, u)
+	if rg.Integer {
+		return json.Number(strconv.FormatFloat(v, 'f', 0, 64))
+	}
+	return sampledNumber(v)
+}
+
 // sampledNumber is a drawn value as an axis value: a json.Number in its
-// shortest round-trip form, so `{{axis}}` renders it and `$var` splices
-// it exactly.
+// shortest round-trip form.
 func sampledNumber(v float64) json.Number {
 	return json.Number(strconv.FormatFloat(v, 'g', -1, 64))
 }
@@ -114,7 +150,7 @@ func sampledNumber(v float64) json.Number {
 //     u = (perm[i] + jitter[i]) / n, so every stratum [k/n, (k+1)/n) of
 //     every axis is drawn exactly once.
 //
-// Each u is mapped by rangeValue.
+// Each u is mapped by RangeNumber.
 func forEachSample(spec *types.SweepSpec, seed int64, visit func(slot int, values map[string]any) bool) {
 	n := spec.Samples
 	rng := newSampler(seed)
@@ -131,7 +167,7 @@ func forEachSample(spec *types.SweepSpec, seed int64, visit func(slot int, value
 			} else {
 				u = rng.unit()
 			}
-			values[ax.Name] = sampledNumber(rangeValue(ax.Range, u))
+			values[ax.Name] = RangeNumber(ax.Range, u)
 		}
 		if !visit(slot, values) {
 			return

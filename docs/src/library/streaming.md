@@ -119,6 +119,13 @@ field per row identifying which sub-request produced it. A run that
 warned ends with one `{"warnings": [...]}` line (compose: after the
 rows, slot entries located by `details.request`).
 
+An embedder writes the same compose stream from a finished run with
+`pulse.WriteComposeStream(w, req, resp, pulse.ComposeStreamOptions{})`
+— the rows, then the trailing lines the CLI writes. Set
+`TerminalFits: true` (CLI `--stream-fits`) to end it with one
+`{"fits": {...}}` line, the buffered `fits` object, when the request
+declares fits; off, the stream is byte-identical.
+
 ## Cancellation
 
 Every `Next` call accepts a context. Cancellation propagates to the

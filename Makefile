@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels docs docs-generate docs-serve docs-clean vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -314,6 +314,42 @@ UV ?= uv
 reference-statsmodels:
 	$(UV) run --no-project scripts/reference/statsmodels/gen_glm_residuals.py testdata/statsmodels/glm_residuals.json
 	$(UV) run --no-project scripts/reference/statsmodels/gen_ols_influence.py testdata/statsmodels/ols_influence.json
+
+# reference-sweep-de regenerates the compose sweep's mode de oracle
+# (internal/sweep/testdata/de_oracle.json: scipy differential_evolution
+# rand1bin, constant F, CR, Latin-hypercube init, deferred updating, no
+# polish, on 2-D Rosenbrock over 20 seeds) with the PEP 723 script
+# scripts/reference/scipy/gen_sweep_de.py, run by `uv run` against its
+# pinned numpy 2.3.3 / scipy 1.16.2 on Python 3.12. The script writes its
+# own `// golden-hash:` footer; TestDE_MatchesScipyOracle (heavy) checks
+# it. Manual target: CI never runs Python; a few seconds.
+reference-sweep-de:
+	$(UV) run --no-project scripts/reference/scipy/gen_sweep_de.py internal/sweep/testdata/de_oracle.json
+
+# reference-sweep-bo regenerates the compose sweep's mode bo oracle
+# (internal/sweep/testdata/bo_oracle.json: scikit-optimize gp_minimize,
+# a Latin-hypercube initial design, EI with xi 0 over 1000 candidates
+# and 5 polishes, one point a round, on Branin over 20 seeds) with the
+# PEP 723 script scripts/reference/scipy/gen_sweep_bo.py, run by `uv run`
+# against its pinned numpy 2.3.3 / scipy 1.16.2 / scikit-learn 1.7.2 /
+# scikit-optimize 0.10.2 on Python 3.12. The script writes its own
+# `// golden-hash:` footer; TestBO_MatchesSkoptOracle (heavy) checks it.
+# Manual target: CI never runs Python; under a minute.
+reference-sweep-bo:
+	$(UV) run --no-project scripts/reference/scipy/gen_sweep_bo.py internal/sweep/testdata/bo_oracle.json
+
+# reference-gp regenerates the Gaussian-process surrogate's oracle
+# (internal/gp/testdata/gp_oracle.json: scikit-learn
+# GaussianProcessRegressor, normalize_y, alpha 1e-10, ConstantKernel *
+# Matern(nu=2.5, ARD) + WhiteKernel — the LML, its gradient and the
+# posterior at fixed hyperparameters, and sklearn's own ML-II fit) with
+# the PEP 723 script scripts/reference/scipy/gen_gp.py under `uv run`
+# (pinned numpy 2.3.3 / scipy 1.16.2 / scikit-learn 1.7.2, Python 3.12).
+# The script writes its own `// golden-hash:` footer;
+# TestGP_MatchesSklearnAtFixedHyper / TestGP_FitMatchesSklearn check it.
+# Manual target: CI never runs Python; a few seconds.
+reference-gp:
+	$(UV) run --no-project scripts/reference/scipy/gen_gp.py internal/gp/testdata/gp_oracle.json
 
 # reference-mcmc regenerates the mcmc package's ArviZ oracles
 # (mcmc/testdata/diagnostics.json: RHat / ESSBulk / ESSTail vs

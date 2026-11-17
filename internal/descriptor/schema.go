@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -276,8 +277,14 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	if !inst.Enabled(featSweepSampling) {
 		modes = enumerationSweepModes
 	}
+	// The adaptive modes ride capability:compose_sweep_adaptive (the
+	// request-slot gate refuses a hidden one as an unknown mode).
+	if !inst.Enabled(featSweepAdaptive) {
+		modes = slices.DeleteFunc(slices.Clone(modes), sweep.IsAdaptive)
+	}
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
 	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
+	m[reflect.TypeFor[types.SweepBOInit]()] = stringify(types.AllSweepBOInits())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
 	// The optimize block's directions, constraint types and active
 	// bounds: closed vocabularies (a hidden capability:compose_optimize
@@ -592,6 +599,13 @@ var fieldOverrides = map[fieldKey]any{
 		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
 	},
 	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// A sweep axis `target` (capability:params): the one form
+	// params.<identifier>.
+	{reflect.TypeFor[types.SweepAxis](), "target"}: map[string]any{
+		"type":        "string",
+		"pattern":     `^params\.[A-Za-z_][A-Za-z0-9_]*$`,
+		"description": "params.<name>: each sweep slot's request takes the axis value as params.<name>, overriding a value the body declares and declaring an absent one; the axis then needs no placeholder. A {\"$var\"} marker naming a targeted axis is refused (axis_target_conflict).",
+	},
 	// An inline model is the model-file document, its numbers literal
 	// or scalar expressions over params; the generic RawMessage rule
 	// would describe operator params.

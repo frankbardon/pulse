@@ -62,6 +62,7 @@
     - [compose-optimize](guide/skills/compose-optimize.md)
     - [compose-post-fit](guide/skills/compose-post-fit.md)
     - [compose-requests](guide/skills/compose-requests.md)
+    - [compose-sweep-adaptive](guide/skills/compose-sweep-adaptive.md)
     - [compose-sweep-bind](guide/skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](guide/skills/compose-sweep-sampling.md)
     - [compose-sweeps](guide/skills/compose-sweeps.md)

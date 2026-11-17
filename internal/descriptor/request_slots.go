@@ -67,7 +67,8 @@ import (
 //     capability:models
 //   - Request.Populations — capability:models
 //   - Request.Params, ComposedRequest.Params, ChainRequest.Params and
-//     FacetRequest.Params — capability:params
+//     FacetRequest.Params, and a sweep axis `target` (SweepAxis) —
+//     capability:params
 //   - Request.Output (materialize-only) — capability:materialize_output
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
@@ -236,8 +237,19 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.SweepSpec{}): {
 		{key: "samples", visible: sweepSamplingGate},
 		{key: "rng_seed", visible: sweepSamplingGate},
+		// The adaptive modes' slot count; the adaptive mode VALUES ride
+		// the same capability (nestedSweepAdaptiveRefusal, the
+		// SweepMode enum).
+		{key: "budget", visible: capabilityGate(featSweepAdaptive)},
+		// Modes de's and bo's knobs ride the adaptive modes too.
+		{key: "de", visible: capabilityGate(featSweepAdaptive)},
+		{key: "bo", visible: capabilityGate(featSweepAdaptive)},
 	},
-	reflect.TypeOf(types.SweepAxis{}): {{key: "range", visible: sweepSamplingGate}},
+	// An axis `target` writes request params (capability:params).
+	reflect.TypeOf(types.SweepAxis{}): {
+		{key: "range", visible: sweepSamplingGate},
+		{key: "target", visible: capabilityGate(featParams)},
+	},
 	// The adjusted outputs a correction writes beside a test's raw p
 	// ride the same capability, so a hidden instance's payload schema
 	// names no multiplicity surface at all (no request ever reaches
@@ -298,7 +310,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "post_fit", visible: capabilityGate(featComposePostFit)},
 		{key: "base", visible: capabilityGate(featComposeBase)},
 	},
-	// The sweep rank rides capability:compose_sweep with the `sweep`
+	// The sweep rank (and its profile) rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
 	// rides capability:compose_sweep_sampling.
 	// The top-level overlay layers of each result root ride the gate
@@ -306,6 +318,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
+		{key: "ranking_profile", visible: capabilityGate(featComposeSweep)},
 		{key: "sweep_seed", visible: sweepSamplingGate},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
@@ -902,6 +915,49 @@ func nestedSweepSamplingRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *
 	return sweep.EnumerationModeRefusal(spec.Mode)
 }
 
+// nestedSweepAdaptiveRefusal gates a ComposedRequest's sweep when inst
+// hides capability:compose_sweep_adaptive: a set `budget`, `de` or `bo` is
+// PULSE_REQUEST_UNKNOWN_FIELD at the sweep (details.path "sweep",
+// valid_keys over its visible keys), and an adaptive mode is the
+// unknown-mode refusal (sweep.NonAdaptiveModeRefusal), its `valid`
+// naming the other modes only.
+func nestedSweepAdaptiveRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *errors.CodedError {
+	if spec == nil || inst.Enabled(featSweepAdaptive) {
+		return nil
+	}
+	var hidden []string
+	if spec.Budget != 0 {
+		hidden = append(hidden, "budget")
+	}
+	if spec.DE != nil {
+		hidden = append(hidden, "de")
+	}
+	if spec.BO != nil {
+		hidden = append(hidden, "bo")
+	}
+	if len(hidden) > 0 {
+		return unknownFieldErrorAt("sweep", hidden, VisibleSlotKeys(spec, inst))
+	}
+	return sweep.NonAdaptiveModeRefusal(spec.Mode)
+}
+
+// nestedSweepTargetRefusal gates a ComposedRequest's sweep axes when
+// inst hides capability:params: the first axis setting `target` is
+// PULSE_REQUEST_UNKNOWN_FIELD at that axis (details.path
+// "sweep.axes[i].target"), valid_keys over its visible keys — the
+// refusal strict decode gives the JSON key.
+func nestedSweepTargetRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *errors.CodedError {
+	if spec == nil || inst.Enabled(featParams) {
+		return nil
+	}
+	for i := range spec.Axes {
+		if spec.Axes[i].Target != "" {
+			return unknownFieldErrorAt(fmt.Sprintf("sweep.axes[%d]", i), []string{"target"}, VisibleSlotKeys(&spec.Axes[i], inst))
+		}
+	}
+	return nil
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
 // the crosstab `cells` key, then every nested slot `weight`, then every
 // nested `multiplicity`, then every item `for_each`, then every
@@ -1034,6 +1090,12 @@ func scopedSlotRefusal(v any, inst *InstanceSnapshot) error {
 			return ce
 		}
 		if ce := nestedSweepSamplingRefusal(r.Sweep, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedSweepAdaptiveRefusal(r.Sweep, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedSweepTargetRefusal(r.Sweep, inst); ce != nil {
 			return ce
 		}
 		for i, req := range r.Requests {

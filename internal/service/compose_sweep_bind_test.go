@@ -383,3 +383,207 @@ func TestComposeSweepAxis_FailedFitUnavailable(t *testing.T) {
 		t.Fatalf("filter over the failed fit: %v", err)
 	}
 }
+
+// phaseZeroFailBatch is sweepBindBatch with two explicit slots (0, 1)
+// ahead of the three sweep slots (2, 3, 4), the sweep's slots 3 and 4
+// failing at run time (a non-numeric FILTER_RANGE bound) — phase 0
+// fails before either explicit slot could run.
+func phaseZeroFailBatch() *types.ComposedRequest {
+	c := sweepBindBatch()
+	c.Requests = append(c.Requests, &types.Request{
+		Label:        "plain",
+		Cohort:       &types.Cohort{Filename: fitsCohort},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+	})
+	c.Sweep.Axes = []types.SweepAxis{{Name: "hi", Values: []any{json.Number("80"), "bad", "worse"}}}
+	return c
+}
+
+// TestComposeSweepBind_PhaseZeroFailureAggregate (#704): a non-fail-fast
+// ComposeParallel whose phase 0 fails returns the uniform SERVICE_INTERNAL
+// aggregate — failed_indices the failed sweep slots, skipped_indices the
+// explicit slots that never ran, first_error — while a later-phase
+// failure's aggregate carries no skipped_indices key; fail-fast keeps the
+// failing slot's own located error, and serial Compose (fail-fast by
+// construction) the same located error as its later phases.
+func TestComposeSweepBind_PhaseZeroFailureAggregate(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	t.Run("parallel_no_fail_fast", func(t *testing.T) {
+		resp, err := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+		var ce *perr.CodedError
+		if resp != nil || !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL {
+			t.Fatalf("resp %v, err %v", resp, err)
+		}
+		if !reflect.DeepEqual(ce.Details["failed_indices"], []int{3, 4}) ||
+			!reflect.DeepEqual(ce.Details["skipped_indices"], []int{0, 1}) ||
+			ce.Details["first_error"] == nil || ce.Details["first_error"] == "" {
+			t.Fatalf("details %v", ce.Details)
+		}
+	})
+	t.Run("parallel_later_phase_has_no_skipped", func(t *testing.T) {
+		c := sweepBindBatch()
+		c.Requests[0].Cohort = &types.Cohort{Filename: "missing.pulse"}
+		_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4})
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL || !reflect.DeepEqual(ce.Details["failed_indices"], []int{0}) {
+			t.Fatalf("err %v", err)
+		}
+		if _, ok := ce.Details["skipped_indices"]; ok {
+			t.Fatalf("a later-phase aggregate carries skipped_indices: %v", ce.Details)
+		}
+	})
+	t.Run("fail_fast_located", func(t *testing.T) {
+		serial, serr := svc.Compose(context.Background(), phaseZeroFailBatch())
+		par, perr2 := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+		for name, run := range map[string]struct {
+			resp *types.ComposedResponse
+			err  error
+		}{"serial": {serial, serr}, "parallel": {par, perr2}} {
+			var ce *perr.CodedError
+			if run.resp != nil || !stderrors.As(run.err, &ce) || ce.Code == perr.SERVICE_INTERNAL || ce.Details["request"] != 3 {
+				t.Fatalf("%s: resp %v, err %v", name, run.resp, run.err)
+			}
+			if _, ok := ce.Details["skipped_indices"]; ok {
+				t.Fatalf("%s: a located error carries skipped_indices: %v", name, ce.Details)
+			}
+		}
+	})
+}
+
+// TestComposeSweepBind_PhaseZeroFailureRunsNoExplicitSlot: after a
+// failed phase 0 no explicit slot runs and no bound fit is refitted —
+// on Compose and on a non-fail-fast ComposeParallel alike.
+func TestComposeSweepBind_PhaseZeroFailureRunsNoExplicitSlot(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
+	svc := fitsService(t)
+	for _, mode := range []string{"serial", "parallel"} {
+		t.Run(mode, func(t *testing.T) {
+			o := observeBind(t)
+			var err error
+			if mode == "serial" {
+				_, err = svc.Compose(context.Background(), phaseZeroFailBatch())
+			} else {
+				_, err = svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+			}
+			if err == nil {
+				t.Fatal("phase 0 did not fail")
+			}
+			for _, e := range []string{"slot:scored", "slot:plain", "fit:best"} {
+				if o.count(e) != 0 {
+					t.Errorf("%s ran after a failed phase 0: %v", e, o.events)
+				}
+			}
+			if o.count("slot:upto_80") != 1 {
+				t.Fatalf("vacuous: the sweep slot did not run: %v", o.events)
+			}
+		})
+	}
+}
+
+// winnerFilesBody is a sweep body whose regression m (y on p) reads p
+// from the model file its `models` entry "prior" loads — the path
+// varying by the axis src.
+const winnerFilesBody = `{"cohort":{"filename":"` + fitsCohort + `"},
+	"models":[{"name":"prior","path":"models/{{src}}` + model.FileSuffix + `"}],
+	"filterers":[{"type":"FILTER_RANGE","field":"week","values":["0","{{hi}}"]}],
+	"attributes":[{"type":"ATTR_REG_PREDICT","label":"p","params":{"fit":"prior"}}],
+	"regressions":[{"type":"REG_OLS","name":"m","target":"y","predictors":["p"]}]}`
+
+// winnerFilesFit is the hand-written twin of the sweep body's slot
+// (hi, src) as an authored fit request.
+func winnerFilesFit(t *testing.T, hi, src string) *types.Request {
+	t.Helper()
+	body := strings.NewReplacer("{{hi}}", hi, "{{src}}", src).Replace(winnerFilesBody)
+	var r types.Request
+	if err := json.Unmarshal([]byte(body), &r); err != nil {
+		t.Fatal(err)
+	}
+	return &r
+}
+
+// TestComposeSweepBind_WinnerModelFiles (#579): when the sweep body's
+// `models` paths vary by axis, the from_sweep fit binds the WINNING
+// slot's loaded files, not slot 0's (the static request ResolveSweepFits
+// reads). The two prior models are fitted over disjoint windows, so p —
+// and the bound fit's coefficient on it — differs by file: the bound fit
+// equals, to the byte, the hand-written fit of the winner's body (its
+// file "late") and differs from slot 0's (file "early"), serial and
+// parallel alike.
+func TestComposeSweepBind_WinnerModelFiles(t *testing.T) {
+	t.Parallel()
+
+	svc := fitsService(t)
+	ctx := context.Background()
+	for name, window := range map[string][2]string{"early": {"0", "20"}, "late": {"50", "103"}} {
+		req := fitRequest(window[0], window[1])
+		req.Regressions[0].Save = "models/" + name + model.FileSuffix
+		if _, err := svc.Process(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	batch := func(best types.FitSpec) *types.ComposedRequest {
+		c := sweepBindBatch()
+		c.Fits[1] = best
+		c.Sweep.Mode = types.SweepModeZip
+		c.Sweep.Axes = []types.SweepAxis{
+			{Name: "hi", Values: []any{json.Number("80"), json.Number("40"), json.Number("60")}},
+			{Name: "src", Values: []any{"early", "late", "early"}},
+		}
+		c.Sweep.Request = json.RawMessage(winnerFilesBody)
+		// The scoring slot derives best's predictor p from its own copy
+		// of the winner's prior.
+		c.Requests[0].Models = []types.ModelRef{{Name: "prior", Path: "models/late" + model.FileSuffix}}
+		c.Requests[0].Attributes = append([]*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"prior"}`)}},
+			c.Requests[0].Attributes...)
+		return c
+	}
+	marshal := func(v any) []byte {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	winner, err := svc.Compose(ctx, batch(types.FitSpec{Name: "best", Request: winnerFilesFit(t, "40", "late")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	slot0, err := svc.Compose(ctx, batch(types.FitSpec{Name: "best", Request: winnerFilesFit(t, "40", "early")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(marshal(winner.Fits["best"]), marshal(slot0.Fits["best"])) {
+		t.Fatal("vacuous: the two prior files fit the same model")
+	}
+	for _, mode := range []string{"serial", "parallel"} {
+		t.Run(mode, func(t *testing.T) {
+			c := batch(types.FitSpec{Name: "best", FromSweep: &types.FitFromSweep{Regression: "m"}})
+			var out *types.ComposedResponse
+			var err error
+			if mode == "serial" {
+				out, err = svc.Compose(ctx, c)
+			} else {
+				out, err = svc.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 4, FailFast: true})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(out.Ranking) != 3 || out.Ranking[0].Slot != 1 || out.Ranking[0].Axes["src"] != "late" {
+				t.Fatalf("vacuous: the winner must be slot 1 (src late): %+v", out.Ranking)
+			}
+			got := out.Fits["best"]
+			if got == nil || got.RegressionResult == nil || got.Error != nil {
+				t.Fatalf("fits.best = %+v", got)
+			}
+			if gb, wb := marshal(got), marshal(winner.Fits["best"]); !bytes.Equal(gb, wb) {
+				t.Errorf("bound fit %s\n winner's hand-written fit %s", gb, wb)
+			}
+			if gb, wb := marshal(out.Responses[0].Data), marshal(winner.Responses[0].Data); !bytes.Equal(gb, wb) {
+				t.Errorf("scored %s\n winner's hand-written %s", gb, wb)
+			}
+		})
+	}
+}

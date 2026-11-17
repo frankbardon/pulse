@@ -298,3 +298,48 @@ func TestAPICompose_SampledSweepSeedSurfaces(t *testing.T) {
 		t.Fatalf("grid stream: %v\n%s", err, gridStream)
 	}
 }
+
+// TestAPICompose_SweepRankingProfileSurfaces: rank.profile adds
+// `ranking_profile` to the --json envelope and to the --stream ranking
+// record (one line, `ranking` first); without it the record is
+// `ranking` alone.
+func TestAPICompose_SweepRankingProfileSurfaces(t *testing.T) {
+	// serial: t.Setenv mutates the process environment
+
+	_, write, unranked := sweepCLIFixture(t)
+	ranked := strings.Replace(unranked, `"request":`,
+		`"label":"{{op}}","rank":{"by":"components.aggregations.t.n","order":"desc","profile":true},"request":`, 1)
+	path := write("profiled.json", ranked)
+	wantProfile := `{"op":[{"value":"AGG_SUM","best":3,"label":"AGG_SUM","n":1},` +
+		`{"value":"AGG_MAX","best":3,"label":"AGG_MAX","n":1},` +
+		`{"value":"AGG_MIN","best":3,"label":"AGG_MIN","n":1}]}`
+	out, err := runAPI(t, "compose", "--json", "-r", path)
+	if err != nil {
+		t.Fatalf("compose: %v\n%s", err, out)
+	}
+	var env struct {
+		Data struct {
+			Profile json.RawMessage `json:"ranking_profile"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatal(err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, env.Data.Profile); err != nil || compact.String() != wantProfile {
+		t.Fatalf("envelope profile %s (%v)\nwant %s", env.Data.Profile, err, wantProfile)
+	}
+	stream, err := runAPI(t, "compose", "--stream", "-r", path)
+	if err != nil {
+		t.Fatalf("--stream: %v\n%s", err, stream)
+	}
+	lines := strings.Split(strings.TrimSpace(stream), "\n")
+	last := lines[len(lines)-1]
+	if !strings.HasPrefix(last, `{"ranking":[`) || !strings.HasSuffix(last, `,"ranking_profile":`+wantProfile+`}`) {
+		t.Fatalf("last stream line %q", last)
+	}
+	plain, err := runAPI(t, "compose", "--stream", "-r", write("plain.json", strings.Replace(ranked, `,"profile":true`, ``, 1)))
+	if err != nil || strings.Contains(plain, "ranking_profile") {
+		t.Fatalf("profile-free stream: %v\n%s", err, plain)
+	}
+}

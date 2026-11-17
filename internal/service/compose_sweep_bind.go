@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/frankbardon/pulse/errors"
@@ -45,7 +46,12 @@ type sweepBinding struct {
 // entry carries from_sweep. model.CheckFitsIn already proved a binding
 // has a ranked sweep.
 func newSweepBinding(fits []types.FitSpec, ext *composeExpansion) *sweepBinding {
-	if ext == nil || ext.rank == nil || !slices.ContainsFunc(fits, func(f types.FitSpec) bool { return f.FromSweep != nil }) {
+	if ext == nil || ext.rank == nil {
+		return nil
+	}
+	// An adaptive sweep always runs sweep-first: its rounds choose its
+	// slots, so nothing may read one before phase 0 fills them.
+	if ext.adaptive == nil && !slices.ContainsFunc(fits, func(f types.FitSpec) bool { return f.FromSweep != nil }) {
 		return nil
 	}
 	b := &sweepBinding{lo: ext.rank.explicit, hi: ext.rank.explicit + ext.rank.count,
@@ -79,7 +85,7 @@ type composeSlotRunner func(idx []int, models *model.Set) error
 // when it ran none). Without a binding it is runComposeFits.
 func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.ComposedRequest, pre *composeModels, workers int,
 	ext *composeExpansion, requests []*types.Request, responses []*types.Response,
-	mult *descx.ComposeMultiplicityPlan, runSlots composeSlotRunner,
+	mult *descx.ComposeMultiplicityPlan, runSlots composeSlotRunner, adapt *adaptiveRun,
 ) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, []bool, error) {
 	bind := newSweepBinding(composed.Fits, ext)
 	if bind == nil {
@@ -95,21 +101,31 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	if err := runSlots(bind.slots(), early); err != nil {
-		return nil, nil, nil, nil, err
+	var fails adaptiveFailures
+	if ext.adaptive != nil {
+		// The adaptive rounds: each folds its own slot-local families
+		// as it finishes (runAdaptiveSweep).
+		var err error
+		if fails, err = s.runAdaptiveSweep(composed, ext, early, adapt); err != nil {
+			return nil, nil, nil, nil, phaseZeroFailure(err, bind, len(requests))
+		}
+	} else {
+		if err := runSlots(bind.slots(), early); err != nil {
+			return nil, nil, nil, nil, phaseZeroFailure(err, bind, len(requests))
+		}
+		if err := foldSweepSlotMultiplicity(mult, responses, bind.lo, bind.hi); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 	ran := make([]bool, len(requests))
 	for i := bind.lo; i < bind.hi && i < len(ran); i++ {
 		ran[i] = true
 	}
-	if err := foldSweepSlotMultiplicity(mult, responses, bind.lo, bind.hi); err != nil {
-		return nil, nil, nil, nil, err
-	}
-	ranking, err := rankComposeSweep(ext.rank, requests, responses)
+	ranking, profile, err := rankComposeSweep(ext.rank, requests, withoutFailed(responses, fails.indices))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	ext.rank.ranked, ext.rank.done = ranking, true
+	ext.rank.ranked, ext.rank.profile, ext.rank.done = ranking, profile, true
 	if err := pass.bindWinner(bind, ranking, composed.Requests, ext.rank, s.strict); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -120,7 +136,39 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
+	if len(fails.indices) > 0 {
+		warnings = append(warnings, adaptiveFailureWarning(fails, ext.adaptive.Budget))
+	}
 	return models, results, warnings, ran, nil
+}
+
+// phaseZeroFailure is a failed phase 0's batch error (#704). Phase 0
+// returns early — no slot outside the sweep runs after it fails — so a
+// non-fail-fast pool's SERVICE_INTERNAL aggregate (slotPoolFailure:
+// failed_indices, first_error) gains details.skipped_indices, every
+// slot index outside [lo, hi) in index order (never nil: an empty list
+// when the batch is all sweep). A later phase runs every slot, so its
+// aggregate never carries the key. Any other error — the serial loop's
+// or a fail-fast pool's located slot error, a set-binding error — is
+// returned unchanged. The type assertion is deliberate: a slot's own
+// error wrapped inside a located one is never rewritten.
+func phaseZeroFailure(err error, bind *sweepBinding, n int) error {
+	ce, ok := err.(*errors.CodedError)
+	if !ok || ce.Code != errors.SERVICE_INTERNAL {
+		return err
+	}
+	if _, agg := ce.Details["failed_indices"].([]int); !agg {
+		return err
+	}
+	skipped := make([]int, 0, n-(bind.hi-bind.lo))
+	for i := range n {
+		if i < bind.lo || i >= bind.hi {
+			skipped = append(skipped, i)
+		}
+	}
+	details := maps.Clone(ce.Details)
+	details["skipped_indices"] = skipped
+	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
 }
 
 // bindWinner resolves each sweep-bound fit over ranking: its request
@@ -184,8 +232,9 @@ func (p *composeFitPass) resolved(bind *sweepBinding) []bool {
 
 // rankComposeSweep is the rank over the finished sweep slots (rank.explicit
 // on, labelled by the resolved requests) — sweep.Rank, which also warns
-// on each slot it leaves out.
-func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, error) {
+// on each slot it leaves out — plus the per-axis profile when the rank
+// asks for one (sweep.RankProfiled; nil otherwise).
+func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
 	n := rank.count
 	if rank.explicit+n > len(responses) {
 		n = max(len(responses)-rank.explicit, 0)
@@ -196,7 +245,7 @@ func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []
 			labels[i] = r.Label
 		}
 	}
-	return sweep.Rank(rank.spec, labels, rank.axes, responses[rank.explicit:rank.explicit+n])
+	return sweep.RankProfiled(rank.spec, rank.axisSpec, labels, rank.axes, responses[rank.explicit:rank.explicit+n])
 }
 
 // foldSweepSlotMultiplicity corrects the slot-local multiplicity

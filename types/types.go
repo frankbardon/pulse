@@ -2330,6 +2330,16 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
+	// RankingProfile is the sweep rank's per-axis profile
+	// (SweepRank.Profile): keyed by axis name, one RankProfileEntry per
+	// axis value some ranked slot ran with — a list axis in declared
+	// value order, a range axis ascending by value. Read over the full
+	// ranking, before SweepRank.Top. Omitted when the rank set no
+	// profile. Like `ranking` it sits outside the Compose-level
+	// `return`: always emitted, never rounded. Gated by
+	// capability:compose_sweep with the `sweep` slot.
+	RankingProfile map[string][]RankProfileEntry `json:"ranking_profile,omitempty"`
+
 	// SweepSeed is the effective seed a sampling sweep (mode random /
 	// lhs) drew its slots with — SweepSpec.RNGSeed when pinned, else the
 	// seed derived from the spec — so the run can be replayed by pinning

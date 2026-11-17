@@ -32,8 +32,8 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 - `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute or one `matrices` entry, its listwise mean + co-moment); one `MAT_SEM` entry is a **SEM fit** ([`sem-fits`](sem-fits.md)).
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep ([`compose-sweep-bind`](compose-sweep-bind.md)).
-- Its own cohort, filters, features and weight decide the fit rows, independent of all slots. Its `return` is ignored.
-- Each fit runs once; serial = parallel, byte for byte.
+- Its own cohort, filters, features and weight decide the fit rows; its `return` is ignored.
+- Runs once; serial = parallel, byte for byte.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window `ATTR_REG_PREDICT` runs after its windows; a `holdout` is scored at fit time ([`regression-model-options`](regression-model-options.md)).
 
@@ -48,7 +48,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 
 ## Response
 
-`fits` on the compose response is keyed by fit name: a regression fit's full regression result, a vector fit's `{"vector": {operator, labels, members, basis, n, n_weight_invalid, sum_weights, n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`), or a SEM fit's `{"sem": {…}}`. Omitted without fits; outside the `return`, never rounded. A fit adds no row.
+`fits` on the compose response is keyed by fit name: a regression fit's full regression result, a vector fit's `{"vector": {operator, labels, members, basis, n, n_weight_invalid, sum_weights, n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`), or a SEM fit's `{"sem": {…}}`. Omitted without fits; outside the `return`, never rounded. A fit adds no row; `--stream-fits` streams `fits` as one final `{"fits":{…}}` line.
 
 ## Saving
 
@@ -67,12 +67,12 @@ A fit its data refuses fails alone: its entry keeps identity + `error`, compose 
 ## Refusals
 
 - `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression + battery), `vector_count`, `grouped`, `vector_source` (pairwise, group distance, reversed reliability), `regression_type`.
-- A fit request's own refusal keeps its code and gains `details.fit` (0-based index; the lowest when several fail).
+- A fit request's own refusal keeps its code and gains `details.fit` (0-based; the lowest when several fail).
 
 ## Validate before executing
 
-`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector or SEM fit: `{name, cohort, vector|sem: {operator, labels, members}}`) — never fitted, so a data failure is unforeseen; every `params.fit` name and kind is judged.
+`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector or SEM fit: `{name, cohort, vector|sem: {operator, labels, members}}`) — never fitted (data failures unforeseen); every `params.fit` name and kind is judged.
 
 ## See
 
-[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (sweep slots get the fits) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (its result) · [`regression-comparison`](regression-comparison.md) (nested-model tests) · [`compose-optimize`](compose-optimize.md) · [`compose-post-fit`](compose-post-fit.md).
+[`compose-requests`](compose-requests.md) (slots, labels) · [`compose-sweeps`](compose-sweeps.md) (sweep slots get the fits) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) · [`regression-comparison`](regression-comparison.md) (nested-model tests) · [`compose-optimize`](compose-optimize.md) · [`compose-post-fit`](compose-post-fit.md).
