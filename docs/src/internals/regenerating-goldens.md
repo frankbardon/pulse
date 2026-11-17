@@ -508,9 +508,15 @@ fit), probability weights on w* = w·n_eff/Σw (no likelihood) and a
 dictionary level no row carries (dropped). It needs `nnet` 7.3-21 (a
 recommended package; install it into the user library where the R
 build omits it) and refuses any other R than 4.6.1 or nnet version.
+Per case it also scores (U68 E1-S2) every training row — the fitted
+probabilities, asserted within 1e-6 of `fitted(multinom)` — and a fixed
+grid of new rows (`score_rows`: `score_probabilities`, asserted within
+1e-6 of `predict(multinom, type = "probs")`, and `score_log_odds`
+against the reference); the grid draws no random number, so the fitted
+cases' data are unchanged.
 `TestReferenceOracle_MultinomialMatchesR`
-(`internal/processing/regression`) holds every figure at relative
-`1e-10`.
+(`internal/processing/regression`) holds every figure — the row scores
+read through the bound fit's production scorer — at relative `1e-10`.
 
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written

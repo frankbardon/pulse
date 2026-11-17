@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -23,6 +24,10 @@ import (
 // frequency-weighted case against the rep() expansion, a
 // probability-weighted case (multinom(weights = w*), no likelihood) and
 // a dictionary level no row carries (dropped, as multinom drops it).
+// Every case's per-row category probabilities — of its training rows
+// (fitted(multinom)) and of a grid of new rows (predict(multinom, type =
+// "probs")), with each category's log-odds against the reference — are
+// the bound fit's production scorer's (MultinomialFitted, U68 E1-S2).
 
 // multinomialTol is the oracle tolerance: both sides are the MLE to
 // double precision (R's Newton polish, Pulse's quadratic Newton stop),
@@ -52,6 +57,9 @@ type multinomialCase struct {
 	AIC                 []float64   `json:"aic"`
 	NObs                int         `json:"n_obs"`
 	FittedProbabilities []float64   `json:"fitted_probabilities"`
+	ScoreRows           [][]float64 `json:"score_rows"`
+	ScoreProbabilities  []float64   `json:"score_probabilities"`
+	ScoreLogOdds        []float64   `json:"score_log_odds"`
 }
 
 func loadMultinomial(t *testing.T) []multinomialCase {
@@ -135,9 +143,11 @@ func newMultinomial(t *testing.T, spec *types.RegressionSpec, levels []string) *
 // TestReferenceOracle_MultinomialMatchesR: every case's coefficients,
 // standard errors, Wald p-values, intervals, vcov (the inverse
 // information), deviance, null deviance, two_log_lik / aic (absent under
-// a probability weight) and every row's fitted category probabilities
-// agree with the Newton-polished nnet::multinom at 1e-10 relative; the
-// categories, reference and n_obs exactly.
+// a probability weight) and — through the bound fit's scorer — every
+// training row's fitted category probabilities, every new grid row's
+// predicted ones and its log-odds against the reference agree with the
+// Newton-polished nnet::multinom at 1e-10 relative; the categories,
+// reference and n_obs exactly.
 func TestReferenceOracle_MultinomialMatchesR(t *testing.T) {
 	t.Parallel()
 
@@ -145,9 +155,6 @@ func TestReferenceOracle_MultinomialMatchesR(t *testing.T) {
 	for _, c := range loadMultinomial(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			eng := newMultinomial(t, c.spec(), c.Levels)
-			var gotCats []string
-			var probs []float64
-			eng.fitted = func(cats []string, p []float64) { gotCats, probs = cats, p }
 			res, err := eng.FitBuffered(c.records())
 			if err != nil {
 				t.Fatalf("FitBuffered: %v", err)
@@ -212,15 +219,52 @@ func TestReferenceOracle_MultinomialMatchesR(t *testing.T) {
 				near("aic", res.AIC, c.AIC[0])
 			}
 			L := len(c.Categories)
-			if len(probs) != len(c.Rows)*L {
-				t.Fatalf("%d fitted probabilities, want %d", len(probs), len(c.Rows)*L)
+			if len(c.FittedProbabilities) != len(c.Rows)*L || len(c.ScoreProbabilities) != len(c.ScoreRows)*L || len(c.ScoreLogOdds) != len(c.ScoreRows)*L || len(c.ScoreRows) == 0 {
+				t.Fatalf("golden per-row figures malformed: %d fitted, %d score rows", len(c.FittedProbabilities), len(c.ScoreRows))
 			}
-			for i := range c.Rows {
+			f := multinomialFitted(t, c.spec(), res)
+			if !slices.Equal(f.Outcomes(), res.Categories) {
+				t.Fatalf("scorer outcomes %v, fit categories %v", f.Outcomes(), res.Categories)
+			}
+			pi := make([]float64, L)
+			for i, rec := range c.records() {
+				if !f.Probabilities(rec, pi) {
+					t.Fatalf("training row %d scored null", i)
+				}
 				for rc, cat := range c.Categories {
-					near("fitted", probs[i*L+slices.Index(gotCats, cat)], c.FittedProbabilities[i*L+rc])
+					near("fitted", pi[slices.Index(res.Categories, cat)], c.FittedProbabilities[i*L+rc])
+				}
+			}
+			for i, r := range c.ScoreRows {
+				row := mockRecord{values: map[string]float64{"x1": r[0], "x2": r[1]}}
+				if !f.Probabilities(row, pi) {
+					t.Fatalf("score row %d scored null", i)
+				}
+				for rc, cat := range c.Categories {
+					k := slices.Index(res.Categories, cat)
+					near("score_probability", pi[k], c.ScoreProbabilities[i*L+rc])
+					lo, ok := f.LogOdds(row, k)
+					if !ok {
+						t.Fatalf("score row %d log-odds null", i)
+					}
+					near("score_log_odds", lo, c.ScoreLogOdds[i*L+rc])
 				}
 			}
 		})
 	}
 	t.Logf("max relative error: %v", maxErr)
+}
+
+// multinomialFitted is res bound under spec, rebuilt as its scorer.
+func multinomialFitted(t *testing.T, spec *types.RegressionSpec, res *types.RegressionResult) *MultinomialFitted {
+	t.Helper()
+	b, err := model.Bind("m", spec, res)
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	f, err := NewMultinomialFitted(b)
+	if err != nil {
+		t.Fatalf("NewMultinomialFitted: %v", err)
+	}
+	return f
 }

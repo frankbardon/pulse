@@ -75,15 +75,19 @@ func TestCheckScore_Outcome(t *testing.T) {
 			}
 		})
 	}
-	// The requires vocabulary: level / output name REG_ORDINAL; no
-	// scorable type takes category yet, so its refusal names none.
+	// The requires vocabulary: output names every categorical-outcome
+	// type, level REG_ORDINAL, category REG_MULTINOMIAL.
 	_, _, err := CheckScoreFor(scoreAttr(`{"fit":"ols","output":"class"}`), cat, ordinalScorable)
-	if err.Details["requires"] != "type REG_ORDINAL" {
+	if err.Details["requires"] != "type REG_MULTINOMIAL or REG_ORDINAL" {
 		t.Errorf("output on OLS requires %v", err.Details["requires"])
 	}
 	_, _, err = CheckScoreFor(scoreAttr(`{"fit":"ord","category":"lo"}`), cat, ordinalScorable)
-	if _, has := err.Details["requires"]; has {
-		t.Errorf("category requires %v, want none", err.Details["requires"])
+	if err.Details["requires"] != "type REG_MULTINOMIAL" {
+		t.Errorf("category requires %v, want type REG_MULTINOMIAL", err.Details["requires"])
+	}
+	_, _, err = CheckScoreFor(scoreAttr(`{"fit":"ols","level":"lo"}`), cat, ordinalScorable)
+	if err.Details["requires"] != "type REG_ORDINAL" {
+		t.Errorf("level requires %v, want type REG_ORDINAL", err.Details["requires"])
 	}
 	// An unknown level lists the fit's levels.
 	_, _, err = CheckScoreFor(scoreAttr(`{"fit":"ord","level":"top"}`), cat, ordinalScorable)

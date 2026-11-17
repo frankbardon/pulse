@@ -52,7 +52,15 @@ func CheckCoef(cat Catalog, fit, term, stat string) *errors.CodedError {
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return KindMismatch(fit, types.FitKindRegression, sig.EffectiveKind())
 	}
-	if term != InterceptKey && !slices.Contains(sig.Terms, term) && !sig.NamesCoefficient(term) {
+	if sig.Type == types.REG_MULTINOMIAL {
+		// One coefficient set per non-reference category: a term is a
+		// "<category>:<term>" key, never a bare predictor or intercept.
+		if !sig.NamesCoefficient(term) {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_TERM_UNKNOWN,
+				fmt.Sprintf("model %q has no term %q: a %s fit's coefficients are \"<category>%s<term>\" (a non-reference category, then %s or a predictor)", fit, term, sig.Type, MultinomialKeySeparator, InterceptKey),
+				map[string]any{"fit": fit, "term": term, "available": nonNil(sig.coefTerms())})
+		}
+	} else if term != InterceptKey && !slices.Contains(sig.Terms, term) && !sig.NamesCoefficient(term) {
 		return TermUnknown(fit, term, sig.coefTerms())
 	}
 	if !slices.Contains(CoefStats(), stat) {
@@ -100,7 +108,7 @@ func Coef(set *Set, fit, term, stat string) (float64, *errors.CodedError) {
 		return b.Intercept, nil
 	}
 	i := slices.Index(b.Predictors, term)
-	if i < 0 && !BuiltinRegression(b.Type) && !slices.Contains(b.Terms, term) {
+	if i < 0 && NamesOwnCoefficients(b.Type) && !slices.Contains(b.Terms, term) {
 		// A coefficient an extension model names itself (CheckCoef
 		// admitted it): its figures are read off the result by name,
 		// NaN where the fit reports none.
@@ -156,9 +164,9 @@ func (b *Bound) ReportsStdErrors() bool {
 			return true
 		}
 	}
-	if !BuiltinRegression(b.Type) && b.Result != nil {
-		// An extension model may report errors only on coefficients it
-		// names itself.
+	if NamesOwnCoefficients(b.Type) && b.Result != nil {
+		// An extension model (and a multinomial fit) may report errors
+		// only on coefficients it names itself.
 		for _, se := range b.Result.StdErrors {
 			if !math.IsNaN(se) {
 				return true

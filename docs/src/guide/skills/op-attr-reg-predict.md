@@ -28,13 +28,13 @@ Use something else:
 |---|---|---|---|
 | `fit` | string | (required) | Bound model name. |
 | `terms` | list | — | Subset of terms, `(intercept)` opt-in. Absent: whole model. |
-| `scale` | enum | `response` | GLM / ordinal: `response` or `link`. |
+| `scale` | enum | `response` | GLM, ordinal, multinomial: `response`, `link`. |
 | `bound` | enum | `point` | `point`, `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
 | `carryover` | bool | `true` | Adstocked-in-model fit: carry (needs `order`). |
 | `order` | object | — | `{field, partition?}` of raw spend ([`regression-order`](regression-order.md)). |
-| `output` | enum | — | Ordinal: `expected`, `class`, `probability` / `cumulative` (+`level`). |
-| `level` | string | — | Ordinal level ([`regression-row-scores`](regression-row-scores.md)). |
-| `category` | string | — | Reserved; refused. |
+| `output` | enum | — | Ordinal / multinomial column ([`regression-row-scores`](regression-row-scores.md)). |
+| `level` | string | — | Ordinal level. |
+| `category` | string | — | Multinomial category. |
 
 ## Inputs
 
@@ -61,7 +61,7 @@ One `f64` per record; null when a column read is null, NaN or ±Inf, and on EVER
 - The fit's predictor list is authoritative: build the same columns ([`regression-row-scores`](regression-row-scores.md)).
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local (two-pass with `order`): streams, merges, materializes. Row weight ignored.
-- A registered model scores whole-model (`no_scorer` without a scorer); save, load, ordinal: [`regression-row-scores`](regression-row-scores.md). `REG_MMM_BAYES` alone takes a whole-model `bound` ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
+- A registered model scores whole-model (`no_scorer` without a scorer); save, load, ordinal, multinomial: [`regression-row-scores`](regression-row-scores.md). `REG_MMM_BAYES` alone takes a whole-model `bound` ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).
 
 ## See
 

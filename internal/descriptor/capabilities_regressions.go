@@ -190,7 +190,8 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.", Slot: true},
 				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
 				{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
-				{Name: "name", Type: "string", Required: false, Description: "Result alias.", Slot: true},
+				{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json) keeping its coefficients, categories and reference (feature categories); a `models` entry loads it and ATTR_REG_PREDICT scores it per category.", Slot: true},
+				{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},
 			},
 		},
 	}

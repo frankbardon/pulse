@@ -33,7 +33,15 @@
 #     p = 2 pnorm(-|z|), ci = b -/+ qnorm(0.5 + conf/2) SE;
 #   deviance = -2 logLik, null_deviance the intercept-only model's
 #     (-2 sum_i w_i log(share of y_i)), two_log_lik = 2 logLik,
-#     aic = deviance + 2 K (p + 1) (multinom's edf).
+#     aic = deviance + 2 K (p + 1) (multinom's edf);
+#   fitted_probabilities: every row's category probabilities at the
+#     polished MLE (asserted equal to fitted(multinom) at 1e-6) — the
+#     per-row vector an ATTR_REG_PREDICT score of a training row reads;
+#   score_rows / score_probabilities / score_log_odds (U68 E1-S2): a
+#     fixed grid of new [x1, x2] rows, their category probabilities
+#     (asserted equal to predict(multinom, newdata, type = "probs") at
+#     1e-6) and every category's log-odds against the reference
+#     (x' beta_k; 0 for the reference) at the polished MLE.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -101,6 +109,10 @@ mn_parts <- function(beta, X, Yi, w) {
 
 mn_cases <- list()
 
+# The scored grid: new rows no fit saw, inside and outside the data's
+# range (no RNG draw, so the fitted cases' data are unchanged).
+mn_score_grid <- data.frame(x1 = c(-1, 0.5, 2.5, -0.25, 1.75, 0), x2 = c(-1.5, 1, 0.3, 2, -0.6, 0))
+
 # mn_case fits y (a factor over `levels`, in that order) on x1 + x2.
 mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NULL, conf = 0.95) {
   y <- factor(levels[d$y + 1], levels = levels)
@@ -128,6 +140,13 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
   pp <- mn_parts(beta, X, Yi, w)
   if (max(abs(pp$g)) > 1e-9) stop(name, ": gradient not zero at the polished MLE")
   mn_check(paste(name, "multinom coefficients"), as.vector(t(coef(m))), beta, 1e-6)
+  mn_check(paste(name, "fitted(multinom)"), as.vector(fitted(m)), as.vector(pp$P), 1e-6)
+  Xs <- cbind(1, mn_score_grid$x1, mn_score_grid$x2)
+  eta_s <- cbind(0, Xs %*% matrix(beta, nrow = ncol(X)))
+  P_s <- exp(eta_s - apply(eta_s, 1, max))
+  P_s <- P_s / rowSums(P_s)
+  mn_check(paste(name, "predict(multinom, type = probs)"),
+    as.vector(predict(m, newdata = mn_score_grid, type = "probs")), as.vector(P_s), 1e-6)
   V <- solve(pp$H)
   mn_check(paste(name, "multinom vcov"), as.vector(vcov(m)), as.vector(V), 1e-4)
   if (!is.null(weight) && kind == "frequency") {
@@ -158,7 +177,9 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se),
     vcov = mn_g17(as.vector(V)),
     deviance = mn_g17(-2 * pp$ll), null_deviance = mn_g17(null_dev),
-    n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))))
+    n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))),
+    score_rows = lapply(seq_len(nrow(mn_score_grid)), function(i) mn_g17(c(mn_score_grid$x1[i], mn_score_grid$x2[i]))),
+    score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))))
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -201,6 +222,7 @@ write_golden("multinomial", list(
   note = paste(
     "multinom(y ~ x1 + x2) Newton-polished to the MLE. keys category-major: <level>:(intercept), <level>:x1, <level>:x2 per",
     "non-reference level in fitted order (categories: reference first, then the observed levels in dictionary order);",
-    "vcov row-major over keys; fitted_probabilities row-major n x L over categories."),
+    "vcov row-major over keys; fitted_probabilities row-major n x L over categories;",
+    "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference."),
   cases = mn_cases
 ))

@@ -186,7 +186,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.ATTR_REG_PREDICT),
 			Category:    "attribute",
-			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
+			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
 			Params: []descriptor.Param{
 				{
 					Name:        "fit",
@@ -204,7 +204,7 @@ func attributeCapabilities() []descriptor.Operator {
 					Type:        "enum",
 					Default:     "response",
 					EnumValues:  []string{"response", "link"},
-					Description: "REG_GLM and REG_ORDINAL only: response applies the inverse link (the fit's fitted means; an ordinal fit's params.output); link returns the linear predictor (ordinal: η = xᵀβ, no output or level).",
+					Description: "REG_GLM, REG_ORDINAL and REG_MULTINOMIAL only: response applies the inverse link (the fit's fitted means; a categorical-outcome fit's params.output); link returns the linear predictor (ordinal: η = xᵀβ, no output or level; multinomial: params.category's log-odds against the reference, 0 for the reference itself, no output).",
 				},
 				{
 					Name:        "bound",
@@ -228,7 +228,7 @@ func attributeCapabilities() []descriptor.Operator {
 					Name:        "output",
 					Type:        "enum",
 					EnumValues:  []string{"probability", "cumulative", "expected", "class"},
-					Description: "REG_ORDINAL only: probability P(y = level) and cumulative P(y ≤ level) (both need level; probability is the default with one), expected Σ k·P(y = k) over the levels numbered 1..K (the default without level), class the 1-based position of the most probable level. Refused on any other fit (outcome_unsupported).",
+					Description: "REG_ORDINAL: probability P(y = level) and cumulative P(y ≤ level) (both need level; probability is the default with one), expected Σ k·P(y = k) over the levels numbered 1..K (the default without level), class the 1-based position of the most probable level. REG_MULTINOMIAL: probability P(y = category) (the default; needs category), class the most probable category's 0-based dictionary index among the fit's categories (dictionary order; a level no fitted row carried is not counted). Refused on any other fit (outcome_unsupported); an output the fit's type lacks is output_unknown.",
 				},
 				{
 					Name:        "level",
@@ -238,7 +238,7 @@ func attributeCapabilities() []descriptor.Operator {
 				{
 					Name:        "category",
 					Type:        "string",
-					Description: "Reserved for a categorical-outcome fit that names a category; no scorable regression type takes it yet (outcome_unsupported).",
+					Description: "REG_MULTINOMIAL only: one category of the fit (its categories, as written) for output probability or scale link — required by both (outcome_required); an unknown category is outcome_unknown (judged by predict once the categories are known: a loaded model file, else the run). for_each over the categories gives one column each. Refused on any other fit.",
 				},
 			},
 			AcceptsTypes:  numericFieldTypesAnalytics, // the scoring frame rule: IsNumericForAnalytics (TestCapabilities_RegPredictAcceptsScoringRule)

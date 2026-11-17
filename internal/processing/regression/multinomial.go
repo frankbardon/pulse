@@ -57,12 +57,6 @@ type multinomialEngine struct {
 	levels []string // the target's dictionary, in order
 
 	finalized bool
-
-	// fitted, when set, receives the converged fitted probabilities,
-	// row-major n × len(categories) over the result's Categories, of the
-	// rows that entered the fit in record order. A test seam (the
-	// oracle's fitted probabilities); nil in every production fit.
-	fitted func(categories []string, probs []float64)
 }
 
 // newMultinomialEngine validates a REG_MULTINOMIAL spec against schema
@@ -125,18 +119,29 @@ func (pr *multinomialProblem) dim() int { return len(pr.nonRef) * pr.q }
 func (pr *multinomialProblem) rowEval(beta []float64, i int, eta, pi []float64) float64 {
 	q := pr.q
 	xi := pr.x[i*q : (i+1)*q]
-	m := 0.0
 	for c := range eta {
 		eta[c] = 0
 	}
 	for k, c := range pr.nonRef {
 		b := beta[k*q : (k+1)*q]
 		eta[c] = LinearPredictor(b[0], b[1:], xi[1:])
-		if eta[c] > m {
-			m = eta[c]
+	}
+	m, s := multinomialSoftmax(eta, pi)
+	return eta[pr.y[i]] - m - detmath.Log(s)
+}
+
+// multinomialSoftmax is THE category-probability kernel of a
+// baseline-category logit: π_c = exp(η_c − m) / Σ_l exp(η_l − m), m the
+// largest η (the reference's 0 included), written into pi; it returns m
+// and the sum. The fit (rowEval) and every scored row
+// (MultinomialFitted.Probabilities) run it, so a scored training row's
+// probabilities are the fit's own bit for bit.
+func multinomialSoftmax(eta, pi []float64) (m, s float64) {
+	for _, e := range eta {
+		if e > m {
+			m = e
 		}
 	}
-	s := 0.0
 	for c := range eta {
 		pi[c] = detmath.Exp(eta[c] - m)
 		s += pi[c]
@@ -144,7 +149,7 @@ func (pr *multinomialProblem) rowEval(beta []float64, i int, eta, pi []float64) 
 	for c := range pi {
 		pi[c] /= s
 	}
-	return eta[pr.y[i]] - m - detmath.Log(s)
+	return m, s
 }
 
 // logLik is ℓ = Σ w*·log π_{i,y_i} at beta (−Inf when a row's
@@ -160,9 +165,9 @@ func (pr *multinomialProblem) logLik(beta []float64) float64 {
 }
 
 // system returns ℓ, the score ∇ℓ and the information I (row-major,
-// both triangles) at beta; probs, when non-nil (n × len(cats)), receives
-// the fitted probabilities.
-func (pr *multinomialProblem) system(beta, probs []float64) (ll float64, grad, info []float64) {
+// both triangles) at beta. A row's fitted probabilities are its scored
+// ones (MultinomialFitted, the shared multinomialSoftmax kernel).
+func (pr *multinomialProblem) system(beta []float64) (ll float64, grad, info []float64) {
 	q, kk, d := pr.q, len(pr.nonRef), pr.dim()
 	grad = make([]float64, d)
 	info = make([]float64, d*d)
@@ -172,9 +177,6 @@ func (pr *multinomialProblem) system(beta, probs []float64) (ll float64, grad, i
 	for i := 0; i < pr.n; i++ {
 		w := pr.prior[i]
 		ll += float64(w * pr.rowEval(beta, i, eta, pi))
-		if probs != nil {
-			copy(probs[i*len(pr.cats):], pi)
-		}
 		xi := pr.x[i*q : (i+1)*q]
 		for k, ck := range pr.nonRef {
 			yk := 0.0
@@ -303,14 +305,7 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	if err != nil {
 		return nil, err
 	}
-	var probs []float64
-	if e.fitted != nil {
-		probs = make([]float64, n*len(pr.cats))
-	}
-	ll, _, info := pr.system(beta, probs)
-	if e.fitted != nil {
-		e.fitted(slices.Clone(pr.cats), probs)
-	}
+	ll, _, info := pr.system(beta)
 	d := pr.dim()
 	f, ok := factorSPD(d, info)
 	if !ok {
@@ -494,7 +489,7 @@ func (e *multinomialEngine) newton(pr *multinomialProblem) ([]float64, int, erro
 	}
 	history := [][]float64{slices.Clone(beta)}
 	for iter := 1; iter <= maxIters; iter++ {
-		ll, grad, info := pr.system(beta, nil)
+		ll, grad, info := pr.system(beta)
 		f, ok := factorSPD(d, info)
 		if !ok {
 			return nil, iter, e.failure(pr, beta, history, iter, maxIters, tol, "information_singular")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
@@ -82,8 +83,9 @@ type ScoreParams struct {
 	// Level names one level of a REG_ORDINAL fit (outputs.levels, as
 	// written): the outcome a probability / cumulative output reads.
 	Level string `json:"level,omitempty"`
-	// Category names one category of a categorical-outcome fit whose
-	// selector is the category (no scorable type takes it yet).
+	// Category names one category of a REG_MULTINOMIAL fit (its
+	// categories, as written): the outcome a probability or a link-scale
+	// (log-odds against the reference) score reads.
 	Category string `json:"category,omitempty"`
 	// Output is a categorical-outcome fit's column (probability.go):
 	// OutputProbability, OutputCumulative, OutputExpected or
@@ -146,11 +148,11 @@ type Signature struct {
 	CoefficientsKnown bool
 
 	// Outcomes are a categorical-outcome fit's levels in fitted order
-	// (REG_ORDINAL's outputs.levels) when known (OutcomesKnown): the
-	// runtime's Set and a loaded model file know them; predict's static
-	// FitCatalog of a `fits` entry only when the request pins them
-	// (params.levels) — otherwise the data decide them and the run
-	// judges a named level.
+	// (REG_ORDINAL's outputs.levels, REG_MULTINOMIAL's categories) when
+	// known (OutcomesKnown): the runtime's Set and a loaded model file
+	// know them; predict's static FitCatalog of a `fits` entry only when
+	// the request pins them (REG_ORDINAL's params.levels) — otherwise the
+	// data decide them and the run judges a named level / category.
 	Outcomes      []string
 	OutcomesKnown bool
 
@@ -262,7 +264,7 @@ func (v *VectorFit) Signature() Signature {
 func (b *Bound) Signature() Signature {
 	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
 	sig.Influence = b.Design
-	if !BuiltinRegression(b.Type) && b.Result != nil {
+	if NamesOwnCoefficients(b.Type) && b.Result != nil {
 		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
 	}
 	if b.SweepBound {
@@ -275,7 +277,7 @@ func (b *Bound) Signature() Signature {
 	}
 	sig.Geos, sig.GeosKnown = MMMGeos(coefs), true
 	if OutcomeType(b.Type) && b.Result != nil {
-		sig.Outcomes, sig.OutcomesKnown = OutcomesOf(b.Result.Outputs)
+		sig.Outcomes, sig.OutcomesKnown = ResultOutcomes(b.Type, b.Result)
 	}
 	if b.Type == types.REG_MMM_BAYES {
 		var outs map[string]any
@@ -309,19 +311,58 @@ func sortedKeys[V any](m map[string]V) []string {
 
 // NamesCoefficient reports whether term is a coefficient the fit
 // names itself beyond the intercept and its Terms — an extension
-// regression's own parameter. With the names unknown (predict over a
-// `fits` entry) any term may be one: the runtime, which knows them,
-// judges it.
+// regression's own parameter, a REG_MULTINOMIAL fit's
+// "<category>:<term>". With the names unknown (predict over a `fits`
+// entry) any term may be one — on REG_MULTINOMIAL any
+// "<category>:<term>" whose term is the intercept or one of Terms: the
+// runtime, which knows them, judges it.
 func (s Signature) NamesCoefficient(term string) bool {
-	if BuiltinRegression(s.Type) {
+	if !NamesOwnCoefficients(s.Type) {
 		return false
 	}
-	return !s.CoefficientsKnown || slices.Contains(s.Coefficients, term)
+	if s.CoefficientsKnown {
+		return slices.Contains(s.Coefficients, term)
+	}
+	if s.Type == types.REG_MULTINOMIAL {
+		i := strings.LastIndex(term, MultinomialKeySeparator)
+		if i <= 0 {
+			return false
+		}
+		rest := term[i+len(MultinomialKeySeparator):]
+		return rest == InterceptKey || slices.Contains(s.Terms, rest)
+	}
+	return true
+}
+
+// NamesOwnCoefficients reports whether a fit of type t names its own
+// coefficients rather than the engine's intercept-plus-one-per-predictor
+// shape: an extension or model regression (not BuiltinRegression), and
+// REG_MULTINOMIAL, whose coefficients are one set per non-reference
+// category, "<category>:<term>" (MultinomialKey). coef() reads such a
+// fit's coefficients by those names alone, and a model file of it
+// requires no "(intercept)" nor one coefficient per predictor.
+func NamesOwnCoefficients(t types.RegressionType) bool {
+	return !BuiltinRegression(t) || t == types.REG_MULTINOMIAL
+}
+
+// MultinomialKeySeparator joins a REG_MULTINOMIAL category and term into
+// a coefficient key (MultinomialKey; internal/regmultinom.Key, the
+// engine's, is the same join).
+const MultinomialKeySeparator = ":"
+
+// MultinomialKey is a REG_MULTINOMIAL fit's coefficient key for category
+// and term: "<category>:<term>".
+func MultinomialKey(category, term string) string {
+	return category + MultinomialKeySeparator + term
 }
 
 // coefTerms are the names coef() may read beyond the intercept: Terms,
-// then the fit's own coefficient names that are neither (sorted).
+// then the fit's own coefficient names that are neither (sorted). A
+// REG_MULTINOMIAL fit's are its coefficient names alone (when known).
 func (s Signature) coefTerms() []string {
+	if s.Type == types.REG_MULTINOMIAL {
+		return slices.Clone(s.Coefficients)
+	}
 	out := append([]string(nil), s.Terms...)
 	for _, c := range s.Coefficients {
 		if c != InterceptKey && !slices.Contains(s.Terms, c) {
@@ -411,11 +452,13 @@ func (c FitCatalog) Names() []string {
 
 // scorableBuiltins are the built-in regression types with a RowScorer
 // (scorer.go): REG_OLS — penalties and selection included — REG_GLM,
-// REG_BAYES_LINEAR at its posterior mean. It is the static face of the
+// REG_BAYES_LINEAR at its posterior mean, and REG_MULTINOMIAL (one
+// category's probability or log-odds, or the class, per slot —
+// probability.go). It is the static face of the
 // engine's built-in ScorerSource (regression.BuiltinScorer), which
 // predict cannot import; TestBuiltinScorer_MatchesScorableType keeps
 // the two one set.
-var scorableBuiltins = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
+var scorableBuiltins = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR, types.REG_MULTINOMIAL}
 
 // ScorableType reports whether a fit of type t can be scored: a type
 // with a RowScorer (scorableBuiltins). It is the built-in view; an
@@ -506,17 +549,23 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 		}
 		return p, sig, typeUnsupported(p.Fit, sig.Type)
 	}
-	if extension {
+	if NamesOwnCoefficients(sig.Type) {
+		// An extension regression's scorer, and a REG_MULTINOMIAL
+		// fit's, score the whole model.
+		whose := "an extension regression's scorer scores the whole model"
+		if !extension {
+			whose = "its scorer scores the whole model, one category at a time"
+		}
 		if p.Terms != nil {
 			return p, sig, scoreInvalid(p.Fit, ReasonTermsUnsupported,
-				fmt.Sprintf("params.terms does not apply to %q, a %s fit: an extension regression's scorer scores the whole model; drop params.terms", p.Fit, sig.Type),
+				fmt.Sprintf("params.terms does not apply to %q, a %s fit: %s; drop params.terms", p.Fit, sig.Type, whose),
 				map[string]any{"type": string(sig.Type)})
 		}
 		if (p.Bound == BoundLower || p.Bound == BoundUpper) && sig.Type != types.REG_MMM_BAYES {
 			// REG_MMM_BAYES alone scores a whole-model bound: the
 			// credible bound of its mean prediction across its draws.
 			return p, sig, scoreInvalid(p.Fit, ReasonBoundUnsupported,
-				fmt.Sprintf("params.bound %q does not apply to %q, a %s fit: an extension regression's scorer scores the whole model at its point estimates; drop params.bound", p.Bound, p.Fit, sig.Type),
+				fmt.Sprintf("params.bound %q does not apply to %q, a %s fit: %s at its point estimates; drop params.bound", p.Bound, p.Fit, sig.Type, whose),
 				map[string]any{"type": string(sig.Type), "bound": p.Bound})
 		}
 	}
@@ -551,7 +600,7 @@ func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (S
 	}
 	if p.Scale != "" && sig.Type != types.REG_GLM && !OutcomeType(sig.Type) {
 		return p, sig, scoreInvalid(p.Fit, ReasonScaleNotGLM,
-			fmt.Sprintf("params.scale applies to a generalized-linear or ordinal fit only; %q is %s, whose scores are on the target's scale", p.Fit, sig.Type),
+			fmt.Sprintf("params.scale applies to a generalized-linear, ordinal or multinomial fit only; %q is %s, whose scores are on the target's scale", p.Fit, sig.Type),
 			map[string]any{"scale": p.Scale, "type": string(sig.Type)})
 	}
 	switch p.Bound {

@@ -283,6 +283,8 @@ var validationRegistry = map[string]ValidationRecord{
 		Refs: []ValidationRef{
 			valR("+ `nnet` 7.3-21 `multinom`, Newton-polished to the MLE: coefficients, standard errors (`solve(Hessian)`), Wald p-values and intervals, vcov, deviance, null deviance, two_log_lik, aic and every row's fitted probabilities; a named reference, a dictionary level no row carries (dropped)", tol10, regDir+"multinomial_oracle_test.go"),
 			{Against: rPin + " + `nnet` 7.3-21 `multinom(weights = f)` against its `rep()`-expanded fit (frequency weights) and `multinom(weights = w*)`, w* = w·n_eff/Σw (probability weights, no likelihood)", Tol: tol10, Tests: []string{regDir + "multinomial_oracle_test.go"}, Weighted: true},
+			valR("+ `nnet` 7.3-21 `fitted(multinom)` and `predict(multinom, newdata, type = \"probs\")` at the polished MLE (agreeing to 1e-6 with multinom's own optimum): the ATTR_REG_PREDICT row scores — P(y = category) and the log-odds against the reference — of the training rows and of a grid of new rows, through the bound fit's scorer; the class, the saved-and-reloaded model file and the Compose `fits` binding end to end", tol10, regDir+"multinomial_oracle_test.go", regDir+"multinomial_score_test.go", "multinomial_score_test.go"),
+			{Against: rPin + " + `nnet` 7.3-21 `fitted` / `predict(type = \"probs\")` of the frequency- and probability-weighted fits (the row scores read the weighted MLE)", Tol: tol10, Tests: []string{regDir + "multinomial_oracle_test.go"}, Weighted: true},
 			valWeighted,
 		},
 		Gap: "No robust (sandwich) covariance, penalty, selection or resample is offered: each is refused, not validated. The probability-weighted fit is multinom on the rescaled weights, not a design-based survey estimator.",

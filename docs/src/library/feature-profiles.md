@@ -175,10 +175,10 @@ one name in every group must be enabled:
 | `OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR` | `AGG_WELFORD`, `AGG_VARIANCE` or `AGG_STDDEV` (any one) |
 | `OVERLAY_PROP_Z_VS_PRIOR` | `AGG_AVERAGE` |
 | `ATTR_REG_FITTED`, `ATTR_REG_INFLUENCE`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
-| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_OLS` or `REG_ORDINAL` (any one) |
+| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_OLS`, `REG_ORDINAL`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS`, `REG_ORDINAL`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
 | `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
 | `capability:regression_order` | any built-in regression (`REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL`; a regression `order` sorts that slot's rows) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA`, `capability:regression_holdout` or `capability:compose_optimize` (any one; a request `params` value is read only by an expression) |

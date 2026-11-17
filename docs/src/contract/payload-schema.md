@@ -1231,7 +1231,14 @@ every other regression. The per-coefficient maps (`coefficients`,
 `significant_adjusted`) and `vcov`'s row / column keys read
 `"<level>:<term>"` per non-reference level (`"<level>:(intercept)"` for
 the intercept). Absent is byte-identical and `format_version` stays
-`"1.1"`.
+`"1.1"`. A multinomial fit binds under a Compose `fits` entry, saves
+(its model file lists feature `categories`) and loads through `models`
+(U68 E1-S2); `ATTR_REG_PREDICT` scores it one column per slot
+(`params.category`: P(y = category), the default output;
+`params.output: class`: the most probable category's 0-based index in
+`categories`; `params.scale: link`: the category's log-odds against the
+reference), and `coef()` reads its `"<level>:<term>"` keys. Its
+`holdout` stays refused.
 
 ## Per-group aggregation components
 
@@ -1571,8 +1578,8 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`, `regression_type` — a `REG_MULTINOMIAL` fit, which
-nothing binds); a fit request's own refusal keeps its
+`vector_source`; a `REG_MULTINOMIAL` fit binds since U68 E1-S2 — the
+`regression_type` reason is gone); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -1788,7 +1795,8 @@ list naming exactly the optional sections it carries: `robust_covariance`
 standard errors, `outputs` — its coefficients named by the model — for an
 extension regression whose registration supplies a scorer, `dispersion`
 for a classical `vcov` fit that carries one, `theta` for a `REG_GLM`
-`negative_binomial` fit; versions 2 to 6 of earlier builds are refused
+`negative_binomial` fit, `categories` — with `reference` — for every
+`REG_MULTINOMIAL` fit; versions 2 to 6 of earlier builds are refused
 with a re-save message; `.pulse-model.json`; the format is in
 `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root

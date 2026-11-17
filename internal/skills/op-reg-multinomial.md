@@ -31,6 +31,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 | `multiplicity` | object | — | Default family: every non-intercept key; `coefficients` lists `<level>:<term>` keys. |
 <!-- /feature -->
 | `order` | object | — | Row order. |
+| `save` | string | — | Model file; row scores: `regression-row-scores`. |
 | `name` | string | — | Result name. |
 
 ## Inputs
@@ -39,7 +40,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Output
 
-`RegressionResult`: `Reference`, `Categories` (fitted levels, dictionary order); `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level, the intercept `"<level>:(intercept)"` (nnet's vcov names); `Deviance` (−2ℓ), `NullDeviance`, `PseudoR2` (McFadden), `TwoLogLik`, `AIC` (+ 2·K·(p+1)), `NObs`, `ConvergedIters` (+ weighted `SumWeights` / `NEff`).
+`RegressionResult`: `Reference`, `Categories` (fitted levels, dictionary order); `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level, the intercept `"<level>:(intercept)"`; `Deviance` (−2ℓ), `NullDeviance`, `PseudoR2` (McFadden), `TwoLogLik`, `AIC` (+ 2·K·(p+1)), `NObs`, `ConvergedIters` (+ weighted `SumWeights` / `NEff`).
 
 <!-- generated: reading-the-output -->
 
@@ -49,7 +50,10 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 - A coefficient is the log odds of ITS level against the reference; e^β is a relative risk ratio.
 - A level no fitted row carries is dropped (multinom's "group is empty"); a named `reference` with no rows fails the slot alone (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason: reference_empty`), fewer than two fitted levels too (`one_category`).
-- Refused (`PROCESSING_CONFIG`, `details.requires`), predict too: `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, `selection`, `resample`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`, `save`; `holdout` → `PULSE_MODEL_SCORE_INVALID` (no scorer); a `fits` entry → `PULSE_FIT_INVALID` (`regression_type`).
+- Refused (`PROCESSING_CONFIG`, `details.requires`): `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, `selection`, `resample`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`; `holdout` → `PULSE_MODEL_SCORE_INVALID` (per-category scores).
+<!-- feature: ATTR_REG_PREDICT -->
+- Bound, `ATTR_REG_PREDICT` scores a row: `category` → P(y = it); `output: class` → 0-based index in `Categories`; `scale: link` → log-odds vs the reference. `coef()` reads `"<level>:<term>"`.
+<!-- /feature -->
 - Probability weight: multinom on w* = w·n_eff/Σw; no `TwoLogLik` / `AIC`.
 - Separation → `PROCESSING_REGRESSION_SEPARATION`.
 

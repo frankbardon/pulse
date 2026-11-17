@@ -16,17 +16,20 @@
 //     a resample and its knobs ("no_resample"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
 //     a robust covariance ("classical_covariance"), margins
-//     ("no_margins"), collinearity ("no_collinearity"), save
-//     ("no_save") — each a follow-up, never a silent no-op — and a
-//     negative max_iters / tol ("max_iters ≥ 0", "tol ≥ 0");
+//     ("no_margins"), collinearity ("no_collinearity") — each a
+//     follow-up, never a silent no-op — and a negative max_iters / tol
+//     ("max_iters ≥ 0", "tol ≥ 0");
 //   - CheckTarget: the target is a categorical cohort field (its
 //     dictionary order is the category order; requires
 //     "categorical_target"), and `reference` one of its labels (requires
 //     "a level of the target").
 //
-// A holdout is refused by the shared scorer rule (nothing scores a
-// multinomial fit: model.HoldoutScorerRefusal), a numeric schema target
-// by the accepted-types table (internal/fieldaccept).
+// `save` writes a model file carrying the fit's categories (U68 E1-S2:
+// the fit scores one category per ATTR_REG_PREDICT slot). A holdout is
+// refused by the shared scorer rule (its fit scores a probability per
+// category, not the one figure a holdout compares:
+// model.HoldoutScorerRefusal), a numeric schema target by the
+// accepted-types table (internal/fieldaccept).
 package regmultinom
 
 import (
@@ -87,7 +90,6 @@ var unsupportedKnobs = []unsupported{
 	{"covariance", "classical_covariance", "a robust multinomial covariance is not built (the coefficient covariance is the inverse information)", func(s *types.RegressionSpec) bool { return s.Covariance.Robust() }},
 	{"margins", "no_margins", "marginal effects are reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Margins != nil }},
 	{"collinearity", "no_collinearity", "the variance inflation block is reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Collinearity != nil }},
-	{"save", "no_save", "a multinomial fit has no model file", func(s *types.RegressionSpec) bool { return s.Save != "" }},
 }
 
 // Check returns the PROCESSING_CONFIG refusal of spec's knobs, or nil:

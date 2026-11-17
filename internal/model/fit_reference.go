@@ -333,6 +333,12 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 		}
 		return p, sig, typeUnsupportedFor(t, p.Fit, sig.Type)
 	}
+	if !ScoresWholeVectorByDefault(sig.Type) {
+		// The slot scores the fit's default column, and a
+		// REG_MULTINOMIAL fit's reads one category the slot cannot name
+		// (ATTR_REG_PREDICT's params.category does).
+		return p, sig, typeUnsupportedFor(t, p.Fit, sig.Type)
+	}
 	// A design-reading slot over a REG_MMM_BAYES fit can never run (by
 	// design): refused before the draws and carry-over rules name a fix.
 	if cerr := designByDesignRefusal(t, p, sig); cerr != nil {

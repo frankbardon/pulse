@@ -183,7 +183,6 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		})), errors.PROCESSING_CONFIG, "classical_covariance"},
 		{"margins", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} })), errors.PROCESSING_CONFIG, "no_margins"},
 		{"collinearity", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} })), errors.PROCESSING_CONFIG, "no_collinearity"},
-		{"save", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Save = "m.pulse-model.json" })), errors.PROCESSING_CONFIG, "no_save"},
 		{"intercept", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Intercept = new(bool) })), errors.PROCESSING_CONFIG, "intercept"},
 		{"unknown reference", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Reference = "top" })), errors.PROCESSING_CONFIG, "a level of the target"},
 		{"reference on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Reference: "lo"}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL"},
@@ -216,30 +215,6 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 				t.Errorf("predict errors %+v do not carry the runtime refusal %q %v", pr.Errors, ce.Message, ce.Details)
 			}
 		})
-	}
-	// A `fits` entry cannot bind a multinomial fit: Compose and
-	// PredictCompose refuse it alike.
-	creq := &ComposedRequest{
-		Fits:     []types.FitSpec{{Name: "mf", Request: mnReq(mnCohort, mnSpec(nil))}},
-		Requests: []*Request{mnReq(mnCohort, mnSpec(nil))},
-	}
-	_, err := p.Compose(ctx, creq)
-	ce := codedOf(t, err)
-	if ce.Code != errors.PULSE_FIT_INVALID || ce.Details["reason"] != "regression_type" {
-		t.Fatalf("Compose: %v (details %v), want PULSE_FIT_INVALID regression_type", err, ce.Details)
-	}
-	env, err := p.PredictCompose(ctx, creq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	matched := false
-	for _, e := range env.Errors {
-		if e.Code == string(ce.Code) && e.Message == ce.Message {
-			matched = true
-		}
-	}
-	if !matched {
-		t.Errorf("PredictCompose errors %+v lack the runtime's %q", env.Errors, ce.Message)
 	}
 }
 

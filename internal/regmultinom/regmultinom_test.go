@@ -65,7 +65,6 @@ func TestCheck_Refusals(t *testing.T) {
 		}},
 		{"margins", "margins", "no_margins", func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} }},
 		{"collinearity", "collinearity", "no_collinearity", func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} }},
-		{"save", "save", "no_save", func(s *types.RegressionSpec) { s.Save = "m.pulse-model.json" }},
 		{"negative max_iters", "max_iters", "max_iters ≥ 0", func(s *types.RegressionSpec) { s.MaxIters = -1 }},
 		{"negative tol", "tol", "tol ≥ 0", func(s *types.RegressionSpec) { s.Tol = -1e-6 }},
 	}
@@ -82,6 +81,7 @@ func TestCheck_Refusals(t *testing.T) {
 	}
 	ok := base()
 	ok.Reference, ok.MaxIters, ok.Tol, ok.ConfLevel, ok.Vcov = "mid", 10, 1e-9, 0.9, true
+	ok.Save = "m.pulse-model.json" // U68 E1-S2: a multinomial fit saves
 	ok.Covariance = &types.RegressionCovariance{Type: types.CovarianceClassical}
 	if cerr := Check(ok); cerr != nil {
 		t.Fatalf("offered knobs refused: %v", cerr)

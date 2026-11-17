@@ -12,7 +12,8 @@ import (
 
 // probability.go is the categorical-outcome half of the scoring path
 // (U68): a fit whose response is a set of levels or categories
-// (REG_ORDINAL) predicts a probability VECTOR per row, not one score.
+// (REG_ORDINAL, REG_MULTINOMIAL) predicts a probability VECTOR per row,
+// not one score.
 // ProbabilityScorer is that multi-output scorer — the one kernel the
 // ATTR_REG_PREDICT column scorers (OutcomeScorer), a holdout's proper
 // scores and the per-level marginal effects read — and the outcome rule
@@ -25,7 +26,8 @@ import (
 // a slot out to one column per level.
 const (
 	// OutputProbability is P(y = outcome | x): needs the outcome
-	// (params.level on REG_ORDINAL).
+	// (params.level on REG_ORDINAL, params.category on REG_MULTINOMIAL —
+	// its default).
 	OutputProbability = "probability"
 	// OutputCumulative is P(y ≤ level | x) on an ordered outcome: needs
 	// params.level.
@@ -34,8 +36,9 @@ const (
 	// numbered 1..K in fitted order: REG_ORDINAL's default when no level
 	// is named.
 	OutputExpected = "expected"
-	// OutputClass is the 1-based position of the most probable outcome
-	// (the first on a tie).
+	// OutputClass is the most probable outcome (the first on a tie): its
+	// 1-based position on REG_ORDINAL, its 0-based dictionary index among
+	// the fit's categories on REG_MULTINOMIAL.
 	OutputClass = "class"
 )
 
@@ -57,8 +60,11 @@ const (
 	// ReasonOutcomeUnknown refuses a level / category the fit does not
 	// carry (details.available lists the ones it does).
 	ReasonOutcomeUnknown = "outcome_unknown"
-	// ReasonOutputScale refuses params.output or a named outcome beside
-	// params.scale link, whose score is the linear predictor.
+	// ReasonOutputScale refuses params.output beside params.scale link,
+	// whose score is the linear predictor — and a named level on
+	// REG_ORDINAL, whose link score reads none (REG_MULTINOMIAL's link
+	// score is one category's log-odds against the reference, so it
+	// needs params.category: ReasonOutcomeRequired without it).
 	ReasonOutputScale = "output_scale"
 )
 
@@ -79,8 +85,10 @@ type ProbabilityScorer interface {
 
 // outcomeRule is one categorical-outcome type's ATTR_REG_PREDICT
 // surface: the params key naming one outcome, the outputs it computes,
-// the ones that read the named outcome, and its default output with and
-// without a named outcome.
+// the ones that read the named outcome, its default output with and
+// without a named outcome, whether its params.scale link score reads
+// the named outcome (linkNeedsOutcome) and the class output's origin
+// (1: a 1-based position; 0: a 0-based index).
 type outcomeRule struct {
 	selector            string
 	outputs             []string
@@ -88,6 +96,8 @@ type outcomeRule struct {
 	defaultOutput       string
 	defaultOutputNamed  string
 	selectorDescription string
+	linkNeedsOutcome    bool
+	classOrigin         int
 }
 
 // outcomeRules are the categorical-outcome types' rules, keyed by type.
@@ -99,7 +109,34 @@ var outcomeRules = map[types.RegressionType]outcomeRule{
 		defaultOutput:       OutputExpected,
 		defaultOutputNamed:  OutputProbability,
 		selectorDescription: "a level of the fit (outputs.levels)",
+		classOrigin:         1,
 	},
+	// REG_MULTINOMIAL: P(y = category) by default (so a slot names its
+	// category), the class as the category's dictionary index among the
+	// fit's categories (Result.Categories, dictionary order), and on the
+	// link scale the category's log-odds against the reference.
+	types.REG_MULTINOMIAL: {
+		selector:            "category",
+		outputs:             []string{OutputProbability, OutputClass},
+		needsOutcome:        []string{OutputProbability},
+		defaultOutput:       OutputProbability,
+		defaultOutputNamed:  OutputProbability,
+		selectorDescription: "a category of the fit (categories)",
+		linkNeedsOutcome:    true,
+		classOrigin:         0,
+	},
+}
+
+// ScoresWholeVectorByDefault reports whether a categorical-outcome
+// type's default score (no params.output, no outcome named) reads the
+// whole probability vector — REG_ORDINAL's expected level — rather than
+// one outcome a slot must name (REG_MULTINOMIAL's probability). A
+// params.fit fitted / residual / design slot scores the fit's default,
+// so it can bind only a type whose default needs no outcome. True on a
+// type with no outcome rule.
+func ScoresWholeVectorByDefault(t types.RegressionType) bool {
+	r, ok := outcomeRules[t]
+	return !ok || !slices.Contains(r.needsOutcome, r.defaultOutput)
 }
 
 // OutcomeType reports whether t is a categorical-outcome regression,
@@ -188,10 +225,22 @@ func checkOutcome(p ScoreParams, sig Signature) *errors.CodedError {
 		return nil
 	}
 	named := p.outcome(r.selector)
-	if p.Scale == ScaleLink && (p.Output != "" || named != "") {
-		return scoreInvalid(p.Fit, ReasonOutputScale,
-			"params.scale link scores the linear predictor xᵀβ; it takes no params.output or params."+r.selector+" — drop them, or drop scale",
-			map[string]any{"type": string(sig.Type), "scale": p.Scale})
+	if p.Scale == ScaleLink {
+		switch {
+		case r.linkNeedsOutcome && p.Output != "":
+			return scoreInvalid(p.Fit, ReasonOutputScale,
+				"params.scale link scores params."+r.selector+"'s log-odds against the reference; it takes no params.output — drop it, or drop scale",
+				map[string]any{"type": string(sig.Type), "scale": p.Scale})
+		case !r.linkNeedsOutcome && (p.Output != "" || named != ""):
+			return scoreInvalid(p.Fit, ReasonOutputScale,
+				"params.scale link scores the linear predictor xᵀβ; it takes no params.output or params."+r.selector+" — drop them, or drop scale",
+				map[string]any{"type": string(sig.Type), "scale": p.Scale})
+		case r.linkNeedsOutcome && named == "":
+			return scoreInvalid(p.Fit, ReasonOutcomeRequired,
+				fmt.Sprintf("params.scale link scores one outcome's log-odds against the reference: name it under params.%s (%s); for_each over the outcomes makes one column each", r.selector, r.selectorDescription),
+				map[string]any{"type": string(sig.Type), "scale": p.Scale, "requires": "params." + r.selector})
+		}
+		return outcomeKnown(p, sig, r, named)
 	}
 	out := p.EffectiveOutput(sig.Type)
 	if !slices.Contains(r.outputs, out) {
@@ -210,6 +259,12 @@ func checkOutcome(p ScoreParams, sig Signature) *errors.CodedError {
 			fmt.Sprintf("params.output %q reads every outcome; params.%s does not apply — drop it", out, r.selector),
 			map[string]any{"type": string(sig.Type), "output": out, "slot": "params." + r.selector})
 	}
+	return outcomeKnown(p, sig, r, named)
+}
+
+// outcomeKnown refuses a named outcome the fit does not carry, judged
+// when sig knows the fit's outcomes.
+func outcomeKnown(p ScoreParams, sig Signature, r outcomeRule, named string) *errors.CodedError {
 	if named != "" && sig.OutcomesKnown && !slices.Contains(sig.Outcomes, named) {
 		return scoreInvalid(p.Fit, ReasonOutcomeUnknown,
 			fmt.Sprintf("params.%s %q is not one of the fit's outcomes %v", r.selector, named, sig.Outcomes),
@@ -229,6 +284,22 @@ func OutcomeIndex(ps ProbabilityScorer, outcome string) int {
 // probable outcome (class). outcome is the named outcome's position
 // (ignored by expected and class). The caller has run CheckScoreFor.
 func OutcomeScorer(ps ProbabilityScorer, output string, outcome int) (RowScorer, error) {
+	return outcomeScorerAt(ps, output, outcome, 1)
+}
+
+// OutcomeScorerFor is OutcomeScorer over a fit of type t: its class
+// output counts from t's origin (REG_MULTINOMIAL's 0-based dictionary
+// index, REG_ORDINAL's 1-based position).
+func OutcomeScorerFor(t types.RegressionType, ps ProbabilityScorer, output string, outcome int) (RowScorer, error) {
+	origin := 1
+	if r, ok := outcomeRules[t]; ok {
+		origin = r.classOrigin
+	}
+	return outcomeScorerAt(ps, output, outcome, origin)
+}
+
+// outcomeScorerAt builds the column, its class counted from origin.
+func outcomeScorerAt(ps ProbabilityScorer, output string, outcome, origin int) (RowScorer, error) {
 	k := len(ps.Outcomes())
 	switch output {
 	case OutputProbability, OutputCumulative:
@@ -241,7 +312,7 @@ func OutcomeScorer(ps ProbabilityScorer, output string, outcome int) (RowScorer,
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("no outcome scorer for output %q", output), nil)
 	}
-	return outcomeScorer{ps: ps, output: output, outcome: outcome, k: k}, nil
+	return outcomeScorer{ps: ps, output: output, outcome: outcome, k: k, origin: origin}, nil
 }
 
 // outcomeScorer is OutcomeScorer's column.
@@ -250,6 +321,7 @@ type outcomeScorer struct {
 	output  string
 	outcome int
 	k       int
+	origin  int
 }
 
 func (s outcomeScorer) Columns() []string { return s.ps.Columns() }
@@ -291,8 +363,24 @@ func (s outcomeScorer) Score(row Row) (float64, bool) {
 				best = k
 			}
 		}
-		return float64(best + 1), true
+		return float64(best + s.origin), true
 	}
+}
+
+// ResultOutcomes are a categorical-outcome fit's outcomes off its result:
+// REG_MULTINOMIAL's Categories, else outputs.levels (OutcomesOf); false
+// when absent or malformed.
+func ResultOutcomes(t types.RegressionType, res *types.RegressionResult) ([]string, bool) {
+	if res == nil {
+		return nil, false
+	}
+	if t == types.REG_MULTINOMIAL {
+		if len(res.Categories) == 0 {
+			return nil, false
+		}
+		return slices.Clone(res.Categories), true
+	}
+	return OutcomesOf(res.Outputs)
 }
 
 // OutcomesOf reads a categorical-outcome fit's outcomes off its Outputs

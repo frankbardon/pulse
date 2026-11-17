@@ -321,7 +321,7 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			// model's Signature reads off the same Result.
 			Influence: designFromResult(files[j].Result()),
 		}
-		if !BuiltinRegression(files[j].Type) {
+		if NamesOwnCoefficients(files[j].Type) {
 			// The file names the fit's coefficients, so predict judges a
 			// coef() term exactly as the bound model does.
 			sig.Coefficients, sig.CoefficientsKnown = sortedKeys(files[j].Coefficients), true
@@ -343,10 +343,11 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		// An in-model adstocked fit carries its adstock state when the
 		// file holds it, exactly as the bound model does.
 		sig.Carries, sig.CarryState = fileCarryFace(files[j])
-		// Its outputs name a categorical-outcome fit's levels, exactly
-		// as the bound model's do.
+		// Its outputs (a multinomial fit's categories) name a
+		// categorical-outcome fit's levels, exactly as the bound model's
+		// do.
 		if OutcomeType(files[j].Type) {
-			sig.Outcomes, sig.OutcomesKnown = OutcomesOf(decodeOutputs(files[j].Outputs))
+			sig.Outcomes, sig.OutcomesKnown = ResultOutcomes(files[j].Type, files[j].Result())
 		}
 		out[r.Name] = sig
 	}

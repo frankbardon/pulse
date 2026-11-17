@@ -76,6 +76,11 @@ const (
 	// record — its params.saturation when not the default Hill curve —
 	// what response() evaluates on the loaded model.
 	FeatureSaturation = "saturation"
+	// FeatureCategories: `categories` (+ `reference`), a REG_MULTINOMIAL
+	// fit's fitted categories in dictionary order and its reference —
+	// what its scorer rebuilds the per-row category probabilities from
+	// (U68 E1-S2). Every REG_MULTINOMIAL file carries it.
+	FeatureCategories = "categories"
 )
 
 // fileFeature is one optional model-file section: the registry entry a
@@ -167,6 +172,46 @@ var fileFeatures = []fileFeature{
 		present: func(f *File) bool { return f.Saturation != "" },
 		rule:    saturationRule,
 	},
+	{
+		name: FeatureCategories, key: "categories",
+		present: func(f *File) bool { return f.Categories != nil },
+		rule:    categoriesRule,
+	},
+}
+
+// categoriesRule is the categories section's rule: a REG_MULTINOMIAL
+// file, at least two distinct non-empty categories, a reference among
+// them, and every non-reference category's "(intercept)" and predictor
+// coefficients ("<category>:<term>", MultinomialKey).
+func categoriesRule(f *File) string {
+	if f.Type != types.REG_MULTINOMIAL {
+		return fmt.Sprintf("carries categories, which only a REG_MULTINOMIAL fit has, but its type is %s", f.Type)
+	}
+	if len(f.Categories) < 2 {
+		return "has fewer than two categories (a multinomial fit has at least two)"
+	}
+	for i, c := range f.Categories {
+		if c == "" {
+			return "has an empty category"
+		}
+		if slices.Contains(f.Categories[:i], c) {
+			return fmt.Sprintf("lists category %q twice", c)
+		}
+	}
+	if !slices.Contains(f.Categories, f.Reference) {
+		return fmt.Sprintf("has reference %q, which is not one of its categories", f.Reference)
+	}
+	for _, c := range f.Categories {
+		if c == f.Reference {
+			continue
+		}
+		for _, term := range append([]string{InterceptKey}, f.Predictors...) {
+			if _, ok := f.Coefficients[MultinomialKey(c, term)]; !ok {
+				return fmt.Sprintf("has no coefficient %q", MultinomialKey(c, term))
+			}
+		}
+	}
+	return ""
 }
 
 // dispersionType reports whether a fit of type t may carry an estimated
@@ -304,6 +349,13 @@ type File struct {
 	// for the default Hill curve (a file may spell hill out). File.Bind
 	// restores it.
 	Saturation string `json:"saturation,omitempty"`
+	// Categories and Reference (feature categories) are a
+	// REG_MULTINOMIAL fit's fitted categories in dictionary order and its
+	// reference category (RegressionResult.Categories / Reference): the
+	// outcomes its scorer reads, the coefficients keyed
+	// "<category>:<term>" per non-reference category.
+	Categories []string `json:"categories,omitempty"`
+	Reference  string   `json:"reference,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -456,6 +508,9 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 		f.Outputs = outs
 	}
 	f.Saturation = b.Saturation
+	if res.Type == types.REG_MULTINOMIAL {
+		f.Categories, f.Reference = slices.Clone(res.Categories), res.Reference
+	}
 	// The list is derived from the sections, never set by hand: the
 	// writer lists exactly what is present.
 	f.Features = f.presentFeatures()
@@ -635,9 +690,16 @@ func (f *File) check() string {
 	if f.Family == negativeBinomial && f.Theta == 0 {
 		return "is a negative_binomial fit without its theta (feature theta)"
 	}
-	// An extension regression's coefficients are named by its model: no
+	if f.Type == types.REG_MULTINOMIAL && f.Categories == nil {
+		return "is a REG_MULTINOMIAL fit without its categories (feature categories)"
+	}
+	if f.Reference != "" && f.Categories == nil {
+		return "carries a reference without its categories (feature categories)"
+	}
+	// An extension regression's coefficients are named by its model, a
+	// multinomial fit's per category (the categories rule): no
 	// intercept, nor one per predictor, is required.
-	builtin := BuiltinRegression(f.Type)
+	builtin := !NamesOwnCoefficients(f.Type)
 	if _, ok := f.Coefficients[InterceptKey]; !ok && builtin {
 		return fmt.Sprintf("has no %q coefficient", InterceptKey)
 	}
@@ -740,6 +802,9 @@ func (f *File) Result() *types.RegressionResult {
 		res.Covariance = &c
 	}
 	res.Outputs = decodeOutputs(f.Outputs)
+	if f.Categories != nil {
+		res.Categories, res.Reference = slices.Clone(f.Categories), f.Reference
+	}
 	return res
 }
 
