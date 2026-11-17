@@ -1,12 +1,12 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -425,7 +425,7 @@ func staticOutcomes(reg *types.RegressionSpec) ([]string, bool) {
 	var p struct {
 		Levels []string `json:"levels"`
 	}
-	if err := json.Unmarshal(reg.Params, &p); err != nil || p.Levels == nil {
+	if err := paramread.Probe(reg.Params, &p); err != nil || p.Levels == nil {
 		return nil, false
 	}
 	return p.Levels, true
