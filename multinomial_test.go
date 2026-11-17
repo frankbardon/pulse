@@ -129,6 +129,12 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 			s.Name = "m_prob"
 			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
 		}),
+		// A holdout's proper scores fold every held-out row's whole
+		// probability vector (U68 E1-S3), weighted.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Holdout = "m_hold", "id % 4 == 0"
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
 	}
 	single, sharded := mnModes(t)
 	for _, group := range [][]scorerParityMode{single, sharded} {
@@ -142,6 +148,9 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 				if r.Error != nil {
 					t.Fatalf("%s %s failed: %+v", m.name, r.Name, r.Error)
 				}
+			}
+			if h := resp.Regressions[3].Holdout; h == nil || h.LogLoss == nil || h.Brier == nil || h.Accuracy == nil || h.RPS != nil || h.RMSE != nil {
+				t.Fatalf("%s holdout %+v: want log_loss, brier and accuracy alone", m.name, h)
 			}
 			if r := resp.Regressions[0]; m.name == "serial" && (!slices.Equal(r.Categories, []string{"mid", "lo", "hi"}) || r.Reference != "mid") {
 				t.Fatalf("categories %v reference %q, want the dictionary order mid, lo, hi", r.Categories, r.Reference)
@@ -193,7 +202,6 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		}(), errors.PROCESSING_CONFIG, "categorical_target"},
 		{"numeric target", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Target = "y" })), errors.PULSE_FIELD_TYPE_UNSUPPORTED, ""},
 		{"conf_level", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.ConfLevel = 1.5 })), errors.PROCESSING_CONFIG, ""},
-		{"holdout", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Holdout = "x1 > 1" })), errors.PULSE_MODEL_SCORE_INVALID, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := p.Process(ctx, tc.req)
@@ -216,6 +224,19 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 			}
 		})
 	}
+	// A holdout runs (U68 E1-S3) and predict accepts it: no refusal on
+	// either side, the slot buffered.
+	t.Run("holdout runs", func(t *testing.T) {
+		req := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Holdout = "x1 > 1" }))
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil || resp.Regressions[0].Error != nil || resp.Regressions[0].Holdout == nil {
+			t.Fatalf("runtime: %v %+v", err, resp)
+		}
+	})
 }
 
 // TestMultinomial_Multiplicity: an own multiplicity block corrects every

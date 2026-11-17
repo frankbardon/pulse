@@ -1007,7 +1007,7 @@ var hardEdges = map[string][]string{
 		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL), featMatrices},
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
-	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS)},
+	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},
 	// An order sorts a regression slot's rows: without a regression
 	// there are no rows to order.
 	featRegOrder: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},

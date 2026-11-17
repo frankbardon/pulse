@@ -41,7 +41,11 @@
 #     fixed grid of new [x1, x2] rows, their category probabilities
 #     (asserted equal to predict(multinom, newdata, type = "probs") at
 #     1e-6) and every category's log-odds against the reference
-#     (x' beta_k; 0 for the reference) at the polished MLE.
+#     (x' beta_k; 0 for the reference) at the polished MLE;
+#   holdout_rows / holdout (U68 E1-S3): the grid rows labelled [x1, x2,
+#     y(, w)] and their weighted proper scores at the polished MLE
+#     (mn_scores: log_loss, brier, accuracy); on empty_level one more row
+#     at the dropped level, which no figure counts.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -113,6 +117,24 @@ mn_cases <- list()
 # range (no RNG draw, so the fitted cases' data are unchanged).
 mn_score_grid <- data.frame(x1 = c(-1, 0.5, 2.5, -0.25, 1.75, 0), x2 = c(-1.5, 1, 0.3, 2, -0.6, 0))
 
+# The holdout rows (U68 E1-S3): the score grid again, each row labelled
+# (cycling the fitted levels in dictionary order) and weighted on the
+# weighted cases — a `holdout` predicate holds them out of the same fit.
+# mn_scores folds their proper scores at the polished MLE: weighted
+# means (w the raw slot weight) of -ln P(y) (natural log), sum_k (P_k -
+# [y = k])^2 and [first argmax = y] in dictionary order (predict(multinom,
+# type = "probs") agreeing to 1e-6). A held-out row labelled a level the
+# fit dropped scores nothing (empty_level carries one).
+mn_scores <- function(P, y, w) {
+  n <- nrow(P)
+  O <- outer(y, seq_len(ncol(P)), "==") * 1
+  sw <- sum(w)
+  list(n = n,
+    log_loss = mn_g17(sum(w * -log(P[cbind(seq_len(n), y)])) / sw),
+    brier = mn_g17(sum(w * rowSums((P - O)^2)) / sw),
+    accuracy = mn_g17(sum(w * (max.col(P, ties.method = "first") == y)) / sw))
+}
+
 # mn_case fits y (a factor over `levels`, in that order) on x1 + x2.
 mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NULL, conf = 0.95) {
   y <- factor(levels[d$y + 1], levels = levels)
@@ -149,6 +171,25 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     as.vector(predict(m, newdata = mn_score_grid, type = "probs")), as.vector(P_s), 1e-6)
   V <- solve(pp$H)
   mn_check(paste(name, "multinom vcov"), as.vector(vcov(m)), as.vector(V), 1e-4)
+  # Holdout: the grid rows labelled, P in dictionary order.
+  nh <- nrow(mn_score_grid)
+  observed_dict <- levels[levels %in% fitted_levels]
+  yh_lab <- observed_dict[(seq_len(nh) - 1) %% length(observed_dict) + 1]
+  wh <- if (is.null(kind)) rep(1, nh) else if (kind == "frequency") (seq_len(nh) - 1) %% 3 + 1 else 0.25 * (seq_len(nh) %% 5 + 2)
+  Pd <- P_s[, match(observed_dict, fitted_levels), drop = FALSE]
+  holdout <- mn_scores(Pd, match(yh_lab, observed_dict), wh)
+  hrows <- lapply(seq_len(nh), function(i) {
+    r <- c(mn_score_grid$x1[i], mn_score_grid$x2[i], match(yh_lab[i], levels) - 1)
+    if (!is.null(weight)) r <- c(r, wh[i])
+    mn_g17(r)
+  })
+  dropped <- setdiff(levels, observed)
+  if (length(dropped) > 0) {
+    # A held-out row at a level the fit dropped: not scored.
+    r <- c(0.25, -0.5, match(dropped[1], levels) - 1)
+    if (!is.null(weight)) r <- c(r, 1)
+    hrows[[nh + 1]] <- mn_g17(r)
+  }
   if (!is.null(weight) && kind == "frequency") {
     ex <- dd[rep(seq_len(nrow(dd)), weight), ]; ex$w <- 1
     me <- suppressWarnings(multinom(yy ~ x1 + x2, data = ex, Hess = TRUE, maxit = 1000,
@@ -179,7 +220,8 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     deviance = mn_g17(-2 * pp$ll), null_deviance = mn_g17(null_dev),
     n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))),
     score_rows = lapply(seq_len(nrow(mn_score_grid)), function(i) mn_g17(c(mn_score_grid$x1[i], mn_score_grid$x2[i]))),
-    score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))))
+    score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))),
+    holdout_rows = hrows, holdout = holdout)
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -223,6 +265,8 @@ write_golden("multinomial", list(
     "multinom(y ~ x1 + x2) Newton-polished to the MLE. keys category-major: <level>:(intercept), <level>:x1, <level>:x2 per",
     "non-reference level in fitted order (categories: reference first, then the observed levels in dictionary order);",
     "vcov row-major over keys; fitted_probabilities row-major n x L over categories;",
-    "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference."),
+    "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference;",
+    "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
+    "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order."),
   cases = mn_cases
 ))

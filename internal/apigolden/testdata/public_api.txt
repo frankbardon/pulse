@@ -6528,11 +6528,15 @@ pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitem
 pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
 pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
 pulse/types: type RegressionHoldout struct
-pulse/types: type RegressionHoldout field MAE float64 "json:\"mae\""
+pulse/types: type RegressionHoldout field Accuracy *float64 "json:\"accuracy,omitempty\""
+pulse/types: type RegressionHoldout field Brier *float64 "json:\"brier,omitempty\""
+pulse/types: type RegressionHoldout field LogLoss *float64 "json:\"log_loss,omitempty\""
+pulse/types: type RegressionHoldout field MAE *float64 "json:\"mae,omitempty\""
 pulse/types: type RegressionHoldout field N int "json:\"n\""
 pulse/types: type RegressionHoldout field NNull int "json:\"n_null\""
-pulse/types: type RegressionHoldout field R2 float64 "json:\"r2\""
-pulse/types: type RegressionHoldout field RMSE float64 "json:\"rmse\""
+pulse/types: type RegressionHoldout field R2 *float64 "json:\"r2,omitempty\""
+pulse/types: type RegressionHoldout field RMSE *float64 "json:\"rmse,omitempty\""
+pulse/types: type RegressionHoldout field RPS *float64 "json:\"rps,omitempty\""
 pulse/types: type RegressionMargins struct
 pulse/types: type RegressionMargins field Scale string "json:\"scale,omitempty\""
 pulse/types: type RegressionMargins field Terms []string "json:\"terms,omitempty\""
@@ -7018,4 +7022,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7afe43627c74c732f0525c61ad34dfd4e81b9d9b3bc819ac50a131a2430f5f43
+// golden-hash: 0966ad12739ccaf722a931f58d7220e07f1140376a884299648133ed937a663e

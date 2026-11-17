@@ -31,6 +31,9 @@ examples_tags: [regression, ordinal]
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Predictors' p-values join a family (thresholds carry none). |
 <!-- /feature -->
+<!-- feature: capability:regression_holdout -->
+| `holdout` | expr | — | Proper scores: `regression-row-scores`. |
+<!-- /feature -->
 | `order` | object | — | Row order. |
 | `save` | string | — | Model file; row scores: `regression-row-scores`. |
 | `name` | string | — | Result name. |
@@ -50,11 +53,11 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 ## Gotchas
 
 - Positive β: higher x, higher levels; logit `exp(β)` is the odds ratio of being above any level.
-- Dictionary order is import order: pass `levels` if imported out of order.
+- Dictionary order is import order; else pass `levels`.
 - A small Brant p-value: that predictor's effect differs across thresholds (omnibus on the symmetric covariance; the `brant` package's differs, per-term agrees).
 - Frequency weights = the `rep()` expansion; probability weights follow<!-- feature: REG_GLM --> `REG_GLM`'s rule<!-- /feature --> (w* = w·n_eff/Σw).
-- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`; `holdout` is `PULSE_MODEL_SCORE_INVALID`.
-- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`, the slot fails alone.
+- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`.
+- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`; fails alone.
 
 ## See
 

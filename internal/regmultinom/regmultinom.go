@@ -25,11 +25,11 @@
 //     "a level of the target").
 //
 // `save` writes a model file carrying the fit's categories (U68 E1-S2:
-// the fit scores one category per ATTR_REG_PREDICT slot). A holdout is
-// refused by the shared scorer rule (its fit scores a probability per
-// category, not the one figure a holdout compares:
-// model.HoldoutScorerRefusal), a numeric schema target by the
-// accepted-types table (internal/fieldaccept).
+// the fit scores one category per ATTR_REG_PREDICT slot). A holdout
+// scores each held-out row's category probabilities (U68 E1-S3:
+// regression.HoldoutOutcomeFigures — log_loss, brier, accuracy). A
+// numeric schema target is refused by the accepted-types table
+// (internal/fieldaccept).
 package regmultinom
 
 import (

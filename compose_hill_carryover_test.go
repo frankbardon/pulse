@@ -83,8 +83,8 @@ func TestHillCarryover_HoldoutCarriesTheFittedAdstock(t *testing.T) {
 		t.Errorf("holdout n = %d, want %d", res.Holdout.N, 104-hillCarrySplit)
 	}
 	rmse, mae := hillHandHoldout(res, 0)
-	if !relNear(res.Holdout.RMSE, rmse, 1e-9) || !relNear(res.Holdout.MAE, mae, 1e-9) {
-		t.Errorf("holdout rmse %v mae %v, hand-written carried %v %v", res.Holdout.RMSE, res.Holdout.MAE, rmse, mae)
+	if !relNear(*res.Holdout.RMSE, rmse, 1e-9) || !relNear(*res.Holdout.MAE, mae, 1e-9) {
+		t.Errorf("holdout rmse %v mae %v, hand-written carried %v %v", *res.Holdout.RMSE, *res.Holdout.MAE, rmse, mae)
 	}
 	if restart, _ := hillHandHoldout(res, hillCarrySplit); relNear(restart, rmse, 1e-6) {
 		t.Fatalf("restarting at the split gives the same rmse %v: the fixture cannot tell carry-over apart", restart)

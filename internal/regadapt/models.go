@@ -63,6 +63,17 @@ func init() {
 			scorer = AdaptRegressionScorer(a)
 		}
 		regression.RegisterModel(t, AdaptRegressionFactory(a), scorer)
+		if pf, ok := regordinal.Probabilities[t]; ok {
+			// A categorical-outcome fit's whole probability vector: what
+			// a holdout over it scores (U68 E1-S3).
+			regression.RegisterModelProbabilities(t, func(b *model.Bound) (model.ProbabilityScorer, error) {
+				fit, err := FittedRegression(b)
+				if err != nil {
+					return nil, err
+				}
+				return pf(fit)
+			})
+		}
 		if tf, ok := regmmm.Tangents[t]; ok {
 			// A nonlinear least-squares fit's tangent plane: what a
 			// leverage / influence slot over it reads (U71 E2-S6).

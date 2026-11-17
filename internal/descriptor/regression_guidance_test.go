@@ -69,6 +69,12 @@ func TestRegressionInterpretations_MatchApplicability(t *testing.T) {
 		var got []string
 		for _, in := range ins {
 			f := in.Field
+			if strings.HasPrefix(f, "holdout.") {
+				// The holdout block is request-driven, never a plain
+				// fit's output: its own table (holdoutOutputs) judges it
+				// (TestHoldoutOutputs_AreResultTags).
+				continue
+			}
 			// An opt-in block (margins) is read through its own
 			// sub-outputs: it counts as its key.
 			if head, _, nested := strings.Cut(f, "."); nested && tags[head].Kind() == reflect.Pointer {

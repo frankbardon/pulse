@@ -27,7 +27,10 @@ import (
 // Every case's per-row category probabilities — of its training rows
 // (fitted(multinom)) and of a grid of new rows (predict(multinom, type =
 // "probs")), with each category's log-odds against the reference — are
-// the bound fit's production scorer's (MultinomialFitted, U68 E1-S2).
+// the bound fit's production scorer's (MultinomialFitted, U68 E1-S2),
+// and the labelled grid's holdout proper scores (log_loss, brier,
+// accuracy — mn_scores' closed forms) are HoldoutOutcomeFigures' over
+// BoundProbabilities (U68 E1-S3).
 
 // multinomialTol is the oracle tolerance: both sides are the MLE to
 // double precision (R's Newton polish, Pulse's quadratic Newton stop),
@@ -60,6 +63,15 @@ type multinomialCase struct {
 	ScoreRows           [][]float64 `json:"score_rows"`
 	ScoreProbabilities  []float64   `json:"score_probabilities"`
 	ScoreLogOdds        []float64   `json:"score_log_odds"`
+	// HoldoutRows / Holdout are labelled new rows [x1, x2, y(, w)] and
+	// their weighted proper scores at the MLE (U68 E1-S3).
+	HoldoutRows [][]float64 `json:"holdout_rows"`
+	Holdout     struct {
+		N        int       `json:"n"`
+		LogLoss  []float64 `json:"log_loss"`
+		Brier    []float64 `json:"brier"`
+		Accuracy []float64 `json:"accuracy"`
+	} `json:"holdout"`
 }
 
 func loadMultinomial(t *testing.T) []multinomialCase {
@@ -105,13 +117,16 @@ func categoricalSchema(target string, levels []string, others ...string) *encodi
 	return s
 }
 
-func (c multinomialCase) records() []Record {
-	out := make([]Record, len(c.Rows))
-	for i, r := range c.Rows {
+func (c multinomialCase) records() []Record { return c.recordsOf(c.Rows) }
+
+func (c multinomialCase) recordsOf(rows [][]float64) []Record {
+	out := make([]Record, len(rows))
+	for i, r := range rows {
 		v := map[string]float64{"x1": r[0], "x2": r[1]}
 		if c.WeightKind != "" {
 			v["w"] = r[3]
 		}
+		v["y"] = r[2]
 		out[i] = labeledRecord{mockRecord: mockRecord{values: v}, labels: map[string]string{"y": c.Levels[int(r[2])]}}
 	}
 	return out
@@ -249,6 +264,30 @@ func TestReferenceOracle_MultinomialMatchesR(t *testing.T) {
 					}
 					near("score_log_odds", lo, c.ScoreLogOdds[i*L+rc])
 				}
+			}
+			// Holdout: the held-out rows' proper scores through the
+			// engine's probability-vector scorer (BoundProbabilities).
+			b, err := model.Bind("m", c.spec(), res)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ps, err := BoundProbabilities(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hs := c.spec()
+			hs.Holdout = "held"
+			h, err := HoldoutOutcomeFigures(hs, ps, false, c.recordsOf(c.HoldoutRows), 0)
+			if err != nil {
+				t.Fatalf("HoldoutOutcomeFigures: %v", err)
+			}
+			if h.N != c.Holdout.N || h.RPS != nil || h.RMSE != nil {
+				t.Fatalf("holdout %+v: want n %d (of %d held-out rows), no rps / rmse", *h, c.Holdout.N, len(c.HoldoutRows))
+			}
+			near("holdout_log_loss", *h.LogLoss, c.Holdout.LogLoss[0])
+			near("holdout_brier", *h.Brier, c.Holdout.Brier[0])
+			if *h.Accuracy != c.Holdout.Accuracy[0] {
+				t.Errorf("holdout accuracy = %v, R %v", *h.Accuracy, c.Holdout.Accuracy[0])
 			}
 		})
 	}

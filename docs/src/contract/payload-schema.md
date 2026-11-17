@@ -1179,8 +1179,18 @@ positive weight present; a raw count), `n_null` the null-predicate
 rows, the figures on the response scale (a `REG_GLM`'s inverse link)
 weighted by the slot `weight`, `r2` = 1 − SSE/SST about the held-out
 rows' own mean — `null` (key kept) when the held-out targets do not
-vary. Absent `holdout` is byte-identical and `format_version` stays
-`"1.1"`. A predicate that does not compile as a boolean or names an
+vary. A categorical-outcome fit (`REG_ORDINAL`, `REG_MULTINOMIAL`, U68
+E1-S3) scores each held-out row's probability vector p instead and
+reports `{n, n_null, log_loss, brier, accuracy}` (`REG_ORDINAL` adds
+`rps`), weighted means over the scored rows: `log_loss` = −ln p_y
+(natural log; `null` when p_y is 0), `brier` = Σ_k (p_k − [y = k])²,
+`accuracy` = the share whose most probable outcome (the first on a tie)
+is y, `rps` = Σ_{k<K} (F_k − [y ≤ k])²/(K − 1) over the cumulative
+probabilities F_k; `rmse` / `mae` / `r2` are absent there, as the
+categorical figures are on a numeric fit (every figure is an
+`omitempty` key). A held-out row whose outcome the fit does not carry
+is not scored. Absent `holdout` is byte-identical, a numeric fit's
+block is byte-identical, and `format_version` stays `"1.1"`. A predicate that does not compile as a boolean or names an
 unknown column is `PULSE_FORMULA_COMPILE_ERROR`; a type the instance
 cannot score is `PULSE_MODEL_SCORE_INVALID` `details.reason`
 `no_scorer` — both refused identically at predict and at runtime. No
@@ -1237,8 +1247,8 @@ the intercept). Absent is byte-identical and `format_version` stays
 (`params.category`: P(y = category), the default output;
 `params.output: class`: the most probable category's 0-based index in
 `categories`; `params.scale: link`: the category's log-odds against the
-reference), and `coef()` reads its `"<level>:<term>"` keys. Its
-`holdout` stays refused.
+reference), and `coef()` reads its `"<level>:<term>"` keys. A `holdout`
+reports its proper scores (Regression holdout, U68 E1-S3).
 
 ## Per-group aggregation components
 

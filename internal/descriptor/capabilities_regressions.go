@@ -18,6 +18,20 @@ import (
 // `holdout` slot (every built-in, and an extension model with a scorer).
 const holdoutParamDescription = "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path."
 
+// outcomeHoldoutParamDescription is the manifest description of the
+// shared `holdout` slot on a categorical-outcome regression
+// (REG_ORDINAL, ordered: true; REG_MULTINOMIAL): its fit scores each
+// held-out row's whole probability vector, so the figures are the
+// proper scores, not rmse / mae / r2 (absent).
+func outcomeHoldoutParamDescription(ordered bool) string {
+	figures := "log_loss, brier, accuracy"
+	if ordered {
+		figures += ", rps"
+	}
+	return "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, " +
+		figures + "}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path."
+}
+
 // orderParamDescription is the manifest description of the shared
 // `order` block (every built-in and every extension model).
 const orderParamDescription = "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path."
@@ -189,6 +203,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.", Slot: true},
 				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.", Slot: true},
 				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
+				{Name: "holdout", Type: "string", Required: false, Description: outcomeHoldoutParamDescription(false), Slot: true},
 				{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
 				{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json) keeping its coefficients, categories and reference (feature categories); a `models` entry loads it and ATTR_REG_PREDICT scores it per category.", Slot: true},
 				{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},

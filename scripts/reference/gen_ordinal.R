@@ -44,7 +44,11 @@
 # Weights follow REG_GLM's rule: frequency weights are polr(weights = f),
 # asserted equal to the rep()-expanded fit (and the expanded Brant
 # test); probability weights read w* = w n_eff / sum(w) (Kish n_eff), the
-# frequency formula on w* — no two_log_lik / aic. Fitted probabilities
+# frequency formula on w* — no two_log_lik / aic. Each classical case
+# without params.levels also carries a holdout (U68 E1-S3): eight new
+# grid rows [x..., y, w, g] (holdout_rows) and their proper scores at the
+# polished MLE (holdout: n, log_loss, brier, accuracy, rps — ord_scores'
+# closed forms over predict(polr, type = "probs")). Fitted probabilities
 # are the weighted means over the fitted rows of P(Y = k | x_i); the row
 # scores (row_eta = x'beta, row_probabilities = P(Y = k | x_i) per row, the
 # matrix predict(polr, type = "probs") returns) are at the polished MLE,
@@ -154,6 +158,28 @@ ord_parts <- function(theta, X, y, w, J, L) {
     u - l
   })
   list(ll = sum(w * log(pr)), S = S, grad = colSums(w * S), H = H, P = P)
+}
+
+# ord_scores: the proper scores of a holdout (U68 E1-S3) — rows' level
+# probabilities P (n x K, predict(polr, type = "probs")) against their
+# levels y (1..K), weighted means with weights w: log_loss = -ln P[y]
+# (natural log), brier = sum_k (P_k - [y = k])^2, accuracy = [first
+# argmax = y], and (ordered) rps = sum_{k<K} (F_k - [y <= k])^2 / (K - 1),
+# F_k the cumulative probability.
+ord_scores <- function(P, y, w, ordered = TRUE) {
+  n <- nrow(P); K <- ncol(P)
+  O <- outer(y, seq_len(K), "==") * 1
+  sw <- sum(w)
+  out <- list(n = n,
+    log_loss = ord_num(sum(w * -log(P[cbind(seq_len(n), y)])) / sw),
+    brier = ord_num(sum(w * rowSums((P - O)^2)) / sw),
+    accuracy = ord_num(sum(w * (max.col(P, ties.method = "first") == y)) / sw))
+  if (ordered) {
+    Fc <- t(apply(P, 1, cumsum))[, seq_len(K - 1), drop = FALSE]
+    Oc <- outer(y, seq_len(K - 1), "<=") * 1
+    out$rps <- ord_num(sum(w * rowSums((Fc - Oc)^2) / (K - 1)) / sw)
+  }
+  out
 }
 
 # ord_newton polishes theta to the MLE.
@@ -288,6 +314,22 @@ ord_case <- function(name, d, preds, link = "logit", kind = "", cov = "classical
     ord_check(paste(name, "predict(polr, type = probs) vs polished"), probs, pt$P, 1e-6, floor = 1)
     doc$row_eta <- ord_g17(eta)
     doc$row_probabilities <- ord_mat(pt$P)
+    # Holdout (U68 E1-S3): eight new rows, a fixed grid (no RNG draw, so
+    # no case's data move) cycling the levels, scored at the polished
+    # MLE (predict(polr, newdata, type = "probs") agreeing to 1e-6) —
+    # the rows a `holdout` predicate holds out of the same fit.
+    if (is.null(levels_param)) {
+      nh <- 8
+      Xh <- matrix(sapply(seq_along(preds), function(j) ((seq_len(nh) * (j + 2)) %% 7 - 3) / 2), nrow = nh)
+      colnames(Xh) <- preds
+      yh <- (seq_len(nh) - 1) %% J + 1
+      wh <- if (kind == "frequency") (seq_len(nh) - 1) %% 3 + 1 else if (kind == "probability") 0.25 * (seq_len(nh) %% 5 + 2) else rep(1, nh)
+      Ph <- ord_parts(theta, Xh, yh, wh, J, L)$P
+      ord_check(paste(name, "holdout predict(polr, type = probs) vs polished"),
+        predict(pf, newdata = as.data.frame(Xh), type = "probs"), Ph, 1e-6, floor = 1)
+      doc$holdout_rows <- lapply(seq_len(nh), function(i) ord_g17(c(Xh[i, ], yh[i], wh[i], 1)))
+      doc$holdout <- ord_scores(Ph, yh, wh)
+    }
   }
   if (kind != "probability") {
     doc$two_log_lik <- ord_num(2 * ll)
@@ -392,6 +434,8 @@ write_golden("ordinal", list(
     "null_deviance = the thresholds-only fit's; fitted_probabilities = weighted mean P(Y = k | x); brant = brant::brant's",
     "statistic with the binary glms at their fixed point (omnibus, per-term); row_eta = x'beta and",
     "row_probabilities = P(Y = k | x) per row (predict(polr, type = 'probs') agrees to 1e-6). rows [x..., y, w, g];",
+    "holdout = the weighted proper scores of the holdout_rows [x..., y, w, g] at the MLE: log_loss = mean -ln P(y),",
+    "brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y], rps = mean sum_{k<K} (F_k - [y <= k])^2 / (K - 1).",
     "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w)."),
   cases = ord_cases
 ))

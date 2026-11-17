@@ -83,6 +83,17 @@ type ProbabilityScorer interface {
 	Probabilities(row Row, out []float64) bool
 }
 
+// ProbabilityFactory builds a bound categorical-outcome fit's
+// ProbabilityScorer — what a holdout's proper scores read (the whole
+// vector, never one column). The engine resolves a type's factory
+// (regression.BoundProbabilities): REG_MULTINOMIAL's native one, a
+// model regression's registered beside its scorer.
+type ProbabilityFactory func(b *Bound) (ProbabilityScorer, error)
+
+// OrderedOutcomes reports whether t's outcomes are ordered (REG_ORDINAL):
+// a holdout over its fit adds the ranked probability score.
+func OrderedOutcomes(t types.RegressionType) bool { return t == types.REG_ORDINAL }
+
 // outcomeRule is one categorical-outcome type's ATTR_REG_PREDICT
 // surface: the params key naming one outcome, the outputs it computes,
 // the ones that read the named outcome, its default output with and

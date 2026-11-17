@@ -35,6 +35,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `vcov` | bool | `false` | Inverse information over the keys + `Correlation`. |
 | `weight` | slot weight | — | `null` opts out; frequency or probability. |
 | `multiplicity` | object | — | Default family: every non-intercept key; `coefficients` lists `<level>:<term>` keys. |
+| `holdout` | expr | — | Proper scores: [`regression-row-scores`](regression-row-scores.md). |
 | `order` | object | — | Row order. |
 | `save` | string | — | Model file; row scores: [`regression-row-scores`](regression-row-scores.md). |
 | `name` | string | — | Result name. |
@@ -65,7 +66,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 - A coefficient is the log odds of ITS level against the reference; e^β is a relative risk ratio.
 - A level no fitted row carries is dropped (multinom's "group is empty"); a named `reference` with no rows fails the slot alone (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason: reference_empty`), fewer than two fitted levels too (`one_category`).
-- Refused (`PROCESSING_CONFIG`, `details.requires`): `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, `selection`, `resample`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`; `holdout` → `PULSE_MODEL_SCORE_INVALID` (per-category scores).
+- Refused (`PROCESSING_CONFIG`, `details.requires`): `family` / `link` / `theta` / `dispersion`, `penalty`, `bounds`, `selection`, `resample`, a prior, `solver`, `intercept: false`, a robust `covariance`, `margins`, `collinearity`.
 - Bound, `ATTR_REG_PREDICT` scores a row: `category` → P(y = it); `output: class` → 0-based index in `Categories`; `scale: link` → log-odds vs the reference. `coef()` reads `"<level>:<term>"`.
 - Probability weight: multinom on w* = w·n_eff/Σw; no `TwoLogLik` / `AIC`.
 - Separation → `PROCESSING_REGRESSION_SEPARATION`.

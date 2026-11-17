@@ -442,7 +442,7 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-})
+}, regOutcomeHoldout)
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{
@@ -687,7 +687,42 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
 		},
 	},
+}, regOutcomeHoldout, []descriptor.Interpretation{
+	{
+		Field: "holdout.rps",
+		Means: "The ranked probability score on the held-out rows: per row the squared gaps between the predicted cumulative probability P(Y <= k) and whether the outcome is at most k, " +
+			"summed over the K - 1 cut points and divided by K - 1, then averaged; 0 is perfect, lower is better.",
+		Caveats: []string{
+			"Unlike log_loss and brier it respects the order: predicting a neighbouring level costs less than a distant one.",
+		},
+	},
 })
+
+// regOutcomeHoldout reads the proper scores a holdout over a
+// categorical-outcome fit (REG_ORDINAL, REG_MULTINOMIAL) reports: each
+// held-out row's probability vector against its observed outcome,
+// averaged with the slot weight.
+var regOutcomeHoldout = []descriptor.Interpretation{
+	{
+		Field: "holdout.log_loss",
+		Means: "The mean of -ln P(observed outcome) over the held-out rows (natural log): how surprised the model is by what happened; 0 is perfect, lower is better.",
+		Caveats: []string{
+			"It punishes a confident miss without limit: a held-out outcome given probability 0 makes it infinite (null).",
+			"Compare it only between models scored on the same held-out rows; always predicting each outcome's share is the baseline to beat.",
+		},
+	},
+	{
+		Field: "holdout.brier",
+		Means: "The mean over the held-out rows of the squared gaps between each outcome's predicted probability and 1 for the observed outcome, 0 for the others, summed over the outcomes: 0 is perfect, 2 the worst, lower is better.",
+	},
+	{
+		Field: "holdout.accuracy",
+		Means: "The share of held-out rows whose most probable outcome is the observed one (the first on a tie).",
+		Caveats: []string{
+			"It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.",
+		},
+	},
+}
 
 var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 	{

@@ -47,6 +47,20 @@ type oracleCase struct {
 	// and predict(polr, type = "probs")), on the classical cases.
 	RowEta           []float64   `json:"row_eta"`
 	RowProbabilities [][]float64 `json:"row_probabilities"`
+	// HoldoutRows / Holdout are new rows [x..., y, w, g] and their
+	// weighted proper scores at the MLE (U68 E1-S3), on the classical
+	// cases without params.levels.
+	HoldoutRows [][]float64    `json:"holdout_rows"`
+	Holdout     *oracleHoldout `json:"holdout"`
+}
+
+// oracleHoldout is a case's holdout figures (ord_scores).
+type oracleHoldout struct {
+	N        int     `json:"n"`
+	LogLoss  float64 `json:"log_loss"`
+	Brier    float64 `json:"brier"`
+	Accuracy float64 `json:"accuracy"`
+	RPS      float64 `json:"rps"`
 }
 
 type oracleBrant struct {

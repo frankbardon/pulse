@@ -9731,6 +9731,13 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, log_loss, brier, accuracy}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "order",
             "type": "object",
             "required": false,
@@ -10121,6 +10128,13 @@
             "type": "object",
             "required": false,
             "description": "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, log_loss, brier, accuracy, rps}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path.",
             "slot": true
           },
           {
@@ -21711,4 +21725,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fb6498bffc34ac9d64cf08a6cfb41361ae334eec7195ae6a67f11ad0bb070c96
+// golden-hash: 81882cb68e76747290a804b3753e330ca26cdf7eff758108fe005850584c0628

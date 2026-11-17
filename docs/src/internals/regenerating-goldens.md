@@ -513,7 +513,12 @@ probabilities, asserted within 1e-6 of `fitted(multinom)` — and a fixed
 grid of new rows (`score_rows`: `score_probabilities`, asserted within
 1e-6 of `predict(multinom, type = "probs")`, and `score_log_odds`
 against the reference); the grid draws no random number, so the fitted
-cases' data are unchanged.
+cases' data are unchanged. The same grid, labelled (cycling the fitted
+levels) and weighted on the weighted cases, is each case's
+`holdout_rows` (U68 E1-S3), with `holdout` the weighted `log_loss`,
+`brier` and `accuracy` `mn_scores` folds from those probabilities
+(`empty_level` adds a row at its dropped level, which no figure
+counts).
 `TestReferenceOracle_MultinomialMatchesR`
 (`internal/processing/regression`) holds every figure — the row scores
 read through the bound fit's production scorer — at relative `1e-10`.
@@ -617,7 +622,12 @@ also carries its per-row scores at the MLE (U68): `row_eta` (xᵀβ,
 `polr`'s `$lp` agreeing to 1e-6) and `row_probabilities` (P(Y = k | x),
 `predict(polr, type = "probs")` agreeing to 1e-6), which
 `TestOrdinalOracle_RowScores` and `TestRegOrdinal_ScoresMatchPolrEndToEnd`
-hold the `ATTR_REG_PREDICT` columns to at `1e-10`.
+hold the `ATTR_REG_PREDICT` columns to at `1e-10`. Those cases without
+`params.levels` also carry eight fixed grid rows (`holdout_rows`, no
+random draw) and their weighted proper scores (`holdout`: `log_loss`,
+`brier`, `accuracy`, `rps` — `ord_scores` over `predict(polr, type =
+"probs")`), which `TestRegOrdinal_HoldoutMatchesR` holds a `holdout`
+fit to at `1e-10` (U68 E1-S3).
 
 ### The R toolchain
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -407,7 +408,38 @@ func ExtensionRegressionOutputResolver(name string, outputKeys []string) OutputR
 }
 
 func regressionOutputResolver(name string) OutputResolver {
-	return regressionResultResolver(name, regressionOutputs[name])
+	res := regressionResultResolver(name, regressionOutputs[name])
+	holdout := map[string]bool{}
+	for _, k := range holdoutOutputs(types.RegressionType(name)) {
+		holdout[k] = true
+	}
+	return func(field string) (FieldCheck, string) {
+		if sub, ok := strings.CutPrefix(field, "holdout."); ok {
+			if !holdout[sub] {
+				return FieldUnknown, fmt.Sprintf("a %s holdout does not report %q", name, sub)
+			}
+			return FieldStatic, ""
+		}
+		return res(field)
+	}
+}
+
+// holdoutOutputs are the RegressionHoldout keys a holdout over a fit of
+// type t reports — an opt-in block (RegressionSpec.Holdout), so it sits
+// apart from the plain-fit applicability table (regressionOutputs, which
+// TestRegressionOutputsHoldAtRuntime holds to a plain fit): the counts,
+// then the proper scores of a categorical-outcome fit (rps on an ordered
+// one) or a numeric fit's rmse / mae / r2. TestHoldoutOutputs_AreResultTags
+// pins every key to a struct tag.
+func holdoutOutputs(t types.RegressionType) []string {
+	out := []string{"n", "n_null"}
+	switch {
+	case model.OrderedOutcomes(t):
+		return append(out, "log_loss", "brier", "accuracy", "rps")
+	case model.OutcomeType(t):
+		return append(out, "log_loss", "brier", "accuracy")
+	}
+	return append(out, "rmse", "mae", "r2")
 }
 
 // regressionResultResolver resolves a path against the RegressionResult

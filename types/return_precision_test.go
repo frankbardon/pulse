@@ -90,6 +90,8 @@ var precisionClass = map[string]string{
 	"regressions[*].two_log_lik": "round", "regressions[*].aic": "round",
 	"regressions[*].n_eff": "round", "regressions[*].residual_std_err": "round", "regressions[*].dispersion": "round",
 	"regressions[*].holdout.rmse": "round", "regressions[*].holdout.mae": "round", "regressions[*].holdout.r2": "round",
+	"regressions[*].holdout.log_loss": "round", "regressions[*].holdout.brier": "round", "regressions[*].holdout.accuracy": "round",
+	"regressions[*].holdout.rps":              "round",
 	"regressions[*].credible_intervals.*[*]":  "round",
 	"regressions[*].vcov.values[*][*]":        "round",
 	"regressions[*].correlation.values[*][*]": "round",

@@ -83,13 +83,19 @@ An embedder-registered regression scores through its registration's scorer, whol
 - `expected` (default): Σ k·P(y = k), levels numbered 1..K in fitted order; `class`: the most probable level's number.
 - `probability` (the default with `level`) P(y = level) and `cumulative` P(y ≤ level) need `level`, as written (`"high"`, `"3"`); `for_each` over the levels gives a column each.
 - `scale: link` is xᵀβ (no `output` / `level`).
-- Refused, predict too: `level` / `output` on another fit (`outcome_unsupported`); an unknown level (`outcome_unknown`, judged by predict when `params.levels` pins them or a model file names them); a missing `level` (`outcome_required`). Its `holdout` stays refused.
+- Refused, predict too: `level` / `output` on another fit (`outcome_unsupported`); an unknown level (`outcome_unknown`, judged by predict when `params.levels` pins them or a model file names them); a missing `level` (`outcome_required`).
 <!-- /feature -->
 
 <!-- feature: REG_MULTINOMIAL -->
 ## A multinomial fit
 
-`REG_MULTINOMIAL` scores one category per slot: `category` (as in `Categories`) gives P(y = category), the default; `output: class` the most probable category's 0-based index in `Categories`; `scale: link` the category's log-odds vs the reference. `for_each` over the categories gives a column each. A missing `category` is `outcome_required`, an unknown one `outcome_unknown` (predict judges it from a model file; over `fits` the run does). No `terms` / `bound`; the fitted / residual / design attributes refuse it (`type_unsupported`); its `holdout` stays refused.
+`REG_MULTINOMIAL` scores one category per slot: `category` (as in `Categories`) gives P(y = category), the default; `output: class` the most probable category's 0-based index in `Categories`; `scale: link` the category's log-odds vs the reference. `for_each` over the categories gives a column each. A missing `category` is `outcome_required`, an unknown one `outcome_unknown` (predict judges it from a model file; over `fits` the run does). No `terms` / `bound`; the fitted / residual / design attributes refuse it (`type_unsupported`).
+<!-- /feature -->
+
+<!-- feature: capability:regression_holdout -->
+## Holdout on a categorical fit
+
+A `holdout` scores each held-out row's probability vector p against its outcome y; slot-weighted means: `log_loss` −ln p_y (natural), `brier` Σ_k (p_k − [y = k])², `accuracy` [argmax p = y] (first on a tie); ordinal adds `rps` Σ_{k<K} (F_k − [y ≤ k])²/(K − 1), F cumulative. No `rmse` / `mae` / `r2`; an outcome the fit lacks is skipped.
 <!-- /feature -->
 
 <!-- feature: capability:model_save, capability:models -->

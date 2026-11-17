@@ -40,6 +40,7 @@ Use something else:
 | `covariance` | object | — | `hc0`, `hc1`, `cluster`; `hc2` / `hc3` / `hac` refused. |
 | `weight` | object | — | Frequency or probability. |
 | `multiplicity` | object | — | Predictors' p-values join a family (thresholds carry none). |
+| `holdout` | expr | — | Proper scores: [`regression-row-scores`](regression-row-scores.md). |
 | `order` | object | — | Row order. |
 | `save` | string | — | Model file; row scores: [`regression-row-scores`](regression-row-scores.md). |
 | `name` | string | — | Result name. |
@@ -68,11 +69,11 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 ## Gotchas
 
 - Positive β: higher x, higher levels; logit `exp(β)` is the odds ratio of being above any level.
-- Dictionary order is import order: pass `levels` if imported out of order.
+- Dictionary order is import order; else pass `levels`.
 - A small Brant p-value: that predictor's effect differs across thresholds (omnibus on the symmetric covariance; the `brant` package's differs, per-term agrees).
 - Frequency weights = the `rep()` expansion; probability weights follow `REG_GLM`'s rule (w* = w·n_eff/Σw).
-- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`; `holdout` is `PULSE_MODEL_SCORE_INVALID`.
-- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`, the slot fails alone.
+- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`.
+- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`; fails alone.
 
 ## See
 

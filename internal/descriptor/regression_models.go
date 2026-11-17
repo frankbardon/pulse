@@ -211,9 +211,9 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 				p = m.Target
 			}
 			if p.Name == "holdout" && model.OutcomeType(t) {
-				// A categorical-outcome fit scores, yet its holdout is
-				// refused (model.HoldoutScorerRefusal): undeclared.
-				continue
+				// A categorical-outcome fit's holdout reports the proper
+				// scores of its probability vector, not rmse / mae / r2.
+				p.Description = outcomeHoldoutParamDescription(model.OrderedOutcomes(t))
 			}
 			params = append(params, p)
 			if p.Name == "resample" {

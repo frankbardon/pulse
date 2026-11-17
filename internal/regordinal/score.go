@@ -169,3 +169,17 @@ var Scorers = map[types.RegressionType]extend.RegressionScorerFactory{
 var ParamScorers = map[types.RegressionType]func(extend.FittedRegression, pmodel.ScoreParams) (extend.RowScorer, error){
 	types.REG_ORDINAL: ParamScorer,
 }
+
+// Probabilities are the package's probability-vector factories keyed by
+// type: the whole per-row vector a holdout's proper scores read (the
+// model-regression wiring, internal/regadapt, registers them on the
+// engine beside Scorers).
+var Probabilities = map[types.RegressionType]func(extend.FittedRegression) (pmodel.ProbabilityScorer, error){
+	types.REG_ORDINAL: func(fit extend.FittedRegression) (pmodel.ProbabilityScorer, error) {
+		f, err := NewFitted(fit)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	},
+}

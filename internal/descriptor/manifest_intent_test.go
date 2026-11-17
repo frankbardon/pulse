@@ -64,8 +64,11 @@ var scopedManifestExceptions = map[string]float64{
 	// (U71 E2-S4, #551; feature growth: the carryover param on both
 	// media-mix models and ATTR_REG_PREDICT's carryover / order, plus
 	// the adstock_state output key on both models) measured 15.94%
-	// (41,454 of 260,096 bytes).
-	IntentDrivers: 0.160,
+	// (41,454 of 260,096 bytes). A holdout on REG_ORDINAL and
+	// REG_MULTINOMIAL (U68 E1-S3; feature growth: one shared `holdout`
+	// Param row on each, their proper-score figures) measured 16.04%
+	// (42,037 of 262,095 bytes), up from 15.99%.
+	IntentDrivers: 0.161,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

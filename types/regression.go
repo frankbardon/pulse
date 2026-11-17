@@ -1058,17 +1058,36 @@ type RegressionResult struct {
 // held-out rows whose target and every predictor are present and finite
 // (and, weighted, whose weight is valid and positive) — as a raw count,
 // weighted or not; NNull counts the rows whose predicate was null
-// (neither fitted nor held out). RMSE = √(Σw·e²/Σw), MAE = Σw·|e|/Σw
-// and R2 = 1 − Σw·e²/Σw·(y − ȳ)² about the held-out rows' own (weighted)
-// mean, e = y − ŷ, w the slot's weight (1 unweighted). An undefined
-// figure (R2 when the held-out targets do not vary) is NaN — null on
-// the wire, key kept.
+// (neither fitted nor held out). Every figure is a weighted mean over
+// the scored rows, w the slot's weight (1 unweighted).
+//
+// A numeric-target fit reports RMSE = √(Σw·e²/Σw), MAE = Σw·|e|/Σw and
+// R2 = 1 − Σw·e²/Σw·(y − ȳ)² about the held-out rows' own (weighted)
+// mean, e = y − ŷ; the categorical figures are nil (absent).
+//
+// A categorical-outcome fit (REG_ORDINAL, REG_MULTINOMIAL) predicts a
+// probability vector p over its K outcomes, scored against the observed
+// outcome y (one-hot o): LogLoss = Σw·(−ln p_y)/Σw (natural log),
+// Brier = Σw·Σ_k (p_k − o_k)²/Σw (the multi-class form, 0..2), Accuracy
+// = Σw·[argmax p = y]/Σw (the first on a tie) and, REG_ORDINAL only,
+// RPS = Σw·Σ_{k<K} (F_k − O_k)²/(K − 1)/Σw, the ranked probability
+// score over the cumulative F_k = Σ_{j≤k} p_j and O_k = [y ≤ k]. A
+// held-out row whose outcome the fit does not carry is not scored.
+// RMSE, MAE and R2 are nil (absent) there.
+//
+// An undefined figure (R2 when the held-out targets do not vary,
+// LogLoss when an observed outcome scored probability 0) is NaN or
+// +Inf — null on the wire, key kept.
 type RegressionHoldout struct {
-	N     int     `json:"n"`
-	NNull int     `json:"n_null"`
-	RMSE  float64 `json:"rmse"`
-	MAE   float64 `json:"mae"`
-	R2    float64 `json:"r2"`
+	N        int      `json:"n"`
+	NNull    int      `json:"n_null"`
+	RMSE     *float64 `json:"rmse,omitempty"`
+	MAE      *float64 `json:"mae,omitempty"`
+	R2       *float64 `json:"r2,omitempty"`
+	LogLoss  *float64 `json:"log_loss,omitempty"`
+	Brier    *float64 `json:"brier,omitempty"`
+	Accuracy *float64 `json:"accuracy,omitempty"`
+	RPS      *float64 `json:"rps,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

@@ -181,8 +181,13 @@ func TestMarshalFinite_PublicResultTypes(t *testing.T) {
 		"PostFitResult": {PostFitResult{Label: "p", Type: "POSTFIT_X_Y", Scalars: map[string]float64{"s": nan},
 			Tables: map[string]*PostFitTable{"t": {Columns: []string{"v"}, Rows: [][]any{{inf}}}}}, []string{`"s":null`, `"rows":[[null]]`}},
 		// An undefined holdout r2 (constant held-out targets) is null, key kept.
-		"RegressionHoldout": {&RegressionResult{Type: REG_OLS, Holdout: &RegressionHoldout{N: 2, RMSE: 1, MAE: 1, R2: nan}},
+		"RegressionHoldout": {&RegressionResult{Type: REG_OLS, Holdout: &RegressionHoldout{N: 2, RMSE: new(1.0), MAE: new(1.0), R2: new(nan)}},
 			[]string{`"holdout":{"n":2,"n_null":0,"rmse":1,"mae":1,"r2":null}`}},
+		// A categorical-outcome holdout writes its proper scores alone
+		// (rmse / mae / r2 absent, a zero accuracy kept); an infinite log
+		// loss (an outcome scored probability 0) is null, key kept.
+		"RegressionHoldoutOutcome": {&RegressionResult{Type: REG_ORDINAL, Holdout: &RegressionHoldout{N: 2, LogLoss: new(inf), Brier: new(0.5), Accuracy: new(0.0), RPS: new(0.25)}},
+			[]string{`"holdout":{"n":2,"n_null":0,"log_loss":null,"brier":0.5,"accuracy":0,"rps":0.25}`}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

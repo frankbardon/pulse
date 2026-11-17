@@ -382,11 +382,11 @@ func TestMMMBayes_EngineHoldoutScores(t *testing.T) {
 		g, _ := sc.Score(scoreRow{"tv": rows[i].TV, "price": rows[i].Price})
 		sseGiven += float64((rows[i].Sales - g) * (rows[i].Sales - g))
 	}
-	if want := math.Sqrt(sse / 10); !relClose(r.Holdout.RMSE, want, 1e-9) {
-		t.Errorf("holdout rmse %v, want %v from the scorer on the carried adstocks", r.Holdout.RMSE, want)
+	if want := math.Sqrt(sse / 10); !relClose(*r.Holdout.RMSE, want, 1e-9) {
+		t.Errorf("holdout rmse %v, want %v from the scorer on the carried adstocks", *r.Holdout.RMSE, want)
 	}
-	if given := math.Sqrt(sseGiven / 10); relClose(r.Holdout.RMSE, given, 1e-6) {
-		t.Errorf("holdout rmse %v equals the as-given columns' %v: no carry-over", r.Holdout.RMSE, given)
+	if given := math.Sqrt(sseGiven / 10); relClose(*r.Holdout.RMSE, given, 1e-6) {
+		t.Errorf("holdout rmse %v equals the as-given columns' %v: no carry-over", *r.Holdout.RMSE, given)
 	}
 }
 

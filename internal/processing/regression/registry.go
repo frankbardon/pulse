@@ -68,6 +68,47 @@ func RegisterModelTangent(t types.RegressionType, f model.TangentFactory) {
 	modelTangents[t] = f
 }
 
+// modelProbabilities are the categorical-outcome model regressions'
+// probability-vector factories (RegisterModelProbabilities), read by
+// BoundProbabilities.
+var modelProbabilities = map[types.RegressionType]model.ProbabilityFactory{}
+
+// RegisterModelProbabilities installs model regression t's
+// probability-vector factory (U68 E1-S3: REG_ORDINAL's), the whole
+// per-row vector a holdout over a bound fit of t scores.
+// internal/regadapt calls it from its init beside RegisterModel; a type
+// that is no categorical-outcome model regression, or a second
+// registration, panics at boot.
+func RegisterModelProbabilities(t types.RegressionType, f model.ProbabilityFactory) {
+	if !model.ModelRegression(t) || !model.OutcomeType(t) {
+		panic("regression: RegisterModelProbabilities of " + string(t) + ", which is no categorical-outcome model regression")
+	}
+	if _, exists := modelProbabilities[t]; exists {
+		panic("regression: duplicate probability registration for " + string(t))
+	}
+	modelProbabilities[t] = f
+}
+
+// BoundProbabilities builds b's categorical-outcome ProbabilityScorer:
+// REG_MULTINOMIAL's MultinomialFitted, a model regression's registered
+// factory. A type with neither is an invariant violation
+// (PROCESSING_INTERNAL): model.OutcomeType admits only types that have
+// one (TestBoundProbabilities_EveryOutcomeType).
+func BoundProbabilities(b *model.Bound) (model.ProbabilityScorer, error) {
+	if b.Type == types.REG_MULTINOMIAL {
+		f, err := NewMultinomialFitted(b)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+	if f, ok := modelProbabilities[b.Type]; ok {
+		return f(b)
+	}
+	return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		"regression "+string(b.Type)+" has no probability-vector scorer", map[string]any{"regression": string(b.Type)})
+}
+
 // Lookup returns the factory for a regression type, if registered.
 func Lookup(t types.RegressionType) (Factory, bool) {
 	f, ok := regressionRegistry[t]

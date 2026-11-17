@@ -5711,6 +5711,24 @@
     "RegressionHoldout": {
       "additionalProperties": false,
       "properties": {
+        "accuracy": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "brier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "log_loss": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "mae": {
           "type": [
             "number",
@@ -5734,14 +5752,17 @@
             "number",
             "null"
           ]
+        },
+        "rps": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
-        "mae",
         "n",
-        "n_null",
-        "r2",
-        "rmse"
+        "n_null"
       ],
       "type": "object"
     },
@@ -8289,4 +8310,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 55cfd8020c9a4f216a193bfd002163ba6bdb4a3371b63fdd5c68fa7f9a396b10
+// golden-hash: 787cedc001c229b915d08f163b2e69d83abd1bebe540cfb1538a265df8cbe40b

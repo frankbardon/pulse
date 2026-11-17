@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -326,6 +327,51 @@ func TestRegressionOutputs_AreResultTags(t *testing.T) {
 	for reg := range regressionOutputs {
 		if !slices.Contains(regs, reg) {
 			t.Errorf("applicability row %s names no registered regression", reg)
+		}
+	}
+}
+
+// TestHoldoutOutputs_AreResultTags: every key a holdout reports is a
+// RegressionHoldout JSON key; a categorical-outcome type reports the
+// proper scores (rps on an ordered one) and never rmse / mae / r2, a
+// numeric type the reverse; and the interpretation resolver admits a
+// holdout field exactly when the type reports it.
+func TestHoldoutOutputs_AreResultTags(t *testing.T) {
+	t.Parallel()
+
+	tags := jsonTags(reflect.TypeOf(types.RegressionHoldout{}))
+	for _, typ := range types.AllRegressionTypes() {
+		keys := holdoutOutputs(typ)
+		for _, k := range keys {
+			if _, ok := tags[k]; !ok {
+				t.Errorf("%s: %q is not a RegressionHoldout JSON key", typ, k)
+			}
+		}
+		categorical := []string{"log_loss", "brier", "accuracy"}
+		numeric := []string{"rmse", "mae", "r2"}
+		want, absent := numeric, categorical
+		if model.OutcomeType(typ) {
+			want, absent = categorical, numeric
+		}
+		for _, k := range want {
+			if !slices.Contains(keys, k) {
+				t.Errorf("%s holdout omits %q", typ, k)
+			}
+		}
+		for _, k := range absent {
+			if slices.Contains(keys, k) {
+				t.Errorf("%s holdout reports %q", typ, k)
+			}
+		}
+		if slices.Contains(keys, "rps") != (typ == types.REG_ORDINAL) {
+			t.Errorf("%s holdout rps listed = %v; only REG_ORDINAL's ordered outcome has one", typ, slices.Contains(keys, "rps"))
+		}
+		resolve := regressionOutputResolver(string(typ))
+		for k := range tags {
+			got, _ := resolve("holdout." + k)
+			if (got == FieldStatic) != slices.Contains(keys, k) {
+				t.Errorf("%s: resolver says holdout.%s is %v", typ, k, got)
+			}
 		}
 	}
 }

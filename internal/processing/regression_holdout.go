@@ -146,6 +146,20 @@ func (p *Processor) fitHoldout(ctx context.Context, spec *types.RegressionSpec, 
 	if err != nil {
 		return nil, nil, err
 	}
+	if model.OutcomeType(spec.Type) {
+		// A categorical-outcome fit scores its held-out rows' whole
+		// probability vector: the proper scores, never one column.
+		ps, err := regression.BoundProbabilities(b)
+		if err != nil {
+			return nil, nil, err
+		}
+		figures, ferr := regression.HoldoutOutcomeFigures(spec, ps, model.OrderedOutcomes(spec.Type), held, nNull)
+		if ferr != nil {
+			return nil, ferr, nil
+		}
+		res.Holdout = figures
+		return res, nil, nil
+	}
 	scorer, err := b.Scorer(p.exts.RegressionScorer, model.ScoreParams{Fit: name})
 	if err != nil {
 		return nil, nil, err

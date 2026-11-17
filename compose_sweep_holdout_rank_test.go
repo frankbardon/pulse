@@ -92,17 +92,17 @@ func assertHoldoutRanking(t *testing.T, out *ComposedResponse) []types.RankEntry
 			t.Fatalf("slot %s regressions %+v; want one fit with a holdout", resp.Label, resp.Regressions)
 		}
 		h := resp.Regressions[0].Holdout
-		if h.N != holdoutRankRows-holdoutRankCut || !(h.RMSE > 0) || math.IsInf(h.RMSE, 0) {
+		if h.N != holdoutRankRows-holdoutRankCut || !(*h.RMSE > 0) || math.IsInf(*h.RMSE, 0) {
 			t.Fatalf("slot %s holdout %+v; want %d held-out rows and a finite RMSE", resp.Label, h, holdoutRankRows-holdoutRankCut)
 		}
-		if prev, dup := seen[h.RMSE]; dup {
-			t.Fatalf("slots %s and %s share holdout rmse %v: the swept offset never reached the window", prev, resp.Label, h.RMSE)
+		if prev, dup := seen[*h.RMSE]; dup {
+			t.Fatalf("slots %s and %s share holdout rmse %v: the swept offset never reached the window", prev, resp.Label, *h.RMSE)
 		}
-		seen[h.RMSE] = resp.Label
+		seen[*h.RMSE] = resp.Label
 	}
 	for i, e := range out.Ranking {
 		slot := out.Responses[e.Slot]
-		if e.Rank != i+1 || e.Label != slot.Label || e.Value != slot.Regressions[0].Holdout.RMSE {
+		if e.Rank != i+1 || e.Label != slot.Label || e.Value != *slot.Regressions[0].Holdout.RMSE {
 			t.Fatalf("ranking[%d] = %+v; want rank %d valued at slot %q's holdout rmse", i, e, i+1, slot.Label)
 		}
 		if i > 0 && !(out.Ranking[i-1].Value < e.Value) {

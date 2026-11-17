@@ -288,6 +288,55 @@ func TestRegOrdinal_MatchesPolrEndToEnd(t *testing.T) {
 	}
 }
 
+// TestRegOrdinal_HoldoutMatchesR: a holdout over the golden's own rows
+// plus its holdout_rows (id ≥ the case's n) fits exactly the golden fit
+// and reports the proper scores ord_scores computes in closed form from
+// predict(polr, type = "probs") — log_loss, brier, accuracy and rps,
+// weighted (frequency and probability cases), labeled and numeric
+// responses, every link — at 1e-10; rmse / mae / r2 are absent.
+func TestRegOrdinal_HoldoutMatchesR(t *testing.T) {
+	t.Parallel()
+	cases := 0
+	for _, c := range regordinal.LoadOracle(t) {
+		if c.Holdout == nil {
+			continue
+		}
+		cases++
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			p := newInstance(t, nil)
+			cs := cohortSpec{p: len(c.Predictors), id: true}
+			var labels []string
+			if c.Levels[0] != "1" {
+				cs.dict, labels = c.Levels, c.Levels
+			}
+			rows := append(slices.Clone(c.Rows), c.HoldoutRows...)
+			writeCohort(t, p, "ord.pulse", cs, rows, labels)
+			s := caseSpec(c, nil)
+			s.Holdout = "id >= " + strconv.Itoa(len(c.Rows))
+			res := fitOne(t, p, "ord.pulse", s)
+			checkAgainstGolden(t, c, res)
+			h, want := res.Holdout, c.Holdout
+			if h == nil || h.N != want.N || h.NNull != 0 || h.RMSE != nil || h.MAE != nil || h.R2 != nil {
+				t.Fatalf("holdout %+v: want n %d, no rmse / mae / r2", h, want.N)
+			}
+			for _, f := range []struct {
+				name      string
+				got       *float64
+				want, tol float64
+			}{{"log_loss", h.LogLoss, want.LogLoss, e2eRel}, {"brier", h.Brier, want.Brier, e2eRel},
+				{"accuracy", h.Accuracy, want.Accuracy, 0}, {"rps", h.RPS, want.RPS, e2eRel}} {
+				if f.got == nil || rel(*f.got, f.want) > f.tol {
+					t.Errorf("holdout %s = %v, R %.17g", f.name, f.got, f.want)
+				}
+			}
+		})
+	}
+	if cases < 6 {
+		t.Fatalf("%d golden cases carry a holdout; want the six classical ones", cases)
+	}
+}
+
 // goldenCase returns the named golden case.
 func goldenCase(t *testing.T, name string) regordinal.OracleCase {
 	t.Helper()
@@ -433,7 +482,6 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"intercept":      {`,"intercept":false`, perr.PROCESSING_CONFIG, "intercept"},
 		"bounds":         {`,"bounds":{"nonnegative":["x1"]}`, perr.PROCESSING_CONFIG, "bounds"},
 		"prior":          {`,"prior":"nig"`, perr.PROCESSING_CONFIG, "prior"},
-		"holdout":        {`,"holdout":"x1 > 0"`, perr.PULSE_MODEL_SCORE_INVALID, ""},
 		"params_link":    {`,"params":{"link":"cauchit"}`, perr.PROCESSING_CONFIG, "params.link"},
 		"params_levels":  {`,"params":{"levels":["1","2","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
 		"params_two":     {`,"params":{"levels":["1","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
@@ -485,6 +533,8 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"levels":       `,"params":{"levels":["1","2","3"]}`,
 		// Its scorer (ATTR_REG_PREDICT) makes the fit saveable.
 		"save": `,"save":"m.pulse-model.json"`,
+		// Its probability vector scores a holdout (U68 E1-S3).
+		"holdout": `,"holdout":"x1 > 0"`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()
