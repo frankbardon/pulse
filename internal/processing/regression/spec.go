@@ -38,8 +38,9 @@ import (
 //     hand-built specs in tests.
 //
 // A spec is then held to validateConfLevel (0 < conf_level < 1, zero
-// the default), when it sets Vcov to validateVcov, and to the shared
-// covariance rule regcov.Check.
+// the default), when it sets Vcov to validateVcov, to the shared
+// covariance rule regcov.Check, and last to the selection-criterion
+// rule regresample.CheckSelectionCriterion.
 func ValidateRegression(spec *types.RegressionSpec) error {
 	// REG_MULTINOMIAL's refused knobs, and `reference` on any other
 	// built-in — the one rule predict applies too (internal/regmultinom).
@@ -93,6 +94,13 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// The collinearity block (shape, type, the fits it refuses) — the one
 	// rule predict applies too (internal/collinearity).
 	if cerr := collinearity.Check(spec); cerr != nil {
+		return cerr
+	}
+	// A selection names its criterion: SERVICE_VALIDATION {selection} —
+	// the one rule predict applies to every regression
+	// (internal/regresample.CheckSelectionCriterion), judged before any
+	// fit runs (U68 I13; the search's own check stays as a backstop).
+	if cerr := regresample.CheckSelectionCriterion(spec); cerr != nil {
 		return cerr
 	}
 	return nil

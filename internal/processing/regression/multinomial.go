@@ -8,7 +8,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regmultinom"
-	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
@@ -70,13 +69,10 @@ func newMultinomialEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"multinomialEngine constructed for a non-multinomial spec", map[string]any{"type": string(spec.Type)})
 	}
+	// ValidateRegression ends with the selection-criterion rule —
+	// predict's rule itself (the extension adapter's too).
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
-	}
-	// Selection names its criterion — predict's rule itself (the
-	// extension adapter's too).
-	if cerr := regresample.CheckSelectionCriterion(spec); cerr != nil {
-		return nil, cerr
 	}
 	if len(spec.Predictors) == 0 {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

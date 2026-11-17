@@ -9,8 +9,8 @@ import (
 // criterion — SERVICE_VALIDATION, details {selection}, when spec sets
 // selection without criterion. Predict applies it to every regression
 // (internal/descriptor.RegressionSelectionCriterionRefusal); the
-// extension adapter and the REG_MULTINOMIAL engine apply the same call
-// before their selection driver runs.
+// built-ins' ValidateRegression (every engine factory) and the
+// extension adapter apply the same call before any fit runs.
 func CheckSelectionCriterion(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Selection == "" || spec.Criterion != "" {
 		return nil
