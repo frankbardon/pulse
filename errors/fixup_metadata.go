@@ -190,6 +190,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Filterers"},
 				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim Predictors[] to a smaller set.",
 			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Regressions", "*", "Resample"},
+				Hint:   "On details.reason replicate_empty_level (a REG_ORDINAL jackknife replicate lost a response level the full fit has), switch resample to bootstrap, which skips such replicates, or choose jackknife_by groups that each leave every level behind, or merge the sparse level.",
+			},
 		},
 	},
 	PROCESSING_REGRESSION_ORDER: {

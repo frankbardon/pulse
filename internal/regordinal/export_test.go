@@ -7,3 +7,7 @@ package regordinal
 type OracleCase = oracleCase
 
 var LoadOracle = loadOracle
+
+type OracleModifiers = oracleModifiers
+
+var LoadModifiers = loadModifiers

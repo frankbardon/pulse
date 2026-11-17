@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ordinal]
 ```
 
-`REG_ORDINAL` fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` over the response's ordered levels (polr): one coefficient per predictor shifts every threshold alike.
+`REG_ORDINAL` fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` (polr): one coefficient per predictor shifts every threshold alike.
 
 ## Use when
 
@@ -31,27 +31,34 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | (required) | Ordered response: categorical or numeric, 3 to 100 levels. |
-| `predictors` | []field | (required) | Numeric. |
+| `predictors` | []field | (required) | — |
 | `link` | enum | `logit` | `logit`, `probit`, `cloglog` (polr's method). |
-| `levels` | array | — | Level order, lowest first (labels, or values as written). Absent: dictionary order / ascending values. |
+| `levels` | array | — | Level order, lowest first (labels or values as written). |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
-| `conf_level` | float | `0.95` | Wald CI level. |
+| `conf_level` | float | `0.95` | CI level. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
-| `covariance` | object | — | `hc0`, `hc1`, `cluster`; `hc2` / `hc3` / `hac` refused. |
+| `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
 | `weight` | object | — | Frequency or probability. |
-| `multiplicity` | object | — | Predictors' p-values join a family (thresholds carry none). |
-| `holdout` | expr | — | Proper scores: [`regression-row-scores`](regression-row-scores.md). |
+| `multiplicity` | object | — | Predictors' p-values only. |
+| `holdout` | expr | — | Proper scores. |
+| `resample` | enum | — | [`op-reg-mod-resample`](op-reg-mod-resample.md). |
+| `bootstrap_iters` | int | `1000` | — |
+| `jackknife_groups` | int | — | — |
+| `jackknife_by` | field | — | — |
+| `rng_seed` | int | — | — |
+| `selection` | enum | — | [`op-reg-mod-selection`](op-reg-mod-selection.md). |
+| `criterion` | enum | — | `aic`, `bic`. |
 | `order` | object | — | Row order. |
-| `save` | string | — | Model file; row scores: [`regression-row-scores`](regression-row-scores.md). |
+| `save` | string | — | Model file ([`regression-row-scores`](regression-row-scores.md)). |
 | `name` | string | — | Result name. |
 
 ## Inputs
 
-A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` does not list is dropped (R's `factor(y, levels =)` NA), as is a null cluster. Fewer than 3 or more than 100 levels on the fitted rows, or a listed level no row carries, fails the slot alone (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason`).
+A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped (R's `factor` NA), as is a null cluster. Too few / many levels on the fitted rows, or a listed level no row carries, fails the slot alone (`INSUFFICIENT_DATA`, `reason`).
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `std_errors` (inverse observed information, or the sandwich), `statistics` z, `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` `{statistic, df, p_value, terms}` — omnibus df (K − 2)·p, per predictor K − 2.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus df (K − 2)·p, per-predictor `terms` K − 2).
 
 ## Reading the output
 
@@ -68,12 +75,13 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Gotchas
 
-- Positive β: higher x, higher levels; logit `exp(β)` is the odds ratio of being above any level.
-- Dictionary order is import order; else pass `levels`.
-- A small Brant p-value: that predictor's effect differs across thresholds (omnibus on the symmetric covariance; the `brant` package's differs, per-term agrees).
+- Positive β: higher x, higher levels.
+- Dictionary order = import order; else pass `levels`.
+- Small Brant p: the predictor's effect differs across thresholds (omnibus on the symmetric covariance).
 - Frequency weights = the `rep()` expansion; probability weights follow `REG_GLM`'s rule (w* = w·n_eff/Σw).
-- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`.
-- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`; fails alone.
+- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `margins`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.
+- `resample` / `selection` keep the first fit's levels: a bootstrap draw lacking one is skipped, a jackknife one fails (`replicate_empty_level`). AIC / BIC k counts thresholds.
+- Separation: `NO_CONVERGE`; fails alone.
 
 ## See
 

@@ -174,7 +174,7 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 		var run *bootstrapRun
 		if run, err = bootstrapCore(ctx, spec, rows, active, q, rep, extensionFatal); err == nil {
 			se, cov, bootP = run.se, run.cov, run.p
-			out.BootstrapRequested, out.BootstrapSucceeded = run.requested, run.succeeded
+			run.echo(&out)
 		}
 	default:
 		err = unknownResample(spec)

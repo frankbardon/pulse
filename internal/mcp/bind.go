@@ -1106,7 +1106,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"credible_level":   num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
 				"conf_level":       num("Coverage of the coefficient intervals ci_lower / ci_upper, 0 < c < 1; 0 means 0.95 (REG_BAYES_LINEAR: credible_level)."),
 				"resample":         enumStringField([]string{"jackknife", "bootstrap"}, "Resampling layer; omit for none."),
-				"bootstrap_iters":  integer("Bootstrap replicates when resample is bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested / bootstrap_succeeded."),
+				"bootstrap_iters":  integer("Bootstrap replicates when resample is bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested / bootstrap_succeeded (/ bootstrap_skipped when a refit failed)."),
 				"jackknife_groups": integer("resample jackknife only: delete-a-group jackknife over this many seeded random groups (>= 2) instead of leave-one-out; exclusive with jackknife_by."),
 				"jackknife_by":     map[string]any{"type": "string", "description": "resample jackknife only: field whose distinct values are the delete-a-cluster jackknife's groups; exclusive with jackknife_groups."},
 				"rng_seed":         integer("Bootstrap RNG and jackknife_groups assignment seed."),

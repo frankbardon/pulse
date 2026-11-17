@@ -49,9 +49,9 @@ type brantParams struct{}
 
 // params is the params object.
 type params struct {
-	Link   string       `json:"link"`
-	Levels []string     `json:"levels"`
-	Brant  *brantParams `json:"brant"`
+	Link   string       `json:"link,omitempty"`
+	Levels []string     `json:"levels,omitempty"`
+	Brant  *brantParams `json:"brant,omitempty"`
 }
 
 // OutputSchema is REG_ORDINAL's declared Outputs.

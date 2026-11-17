@@ -187,12 +187,19 @@ func groupedJackknifeCore(ctx context.Context, spec *types.RegressionSpec, recor
 
 // bootstrapRun is a bootstrap's replicate statistics: the SE and
 // covariance of the successful replicates, the two-sided percentile
-// p-value of every coefficient, and the requested / successful
-// replicate counts.
+// p-value of every coefficient, and the requested / successful /
+// skipped replicate counts (skipped = requested − succeeded).
 type bootstrapRun struct {
-	se, p                []float64
-	cov                  [][]float64
-	requested, succeeded int
+	se, p                         []float64
+	cov                           [][]float64
+	requested, succeeded, skipped int
+}
+
+// echo writes the run's replicate counts on out (bootstrap_requested,
+// bootstrap_succeeded and — only when a replicate was skipped —
+// bootstrap_skipped).
+func (r *bootstrapRun) echo(out *types.RegressionResult) {
+	out.BootstrapRequested, out.BootstrapSucceeded, out.BootstrapSkipped = r.requested, r.succeeded, r.skipped
 }
 
 // bootstrapCore is the non-parametric bootstrap over the fitted rows
@@ -222,6 +229,7 @@ func bootstrapCore(ctx context.Context, spec *types.RegressionSpec, rows []Recor
 	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9E3779B97F4A7C15))
 
 	replicates := make([][]float64, 0, B)
+	skipped := 0
 	sample := make([]Record, n)
 	for b := 0; b < B; b++ {
 		if err := ctxErr(ctx); err != nil {
@@ -244,6 +252,7 @@ func bootstrapCore(ctx context.Context, spec *types.RegressionSpec, rows []Recor
 				// systematic problem. Surface the underlying error.
 				return nil, err
 			}
+			skipped++
 			continue
 		}
 		replicates = append(replicates, row)
@@ -283,5 +292,5 @@ func bootstrapCore(ctx context.Context, spec *types.RegressionSpec, rows []Recor
 		}
 		bootP[j] = pTwoSided
 	}
-	return &bootstrapRun{se: diagSqrt(cov), p: bootP, cov: cov, requested: B, succeeded: len(replicates)}, nil
+	return &bootstrapRun{se: diagSqrt(cov), p: bootP, cov: cov, requested: B, succeeded: len(replicates), skipped: skipped}, nil
 }

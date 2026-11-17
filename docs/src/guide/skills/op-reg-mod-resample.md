@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-mod-resample
-description: Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+description: Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_RESAMPLE
@@ -25,7 +25,7 @@ Flat keys on the host spec. A **wrapper, not a fit**: the host refits per replic
 
 ## Inputs
 
-Inherits `target` / `predictors` from an OLS or GLM host (any penalty); the Bayesian fit refuses it — credible intervals already convey uncertainty.
+Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host (`REG_ORDINAL` keeps the full fit's levels); the Bayesian fit refuses it (credible intervals convey uncertainty).
 
 ## Output
 
@@ -33,7 +33,7 @@ Inherits `target` / `predictors` from an OLS or GLM host (any penalty); the Baye
 - A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
 - `Resample` echoes back; `Coefficients` unchanged. Under `l1` / `elasticnet` it supplies the null SE / p (penalized refits) and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
-- Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
+- Bootstrap echoes `bootstrap_requested` (replicates run), `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these) and `bootstrap_skipped` (failed refits; absent if none): many = unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas
 

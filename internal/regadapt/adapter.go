@@ -66,6 +66,13 @@ type RegressionAdapter struct {
 	// RegressionResult.Dispersion beside the Vcov; ok=false attaches
 	// none.
 	Dispersion func(spec *types.RegressionSpec, out extend.RegressionOutput) (float64, bool)
+	// Pin, when set (a model regression's only —
+	// internal/regordinal.ReplicatePins), pins every modifier refit
+	// after the slot's first successful one (regressionModifierEngine):
+	// the spec later refits build their model from, the mapping of a
+	// pinned refit's refusal, and the coefficients that keep no p-value
+	// under resample.
+	Pin func(spec *types.RegressionSpec, first *types.RegressionResult) (model.ReplicatePin, error)
 }
 
 // regProbeDetails marks a registration probe's weighted pass on a
@@ -772,10 +779,50 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // FitBufferedContext runs the modifiers under ctx
 // (regression.ContextBufferedEngine): a request deadline stops the
 // refit loop between two fits.
+//
+// A model with a Pin hook (REG_ORDINAL) has every refit after the
+// first successful one — the base fit, or under selection the search's
+// first candidate — built from the pinned spec (REG_ORDINAL: the first
+// fit's levels as params.levels), its refusals mapped by the pin, and
+// the pin's NoPValue coefficients keep a NaN p-value under resample.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
+	var pin *model.ReplicatePin
 	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
-		return e.refit(ctx, recs, predictors)
+		spec := e.spec
+		if pin != nil {
+			spec = pin.Spec
+		}
+		res, keys, err := e.refit(ctx, spec, recs, predictors)
+		if err != nil {
+			if pin != nil && pin.Refusal != nil {
+				err = pin.Refusal(err)
+			}
+			return nil, nil, err
+		}
+		if pin == nil && e.reg.Pin != nil {
+			p, pinErr := e.reg.Pin(e.spec, res)
+			if pinErr != nil {
+				return nil, nil, pinErr
+			}
+			pin = &p
+		}
+		return res, keys, nil
 	}
+	res, err := e.runModifiers(ctx, records, refit)
+	if err != nil || pin == nil || res.Resample == "" {
+		return res, err
+	}
+	for _, k := range pin.NoPValue {
+		if _, ok := res.PValues[k]; ok {
+			res.PValues[k] = math.NaN()
+		}
+	}
+	return res, nil
+}
+
+// runModifiers is RunExtensionModifiers over refit with the adapter's
+// contract-fault constructors.
+func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []regression.Record, refit regression.ExtensionFit) (*types.RegressionResult, error) {
 	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.Decl.PValues, records, refit,
 		func() error { return RegressionSelectionDevianceMismatch(e.reg, false) },
 		func(base, got []string) error {
@@ -786,10 +833,11 @@ func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, recor
 		})
 }
 
-// refit is one fresh fit of the model over recs with predictors active,
-// under the operation's ctx (a ContextRegression model's FitContext).
-func (e *regressionModifierEngine) refit(ctx context.Context, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
-	inner := *e.spec
+// refit is one fresh fit of the model built from spec over recs with
+// predictors active, under the operation's ctx (a ContextRegression
+// model's FitContext).
+func (e *regressionModifierEngine) refit(ctx context.Context, spec *types.RegressionSpec, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+	inner := *spec
 	inner.Predictors = slices.Clone(predictors)
 	inner.Resample, inner.JackknifeGroups, inner.JackknifeBy, inner.BootstrapIters, inner.RNGSeed = "", 0, "", 0, 0
 	inner.Selection, inner.Criterion = "", ""

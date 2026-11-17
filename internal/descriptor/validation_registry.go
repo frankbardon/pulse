@@ -64,6 +64,9 @@ const (
 	// same golden's per-row predict(polr, type = "probs") (U68 #650).
 	ordScore    = "internal/regordinal/score_test.go"
 	ordScoreE2E = "internal/regordinal/score_e2e_test.go"
+	// ordModE2E pins its resample and selection modifiers to the same
+	// golden's modifiers block (U68 E2-S1, #651).
+	ordModE2E = "internal/regordinal/modifiers_e2e_test.go"
 	// wRefusal pins the permanent weight refusals (WeightRefused).
 	wRefusal = "internal/integration/weight_refusal_pin_test.go"
 
@@ -306,8 +309,9 @@ var validationRegistry = map[string]ValidationRecord{
 			valR("+ MASS 7.3-66 `predict(polr, type = \"probs\")` and `$lp` at the polished MLE (agreeing to 1e-6 with polr's own optimum): the ATTR_REG_PREDICT row scores — P(y = level), P(y ≤ level), the expected level, the class and xᵀβ — on the logit / probit / cloglog cases, through a bound fit and its saved-and-reloaded model file", tol10, ordScore, ordScoreE2E),
 			{Against: rPin + " + MASS 7.3-66 `predict(polr, type = \"probs\")` of the frequency- and probability-weighted fits (the row scores read the weighted MLE)", Tol: tol10, Tests: []string{ordScore, ordScoreE2E}, Weighted: true},
 			{Against: rPin + " + MASS 7.3-66 `predict(polr, newdata, type = \"probs\")` on fixed held-out rows: the `holdout` proper scores — log loss, multi-class Brier, accuracy and the ranked probability score — as weighted closed forms, unweighted, frequency- and probability-weighted, through a holdout fit end to end", Tol: tol10, Tests: []string{ordE2E}, Weighted: true},
+			valR("+ MASS 7.3-66 `polr`, the manual-deletion jackknife: every leave-one-out and delete-a-cluster refit polished to its MLE (each agreeing with `polr` on the same deletion to 1e-6), the jackknife standard errors of the predictors and thresholds; `MASS::stepAIC` on `polr` (forward / backward / both, k = 2 and log(n)): the selected terms (forward in entry order) and the final model's MLE and deviance — `resample` and `selection`, every refit at the full fit's levels", "1e-8 relative", ordModE2E),
 		},
-		Gap: "The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Resample, selection, penalty, margins and collinearity are refused (no oracle), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series).",
+		Gap: "The Brant test's omnibus statistic reads the symmetric covariance of the binary logits' slopes (Brant 1990); brant 0.3.0 stores the (m, l) cross block untransposed at (l, m), so its omnibus figure differs (per-predictor statistics agree) — the oracle script reproduces the package's figure exactly and pins the symmetric one. Penalty, margins and collinearity are refused (no oracle), and covariance hc2 / hc3 / hac (no row-wise hat matrix, no series). The bootstrap has no R oracle (its replicates are Pulse's seeded draws): it is pinned seed-stable and worker-invariant, and its level-loss skip by construction. Selection rows can differ across candidates when a predictor has nulls (each candidate fits the rows its predictors admit), unlike stepAIC, which refuses a changed row count.",
 	},
 	"REG_MMM_BAYES": {
 		Refs: []ValidationRef{

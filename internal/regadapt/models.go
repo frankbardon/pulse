@@ -47,6 +47,7 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 		BoundScorer: regmmm.BoundScorers[t],
 		ParamScorer: regordinal.ParamScorers[t],
 		Dispersion:  regmmm.Dispersions[t],
+		Pin:         regordinal.ReplicatePins[t],
 	}, true
 }
 

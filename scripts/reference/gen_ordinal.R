@@ -54,6 +54,10 @@
 # matrix predict(polr, type = "probs") returns) are at the polished MLE,
 # on the classical-covariance cases (a robust covariance moves no score).
 #
+# The `modifiers` block (U68 E2-S1) adds the resample / selection
+# oracles — the manual-deletion jackknife and MASS::stepAIC on polr —
+# drawn after every case under its own seed (see the block below).
+#
 # Seeded (set.seed(20261102)); draws its own rows, so no other golden
 # moves. Rows are [x..., y, w, g] (y the 1-based level index, g the
 # cluster id, w = 1 unweighted).
@@ -423,6 +427,111 @@ ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE
 d <- ord_draw(200, c(0.6, 0.4), c(-0.6, 0.5))
 ord_case("levels_subset", d, c("x1", "x2"), levels_param = c("1", "2", "3"))
 
+# Resample and selection (U68 E2-S1, #651): REG_ORDINAL refit by the
+# engine's modifier drivers. Drawn AFTER every case above under its own
+# seed, so no case's rows move.
+#   * jackknife: the manual-deletion jackknife on polr — n leave-one-out
+#     refits (each polished to its MLE from the full fit and checked
+#     against polr on the same deletion to 1e-6), SE = sqrt((n - 1)/n
+#     sum_i (theta_(i) - mean)^2) over every coefficient (predictors and
+#     thresholds); jackknife_by g: one refit per deleted cluster (sorted
+#     values), (G - 1)/G.
+#   * selection: MASS::stepAIC on polr — forward and both from yf ~ 1,
+#     backward from the full model, scope the five predictors, k = 2 (AIC)
+#     and log(n) (BIC); the criterion is extractAIC's -2 loglik + k * edf,
+#     edf = predictors + thresholds. A greedy search over the POLISHED
+#     deviances re-runs each path and must pick the same terms, every
+#     step's winner ahead of the runner-up by more than 1e-3 (so polr's
+#     ~1e-6 optimum cannot flip a step); selected lists the terms in
+#     stepAIC's order (forward: the order they entered), coefficients the
+#     final model's polished MLE (the selected terms, then thresholds).
+set.seed(20261128)
+ord_mdraw <- function(n, beta, cuts) {
+  d <- ord_draw(n, beta, cuts)
+  d$g <- sample(1:8, n, replace = TRUE)
+  d
+}
+ord_fit_theta <- function(d, preds, J, start = NULL) {
+  X <- as.matrix(d[, preds, drop = FALSE])
+  yf <- factor(d$y, levels = seq_len(J))
+  dd <- data.frame(yf = yf, d[, preds, drop = FALSE])
+  f <- if (length(preds) == 0) yf ~ 1 else as.formula(paste("yf ~", paste(preds, collapse = " + ")))
+  pf <- suppressWarnings(polr(f, data = dd, Hess = TRUE, control = list(reltol = 1e-14, maxit = 5000)))
+  th <- ord_newton(if (is.null(start)) c(coef(pf), pf$zeta) else start, X, d$y, rep(1, nrow(d)), J, ord_links$logit)
+  ord_check("modifier refit polr vs polished", c(coef(pf), pf$zeta), th, 1e-6, floor = 1)
+  list(theta = th, dev = -2 * ord_parts(th, X, d$y, rep(1, nrow(d)), J, ord_links$logit)$ll)
+}
+ord_jk_se <- function(reps, scale) {
+  m <- colMeans(reps)
+  sqrt(scale * colSums(sweep(reps, 2, m)^2))
+}
+ord_rows <- function(d, preds) lapply(seq_len(nrow(d)), function(i) ord_g17(c(unlist(d[i, preds]), d$y[i], 1, d$g[i])))
+
+d <- ord_mdraw(60, c(0.9, -0.7), c(-0.4, 0.6))
+J <- max(d$y)
+if (!all(sort(unique(d$y)) == seq_len(J))) stop("jackknife: empty level")
+preds <- c("x1", "x2")
+full <- ord_fit_theta(d, preds, J)
+loo <- t(sapply(seq_len(nrow(d)), function(i) ord_fit_theta(d[-i, ], preds, J, full$theta)$theta))
+gs <- sort(unique(d$g))
+grp <- t(sapply(gs, function(g) ord_fit_theta(d[d$g != g, ], preds, J, full$theta)$theta))
+ord_jackknife <- list(name = "jackknife_logit", predictors = preds, levels = as.character(seq_len(J)),
+  coefficients = ord_g17(full$theta),
+  std_errors = ord_g17(ord_jk_se(loo, (nrow(d) - 1) / nrow(d))),
+  by_groups = length(gs),
+  by_std_errors = ord_g17(ord_jk_se(grp, (length(gs) - 1) / length(gs))),
+  rows = ord_rows(d, preds))
+
+d <- ord_mdraw(160, c(1.0, -0.8, 0.22, 0, 0), c(-0.5, 0.8))
+J <- max(d$y)
+if (!all(sort(unique(d$y)) == seq_len(J))) stop("selection: empty level")
+preds <- paste0("x", 1:5)
+d$yf <- factor(d$y, levels = seq_len(J))
+dsel <- d
+# ord_greedy re-runs one stepAIC path over polished deviances; it
+# returns the terms in entry order, stopping when no move lowers the
+# criterion by more than 0 and refusing a step whose winner leads the
+# runner-up (or the stay) by less than 1e-3.
+ord_greedy <- function(direction, k) {
+  crit <- function(active) ord_fit_theta(dsel, active, J)$dev + k * (length(active) + J - 1)
+  active <- if (direction == "backward") preds else character(0)
+  cur <- crit(active)
+  repeat {
+    moves <- list()
+    if (direction != "backward") for (t in setdiff(preds, active)) moves[[length(moves) + 1]] <- c(active, t)
+    if (direction != "forward") for (t in active) moves[[length(moves) + 1]] <- setdiff(active, t)
+    if (length(moves) == 0) break
+    cs <- sapply(moves, crit)
+    o <- order(cs)
+    gaps <- c(cur, cs[o[-1]]) - cs[o[1]]
+    if (any(abs(gaps) < 1e-3)) stop("selection ", direction, " k=", k, ": a step is within 1e-3 of a tie")
+    if (cs[o[1]] >= cur) break
+    active <- moves[[o[1]]]
+    cur <- cs[o[1]]
+  }
+  active
+}
+sc <- list(lower = ~1, upper = as.formula(paste("~", paste(preds, collapse = " + "))))
+m0 <- polr(yf ~ 1, data = dsel, Hess = TRUE)
+m1 <- polr(as.formula(paste("yf ~", paste(preds, collapse = " + "))), data = dsel, Hess = TRUE)
+ord_selection_runs <- list()
+for (crit_name in c("aic", "bic")) {
+  k <- if (crit_name == "aic") 2 else log(nrow(dsel))
+  for (direction in c("forward", "backward", "stepwise")) {
+    st <- stepAIC(if (direction == "backward") m1 else m0, scope = sc, k = k, trace = 0,
+                  direction = if (direction == "stepwise") "both" else direction)
+    sel <- names(coef(st))
+    mine <- ord_greedy(if (direction == "stepwise") "both" else direction, k)
+    if (!setequal(sel, mine) || (direction == "forward" && !identical(sel, mine))) stop("stepAIC ", direction, " ", crit_name, " picks ", paste(sel, collapse = ","), ", the polished search ", paste(mine, collapse = ","))
+    fit <- ord_fit_theta(dsel, sel, J)
+    ord_selection_runs[[length(ord_selection_runs) + 1]] <- list(direction = direction, criterion = crit_name,
+      selected = I(sel), steps = I(as.character(st$anova$Step)), coefficients = ord_g17(fit$theta),
+      deviance = ord_num(fit$dev))
+  }
+}
+ord_selection <- list(name = "selection_logit", predictors = preds, levels = as.character(seq_len(J)),
+  n_obs = nrow(dsel), runs = ord_selection_runs, rows = ord_rows(dsel, preds))
+
 write_golden("ordinal", list(
   generator = "scripts/reference/gen_ordinal.R",
   r_version = R.version.string,
@@ -437,5 +546,6 @@ write_golden("ordinal", list(
     "holdout = the weighted proper scores of the holdout_rows [x..., y, w, g] at the MLE: log_loss = mean -ln P(y),",
     "brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y], rps = mean sum_{k<K} (F_k - [y <= k])^2 / (K - 1).",
     "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w)."),
-  cases = ord_cases
+  cases = ord_cases,
+  modifiers = list(jackknife = ord_jackknife, selection = ord_selection)
 ))

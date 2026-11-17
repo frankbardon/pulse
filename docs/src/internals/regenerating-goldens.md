@@ -627,7 +627,15 @@ hold the `ATTR_REG_PREDICT` columns to at `1e-10`. Those cases without
 random draw) and their weighted proper scores (`holdout`: `log_loss`,
 `brier`, `accuracy`, `rps` — `ord_scores` over `predict(polr, type =
 "probs")`), which `TestRegOrdinal_HoldoutMatchesR` holds a `holdout`
-fit to at `1e-10` (U68 E1-S3).
+fit to at `1e-10` (U68 E1-S3). A `modifiers` block, drawn after every
+case under its own seed (so no case moves), holds the resample and
+selection oracles (U68 E2-S1): the manual-deletion jackknife on `polr`
+(leave-one-out and by cluster, each refit polished and checked against
+`polr` on the same deletion) and `MASS::stepAIC` on `polr` (forward /
+backward / both at k = 2 and log(n), re-run over polished deviances
+with every step's winner clear of the runner-up by 1e-3), which
+`TestRegOrdinal_JackknifeMatchesR` and
+`TestRegOrdinal_SelectionMatchesStepAIC` hold at `1e-8`.
 
 ### The R toolchain
 

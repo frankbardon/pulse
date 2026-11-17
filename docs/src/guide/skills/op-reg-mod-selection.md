@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-mod-selection
-description: Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
+description: Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM or ordinal fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_SELECTION
@@ -31,6 +31,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 | `REG_GLM` (`penalty == ""`) | yes |
 | `REG_GLM` (`penalty != ""`) | → `PROCESSING_REGRESSION_REGULARIZED_SELECTION` |
 | `REG_BAYES_LINEAR` | rejected — stepwise on a NIG fit is out of scope |
+| `REG_ORDINAL` | yes — candidates keep the first fit's levels; k counts thresholds (`stepAIC` on `polr`) |
 
 ## Output
 

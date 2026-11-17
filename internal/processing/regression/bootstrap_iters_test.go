@@ -46,6 +46,11 @@ func TestBootstrap_ItersHonouredAndEchoed(t *testing.T) {
 				t.Errorf("echo requested=%d succeeded=%d, want %d / %d",
 					res.BootstrapRequested, res.BootstrapSucceeded, tc.wantRequested, tc.wantSucceeded)
 			}
+			// bootstrap_skipped (U68 E2-S1) counts the skipped
+			// replicates, zero (absent on the wire) when none was.
+			if want := tc.wantRequested - tc.wantSucceeded; res.BootstrapSkipped != want {
+				t.Errorf("skipped=%d, want %d", res.BootstrapSkipped, want)
+			}
 		})
 	}
 }
@@ -58,7 +63,7 @@ func TestJackknife_NoBootstrapEcho(t *testing.T) {
 	records := makeLinearRecords(t, 30, []float64{1.5}, 0.3, 0.4, 3)
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife", BootstrapIters: 50}
 	res := runOLSWithModifier(t, spec, records)
-	if res.BootstrapRequested != 0 || res.BootstrapSucceeded != 0 {
-		t.Errorf("jackknife carries a bootstrap echo: %d / %d", res.BootstrapRequested, res.BootstrapSucceeded)
+	if res.BootstrapRequested != 0 || res.BootstrapSucceeded != 0 || res.BootstrapSkipped != 0 {
+		t.Errorf("jackknife carries a bootstrap echo: %d / %d / %d", res.BootstrapRequested, res.BootstrapSucceeded, res.BootstrapSkipped)
 	}
 }

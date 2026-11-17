@@ -59,14 +59,18 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			Vcov:    true,
 			PValues: true,
 			// Scored per row by regordinal.ParamScorer (ATTR_REG_PREDICT:
-			// params.level / output / scale), so it saves and loads; its
-			// holdout stays refused (model.HoldoutScorerRefusal).
-			Scorer:          true,
-			NoResample:      true,
-			CovarianceTypes: regordinal.CovarianceTypes(),
-			OutputKeys:      regordinal.OutputKeys(),
-			OutputSchema:    slices.Clone(regordinal.OutputSchema),
-			Params:          ordinalParams,
+			// params.level / output / scale), so it saves and loads; a
+			// holdout reports the proper scores of its probability vector.
+			Scorer: true,
+			// Resample and selection refit it through the engine's
+			// extension drivers, every refit pinned to the first fit's
+			// levels (regordinal.ReplicatePin, U68 E2-S1); selection's
+			// AIC / BIC read its deviance, k = predictors + thresholds.
+			SupportsSelection: true,
+			CovarianceTypes:   regordinal.CovarianceTypes(),
+			OutputKeys:        regordinal.OutputKeys(),
+			OutputSchema:      slices.Clone(regordinal.OutputSchema),
+			Params:            ordinalParams,
 		},
 	},
 	types.REG_MMM_BAYES: {
@@ -244,7 +248,7 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 // manifest row declares beside resample (the built-ins' wording): the
 // engine's jackknife / bootstrap driver reads them for every model.
 var modelResampleKnobs = []descriptor.Param{
-	{Name: "bootstrap_iters", Type: "int", Default: 1000, Description: "Replicate count when resample == bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).", Slot: true},
+	{Name: "bootstrap_iters", Type: "int", Default: 1000, Description: "Replicate count when resample == bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.", Slot: true},
 	{Name: "jackknife_groups", Type: "int", Description: "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.", Slot: true},
 	{Name: "jackknife_by", Type: "field", NamesColumn: true, Description: "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.", Slot: true},
 	{Name: "rng_seed", Type: "int", Description: "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.", Slot: true},

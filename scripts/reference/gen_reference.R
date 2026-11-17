@@ -599,6 +599,7 @@ source(file.path(script_dir, "gen_multinomial.R"), local = FALSE)
 # derivatives, the hc0 / hc1 / cluster sandwich, the mean fitted
 # probabilities and the Brant test with the binary logits at their
 # fixed point; frequency weights against the rep() expansion,
-# probability weights on w*); MASS 7.3-66 + sandwich 3.1-3 + brant 0.3.0
+# probability weights on w*; U68 E2-S1: the manual-deletion jackknife
+# and MASS::stepAIC on polr); MASS 7.3-66 + sandwich 3.1-3 + brant 0.3.0
 # + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)

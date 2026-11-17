@@ -8983,7 +8983,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
             "slot": true
           },
           {
@@ -9496,7 +9496,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
             "slot": true
           },
           {
@@ -9899,7 +9899,7 @@
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
             "slot": true
           },
           {
@@ -10094,6 +10094,48 @@
             "names_column": true
           },
           {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ],
+            "slot": true
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded) and, when a refit failed, bootstrap_skipped.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
+          },
+          {
             "name": "conf_level",
             "type": "float",
             "required": false,
@@ -10113,6 +10155,30 @@
             "type": "object",
             "required": false,
             "description": "{method, alpha, coefficients}: multiple-comparison correction over the coefficients carrying a p-value (the intercept excluded unless coefficients names it); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper: the engine refits the model over predictor subsets; a top-level key of the regression entry.",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ],
+            "slot": true
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection; a top-level key of the regression entry.",
+            "enum_values": [
+              "aic",
+              "bic"
+            ],
             "slot": true
           },
           {
@@ -14951,11 +15017,11 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM or ordinal fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-multinomial",
@@ -21725,4 +21791,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 81882cb68e76747290a804b3753e330ca26cdf7eff758108fe005850584c0628
+// golden-hash: 5d3c883f6840064613ee0a2337efd61f93a453f6cca37e455414f96d8b56d9e8

@@ -469,9 +469,6 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		slot  string
 	}{
 		"penalty":        {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
-		"selection":      {`,"selection":"forward","criterion":"aic"`, perr.PROCESSING_CONFIG, "selection"},
-		"resample":       {`,"resample":"jackknife"`, perr.PROCESSING_CONFIG, "resample"},
-		"bootstrap":      {`,"resample":"bootstrap"`, perr.PROCESSING_CONFIG, "resample"},
 		"margins":        {`,"margins":{}`, perr.PROCESSING_CONFIG, "margins"},
 		"collinearity":   {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
 		"covariance_hc3": {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
@@ -489,6 +486,11 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"params_unknown": {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
 		"brant_key":      {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
 		"conf_level":     {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
+		// The weighted modifiers follow the built-ins' weight rule (U68
+		// E2-S1): no weighted bootstrap, no weighted information criterion.
+		"bootstrap_weighted": {`,"resample":"bootstrap","weight":{"field":"w","kind":"frequency"}`, perr.PULSE_WEIGHT_UNSUPPORTED, ""},
+		"selection_weighted": {`,"selection":"forward","criterion":"aic","weight":{"field":"w","kind":"probability"}`, perr.PULSE_WEIGHT_UNSUPPORTED, ""},
+		"selection_cluster":  {`,"selection":"forward","criterion":"aic","covariance":{"type":"cluster","cluster":"g"}`, perr.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
 	}
 	for name, rc := range refused {
 		t.Run(name, func(t *testing.T) {
@@ -535,6 +537,13 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"save": `,"save":"m.pulse-model.json"`,
 		// Its probability vector scores a holdout (U68 E1-S3).
 		"holdout": `,"holdout":"x1 > 0"`,
+		// The engine's modifier drivers refit it (U68 E2-S1).
+		"selection":          `,"selection":"forward","criterion":"aic"`,
+		"jackknife":          `,"resample":"jackknife"`,
+		"jackknife_by":       `,"resample":"jackknife","jackknife_by":"g"`,
+		"bootstrap":          `,"resample":"bootstrap","bootstrap_iters":20,"rng_seed":3`,
+		"both":               `,"selection":"backward","criterion":"bic","resample":"jackknife","jackknife_groups":5`,
+		"jackknife_weighted": `,"resample":"jackknife","weight":{"field":"w","kind":"probability"}`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()

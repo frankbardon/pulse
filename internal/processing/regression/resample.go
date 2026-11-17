@@ -44,7 +44,8 @@ const defaultBootstrapIters = 1000
 // The Resample kind is echoed on the returned result so consumers can
 // identify the uncertainty source; a bootstrap also echoes the
 // replicate count it ran (BootstrapRequested) and the replicates whose
-// refit succeeded (BootstrapSucceeded).
+// refit succeeded (BootstrapSucceeded), and the replicates it skipped
+// when any were (BootstrapSkipped).
 //
 // On any blocking refit error the driver short-circuits and returns
 // the error; partial coefficient sets are never folded back into a
@@ -394,8 +395,7 @@ func runBootstrapCtx(
 		return nil, err
 	}
 	out := packageResampleResult(spec, baseResult, predictors, run.se, run.cov, pValueFn, run.p)
-	out.BootstrapRequested = run.requested
-	out.BootstrapSucceeded = run.succeeded
+	run.echo(out)
 	return out, nil
 }
 

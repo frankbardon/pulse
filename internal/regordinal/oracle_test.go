@@ -72,9 +72,54 @@ type oracleBrant struct {
 	TermsP    []float64 `json:"terms_p"`
 }
 
+// oracleModifiers is ordinal.json's resample / selection block (U68
+// E2-S1): the manual-deletion jackknife on polr and MASS::stepAIC.
+type oracleModifiers struct {
+	Jackknife struct {
+		Predictors   []string    `json:"predictors"`
+		Levels       []string    `json:"levels"`
+		Coefficients []float64   `json:"coefficients"`
+		StdErrors    []float64   `json:"std_errors"`
+		ByGroups     int         `json:"by_groups"`
+		ByStdErrors  []float64   `json:"by_std_errors"`
+		Rows         [][]float64 `json:"rows"`
+	} `json:"jackknife"`
+	Selection struct {
+		Predictors []string    `json:"predictors"`
+		Levels     []string    `json:"levels"`
+		NObs       int         `json:"n_obs"`
+		Rows       [][]float64 `json:"rows"`
+		Runs       []struct {
+			Direction    string    `json:"direction"`
+			Criterion    string    `json:"criterion"`
+			Selected     []string  `json:"selected"`
+			Steps        []string  `json:"steps"`
+			Coefficients []float64 `json:"coefficients"`
+			Deviance     float64   `json:"deviance"`
+		} `json:"runs"`
+	} `json:"selection"`
+}
+
 // loadOracle reads the committed golden, checking its hash footer and
 // its recorded versions.
 func loadOracle(t *testing.T) []oracleCase {
+	t.Helper()
+	cases, _ := loadOracleDoc(t)
+	return cases
+}
+
+// loadModifiers reads the golden's modifiers block.
+func loadModifiers(t *testing.T) oracleModifiers {
+	t.Helper()
+	_, m := loadOracleDoc(t)
+	if len(m.Jackknife.Rows) == 0 || len(m.Selection.Runs) != 6 {
+		t.Fatalf("ordinal.json modifiers: %d jackknife rows, %d selection runs", len(m.Jackknife.Rows), len(m.Selection.Runs))
+	}
+	return m
+}
+
+// loadOracleDoc reads the committed golden's cases and modifiers.
+func loadOracleDoc(t *testing.T) ([]oracleCase, oracleModifiers) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "processing", "testdata", "reference", "ordinal.json"))
 	if err != nil {
@@ -91,9 +136,10 @@ func loadOracle(t *testing.T) []oracleCase {
 		t.Fatal("ordinal.json hash mismatch (hand-edited? regenerate it)")
 	}
 	var doc struct {
-		RVersion string            `json:"r_version"`
-		Packages map[string]string `json:"packages"`
-		Cases    []oracleCase      `json:"cases"`
+		RVersion  string            `json:"r_version"`
+		Packages  map[string]string `json:"packages"`
+		Cases     []oracleCase      `json:"cases"`
+		Modifiers oracleModifiers   `json:"modifiers"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
 		t.Fatal(err)
@@ -104,7 +150,7 @@ func loadOracle(t *testing.T) []oracleCase {
 	if len(doc.Cases) < 10 {
 		t.Fatalf("ordinal.json has %d cases", len(doc.Cases))
 	}
-	return doc.Cases
+	return doc.Cases, doc.Modifiers
 }
 
 // caseDesign builds the design the golden's rows describe (rows

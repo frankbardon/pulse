@@ -98,7 +98,8 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   `derived_columns` names and the data-dependent `risks`
   `{column, path, code, check}`; the three lists are `[]`, never
   `null`). A bootstrap `RegressionResult` echoes
-  `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
+  `bootstrap_requested` / `bootstrap_succeeded`, and `bootstrap_skipped`
+  (additive `omitempty`, U68) when a replicate was skipped; a delete-a-group
   jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
   additive `omitempty`) echoes its replicate count as
   `jackknife_groups`, absent on leave-one-out. A `RegressionResult`
@@ -1074,8 +1075,8 @@ reported ranks, and one it did not report is missing — refused
 `PULSE_SWEEP_RANK_PATH` (reason `missing`) when no slot reports it.
 
 Under `resample` (always accepted on an extension model) the result
-echoes `resample` (and `bootstrap_requested` / `bootstrap_succeeded`,
-`jackknife_groups`) as a built-in's does, and every coefficient's
+echoes `resample` (and `bootstrap_requested` / `bootstrap_succeeded` /
+`bootstrap_skipped`, `jackknife_groups`) as a built-in's does, and every coefficient's
 `std_errors`, `statistics` (the Wald z) and `p_values` carry the
 replicate figures; under `selection` (a `SupportsSelection` model) it
 echoes `selection`, `criterion` and `selected_features`.
