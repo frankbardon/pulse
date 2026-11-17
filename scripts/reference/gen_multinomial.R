@@ -59,6 +59,11 @@
 #     a fixed function of the row index (no random draw): (5 (i - 1))
 #     mod 7 + 1. Each type carries vcov, std_errors, Wald z p_values and
 #     the normal ci_lower / ci_upper at conf.
+#   exponentiated (U68 E3-S2, exponentiate: true): the relative-risk
+#     ratios exp(b) — exp(coef(multinom)), asserted to 1e-6 — every key,
+#     their delta-method SE exp(b) SE and the exponentiated Wald interval
+#     exp(b -/+ qnorm(0.5 + conf/2) SE) (Stata mlogit, rrr); on the
+#     classical case and inside each robust type, on that type's SE.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -133,6 +138,13 @@ mn_parts <- function(beta, X, Yi, w) {
 
 mn_cases <- list()
 
+# mn_expo: the exponentiated figures of beta at standard errors se (header).
+mn_expo <- function(beta, se, conf) {
+  q <- qnorm(0.5 + conf / 2)
+  list(estimates = mn_g17(exp(beta)), std_errors = mn_g17(exp(beta) * se),
+    ci_lower = mn_g17(exp(beta - q * se)), ci_upper = mn_g17(exp(beta + q * se)))
+}
+
 # mn_robust: the closed-form sandwich of every robust type (header).
 mn_robust <- function(X, Yi, P, w, V, beta, conf) {
   R <- Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE]
@@ -150,7 +162,8 @@ mn_robust <- function(X, Yi, P, w, V, beta, conf) {
   out <- lapply(vcovs, function(v) {
     se <- sqrt(diag(v))
     list(vcov = mn_g17(as.vector(v)), std_errors = mn_g17(se), p_values = mn_g17(2 * pnorm(-abs(beta / se))),
-      ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se))
+      ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se),
+      exponentiated = mn_expo(beta, se, conf))
   })
   out$clusters <- I(cl)
   out$n_clusters <- G
@@ -266,7 +279,9 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     score_rows = lapply(seq_len(nrow(mn_score_grid)), function(i) mn_g17(c(mn_score_grid$x1[i], mn_score_grid$x2[i]))),
     score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))),
     holdout_rows = hrows, holdout = holdout,
-    robust = mn_robust(X, Yi, pp$P, w, V, beta, conf))
+    robust = mn_robust(X, Yi, pp$P, w, V, beta, conf),
+    exponentiated = mn_expo(beta, se, conf))
+  mn_check(paste(name, "exp(coef(multinom))"), exp(as.vector(t(coef(m)))), exp(beta), 1e-6)
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -440,7 +455,8 @@ write_golden("multinomial", list(
     "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference;",
     "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
     "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order;",
-    "robust = the closed-form score sandwich per type (hc0, hc1, cluster CR1 over clusters, one per row) in the keys' order."),
+    "robust = the closed-form score sandwich per type (hc0, hc1, cluster CR1 over clusters, one per row) in the keys' order;",
+    "exponentiated = exp(b), exp(b) SE, exp(b -/+ z SE) in the keys' order (the case's, and each robust type's on its SE)."),
   cases = mn_cases,
   modifiers = list(jackknife = mn_jackknife, selection = mn_selection)
 ))

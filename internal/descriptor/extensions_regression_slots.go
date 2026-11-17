@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
@@ -251,6 +252,20 @@ var regressionSlotRules = []regressionSlotRule{
 			return "takes no collinearity (the REG_OLS / REG_GLM variance inflation factors); run MAT_COLLINEARITY over the predictors instead"
 		},
 		requires: "type REG_OLS or REG_GLM",
+	},
+	{
+		// exponentiate: the ratio-scale coefficients of the one rule
+		// (internal/regexponent.Admits) — REG_ORDINAL's cumulative odds
+		// ratios among the extension models, no other one.
+		slot: "exponentiate", keys: []string{"exponentiate"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("exponentiate", s.Exponentiate) },
+		declared: func(_ ExtensionRegression, s *types.RegressionSpec) bool {
+			return regexponent.Admits(s.Type)
+		},
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no exponentiate (REG_MULTINOMIAL's relative-risk ratios and REG_ORDINAL's cumulative odds ratios); drop it"
+		},
+		requires: regexponent.Requires,
 	},
 	{
 		slot: "covariance", keys: []string{"covariance"},

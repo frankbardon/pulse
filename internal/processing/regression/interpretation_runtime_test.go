@@ -64,6 +64,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	// The categorical target cat (three levels).
 	types.REG_MULTINOMIAL: {
 		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}},
+		// The opt-in relative-risk ratios.
+		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}, Exponentiate: true},
 	},
 	// The model regressions: a saturating spend channel c and a control
 	// x2 over the target m; REG_MMM_BAYES reads the contiguous time t.
@@ -77,6 +79,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	// The ordinal model over o, y cut into three levels.
 	types.REG_ORDINAL: {
 		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}},
+		// The opt-in cumulative odds ratios.
+		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Exponentiate: true},
 	},
 }
 

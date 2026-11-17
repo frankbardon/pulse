@@ -1161,6 +1161,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					},
 					"additionalProperties": false,
 				},
+				"exponentiate": map[string]any{"type": "boolean", "description": "REG_MULTINOMIAL / REG_ORDINAL only: add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw coefficients — relative-risk ratios exp(β) (multinomial, every key), cumulative odds ratios (ordinal, predictors only), delta-method SE exp(β)·SE, exp of each interval bound — on the fit's own covariance. Refused on every other type."},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{

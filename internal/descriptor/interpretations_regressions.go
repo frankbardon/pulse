@@ -392,7 +392,8 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 		Field: "std_errors.*",
 		Means: "How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix (nnet::multinom's Hessian).",
 		Caveats: []string{
-			"They assume the model is right; no robust (sandwich) form is offered for this model.",
+			"They assume the model is right unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); " +
+				"p_values, the intervals and vcov follow it.",
 		},
 	},
 	{
@@ -442,7 +443,40 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-}, regOutcomeHoldout)
+}, regOutcomeHoldout, regExponentiated("the relative-risk ratio exp(coefficient) of this <category>:<term> key: the factor by which the odds of the category against the reference multiply per one-unit increase in the term's predictor, other predictors held fixed; <category>:(intercept) is those odds when every predictor is 0.",
+	"It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely."))
+
+// regExponentiated reads the exponentiated block (exponentiate: true)
+// of REG_MULTINOMIAL and REG_ORDINAL: means is the estimate's reading,
+// caveats the type's own.
+func regExponentiated(means string, caveats ...string) []descriptor.Interpretation {
+	return []descriptor.Interpretation{
+		{
+			Field: "exponentiated.estimates.*",
+			Means: "The coefficient on the ratio scale (requested by exponentiate): " + means,
+			Sign: map[string]string{
+				"+": "a ratio above 1: higher predictor values multiply the odds up",
+				"-": "a ratio below 1: higher predictor values multiply the odds down",
+			},
+			Caveats: append(caveats, "1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction."),
+		},
+		{
+			Field: "exponentiated.std_errors.*",
+			Means: "The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.",
+			Caveats: []string{
+				"The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.",
+			},
+		},
+		{
+			Field: "exponentiated.ci_lower.*",
+			Means: "exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.",
+		},
+		{
+			Field: "exponentiated.ci_upper.*",
+			Means: "exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.",
+		},
+	}
+}
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{
@@ -687,7 +721,8 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
 		},
 	},
-}, regOutcomeHoldout, []descriptor.Interpretation{
+}, regOutcomeHoldout, regExponentiated("the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).",
+	"Under probit or cloglog it is not an odds ratio: exp of a probit shift has no ratio reading, and under cloglog it is a hazard ratio."), []descriptor.Interpretation{
 	{
 		Field: "holdout.rps",
 		Means: "The ranked probability score on the held-out rows: per row the squared gaps between the predicted cumulative probability P(Y <= k) and whether the outcome is at most k, " +

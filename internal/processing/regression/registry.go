@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/types"
 )
@@ -346,6 +347,7 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
 				return nil, nil, err
 			}
+			exponentiate(specs[i], results[i], fitErrs[i])
 			continue
 		}
 		if be, ok := eng.(BufferedEngine); ok {
@@ -356,13 +358,26 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 			if err := attachState(specs[i], results[i], fitErrs[i], records); err != nil {
 				return nil, nil, err
 			}
+			exponentiate(specs[i], results[i], fitErrs[i])
 			continue
 		}
 		// An engine with no buffered entry point (none in the tree:
 		// every built-in and adapted engine has one) fits over no rows.
 		results[i], fitErrs[i] = eng.Fit()
+		exponentiate(specs[i], results[i], fitErrs[i])
 	}
 	return results, fitErrs, nil
+}
+
+// exponentiate adds the exponentiated coefficients a spec's
+// exponentiate asked for (internal/regexponent) to a successful fit,
+// after every modifier, robust covariance and interval has settled the
+// figures it reads; a failed fit is untouched.
+func exponentiate(spec *types.RegressionSpec, res *types.RegressionResult, fitErr error) {
+	if fitErr != nil {
+		return
+	}
+	regexponent.Apply(spec, res)
 }
 
 // attachState records an in-model adstocked fit's carry-over state

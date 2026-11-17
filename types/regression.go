@@ -371,6 +371,22 @@ type RegressionSpec struct {
 	// byte-identical. See RegressionCollinearity.
 	Collinearity *RegressionCollinearity `json:"collinearity,omitempty"`
 
+	// Exponentiate opts this regression into its exponentiated
+	// coefficients (RegressionResult.Exponentiated), reported BESIDE the
+	// raw coefficient table, which never moves: REG_MULTINOMIAL's
+	// relative-risk ratios exp(β) on every "<category>:<term>" key
+	// (Stata mlogit, rrr), REG_ORDINAL's cumulative odds ratios exp(β)
+	// on its predictors only (the thresholds are cut points, not
+	// effects; polr's exp(coef)). Each carries the delta-method standard
+	// error exp(β)·SE and the exponentiated interval exp(lower),
+	// exp(upper), on whatever covariance the fit used (classical, the
+	// robust Covariance, the resampled standard errors); where the
+	// standard error is null (a penalized fit) so are they. Any other
+	// regression type is refused with PROCESSING_CONFIG (details.slot
+	// "exponentiate", details.requires; the one rule predict applies:
+	// internal/regexponent). False is byte-identical.
+	Exponentiate bool `json:"exponentiate,omitempty"`
+
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
 	// selects 0.95. REG_OLS uses a Student-t critical value on the
@@ -988,6 +1004,11 @@ type RegressionResult struct {
 	// RegressionCollinearityResult); absent otherwise.
 	Collinearity *RegressionCollinearityResult `json:"collinearity,omitempty"`
 
+	// Exponentiated carries the exponentiated coefficients
+	// RegressionSpec.Exponentiate asked for (see
+	// RegressionExponentiated); absent otherwise and on a failed fit.
+	Exponentiated *RegressionExponentiated `json:"exponentiated,omitempty"`
+
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is
 	// null. The built-ins leave it absent.
@@ -1058,6 +1079,26 @@ type RegressionResult struct {
 	// SlotError. A result carrying one has Name / Type and the error
 	// only: every coefficient and figure is absent on the wire.
 	Error *SlotError `json:"error,omitempty"`
+}
+
+// RegressionExponentiated is RegressionResult.Exponentiated: the
+// coefficients on the ratio scale, keyed like Coefficients —
+// REG_MULTINOMIAL every key (relative-risk ratios), REG_ORDINAL its
+// predictors only (cumulative odds ratios; no threshold key). The raw
+// Coefficients, StdErrors, CILower and CIUpper are unchanged beside it.
+type RegressionExponentiated struct {
+	// Estimates maps each key to exp(β).
+	Estimates map[string]float64 `json:"estimates"`
+
+	// StdErrors maps each key the fit's StdErrors carries to the
+	// delta-method standard error exp(β)·SE (null where SE is null).
+	StdErrors map[string]float64 `json:"std_errors,omitempty"`
+
+	// CILower and CIUpper map each key the fit's CILower / CIUpper carry
+	// to exp of that bound: the interval of exp(β) at the fit's
+	// ConfLevel, asymmetric about Estimates (null where the bound is).
+	CILower map[string]float64 `json:"ci_lower,omitempty"`
+	CIUpper map[string]float64 `json:"ci_upper,omitempty"`
 }
 
 // RegressionHoldout is RegressionResult.Holdout: the fitted model scored

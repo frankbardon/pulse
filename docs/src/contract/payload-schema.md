@@ -1265,6 +1265,24 @@ for EVERY level in `categories`, `std_errors` / `p_values` / `ci_lower`
 `resample` replaces them, and `two_log_lik` / `aic` / `vcov` are absent.
 No key is added; `format_version` stays `"1.1"`.
 
+An additive `omitempty` boolean `RegressionSpec.exponentiate` (U68
+E3-S2, `REG_MULTINOMIAL` and `REG_ORDINAL` only; any other type is
+`PROCESSING_CONFIG` with `details.slot: exponentiate` and
+`details.requires: type REG_MULTINOMIAL or REG_ORDINAL`, at predict and
+at runtime alike) adds the additive `omitempty` object
+`RegressionResult.exponentiated` (`RegressionExponentiated`): the
+key-keyed number maps `estimates` (exp(β)), `std_errors` (the
+delta-method exp(β)·SE), `ci_lower` / `ci_upper` (exp of each interval
+bound), keyed like `coefficients` — every `"<level>:<term>"` key on a
+multinomial fit (relative-risk ratios), the predictors only on an
+ordinal fit (cumulative odds ratios; no threshold key). `std_errors`,
+`ci_lower` and `ci_upper` carry exactly the keys their raw twins carry,
+on whatever covariance the fit used (classical, robust, resampled); a
+raw `null` stays `null` (a penalized multinomial fit: exp(β) beside
+`null` figures). The raw maps never move. In the `standard` preset (not
+`minimal`); every float is rounded by `return.precision`. Absent is
+byte-identical and `format_version` stays `"1.1"`.
+
 ## Per-group aggregation components
 
 `groups` on `AggregationComponents` is an additive `omitempty` array of

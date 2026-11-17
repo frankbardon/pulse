@@ -9656,7 +9656,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
+        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated). A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
         "streamable": false,
         "streamable_hint": "Always buffered; Newton-Raphson requires multiple passes over the data.",
         "params": [
@@ -9837,6 +9837,14 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"\u003clevel\u003e:\u003cterm\u003e\" keys; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "exponentiate",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the relative-risk ratios exp(β) on every \"\u003clevel\u003e:\u003cterm\u003e\" key (Stata mlogit, rrr), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled); null SE and bounds under a penalty.",
             "slot": true
           },
           {
@@ -10343,6 +10351,14 @@
             "type": "object",
             "required": false,
             "description": "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "exponentiate",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the predictors' cumulative odds ratios exp(β) (polr's exp(coef); no threshold key), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled). A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -21789,6 +21805,7 @@
           "regressions[*].covariance",
           "regressions[*].margins",
           "regressions[*].collinearity",
+          "regressions[*].exponentiated",
           "regressions[*].advisories",
           "regressions[*].holdout",
           "regressions[*].statistics",
@@ -21919,4 +21936,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 17dc67f2bd8f170ca912d776060c951b7ed197dbb3e8cff578782ea1bddbb0fa
+// golden-hash: 6696dc5095dde2f06a06c4e1a5715949ab4a50c3eee95e213ec5242e5a016c93

@@ -85,6 +85,18 @@ type multinomialCase struct {
 		Clusters  []float64         `json:"clusters"`
 		NClusters int               `json:"n_clusters"`
 	} `json:"robust"`
+	// Exponentiated is the relative-risk-ratio block (U68 E3-S2) on the
+	// classical standard errors; each Robust type carries its own.
+	Exponentiated multinomialExpo `json:"exponentiated"`
+}
+
+// multinomialExpo is one exponentiated block, in the keys' order:
+// exp(b), exp(b)·SE, exp(b ∓ z·SE).
+type multinomialExpo struct {
+	Estimates []float64 `json:"estimates"`
+	StdErrors []float64 `json:"std_errors"`
+	CILower   []float64 `json:"ci_lower"`
+	CIUpper   []float64 `json:"ci_upper"`
 }
 
 // multinomialRobust is one robust type's figures, in the keys' order.
@@ -94,6 +106,8 @@ type multinomialRobust struct {
 	PValues   []float64 `json:"p_values"`
 	CILower   []float64 `json:"ci_lower"`
 	CIUpper   []float64 `json:"ci_upper"`
+
+	Exponentiated multinomialExpo `json:"exponentiated"`
 }
 
 func loadMultinomial(t *testing.T) []multinomialCase {

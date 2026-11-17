@@ -40,6 +40,13 @@
 #     H^-1 G/(G - 1) (n - 1)/(n - k), k = p + J - 1; cross-checked against
 #     sandwich::sandwich(polr) / vcovCL(type = "HC1") to 1e-4 (they read
 #     polr's numerical Hessian).
+#   * Exponentiated (U68 E3-S2, exponentiate: true): on the predictors
+#     only (the thresholds are not effects), the cumulative odds ratios
+#     exp(beta) — exp(coef(polr)), asserted to 1e-6 — their delta-method
+#     SE exp(beta) SE and the exponentiated Wald interval
+#     exp(beta -/+ qnorm(0.975) SE), on the case's covariance (classical
+#     or robust); a classical unweighted case also matches
+#     exp(confint.default(polr)) to 1e-4 (polr's numerical vcov).
 #
 # Weights follow REG_GLM's rule: frequency weights are polr(weights = f),
 # asserted equal to the rep()-expanded fit (and the expanded Brant
@@ -306,6 +313,15 @@ ord_case <- function(name, d, preds, link = "logit", kind = "", cov = "classical
               n_obs = n, coefficients = ord_g17(theta), std_errors = ord_g17(se), vcov = ord_mat(V),
               deviance = ord_num(-2 * ll), null_deviance = ord_num(-2 * ll0), fitted_probabilities = ord_g17(fp))
   if (!is.null(levels_param)) doc$levels_param <- levels_param
+  pb <- seq_along(preds)
+  zq <- qnorm(0.975)
+  ord_check(paste(name, "exp(coef(polr))"), exp(coef(pf)), exp(theta[pb]), 1e-6)
+  doc$exponentiated <- list(estimates = ord_g17(exp(theta[pb])), std_errors = ord_g17(exp(theta[pb]) * se[pb]),
+                            ci_lower = ord_g17(exp(theta[pb] - zq * se[pb])), ci_upper = ord_g17(exp(theta[pb] + zq * se[pb])))
+  if (cov == "classical" && kind == "") {
+    ord_check(paste(name, "exp(confint.default(polr))"), exp(confint.default(pf)),
+              cbind(exp(theta[pb] - zq * se[pb]), exp(theta[pb] + zq * se[pb])), 1e-4)
+  }
   # Row scores (ATTR_REG_PREDICT, U68 #650): eta = x'beta and P(Y = k | x)
   # per fitted row at the polished MLE — predict(polr, type = "probs") and
   # polr's $lp, which read polr's own optimum, agree to 1e-6. A robust
@@ -545,7 +561,8 @@ write_golden("ordinal", list(
     "row_probabilities = P(Y = k | x) per row (predict(polr, type = 'probs') agrees to 1e-6). rows [x..., y, w, g];",
     "holdout = the weighted proper scores of the holdout_rows [x..., y, w, g] at the MLE: log_loss = mean -ln P(y),",
     "brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y], rps = mean sum_{k<K} (F_k - [y <= k])^2 / (K - 1).",
-    "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w)."),
+    "weight '' (w = 1), frequency (= the rep() expansion) or probability (w* = w n_eff / sum w).",
+    "exponentiated = the predictors' exp(beta), exp(beta) SE and exp(beta -/+ qnorm(0.975) SE) on the case's covariance."),
   cases = ord_cases,
   modifiers = list(jackknife = ord_jackknife, selection = ord_selection)
 ))

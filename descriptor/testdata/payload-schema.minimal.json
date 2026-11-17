@@ -1226,6 +1226,51 @@
       ],
       "type": "object"
     },
+    "RegressionExponentiated": {
+      "additionalProperties": false,
+      "properties": {
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "estimates": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "estimates"
+      ],
+      "type": "object"
+    },
     "RegressionMargins": {
       "additionalProperties": false,
       "properties": {
@@ -1484,6 +1529,9 @@
         "error": {
           "$ref": "#/$defs/SlotError"
         },
+        "exponentiated": {
+          "$ref": "#/$defs/RegressionExponentiated"
+        },
         "family": {
           "type": "string"
         },
@@ -1667,6 +1715,9 @@
         },
         "dispersion": {
           "type": "string"
+        },
+        "exponentiate": {
+          "type": "boolean"
         },
         "family": {
           "type": "string"
@@ -2418,4 +2469,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 3bef66c135af9d3c355f3326c5744b0fb62f487f097062639c1de3ed8a8147e7
+// golden-hash: a1afd9001e9b507a1184ddf2eafeefe730f8180c7335cd26147d9aadab5545a2

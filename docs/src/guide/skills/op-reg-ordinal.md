@@ -30,15 +30,16 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | (required) | Ordered response: categorical or numeric, 3 to 100 levels. |
+| `target` | field | (required) | Categorical or numeric, 3 to 100 levels. |
 | `predictors` | []field | (required) | — |
-| `link` | enum | `logit` | `logit`, `probit`, `cloglog` (polr's method). |
-| `levels` | array | — | Level order, lowest first (labels or values as written). |
+| `link` | enum | `logit` | `logit`, `probit`, `cloglog`. |
+| `levels` | array | — | Level order, lowest first. |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
 | `conf_level` | float | `0.95` | CI level. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | — |
 | `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
-| `weight` | object | — | Frequency or probability. |
+| `exponentiate` | bool | `false` | — |
+| `weight` | object | — | — |
 | `multiplicity` | object | — | Predictors' p-values only. |
 | `holdout` | expr | — | Proper scores. |
 | `resample` | enum | — | [`op-reg-mod-resample`](op-reg-mod-resample.md). |
@@ -58,7 +59,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus df (K − 2)·p, per-predictor `terms` K − 2).
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` (omnibus df (K − 2)·p, per-predictor `terms` K − 2). `exponentiate` adds `exponentiated` {e^β, e^β·SE, `ci_*` e^bound}, predictors only.
 
 ## Reading the output
 

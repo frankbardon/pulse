@@ -190,7 +190,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_MULTINOMIAL),
 			Description:    "Multinomial (baseline-category) logistic regression of a categorical target on numeric predictors: one coefficient set per non-reference level, log-odds against the reference level (nnet::multinom, Stata mlogit, SPSS NOMREG).",
 			AcceptsTypes:   acceptsTypes(types.REG_MULTINOMIAL),
-			EmitsTypeNote:  "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"<level>:<term>\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
+			EmitsTypeNote:  "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"<level>:<term>\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated). A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
 			Streamable:     types.REG_MULTINOMIAL.Streamable(),
 			StreamableHint: "Always buffered; Newton-Raphson requires multiple passes over the data.",
 			Params: []descriptor.Param{
@@ -215,6 +215,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "covariance", Type: "object", Required: false, Description: "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.", Slot: true},
 				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out. Bootstrap / selection refuse one (PULSE_WEIGHT_UNSUPPORTED); a weighted jackknife runs.", Slot: true},
 				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
+				{Name: "exponentiate", Type: "bool", Required: false, Default: false, Description: multinomialExponentiateDescription, Slot: true},
 				{Name: "holdout", Type: "string", Required: false, Description: outcomeHoldoutParamDescription(false), Slot: true},
 				{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
 				{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json) keeping its coefficients, categories and reference (feature categories); a `models` entry loads it and ATTR_REG_PREDICT scores it per category.", Slot: true},
@@ -225,3 +226,11 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 	}
 	return append(builtins, modelRegressionMetas()...)
 }
+
+// multinomialExponentiateDescription / ordinalExponentiateDescription
+// are the exponentiate param of the two types internal/regexponent
+// admits (every other type refuses it).
+const (
+	multinomialExponentiateDescription = "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the relative-risk ratios exp(β) on every \"<level>:<term>\" key (Stata mlogit, rrr), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled); null SE and bounds under a penalty."
+	ordinalExponentiateDescription     = "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the predictors' cumulative odds ratios exp(β) (polr's exp(coef); no threshold key), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled). A top-level key of the regression entry."
+)

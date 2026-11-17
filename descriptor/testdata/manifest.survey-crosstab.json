@@ -2418,6 +2418,7 @@
           "regressions[*].covariance",
           "regressions[*].margins",
           "regressions[*].collinearity",
+          "regressions[*].exponentiated",
           "regressions[*].advisories",
           "regressions[*].statistics",
           "regressions[*].outputs",
@@ -2535,4 +2536,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 968e5625009d457ea39b166f62ac6432cc760812b8f54981e392918f72e67eb8
+// golden-hash: 4f0c3452477b238ccc29de2235f3a2645abb692d16691e3e4655871bb5c2acc0

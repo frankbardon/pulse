@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
@@ -45,6 +46,11 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// REG_MULTINOMIAL's refused knobs, and `reference` on any other
 	// built-in — the one rule predict applies too (internal/regmultinom).
 	if cerr := regmultinom.Check(spec); cerr != nil {
+		return cerr
+	}
+	// exponentiate (REG_MULTINOMIAL / REG_ORDINAL only), judged right
+	// after it as predict does — the one rule (internal/regexponent).
+	if cerr := regexponent.Check(spec); cerr != nil {
 		return cerr
 	}
 	if err := validateRegressionSpec(spec); err != nil {

@@ -525,7 +525,12 @@ non-reference blocks, the meat on the case's weights — `hc0`, `hc1`
 (N*/(N* − d)) and `cluster` (CR1 over `clusters`, a fixed function of
 the row index, so no random number is drawn) — each with its `vcov`,
 standard errors, Wald p-values and intervals
-(`TestReferenceOracle_MultinomialRobustMatchesR`).
+(`TestReferenceOracle_MultinomialRobustMatchesR`). An `exponentiated`
+block (U68 E3-S2) per case — and one inside each robust type, on that
+type's SE — carries exp(β) (asserted equal to `exp(coef(multinom))` at
+1e-6), the delta-method exp(β)·SE and exp(β ∓ z·SE)
+(`TestReferenceOracle_MultinomialExponentiatedMatchesR`); it adds keys
+only, so no other figure moves.
 `TestReferenceOracle_MultinomialMatchesR`
 (`internal/processing/regression`) holds every figure — the row scores
 read through the bound fit's production scorer — at relative `1e-10`.
@@ -656,7 +661,12 @@ untransposed cross block and glm's default stop; the golden keeps the
 symmetric covariance). Frequency weights are asserted equal to the
 `rep()` expansion. `TestOrdinalOracle_Design` and
 `TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
-figure at relative `1e-10` (measured within 2e-12). Each classical case
+figure at relative `1e-10` (measured within 2e-12). Every case carries
+an `exponentiated` block (U68 E3-S2) on its own covariance: the
+predictors' exp(β) (asserted equal to `exp(coef(polr))` at 1e-6), exp(β)·SE
+and exp(β ∓ qnorm(0.975)·SE) — a classical unweighted case also matches
+`exp(confint.default(polr))` at 1e-4 —, held by
+`TestRegOrdinal_ExponentiatedMatchesR` at `1e-10`. Each classical case
 also carries its per-row scores at the MLE (U68): `row_eta` (xᵀβ,
 `polr`'s `$lp` agreeing to 1e-6) and `row_probabilities` (P(Y = k | x),
 `predict(polr, type = "probs")` agreeing to 1e-6), which

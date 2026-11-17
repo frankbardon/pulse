@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
@@ -118,6 +119,13 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	// table's).
 	if !extension {
 		if cerr := regmultinom.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// exponentiate on a type that does not report it — the
+		// runtime's rule itself (internal/regexponent, shared; an
+		// extension model's is the shared-slot table's, on the same
+		// predicate).
+		if cerr := regexponent.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}

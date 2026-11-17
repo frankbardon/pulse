@@ -542,7 +542,7 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 **Caveats:**
 
-- They assume the model is right; no robust (sandwich) form is offered for this model.
+- They assume the model is right unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); p_values, the intervals and vcov follow it.
 
 #### `p_values.*`
 
@@ -649,6 +649,36 @@ The share of held-out rows whose most probable outcome is the observed one (the 
 **Caveats:**
 
 - It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.
+
+#### `exponentiated.estimates.*`
+
+The coefficient on the ratio scale (requested by exponentiate): the relative-risk ratio exp(coefficient) of this &lt;category&gt;:&lt;term&gt; key: the factor by which the odds of the category against the reference multiply per one-unit increase in the term's predictor, other predictors held fixed; &lt;category&gt;:(intercept) is those odds when every predictor is 0.
+
+**Sign:**
+
+- `+`: a ratio above 1: higher predictor values multiply the odds up
+- `-`: a ratio below 1: higher predictor values multiply the odds down
+
+**Caveats:**
+
+- It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely.
+- 1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction.
+
+#### `exponentiated.std_errors.*`
+
+The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.
+
+**Caveats:**
+
+- The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.
+
+#### `exponentiated.ci_lower.*`
+
+exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.
+
+#### `exponentiated.ci_upper.*`
+
+exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.
 
 <a id="op-reg_ols"></a>
 
@@ -988,6 +1018,36 @@ The share of held-out rows whose most probable outcome is the observed one (the 
 **Caveats:**
 
 - It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.
+
+#### `exponentiated.estimates.*`
+
+The coefficient on the ratio scale (requested by exponentiate): the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).
+
+**Sign:**
+
+- `+`: a ratio above 1: higher predictor values multiply the odds up
+- `-`: a ratio below 1: higher predictor values multiply the odds down
+
+**Caveats:**
+
+- Under probit or cloglog it is not an odds ratio: exp of a probit shift has no ratio reading, and under cloglog it is a hazard ratio.
+- 1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction.
+
+#### `exponentiated.std_errors.*`
+
+The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.
+
+**Caveats:**
+
+- The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.
+
+#### `exponentiated.ci_lower.*`
+
+exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.
+
+#### `exponentiated.ci_upper.*`
+
+exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.
 
 #### `holdout.rps`
 

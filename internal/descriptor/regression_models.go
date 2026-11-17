@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
@@ -228,6 +229,11 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 		}
 		if m.WeightAware {
 			params = append(params, descriptor.Param{Name: "weight", Type: "object", Description: "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.", Slot: true})
+		}
+		if regexponent.Admits(t) {
+			// The shared-slot table's exponentiate rule admits exactly
+			// these (internal/regexponent).
+			params = append(params, descriptor.Param{Name: "exponentiate", Type: "bool", Default: false, Description: ordinalExponentiateDescription, Slot: true})
 		}
 		params = append(params, descriptor.Param{Name: "name", Type: "string", Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true})
 		out = append(out, descriptor.RegressionMeta{

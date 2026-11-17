@@ -262,6 +262,11 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		{"intercept", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Intercept = new(bool) })), errors.PROCESSING_CONFIG, "intercept"},
 		{"unknown reference", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Reference = "top" })), errors.PROCESSING_CONFIG, "a level of the target"},
 		{"reference on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Reference: "lo"}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL"},
+		// U68 E3-S2: exponentiate is REG_MULTINOMIAL's and REG_ORDINAL's
+		// (internal/regexponent); every other built-in refuses it.
+		{"exponentiate on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
+		{"exponentiate on REG_GLM", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_GLM, Family: "poisson", Target: "f", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
+		{"exponentiate on REG_BAYES_LINEAR", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
 		{"derived target", func() *Request {
 			r := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Target = "x1_log" }))
 			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
@@ -305,6 +310,9 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 			}),
 			mnSpec(func(s *types.RegressionSpec) {
 				s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups = "sel", "backward", "bic", "jackknife", 5
+				// U68 E3-S2: the ratios follow the selected keys and the
+				// replicate standard errors.
+				s.Exponentiate = true
 			}),
 		)
 		pr, err := p.Predict(ctx, req)
@@ -322,6 +330,20 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		}
 		if r := resp.Regressions[3]; r.Selection != "backward" || r.JackknifeGroups != 5 || len(r.Coefficients) != 2*(len(r.SelectedFeatures)+1) {
 			t.Errorf("selection + resample: %+v", r)
+		}
+		r := resp.Regressions[3]
+		if e := r.Exponentiated; e == nil || len(e.Estimates) != len(r.Coefficients) || len(e.StdErrors) != len(r.StdErrors) {
+			t.Fatalf("exponentiated %+v over coefficients %v", e, r.Coefficients)
+		}
+		for k, b := range r.Coefficients {
+			if got, want := r.Exponentiated.StdErrors[k], math.Exp(b)*r.StdErrors[k]; math.Abs(got-want) > 1e-13*want {
+				t.Errorf("%s: exponentiated se %v, want exp(b)·SE %v", k, got, want)
+			}
+		}
+		for _, other := range resp.Regressions[:3] {
+			if other.Exponentiated != nil {
+				t.Errorf("%s: exponentiated block without the knob", other.Name)
+			}
 		}
 	})
 	// The penalty runs (U68 E2-S3) and predict accepts it: the

@@ -411,15 +411,16 @@ func TestRegOrdinal_WorkerInvariant(t *testing.T) {
 	}
 }
 
-// TestRegOrdinal_OutputsMatchApplicability: a plain fit emits exactly
-// the RegressionResult keys the applicability row lists.
+// TestRegOrdinal_OutputsMatchApplicability: a plain fit — with the
+// opt-in exponentiated block (U68 E3-S2), which the row lists — emits
+// exactly the RegressionResult keys the applicability row lists.
 func TestRegOrdinal_OutputsMatchApplicability(t *testing.T) {
 	t.Parallel()
 	c := goldenCase(t, "logit_two")
 	p := newInstance(t, nil)
 	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
 	s := caseSpec(c, nil)
-	s.Vcov = false
+	s.Vcov, s.Exponentiate = false, true
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(mustJSON(t, fitOne(t, p, "ord.pulse", s))), &keys); err != nil {
 		t.Fatal(err)
@@ -544,6 +545,8 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"bootstrap":          `,"resample":"bootstrap","bootstrap_iters":20,"rng_seed":3`,
 		"both":               `,"selection":"backward","criterion":"bic","resample":"jackknife","jackknife_groups":5`,
 		"jackknife_weighted": `,"resample":"jackknife","weight":{"field":"w","kind":"probability"}`,
+		// Its cumulative odds ratios (U68 E3-S2).
+		"exponentiate": `,"exponentiate":true,"covariance":{"type":"hc1"}`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()

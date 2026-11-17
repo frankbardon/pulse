@@ -52,6 +52,17 @@ type oracleCase struct {
 	// cases without params.levels.
 	HoldoutRows [][]float64    `json:"holdout_rows"`
 	Holdout     *oracleHoldout `json:"holdout"`
+	// Exponentiated is the predictors' cumulative-odds-ratio block (U68
+	// E3-S2) on the case's covariance, in the predictors' order.
+	Exponentiated *oracleExpo `json:"exponentiated"`
+}
+
+// oracleExpo is exp(beta), exp(beta)·SE and exp(beta ∓ z·SE).
+type oracleExpo struct {
+	Estimates []float64 `json:"estimates"`
+	StdErrors []float64 `json:"std_errors"`
+	CILower   []float64 `json:"ci_lower"`
+	CIUpper   []float64 `json:"ci_upper"`
 }
 
 // oracleHoldout is a case's holdout figures (ord_scores).
