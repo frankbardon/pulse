@@ -602,7 +602,9 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"nominal_test":         `,"params":{"nominal_test":{}}`,
 		"nominal_test_probit":  `,"params":{"link":"probit","nominal_test":{}}`,
 		"nominal_test_cloglog": `,"params":{"link":"cloglog","nominal_test":{}}`,
-		"levels":               `,"params":{"levels":["1","2","3"]}`,
+		// Under a probability weight the output is absent, never refused.
+		"nominal_test_probability": `,"params":{"nominal_test":{}},"weight":{"field":"w","kind":"probability"}`,
+		"levels":                   `,"params":{"levels":["1","2","3"]}`,
 		// Its scorer (ATTR_REG_PREDICT) makes the fit saveable.
 		"save": `,"save":"m.pulse-model.json"`,
 		// Its probability vector scores a holdout (U68 E1-S3).

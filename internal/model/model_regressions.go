@@ -175,6 +175,10 @@ type AdmitToken struct{}
 type ReplicatePin struct {
 	// Spec is the spec every later refit builds its model from.
 	Spec *types.RegressionSpec
+	// ReplicateSpec, when set, replaces Spec for the resample
+	// replicates alone (their outputs are discarded): REG_ORDINAL clears
+	// its Brant and nominal tests there. Selection candidates keep Spec.
+	ReplicateSpec *types.RegressionSpec
 	// Refusal maps a pinned refit's error (nil: kept as is) — a
 	// replicate that lost what the pin fixes gets its own reason.
 	Refusal func(error) error

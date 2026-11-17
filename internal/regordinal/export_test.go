@@ -23,3 +23,6 @@ var NominalErr = nominalErr
 var NominalReasons = nominalReasons
 
 const NominalRel = nominalRel
+
+// AuxTestFits is how many fits so far ran the Brant or the nominal test.
+func AuxTestFits() int64 { return auxTestFits.Load() }

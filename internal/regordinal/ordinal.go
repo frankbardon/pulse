@@ -17,6 +17,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -67,7 +68,7 @@ var OutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "thresholds", JSONType: "array", Description: "The threshold coefficients' names, in order (no p-value)."},
 	{Key: "fitted_probabilities", JSONType: "object", Description: "Per level: the weighted mean fitted P(Y = level | x) over the fitted rows."},
 	{Key: "brant", JSONType: "object", Description: "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."},
-	{Key: "nominal_test", JSONType: "object", Description: "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."},
+	{Key: "nominal_test", JSONType: "object", Description: "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC. Absent under a probability weight (no likelihood)."},
 }
 
 // OutputKeys are OutputSchema's keys, in order.
@@ -173,15 +174,37 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 		return nil, err
 	}
 	m := &model{spec: spec, link: l, levels: slices.Clone(p.Levels), brant: p.Brant != nil,
-		nominalTest: p.NominalTest != nil,
-		cov:         spec.Covariance.EffectiveType()}
+		cov: spec.Covariance.EffectiveType()}
 	if spec.Covariance != nil {
 		m.cluster = spec.Covariance.Cluster
 	}
 	if w := spec.Weight.Spec(); w != nil {
 		m.probability = w.EffectiveKind() == types.WeightKindProbability
 	}
+	m.nominalTest = nominalTestRuns(p.NominalTest != nil, m.probability)
 	return m, nil
+}
+
+// nominalTestRuns is the one rule for whether outputs.nominal_test is
+// computed: params.nominal_test set and no probability weight — a
+// likelihood ratio needs a likelihood, and a probability-weighted fit
+// reports none (no two_log_lik / aic; REG_MULTINOMIAL's term_tests LR
+// is absent there too), so the output is absent, never refused.
+func nominalTestRuns(requested, probability bool) bool {
+	return requested && !probability
+}
+
+// NominalTestPValues is how many p-values outputs.nominal_test carries
+// for spec under a resolved weight of kind probability (true) or not:
+// one per predictor plus the omnibus, or 0 — no params.nominal_test, a
+// refused spec, or a probability weight (the output is absent). Predict
+// counts them (internal/descriptor) on the rule the runtime applies.
+func NominalTestPValues(spec *types.RegressionSpec, probability bool) int {
+	p, _, err := decodeParams(spec)
+	if err != nil || !nominalTestRuns(p.NominalTest != nil, probability) {
+		return 0
+	}
+	return len(spec.Predictors) + 1
 }
 
 // SpecRefusal is Factory's refusal of spec, or nil when Factory builds:
@@ -200,6 +223,11 @@ func SpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
 	}
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, err.Error(), map[string]any{"type": string(Name)})
 }
+
+// auxTestFits counts the fits that ran the Brant or the nominal test —
+// a test seam (export_test.go) pinning that resample replicates skip
+// them (ReplicatePin's ReplicateSpec).
+var auxTestFits atomic.Int64
 
 // model is one slot's buffered fit.
 type model struct {
@@ -516,6 +544,9 @@ func (m *model) output(d *design, sol *solution, vcov [][]float64, levels, thres
 		"levels":               slices.Clone(levels),
 		"thresholds":           slices.Clone(thresholds),
 		"fitted_probabilities": fp,
+	}
+	if m.brant || m.nominalTest {
+		auxTestFits.Add(1)
 	}
 	if m.brant {
 		b := d.brant()

@@ -10418,7 +10418,7 @@
             "name": "nominal_test",
             "type": "object",
             "required": false,
-            "description": "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."
+            "description": "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC; absent under a probability weight (no likelihood)."
           }
         ],
         "intents": [
@@ -10458,7 +10458,7 @@
           {
             "key": "nominal_test",
             "json_type": "object",
-            "description": "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC."
+            "description": "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC. Absent under a probability weight (no likelihood)."
           }
         ]
       }
@@ -21970,4 +21970,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9488fe8ac4b050efc9e5f7561845ef862c4ea3851ff484c0addf172b3e41c0b0
+// golden-hash: b02c03e347b03b3e5f68231885b66fcf2355d284fe44999bd8dbf19f714bc262

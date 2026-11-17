@@ -584,7 +584,7 @@ ord_case("logit_freq_hc1", d, c("x1", "x2"), kind = "frequency", cov = "hc1")
 
 d <- ord_draw(150, c(0.8, -0.5), c(-0.4, 0.7))
 d$w <- round(runif(150, 0.2, 3), 3)
-ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE, nominal_test = TRUE)
+ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE)
 
 # levels_subset: the response carries a fifth value 0 that params.levels
 # leaves out — R's factor(y, levels = 1:J) makes those rows NA and polr
@@ -593,7 +593,9 @@ ord_case("logit_prob", d, c("x1", "x2"), kind = "probability", brant_test = TRUE
 d <- ord_draw(200, c(0.6, 0.4), c(-0.6, 0.5))
 ord_case("levels_subset", d, c("x1", "x2"), levels_param = c("1", "2", "3"))
 
-# Nominal test (U68 E6-S1): weighted probit and cloglog cases, and a
+# Nominal test (U68 E6-S1): frequency-weighted probit and cloglog cases
+# (a probability-weighted fit reports no likelihood, so no nominal test:
+# Pulse leaves the output absent there), and a
 # pinned non-convergent one — x3 is 0 on every lowest-level row, so the
 # partial fit freeing x3 sends its first split's slope to infinity
 # (clm reports convergence code 1; the figure is null) while the
@@ -604,8 +606,8 @@ d$w <- sample(1:3, 180, replace = TRUE)
 ord_case("probit_freq_nominal", d, c("x1", "x2"), link = "probit", kind = "frequency", nominal_test = TRUE)
 
 d <- ord_draw(200, c(0.6, -0.6), c(-0.9, 0.2), link = "cloglog")
-d$w <- round(runif(200, 0.3, 2.5), 3)
-ord_case("cloglog_prob_nominal", d, c("x1", "x2"), link = "cloglog", kind = "probability", nominal_test = TRUE)
+d$w <- sample(1:3, 200, replace = TRUE)
+ord_case("cloglog_freq_nominal", d, c("x1", "x2"), link = "cloglog", kind = "frequency", nominal_test = TRUE)
 
 d <- ord_draw(120, c(0.9, -0.4), c(-0.5, 0.8))
 d$x3 <- ifelse(d$y == 1, 0, rbinom(120, 1, 0.5))

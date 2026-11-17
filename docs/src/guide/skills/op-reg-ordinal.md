@@ -35,7 +35,7 @@ Use something else:
 | `link` | enum | `logit` | `logit`, `probit`, `cloglog`. |
 | `levels` | array | — | Level order, lowest first. |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
-| `nominal_test` | object | — | `{}` adds `outputs.nominal_test`; any link. |
+| `nominal_test` | object | — | `{}` adds `outputs.nominal_test`; any link; not probability-weighted. |
 | `conf_level` | float | `0.95` | CI level. |
 | `vcov` | bool | `false` | — |
 | `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
@@ -61,7 +61,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β, SE, `ci_*`; predictors); `margins`: dP(level)/dx per `"<level>:<term>"`.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (none probability-weighted). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β of predictors); `margins`: dP(level)/dx, `"<level>:<term>"`.
 
 ## Reading the output
 
@@ -78,7 +78,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Gotchas
 
-- Dictionary order = import order; else pass `levels`.
+- Dictionary order = import order, else `levels`.
 - Small Brant / nominal p: an effect varies by step.
 - Frequency weights = the `rep()` expansion; probability weights follow `REG_GLM`'s rule (w* = w·n_eff/Σw).
 - Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.

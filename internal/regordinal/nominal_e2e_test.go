@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -103,7 +105,7 @@ func TestRegOrdinal_NominalTestAbsentIsByteIdentical(t *testing.T) {
 // byte-identical across DecodeWorkers / ShardWorkers counts.
 func TestRegOrdinal_NominalTestWorkerInvariant(t *testing.T) {
 	t.Parallel()
-	c := goldenCase(t, "cloglog_prob_nominal")
+	c := goldenCase(t, "cloglog_freq_nominal")
 	var first string
 	for _, w := range []int{1, 3, 8} {
 		p := newInstance(t, func(o *pulse.Options) { o.DecodeWorkers, o.ShardWorkers = w, w })
@@ -117,5 +119,129 @@ func TestRegOrdinal_NominalTestWorkerInvariant(t *testing.T) {
 		} else if string(raw) != first {
 			t.Errorf("workers %d: nominal_test differs:\n%s\n%s", w, first, raw)
 		}
+	}
+}
+
+// TestRegOrdinal_NominalTestAbsentUnderProbabilityWeight: a resolved
+// probability weight (on the slot, or inherited from the request)
+// leaves outputs.nominal_test absent — no likelihood, as the
+// multinomial term_tests LR — with no warning and no refusal; a
+// frequency weight and no weight keep it. Predict counts its p-values
+// (one per predictor plus the omnibus) exactly when the run emits it.
+func TestRegOrdinal_NominalTestAbsentUnderProbabilityWeight(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := goldenCase(t, "probit_freq_nominal")
+	p := newInstance(t, nil)
+	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
+	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
+	for name, tc := range map[string]struct {
+		slot, request *types.WeightSpec
+		present       bool
+	}{
+		"unweighted":    {present: true},
+		"frequency":     {slot: &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}, present: true},
+		"probability":   {slot: prob},
+		"request_level": {request: prob},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			build := func(nominal bool) *types.Request {
+				s := &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: c.Predictors}
+				s.Params = json.RawMessage(`{"link":"probit"}`)
+				if nominal {
+					s.Params = json.RawMessage(`{"link":"probit","nominal_test":{}}`)
+				}
+				if tc.slot != nil {
+					s.Weight = types.SlotWeightOf(*tc.slot)
+				}
+				return &types.Request{Cohort: &types.Cohort{Filename: "ord.pulse"}, Weight: tc.request, Regressions: []*types.RegressionSpec{s}}
+			}
+			resp, err := p.Process(ctx, build(true))
+			if err != nil || resp.Regressions[0].Error != nil {
+				t.Fatalf("Process: %v %v", err, resp)
+			}
+			res := resp.Regressions[0]
+			if _, ok := res.Outputs["nominal_test"]; ok != tc.present || len(res.Warnings) != 0 {
+				t.Fatalf("outputs.nominal_test present %v (want %v), warnings %v", ok, tc.present, res.Warnings)
+			}
+			with, err := p.Predict(ctx, build(true))
+			if err != nil || len(with.Errors) != 0 {
+				t.Fatalf("Predict: %v %+v", err, with.Errors)
+			}
+			without, err := p.Predict(ctx, build(false))
+			if err != nil || len(without.Errors) != 0 {
+				t.Fatalf("Predict: %v %+v", err, without.Errors)
+			}
+			total := func(pr *descriptor.PredictResult) int {
+				if pr.PValues == nil {
+					return 0
+				}
+				return pr.PValues.Total
+			}
+			want := 0
+			if tc.present {
+				want = len(c.Predictors) + 1
+			}
+			if got := total(with) - total(without); got != want {
+				t.Errorf("predict counts %d nominal_test p-values, the run emits %d", got, want)
+			}
+		})
+	}
+}
+
+// TestRegOrdinal_ReplicatesSkipAuxTests: resample replicates fit
+// without the Brant and nominal tests (their outputs are discarded) —
+// one test-running fit per resampled slot, the base fit — and the
+// resampled result carries both outputs identical to the unresampled
+// fit's; selection candidates keep them, so the chosen model reports
+// its own.
+//
+// serial: it reads the package's process-wide AuxTestFits counter,
+// which a parallel ordinal fit would move.
+func TestRegOrdinal_ReplicatesSkipAuxTests(t *testing.T) {
+	c := goldenCase(t, "logit_two")
+	p := newInstance(t, nil)
+	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
+	spec := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
+		s := &types.RegressionSpec{Type: types.REG_ORDINAL, Name: "ord", Target: "y", Predictors: c.Predictors,
+			Params: json.RawMessage(`{"brant":{},"nominal_test":{}}`)}
+		if mut != nil {
+			mut(s)
+		}
+		return s
+	}
+	run := func(s *types.RegressionSpec) (*types.RegressionResult, int64) {
+		before := regordinal.AuxTestFits()
+		res := fitOne(t, p, "ord.pulse", s)
+		return res, regordinal.AuxTestFits() - before
+	}
+	aux := func(res *types.RegressionResult) string {
+		raw, err := types.MarshalFinite(map[string]any{"brant": res.Outputs["brant"], "nominal_test": res.Outputs["nominal_test"]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
+	}
+	base, n := run(spec(nil))
+	if n != 1 || base.Outputs["brant"] == nil || base.Outputs["nominal_test"] == nil {
+		t.Fatalf("base fit: %d test-running fits, outputs %v", n, base.Outputs)
+	}
+	for name, mut := range map[string]func(*types.RegressionSpec){
+		"jackknife":    func(s *types.RegressionSpec) { s.Resample = "jackknife" },
+		"jackknife_by": func(s *types.RegressionSpec) { s.Resample, s.JackknifeBy = "jackknife", "g" },
+		"bootstrap":    func(s *types.RegressionSpec) { s.Resample, s.BootstrapIters, s.RNGSeed = "bootstrap", 20, 3 },
+	} {
+		res, n := run(spec(mut))
+		if n != 1 {
+			t.Errorf("%s: %d fits ran the tests, want 1 (the base fit; replicates skip them)", name, n)
+		}
+		if got, want := aux(res), aux(base); got != want {
+			t.Errorf("%s: resampled outputs differ from the base fit's:\n%s\n%s", name, got, want)
+		}
+	}
+	res, n := run(spec(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }))
+	if n < 2 || res.Outputs["brant"] == nil || res.Outputs["nominal_test"] == nil {
+		t.Errorf("selection: %d test-running fits (candidates keep the tests), outputs %v", n, res.Outputs)
 	}
 }

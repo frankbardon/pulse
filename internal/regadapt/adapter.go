@@ -994,10 +994,13 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // the pin's NoPValue coefficients keep a NaN p-value under resample.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
 	var pin *model.ReplicatePin
-	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+	fit := func(replicate bool, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
 		spec := e.spec
 		if pin != nil {
 			spec = pin.Spec
+			if replicate && pin.ReplicateSpec != nil {
+				spec = pin.ReplicateSpec
+			}
 		}
 		res, keys, err := e.refit(ctx, spec, recs, predictors)
 		if err != nil {
@@ -1015,7 +1018,13 @@ func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, recor
 		}
 		return res, keys, nil
 	}
-	res, err := e.runModifiers(ctx, records, refit)
+	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		return fit(false, recs, predictors)
+	}
+	replicate := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		return fit(true, recs, predictors)
+	}
+	res, err := e.runModifiers(ctx, records, refit, replicate)
 	if err != nil || pin == nil || res.Resample == "" {
 		return res, err
 	}
@@ -1027,10 +1036,11 @@ func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, recor
 	return res, nil
 }
 
-// runModifiers is RunExtensionModifiers over refit with the adapter's
-// contract-fault constructors.
-func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []regression.Record, refit regression.ExtensionFit) (*types.RegressionResult, error) {
-	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.Decl.PValues, records, refit,
+// runModifiers is RunExtensionModifiersReplicates over refit (base fit,
+// selection candidates) and replicate (resample replicates) with the
+// adapter's contract-fault constructors.
+func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []regression.Record, refit, replicate regression.ExtensionFit) (*types.RegressionResult, error) {
+	return regression.RunExtensionModifiersReplicates(ctx, e.spec, e.reg.Decl.PValues, records, refit, replicate,
 		func() error { return RegressionSelectionDevianceMismatch(e.reg, false) },
 		func(base, got []string) error {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,

@@ -1063,7 +1063,7 @@ outputs.levels and outputs.thresholds name the fitted order and the threshold co
 
 - The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.
 - A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.
-- A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight it is a working-likelihood ratio, not a design-based test.
+- A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight there is no likelihood, so nominal_test is absent.
 
 #### `holdout.log_loss`
 

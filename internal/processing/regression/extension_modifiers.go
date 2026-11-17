@@ -64,6 +64,25 @@ func RunExtensionModifiers(
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
 ) (*types.RegressionResult, error) {
+	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch)
+}
+
+// RunExtensionModifiersReplicates is RunExtensionModifiers with the
+// resample replicates fitted by replicate rather than fit: the base fit
+// and every selection candidate (the chosen one is the result) go
+// through fit, and only the replicates — whose outputs are discarded,
+// only their coefficients read — through replicate, so a model can skip
+// work a replicate's figures never reach (REG_ORDINAL's Brant and
+// nominal tests).
+func RunExtensionModifiersReplicates(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	pValues bool,
+	records []Record,
+	fit, replicate ExtensionFit,
+	missingDeviance func() error,
+	mismatch func(base, got []string) error,
+) (*types.RegressionResult, error) {
 	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
 		kept := make([]Record, 0, len(records))
 		for _, rec := range records {
@@ -94,7 +113,7 @@ func RunExtensionModifiers(
 	if spec.Resample == "" {
 		return base, nil
 	}
-	return extensionResample(ctx, spec, pValues, records, active, base, keys, fit, mismatch)
+	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch)
 }
 
 // extensionFatal reports whether a refit error must stop a modifier

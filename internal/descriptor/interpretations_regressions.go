@@ -785,7 +785,7 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 		Caveats: []string{
 			"The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.",
 			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
-			"A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight it is a working-likelihood ratio, not a design-based test.",
+			"A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight there is no likelihood, so nominal_test is absent.",
 		},
 	},
 }, regOutcomeHoldout, regExponentiated("the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).",

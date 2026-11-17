@@ -1065,7 +1065,7 @@ beside the predictors (no intercept), leaves their `p_values` `null`,
 and fills `outputs` `link`, `levels`, `thresholds`,
 `fitted_probabilities` and, with `params.brant`, `brant` (with
 `params.nominal_test`, `nominal_test`: `{statistic, df, p_value, terms}`,
-a failed partial fit's figures `null`).
+a failed partial fit's figures `null`; absent under a probability weight).
 `REG_MMM_HILL` with `params.adstock` appends `decay:<channel>` (and
 `peak:<channel>`) after `s:<channel>`, adds `outputs.condition_number`
 (`null` when the joint block does not invert) and, above 1e6, carries

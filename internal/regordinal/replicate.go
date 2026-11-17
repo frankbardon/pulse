@@ -30,7 +30,11 @@ const reasonEmptyLevel = "empty_level"
 // ReplicatePin is REG_ORDINAL's pin of the modifier refits after first,
 // the slot's first successful fit: spec with params.levels set to the
 // levels first fitted (its other params kept), the empty-level refusal
-// re-reasoned, and the thresholds marked as carrying no p-value.
+// re-reasoned, and the thresholds marked as carrying no p-value. The
+// resample replicates (ReplicateSpec) also drop params.brant and
+// params.nominal_test: a replicate's outputs are discarded, so the extra
+// binary / partial fits would be pure cost; selection candidates keep
+// them (the chosen candidate is the result).
 func ReplicatePin(spec *types.RegressionSpec, first *types.RegressionResult) (pmodel.ReplicatePin, error) {
 	levels, ok := stringsOutput(first, "levels")
 	thresholds, tok := stringsOutput(first, "thresholds")
@@ -52,10 +56,19 @@ func ReplicatePin(spec *types.RegressionSpec, first *types.RegressionResult) (pm
 	}
 	pinned := *spec
 	pinned.Params = raw
+	p.Brant, p.NominalTest = nil, nil
+	rawRep, err := json.Marshal(p)
+	if err != nil {
+		return pmodel.ReplicatePin{}, perr.NewCodedErrorWithDetails(perr.PROCESSING_INTERNAL,
+			string(Name)+": encoding the replicate params: "+err.Error(), map[string]any{"type": string(Name)})
+	}
+	replicate := *spec
+	replicate.Params = rawRep
 	return pmodel.ReplicatePin{
-		Spec:     &pinned,
-		Refusal:  func(err error) error { return replicateRefusal(err, levels) },
-		NoPValue: thresholds,
+		Spec:          &pinned,
+		ReplicateSpec: &replicate,
+		Refusal:       func(err error) error { return replicateRefusal(err, levels) },
+		NoPValue:      thresholds,
 	}, nil
 }
 

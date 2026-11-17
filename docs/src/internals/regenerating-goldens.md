@@ -729,7 +729,8 @@ logLik agrees to 1e-8 and `nominal_test`'s LRT (the omnibus: `clm`
 with every predictor nominal) to 1e-6; a non-converging or crossing
 partial fit is recorded `null` (`nominal_test.failed`, R's own figure
 as `r_reported`); the `nominal_noconverge` case pins one, `logit_freq`'s
-x1 a crossing. Frequency weights are asserted equal to the
+x1 a crossing; frequency-weighted cases cover every link (a probability
+weight leaves the output absent, so no case carries one there). Frequency weights are asserted equal to the
 `rep()` expansion. `TestOrdinalOracle_Design` and
 `TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
 figure at relative `1e-10` (measured within 2e-12). Every case carries

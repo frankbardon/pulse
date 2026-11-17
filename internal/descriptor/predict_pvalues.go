@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
+	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -249,6 +250,15 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 					mrm := regressions[i]
 					mrm.Family = types.MultiplicityFamilyMargins
 					visit(effects, descriptor.PValueBasisLowerBound, mrm)
+				}
+			}
+			// REG_ORDINAL's params.nominal_test (U68 E6-S1) adds one
+			// p-value per predictor plus the omnibus — absent under a
+			// resolved probability weight, the runtime's own rule
+			// (regordinal.NominalTestPValues); never corrected.
+			if opRoute(inst, r.Type) == types.REG_ORDINAL {
+				if n := regordinal.NominalTestPValues(r, probabilityWeighted(i)); n > 0 {
+					addPValues(out, n, descriptor.PValueBasisExact, false)
 				}
 			}
 			if !decl.PValues {
