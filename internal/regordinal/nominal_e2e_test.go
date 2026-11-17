@@ -245,3 +245,80 @@ func TestRegOrdinal_ReplicatesSkipAuxTests(t *testing.T) {
 		t.Errorf("selection: %d test-running fits (candidates keep the tests), outputs %v", n, res.Outputs)
 	}
 }
+
+// TestRegOrdinal_PredictCountsTestPValues: predict's p_values count the
+// Brant and nominal tests' p-values (omnibus plus one per predictor,
+// uncorrected) exactly as the run emits them — each alone, together, and
+// under a probability weight (Brant runs, the nominal test is absent).
+func TestRegOrdinal_PredictCountsTestPValues(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := goldenCase(t, "logit_two")
+	p := newInstance(t, nil)
+	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
+	build := func(params string, weighted bool) *types.Request {
+		s := &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: c.Predictors, Params: json.RawMessage(params)}
+		if weighted {
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
+		}
+		return &types.Request{Cohort: &types.Cohort{Filename: "ord.pulse"}, Regressions: []*types.RegressionSpec{s}}
+	}
+	// emitted counts the p_value keys outputs.brant / nominal_test carry.
+	emitted := func(res *types.RegressionResult) int {
+		n := 0
+		for _, key := range []string{"brant", "nominal_test"} {
+			o, ok := res.Outputs[key].(map[string]any)
+			if !ok {
+				continue
+			}
+			n++
+			terms, _ := o["terms"].(map[string]any)
+			for _, tm := range terms {
+				if _, ok := tm.(map[string]any)["p_value"]; ok {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	predicted := func(r *types.Request) (total, uncorrected int) {
+		pr, err := p.Predict(ctx, r)
+		if err != nil || len(pr.Errors) != 0 {
+			t.Fatalf("Predict: %v %+v", err, pr.Errors)
+		}
+		if pr.PValues == nil {
+			return 0, 0
+		}
+		return pr.PValues.Total, pr.PValues.Uncorrected
+	}
+	for name, tc := range map[string]struct {
+		params   string
+		weighted bool
+		want     int
+	}{
+		"brant":                  {`{"brant":{}}`, false, 3},
+		"nominal_test":           {`{"nominal_test":{}}`, false, 3},
+		"both":                   {`{"brant":{},"nominal_test":{}}`, false, 6},
+		"both_probability":       {`{"brant":{},"nominal_test":{}}`, true, 3},
+		"brant_probability":      {`{"brant":{}}`, true, 3},
+		"nominal_probability":    {`{"nominal_test":{}}`, true, 0},
+		"neither_with_link_only": {`{"link":"logit"}`, false, 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := build(tc.params, tc.weighted)
+			resp, err := p.Process(ctx, r)
+			if err != nil || resp.Regressions[0].Error != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			if got := emitted(resp.Regressions[0]); got != tc.want {
+				t.Fatalf("run emits %d test p-values, want %d", got, tc.want)
+			}
+			total, unc := predicted(r)
+			baseTotal, baseUnc := predicted(build(`{}`, tc.weighted))
+			if total-baseTotal != tc.want || unc-baseUnc != tc.want {
+				t.Errorf("predict counts %d (%d uncorrected) test p-values, the run emits %d", total-baseTotal, unc-baseUnc, tc.want)
+			}
+		})
+	}
+}

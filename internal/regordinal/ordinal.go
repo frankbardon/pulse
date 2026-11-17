@@ -194,6 +194,19 @@ func nominalTestRuns(requested, probability bool) bool {
 	return requested && !probability
 }
 
+// BrantPValues is how many p-values outputs.brant carries for spec:
+// one per predictor plus the omnibus with params.brant, else 0 — and 0
+// for a refused spec (params.brant beside a non-logit link). Every
+// weight kind runs it. Predict counts them (internal/descriptor) on the
+// rule the runtime applies (Factory's brant flag).
+func BrantPValues(spec *types.RegressionSpec) int {
+	p, _, err := decodeParams(spec)
+	if err != nil || p.Brant == nil {
+		return 0
+	}
+	return len(spec.Predictors) + 1
+}
+
 // NominalTestPValues is how many p-values outputs.nominal_test carries
 // for spec under a resolved weight of kind probability (true) or not:
 // one per predictor plus the omnibus, or 0 — no params.nominal_test, a

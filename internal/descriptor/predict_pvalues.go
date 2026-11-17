@@ -252,11 +252,15 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 					visit(effects, descriptor.PValueBasisLowerBound, mrm)
 				}
 			}
-			// REG_ORDINAL's params.nominal_test (U68 E6-S1) adds one
-			// p-value per predictor plus the omnibus — absent under a
-			// resolved probability weight, the runtime's own rule
-			// (regordinal.NominalTestPValues); never corrected.
+			// REG_ORDINAL's params.brant and params.nominal_test (U68
+			// E6-S1) each add one p-value per predictor plus the omnibus
+			// — the nominal test's absent under a resolved probability
+			// weight, the runtime's own rule (regordinal.BrantPValues /
+			// NominalTestPValues); never corrected.
 			if opRoute(inst, r.Type) == types.REG_ORDINAL {
+				if n := regordinal.BrantPValues(r); n > 0 {
+					addPValues(out, n, descriptor.PValueBasisExact, false)
+				}
 				if n := regordinal.NominalTestPValues(r, probabilityWeighted(i)); n > 0 {
 					addPValues(out, n, descriptor.PValueBasisExact, false)
 				}
