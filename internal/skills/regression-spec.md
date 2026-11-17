@@ -35,7 +35,7 @@ Shared keys:
 
 ## Penalty
 
-`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM binomial / poisson; multinomial, `op-reg-multinomial`) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
+`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM binomial / poisson<!-- feature: REG_MULTINOMIAL -->; multinomial, `op-reg-multinomial`<!-- /feature -->) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
 
 - `alpha` — strength, `> 0` (glmnet `lambda`), required with a `penalty`. `l1_ratio` — the mix, `0<r<1`, `elasticnet` only.
 - Raw units: scale predictors upstream to penalize them alike.
