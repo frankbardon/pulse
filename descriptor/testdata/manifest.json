@@ -9656,7 +9656,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated). A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
+        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated); margins adds the per-category marginal effects; term_tests adds the joint predictor tests. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
         "streamable": false,
         "streamable_hint": "Always buffered; Newton-Raphson requires multiple passes over the data.",
         "params": [
@@ -9845,6 +9845,21 @@
             "required": false,
             "default": false,
             "description": "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the relative-risk ratios exp(β) on every \"\u003clevel\u003e:\u003cterm\u003e\" key (Stata mlogit, rrr), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled); null SE and bounds under a penalty.",
+            "slot": true
+          },
+          {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_MULTINOMIAL per category, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with outcomes: scale response dπ_k/dx (every fitted level; they sum to 0), link the level's log-odds against the reference (its coefficient). Wald z.",
+            "slot": true
+          },
+          {
+            "name": "term_tests",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add term_tests: per predictor the joint test of its K−1 coefficients on df K−1 — Wald χ² on the fit's covariance (robust under covariance) and the LR χ² against the refit without it (car::Anova(multinom), type II; absent under a probability weight). Never corrected by multiplicity. Beside penalty, selection or resample, or on another type: PROCESSING_CONFIG.",
             "slot": true
           },
           {
@@ -15464,7 +15479,7 @@
       },
       {
         "name": "regression-margins",
-        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear and ordinal fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear, ordinal and multinomial fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
@@ -21813,6 +21828,7 @@
           "regressions[*].margins",
           "regressions[*].collinearity",
           "regressions[*].exponentiated",
+          "regressions[*].term_tests",
           "regressions[*].advisories",
           "regressions[*].holdout",
           "regressions[*].statistics",
@@ -21943,4 +21959,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5824fac3fd20bcb39bc2e21cd082e1f8c5e2e9bcf65f2f6cd57536463da04e85
+// golden-hash: 9efaa510e0c50e87398d28936500d42f2c237bc315150968611e909bc2fb1413

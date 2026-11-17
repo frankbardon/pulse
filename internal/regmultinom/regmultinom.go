@@ -8,16 +8,17 @@
 // Every refusal is PROCESSING_CONFIG with details.slot (the spec key)
 // and details.requires naming what the request must change:
 //
-//   - `reference` on any other regression (requires "type
-//     REG_MULTINOMIAL");
+//   - `reference` or `term_tests` on any other regression (requires
+//     "type REG_MULTINOMIAL");
 //   - a RegressionSpec knob the multinomial fit does not offer: a GLM
 //     family / link / theta / dispersion ("no_family"), `reference`
 //     beside a penalty ("unpenalized": the penalized fit is symmetric,
 //     U68 E2-S3), bounds ("unbounded"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
-//     margins ("no_margins"), collinearity ("no_collinearity") — each a
-//     follow-up, never a silent no-op — and a negative max_iters / tol
-//     ("max_iters ≥ 0", "tol ≥ 0");
+//     collinearity ("no_collinearity") — each a follow-up, never a
+//     silent no-op — term_tests beside a penalty ("unpenalized"),
+//     selection ("no_selection") or resample ("no_resample"), and a
+//     negative max_iters / tol ("max_iters ≥ 0", "tol ≥ 0");
 //   - CheckTarget: the target is a categorical cohort field (its
 //     dictionary order is the category order; requires
 //     "categorical_target"), and `reference` one of its labels (requires
@@ -38,7 +39,9 @@
 // (internal/fieldaccept). A robust covariance runs (U68 E3-S1: hc0 /
 // hc1 / cluster, the score sandwich): its rules, hc2 / hc3 / hac and the
 // penalty / resample / selection refusals included, are
-// internal/regcov's.
+// internal/regcov's. Margins run (U68 E4-S2: each category's
+// probability, regression.multinomialMargins): their rules are
+// internal/regmargins'.
 package regmultinom
 
 import (
@@ -46,6 +49,10 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
+
+// RequiresTermTests is details.requires of the term_tests refusal on
+// any other regression type (the shared-slot table's too).
+const RequiresTermTests = "type REG_MULTINOMIAL"
 
 // Key is the result key of category's coefficient on term:
 // "<category>:<term>", nnet::multinom's vcov row name (term
@@ -86,7 +93,9 @@ var unsupportedKnobs = []unsupported{
 	{"credible_level", "no_prior", "credible_level is a posterior's", func(s *types.RegressionSpec) bool { return s.CredibleLevel != 0 }},
 	{"solver", "no_solver", "solver picks REG_OLS's least-squares method", func(s *types.RegressionSpec) bool { return s.Solver != "" }},
 	{"intercept", "intercept", "every category's linear predictor carries an intercept", func(s *types.RegressionSpec) bool { return s.Intercept != nil && !*s.Intercept }},
-	{"margins", "no_margins", "marginal effects are reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Margins != nil }},
+	{"term_tests", "unpenalized", "a shrunken coefficient has no Wald or likelihood-ratio reference distribution", func(s *types.RegressionSpec) bool { return s.TermTests && s.Penalty != "" }},
+	{"term_tests", "no_selection", "after selection the tests ignore the search", func(s *types.RegressionSpec) bool { return s.TermTests && s.Selection != "" }},
+	{"term_tests", "no_resample", "the tests read the fit's analytical covariance and likelihood, not a replicate one", func(s *types.RegressionSpec) bool { return s.TermTests && s.Resample != "" }},
 	{"collinearity", "no_collinearity", "the variance inflation block is reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Collinearity != nil }},
 }
 
@@ -102,6 +111,10 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if spec.Reference != "" {
 			return refuse(spec, "reference", "does not accept reference; it names REG_MULTINOMIAL's baseline category",
 				"type REG_MULTINOMIAL", map[string]any{"reference": spec.Reference})
+		}
+		if spec.TermTests {
+			return refuse(spec, "term_tests", "does not accept term_tests: the joint predictor tests across categories are REG_MULTINOMIAL's; drop it",
+				RequiresTermTests, nil)
 		}
 		return nil
 	}

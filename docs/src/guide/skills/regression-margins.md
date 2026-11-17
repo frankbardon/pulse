@@ -1,6 +1,6 @@
 ```yaml
 name: regression-margins
-description: Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear and ordinal fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills.
+description: Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear, ordinal and multinomial fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
@@ -36,6 +36,10 @@ A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports
 
 One effect per level and term on P(Y = level): −β_j·[f(ζ_k − η) − f(ζ_{k−1} − η)], averaged (`ame`) or at the means (`mem`). A term's effects sum to 0 over the levels — probability moves between them, so a middle level can go either way. `scale: link` is the effect on each cumulative link P(Y ≤ level): −β_j for every level but the last, with the coefficient's SE. Delta method on the coefficient and threshold covariance (classical, `hc0`, `hc1`, `cluster`); Wald z. A `multiplicity` block corrects all levels × terms as one family.
 
+## Per-category effects (`REG_MULTINOMIAL`)
+
+One effect per fitted category and term on P(Y = category): π_k·(β_kj − Σ_m π_m·β_mj), β of the reference 0, averaged (`ame`) or at the means (`mem`); they sum to 0 over the categories, and the sign can differ from the coefficient's (which compares with the reference only). `scale: link` is each non-reference category's log-odds against the reference — the coefficient, with its SE. Delta method on the fit's covariance (classical, `hc0`, `hc1`, `cluster`); Wald z. For "does x matter at all", read `term_tests` ([`op-reg-multinomial`](op-reg-multinomial.md)), not one category's effect.
+
 ## Inference
 
 - **Delta method** on the fit's own coefficient covariance: Var = J·V·Jᵀ with J_jk = δ_jk·m̄ + β_j·mean(μ″(η_i)·x_ik) (ame). V is whatever `std_errors` used, so a robust `covariance` (`hc0`–`hc3`, `cluster`, `hac`) carries through.
@@ -55,7 +59,7 @@ OLS needs no extra pass (the effect is β), so it streams with the fit. A GLM is
 |---|---|
 | bad `type` / `scale` | `type ame or mem` / `scale response or link` |
 | a term not a predictor, or repeated | `a predictor` |
-| `REG_BAYES_LINEAR` | `type REG_OLS or REG_GLM` |
+| `REG_BAYES_LINEAR` | `type REG_OLS, REG_GLM or REG_MULTINOMIAL` |
 | an extension or model regression not declaring margins | `declared_margins` |
 | `penalty` / `selection` / `resample` / `bounds` | `unpenalized` / `no_selection` / `no_resample` / `unbounded` |
 | a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |
@@ -64,12 +68,13 @@ A derived predictor (a log column, a one-hot dummy) is differentiated as given: 
 
 ## Against R
 
-Pinned to analytic closed forms in R 4.6.1 at 1e-9 and to `marginaleffects` 1.0.0 (`avg_slopes`, `slopes(newdata = "mean")`; on `polr` for ordinal) within its numerical-derivative accuracy (~1e-8): oracle `margins.json`.
+Pinned to analytic closed forms in R 4.6.1 at 1e-9 and to `marginaleffects` 1.0.0 (`avg_slopes`, `slopes(newdata = "mean")`; on `polr` / `multinom` per level) within its numerical-derivative accuracy (~1e-8): oracle `margins.json`.
 
 ## See
 
 - [`op-reg-glm`](op-reg-glm.md) — the GLM params.
 - [`op-reg-ols`](op-reg-ols.md) — the OLS params.
 - [`op-reg-ordinal`](op-reg-ordinal.md) — the ordinal params.
+- [`op-reg-multinomial`](op-reg-multinomial.md) — the multinomial params, `term_tests`.
 - [`regression-inference`](regression-inference.md) — standard errors, robust covariance, intervals.
 - [`multiplicity-correction`](multiplicity-correction.md) — families and methods.

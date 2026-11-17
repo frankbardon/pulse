@@ -66,6 +66,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}},
 		// The opt-in relative-risk ratios.
 		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}, Exponentiate: true},
+		// The opt-in per-category margins and joint term tests.
+		{Type: types.REG_MULTINOMIAL, Target: "cat", Predictors: []string{"x1", "x2"}, Margins: &types.RegressionMargins{}, TermTests: true},
 	},
 	// The model regressions: a saturating spend channel c and a control
 	// x2 over the target m; REG_MMM_BAYES reads the contiguous time t.
@@ -81,6 +83,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}},
 		// The opt-in cumulative odds ratios.
 		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Exponentiate: true},
+		// The opt-in per-level margins (U68 E4-S1).
+		{Type: types.REG_ORDINAL, Target: "o", Predictors: []string{"x1", "x2"}, Margins: &types.RegressionMargins{}},
 	},
 }
 

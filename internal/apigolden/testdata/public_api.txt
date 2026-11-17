@@ -5859,6 +5859,7 @@ pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[strin
 pulse/types: type FitResult field RegressionResult.Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type FitResult field RegressionResult.TermTests *pulse/types.RegressionTermTests "json:\"term_tests,omitempty\""
 pulse/types: type FitResult field RegressionResult.Theta float64 "json:\"theta,omitempty\""
 pulse/types: type FitResult field RegressionResult.ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
 pulse/types: type FitResult field RegressionResult.TwoLogLik float64 "json:\"two_log_lik,omitempty\""
@@ -6644,6 +6645,7 @@ pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "js
 pulse/types: type RegressionResult field Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type RegressionResult field TermTests *pulse/types.RegressionTermTests "json:\"term_tests,omitempty\""
 pulse/types: type RegressionResult field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionResult field ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
 pulse/types: type RegressionResult field TwoLogLik float64 "json:\"two_log_lik,omitempty\""
@@ -6689,6 +6691,7 @@ pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionSpec field Solver string "json:\"solver,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
+pulse/types: type RegressionSpec field TermTests bool "json:\"term_tests,omitempty\""
 pulse/types: type RegressionSpec field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
@@ -6700,6 +6703,13 @@ pulse/types: type RegressionSpec method (RegressionSpec) StreamableAs(typeStream
 pulse/types: type RegressionTermGroup struct
 pulse/types: type RegressionTermGroup field Name string "json:\"name\""
 pulse/types: type RegressionTermGroup field Predictors []string "json:\"predictors\""
+pulse/types: type RegressionTermTests struct
+pulse/types: type RegressionTermTests field DF map[string]int "json:\"df\""
+pulse/types: type RegressionTermTests field LRChi2 map[string]float64 "json:\"lr_chi2,omitempty\""
+pulse/types: type RegressionTermTests field LRPValues map[string]float64 "json:\"lr_p_values,omitempty\""
+pulse/types: type RegressionTermTests field Terms []string "json:\"terms\""
+pulse/types: type RegressionTermTests field WaldChi2 map[string]float64 "json:\"wald_chi2\""
+pulse/types: type RegressionTermTests field WaldPValues map[string]float64 "json:\"wald_p_values\""
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
 pulse/types: type Request struct
@@ -7047,4 +7057,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: deed0cdfddb7e8f3bd7d5a050e78e077edebade18827c5e7fd0510c5c2579ddb
+// golden-hash: c8864e2fdab29f363d02023e7211635b3357af1f7e0470145f99df487b7bf3ec

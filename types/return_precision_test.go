@@ -104,6 +104,8 @@ var precisionClass = map[string]string{
 	"regressions[*].collinearity.gvif_scaled.*": "round",
 	"regressions[*].exponentiated.estimates.*":  "round", "regressions[*].exponentiated.std_errors.*": "round",
 	"regressions[*].exponentiated.ci_lower.*": "round", "regressions[*].exponentiated.ci_upper.*": "round",
+	"regressions[*].term_tests.wald_chi2.*": "round", "regressions[*].term_tests.wald_p_values.*": "round",
+	"regressions[*].term_tests.lr_chi2.*": "round", "regressions[*].term_tests.lr_p_values.*": "round",
 	"regressions[*].margins.multiplicity.alpha": "round",
 	// Matrices: primary rounds; auxiliary is keyed — `n` (the pairwise
 	// N, integer counts) is exempt, any future companion rounds.

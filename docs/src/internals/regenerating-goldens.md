@@ -466,7 +466,20 @@ its Jacobian Richardson-extrapolated (`marginaleffects_numDeriv`, d =
 polr). `TestOrdinalMarginsOracle_ClosedForms` /
 `TestRegOrdinal_MarginsMatchREndToEnd` hold them at `1e-9`,
 `TestOrdinalMarginsOracle_Marginaleffects` at `1e-7`
-(`internal/regordinal`). Regenerate `margins.json` alone, under its own
+(`internal/regordinal`). Its `multinomial_cases` block (U68 E4-S2, drawn
+last under its own seed, `set.seed(20261118)`, so no earlier case moves;
+needs `nnet` 7.3-21) pins `REG_MULTINOMIAL`'s per-category effects: the
+closed forms π_k(β_kj − Σ_m π_m β_mj) at the multinom MLE polished by
+Newton, the delta-method gradient asserted against a central difference
+— `ame` / `mem`, response and link scale (the coefficient), the
+classical, hc1 and cluster covariances, a named reference over four
+categories, a frequency-weighted pair against the `rep()` expansion, a
+probability-weighted `ame` — and `marginaleffects` `avg_slopes` /
+`slopes(type = "probs")` on multinom with its `wts` set to that MLE (the
+same Richardson-extrapolated Jacobian; measured within 1.1e-8).
+`TestMultinomialMarginsOracle_ClosedForms` holds them at `1e-9`
+(measured 1.3e-15), `TestMultinomialMarginsOracle_Marginaleffects` at
+`1e-7` (`internal/processing/regression`). Regenerate `margins.json` alone, under its own
 `R_LIBS` (the `Matrix` row below): `R_LIBS=<lib with Matrix 1.7-6,
 insight 1.7.0, marginaleffects 1.0.0> Rscript
 scripts/reference/gen_margins.R internal/processing/testdata/reference`,
@@ -548,7 +561,15 @@ block (U68 E3-S2) per case — and one inside each robust type, on that
 type's SE — carries exp(β) (asserted equal to `exp(coef(multinom))` at
 1e-6), the delta-method exp(β)·SE and exp(β ∓ z·SE)
 (`TestReferenceOracle_MultinomialExponentiatedMatchesR`); it adds keys
-only, so no other figure moves.
+only, so no other figure moves. A `term_tests` block (U68 E4-S2) per
+case carries each predictor's joint Wald χ² on the classical covariance
+(asserted equal to `car::linearHypothesis` at 1e-10) and — but under
+probability weights — the LR χ² against the Newton-polished refit
+without it (asserted equal to `car::Anova(multinom)`'s type II LR at
+1e-6; car refits with multinom's BFGS, the random stream restored
+around it), with upper-tail p-values; each robust type adds its own
+`term_tests_wald` (`TestReferenceOracle_MultinomialTermTestsMatchR`,
+1e-10). It needs `car` 3.1-5 and adds keys only.
 `TestReferenceOracle_MultinomialMatchesR`
 (`internal/processing/regression`) holds every figure — the row scores
 read through the bound fit's production scorer — at relative `1e-10`.
@@ -715,11 +736,11 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
-| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
+| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; `gen_margins.R`'s `multinomial_cases`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
 | `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`, `stepAIC`); `REG_MULTINOMIAL` modifiers (`gen_multinomial.R`: `stepAIC`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
-| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
+| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6); the multinomial `term_tests` (`gen_multinomial.R`: `linearHypothesis`, `Anova`) |
 | `ppcor` | 1.1 | partial correlation |
 | `perturb` | 2.10 | collinearity diagnostics (archived on CRAN; needs `gdata`) |
 | `corpcor` | 1.6.10 | `cor2pcor`; a `Hotelling` dependency |

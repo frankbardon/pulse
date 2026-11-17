@@ -444,7 +444,72 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 		},
 	},
 }, regOutcomeHoldout, regExponentiated("the relative-risk ratio exp(coefficient) of this <category>:<term> key: the factor by which the odds of the category against the reference multiply per one-unit increase in the term's predictor, other predictors held fixed; <category>:(intercept) is those odds when every predictor is 0.",
-	"It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely."))
+	"It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely."),
+	interpRegMultinomialMargins, interpRegMultinomialTermTests)
+
+// interpRegMultinomialMargins reads REG_MULTINOMIAL's per-category
+// margins block (U68 E4-S2): one effect per category and term, keyed
+// "<category>:<term>".
+var interpRegMultinomialMargins = []descriptor.Interpretation{
+	{
+		Field: "margins.estimates.*",
+		Means: "The marginal effect of this term on one category's probability (requested by margins), keyed \"<category>:<term>\" (margins.outcomes lists the categories): " +
+			"the change in P(Y = category) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). " +
+			"On the link scale it is the change in the category's log-odds against the reference — the coefficient itself, with its standard error.",
+		Sign: map[string]string{
+			"+": "a higher value of the predictor makes this category more likely, other predictors held fixed",
+			"-": "a higher value of the predictor makes this category less likely, other predictors held fixed",
+		},
+		Caveats: append([]string{
+			"A term's effects over all categories sum to 0: probability moves between categories. Its sign can differ from the coefficient's, which compares the category with the reference only.",
+		}, regMarginsCommon...),
+	},
+	{
+		Field: "margins.std_errors.*",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+	},
+	{
+		Field:   "margins.p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"A Wald z, as the coefficients': the p-value and interval use the normal distribution."},
+	},
+}
+
+// interpRegMultinomialTermTests reads REG_MULTINOMIAL's term_tests block
+// (U68 E4-S2): per predictor the joint test of its coefficients across
+// every non-reference category.
+var interpRegMultinomialTermTests = []descriptor.Interpretation{
+	{
+		Field: "term_tests.wald_chi2.*",
+		Means: "The Wald chi-square of this predictor (requested by term_tests): whether its coefficients are zero in every non-reference category at once, on df = categories - 1, from the fit's own covariance (classical, or the request's robust covariance). Larger is stronger evidence the predictor matters to the outcome.",
+		Caveats: []string{
+			"It tests the predictor as a whole: a large value can come from one category alone, so read the per-category coefficients or margins for where.",
+			"Its p-value is not corrected by a multiplicity block.",
+		},
+	},
+	{
+		Field:   "term_tests.wald_p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"The upper chi-square tail of wald_chi2 on df."},
+	},
+	{
+		Field: "term_tests.lr_chi2.*",
+		Means: "The likelihood-ratio chi-square of this predictor: how much the deviance rises when the model is refitted without it on the same rows (car::Anova on multinom, type II), on df = categories - 1. Larger is stronger evidence.",
+		Caveats: []string{
+			"Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood). It never reads a robust covariance.",
+			"With few rows per category it is usually more reliable than the Wald test; the two disagreeing is itself a warning.",
+		},
+	},
+	{
+		Field:   "term_tests.lr_p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"The upper chi-square tail of lr_chi2 on df."},
+	},
+	{
+		Field: "term_tests.df.*",
+		Means: "The test's degrees of freedom: the number of non-reference categories, one coefficient each.",
+	},
+}
 
 // regExponentiated reads the exponentiated block (exponentiate: true)
 // of REG_MULTINOMIAL and REG_ORDINAL: means is the estimate's reading,

@@ -136,6 +136,9 @@ func TestExtensions_RegressionSharedSlotsRefused(t *testing.T) {
 				want["requires"] = "type REG_OLS or REG_GLM"
 			case "exponentiate":
 				want["requires"] = "type REG_MULTINOMIAL or REG_ORDINAL"
+			case "term_tests":
+				// U68 E4-S2: REG_MULTINOMIAL's alone (internal/regmultinom).
+				want["requires"] = "type REG_MULTINOMIAL"
 			case "margins":
 				// The registration's Margins declaration (U68 E4-S1).
 				want["requires"] = "declared_margins"

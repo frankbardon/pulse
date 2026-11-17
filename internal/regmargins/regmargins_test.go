@@ -46,13 +46,15 @@ func TestCheck_Refusals(t *testing.T) {
 		{"ok", base(func(*types.RegressionSpec) {}), ""},
 		{"ok mem link", base(func(s *types.RegressionSpec) { s.Margins.Type, s.Margins.Scale = "mem", "link" }), ""},
 		{"ok ols", base(func(s *types.RegressionSpec) { s.Type, s.Family = types.REG_OLS, "" }), ""},
+		{"ok multinomial", base(func(s *types.RegressionSpec) { s.Type, s.Family = types.REG_MULTINOMIAL, "" }), ""},
+		{"multinomial penalty", base(func(s *types.RegressionSpec) { s.Type, s.Family, s.Penalty = types.REG_MULTINOMIAL, "", "l2" }), "unpenalized"},
 		{"no block", base(func(s *types.RegressionSpec) { s.Margins, s.Penalty = nil, "l1" }), ""},
 		{"extension", base(func(s *types.RegressionSpec) { s.Type = "REG_ACME_THING" }), ""},
 		{"type", base(func(s *types.RegressionSpec) { s.Margins.Type = "x" }), "type ame or mem"},
 		{"scale", base(func(s *types.RegressionSpec) { s.Margins.Scale = "x" }), "scale response or link"},
 		{"term", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"c"} }), "a predictor"},
 		{"repeat", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"a", "a"} }), "a predictor"},
-		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS or REG_GLM"},
+		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
 		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
 		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
 		{"resample", base(func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), "no_resample"},
@@ -112,9 +114,10 @@ func TestCheckDependent(t *testing.T) {
 	if CheckDependent(s, reads) != nil {
 		t.Error("REG_BAYES_LINEAR judged (Check refuses it first)")
 	}
+	// U68 E4-S2: REG_MULTINOMIAL reports margins, so it is judged.
 	s.Type = types.REG_MULTINOMIAL
-	if CheckDependent(s, reads) != nil {
-		t.Error("REG_MULTINOMIAL judged (its own rule refuses margins)")
+	if cerr := CheckDependent(s, reads); cerr == nil || cerr.Details["requires"] != "independent_predictors" {
+		t.Errorf("REG_MULTINOMIAL not judged: %v", cerr)
 	}
 	// A model or extension regression declaring margins (its caller —
 	// the field-reference walk — skips an undeclared one) is judged.

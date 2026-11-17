@@ -1132,7 +1132,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				},
 				"margins": map[string]any{
 					"type":        "object",
-					"description": "REG_OLS / REG_GLM or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
+					"description": "REG_OLS / REG_GLM / REG_MULTINOMIAL or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
 					"properties": map[string]any{
 						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
 						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
@@ -1161,6 +1161,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					},
 					"additionalProperties": false,
 				},
+				"term_tests":   map[string]any{"type": "boolean", "description": "REG_MULTINOMIAL only: add term_tests — per predictor the joint Wald χ² (the fit's covariance) and LR χ² (refit without it; absent under a probability weight) of its K−1 coefficients, df K−1 (car::Anova(multinom)). Refused beside penalty, selection or resample, and on every other type."},
 				"exponentiate": map[string]any{"type": "boolean", "description": "REG_MULTINOMIAL / REG_ORDINAL only: add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw coefficients — relative-risk ratios exp(β) (multinomial, every key), cumulative odds ratios (ordinal, predictors only), delta-method SE exp(β)·SE, exp of each interval bound — on the fit's own covariance. Refused on every other type."},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),

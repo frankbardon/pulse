@@ -576,6 +576,231 @@ d$w <- sample(1:3, 70, replace = TRUE)
 mo_case("ord_logit_ame_freq", d, weighted = TRUE)
 mo_case("ord_logit_mem_freq", d, type = "mem", weighted = TRUE)
 
+# --- REG_MULTINOMIAL (U68 E4-S2, #659) ---------------------------------
+# The baseline-category logit's per-category effects, closed forms at the
+# multinom MLE Newton-polished as gen_multinomial.R does. Per row i, with
+# pi_ic the category probabilities, b_c the category's coefficients (b_r
+# = 0 for the reference) and bbar_ij = sum_m pi_im b_mj:
+#   response  d pi_c / d x_j = pi_c (b_cj - bbar_j); ame the weighted mean
+#             over the rows, mem at the weighted means; one effect per
+#             category (they sum to 0 over the categories, asserted);
+#   link      d eta_c / d x_j = b_cj, the coefficient (each non-reference
+#             category's log-odds against the reference), SE its own.
+# The delta-method gradient in b_la (non-reference block l, column a):
+#   x_ia pi_ic [(d_cl - pi_il)(b_cj - bbar_ij) - pi_il (b_lj - bbar_ij)]
+#     + (a == j) pi_ic (d_cl - pi_il)
+# (checked against a central difference of the effect). V: solve(-H)
+# (classical), its hc1 sandwich or CR1 over g (the score (y - pi) (x) x,
+# gen_multinomial.R's mn_robust). Wald z, conf 0.95. The EXTERNAL
+# cross-check is marginaleffects avg_slopes / slopes(type = "probs") on
+# multinom with its weights set to the polished MLE, the same V, and the
+# Richardson-extrapolated Jacobian of the ordinal block. Rows are [x1, x2,
+# y, w, g], y the 0-based index of the row's level in `levels` (the
+# dictionary order); the fitted categories are `levels` in that order,
+# the reference first in multinom's factor. Effects are outcome-major.
+# Seeded apart (set.seed(20261118)), after every case above.
+
+mm_parts <- function(beta, X, Yi, w) {
+  k <- ncol(Yi) - 1; q <- ncol(X)
+  B <- matrix(beta, nrow = q)
+  eta <- cbind(0, X %*% B)
+  m <- apply(eta, 1, max)
+  e <- exp(eta - m)
+  P <- e / rowSums(e)
+  ll <- sum(w * (rowSums(Yi * eta) - m - log(rowSums(e))))
+  g <- as.vector(t(X) %*% (w * (Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE])))
+  H <- matrix(0, k * q, k * q)
+  for (a in 1:k) for (b in 1:k) {
+    s <- if (a == b) P[, a + 1] * (1 - P[, a + 1]) else -P[, a + 1] * P[, b + 1]
+    H[(a - 1) * q + 1:q, (b - 1) * q + 1:q] <- t(X) %*% (X * (w * s))
+  }
+  list(P = P, ll = ll, g = g, H = H)
+}
+
+mm_newton <- function(beta, X, Yi, w) {
+  for (it in 1:100) {
+    pp <- mm_parts(beta, X, Yi, w)
+    step <- solve(pp$H, pp$g)
+    beta <- beta + step
+    if (max(abs(step)) <= 1e-15 * max(1, max(abs(beta)))) break
+  }
+  if (max(abs(mm_parts(beta, X, Yi, w)$g)) > 1e-9) stop("multinomial Newton polish did not converge")
+  beta
+}
+
+# mm_point: the per-category effects of every term at the points pts
+# (rows, intercept first) with weights ww, and their gradients in beta
+# (category order = the fitted order, reference first).
+mm_point <- function(beta, pts, ww, K, terms) {
+  q <- ncol(pts)
+  B <- cbind(0, matrix(beta, nrow = q))   # q x K, reference column 0
+  eta <- pts %*% B
+  P <- exp(eta - apply(eta, 1, max)); P <- P / rowSums(P)
+  est <- matrix(0, K, length(terms)); jac <- array(0, c(K, length(terms), length(beta)))
+  for (t in seq_along(terms)) {
+    j <- t + 1
+    bbar <- drop(P %*% B[j, ])
+    for (c in 1:K) {
+      dc <- B[j, c] - bbar
+      est[c, t] <- sum(ww * P[, c] * dc) / sum(ww)
+      for (l in 2:K) {
+        g <- (c == l) - P[, l]
+        A <- P[, c] * (g * dc - P[, l] * (B[j, l] - bbar))
+        cols <- (l - 2) * q + 1:q
+        jac[c, t, cols] <- colSums(ww * A * pts) / sum(ww)
+        jac[c, t, (l - 2) * q + j] <- jac[c, t, (l - 2) * q + j] + sum(ww * P[, c] * g) / sum(ww)
+      }
+    }
+  }
+  list(est = est, jac = jac)
+}
+
+mm_cases <- list()
+
+# mm_case fits one case: d has x1, x2, y (0-based into levels), w, g.
+mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "response", covariance = "classical", kind = "") {
+  w <- if (kind == "") rep(1, nrow(d)) else d$w
+  if (kind == "probability") w <- w * (sum(w)^2 / sum(w^2)) / sum(w)
+  ref <- if (is.null(reference)) levels[1] else reference
+  fitted_levels <- c(ref, setdiff(levels, ref))
+  lab <- levels[d$y + 1]
+  if (!all(levels %in% lab)) stop(name, ": empty level")
+  yy <- factor(lab, levels = fitted_levels)
+  dd <- data.frame(x1 = d$x1, x2 = d$x2, yy = yy, .w = w)
+  m <- suppressWarnings(multinom(yy ~ x1 + x2, data = dd, weights = .w, Hess = TRUE, maxit = 1000, reltol = 1e-16, trace = FALSE))
+  X <- cbind(1, d$x1, d$x2)
+  Yi <- sapply(fitted_levels, function(l) as.numeric(lab == l))
+  beta <- mm_newton(as.vector(t(coef(m))), X, Yi, w)
+  mg_check(paste(name, "multinom vs polished MLE"), as.vector(t(coef(m))), beta, 1e-6)
+  pp <- mm_parts(beta, X, Yi, w)
+  Hinv <- solve(pp$H)
+  K <- length(fitted_levels); q <- ncol(X); dd_ <- length(beta)
+  nstar <- sum(w)
+  R <- Yi[, -1, drop = FALSE] - pp$P[, -1, drop = FALSE]
+  S <- do.call(cbind, lapply(seq_len(ncol(R)), function(k) X * R[, k]))
+  V <- switch(covariance,
+    classical = Hinv,
+    hc1 = Hinv %*% crossprod(S, S * w) %*% Hinv * nstar / (nstar - dd_),
+    cluster = {
+      Sg <- rowsum(S * w, d$g)
+      G <- nrow(Sg)
+      Hinv %*% crossprod(Sg) %*% Hinv * G / (G - 1) * (nstar - 1) / (nstar - dd_)
+    })
+  terms <- c("x1", "x2")
+  pts <- if (type == "mem") matrix(colSums(w * X) / sum(w), nrow = 1) else X
+  ww <- if (type == "mem") 1 else w
+  # Effects in dictionary order (the Go fit's categories).
+  ord <- match(levels, fitted_levels)
+  if (scale == "link") {
+    outcomes <- levels[levels != ref]
+    est <- c(); se <- c()
+    for (o in outcomes) {
+      blk <- match(o, fitted_levels) - 1
+      for (t in seq_along(terms)) {
+        i <- (blk - 1) * q + t + 1
+        est <- c(est, beta[i]); se <- c(se, sqrt(V[i, i]))
+      }
+    }
+  } else {
+    outcomes <- levels
+    pt <- mm_point(beta, pts, ww, K, terms)
+    if (max(abs(colSums(pt$est))) > 1e-14) stop(name, ": effects of a term do not sum to 0")
+    # The gradient against a central difference of the effect.
+    h <- 1e-6
+    num <- array(0, dim(pt$jac))
+    for (a in seq_along(beta)) {
+      bp <- beta; bm <- beta; bp[a] <- bp[a] + h; bm[a] <- bm[a] - h
+      num[, , a] <- (mm_point(bp, pts, ww, K, terms)$est - mm_point(bm, pts, ww, K, terms)$est) / (2 * h)
+    }
+    mg_check(paste(name, "delta-method gradient"), pt$jac, num, 1e-7)
+    est <- c(); se <- c()
+    for (c in ord) for (t in seq_along(terms)) {
+      jv <- pt$jac[c, t, ]
+      est <- c(est, pt$est[c, t]); se <- c(se, sqrt(drop(t(jv) %*% V %*% jv)))
+    }
+  }
+  stat <- est / se
+  zq <- qnorm(0.975)
+  out <- list(name = name, type = type, scale = scale, covariance = covariance, weight_kind = kind,
+    levels = levels, reference = ref, reference_requested = !is.null(reference),
+    outcomes = outcomes, terms = terms,
+    rows = lapply(seq_len(nrow(d)), function(i) mg_g17(c(d$x1[i], d$x2[i], d$y[i], d$w[i], d$g[i]))),
+    coefficients = mg_g17(beta), vcov = lapply(seq_len(nrow(V)), function(i) mg_g17(V[i, ])),
+    estimates = mg_g17(est), std_errors = mg_g17(se), statistics = mg_g17(stat),
+    p_values = mg_g17(2 * pnorm(-abs(stat))), ci_lower = mg_g17(est - zq * se), ci_upper = mg_g17(est + zq * se))
+  if (type == "mem") out$at <- mg_g17(colSums(w * X[, -1]) / sum(w))
+  if (kind == "frequency") {
+    ex <- d[rep(seq_len(nrow(d)), d$w), ]
+    Xe <- cbind(1, ex$x1, ex$x2)
+    Ye <- sapply(fitted_levels, function(l) as.numeric(levels[ex$y + 1] == l))
+    be <- mm_newton(beta, Xe, Ye, rep(1, nrow(ex)))
+    mg_check(paste(name, "weighted vs expanded coefficients"), beta, be)
+    Ve <- solve(mm_parts(be, Xe, Ye, rep(1, nrow(ex)))$H)
+    mg_check(paste(name, "weighted vs expanded vcov"), Hinv, Ve)
+    if (scale == "response") {
+      pe <- if (type == "mem") matrix(colSums(Xe) / nrow(Xe), nrow = 1) else Xe
+      ef <- mm_point(be, pe, if (type == "mem") 1 else rep(1, nrow(ex)), K, terms)
+      mg_check(paste(name, "weighted vs expanded estimates"), mm_point(beta, pts, ww, K, terms)$est, ef$est)
+    }
+  }
+  if (mg_have_me && scale == "response") {
+    # multinom at the polished MLE: its wts are the K output units'
+    # q + 1 weights each (a masked bias, then the q design columns), the
+    # reference unit's masked at 0.
+    for (k in 2:K) m$wts[(k - 1) * (q + 1) + 1 + 1:q] <- beta[(k - 2) * q + 1:q]
+    mg_check(paste(name, "multinom set to the MLE"), as.vector(t(coef(m))), beta, 1e-15)
+    Vn <- V
+    dimnames(Vn) <- dimnames(vcov(m))
+    old_nd <- options(marginaleffects_numDeriv = list(method = "Richardson", method.args = list(eps = 1e-4, d = 0.03, r = 4)))
+    on.exit(options(old_nd), add = TRUE)
+    args <- list(m, variables = terms, vcov = Vn, type = "probs", eps = 1e-4)
+    if (type == "ame") {
+      args$newdata <- dd
+      if (kind != "") args$wts <- ".w"
+      s <- do.call(marginaleffects::avg_slopes, args)
+    } else {
+      args$newdata <- data.frame(x1 = sum(w * d$x1) / sum(w), x2 = sum(w * d$x2) / sum(w), .w = 1)
+      s <- do.call(marginaleffects::slopes, args)
+    }
+    key <- paste(s$group, s$term)
+    want <- paste(rep(outcomes, each = 2), rep(terms, length(outcomes)))
+    s <- s[match(want, key), ]
+    if (anyNA(s$estimate)) stop(name, ": marginaleffects did not report every category and term")
+    out$me_estimates <- mg_g17(s$estimate)
+    out$me_std_errors <- mg_g17(s$std.error)
+  }
+  mm_cases[[length(mm_cases) + 1]] <<- out
+}
+
+suppressPackageStartupMessages(library(nnet))
+if (as.character(packageVersion("nnet")) != "7.3.21") stop("gen_margins.R pins nnet 7.3-21, got ", packageVersion("nnet"))
+set.seed(20261118)
+mm_design <- function(n, B, g = 9) {
+  d <- data.frame(x1 = round(runif(n, -1, 2), 3), x2 = round(rnorm(n), 3))
+  eta <- cbind(0, cbind(1, d$x1, d$x2) %*% B)
+  P <- exp(eta) / rowSums(exp(eta))
+  d$y <- apply(P, 1, function(p) sample.int(length(p), 1, prob = p)) - 1
+  d$w <- 1
+  d$g <- rep(seq_len(g), length.out = n)
+  d
+}
+d <- mm_design(160, cbind(c(0.3, 0.8, -0.5), c(-0.4, 1.1, 0.6)))
+mm_case("mn_ame", d, c("a", "b", "c"))
+mm_case("mn_mem", d, c("a", "b", "c"), type = "mem")
+mm_case("mn_link", d, c("a", "b", "c"), scale = "link")
+mm_case("mn_mem_link", d, c("a", "b", "c"), type = "mem", scale = "link")
+mm_case("mn_hc1", d, c("a", "b", "c"), covariance = "hc1")
+mm_case("mn_cluster_mem", d, c("a", "b", "c"), type = "mem", covariance = "cluster")
+d <- mm_design(200, cbind(c(0.2, -0.6, 0.4), c(0.5, 0.3, -0.8), c(-0.3, 0.9, 0.2)))
+mm_case("mn_ame_reference", d, c("low", "mid", "high", "top"), reference = "high")
+mm_case("mn_link_reference", d, c("low", "mid", "high", "top"), reference = "high", scale = "link")
+d <- mm_design(70, cbind(c(0.1, 0.7, -0.4), c(-0.2, -0.5, 0.9)), g = 7)
+d$w <- sample(1:3, 70, replace = TRUE)
+mm_case("mn_ame_freq", d, c("a", "b", "c"), kind = "frequency")
+mm_case("mn_mem_freq", d, c("a", "b", "c"), type = "mem", kind = "frequency")
+d$w <- round(runif(70, 0.2, 3), 3)
+mm_case("mn_ame_prob", d, c("a", "b", "c"), kind = "probability")
+
 pk <- list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
   MASS = as.character(packageVersion("MASS")), sandwich = as.character(packageVersion("sandwich")))
 if (mg_have_me) {
@@ -585,6 +810,7 @@ if (mg_have_me) {
   pk$generics <- as.character(packageVersion("generics"))
   pk$Matrix <- as.character(packageVersion("Matrix"))
 }
+pk$nnet <- as.character(packageVersion("nnet"))
 write_golden("margins", list(
   generator = "scripts/reference/gen_margins.R",
   r_version = R.version.string,
@@ -605,5 +831,13 @@ write_golden("margins", list(
     "scale link: the effect on each cumulative link g(P(Y <= k)), k < K (outcomes lists them); no marginaleffects counterpart.",
     "me_estimates / me_std_errors: marginaleffects avg_slopes / slopes at the weighted means on polr set to the MLE.",
     "_freq: polr(weights = w), equal to its rep() expansion (checked)."),
-  ordinal_cases = mo_cases
+  ordinal_cases = mo_cases,
+  multinomial_note = paste(
+    "REG_MULTINOMIAL (multinom, y ~ x1 + x2): per-category effects, outcome-major; rows are [x1, x2, y, w, g], y the 0-based index into levels (the dictionary order).",
+    "estimates .. ci_upper, at: the closed forms (the multinomial block's header) at the polished MLE, Wald z, conf_level 0.95;",
+    "coefficients / vcov: the polished MLE (category-major over the non-reference levels in multinom's order: reference first, then levels) and the covariance the effects read.",
+    "scale response: one effect per level (dictionary order); scale link: per non-reference level, the coefficient; no marginaleffects counterpart.",
+    "me_estimates / me_std_errors: marginaleffects avg_slopes / slopes(type = 'probs') at the weighted means on multinom set to the MLE.",
+    "_freq: multinom(weights = w), equal to its rep() expansion (checked); _prob: w* = w n_eff / sum(w)."),
+  multinomial_cases = mm_cases
 ))

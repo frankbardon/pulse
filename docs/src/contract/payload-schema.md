@@ -1009,7 +1009,9 @@ and — gated on `capability:multiplicity` like the coefficient twins —
 regression's own block the terms form one family per regression, apart
 from the coefficients'. An undefined figure is `null`,
 key kept. A request without `margins` is byte-identical. On a
-per-level fit (`REG_ORDINAL`, or an extension model whose
+per-level fit (`REG_ORDINAL`, `REG_MULTINOMIAL` — U68 E4-S2, every
+fitted category on the response scale, the non-reference ones on the
+link — or an extension model whose
 `extend.MarginsRegression` lists outcomes) the block adds the additive
 `omitempty` string array `outcomes` (the levels, in order) and every
 map is keyed `"<outcome>:<term>"`; absent, the maps are keyed by term
@@ -1288,6 +1290,20 @@ raw `null` stays `null` (a penalized multinomial fit: exp(β) beside
 `null` figures). The raw maps never move. In the `standard` preset (not
 `minimal`); every float is rounded by `return.precision`. Absent is
 byte-identical and `format_version` stays `"1.1"`.
+
+An additive `omitempty` boolean `RegressionSpec.term_tests` (U68 E4-S2,
+`REG_MULTINOMIAL` only; any other type, or beside a `penalty`,
+`selection` or `resample`, is `PROCESSING_CONFIG` with
+`details.slot: term_tests`, at predict and at runtime alike) adds the
+additive `omitempty` object `RegressionResult.term_tests`
+(`RegressionTermTests`): `terms` (string array, the predictors), and the
+term-keyed maps `df` (integers, K − 1), `wald_chi2` / `wald_p_values`
+(numbers; on the fit's covariance) and the additive `omitempty`
+`lr_chi2` / `lr_p_values` (numbers; against the refit without the term,
+absent under a probability weight). An undefined figure is `null`, key
+kept. In the `standard` preset (not `minimal`); every float is rounded
+by `return.precision`. Absent is byte-identical and `format_version`
+stays `"1.1"`.
 
 ## Per-group aggregation components
 

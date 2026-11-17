@@ -52,7 +52,11 @@ func TestCheck_Refusals(t *testing.T) {
 		{"credible_level", "credible_level", "no_prior", func(s *types.RegressionSpec) { s.CredibleLevel = 0.9 }},
 		{"solver", "solver", "no_solver", func(s *types.RegressionSpec) { s.Solver = "qr" }},
 		{"intercept", "intercept", "intercept", func(s *types.RegressionSpec) { s.Intercept = &off }},
-		{"margins", "margins", "no_margins", func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} }},
+		// U68 E4-S2: margins run (their rules are regmargins'); the
+		// joint term tests read the plain fit's covariance and likelihood.
+		{"term_tests under penalty", "term_tests", "unpenalized", func(s *types.RegressionSpec) { s.TermTests, s.Penalty, s.Alpha = true, "l2", 1 }},
+		{"term_tests under selection", "term_tests", "no_selection", func(s *types.RegressionSpec) { s.TermTests, s.Selection, s.Criterion = true, "forward", "aic" }},
+		{"term_tests under resample", "term_tests", "no_resample", func(s *types.RegressionSpec) { s.TermTests, s.Resample = true, "jackknife" }},
 		{"collinearity", "collinearity", "no_collinearity", func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} }},
 		{"negative max_iters", "max_iters", "max_iters ≥ 0", func(s *types.RegressionSpec) { s.MaxIters = -1 }},
 		{"negative tol", "tol", "tol ≥ 0", func(s *types.RegressionSpec) { s.Tol = -1e-6 }},
@@ -72,6 +76,13 @@ func TestCheck_Refusals(t *testing.T) {
 	ok.Reference, ok.MaxIters, ok.Tol, ok.ConfLevel, ok.Vcov = "mid", 10, 1e-9, 0.9, true
 	ok.Save = "m.pulse-model.json" // U68 E1-S2: a multinomial fit saves
 	ok.Covariance = &types.RegressionCovariance{Type: types.CovarianceClassical}
+	// U68 E4-S2: margins and term_tests on the plain fit.
+	plain := base()
+	plain.Margins, plain.TermTests = &types.RegressionMargins{Scale: types.MarginsScaleLink}, true
+	plain.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+	if cerr := Check(plain); cerr != nil {
+		t.Fatalf("margins / term_tests refused: %v", cerr)
+	}
 	// U68 E2-S2: the resample and selection modifiers run.
 	ok.Resample, ok.JackknifeBy, ok.BootstrapIters, ok.RNGSeed = "jackknife", "g", 10, 3
 	ok.Selection, ok.Criterion = "stepwise", "bic"
@@ -97,7 +108,11 @@ func TestCheck_Refusals(t *testing.T) {
 	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "reference" || cerr.Details["requires"] != "type REG_MULTINOMIAL" {
 		t.Fatalf("reference on REG_OLS: %v", cerr)
 	}
-	ols.Reference = ""
+	ols.Reference, ols.TermTests = "", true
+	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "term_tests" || cerr.Details["requires"] != RequiresTermTests {
+		t.Fatalf("term_tests on REG_OLS: %v", cerr)
+	}
+	ols.TermTests = false
 	ols.Family = "binomial" // another engine's knob is not this rule's
 	if cerr := Check(ols); cerr != nil {
 		t.Fatalf("REG_OLS without reference: %v", cerr)

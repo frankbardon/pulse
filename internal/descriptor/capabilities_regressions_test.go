@@ -125,6 +125,7 @@ var regressionKeyProbes = map[string]string{
 	"margins":          `{"margins":{}}`,
 	"collinearity":     `{"collinearity":{}}`,
 	"exponentiate":     `{"exponentiate":true}`,
+	"term_tests":       `{"term_tests":true}`,
 	"intercept":        `{"intercept":false}`,
 	"solver":           `{"solver":"normal"}`,
 	"covariance":       `{"covariance":{"type":"hc1"}}`,

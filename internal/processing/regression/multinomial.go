@@ -415,13 +415,30 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 	}
 	rw.note(res, sumW, sumWSq)
 	attachIntervals(res, resolvedConfLevel(spec), 0, false)
+	// Cov(β) as the standard errors read it: the robust sandwich, or the
+	// inverse information (its diagonal the clamped variances).
+	coefCov := func() [][]float64 {
+		if robust != nil {
+			return robust.v
+		}
+		return symVcov(d, inv.At, 1, variances)
+	}
 	if robust != nil {
 		res.Covariance = robust.info
-		if spec.Vcov {
-			AttachVcovKeys(res, coefKeys, robust.v)
+	}
+	if spec.Vcov {
+		AttachVcovKeys(res, coefKeys, coefCov())
+	}
+	if spec.Margins != nil || spec.TermTests {
+		// Per-category marginal effects and the joint term tests
+		// (multinomial_margins.go), on the same covariance.
+		v := coefCov()
+		if spec.Margins != nil {
+			res.Margins = e.multinomialMargins(pr, beta, v, res)
 		}
-	} else if spec.Vcov {
-		AttachVcovKeys(res, coefKeys, symVcov(d, inv.At, 1, variances))
+		if spec.TermTests {
+			res.TermTests = e.multinomialTermTests(pr, beta, v, ll, logLikDefined(rw.basis))
+		}
 	}
 	return res, coefKeys, nil
 }

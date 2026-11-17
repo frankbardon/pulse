@@ -12,8 +12,9 @@
 //   - shape: type ame | mem, scale response | link, terms each a
 //     predictor, once (requires "type ame or mem", "scale response or
 //     link", "a predictor");
-//   - the regression type: REG_OLS or REG_GLM (requires "type REG_OLS or
-//     REG_GLM"); an extension or model regression is the shared-slot
+//   - the regression type: REG_OLS, REG_GLM or REG_MULTINOMIAL (requires
+//     "type REG_OLS, REG_GLM or REG_MULTINOMIAL"); an extension or model
+//     regression is the shared-slot
 //     table's refusal (slot margins, declared by the registration's
 //     Margins), and once declared CheckDeclared judges its block's shape
 //     and fit exactly as Check does a built-in's;
@@ -66,7 +67,7 @@ func refuse(spec *types.RegressionSpec, msg, requires string, extra map[string]a
 // (an extension or model regression is the shared-slot table's).
 func builtin(t types.RegressionType) bool {
 	switch t {
-	case types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR:
+	case types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR, types.REG_MULTINOMIAL:
 		return true
 	}
 	return false
@@ -112,9 +113,9 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if cerr := checkShape(spec); cerr != nil {
 		return cerr
 	}
-	if spec.Type != types.REG_OLS && spec.Type != types.REG_GLM {
-		return refuse(spec, "are reported by REG_OLS and REG_GLM only (a posterior has no delta-method effect); drop margins",
-			"type REG_OLS or REG_GLM", nil)
+	if spec.Type == types.REG_BAYES_LINEAR {
+		return refuse(spec, "are reported by REG_OLS, REG_GLM and REG_MULTINOMIAL only (a posterior has no delta-method effect); drop margins",
+			"type REG_OLS, REG_GLM or REG_MULTINOMIAL", nil)
 	}
 	return checkFit(spec)
 }
@@ -193,14 +194,13 @@ func checkFit(spec *types.RegressionSpec) *errors.CodedError {
 // derived predictor — a one-hot dummy, FEAT_LOG of a column not itself
 // a predictor, a lag — is differentiated as given: its effect is that
 // of a unit change in the column. A nil spec, no block, or a built-in
-// type that reports no margins (REG_BAYES_LINEAR, REG_MULTINOMIAL — each
-// refused by its own rule) passes; REG_OLS, REG_GLM and every model or
+// type that reports no margins (REG_BAYES_LINEAR, refused by its own
+// rule) passes; REG_OLS, REG_GLM, REG_MULTINOMIAL and every model or
 // extension regression (a declared block's effects are derivatives too)
 // are judged. The field-reference walk (predict's and the runtime's one
 // rule, internal/descriptor) calls it.
 func CheckDependent(spec *types.RegressionSpec, reads map[string][]string) *errors.CodedError {
-	if spec == nil || spec.Margins == nil || len(reads) == 0 ||
-		spec.Type == types.REG_BAYES_LINEAR || spec.Type == types.REG_MULTINOMIAL {
+	if spec == nil || spec.Margins == nil || len(reads) == 0 || spec.Type == types.REG_BAYES_LINEAR {
 		return nil
 	}
 	for _, p := range spec.Predictors {

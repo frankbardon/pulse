@@ -64,6 +64,16 @@
 #     their delta-method SE exp(b) SE and the exponentiated Wald interval
 #     exp(b -/+ qnorm(0.5 + conf/2) SE) (Stata mlogit, rrr); on the
 #     classical case and inside each robust type, on that type's SE.
+#   term_tests (U68 E4-S2, term_tests: true): per predictor j the joint
+#     test of its K coefficients b_j (one per non-reference level) on K
+#     df: wald_chi2 = b_j' solve(V_jj) b_j (asserted equal to
+#     car::linearHypothesis on the same coefficients and V) and,
+#     unless kind probability, lr_chi2 = the deviance of the polished
+#     refit without x_j (same rows, weights, categories, reference) less
+#     the fit's (asserted equal to car::Anova(multinom)'s type II LR at
+#     1e-6 — car refits with multinom's BFGS); p-values the upper chi2
+#     tails. Each robust type carries term_tests_wald on its own V (the
+#     likelihood ratio never reads a covariance). car 3.1-5.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -85,6 +95,7 @@ suppressPackageStartupMessages({
   library(jsonlite)
   library(nnet)
   library(MASS)
+  library(car)
 })
 
 if (!exists("out_dir")) {
@@ -102,6 +113,7 @@ if (!exists("write_golden")) {
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_multinomial.R pins R 4.6.1, got ", R.version.string)
 if (as.character(packageVersion("nnet")) != "7.3.21") stop("gen_multinomial.R pins nnet 7.3-21, got ", packageVersion("nnet"))
 if (as.character(packageVersion("MASS")) != "7.3.66") stop("gen_multinomial.R pins MASS 7.3-66, got ", packageVersion("MASS"))
+if (as.character(packageVersion("car")) != "3.1.5") stop("gen_multinomial.R pins car 3.1-5, got ", packageVersion("car"))
 
 mn_g17 <- function(v) {
   v <- unname(as.numeric(v))
@@ -145,6 +157,22 @@ mn_expo <- function(beta, se, conf) {
     ci_lower = mn_g17(exp(beta - q * se)), ci_upper = mn_g17(exp(beta + q * se)))
 }
 
+# mn_wald: the joint Wald test of every predictor (header), columns
+# 2..q of X, over the k non-reference blocks; m (when given) is the
+# multinom fit car::linearHypothesis checks it against.
+mn_wald <- function(beta, V, q, k, m = NULL) {
+  stat <- sapply(2:q, function(j) {
+    idx <- (seq_len(k) - 1) * q + j
+    w <- drop(t(beta[idx]) %*% solve(V[idx, idx, drop = FALSE], beta[idx]))
+    if (!is.null(m)) {
+      L <- matrix(0, k, length(beta)); L[cbind(seq_len(k), idx)] <- 1
+      mn_check("car::linearHypothesis", linearHypothesis(m, L, coef. = beta, vcov. = V)$Chisq[2], w, 1e-10)
+    }
+    w
+  })
+  list(wald_chi2 = mn_g17(stat), wald_p_values = mn_g17(pchisq(stat, k, lower.tail = FALSE)))
+}
+
 # mn_robust: the closed-form sandwich of every robust type (header).
 mn_robust <- function(X, Yi, P, w, V, beta, conf) {
   R <- Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE]
@@ -163,7 +191,8 @@ mn_robust <- function(X, Yi, P, w, V, beta, conf) {
     se <- sqrt(diag(v))
     list(vcov = mn_g17(as.vector(v)), std_errors = mn_g17(se), p_values = mn_g17(2 * pnorm(-abs(beta / se))),
       ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se),
-      exponentiated = mn_expo(beta, se, conf))
+      exponentiated = mn_expo(beta, se, conf),
+      term_tests_wald = mn_wald(beta, v, ncol(X), ncol(R)))
   })
   out$clusters <- I(cl)
   out$n_clusters <- G
@@ -282,6 +311,36 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     robust = mn_robust(X, Yi, pp$P, w, V, beta, conf),
     exponentiated = mn_expo(beta, se, conf))
   mn_check(paste(name, "exp(coef(multinom))"), exp(as.vector(t(coef(m)))), exp(beta), 1e-6)
+  # term_tests: Wald on the classical V; LR against each polished refit
+  # without the term (car::Anova's refits read no RNG draw, but the
+  # stream is restored around them so no later case can move).
+  tt <- mn_wald(beta, V, ncol(X), k, m)
+  tt$terms <- I(c("x1", "x2"))
+  tt$df <- k
+  if (is.null(kind) || kind == "frequency") {
+    seed <- .Random.seed
+    av <- Anova(m)
+    assign(".Random.seed", seed, envir = globalenv())
+    lr <- sapply(2:ncol(X), function(j) {
+      Xr <- X[, -j, drop = FALSE]
+      mr <- suppressWarnings(multinom(as.formula(paste("yy ~", c("x2", "x1")[j - 1])), data = dd, weights = w,
+        maxit = 1000, reltol = 1e-16, trace = FALSE))
+      br <- as.vector(t(coef(mr)))
+      for (it in 1:100) {
+        pr <- mn_parts(br, Xr, Yi, w)
+        step <- solve(pr$H, pr$g)
+        br <- br + step
+        if (max(abs(step)) <= 1e-15 * max(1, max(abs(br)))) break
+      }
+      pr <- mn_parts(br, Xr, Yi, w)
+      if (max(abs(pr$g)) > 1e-9) stop(name, ": reduced fit gradient not zero")
+      2 * (pp$ll - pr$ll)
+    })
+    mn_check(paste(name, "car::Anova(multinom) LR"), av[["LR Chisq"]], lr, 1e-6)
+    tt$lr_chi2 <- mn_g17(lr)
+    tt$lr_p_values <- mn_g17(pchisq(lr, k, lower.tail = FALSE))
+  }
+  doc$term_tests <- tt
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -447,7 +506,8 @@ write_golden("multinomial", list(
   generator = "scripts/reference/gen_multinomial.R",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
-    nnet = as.character(packageVersion("nnet")), MASS = as.character(packageVersion("MASS"))),
+    nnet = as.character(packageVersion("nnet")), MASS = as.character(packageVersion("MASS")),
+    car = as.character(packageVersion("car"))),
   note = paste(
     "multinom(y ~ x1 + x2) Newton-polished to the MLE. keys category-major: <level>:(intercept), <level>:x1, <level>:x2 per",
     "non-reference level in fitted order (categories: reference first, then the observed levels in dictionary order);",
@@ -456,7 +516,9 @@ write_golden("multinomial", list(
     "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
     "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order;",
     "robust = the closed-form score sandwich per type (hc0, hc1, cluster CR1 over clusters, one per row) in the keys' order;",
-    "exponentiated = exp(b), exp(b) SE, exp(b -/+ z SE) in the keys' order (the case's, and each robust type's on its SE)."),
+    "exponentiated = exp(b), exp(b) SE, exp(b -/+ z SE) in the keys' order (the case's, and each robust type's on its SE);",
+    "term_tests = per predictor (x1, x2) the joint Wald chi2 on df = K non-reference levels (the classical V; each robust type's term_tests_wald on its own)",
+    "and the LR chi2 against the polished refit without it (car::Anova(multinom), type II; absent under probability weights), upper-tail p-values."),
   cases = mn_cases,
   modifiers = list(jackknife = mn_jackknife, selection = mn_selection)
 ))

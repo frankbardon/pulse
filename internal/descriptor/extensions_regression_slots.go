@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/regmargins"
+	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
@@ -271,6 +272,17 @@ var regressionSlotRules = []regressionSlotRule{
 			return "takes no exponentiate (REG_MULTINOMIAL's relative-risk ratios and REG_ORDINAL's cumulative odds ratios); drop it"
 		},
 		requires: regexponent.Requires,
+	},
+	{
+		// term_tests: the joint predictor tests across categories are
+		// REG_MULTINOMIAL's (internal/regmultinom); no extension model
+		// honours the slot.
+		slot: "term_tests", keys: []string{"term_tests"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("term_tests", s.TermTests) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no term_tests (REG_MULTINOMIAL's joint predictor tests across categories); drop it"
+		},
+		requires: regmultinom.RequiresTermTests,
 	},
 	{
 		slot: "covariance", keys: []string{"covariance"},

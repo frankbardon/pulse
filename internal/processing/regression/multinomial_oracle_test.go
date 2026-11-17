@@ -88,6 +88,21 @@ type multinomialCase struct {
 	// Exponentiated is the relative-risk-ratio block (U68 E3-S2) on the
 	// classical standard errors; each Robust type carries its own.
 	Exponentiated multinomialExpo `json:"exponentiated"`
+	// TermTests is the joint predictor tests (U68 E4-S2) on the
+	// classical covariance; each Robust type carries its own Wald.
+	TermTests multinomialTermTests `json:"term_tests"`
+}
+
+// multinomialTermTests is one term_tests block, in the terms' order:
+// the Wald χ² and its p-value and (absent under a probability weight)
+// the LR χ² and its p-value, on DF.
+type multinomialTermTests struct {
+	Terms       []string  `json:"terms"`
+	DF          int       `json:"df"`
+	WaldChi2    []float64 `json:"wald_chi2"`
+	WaldPValues []float64 `json:"wald_p_values"`
+	LRChi2      []float64 `json:"lr_chi2"`
+	LRPValues   []float64 `json:"lr_p_values"`
 }
 
 // multinomialExpo is one exponentiated block, in the keys' order:
@@ -107,7 +122,8 @@ type multinomialRobust struct {
 	CILower   []float64 `json:"ci_lower"`
 	CIUpper   []float64 `json:"ci_upper"`
 
-	Exponentiated multinomialExpo `json:"exponentiated"`
+	Exponentiated multinomialExpo      `json:"exponentiated"`
+	TermTestsWald multinomialTermTests `json:"term_tests_wald"`
 }
 
 func loadMultinomial(t *testing.T) []multinomialCase {

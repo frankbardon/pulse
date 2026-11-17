@@ -327,7 +327,7 @@ The result:
   ],
   "returned": {
     "preset": "standard",
-    "digest": "rp1:6bd783a33f4d9d5b1920225e4c44e9921d859e1d6dd17834b6f680c46f432dca",
+    "digest": "rp1:3740c6cf7d1b2603620bc368cb97f40488ddae2bc40c4df12447e16826612255",
     "precision": 4
   }
 }

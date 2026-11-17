@@ -30,8 +30,10 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `tol` | float | `0.00000001` | — |
 | `conf_level` | float | `0.95` | — |
 | `vcov` | bool | `false` | — |
-| `covariance` | object | — | `hc0`, `hc1`, `cluster`: `regression-inference`. |
+| `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
 | `exponentiate` | bool | `false` | — |
+| `margins` | object | — | `regression-margins`. |
+| `term_tests` | bool | `false` | — |
 | `weight` | slot weight | — | — |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Every non-intercept key. |
@@ -56,7 +58,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 
 ## Output
 
-`Reference`, `Categories` (dictionary order); `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance` (−2ℓ), `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`, `NObs`, `ConvergedIters`. `exponentiate` adds `Exponentiated` {`estimates` e^β, `std_errors` e^β·SE, `ci_*` e^bound}.
+`Reference`, `Categories`; `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance`, `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`. `exponentiate`: `Exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `TermTests`, per predictor on df K−1 `wald_*` (the fit's covariance) and `lr_*` (vs the refit without it).
 
 <!-- generated: reading-the-output -->
 
@@ -64,15 +66,15 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 
 ## Gotchas
 
-- β is ITS level's log odds vs the reference; e^β (`exponentiate`) a relative risk ratio.
-- Empty levels drop; an empty named `reference` (`reference_empty`) or < 2 levels (`one_category`) fail alone.
-- Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `margins`, `collinearity`.
-- `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI (advisory) unless `resample`; `vcov` refused.
-- `resample` / `selection` refit at the first fit's categories: a bootstrap draw missing one is skipped, a jackknife one fails (`replicate_empty_level`); a predictor moves for every category.
+- β: ITS level's log odds vs the reference.
+- Empty levels drop; an empty `reference` (`reference_empty`) or one level (`one_category`) fails alone.
+- Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `collinearity`; `margins` / `term_tests` beside a modifier or `penalty`.
+- `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI unless `resample`; no `vcov`.
+- `resample` / `selection` keep the fit's categories: a bootstrap draw missing one is skipped, a jackknife one fails (`replicate_empty_level`).
 <!-- feature: ATTR_REG_PREDICT -->
-- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → 0-based index in `Categories`; `scale: link` → log-odds vs the reference (penalized: x'β). `coef()` reads `"<level>:<term>"`.
+- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `Categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
 <!-- /feature -->
-- Probability weight (w·n_eff/Σw): no `TwoLogLik` / `AIC`.
+- Probability weight: no `TwoLogLik` / `AIC` / `lr_*`.
 - Separation → `PROCESSING_REGRESSION_SEPARATION`.
 
 ## See

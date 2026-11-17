@@ -680,6 +680,72 @@ exp of the coefficient interval's lower bound: the lower bound of the ratio's in
 
 exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.
 
+#### `margins.estimates.*`
+
+The marginal effect of this term on one category's probability (requested by margins), keyed "&lt;category&gt;:&lt;term&gt;" (margins.outcomes lists the categories): the change in P(Y = category) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale it is the change in the category's log-odds against the reference — the coefficient itself, with its standard error.
+
+**Sign:**
+
+- `+`: a higher value of the predictor makes this category more likely, other predictors held fixed
+- `-`: a higher value of the predictor makes this category less likely, other predictors held fixed
+
+**Caveats:**
+
+- A term's effects over all categories sum to 0: probability moves between categories. Its sign can differ from the coefficient's, which compares the category with the reference only.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- A Wald z, as the coefficients': the p-value and interval use the normal distribution.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.wald_chi2.*`
+
+The Wald chi-square of this predictor (requested by term_tests): whether its coefficients are zero in every non-reference category at once, on df = categories - 1, from the fit's own covariance (classical, or the request's robust covariance). Larger is stronger evidence the predictor matters to the outcome.
+
+**Caveats:**
+
+- It tests the predictor as a whole: a large value can come from one category alone, so read the per-category coefficients or margins for where.
+- Its p-value is not corrected by a multiplicity block.
+
+#### `term_tests.wald_p_values.*`
+
+**Caveats:**
+
+- The upper chi-square tail of wald_chi2 on df.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.lr_chi2.*`
+
+The likelihood-ratio chi-square of this predictor: how much the deviance rises when the model is refitted without it on the same rows (car::Anova on multinom, type II), on df = categories - 1. Larger is stronger evidence.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood). It never reads a robust covariance.
+- With few rows per category it is usually more reliable than the Wald test; the two disagreeing is itself a warning.
+
+#### `term_tests.lr_p_values.*`
+
+**Caveats:**
+
+- The upper chi-square tail of lr_chi2 on df.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.df.*`
+
+The test's degrees of freedom: the number of non-reference categories, one coefficient each.
+
 <a id="op-reg_ols"></a>
 
 ### `REG_OLS`

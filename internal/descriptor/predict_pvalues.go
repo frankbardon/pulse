@@ -3,6 +3,7 @@ package descriptor
 import (
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -202,6 +203,23 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	if plan != nil {
 		regressions = plan.Regressions
 	}
+	// probabilityWeighted reports whether regressions[i] resolves to a
+	// probability weight (the weight resolver's verdict, read once).
+	var weights []descriptor.ResolvedWeight
+	weightsRead := false
+	probabilityWeighted := func(i int) bool {
+		if !weightsRead {
+			weightsRead = true
+			weights, _ = resolveRequestWeights(req, schema, opts)
+		}
+		slot := "regressions[" + strconv.Itoa(i) + "]"
+		for _, w := range weights {
+			if w.Slot == slot {
+				return w.Status == descriptor.WeightStatusApplied && w.Kind == string(types.WeightKindProbability)
+			}
+		}
+		return false
+	}
 	for i, r := range req.Regressions {
 		if r == nil {
 			continue
@@ -260,11 +278,41 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			// the target dictionary's levels bound it (a level no fitted
 			// row carries is dropped at run time), so the basis is
 			// dictionary. A member's explicit list is exact.
+			// term_tests (U68 E4-S2) add per predictor the Wald p and —
+			// unless the slot's resolved weight is a probability one (no
+			// likelihood) — the LR p; never corrected (no multiplicity
+			// family reads them).
+			if r.TermTests && regmultinom.Check(r) == nil {
+				per := 2
+				if probabilityWeighted(i) {
+					per = 1
+				}
+				addPValues(out, per*len(r.Predictors), descriptor.PValueBasisExact, false)
+			}
+			levels, ok := regmultinom.Levels(schema, r.Target)
+			// A margins block the shared rule admits (U68 E4-S2) adds
+			// one p-value per category and term — every level on the
+			// response scale, every non-reference level on the link —
+			// on the same dictionary bound: its own family under a
+			// member regression (MultiplicityFamilyMargins), else
+			// uncorrected.
+			if ok && len(levels) >= 2 && r.Margins != nil && regmargins.Check(r) == nil {
+				outcomes := len(levels)
+				if r.Margins.EffectiveScale() == types.MarginsScaleLink {
+					outcomes--
+				}
+				effects := outcomes * len(regmargins.Terms(r))
+				addPValues(out, effects, descriptor.PValueBasisDictionary, member)
+				if member && visit != nil && effects > 0 {
+					mrm := regressions[i]
+					mrm.Family = types.MultiplicityFamilyMargins
+					visit(effects, descriptor.PValueBasisDictionary, mrm)
+				}
+			}
 			if member && regressions[i].ExplicitCoefficients {
 				addAt(len(regressions[i].Coefficients), descriptor.PValueBasisExact, regressions, i)
 				continue
 			}
-			levels, ok := regmultinom.Levels(schema, r.Target)
 			if !ok || len(levels) < 2 {
 				continue
 			}

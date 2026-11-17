@@ -345,9 +345,11 @@ type RegressionSpec struct {
 	// link: ∂η/∂x, which is the coefficient), with delta-method standard
 	// errors on the fit's own coefficient covariance (classical or the
 	// robust Covariance) and the coefficient table's reference
-	// distribution. REG_OLS, REG_GLM and a model regression declaring
-	// margins (REG_ORDINAL: each level's probability, keys
-	// "<level>:<term>" — RegressionMarginsResult.Outcomes); refused with
+	// distribution. REG_OLS, REG_GLM, REG_MULTINOMIAL (each category's
+	// probability; on the link scale its log-odds against the
+	// reference, the coefficient) and a model regression declaring
+	// margins (REG_ORDINAL: each level's probability), keys
+	// "<level>:<term>" — RegressionMarginsResult.Outcomes; refused with
 	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
 	// internal/regmargins) beside a Penalty, Selection, Resample or
 	// Bounds, on another type, or when a predictor is derived from
@@ -388,6 +390,18 @@ type RegressionSpec struct {
 	// "exponentiate", details.requires; the one rule predict applies:
 	// internal/regexponent). False is byte-identical.
 	Exponentiate bool `json:"exponentiate,omitempty"`
+
+	// TermTests opts this regression into a joint test of each predictor
+	// across every non-reference category (RegressionResult.TermTests):
+	// the Wald χ² of its K − 1 coefficients on the fit's own covariance
+	// (classical or the robust Covariance) and the likelihood-ratio χ²
+	// against the refit without it (car::Anova(multinom), type II), each
+	// on K − 1 degrees of freedom. REG_MULTINOMIAL only, unpenalized and
+	// without Resample or Selection; refused with PROCESSING_CONFIG
+	// (details.slot "term_tests", details.requires; the one rule
+	// predict applies: internal/regmultinom) otherwise. False is
+	// byte-identical.
+	TermTests bool `json:"term_tests,omitempty"`
 
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
@@ -658,7 +672,9 @@ type RegressionMarginsResult struct {
 	// Outcomes lists, in the model's level order, the outcome levels a
 	// categorical-response fit reports one effect on each of (REG_ORDINAL:
 	// each level's probability; on the link scale each level but the
-	// last, the cumulative P(Y ≤ level)). Present, every per-effect map
+	// last, the cumulative P(Y ≤ level). REG_MULTINOMIAL: each fitted
+	// category's probability; on the link scale each non-reference
+	// category's log-odds against the reference). Present, every per-effect map
 	// is keyed "<outcome>:<term>" (the coefficients' "<category>:<term>"
 	// convention); absent, keyed by term.
 	Outcomes []string `json:"outcomes,omitempty"`
@@ -1021,6 +1037,11 @@ type RegressionResult struct {
 	// RegressionExponentiated); absent otherwise and on a failed fit.
 	Exponentiated *RegressionExponentiated `json:"exponentiated,omitempty"`
 
+	// TermTests carries the joint predictor tests RegressionSpec.TermTests
+	// asked for (see RegressionTermTests); absent otherwise and on a
+	// failed fit.
+	TermTests *RegressionTermTests `json:"term_tests,omitempty"`
+
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is
 	// null. The built-ins leave it absent.
@@ -1111,6 +1132,35 @@ type RegressionExponentiated struct {
 	// ConfLevel, asymmetric about Estimates (null where the bound is).
 	CILower map[string]float64 `json:"ci_lower,omitempty"`
 	CIUpper map[string]float64 `json:"ci_upper,omitempty"`
+}
+
+// RegressionTermTests is RegressionResult.TermTests: one joint test per
+// predictor of a REG_MULTINOMIAL fit, every map keyed by predictor —
+// the null that the predictor's coefficient is zero in every
+// non-reference category at once (car::Anova(multinom), type II; Stata
+// mlogit's test). An undefined figure is null on the wire, key kept.
+type RegressionTermTests struct {
+	// Terms lists the tested predictors in Predictors order.
+	Terms []string `json:"terms"`
+
+	// DF maps each term to its degrees of freedom, K − 1 (the number of
+	// non-reference categories).
+	DF map[string]int `json:"df"`
+
+	// WaldChi2 maps each term to the Wald statistic bᵀV⁻¹b over its
+	// K − 1 coefficients b, V their block of the fit's coefficient
+	// covariance (classical or the robust Covariance); WaldPValues to
+	// its upper χ²(DF) tail.
+	WaldChi2    map[string]float64 `json:"wald_chi2"`
+	WaldPValues map[string]float64 `json:"wald_p_values"`
+
+	// LRChi2 maps each term to the likelihood-ratio statistic, the
+	// deviance of the refit without the term (same rows, categories and
+	// reference) less the fit's; LRPValues to its upper χ²(DF) tail.
+	// Absent under a probability weight (a pseudo-likelihood, as
+	// two_log_lik); the likelihood never reads a robust covariance.
+	LRChi2    map[string]float64 `json:"lr_chi2,omitempty"`
+	LRPValues map[string]float64 `json:"lr_p_values,omitempty"`
 }
 
 // RegressionHoldout is RegressionResult.Holdout: the fitted model scored
