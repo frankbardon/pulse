@@ -34,7 +34,8 @@ A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports
 
 ## Per-level effects (`REG_ORDINAL`)
 
-One effect per level and term on P(Y = level): −β_j·[f(ζ_k − η) − f(ζ_{k−1} − η)], averaged (`ame`) or at the means (`mem`). A term's effects sum to 0 over the levels — probability moves between them, so a middle level can go either way. `scale: link` is the effect on each cumulative link P(Y ≤ level): −β_j for every level but the last, with the coefficient's SE. Delta method on the coefficient and threshold covariance (classical, `hc0`, `hc1`, `cluster`); Wald z. A `multiplicity` block corrects all levels × terms as one family.
+One effect per level and term on P(Y = level): −β_j·[f(ζ_k − η) − f(ζ_{k−1} − η)], averaged (`ame`) or at the means (`mem`). A term's effects sum to 0 over the levels — probability moves between them, so a middle level can go either way. `scale: link` is the effect on each cumulative link P(Y ≤ level): −β_j for every level but the last, with the coefficient's SE. Delta method on the coefficient and threshold covariance (classical, `hc0`, `hc1`, `cluster`); Wald z.
+A `multiplicity` block corrects all levels × terms as one family.
 
 ## Per-category effects (`REG_MULTINOMIAL`)
 
