@@ -1255,7 +1255,15 @@ built-in's does (`resample`, `bootstrap_requested` /
 `selected_features`), the per-coefficient maps keep the
 `"<level>:<term>"` keys, and a resampled fit adds `statistics` (the
 Wald z on the replicate SE); every refit keeps the full fit's
-`categories` and `reference`.
+`categories` and `reference`. Under a `penalty` (U68 E2-S3; the spec's
+`penalty`, `alpha`, `l1_ratio` and `unpenalized` keys, echoed as
+`penalty` / `alpha` / `l1_ratio`) the fit is glmnet's symmetric form:
+`reference` is absent, the per-coefficient maps carry `"<level>:<term>"`
+for EVERY level in `categories`, `std_errors` / `p_values` / `ci_lower`
+/ `ci_upper` are `null` on every key (with
+`advisories[PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]`) unless
+`resample` replaces them, and `two_log_lik` / `aic` / `vcov` are absent.
+No key is added; `format_version` stays `"1.1"`.
 
 ## Per-group aggregation components
 

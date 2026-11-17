@@ -236,9 +236,11 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		}
 		if routed == types.REG_MULTINOMIAL {
 			// One p-value per non-reference level and non-intercept
-			// predictor: the target dictionary's levels bound it (a level
-			// no fitted row carries is dropped at run time), so the basis
-			// is dictionary. A member's explicit list is exact.
+			// predictor — per level under a penalty, whose symmetric fit
+			// has no reference (only a resampled one reports p-values):
+			// the target dictionary's levels bound it (a level no fitted
+			// row carries is dropped at run time), so the basis is
+			// dictionary. A member's explicit list is exact.
 			if member && regressions[i].ExplicitCoefficients {
 				addAt(len(regressions[i].Coefficients), descriptor.PValueBasisExact, regressions, i)
 				continue
@@ -253,7 +255,11 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 					n++
 				}
 			}
-			addAt(n*(len(levels)-1), descriptor.PValueBasisDictionary, regressions, i)
+			blocks := len(levels) - 1
+			if regpenalty.Symmetric(r) {
+				blocks = len(levels)
+			}
+			addAt(n*blocks, descriptor.PValueBasisDictionary, regressions, i)
 			continue
 		}
 		var corrected []string

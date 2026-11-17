@@ -110,7 +110,8 @@ type multinomialProblem struct {
 	n, q  int
 	cats  []string
 	ref   int
-	// nonRef maps a non-reference block k to its category index.
+	// nonRef maps a non-reference block k to its category index — every
+	// category, in order, when ref is −1 (the penalised symmetric form).
 	nonRef []int
 }
 
@@ -327,6 +328,10 @@ func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*typ
 			map[string]any{"columns": names, "n": n, "p": p})
 	}
 
+	if pen := newMultinomialPenalty(spec); pen != nil {
+		// glmnet's symmetric multinomial (multinomial_penalty.go).
+		return e.penalizedResult(pr, pen, rw, sumW, sumWSq)
+	}
 	beta, iters, err := e.newton(pr)
 	if err != nil {
 		return nil, nil, err
@@ -434,6 +439,11 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 			"REG_MULTINOMIAL needs at least two target levels among the fitted rows",
 			map[string]any{"n": n, "categories": cats, "reason": "one_category"})
 	}
+	if e.spec.Penalty != "" {
+		// A penalised fit is symmetric: every category is a block, none
+		// the reference (multinomial_penalty.go).
+		return newMultinomialProblem(x, labels, prior, n, q, cats, -1), nil
+	}
 	ref := 0
 	if e.spec.Reference != "" {
 		ref = slices.Index(cats, e.spec.Reference)
@@ -447,7 +457,8 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 }
 
 // newMultinomialProblem indexes every row's category over cats (ref the
-// reference's index).
+// reference's index; −1 for the penalised symmetric form, where every
+// category is a block).
 func newMultinomialProblem(x []float64, labels []string, prior []float64, n, q int, cats []string, ref int) *multinomialProblem {
 	index := make(map[string]int, len(cats))
 	for i, c := range cats {

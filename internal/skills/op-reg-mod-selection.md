@@ -43,7 +43,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 | `REG_ORDINAL` | yes — candidates keep the first fit's levels; k counts thresholds (`stepAIC` on `polr`) |
 <!-- /feature -->
 <!-- feature: REG_MULTINOMIAL -->
-| `REG_MULTINOMIAL` | yes — a predictor enters / leaves for every category, k = (K−1)·(terms + 1); candidates keep the first fit's categories (`stepAIC` on `multinom`) |
+| `REG_MULTINOMIAL` | yes — a predictor enters / leaves for every category, k = (K−1)·(terms + 1) (K·(terms + 1) under `penalty`, which predict warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION`); candidates keep the first fit's categories (`stepAIC` on `multinom`) |
 <!-- /feature -->
 
 ## Output

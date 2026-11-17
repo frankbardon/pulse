@@ -11,8 +11,9 @@
 //   - `reference` on any other regression (requires "type
 //     REG_MULTINOMIAL");
 //   - a RegressionSpec knob the multinomial fit does not offer: a GLM
-//     family / link / theta / dispersion ("no_family"), a penalty
-//     ("unpenalized"), bounds ("unbounded"), the Bayesian prior
+//     family / link / theta / dispersion ("no_family"), `reference`
+//     beside a penalty ("unpenalized": the penalized fit is symmetric,
+//     U68 E2-S3), bounds ("unbounded"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
 //     a robust covariance ("classical_covariance"), margins
 //     ("no_margins"), collinearity ("no_collinearity") — each a
@@ -26,6 +27,9 @@
 // Resample and selection run (U68 E2-S2: every refit keeps the full
 // fit's categories and reference; selection is term-level), so the
 // shared rules (criterion, the jackknife knobs, weights) are theirs.
+// The penalty runs (U68 E2-S3: glmnet's symmetric multinomial, every
+// category its own coefficients, no reference): its knobs' coupling is
+// internal/regpenalty's.
 //
 // `save` writes a model file carrying the fit's categories (U68 E1-S2:
 // the fit scores one category per ATTR_REG_PREDICT slot). A holdout
@@ -70,10 +74,7 @@ var unsupportedKnobs = []unsupported{
 	{"link", "no_family", "the multinomial logit's link is the baseline-category logit", func(s *types.RegressionSpec) bool { return s.Link != "" }},
 	{"theta", "no_family", "theta is the negative binomial family's", func(s *types.RegressionSpec) bool { return s.Theta != 0 }},
 	{"dispersion", "no_family", "dispersion is a fixed-theta negative binomial's", func(s *types.RegressionSpec) bool { return s.Dispersion != "" }},
-	{"penalty", "unpenalized", "a penalized multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Penalty != "" }},
-	{"alpha", "unpenalized", "alpha is a penalty's strength", func(s *types.RegressionSpec) bool { return s.Alpha != 0 }},
-	{"l1_ratio", "unpenalized", "l1_ratio is an elastic-net penalty's mix", func(s *types.RegressionSpec) bool { return s.L1Ratio != 0 }},
-	{"unpenalized", "unpenalized", "unpenalized is a ridge penalty's", func(s *types.RegressionSpec) bool { return len(s.Unpenalized) != 0 }},
+	{"reference", "unpenalized", "a penalized fit is symmetric (every category carries coefficients, none is the reference)", func(s *types.RegressionSpec) bool { return s.Penalty != "" && s.Reference != "" }},
 	{"bounds", "unbounded", "coefficient bounds are a REG_OLS knob", func(s *types.RegressionSpec) bool { return s.Bounds.Active() }},
 	{"prior", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return s.Prior != "" }},
 	{"prior_mu", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return len(s.PriorMu) != 0 }},

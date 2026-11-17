@@ -1,14 +1,17 @@
 // Package regpenalty is the one rule over a regression's penalty knobs
-// (types.RegressionSpec Penalty / Alpha / L1Ratio) on REG_OLS and
-// REG_GLM, shared by the no-execute predict pass (internal/descriptor)
-// and the regression engines (internal/processing/regression) so the two
-// refuse the same requests with the same code, message and details. It
-// reads the spec only — never a schema or a record — and imports
-// neither side.
+// (types.RegressionSpec Penalty / Alpha / L1Ratio / Unpenalized) on
+// REG_OLS, REG_GLM and REG_MULTINOMIAL, shared by the no-execute predict
+// pass (internal/descriptor) and the regression engines
+// (internal/processing/regression) so the two refuse the same requests
+// with the same code, message and details. It reads the spec only —
+// never a schema or a record — and imports neither side.
 //
-// Both types read the penalty on one objective, glmnet's
+// Every type reads the penalty on one objective, glmnet's
 // (standardize = FALSE): −loglik/N* + α·[(1−l1_ratio)/2·‖β‖² +
-// l1_ratio·‖β‖₁], the intercept unpenalised.
+// l1_ratio·‖β‖₁], the intercept unpenalised. REG_MULTINOMIAL fits it in
+// glmnet's symmetric form (type.multinomial = "ungrouped", U68 E2-S3):
+// every category carries coefficients, none is the reference, and the
+// norms run over every category's predictor coefficients.
 package regpenalty
 
 import (
@@ -22,8 +25,8 @@ import (
 var Families = []string{"binomial", "poisson"}
 
 // Check returns the PROCESSING_CONFIG refusal of spec's penalty knobs,
-// or nil. Rules (REG_OLS and REG_GLM; every other type passes — its own
-// spec check owns its knobs):
+// or nil. Rules (REG_OLS, REG_GLM and REG_MULTINOMIAL; every other type
+// passes — its own spec check owns its knobs):
 //
 //   - Penalty "": Alpha and L1Ratio must be zero.
 //   - Penalty "l1" / "l2": Alpha > 0 and L1Ratio == 0.
@@ -32,10 +35,10 @@ var Families = []string{"binomial", "poisson"}
 //   - REG_GLM: a penalty on a family outside Families (gamma) is
 //     refused, judged after the knobs themselves (an unknown family is
 //     the family check's refusal, never this one).
-//   - Unpenalized (checkUnpenalized): REG_OLS with Penalty "l2" only,
-//     each name a predictor, once.
+//   - Unpenalized (checkUnpenalized): REG_OLS with Penalty "l2", or
+//     REG_MULTINOMIAL with any Penalty; each name a predictor, once.
 func Check(spec *types.RegressionSpec) *errors.CodedError {
-	if spec == nil || (spec.Type != types.REG_OLS && spec.Type != types.REG_GLM) {
+	if spec == nil || (spec.Type != types.REG_OLS && spec.Type != types.REG_GLM && spec.Type != types.REG_MULTINOMIAL) {
 		return nil
 	}
 	t := string(spec.Type)
@@ -110,23 +113,31 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	return checkUnpenalized(spec)
 }
 
-// checkUnpenalized is the Unpenalized rule (REG_OLS ridge only): absent
-// passes; on REG_GLM, or on a REG_OLS fit whose Penalty is not "l2", it
-// is refused; every name must be one of Predictors, listed once. The
-// lasso / elastic-net per-coefficient penalty factor is not offered.
+// checkUnpenalized is the Unpenalized rule: absent passes; on REG_GLM,
+// on a REG_OLS fit whose Penalty is not "l2" or on an unpenalised
+// REG_MULTINOMIAL it is refused; every name must be one of Predictors,
+// listed once. REG_MULTINOMIAL takes it on every kind (glmnet's
+// penalty.factor 0); REG_OLS lasso / elastic net do not offer it.
 func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 	if len(spec.Unpenalized) == 0 {
 		return nil
 	}
 	t := string(spec.Type)
-	if spec.Type != types.REG_OLS {
+	if spec.Type == types.REG_GLM {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
 			t+" does not accept Unpenalized; it is a REG_OLS ridge (penalty l2) knob",
 			map[string]any{"unpenalized": spec.Unpenalized, "type": t},
 		)
 	}
-	if spec.Penalty != "l2" {
+	if spec.Type == types.REG_MULTINOMIAL && spec.Penalty == "" {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			t+" Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk",
+			map[string]any{"unpenalized": spec.Unpenalized, "penalty": spec.Penalty, "type": t},
+		)
+	}
+	if spec.Type == types.REG_OLS && spec.Penalty != "l2" {
 		msg := "REG_OLS Unpenalized requires Penalty=l2 (ridge); "
 		if spec.Penalty == "" {
 			msg += "an unpenalized fit already leaves every coefficient unshrunk"
@@ -144,14 +155,14 @@ func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 		if !slices.Contains(spec.Predictors, name) {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				"REG_OLS Unpenalized names "+name+", which is not one of Predictors",
+				t+" Unpenalized names "+name+", which is not one of Predictors",
 				map[string]any{"unpenalized": spec.Unpenalized, "field": name, "predictors": spec.Predictors},
 			)
 		}
 		if seen[name] {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				"REG_OLS Unpenalized lists "+name+" twice",
+				t+" Unpenalized lists "+name+" twice",
 				map[string]any{"unpenalized": spec.Unpenalized, "field": name},
 			)
 		}
@@ -161,7 +172,7 @@ func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 }
 
 // UnpenalizedMask returns, for the design's predictor columns, which the
-// ridge penalty skips (true = unpenalized): spec.Unpenalized matched by
+// penalty skips (true = unpenalized): spec.Unpenalized matched by
 // name, so a refit over a predictor subset (selection) keeps each name's
 // own rule. Nil when spec lists none — every column penalised, the
 // historical ridge.
@@ -187,15 +198,26 @@ func ApproximateSE(spec *types.RegressionSpec) bool {
 		(spec.Penalty == "l1" || spec.Penalty == "elasticnet")
 }
 
+// Symmetric reports whether spec is a penalised REG_MULTINOMIAL fit:
+// glmnet's symmetric form, every category with its own coefficients and
+// no reference. Its intercepts (and any Unpenalized predictor's
+// coefficients) are identified only by centring them over the
+// categories, so it has no analytical coefficient covariance on any
+// penalty kind, ridge included (VcovRefusal, InferenceUndefined).
+func Symmetric(spec *types.RegressionSpec) bool {
+	return spec != nil && spec.Type == types.REG_MULTINOMIAL && spec.Penalty != ""
+}
+
 // InferenceUndefined reports whether spec's standard errors, p-values
 // and confidence intervals are undefined: an l1 / elasticnet fit
-// (ApproximateSE) without a Resample modifier. The engines report every
-// one of them null (key kept, intercept included) and the fit carries
-// the PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED advisory; predict
-// raises the same advisory from the same predicate. Under Resample the
+// (ApproximateSE) or a penalised multinomial one (Symmetric) without a
+// Resample modifier. The engines report every one of them null (key
+// kept, intercept included) and the fit carries the
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED advisory; predict raises
+// the same advisory from the same predicate. Under Resample the
 // replicate standard errors replace them and nothing fires.
 func InferenceUndefined(spec *types.RegressionSpec) bool {
-	return ApproximateSE(spec) && spec.Resample == ""
+	return (ApproximateSE(spec) || Symmetric(spec)) && spec.Resample == ""
 }
 
 // InferenceAdvisoryCode is the advisory an InferenceUndefined fit
@@ -212,6 +234,11 @@ func InferenceAdvisory(spec *types.RegressionSpec, slot string) (string, map[str
 	msg := string(spec.Type) + " at " + slot + " fits penalty " + spec.Penalty +
 		", which selects its predictors from the data, so its standard errors, p-values and confidence intervals have no valid analytical form and are null; " +
 		"set resample to bootstrap or jackknife for replicate standard errors, or fit penalty l2 or no penalty for analytical inference."
+	if Symmetric(spec) {
+		msg = string(spec.Type) + " at " + slot + " fits penalty " + spec.Penalty +
+			" in the symmetric form (every category its own coefficients, the intercepts identified only by centring), so its standard errors, p-values and confidence intervals have no valid analytical form and are null; " +
+			"set resample to bootstrap or jackknife for replicate standard errors, or fit no penalty for analytical inference."
+	}
 	return msg, map[string]any{
 		"slot":      slot,
 		"operator":  string(spec.Type),
@@ -223,10 +250,11 @@ func InferenceAdvisory(spec *types.RegressionSpec, slot string) (string, map[str
 // VcovRefusal returns the PROCESSING_REGRESSION_VCOV_UNSUPPORTED refusal
 // of vcov: true on a fit with no coefficient covariance — lasso /
 // elastic net on REG_OLS or REG_GLM (the l1 active set is
-// data-dependent; Pulse never approximates a covariance), alone or under
-// a Resample / Selection modifier — or nil.
+// data-dependent; Pulse never approximates a covariance) or any
+// penalised REG_MULTINOMIAL (Symmetric), alone or under a Resample /
+// Selection modifier — or nil.
 func VcovRefusal(spec *types.RegressionSpec) *errors.CodedError {
-	if spec == nil || !spec.Vcov || !ApproximateSE(spec) {
+	if spec == nil || !spec.Vcov || !(ApproximateSE(spec) || Symmetric(spec)) {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(

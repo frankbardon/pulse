@@ -25,7 +25,7 @@ Flat keys on the host spec. A **wrapper, not a fit**: the host refits per replic
 
 ## Inputs
 
-Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host (`REG_ORDINAL` keeps the full fit's levels), or `REG_MULTINOMIAL` (keeps its categories); the Bayesian fit refuses it.
+Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host (`REG_ORDINAL` keeps the full fit's levels), or `REG_MULTINOMIAL` (keeps its categories; any penalty); the Bayesian fit refuses it.
 
 ## Output
 

@@ -509,7 +509,7 @@
       },
       {
         "name": "regression-model-options",
-        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Model options beyond the textbook fit — a penalty over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -919,4 +919,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8675fdcd4c37d9e21ea39a801b9aab37a755b2606e99ab30a448f1e6f063c185
+// golden-hash: f36ebd05dc76123e552c7f4da1ea50ac2e109f9108d4a7fe48590b1800061476

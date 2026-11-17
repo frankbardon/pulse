@@ -181,8 +181,9 @@ var fileFeatures = []fileFeature{
 
 // categoriesRule is the categories section's rule: a REG_MULTINOMIAL
 // file, at least two distinct non-empty categories, a reference among
-// them, and every non-reference category's "(intercept)" and predictor
-// coefficients ("<category>:<term>", MultinomialKey).
+// them — none on a penalised (symmetric) fit — and every non-reference
+// category's "(intercept)" and predictor coefficients
+// ("<category>:<term>", MultinomialKey).
 func categoriesRule(f *File) string {
 	if f.Type != types.REG_MULTINOMIAL {
 		return fmt.Sprintf("carries categories, which only a REG_MULTINOMIAL fit has, but its type is %s", f.Type)
@@ -198,7 +199,13 @@ func categoriesRule(f *File) string {
 			return fmt.Sprintf("lists category %q twice", c)
 		}
 	}
-	if !slices.Contains(f.Categories, f.Reference) {
+	// A penalised fit is glmnet's symmetric form (U68 E2-S3): no
+	// reference, every category its own coefficients; an unpenalised one
+	// names its reference.
+	switch {
+	case f.Penalty != "" && f.Reference != "":
+		return fmt.Sprintf("has reference %q, but a penalised (%s) multinomial fit is symmetric and names none", f.Reference, f.Penalty)
+	case f.Penalty == "" && !slices.Contains(f.Categories, f.Reference):
 		return fmt.Sprintf("has reference %q, which is not one of its categories", f.Reference)
 	}
 	for _, c := range f.Categories {
@@ -353,7 +360,8 @@ type File struct {
 	// REG_MULTINOMIAL fit's fitted categories in dictionary order and its
 	// reference category (RegressionResult.Categories / Reference): the
 	// outcomes its scorer reads, the coefficients keyed
-	// "<category>:<term>" per non-reference category.
+	// "<category>:<term>" per non-reference category — every category
+	// on a penalised fit, which names no reference.
 	Categories []string `json:"categories,omitempty"`
 	Reference  string   `json:"reference,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last

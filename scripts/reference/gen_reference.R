@@ -596,6 +596,11 @@ source(file.path(script_dir, "gen_mmm_hill.R"), local = FALSE)
 # jackknife and MASS::stepAIC on multinom); nnet 7.3-21 + MASS 7.3-66 +
 # jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_multinomial.R"), local = FALSE)
+# The penalised REG_MULTINOMIAL golden (U68 E2-S3:
+# multinomial_penalty.json: glmnet's symmetric multinomial, ungrouped,
+# ridge / lasso / elastic net with penalty factors, Newton-polished on
+# the active set and KKT-checked); glmnet 5.1 + jsonlite. Seeded RNG.
+source(file.path(script_dir, "gen_multinomial_penalty.R"), local = FALSE)
 # The REG_ORDINAL golden (U65 E4-S1: ordinal.json: MASS polr logit /
 # probit / cloglog polished by Newton to its MLE on the analytic
 # derivatives, the hc0 / hc1 / cluster sandwich, the mean fitted

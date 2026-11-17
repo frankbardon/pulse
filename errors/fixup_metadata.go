@@ -218,12 +218,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
-		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
+		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net or a penalised multinomial fit (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Vcov"},
-				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
+				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or (REG_OLS / REG_GLM) with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -1315,12 +1315,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: {
-		Message: "A regression fits penalty l1 or elasticnet, which selects its predictors from the data, so its standard errors, p-values and confidence intervals have no valid analytical form and are reported null; this is an advisory, not an error.",
+		Message: "A regression fits penalty l1 or elasticnet, which selects its predictors from the data — or a multinomial fit any penalty, whose symmetric form identifies its intercepts only by centring — so its standard errors, p-values and confidence intervals have no valid analytical form and are reported null; this is an advisory, not an error.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "resample"},
-				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance) or no penalty for analytical inference.",
+				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance; REG_OLS / REG_GLM) or no penalty for analytical inference.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
 		},

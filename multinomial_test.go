@@ -113,7 +113,7 @@ func mnReq(cohort string, specs ...*types.RegressionSpec) *Request {
 
 // TestMultinomial_WorkerInvariant: the fits — unweighted with vcov,
 // frequency- and probability-weighted, a named reference, under the
-// resample and selection modifiers — are
+// resample and selection modifiers, penalised — are
 // byte-identical across decode workers (one file) and shard workers
 // (the archive), and their categories follow the dictionary order.
 func TestMultinomial_WorkerInvariant(t *testing.T) {
@@ -146,6 +146,15 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 		mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample, s.BootstrapIters = "m_boot", "bootstrap", 25 }),
 		mnSpec(func(s *types.RegressionSpec) {
 			s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups, s.RNGSeed = "m_sel", "stepwise", "aic", "jackknife", 6, 4
+		}),
+		// The penalty (U68 E2-S3): a weighted elastic net with an
+		// unpenalised predictor, and a resampled lasso.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "m_enet", "elasticnet", 0.02, 0.4, []string{"x2"}
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Penalty, s.Alpha, s.Resample, s.JackknifeBy = "m_lasso", "l1", 0.01, "jackknife", "f"
 		}),
 	}
 	single, sharded := mnModes(t)
@@ -196,7 +205,14 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		requires string
 	}{
 		{"family", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Family = "binomial" })), errors.PROCESSING_CONFIG, "no_family"},
-		{"penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), errors.PROCESSING_CONFIG, "unpenalized"},
+		// U68 E2-S3: the penalty runs; a penalised fit is symmetric (no
+		// reference) and has no covariance; the knobs' coupling is the
+		// shared regpenalty rule's.
+		{"reference under penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Reference = "l2", 0.1, "lo" })), errors.PROCESSING_CONFIG, "unpenalized"},
+		{"penalty vcov", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Vcov = "l2", 0.1, true })), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"alpha without penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Alpha = 0.1 })), errors.PROCESSING_CONFIG, ""},
+		{"unpenalized without penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Unpenalized = []string{"x1"} })), errors.PROCESSING_CONFIG, ""},
+		{"unpenalized unknown", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"f"} })), errors.PROCESSING_CONFIG, ""},
 		// U68 E2-S2: a weighted bootstrap or selection is the built-in
 		// rule's refusal (a weighted jackknife runs, below).
 		{"weighted bootstrap", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
@@ -279,6 +295,77 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		}
 		if r := resp.Regressions[3]; r.Selection != "backward" || r.JackknifeGroups != 5 || len(r.Coefficients) != 2*(len(r.SelectedFeatures)+1) {
 			t.Errorf("selection + resample: %+v", r)
+		}
+	})
+	// The penalty runs (U68 E2-S3) and predict accepts it: the
+	// symmetric fit reports every category's coefficients and no
+	// reference; without resample its inference is null and predict and
+	// the result raise the same PENALIZED_INFERENCE_UNDEFINED advisory
+	// (predict counts no p-value); with resample the replicate p-values
+	// are corrected over every category (predict counts levels ×
+	// predictors); a penalised selection runs and predict warns
+	// REGULARIZED_SELECTION, as for REG_OLS / REG_GLM.
+	t.Run("penalty runs", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Name, s.Penalty, s.Alpha = "l2", "l2", 0.05 }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "enet", "elasticnet", 0.02, 0.5, []string{"x2"}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Penalty, s.Alpha, s.Selection, s.Criterion = "sel", "l1", 0.01, "forward", "aic"
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		for i, r := range resp.Regressions {
+			if r.Error != nil || r.Reference != "" || r.Penalty == "" || len(r.Advisories) != 1 {
+				t.Fatalf("%s: %+v", r.Name, r)
+			}
+			if i < 2 && len(r.Coefficients) != 3*3 {
+				t.Errorf("%s: %d coefficients, want every category's", r.Name, len(r.Coefficients))
+			}
+			matched := false
+			for _, a := range pr.Advisories {
+				if a.Code == r.Advisories[0].Code && a.Message == r.Advisories[0].Message {
+					matched = true
+				}
+			}
+			if !matched {
+				t.Errorf("%s: predict advisories %+v lack the result's %+v", r.Name, pr.Advisories, r.Advisories[0])
+			}
+		}
+		warned := 0
+		for _, w := range pr.Warnings {
+			if w.Code == "PROCESSING_REGRESSION_REGULARIZED_SELECTION" {
+				warned++
+			}
+		}
+		if warned != 1 {
+			t.Errorf("predict warnings %+v: want REGULARIZED_SELECTION once", pr.Warnings)
+		}
+		if pr.PValues != nil && pr.PValues.Total != 0 {
+			t.Errorf("predict p_values %+v: a penalised fit without resample reports none", pr.PValues)
+		}
+		boot := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha, s.Resample, s.JackknifeGroups, s.RNGSeed = "l2", 0.05, "jackknife", 6, 2
+			s.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+		}))
+		pr, err = p.Predict(ctx, boot)
+		if err != nil || !pr.Valid || pr.PValues == nil || pr.PValues.Total != 6 {
+			t.Fatalf("resampled predict: %v %+v, p_values %+v; want 6 (3 levels × 2 predictors)", err, pr.Errors, pr.PValues)
+		}
+		resp, err = p.Process(ctx, boot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := resp.Regressions[0]; r.Error != nil || len(r.Advisories) != 0 || r.Multiplicity == nil || r.Multiplicity.M != 6 {
+			t.Fatalf("resampled penalised fit: %+v", r)
 		}
 	})
 	// A holdout runs (U68 E1-S3) and predict accepts it: no refusal on

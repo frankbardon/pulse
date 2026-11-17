@@ -20,7 +20,7 @@ Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at p
 - a `penalty` on a gamma GLM, or `alpha` / `l1_ratio` without a `penalty`;
 - `theta` off a `negative_binomial` GLM, `dispersion` off it or without `theta`, and its `penalty` / `selection` / `resample` (`details.requires`);
 - `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on the Bayesian fit;
-- `resample` / `selection` on the Bayesian fit (not advertised; credible intervals already convey uncertainty).
+- `resample` / `selection` on the Bayesian fit (credible intervals already convey uncertainty).
 
 Shared keys:
 
@@ -35,12 +35,12 @@ Shared keys:
 
 ## Penalty
 
-`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM binomial / poisson) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
+`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM binomial / poisson; multinomial, `op-reg-multinomial`) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
 
 - `alpha` — strength, `> 0` (glmnet `lambda`), required with a `penalty`. `l1_ratio` — the mix, `0<r<1`, `elasticnet` only.
-- Raw units: divide each predictor by its SD upstream to penalize them all alike.
+- Raw units: scale predictors upstream to penalize them alike.
 - `l2` SEs are the ridge sandwich (GLM: H = XᵀWX + N*·α·D).
-- `l1` / `elasticnet` have no analytical inference (the data pick the predictors): `StdErrors` / `PValues` / CIs are null on EVERY key and `Advisories` carries `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` — an advisory, not a warning, never Strict-escalated. `vcov` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. Want uncertainty → `resample` (it refits every replicate penalized and silences the advisory); want p-values → `l2` or no penalty.
+- `l1` / `elasticnet` have no analytical inference (the data pick the predictors): `StdErrors` / `PValues` / CIs are null on EVERY key and `Advisories` carries `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` — an advisory, not a warning, never Strict-escalated. `vcov` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. Want uncertainty → `resample` (it refits every replicate and silences the advisory); want p-values → `l2` or no penalty.
 - A penalty with `selection`: predict warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — the penalty already shrinks or selects.
 
 ## OLS solver and intercept

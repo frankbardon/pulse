@@ -12,8 +12,8 @@ covers: [advisories, PULSE_ADVISORY, analysis fit, suppress advisories]
 An **advisory** answers "does this analysis fit the data", not "will this run" (errors, warnings). `pulse_predict` / `pulse api predict --json` carry them in `data.advisories`, one `{code, message, details}` per finding, omitted when none fires.
 
 - **Not a warning.** Advisories ride their own slot, never the envelope `warnings`. `--strict` never turns one into an error and `valid` never changes.
-- **Never changes execution:** the request runs as written; acting on one is your call.
-- **Authoritative metadata only:** the request, the schema and its dictionaries, figures predict already computed — no name or value-shape guessing.
+- **Never changes execution:** the request runs as written.
+- **Authoritative metadata only:** the request, the schema and its dictionaries, figures predict computed — no name or value-shape guessing.
 - **`details.suggested`** is a replacement operator name or a request patch to merge — never a rewritten request — and only ever names something this instance offers.
 
 ## Codes
@@ -41,7 +41,7 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 <!-- /feature -->
 | `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay (prior, rolling, baseline, sibling) on ≥ 2 groupers, no `params.partition_by`, runs down a non-date last grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a date grouper to move last); Compose adds `request`, `target` |
 | `PULSE_ADVISORY_JACKKNIFE_COST` | a leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
-| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` fit without `resample`: SEs, p, intervals null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested` (`resample`) |
+| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` (multinomial: any penalty) fit without `resample`: SEs, p, CIs null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested` (`resample`) |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | result only: a least-squares `bounds` bound without `resample`, nulls SEs, p, CIs, `vcov` | `slot`, `operator`, `active`, `suggested` |
 | `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED` | result only: an adstocked media-mix fit's `condition_number` > 1e6, SEs kept | `slot`, `operator`, `condition_number`, `suggested` |
 | `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | an extension operator that declares no params gets non-empty `params`, keys unchecked | `slot`, `operator`, `keys` |
@@ -50,9 +50,9 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 <!-- /feature -->
 
-The two-group rule reads the dictionary: a filter leaving two groups still fires it.
+The two-group rule reads the dictionary: a filter leaving two groups still fires.
 
-The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical, never fires.
+The SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imports categorical, never fires.
 
 ## Roots
 

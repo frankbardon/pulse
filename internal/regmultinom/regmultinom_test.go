@@ -41,10 +41,9 @@ func TestCheck_Refusals(t *testing.T) {
 		{"link", "link", "no_family", func(s *types.RegressionSpec) { s.Link = "logit" }},
 		{"theta", "theta", "no_family", func(s *types.RegressionSpec) { s.Theta = 2 }},
 		{"dispersion", "dispersion", "no_family", func(s *types.RegressionSpec) { s.Dispersion = "estimated" }},
-		{"penalty", "penalty", "unpenalized", func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 1 }},
-		{"alpha", "alpha", "unpenalized", func(s *types.RegressionSpec) { s.Alpha = 1 }},
-		{"l1_ratio", "l1_ratio", "unpenalized", func(s *types.RegressionSpec) { s.L1Ratio = 0.5 }},
-		{"unpenalized", "unpenalized", "unpenalized", func(s *types.RegressionSpec) { s.Unpenalized = []string{"x"} }},
+		// U68 E2-S3: a penalised fit is symmetric, so it names no
+		// reference (the penalty knobs themselves are regpenalty's).
+		{"reference under penalty", "reference", "unpenalized", func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Reference = "l2", 1, "mid" }},
 		{"bounds", "bounds", "unbounded", func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"x"}} }},
 		{"prior", "prior", "no_prior", func(s *types.RegressionSpec) { s.Prior = "nig" }},
 		{"prior_mu", "prior_mu", "no_prior", func(s *types.RegressionSpec) { s.PriorMu = []float64{0, 0} }},
@@ -81,6 +80,12 @@ func TestCheck_Refusals(t *testing.T) {
 	ok.Selection, ok.Criterion = "stepwise", "bic"
 	if cerr := Check(ok); cerr != nil {
 		t.Fatalf("offered knobs refused: %v", cerr)
+	}
+	// U68 E2-S3: the penalty knobs run (their coupling is regpenalty's).
+	pen := base()
+	pen.Penalty, pen.Alpha, pen.L1Ratio, pen.Unpenalized = "elasticnet", 0.1, 0.5, []string{"x"}
+	if cerr := Check(pen); cerr != nil {
+		t.Fatalf("penalty knobs refused: %v", cerr)
 	}
 	ols := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Reference: "lo"}
 	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "reference" || cerr.Details["requires"] != "type REG_MULTINOMIAL" {

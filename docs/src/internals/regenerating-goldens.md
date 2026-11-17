@@ -533,6 +533,28 @@ with every step's winner more than 1e-3 ahead; it needs MASS 7.3-66 and
 refuses another. `TestMultinomial_JackknifeMatchesR` /
 `TestMultinomial_SelectionMatchesStepAIC` hold them at `1e-8`.
 
+`scripts/reference/gen_multinomial_penalty.R` (U68 E2-S3) writes
+`multinomial_penalty.json`: penalised `REG_MULTINOMIAL` against
+`glmnet(family = "multinomial", type.multinomial = "ungrouped",
+standardize = FALSE, control = list(thresh = 1e-20, maxit = 1e7))` —
+Pulse's `alpha` as glmnet's `lambda`, `l1_ratio` as its `alpha`,
+`unpenalized` as `penalty.factor` 0 with `lambda · sum(pf) / nvars`
+undoing glmnet's rescaling. glmnet's solution is Newton-polished on the
+active set (signs fixed, each unpenalised term's flat direction removed
+by a rank-one gauge term) until the step is below 1e-15 relative, the
+unpenalised terms centred over the categories; the script asserts the
+polish within 1e-6 of glmnet and the KKT conditions of the stated
+objective at relative 1e-10, and the grid probabilities within 1e-6 of
+`predict(glmnet, type = "response")`. Cases: ridge / lasso / elastic
+net on three categories, `unpenalized` on each kind, a
+frequency-weighted elastic net, ridge and elastic net on four (lasso
+stays on an odd category count, where glmnet's median centring is
+unique). It needs glmnet 5.1 and refuses any other R than 4.6.1.
+`TestReferenceOracle_MultinomialPenaltyMatchesGlmnet`
+(`internal/processing/regression`) holds the coefficients (exact zeros
+exactly), deviances and the grid's probabilities and per-category
+linear predictors at relative `1e-10`.
+
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
 out as R matrix algebra (no stock package fits its scalar-precision
@@ -673,7 +695,7 @@ is the whole list in one place.
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
-| `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
+| `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`) and `REG_MULTINOMIAL` (`gen_multinomial_penalty.R`); thresh / maxit through `control` |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |

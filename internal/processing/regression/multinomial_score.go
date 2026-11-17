@@ -22,7 +22,8 @@ import (
 // newMultinomialScorer turns one reference into its column: P(y =
 // category) (the default), the class (the most probable category's
 // 0-based index among the fit's categories) or, on the link scale, the
-// category's log-odds against the reference.
+// category's log-odds against the reference — its own linear predictor
+// x'β_c on a penalised fit, which has no reference.
 
 // MultinomialFitted is a fitted baseline-category logit. Immutable;
 // safe for concurrent use.
@@ -40,8 +41,9 @@ type MultinomialFitted struct {
 var _ model.ProbabilityScorer = (*MultinomialFitted)(nil)
 
 // NewMultinomialFitted rebuilds b's fit from its result: the categories
-// (at least two), the reference among them, and every non-reference
-// category's intercept and predictor coefficients. A result lacking one
+// (at least two), the reference among them — or none, a penalised fit's
+// symmetric form — and every non-reference category's intercept and
+// predictor coefficients. A result lacking one
 // is an invariant violation (PROCESSING_INTERNAL): the engine and the
 // model file's rule both guarantee them.
 func NewMultinomialFitted(b *model.Bound) (*MultinomialFitted, error) {
@@ -49,9 +51,13 @@ func NewMultinomialFitted(b *model.Bound) (*MultinomialFitted, error) {
 	if res == nil || len(res.Categories) < 2 {
 		return nil, multinomialScoreInternal(b.Name, "carries no categories")
 	}
-	ref := slices.Index(res.Categories, res.Reference)
-	if ref < 0 {
-		return nil, multinomialScoreInternal(b.Name, fmt.Sprintf("reference %q is not one of its categories", res.Reference))
+	// A penalised fit is symmetric (U68 E2-S3): no reference, every
+	// category its own coefficients (ref −1 skips none).
+	ref := -1
+	if res.Reference != "" {
+		if ref = slices.Index(res.Categories, res.Reference); ref < 0 {
+			return nil, multinomialScoreInternal(b.Name, fmt.Sprintf("reference %q is not one of its categories", res.Reference))
+		}
 	}
 	f := &MultinomialFitted{predictors: slices.Clone(b.Predictors), categories: slices.Clone(res.Categories)}
 	for c, cat := range res.Categories {
@@ -137,9 +143,10 @@ func (f *MultinomialFitted) Probabilities(row model.Row, out []float64) bool {
 	return true
 }
 
-// LogOdds is log(P(y = categories[c]) / P(y = reference)) = η_c for row
-// (0 for the reference itself); false when a predictor is null or
-// absent.
+// LogOdds is category c's linear predictor η_c for row:
+// log(P(y = categories[c]) / P(y = reference)) on a baseline fit (0 for
+// the reference itself), x'β_c on a penalised symmetric one (glmnet's
+// type = "link"); false when a predictor is null or absent.
 func (f *MultinomialFitted) LogOdds(row model.Row, c int) (float64, bool) {
 	var stack [multinomialStack]float64
 	eta := f.etaBuffer(&stack)

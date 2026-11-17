@@ -133,6 +133,14 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 	if spec.Type == types.REG_BAYES_LINEAR {
 		return validateBayesLinearSpec(spec)
 	}
+	if spec.Type == types.REG_MULTINOMIAL {
+		// Penalty / Alpha / L1Ratio / Unpenalized: the rule predict
+		// applies too (internal/regpenalty; U68 E2-S3).
+		if cerr := regpenalty.Check(spec); cerr != nil {
+			return cerr
+		}
+		return nil
+	}
 	if spec.Type != types.REG_OLS {
 		// Penalty / Alpha / L1Ratio are REG_OLS-only knobs; ignore them
 		// on other engines (their own spec checks will fire when their

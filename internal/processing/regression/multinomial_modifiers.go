@@ -37,7 +37,8 @@ import (
 // built-ins; the intervals are Wald normal on the replicate SE.
 
 // multinomialPin is the categories and reference every modifier refit
-// keeps.
+// keeps (ref "" for a penalised fit, whose symmetric form has none —
+// every refit then reports every category's coefficients, U68 E2-S3).
 type multinomialPin struct {
 	cats []string
 	ref  string
@@ -55,7 +56,11 @@ func (pin *multinomialPin) problem(x []float64, labels []string, prior []float64
 				map[string]any{"reason": model.ReasonReplicateEmptyLevel, "level": c, "levels": slices.Clone(pin.cats)})
 		}
 	}
-	return newMultinomialProblem(x, labels, prior, n, q, pin.cats, slices.Index(pin.cats, pin.ref)), nil
+	ref := -1 // a penalised fit's symmetric form names no reference
+	if pin.ref != "" {
+		ref = slices.Index(pin.cats, pin.ref)
+	}
+	return newMultinomialProblem(x, labels, prior, n, q, pin.cats, ref), nil
 }
 
 // fitModified runs e.spec's Selection (first) and Resample over records

@@ -294,3 +294,69 @@ func TestOutcomeScorerFor_MultinomialClass(t *testing.T) {
 		t.Error("ScoresWholeVectorByDefault: want ordinal and OLS true, multinomial false")
 	}
 }
+
+// penalizedMultinomialFit is multinomialFit penalised (U68 E2-S3):
+// glmnet's symmetric form, every category's coefficients, no reference.
+func penalizedMultinomialFit() (*types.RegressionSpec, *types.RegressionResult) {
+	spec, res := multinomialFit()
+	spec.Penalty, spec.Alpha = "l2", 0.1
+	res.Penalty, res.Alpha, res.Reference = "l2", 0.1, ""
+	for _, term := range []string{InterceptKey, "x1", "x2"} {
+		res.Coefficients[MultinomialKey("lo", term)] = -0.75
+		res.StdErrors[MultinomialKey("lo", term)] = 0.1
+		res.CILower[MultinomialKey("lo", term)], res.CIUpper[MultinomialKey("lo", term)] = -1, 1
+	}
+	return spec, res
+}
+
+// TestModelFile_PenalizedMultinomial: a penalised multinomial fit saves
+// and reloads with every category's coefficients and no reference; the
+// file rule ties the reference to the penalty — an unpenalised file
+// names one, a penalised one none — and requires every category's
+// coefficients when there is no reference.
+func TestModelFile_PenalizedMultinomial(t *testing.T) {
+	t.Parallel()
+	spec, res := penalizedMultinomialFit()
+	f, err := NewFile("m", spec, res, Provenance{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	good, err := f.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := DecodeFile("m"+FileSuffix, good)
+	if err != nil {
+		t.Fatalf("the penalised file must decode: %v", err)
+	}
+	b, err := loaded.Bind("m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Result.Reference != "" || b.Result.Penalty != "l2" || len(b.Result.Coefficients) != 9 || b.Result.Coefficients["lo:x1"] != -0.75 {
+		t.Fatalf("reloaded reference %q penalty %q coefficients %v", b.Result.Reference, b.Result.Penalty, b.Result.Coefficients)
+	}
+	edit := func(fn func(m map[string]any)) []byte {
+		var m map[string]any
+		if err := json.Unmarshal(good, &m); err != nil {
+			t.Fatal(err)
+		}
+		fn(m)
+		out, _ := json.Marshal(m)
+		return out
+	}
+	for name, doc := range map[string][]byte{
+		"penalised with a reference": edit(func(m map[string]any) { m["reference"] = "lo" }),
+		"penalised missing a block":  edit(func(m map[string]any) { delete(m["coefficients"].(map[string]any), "lo:x2") }),
+		"unpenalised without one":    edit(func(m map[string]any) { delete(m, "penalty"); delete(m, "alpha") }),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := DecodeFile("x"+FileSuffix, doc)
+			ce := coded(t, err)
+			if ce.Code != errors.PULSE_MODEL_FILE_INVALID || ce.Details["reason"] != ReasonFileSchema {
+				t.Fatalf("%v, want PULSE_MODEL_FILE_INVALID schema", err)
+			}
+		})
+	}
+}

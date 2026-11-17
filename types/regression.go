@@ -115,10 +115,11 @@ type RegressionSpec struct {
 	// linear regression.
 	Predictors []string `json:"predictors,omitempty"`
 
-	// Penalty selects the regularization scheme for REG_OLS and REG_GLM
-	// (binomial / poisson; gamma refuses it). One of "" (no penalty),
-	// "l1" (lasso), "l2" (ridge), or "elasticnet". REG_BAYES_LINEAR
-	// refuses it.
+	// Penalty selects the regularization scheme for REG_OLS, REG_GLM
+	// (binomial / poisson; gamma refuses it) and REG_MULTINOMIAL
+	// (glmnet's symmetric form: every category its own coefficients, no
+	// Reference). One of "" (no penalty), "l1" (lasso), "l2" (ridge), or
+	// "elasticnet". REG_BAYES_LINEAR refuses it.
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for l1 / l2 / elasticnet
@@ -129,11 +130,12 @@ type RegressionSpec struct {
 	// l2, 1 is pure l1. Only read when Penalty == "elasticnet".
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
-	// Unpenalized lists predictors the ridge penalty skips (REG_OLS,
-	// Penalty "l2" only): their diagonal entries of the penalised Gram
-	// get no α term — glmnet's penalty.factor 0. Each must name a
-	// predictor, once. Lasso / elastic net, REG_GLM and REG_BAYES_LINEAR
-	// refuse it (PROCESSING_CONFIG).
+	// Unpenalized lists predictors the penalty skips — glmnet's
+	// penalty.factor 0 (REG_OLS with Penalty "l2": no α term on their
+	// Gram diagonal; REG_MULTINOMIAL with any Penalty). Each must name a
+	// predictor, once. REG_OLS lasso / elastic net, REG_GLM,
+	// REG_BAYES_LINEAR and an unpenalised fit refuse it
+	// (PROCESSING_CONFIG).
 	Unpenalized []string `json:"unpenalized,omitempty"`
 
 	// Bounds constrains named REG_OLS coefficients (see
@@ -196,7 +198,8 @@ type RegressionSpec struct {
 	// other levels' are log-odds against it). Empty selects the first
 	// level, in dictionary order, that a fitted row carries —
 	// nnet::multinom's first factor level. A label outside the target's
-	// dictionary, or the field on any other regression, is refused with
+	// dictionary, the field beside a Penalty (a penalised fit is
+	// symmetric) or on any other regression, is refused with
 	// PROCESSING_CONFIG (details.requires; internal/regmultinom, the one
 	// rule predict applies); a named level no fitted row carries fails
 	// the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason
@@ -754,13 +757,16 @@ type RegressionResult struct {
 	// Link echoes RegressionSpec.Link (GLM only).
 	Link string `json:"link,omitempty"`
 
-	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM).
+	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM /
+	// REG_MULTINOMIAL).
 	Penalty string `json:"penalty,omitempty"`
 
-	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM).
+	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM /
+	// multinomial).
 	Alpha float64 `json:"alpha,omitempty"`
 
-	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM).
+	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM /
+	// multinomial).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Prior echoes RegressionSpec.Prior (Bayes only).
@@ -862,7 +868,9 @@ type RegressionResult struct {
 
 	// Reference echoes the baseline category a REG_MULTINOMIAL fit
 	// read its log-odds against (RegressionSpec.Reference, or the first
-	// fitted level). Absent on every other regression.
+	// fitted level). Absent on a penalised multinomial fit (symmetric:
+	// every category in Categories carries coefficients) and on every
+	// other regression.
 	Reference string `json:"reference,omitempty"`
 
 	// Categories are the target levels a REG_MULTINOMIAL fit modelled,

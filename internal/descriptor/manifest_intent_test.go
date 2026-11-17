@@ -73,8 +73,12 @@ var scopedManifestExceptions = map[string]float64{
 	// measured 16.27% (42,773 of 262,831 bytes). Resample and selection
 	// on REG_MULTINOMIAL (U68 E2-S2; feature growth: the same seven
 	// modifier Params on its row plus its `modifiers` block) measured
-	// 16.56% (43,686 of 263,744 bytes).
-	IntentDrivers: 0.166,
+	// 16.56% (43,686 of 263,744 bytes). The penalty on REG_MULTINOMIAL
+	// (U68 E2-S3; feature growth: four required structural Params on its
+	// row — penalty, alpha, l1_ratio, unpenalized — the slim manifest
+	// blanks every description, so there is no prose to trim) measured
+	// 16.69% (44,082 of 264,140 bytes).
+	IntentDrivers: 0.167,
 }
 
 func compactJSON(t *testing.T, v any) []byte {
