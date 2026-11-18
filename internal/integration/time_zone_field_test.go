@@ -202,7 +202,7 @@ func TestTimeZoneField_JoinAndChainSchemas(t *testing.T) {
 		}
 		_, rerr := p.ProcessChain(ctx, mk())
 		ce := requireCode(t, rerr, errors.SERVICE_VALIDATION)
-		if ce.Details["slot"] != "time_zone_field" || ce.Details["stage"] != 1 {
+		if ce.Details["slot"] != "time_zone_field" || ce.Details["field"] != "zone" || ce.Details["stage"] != 1 {
 			t.Fatalf("details = %v", ce.Details)
 		}
 		sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), mk(), opts), rerr)
@@ -250,4 +250,113 @@ func TestTimeZoneField_StrictDecodeAcceptsKeys(t *testing.T) {
 	if _, err := strictjson.Decode[types.FacetRequest]([]byte(`{"fields":["x"],"time_zone_field":"zone"}`), strictjson.Options{}); err != nil {
 		t.Fatalf("strict facet decode: %v", err)
 	}
+}
+
+// chainStageZoneMessage is the pinned message of the permanent chain
+// stage >= 1 per-row zone refusal (descx.ChainStageZoneFieldRefusal).
+func chainStageZoneMessage(slot, field string, stage int) string {
+	return fmt.Sprintf("%s %q on chain stage %d: no datetime survives a chain stage — a stage ≥ 1 reads the previous stage's output rows (group keys and aggregation figures) — so a per-row zone has nothing to apply to; name it on stage 0 (a stage ≥ 1 never takes a per-row zone)", slot, field, stage)
+}
+
+// TestTimeZoneField_ChainStageZoneFieldRefusedPermanently (FR-10,
+// #481): a per-row zone field on a chain stage >= 1 — the request's
+// `time_zone_field` or any slot's `tz_field`, whether the named column
+// is absent from the stage's synthesised schema or is a forwarded
+// categorical group key holding zone names — is refused with the one
+// pinned message (no datetime survives a stage), code
+// SERVICE_VALIDATION and details {slot, field, stage}, identically by
+// ProcessChain, the chain validator and PredictChain; over a cohort
+// declaring a default zone field as well. Stage 0 still takes per-row
+// zones.
+func TestTimeZoneField_ChainStageZoneFieldRefusedPermanently(t *testing.T) {
+	t.Parallel()
+
+	fs, plain := zoneFieldCohort(t)
+	declared := declareZoneField(t, fs, plain, "zf_declared.pulse", "zone")
+	p := zonePulse(t, fs, "")
+	ctx := context.Background()
+	opts := &descx.PredictOptions{SchemaLoader: schemaLoaderFor(fs)}
+	month := json.RawMessage(`{"component":"month"}`)
+	grand := []*types.Aggregation{{Type: types.AGG_SUM, Field: "total", Label: "grand"}}
+	// stage 0 groups by the zone column, so stage 1's input carries a
+	// categorical `zone` key whose entries are IANA names.
+	chain := func(cohort string, stage1 *types.Request, stages int) *types.ChainRequest {
+		st := []*types.ChainStage{
+			{Request: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n", Label: "total"}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "zone"}, {Type: types.GROUP_CATEGORY, Field: "cat"}},
+			}},
+			{Request: stage1},
+		}
+		if stages == 3 {
+			st[1].Request = &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "total", Label: "total"}},
+				Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "zone"}}}
+			st = append(st, &types.ChainStage{Request: stage1})
+		}
+		return &types.ChainRequest{Cohort: &types.Cohort{Filename: cohort}, Stages: st}
+	}
+	cases := []struct {
+		name         string
+		stage1       func() *types.Request
+		stages       int
+		slot, field  string
+		stage        int
+		declaredOnly bool
+	}{
+		{"time_zone_field naming a forwarded zone key", func() *types.Request {
+			return &types.Request{TimeZoneField: "zone", Aggregations: grand}
+		}, 2, "time_zone_field", "zone", 1, false},
+		{"time_zone_field naming an absent column", func() *types.Request {
+			return &types.Request{TimeZoneField: "nope", Aggregations: grand}
+		}, 2, "time_zone_field", "nope", 1, false},
+		{"slot tz_field on a forwarded key", func() *types.Request {
+			return &types.Request{Aggregations: grand,
+				Groups: []*types.Group{{Type: types.GROUP_DATE, Field: "zone", Params: month, TimeZoneField: "zone"}}}
+		}, 2, "groups[0].tz_field", "zone", 1, false},
+		{"slot tz_field on a filterer, with a request zone", func() *types.Request {
+			return &types.Request{TimeZone: "UTC", Aggregations: grand,
+				Filterers: []*types.Filterer{{Type: types.FILTER_DATE_RANGES, Field: "total", Params: dateRanges, TimeZoneField: "zone"}}}
+		}, 2, "filterers[0].tz_field", "zone", 1, false},
+		{"stage 2", func() *types.Request {
+			return &types.Request{TimeZoneField: "zone", Aggregations: grand}
+		}, 3, "time_zone_field", "zone", 2, false},
+		{"over a cohort declaring a default zone field", func() *types.Request {
+			return &types.Request{TimeZoneField: "zone", Aggregations: grand}
+		}, 2, "time_zone_field", "zone", 1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cohort := plain
+			if tc.declaredOnly {
+				cohort = declared
+			}
+			data, err := afero.ReadFile(fs, cohort)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mk := func() *types.ChainRequest { return chain(cohort, tc.stage1(), tc.stages) }
+			_, rerr := p.ProcessChain(ctx, mk())
+			ce := requireCode(t, rerr, errors.SERVICE_VALIDATION)
+			if want := chainStageZoneMessage(tc.slot, tc.field, tc.stage); ce.Message != want {
+				t.Fatalf("message = %q\nwant      %q", ce.Message, want)
+			}
+			if ce.Details["slot"] != tc.slot || ce.Details["field"] != tc.field || ce.Details["stage"] != tc.stage || len(ce.Details) != 3 {
+				t.Fatalf("details = %v", ce.Details)
+			}
+			sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), mk(), opts), rerr)
+			env, err := p.PredictChain(ctx, mk())
+			if err != nil {
+				t.Fatal(err)
+			}
+			sameEntry(t, env, rerr)
+		})
+	}
+	t.Run("stage 0 still takes a per-row zone", func(t *testing.T) {
+		req := chain(plain, &types.Request{Aggregations: grand}, 2)
+		req.Stages[0].Request.TimeZoneField = "zone"
+		req.Stages[0].Request.Attributes = []*types.Attribute{{Type: types.ATTR_DATE_PART, Field: "ts", Label: "lh", Params: json.RawMessage(`{"part":"hour"}`)}}
+		if _, err := p.ProcessChain(ctx, req); err != nil {
+			t.Fatalf("stage 0 per-row zone refused: %v", err)
+		}
+	})
 }

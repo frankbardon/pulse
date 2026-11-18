@@ -346,7 +346,12 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		// rule (no earlier located refusal on this stage).
 		fieldsReached := true
 		if !joined {
-			if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
+			// A later stage's per-row zone field: the runtime's
+			// permanent refusal, before its zone pass.
+			if ce := ChainStageZoneFieldRefusal(stage.Request, i, opts.instance()); ce != nil {
+				addCodedError(env, RefusalAt(ce, "stage", i))
+				fieldsReached = false
+			} else if _, zerr := resolveRequestZones(stage.Request, current, opts); zerr != nil {
 				addCodedError(env, RefusalAt(zerr, "stage", i))
 				fieldsReached = false
 			}

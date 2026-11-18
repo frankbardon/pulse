@@ -418,6 +418,38 @@ func RefusalAt(err error, key string, idx int) error {
 	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
 }
 
+// ChainStageZoneFieldRefusal is the PERMANENT refusal of a per-row zone
+// field on a chain stage >= 1 (U75 #481): a later stage reads the
+// previous stage's output rows (grouper keys and aggregation figures,
+// vectors.ChainStageSchema), where no datetime field survives, so a
+// per-row zone has nothing to apply to — never a field-reference or a
+// type refusal, whatever the named column is (a forwarded categorical
+// group key included). The request's `time_zone_field`, then each
+// slot's `tz_field` in resolution order; the first one found is
+// refused SERVICE_VALIDATION {slot, field}. Both sides raise it on
+// stage i >= 1 right before the stage's zone resolution and locate it
+// with details.stage. nil on stage 0 (it resolves per-row zones like
+// any request) and when the stage names no zone field.
+func ChainStageZoneFieldRefusal(req *types.Request, stage int, inst *InstanceSnapshot) *errors.CodedError {
+	if stage < 1 || req == nil {
+		return nil
+	}
+	refuse := func(slot, field string) *errors.CodedError {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			fmt.Sprintf("%s %q on chain stage %d: no datetime survives a chain stage — a stage ≥ 1 reads the previous stage's output rows (group keys and aggregation figures) — so a per-row zone has nothing to apply to; name it on stage 0 (a stage ≥ 1 never takes a per-row zone)", slot, field, stage),
+			map[string]any{"slot": slot, "field": field})
+	}
+	if req.TimeZoneField != "" {
+		return refuse("time_zone_field", req.TimeZoneField)
+	}
+	for _, s := range requestZoneSlots(req, inst) {
+		if s.tzField != "" {
+			return refuse(s.slot+".tz_field", s.tzField)
+		}
+	}
+	return nil
+}
+
 // resolveRequestZones is the validators' mirror of one runtime
 // resolution: smart defaults on a clone (unless opts.DisableDefaults)
 // against schema, then ResolveZones with the options' default zone and

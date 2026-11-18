@@ -348,6 +348,11 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	}
 
 	s.applyDefaults(stage, synthSchema)
+	// No datetime survives a stage: a per-row zone field here is the
+	// permanent refusal, raised before the zone pass judges the name.
+	if ce := descx.ChainStageZoneFieldRefusal(stage, i, s.instance); ce != nil {
+		return nil, nil, locate(ce, "stage", i)
+	}
 	zones, err := s.resolveZones(stage, synthSchema)
 	if err != nil {
 		return nil, nil, locate(err, "stage", i)
