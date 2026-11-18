@@ -68,6 +68,12 @@ type Schema struct {
 	// VECTORS section; see vector.go). Exactly one entry per vec field;
 	// empty for a vector-free cohort.
 	Vectors []VectorField `json:"vectors,omitempty"`
+	// ZoneField names the cohort's DEFAULT per-row zone field (format
+	// 0x02, the ZONE section; see zone.go): a categorical field whose
+	// values are IANA zone names. Empty = no default declared, and the
+	// cohort is written byte-identically to one predating the section.
+	// ValidateZoneField holds it to the request time_zone_field rule.
+	ZoneField string `json:"zone_field,omitempty"`
 }
 
 // HasBitmap reports whether the record carries a per-record null
@@ -191,10 +197,11 @@ func (s *Schema) SetField(name string) (*Dictionary, bool) {
 // is chosen — never a global flag — so a schema that uses no 0x02
 // feature is always written at 0x01, byte-identical to a pre-0x02 file.
 //
-// A schema requires 0x02 exactly when it declares a parent group or a
-// vector field (whose dim rides the VECTORS section).
+// A schema requires 0x02 exactly when it declares a parent group, a
+// vector field (whose dim rides the VECTORS section) or a default zone
+// field (the ZONE section).
 func (s *Schema) RequiredFormatVersion() byte {
-	if s.HasGroups() || s.HasVectors() {
+	if s.HasGroups() || s.HasVectors() || s.HasZoneField() {
 		return FormatVersionV2
 	}
 	return FormatVersionV1
@@ -239,9 +246,13 @@ func WriteSchema(w io.Writer, s *Schema) error {
 
 // writeSchemaVersion writes the schema block in version v's layout. A
 // vec field without exactly one valid VECTORS entry is refused before a
-// byte is written, at every version: its width would be unknown.
+// byte is written, at every version: its width would be unknown. So is
+// a declared default zone field that ValidateZoneField refuses.
 func writeSchemaVersion(w io.Writer, s *Schema, v byte) error {
 	if err := s.ValidateVectors(); err != nil {
+		return err
+	}
+	if err := s.ValidateZoneField(); err != nil {
 		return err
 	}
 	if err := writeFieldDescriptors(w, s); err != nil {

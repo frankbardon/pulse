@@ -22,11 +22,31 @@ The layout depends on the header's [format version](header.md):
 returned. A `0x01` block ends at the last field record. A `0x02` block
 appends a length-prefixed **schema extension block**, so the start of the
 record region is always derivable without understanding the payload. The
-payload is a list of tagged sections; the only one defined is GROUPS,
-the [parent-group](parent-groups.md) descriptors and their dictionaries.
-A schema is written at `0x02` exactly when it declares a group. An
+payload is a list of tagged sections, each always REQUIRED and written in
+tag order: `1` GROUPS, the [parent-group](parent-groups.md) descriptors
+and their dictionaries; `2` VECTORS, the dims of the `vec_*` fields
+([Vector fields](field-types.md#vector-fields)); `3` ZONE, the cohort's
+default zone field (below). A schema is written at `0x02` exactly when
+it declares a group, a vector field or a default zone field. An
 unknown REQUIRED section is refused with `ENCODING_INVALID` rather than
 skipped, because its bytes change how records decode.
+
+### Cohort default zone (ZONE, tag 3)
+
+`encoding.Schema.ZoneField` names a field holding each row's time zone,
+the cohort's default for zone-aware operators. The section body is
+`u16 name_length` + the field's UTF-8 name, written only when a default
+is declared — a cohort without one is byte-identical to a file written
+before the section existed (a flat cohort stays `0x01`). The writer and
+the reader hold it to one rule (`Schema.ValidateZoneField`): the field
+must exist (`ENCODING_INVALID`), be `categorical_u8` / `u16` / `u32`
+(`ENCODING_INVALID`), and every dictionary entry must be `"UTC"` or an
+IANA zone in Pulse's embedded tz database (`PULSE_TIMEZONE_UNKNOWN`,
+`details.dictionary_index`); every refusal names the field under
+`details.zone_field`. A layout-only read, which skips the dictionaries,
+checks the first two only. Because the section is REQUIRED, a Pulse
+build that predates it refuses the cohort instead of silently reading
+it without its default.
 
 Each `field_record` is variable-width (it includes UTF-8 name and
 description strings, and may include an inline dictionary or decimal
@@ -113,8 +133,10 @@ bytes on disk remain empty.
 - Field count limit comes from the u16 prefix (max 65,535 fields).
 - Unknown type bytes fail loud (`ENCODING_INVALID`), under every format version.
 - An unsupported version, a truncated extension block, an unknown
-  required section, or a malformed group descriptor fail loud
-  (`ENCODING_INVALID`).
+  required section, a malformed group descriptor, or a ZONE section
+  naming a missing or non-categorical field fail loud
+  (`ENCODING_INVALID`); a ZONE field entry that is not a valid zone is
+  `PULSE_TIMEZONE_UNKNOWN`.
 - Truncated records fail loud at the first short read.
 - The reader produces a `*encoding.Schema` with one
   `encoding.Field` per record; `Schema.Field(name)` looks fields up by

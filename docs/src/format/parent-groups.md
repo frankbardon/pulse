@@ -47,7 +47,9 @@ An unknown REQUIRED section is refused (`ENCODING_INVALID`); an unknown
 optional one is skipped. Reserved flag bits, a duplicated tag, or a
 payload not consumed exactly are refused. Section tag `1` is GROUPS
 (always REQUIRED); tag `2` is VECTORS, the dim and metadata of every
-`vec_*` field ([Vector fields](field-types.md#vector-fields)). GROUPS:
+`vec_*` field ([Vector fields](field-types.md#vector-fields)); tag `3`
+is ZONE, the cohort's default zone field
+([Schema Block](schema-block.md#cohort-default-zone-zone-tag-3)). GROUPS:
 
 ```
 u16 group_count (>= 1)

@@ -73,8 +73,8 @@ Field descriptions in `.pulse` capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_T
 
 `.pulse` binary format:
 
-1. **9-byte header:** magic `PULSE\x00\x00\x00` + format version ∈ `{0x01, 0x02}` (`encoding.MagicBytes`, `HeaderSize = 9`); any other byte is `ENCODING_INVALID`. **`ReadHeader` RETURNS the version and every `ReadSchema(r, version)` must be handed it**. The version is a function of schema content, never a flag — `0x02` iff the schema declares a parent group or a vector, so any other write stays `0x01` byte-identically; `0x01` cohorts stay readable forever.
-2. **Schema block:** per-field descriptor — name, type byte, **nullable flag byte**, byte offset, bit position, optional description. Under `0x02` a `u64`-length-prefixed extension block of tagged sections follows; an unknown REQUIRED section is refused.
+1. **9-byte header:** magic `PULSE\x00\x00\x00` + format version ∈ `{0x01, 0x02}` (`encoding.MagicBytes`, `HeaderSize = 9`); any other byte is `ENCODING_INVALID`. **`ReadHeader` RETURNS the version and every `ReadSchema(r, version)` must be handed it**. The version is a function of schema content, never a flag — `0x02` iff the schema declares a parent group, a vector or a default zone field, else `0x01` byte-identically; `0x01` stays readable forever.
+2. **Schema block:** per-field descriptor — name, type byte, **nullable flag byte**, byte offset, bit position, optional description. Under `0x02` a `u64`-length-prefixed extension block of tagged sections follows; an unknown REQUIRED one is refused.
 3. **Dictionary blocks:** inline after the schema, for every dictionary-bearing field.
 4. **Record data:** fixed-width rows, stride derived from the schema.
 5. **Per-record null bitmap (optional).** Present iff any field is nullable (`Schema.HasBitmap()`): a trailing `ceil(field_count / 8)` bytes per record; field `i` → byte `i/8`, bit `i%8` (LSB-first); `1` = null.

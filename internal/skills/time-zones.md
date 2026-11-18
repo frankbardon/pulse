@@ -21,6 +21,8 @@ UTC, `Etc/UTC` and absent are byte-identical to the pre-zone output.
 
 When each record has its own zone (a warehouse, a store), name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
 
+A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked when the cohort is written and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). A cohort declaring one is format `0x02`; a Pulse build older than the section refuses to open it.
+
 A NULL zone cell (or an out-of-dictionary code) gives the row NO local value, never a UTC fallback: groupers count it in `n_null` (no bucket).
 <!-- feature: ATTR_DATE_PART, FEAT_DATE_FEATURES -->
 `ATTR_DATE_PART` / `FEAT_DATE_FEATURES` output null for it.

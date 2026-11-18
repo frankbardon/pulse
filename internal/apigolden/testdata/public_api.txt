@@ -2470,6 +2470,7 @@ pulse/encoding: type Decimal128 method (Decimal128) Sqrt(sourceScale uint8, targ
 pulse/encoding: type Decimal128 method (Decimal128) String(scale uint8) string
 pulse/encoding: type Decimal128 method (Decimal128) Sub(o pulse/encoding.Decimal128) (pulse/encoding.Decimal128, error)
 pulse/encoding: func DecodeDecimal128(buf [16]byte) pulse/encoding.Decimal128
+pulse/encoding: const DetailZoneField untyped string = "zone_field"
 pulse/encoding: type Dictionary struct
 pulse/encoding: type Dictionary method (*Dictionary) Add(s string) (uint32, error)
 pulse/encoding: type Dictionary method (*Dictionary) AddWithLimit(s string, maxEntries uint32) (uint32, error)
@@ -2592,6 +2593,7 @@ pulse/encoding: type Schema struct
 pulse/encoding: type Schema field Fields []pulse/encoding.Field "json:\"fields\""
 pulse/encoding: type Schema field Groups []pulse/encoding.Group "json:\"groups,omitempty\""
 pulse/encoding: type Schema field Vectors []pulse/encoding.VectorField "json:\"vectors,omitempty\""
+pulse/encoding: type Schema field ZoneField string "json:\"zone_field,omitempty\""
 pulse/encoding: type Schema method (*Schema) BitmapByteSize() int
 pulse/encoding: type Schema method (*Schema) Categorical(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) Field(name string) *pulse/encoding.Field
@@ -2607,6 +2609,7 @@ pulse/encoding: type Schema method (*Schema) GroupMemberRowBytes(g int) int
 pulse/encoding: type Schema method (*Schema) HasBitmap() bool
 pulse/encoding: type Schema method (*Schema) HasGroups() bool
 pulse/encoding: type Schema method (*Schema) HasVectors() bool
+pulse/encoding: type Schema method (*Schema) HasZoneField() bool
 pulse/encoding: type Schema method (*Schema) Logical() *pulse/encoding.Schema
 pulse/encoding: type Schema method (*Schema) RecordByteSize() int
 pulse/encoding: type Schema method (*Schema) RecordCountForPayload(payloadBytes int64) (count int64, trailing int64, ok bool)
@@ -2614,6 +2617,7 @@ pulse/encoding: type Schema method (*Schema) RequiredFormatVersion() byte
 pulse/encoding: type Schema method (*Schema) SetField(name string) (*pulse/encoding.Dictionary, bool)
 pulse/encoding: type Schema method (*Schema) ValidateGroups() error
 pulse/encoding: type Schema method (*Schema) ValidateVectors() error
+pulse/encoding: type Schema method (*Schema) ValidateZoneField() error
 pulse/encoding: type Schema method (*Schema) Vector(i int) (pulse/encoding.VectorField, bool)
 pulse/encoding: type Schema method (*Schema) VectorDim(i int) int
 pulse/encoding: const SecondsPerDay untyped int = 86400
@@ -7066,4 +7070,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 77d178dc18f2e1bda502d7f10a1ae3a9c87f2b78bf54db81bf1b1227aa70af7e
+// golden-hash: 35c8ecc74e80a6c08fa58a77495cc9aba2cce3e855447117f49181f3af6ae019
