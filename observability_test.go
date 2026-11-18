@@ -279,6 +279,14 @@ func obsCalls() []obsCall {
 			_, err := p.WidenSetField(ctx, obsCohort, "region", "set_u16")
 			return err
 		}},
+		{"SetCohortZoneField", observe.OpCohortZone, func(ctx context.Context, p *Pulse) error {
+			_, err := p.SetCohortZoneField(ctx, obsCohort, "region")
+			return err
+		}},
+		{"ClearCohortZoneField", observe.OpCohortZone, func(ctx context.Context, p *Pulse) error {
+			_, err := p.ClearCohortZoneField(ctx, obsCohort)
+			return err
+		}},
 		{"BuildIndex", observe.OpIndexBuild, func(ctx context.Context, p *Pulse) error {
 			_, err := p.BuildIndex(ctx, obsCohort, []string{"id"})
 			return err

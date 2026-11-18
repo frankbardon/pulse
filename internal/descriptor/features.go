@@ -1288,6 +1288,10 @@ var commandBindings = []CommandBinding{
 	{Command: "index drop", Feature: featIndex},
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
+	// The cohort default zone rides capability:import, as --zone-field
+	// does at import (no feature row of its own).
+	{Command: "cohort zone set", Feature: featImport},
+	{Command: "cohort zone clear", Feature: featImport},
 	{Command: "materialize", Feature: featMaterialize},
 	{Command: "rake", Feature: featRake},
 	{Command: "recommend", Feature: featRecommend},

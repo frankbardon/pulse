@@ -370,3 +370,29 @@ func TestMaterialize_PreviousStateObservedRecomputed(t *testing.T) {
 		t.Errorf("prev_q1 observed %v, want %v (recomputed from the written column)", observed["prev_q1"], want)
 	}
 }
+
+// TestSetCohortZoneField_CarriesSPSSSidecar: the zone rewrite re-emits
+// only the schema block, so the SPSS metadata sidecar is CARRIED —
+// re-fingerprinted over the new bytes, never left stale — and value
+// labels survive to a .sav export.
+func TestSetCohortZoneField_CarriesSPSSSidecar(t *testing.T) {
+	t.Parallel()
+
+	spec := labelledSavSpec()
+	spec.Vars = append(spec.Vars, spsstest.Var{Name: "TZ", Label: "Respondent time zone", Width: 16,
+		Print: spsstest.Format{Type: spsstest.FormatA, Width: 16}})
+	zones := []string{"UTC", "Europe/Berlin", "UTC", "America/New_York"}
+	for i := range spec.Cases {
+		spec.Cases[i] = append(spec.Cases[i], spsstest.Text(zones[i]))
+	}
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, spec, Options{})
+	res, err := p.SetCohortZoneField(context.Background(), suggestCohort, "TZ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Changed || len(res.SidecarWarnings) != 0 || len(res.InvalidatedSidecars) != 0 {
+		t.Fatalf("result %+v: a carried sidecar is fresh", res)
+	}
+	assertCarried(t, p, afs, suggestCohort, []string{"ID", "Q1", "WT", "TZ"})
+}

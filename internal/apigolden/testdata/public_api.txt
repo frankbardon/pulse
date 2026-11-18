@@ -158,6 +158,17 @@ pulse: type CohortReader method (*CohortReader) Len() int64
 pulse: type CohortReader method (*CohortReader) RecordAt(i int64) (pulse.CohortRow, error)
 pulse: type CohortReader method (*CohortReader) Schema() *pulse/encoding.Schema
 pulse: type CohortRow []any
+pulse: type CohortZoneResult = pulse/internal/service.CohortZoneResult
+pulse: type CohortZoneResult underlying struct
+pulse: type CohortZoneResult field Changed bool "json:\"changed\""
+pulse: type CohortZoneResult field Cohort string "json:\"cohort\""
+pulse: type CohortZoneResult field InvalidatedSidecars []pulse/internal/service.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type CohortZoneResult field Layout string "json:\"layout\""
+pulse: type CohortZoneResult field PreviousZoneField string "json:\"previous_zone_field\""
+pulse: type CohortZoneResult field ShardsRewritten int "json:\"shards_rewritten,omitempty\""
+pulse: type CohortZoneResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
+pulse: type CohortZoneResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
+pulse: type CohortZoneResult field ZoneField string "json:\"zone_field\""
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
 pulse: type ComposeOptions field FailFast bool
@@ -876,6 +887,7 @@ pulse: type Pulse method (*Pulse) AddShardWithOptions(ctx context.Context, archi
 pulse: type Pulse method (*Pulse) ApplySeriesOverlays(ctx context.Context, req *pulse.SeriesOverlayRequest) (*pulse.SeriesOverlayResult, error)
 pulse: type Pulse method (*Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*pulse.BuildIndexResult, error)
 pulse: type Pulse method (*Pulse) ClassifyPostWindow(ctx context.Context, req *pulse.Request, schema *pulse/encoding.Schema) (*pulse/descriptor.PostWindowPlan, error)
+pulse: type Pulse method (*Pulse) ClearCohortZoneField(ctx context.Context, path string) (*pulse.CohortZoneResult, error)
 pulse: type Pulse method (*Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, error)
 pulse: type Pulse method (*Pulse) CompactShardArchive(ctx context.Context, archivePath string) error
 pulse: type Pulse method (*Pulse) Compose(ctx context.Context, req *pulse.ComposedRequest) (*pulse.ComposedResponse, error)
@@ -956,6 +968,7 @@ pulse: type Pulse method (*Pulse) ResolveImport(ctx context.Context, handle stri
 pulse: type Pulse method (*Pulse) ResolveLabel(table string, query string, limit int) ([]pulse.LabelMatch, error)
 pulse: type Pulse method (*Pulse) Sample(ctx context.Context, path string, n int) ([]pulse.Record, error)
 pulse: type Pulse method (*Pulse) SampleWithRequest(ctx context.Context, req *pulse.SampleRequest) (*pulse.SampleResult, error)
+pulse: type Pulse method (*Pulse) SetCohortZoneField(ctx context.Context, path string, field string) (*pulse.CohortZoneResult, error)
 pulse: type Pulse method (*Pulse) Skill(name string) (string, bool)
 pulse: type Pulse method (*Pulse) Skills() []pulse.SkillMetadata
 pulse: type Pulse method (*Pulse) SkillsForIntent(intent string) ([]pulse.SkillMetadata, error)
@@ -3107,6 +3120,7 @@ pulse/errors: const PULSE_SHARD_REPAIR_REFUSED pulse/errors.Code = "PULSE_SHARD_
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
 pulse/errors: const PULSE_SHARD_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SHARD_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SHARD_SET_WIDENED pulse/errors.Code = "PULSE_SHARD_SET_WIDENED"
+pulse/errors: const PULSE_SHARD_ZONE_REWRITTEN pulse/errors.Code = "PULSE_SHARD_ZONE_REWRITTEN"
 pulse/errors: const PULSE_SLOT_FAILED pulse/errors.Code = "PULSE_SLOT_FAILED"
 pulse/errors: const PULSE_SPSS_CARDINALITY_HIGH pulse/errors.Code = "PULSE_SPSS_CARDINALITY_HIGH"
 pulse/errors: const PULSE_SPSS_CATEGORICAL_OVERFLOW pulse/errors.Code = "PULSE_SPSS_CATEGORICAL_OVERFLOW"
@@ -4362,6 +4376,7 @@ pulse/observe: type Metrics interface
 pulse/observe: type Metrics imethod Counter(name string, labels ...pulse/observe.Label) pulse/observe.Counter
 pulse/observe: type Metrics imethod Histogram(name string, labels ...pulse/observe.Label) pulse/observe.Histogram
 pulse/observe: type Metrics imethod UpDownCounter(name string, labels ...pulse/observe.Label) pulse/observe.UpDownCounter
+pulse/observe: const OpCohortZone pulse/observe.OperationKind = "cohort_zone"
 pulse/observe: const OpCompose pulse/observe.OperationKind = "compose"
 pulse/observe: const OpComposeParallel pulse/observe.OperationKind = "compose_parallel"
 pulse/observe: const OpConvert pulse/observe.OperationKind = "convert"
@@ -7076,4 +7091,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 88ef5fc19464e630126813efbb9f69af1d7500509e243728c4e9073560440d2a
+// golden-hash: ea346b73462357d2d4b522fc5c913dd2c9a0d59cccbd25be40fad2cdf0d9ac90

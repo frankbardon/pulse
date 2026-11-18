@@ -1,10 +1,8 @@
 package io
 
 import (
-	stderrors "errors"
-
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
 // The cohort DEFAULT zone field an import or convert declares
@@ -15,7 +13,7 @@ import (
 
 // optionZoneField is the DetailOption value naming the zone-field
 // option on every refusal it draws.
-const optionZoneField = "zone_field"
+const optionZoneField = encx.ZoneFieldOption
 
 // withZoneField returns schema declaring name as its default zone field:
 // schema itself when name is empty (nothing is declared, so the write is
@@ -44,24 +42,10 @@ func checkZoneField(schema *encoding.Schema, name string) error {
 }
 
 // zoneFieldRefusal re-codes the encoding layer's structural refusal of a
-// declared zone field (ENCODING_INVALID: names no field, or not
-// categorical_*) as the OPTION refusal it is at an import surface —
-// SERVICE_VALIDATION, details.option "zone_field", every original
-// detail (details.zone_field among them) kept. A bad dictionary entry
-// keeps its own PULSE_TIMEZONE_UNKNOWN: the data, not the option, is at
-// fault. Any other error passes through.
-func zoneFieldRefusal(err error) error {
-	var ce *errors.CodedError
-	if err == nil || !stderrors.As(err, &ce) || ce.Code != errors.ENCODING_INVALID {
-		return err
-	}
-	details := make(map[string]any, len(ce.Details)+1)
-	for k, v := range ce.Details {
-		details[k] = v
-	}
-	details[DetailOption] = optionZoneField
-	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, ce.Message, details)
-}
+// declared zone field as the OPTION refusal it is at an import surface;
+// the one rule is internal/encoding.ZoneFieldOptionRefusal (the set
+// writer, Pulse.SetCohortZoneField, shares it).
+func zoneFieldRefusal(err error) error { return encx.ZoneFieldOptionRefusal(err) }
 
 // zoneFieldNoCohort refuses a ConvertJob.ZoneField without KeepPulseAt:
 // a convert's target is a tabular file with no schema to carry the

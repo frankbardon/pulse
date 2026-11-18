@@ -17,9 +17,10 @@ import (
 // single-file execution mode (projected / full / serial buffered
 // decode, streaming, both crosstab arms); the fixture's local days
 // differ from its UTC days, so a default that fails to reach an arm
-// (or is dropped by the projection) fails here.
-// Shard-archive runners are excluded: building an archive does not
-// carry the default yet (the shard rewriters drop Schema.ZoneField).
+// (or is dropped by the projection) fails here. The shard-archive
+// runners read a two-shard archive declared through
+// Pulse.SetCohortZoneField, so the default reaches both shard arms (and
+// inspect reports it) after the whole-archive rewrite.
 func TestTimeZoneCohort_RunEqualsTimeZoneFieldEveryRunner(t *testing.T) {
 	t.Parallel()
 
@@ -38,6 +39,21 @@ func TestTimeZoneCohort_RunEqualsTimeZoneFieldEveryRunner(t *testing.T) {
 	}
 	plain := res.Path
 	declared := declareZoneField(t, fs, plain, "cz_declared.pulse", "tz")
+	_, archive := importPerRow(t, fs, "cza", rows)
+	set, err := p.SetCohortZoneField(context.Background(), archive, "tz")
+	if err != nil {
+		t.Fatalf("SetCohortZoneField(archive): %v", err)
+	}
+	if !set.Changed || set.Layout != "shard_archive" || set.ShardsRewritten != 2 {
+		t.Fatalf("archive set = %+v", set)
+	}
+	ins, err := p.Inspect(context.Background(), archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ins.ZoneField != "tz" {
+		t.Fatalf("archive inspect zone_field = %q, want tz", ins.ZoneField)
+	}
 	runners := perRowRunners(t, fs)
 	for _, tc := range perRowCases() {
 		want := runFigures(t, p, tc.build(plain, perRowZoning{reqField: "tz"}))
@@ -50,10 +66,14 @@ func TestTimeZoneCohort_RunEqualsTimeZoneFieldEveryRunner(t *testing.T) {
 			}
 		}
 		for _, rn := range runners {
-			if rn.archive || (rn.name == "stream" && tc.crosstab) {
+			if rn.name == "stream" && tc.crosstab {
 				continue
 			}
-			requireFigures(t, tc.name+"/"+rn.name, rn.run(t, tc.build(declared, perRowZoning{})), want)
+			path := declared
+			if rn.archive {
+				path = archive
+			}
+			requireFigures(t, tc.name+"/"+rn.name, rn.run(t, tc.build(path, perRowZoning{})), want)
 		}
 	}
 }

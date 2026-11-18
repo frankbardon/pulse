@@ -1653,6 +1653,16 @@ const (
 	// silently is indistinguishable from a cheap append.
 	PULSE_SHARD_GROUPS_REWRITTEN Code = "PULSE_SHARD_GROUPS_REWRITTEN"
 
+	// PULSE_SHARD_ZONE_REWRITTEN is emitted as a WARNING (not an error)
+	// when `pulse cohort zone set` / `clear` (Pulse.SetCohortZoneField /
+	// ClearCohortZoneField) changes a shard ARCHIVE's default zone field:
+	// the canonical schema AND every shard payload's schema block are
+	// rewritten (records copied verbatim) and the archive is republished
+	// by one rename. Mandatory for the reason PULSE_SHARD_SET_WIDENED is:
+	// a whole-archive rewrite that happens silently is indistinguishable
+	// from a cheap schema edit.
+	PULSE_SHARD_ZONE_REWRITTEN Code = "PULSE_SHARD_ZONE_REWRITTEN"
+
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
 	// schema entry name (`_schema.pulse`). The reserved name is
@@ -5116,6 +5126,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 	PULSE_SHARD_SET_WIDENED,
 	PULSE_SHARD_GROUPS_REWRITTEN,
+	PULSE_SHARD_ZONE_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_SHARD_COUNT_LIMIT,

@@ -131,7 +131,7 @@ func prepareBuildSchema(in *encoding.Schema, strict bool) (*encoding.Schema, []*
 	if err != nil {
 		return nil, nil, err
 	}
-	out := &encoding.Schema{Fields: make([]encoding.Field, len(in.Fields)), Vectors: encx.CloneVectors(in.Vectors)}
+	out := &encoding.Schema{Fields: make([]encoding.Field, len(in.Fields)), Vectors: encx.CloneVectors(in.Vectors), ZoneField: in.ZoneField}
 	for i := range in.Fields {
 		src := &in.Fields[i]
 		f := encoding.Field{
@@ -157,5 +157,12 @@ func prepareBuildSchema(in *encoding.Schema, strict bool) (*encoding.Schema, []*
 		out.Fields[i] = f
 	}
 	relayoutOffsets(out)
+	// A declared default zone field (the ZONE section) is judged up
+	// front against the pre-seeded dictionaries — the import rule and
+	// coding (SERVICE_VALIDATION details.option "zone_field") — and the
+	// entries the rows add are judged again when the cohort is written.
+	if err := checkZoneField(out, in.ZoneField); err != nil {
+		return nil, nil, err
+	}
 	return out, warns, nil
 }

@@ -32,6 +32,8 @@ Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Ar
 
 `--zone-field COL` (`ImportJob.ZoneField` / `ConvertJob.ZoneField`) declares the written cohort's DEFAULT per-row zone field (`zone_field` in its schema; see `time-zones`). Explicit only: `--source-tz-field` never implies it, though both may name one column. `COL` must import as `categorical_*` with every value `UTC` or IANA (no `±HH:MM`): missing or non-categorical is `SERVICE_VALIDATION` (`details.option` `zone_field`) before any row; a bad value is `PULSE_TIMEZONE_UNKNOWN` (`dictionary_index`) before anything is written; the same codes on every surface. `import predict` judges it too; `convert` needs `--keep-pulse` (`reason` `no_cohort`); refused on a `.pulse` source.
 
+On an EXISTING cohort: `pulse cohort zone set COHORT FIELD` / `pulse cohort zone clear COHORT` (`Pulse.SetCohortZoneField` / `ClearCohortZoneField`) — a schema-only atomic rewrite, the same rule and codes; a shard archive is rewritten whole (every shard must agree) with `PULSE_SHARD_ZONE_REWRITTEN`; set then clear is byte-identical. Every rewriter (dedup, materialize, filter, widen, rake, synth augment, shard ops) keeps the default.
+
 ## On the managed import
 
 <!-- feature: capability:import -->

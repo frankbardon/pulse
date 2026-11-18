@@ -2434,6 +2434,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_ZONE_REWRITTEN: {
+		Message: "A `pulse cohort zone set` / `clear` on a shard archive rewrote the canonical `_schema.pulse` and every shard payload's schema block to declare the new default zone field (details.zone_field, details.previous_zone_field, details.shards_rewritten); records were copied verbatim and the archive was republished atomically. The archive is correct; the warning exists because a whole-archive rewrite must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed. Rebuild any point-lookup index the result lists under invalidated_sidecars (`pulse index build`). To avoid the rewrite, declare the default at import (`--zone-field`) on every shard before `pulse shard create`.",
+			},
+		},
+	},
 	PULSE_SHARD_RESERVED_NAME: {
 		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
 		Fixups: []Fixup{

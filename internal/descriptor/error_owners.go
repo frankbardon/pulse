@@ -385,6 +385,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_DESCRIPTION_DIVERGENCE: own(featShard),
 	errors.PULSE_SHARD_SET_WIDENED:            own(featShard),
 	errors.PULSE_SHARD_GROUPS_REWRITTEN:       own(featShard),
+	errors.PULSE_SHARD_ZONE_REWRITTEN:         own(featShard),
 	errors.PULSE_SHARD_RESERVED_NAME:          shared,
 	errors.PULSE_SHARD_NAME_COLLISION:         own(featShard),
 	errors.PULSE_SHARD_COUNT_LIMIT:            own(featShard),

@@ -71,6 +71,7 @@ const (
 	OpShardVerify     OperationKind = "shard_verify"
 	OpTemplateRender  OperationKind = "template_render"
 	OpTemplateReload  OperationKind = "template_reload"
+	OpCohortZone      OperationKind = "cohort_zone"
 )
 
 // AllOperationKinds returns every OperationKind in declaration order. An
@@ -85,7 +86,7 @@ func AllOperationKinds() []OperationKind {
 		OpMaterialize, OpRake, OpWiden, OpIndexBuild, OpIndexVerify, OpIndexList, OpIndexDrop,
 		OpShardCreate, OpShardAdd, OpShardRemove, OpShardList,
 		OpShardExtract, OpShardCompact, OpShardVerify, OpTemplateRender,
-		OpTemplateReload,
+		OpTemplateReload, OpCohortZone,
 	}
 }
 
