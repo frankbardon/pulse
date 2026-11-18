@@ -60,6 +60,10 @@ type previousStateAttribute struct {
 	// subject's first time point, nGap the records whose previous time
 	// point's state is null.
 	nSubjects, nFirst, nGap int64
+
+	// sortedPath records which path the last Compute took (tests pin
+	// that sorted input skips the bucket-and-sort).
+	sortedPath bool
 }
 
 var (
@@ -157,13 +161,90 @@ const (
 )
 
 // Compute emits every record's previous state (see the type comment).
+//
+// Two paths, one answer. When the keyed records (present subject and
+// order) already sit sorted — each subject's records contiguous, its
+// order non-decreasing; a record with a null subject or order breaks no
+// run — one O(N) check (sortedRuns) hands them over as runs and a
+// single pass walks them with O(subjects) extra state. Otherwise the
+// records are bucketed per subject and each bucket stably sorted by
+// order. Either way each subject's rows reach walkSubject in order with
+// a tie's records in record order, so the output, the tallies and the
+// warning are identical (TestPreviousState_SortedPathMatchesSlowPath).
 func (a *previousStateAttribute) Compute(records []*Record, _ string) ([]float64, error) {
+	out := a.reset(len(records))
+	if rows, starts, ok := a.sortedRuns(records); ok {
+		a.sortedPath = true
+		a.computeRuns(records, rows, starts, out)
+		return out, nil
+	}
+	a.sortedPath = false
+	a.computeBucketed(records, out)
+	return out, nil
+}
+
+// reset zeroes the tallies and returns n null outputs.
+func (a *previousStateAttribute) reset(n int) []float64 {
 	a.nAmbiguous, a.nAmbiguousSubjects = 0, 0
 	a.nSubjects, a.nFirst, a.nGap = 0, 0, 0
-	out := make([]float64, len(records))
+	out := make([]float64, n)
 	for i := range out {
 		out[i] = AttributeNull
 	}
+	return out
+}
+
+// sortedRuns is the sorted-input check: the keyed rows in record order
+// and the start of each subject's run in them, ok only when every
+// subject's keyed records are contiguous and non-decreasing in order
+// (ties allowed). It stops at the first record that breaks either rule,
+// so a shuffled input costs a few records' reads (and the rows slice's
+// allocation), not a pass; the worst case — sorted but for the last
+// record — is one extra pass before the bucket-and-sort path.
+func (a *previousStateAttribute) sortedRuns(records []*Record) (rows []prevRow, starts []int, ok bool) {
+	seen := map[prevSubjectKey]struct{}{}
+	rows = make([]prevRow, 0, len(records))
+	var cur prevSubjectKey
+	for i, r := range records {
+		k, ok := a.keyOf(r)
+		if !ok {
+			continue
+		}
+		o, ok := r.NumericValue(a.order)
+		if !ok || math.IsNaN(o) {
+			continue
+		}
+		if len(rows) == 0 || k != cur {
+			if _, again := seen[k]; again {
+				return nil, nil, false
+			}
+			seen[k] = struct{}{}
+			cur = k
+			starts = append(starts, len(rows))
+		} else if o < rows[len(rows)-1].order {
+			return nil, nil, false
+		}
+		rows = append(rows, prevRow{idx: i, order: o})
+	}
+	return rows, starts, true
+}
+
+// computeRuns is the sorted path: each run of rows (starts[s] up to the
+// next start) is one subject's records, already in order.
+func (a *previousStateAttribute) computeRuns(records []*Record, rows []prevRow, starts []int, out []float64) {
+	a.nSubjects = int64(len(starts))
+	for s, lo := range starts {
+		hi := len(rows)
+		if s+1 < len(starts) {
+			hi = starts[s+1]
+		}
+		a.walkSubject(records, rows[lo:hi], out)
+	}
+}
+
+// computeBucketed is the general path: bucket the keyed records per
+// subject, then stably sort each bucket by order.
+func (a *previousStateAttribute) computeBucketed(records []*Record, out []float64) {
 	bySubject := map[prevSubjectKey][]prevRow{}
 	for i, r := range records {
 		k, ok := a.keyOf(r)
@@ -181,34 +262,39 @@ func (a *previousStateAttribute) Compute(records []*Record, _ string) ([]float64
 		// Appended in record order, so a stable sort keeps a tie's
 		// records in record order (no output depends on it).
 		sort.SliceStable(rows, func(i, j int) bool { return rows[i].order < rows[j].order })
-		kind, state := prevNone, 0.0
-		ambiguous := false
-		for j := 0; j < len(rows); {
-			k := j + 1
-			for k < len(rows) && rows[k].order == rows[j].order {
-				k++
-			}
-			for _, row := range rows[j:k] {
-				switch kind {
-				case prevNone:
-					a.nFirst++
-				case prevValue:
-					out[row.idx] = state
-				case prevNull:
-					a.nGap++
-				case prevAmbiguous:
-					a.nAmbiguous++
-					ambiguous = true
-				}
-			}
-			kind, state = a.timePointState(records, rows[j:k])
-			j = k
-		}
-		if ambiguous {
-			a.nAmbiguousSubjects++
-		}
+		a.walkSubject(records, rows, out)
 	}
-	return out, nil
+}
+
+// walkSubject writes one subject's outputs and tallies from its rows in
+// non-decreasing order, grouped into time points.
+func (a *previousStateAttribute) walkSubject(records []*Record, rows []prevRow, out []float64) {
+	kind, state := prevNone, 0.0
+	ambiguous := false
+	for j := 0; j < len(rows); {
+		k := j + 1
+		for k < len(rows) && rows[k].order == rows[j].order {
+			k++
+		}
+		for _, row := range rows[j:k] {
+			switch kind {
+			case prevNone:
+				a.nFirst++
+			case prevValue:
+				out[row.idx] = state
+			case prevNull:
+				a.nGap++
+			case prevAmbiguous:
+				a.nAmbiguous++
+				ambiguous = true
+			}
+		}
+		kind, state = a.timePointState(records, rows[j:k])
+		j = k
+	}
+	if ambiguous {
+		a.nAmbiguousSubjects++
+	}
 }
 
 // timePointState is the state one time point's records leave for the

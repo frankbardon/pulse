@@ -57,7 +57,7 @@ The previous state, typed as `field` (its dictionary, nullable); crosstab it × 
 - Null (never `0`): first time point, null subject / order (never a predecessor), null previous state (no carry-forward).
 - Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (error under Strict).
 - Runs over the whole cohort before filters: a date window keeps each first in-window record's true previous state; Components count every record. An expression filter may read it by state name, as on the state field (`prev == "paid"`, `prev != nil`); a field filter may not.
-- Buffered: no streaming, fused crosstab or shard merge.
+- Buffered: no streaming, fused crosstab or shard merge. Rows already sorted by subject, then order, skip the sort (one pass, same answer).
 
 ## See
 
