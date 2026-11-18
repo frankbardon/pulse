@@ -1,6 +1,6 @@
 ```yaml
 name: regression-model-options
-description: Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills.
+description: Model options beyond the textbook fit — a penalty over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
@@ -15,15 +15,15 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 
 | Need | Option | Model |
 |---|---|---|
-| Ridge, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS, `penalty: l2` |
+| A penalty, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS `l2`; multinomial, any |
 | Slopes that cannot be negative (media spend, prices of goods) | `bounds: {nonnegative: [names]}` | OLS |
 | A prior centred on an experiment for ONE coefficient, flat or weak elsewhere | `prior_precision: [..]` per coefficient | Bayesian linear |
 | A curve or fit no built-in covers | a registered regression | manifest `extensions.regressions` |
 | A known model with no fit (a truth to optimise against) | a `models` entry with `inline` coefficients ([`compose-optimize`](compose-optimize.md)) | least-squares or media-mix |
 
-## `unpenalized` (ridge subset)
+## `unpenalized` (penalty subset)
 
-Skips the listed predictors on the ridge diagonal. Each name must be a listed predictor, once. `l1` / `elasticnet`, no `penalty`, a GLM, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
+The penalty skips the listed predictors (glmnet `penalty.factor` 0); each a listed predictor, once. OLS takes it with `l2` only, the multinomial with any `penalty`; no `penalty`, a GLM, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
 
 ## `bounds.nonnegative` (NNLS)
 
@@ -32,7 +32,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 - No bound binds: the fit is plain OLS, bit for bit.
 - A bound binds: coefficients (held ones exactly 0), `R2`, `AdjR2` and `ResidualStdErr` stand, but `StdErrors`, `PValues`, intervals and `Vcov` entries are `null` and the result carries `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`details.suggested` = `resample: bootstrap`). A bootstrap refits the bounded model per replicate and gives intervals.
 - Refused: any `penalty`, `selection`, another regression type, a robust `covariance` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`).
-- Predict cannot know whether a bound binds: its `p_values` count is an upper bound.
+- Predict cannot know if a bound binds: its `p_values` count is an upper bound.
 
 ## Per-coefficient prior precision
 
@@ -52,14 +52,14 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 - `n` counts scored rows; `n_null` the null-predicate rows (neither train nor held out). No held-out row: that slot fails alone, `PROCESSING_REGRESSION_INSUFFICIENT_DATA` `reason: holdout_empty`.
 - Penalty, `bounds`, `selection` and `resample` fit on train rows; held-out rows are scored with the point estimate. `n` equals the RMSE aggregator's `n_scored` (zero / invalid-weight rows out); a NaN / ±Inf target row is dropped.
-- A registered model needs a scorer: else `PULSE_MODEL_SCORE_INVALID` `no_scorer`. A bad predicate is `PULSE_FORMULA_COMPILE_ERROR`. Predict: buffered only.
+- A registered model needs a scorer (`PULSE_MODEL_SCORE_INVALID` `no_scorer`). A bad predicate is `PULSE_FORMULA_COMPILE_ERROR`. Predict: buffered only.
 
 ## A registered regression
 
 An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in, plus `params`.
 
 - `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
-- `outputs`: the model's own figures beside `coefficients`, keyed by the manifest's `output_schema`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
+- `outputs`: the model's own figures, keyed by the manifest's `output_schema` (`regressions[i].outputs.<key>`); a sweep can `rank` on one.
 - A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}`.
 - `conf_level` and `order` always work, `resample` unless the row lists no `resample` slot (then `PROCESSING_CONFIG`): intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.
 - `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only.

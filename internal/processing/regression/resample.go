@@ -394,8 +394,7 @@ func runBootstrapCtx(
 		return nil, err
 	}
 	out := packageResampleResult(spec, baseResult, predictors, run.se, run.cov, pValueFn, run.p)
-	out.BootstrapRequested = run.requested
-	out.BootstrapSucceeded = run.succeeded
+	run.echo(out)
 	return out, nil
 }
 

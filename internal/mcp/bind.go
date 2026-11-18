@@ -1076,10 +1076,10 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"name":        map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
 				"target":      enumStringField(regressionTargets(c), "Response variable: numeric, or categorical for REG_MULTINOMIAL."),
 				"predictors":  map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
-				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) regularization; omit for none."),
+				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) / REG_MULTINOMIAL (symmetric: every category, no reference) regularization; omit for none."),
 				"alpha":       num("Penalty strength (> 0) when penalty is set."),
 				"l1_ratio":    num("Elastic-net mixing in (0, 1); elasticnet only."),
-				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS ridge (penalty l2) only: predictors the penalty skips (glmnet penalty.factor 0); lasso / elasticnet refuse it.", "items": enumStringField(c.Numeric, "")},
+				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS ridge (penalty l2) or REG_MULTINOMIAL (any penalty): predictors the penalty skips (glmnet penalty.factor 0); REG_OLS lasso / elasticnet refuse it.", "items": enumStringField(c.Numeric, "")},
 				"bounds": map[string]any{
 					"type":        "object",
 					"description": "REG_OLS only: {nonnegative: [predictors]} constrains those slopes >= 0; a binding bound nulls the inference (resample bootstrap for replicate SEs). Refused with a penalty, selection or robust covariance.",
@@ -1092,7 +1092,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"link":       enumStringField(reglink.All(), "REG_GLM link, one of the family's: binomial logit (default), probit, cloglog; poisson log (default), identity, sqrt; gamma inverse (default), log, identity; negative_binomial log (default), identity, sqrt."),
 				"theta":      num("REG_GLM negative_binomial only: a fixed theta > 0 (glm(negative.binomial(theta))); omit to estimate it by maximum likelihood."),
 				"dispersion": enumStringField(types.AllNegBinDispersions(), "REG_GLM negative_binomial with a fixed theta only: fixed (default, phi = 1) or estimated (Pearson chi-square / df, t inference)."),
-				"reference":  map[string]any{"type": "string", "description": "REG_MULTINOMIAL only: the baseline category, one of the target's labels; omit for the first fitted level."},
+				"reference":  map[string]any{"type": "string", "description": "REG_MULTINOMIAL only (unpenalized): the baseline category, one of the target's labels; omit for the first fitted level."},
 				"max_iters":  integer("Iteration cap for iterative fits; 0 uses the operator default."),
 				"tol":        num("Relative convergence tolerance; 0 uses the operator default."),
 				"prior":      map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
@@ -1117,7 +1117,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"vcov":             map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
 				"covariance": map[string]any{
 					"type":        "object",
-					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator; omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
+					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator (REG_MULTINOMIAL: hc0, hc1, cluster); omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
 					"properties": map[string]any{
 						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1), hac (Newey-West)."),
 						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
@@ -1132,7 +1132,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				},
 				"margins": map[string]any{
 					"type":        "object",
-					"description": "REG_OLS / REG_GLM only: report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
+					"description": "REG_OLS / REG_GLM / REG_MULTINOMIAL or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
 					"properties": map[string]any{
 						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
 						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
@@ -1161,6 +1161,8 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					},
 					"additionalProperties": false,
 				},
+				"term_tests":   map[string]any{"type": "boolean", "description": "REG_MULTINOMIAL only: add term_tests — per predictor the joint Wald χ² (the fit's covariance) and LR χ² (refit without it; absent under a probability weight) of its K−1 coefficients, df K−1 (car::Anova(multinom)). Refused beside penalty, selection or resample, and on every other type."},
+				"exponentiate": map[string]any{"type": "boolean", "description": "REG_MULTINOMIAL / REG_ORDINAL only: add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw coefficients — relative-risk ratios exp(β) (multinomial, every key), cumulative odds ratios (ordinal, predictors only), delta-method SE exp(β)·SE, exp of each interval bound — on the fit's own covariance. Refused on every other type."},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{
@@ -2028,14 +2030,14 @@ func compareSchema() map[string]any {
 	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS or both REG_GLM on one family and link. Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
+		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS, both REG_GLM on one family and link, both REG_MULTINOMIAL (equal reference; df = (K-1) per added predictor, lrt = anova.multinom) or both one model declaring comparisons (REG_ORDINAL: equal params.levels; lrt = anova.polr, wald chi-square, no f). Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"name":       map[string]any{"type": "string", "description": "The comparison's name, unique among the comparisons."},
 				"restricted": map[string]any{"type": "string", "description": "The `fits` entry name of the smaller model (the null: the full model's extra coefficients are zero)."},
 				"full":       map[string]any{"type": "string", "description": "The `fits` entry name of the larger model."},
-				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical or robust). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise. f and lrt are refused under a probability weight (use wald)."),
+				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical or robust). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise (f refused on REG_MULTINOMIAL and on a declared model such as REG_ORDINAL). f and lrt are refused under a probability weight (use wald)."),
 				"multiplicity": multiplicitySchema(
 					"This comparison's multiple-comparison correction; omit to inherit the batch's. The only family is `compose` (the default): the comparisons pool with every compose-family member of the batch.",
 					[]types.MultiplicityFamily{types.MultiplicityFamilyCompose}, true),

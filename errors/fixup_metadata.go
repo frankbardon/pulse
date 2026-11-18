@@ -190,6 +190,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Filterers"},
 				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim Predictors[] to a smaller set.",
 			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Regressions", "*", "Resample"},
+				Hint:   "On details.reason replicate_empty_level (a REG_ORDINAL or REG_MULTINOMIAL jackknife replicate lost a response level or category the full fit has, named by details.level), switch resample to bootstrap, which skips such replicates, or choose jackknife_by groups that each leave every level behind, or merge the sparse level.",
+			},
 		},
 	},
 	PROCESSING_REGRESSION_ORDER: {
@@ -203,27 +208,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_REGRESSION_DIAGNOSTIC: {
-		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
+		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation; for an ordinal regression's params.nominal_test, a partial proportional-odds fit that did not converge or whose cumulative probabilities cross (details.reason nominal_test_no_converge / nominal_test_crossing, details.term or scope omnibus), that figure null. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Regressions", "*", "Params"},
-				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears; the regression's skill lists its thresholds and params.",
+				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears (a nominal_test failure: the predictor in details.term separates a step of the scale, or merge sparse levels); the regression's skill lists its thresholds and params.",
 			},
 		},
 	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
-		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
+		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net or a penalised multinomial fit (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Vcov"},
-				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
+				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or (REG_OLS / REG_GLM) with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Covariance"},
-				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR (REG_MULTINOMIAL computes the types details.supported lists: hc0, hc1, cluster); reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
 			},
 		},
 	},
@@ -1310,12 +1315,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: {
-		Message: "A regression fits penalty l1 or elasticnet, which selects its predictors from the data, so its standard errors, p-values and confidence intervals have no valid analytical form and are reported null; this is an advisory, not an error.",
+		Message: "A regression fits penalty l1 or elasticnet, which selects its predictors from the data — or a multinomial fit any penalty, whose symmetric form identifies its intercepts only by centring — so its standard errors, p-values and confidence intervals have no valid analytical form and are reported null; this is an advisory, not an error.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "resample"},
-				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance) or no penalty for analytical inference.",
+				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance; REG_OLS / REG_GLM) or no penalty for analytical inference.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
 		},
@@ -2148,11 +2153,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
-		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code).",
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code); or, declaring Margins, a fitted model without extend.MarginsRegression (missing_margins) or marginal effects not covering every requested term (per outcome) exactly once (margins_shape); or, declaring Compare, a fitted model without extend.CompareRegression (missing_compare) or comparison figures that name no term, repeat one, omit a predictor, or carry coefficients / covariance not aligned with the terms (compare_shape).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics).",
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics); and when the registration declares Margins, implement extend.MarginsRegression on the fitted model and return one MarginalEffect per requested term — per listed Outcome when Outcomes is set — and At keys that are predictors; and when the registration declares Compare, implement extend.CompareRegression on the fitted model and return Terms naming every predictor once, Coefficients aligned with them and a Covariance square over them.",
 			},
 		},
 	},
@@ -2642,7 +2647,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_COMPARISON_INVALID: {
-		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression fits under `available`), each a request-bound regression fit — not a vector or SEM fit (`fit_kind`) nor a `from_sweep` one (`from_sweep`). Both fits are one regression type, ordinary least squares or a generalized linear model (`type_unsupported`, `type_mismatch`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `no_resample` (a Wald test reads the classical or robust covariance, not a replicate one), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). The entry index is under `compare`, its name under `name`.",
+		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression fits under `available`), each a request-bound regression fit — not a vector or SEM fit (`fit_kind`) nor a `from_sweep` one (`from_sweep`). Both fits are one regression type (`type_mismatch`): ordinary least squares, a generalized linear model, the multinomial logit, or a model whose declaration carries comparisons — the ordinal regression, an embedder model registered with Compare (`type_unsupported`, the accepted types under `requires`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one; a declared model's predictors alone) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`); two declared fits whose `params.levels` differ are `levels_differ` (`restricted_levels` / `full_levels`: their thresholds are other terms), and two multinomial fits whose `reference` differs are `reference_differs` (`restricted_reference` / `full_reference`: their coefficients are other contrasts). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `no_resample` (a Wald test reads the classical or robust covariance, not a replicate one), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated — never a declared model's nor the multinomial logit's), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). The entry index is under `compare`, its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2660,6 +2665,16 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"compare", "*", "test"},
 				Hint:     "Use `wald` under a probability weight or on a family whose dispersion is fixed (an F test needs an estimated dispersion); omit `test` for R's anova default (F on least squares and gamma, lrt otherwise).",
 				Examples: []any{"f", "lrt", "wald"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "params", "levels"},
+				Hint:   "Give both ordinal fits the same params.levels (or omit it from both), so their thresholds name the same levels.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "reference"},
+				Hint:   "Give both multinomial fits the same reference (or omit it from both), so their \"<category>:<term>\" coefficients are the same contrasts.",
 			},
 		},
 	},
@@ -2699,12 +2714,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_COMPARISON_ROWS_DIFFER: {
-		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`.",
+		Message: "A nested-model comparison's two fits used different row counts once run, so they are not the same rows and no F, likelihood-ratio or Wald test is defined: the comparison fails alone (its `comparisons` entry carries this error and PULSE_SLOT_FAILED lifts to the batch; Strict fails the batch). The fit requests are equal, so the difference is listwise deletion: a predictor only the full fit reads is null on rows the restricted fit kept. The fit names are under `restricted` / `full`, their row counts under `restricted_n_obs` / `full_n_obs`. Reason `terms_differ`: two fits of a model declaring comparisons (the ordinal regression) or of the multinomial logit estimated different terms beside the tested predictors — an ordinal fit's thresholds, a multinomial fit's \"<category>:<term>\" coefficients, named by the levels its rows carry — listed under `restricted_terms` / `full_terms`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "request", "filterers"},
 				Hint:   "Filter both fit requests to the rows where every full-model predictor is non-null (the same filter in each), so both fits drop the same rows.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"fits", "*", "request", "regressions", "*", "params", "levels"},
+				Hint:   "On terms_differ, pin the outcome levels with the same params.levels in both fit requests, so both fits estimate the same thresholds.",
 			},
 		},
 	},
@@ -2758,7 +2778,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or leverage attribute's `params.fit` takes `{fit, carryover, order}`, a residual's `{fit, kind, residual_type, carryover, order}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure, carryover, order}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares, generalized-linear or nonlinear least-squares media-mix (read on its tangent plane; no `prior`) fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported` — the Bayesian media-mix fit by design, since a posterior has no hat matrix, not a gap a later build fills). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. A fit that adstocks raw spend in-model (the media-mix models) carries its adstock into the scored rows by default, which needs `order {field, partition?}` ordering the frame's raw spend (`order_required`; `order_field_missing`; a field the frame lacks or of a type that cannot order rows, `order_field_invalid`) and a model holding its adstock state (`carryover_state_missing`: a file saved before carry-over); `carryover: false` scores pre-adstocked columns as given, and `order` beside it, or `order` / `carryover` on a fit that adstocks nothing in-model, is refused (`order_unused`, `carryover_unused`). The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?, output?, level?, category?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear, ordinal or multinomial fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. An ordinal fit scores one column per slot: `output` `expected` (the default), `class`, or `probability` / `cumulative` of one `level` (`outcome_required` without it, `outcome_unused` beside `expected` / `class`, `outcome_unknown` for a level the fit does not carry, `output_unknown`, and `output_scale` beside `scale: link`); A multinomial fit scores `probability` of one `category` (the default output, and the only reading of `scale: link`, that category's log-odds against the reference — `outcome_required` without it) or `class` (`outcome_unused` beside a category); `level`, `terms` and a `lower` / `upper` bound do not apply to it. `level` on any fit but an ordinal one, `category` on any but a multinomial one, and `output` on any other fit are `outcome_unsupported`. A fitted-value or leverage attribute's `params.fit` takes `{fit, carryover, order}`, a residual's `{fit, kind, residual_type, carryover, order}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure, carryover, order}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unweighted, unpenalized least-squares, generalized-linear or nonlinear least-squares media-mix (read on its tangent plane; no `prior`) fit with `vcov: true` and the classical covariance, no selection, resample or bounds (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported` — the Bayesian media-mix fit by design, since a posterior has no hat matrix, not a gap a later build fills). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear, Bayesian-linear or multinomial fit scores (`type_unsupported`; the regression type is under `type`; a fitted-value, residual, leverage or influence `params.fit` slot cannot bind a multinomial fit, whose score names a category), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. A fit that adstocks raw spend in-model (the media-mix models) carries its adstock into the scored rows by default, which needs `order {field, partition?}` ordering the frame's raw spend (`order_required`; `order_field_missing`; a field the frame lacks or of a type that cannot order rows, `order_field_invalid`) and a model holding its adstock state (`carryover_state_missing`: a file saved before carry-over); `carryover: false` scores pre-adstocked columns as given, and `order` beside it, or `order` / `carryover` on a fit that adstocks nothing in-model, is refused (`order_unused`, `carryover_unused`). The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2768,7 +2788,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"attributes", "*", "params", "scale"},
-				Hint:   "Drop params.scale unless the fit is generalized-linear; a least-squares or Bayesian score is already on the target's scale.",
+				Hint:   "Drop params.scale unless the fit is generalized-linear or ordinal; a least-squares or Bayesian score is already on the target's scale.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "params", "level"},
+				Hint:   "Over an ordinal fit, set params.level to one of the fit's levels (details.available) for output probability / cumulative, or drop it for expected / class; over a multinomial fit, set params.category to one of its categories (details.available) for probability or scale link, or drop it for class; drop params.level, params.output and params.category on any other fit (reason outcome_unsupported).",
 			},
 			{
 				Action: FixupReplaceField,

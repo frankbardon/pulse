@@ -49,10 +49,11 @@ func newInstance(t testing.TB, mut func(*pulse.Options)) *pulse.Pulse {
 
 // cohortSpec describes one test cohort: p predictors x1..xp (f64), the
 // response y (u8, or categorical_u8 over dict), a weight w (f64) and a
-// cluster id g (u8).
+// cluster id g (u8), and with id a row number id (u32).
 type cohortSpec struct {
 	p    int
 	dict []string // nil: a numeric y
+	id   bool
 }
 
 func (c cohortSpec) schema() encoding.Schema {
@@ -72,6 +73,9 @@ func (c cohortSpec) schema() encoding.Schema {
 	fields = append(fields,
 		encoding.Field{Name: "w", Type: encoding.FieldTypeF64},
 		encoding.Field{Name: "g", Type: encoding.FieldTypeU8})
+	if c.id {
+		fields = append(fields, encoding.Field{Name: "id", Type: encoding.FieldTypeU32})
+	}
 	s := encoding.Schema{Fields: fields}
 	off := 0
 	for i := range s.Fields {
@@ -102,6 +106,9 @@ func writeCohort(t testing.TB, p *pulse.Pulse, name string, cs cohortSpec, rows 
 			row = append(row, uint64(r[cs.p]))
 		}
 		row = append(row, r[cs.p+1], uint64(r[cs.p+2]))
+		if cs.id {
+			row = append(row, uint64(i))
+		}
 		if err := b.Append(row); err != nil {
 			t.Fatalf("Append row %d: %v", i, err)
 		}
@@ -119,6 +126,9 @@ func caseSpec(c regordinal.OracleCase, levelsParam []string) *types.RegressionSp
 	}
 	if c.Brant != nil {
 		params["brant"] = map[string]any{}
+	}
+	if c.NominalTest != nil {
+		params["nominal_test"] = map[string]any{}
 	}
 	if levelsParam != nil {
 		params["levels"] = levelsParam
@@ -215,6 +225,7 @@ func checkAgainstGolden(t *testing.T, c regordinal.OracleCase, res *types.Regres
 		v, _ := fp[lv].(float64)
 		check("fitted_probability "+lv, v, c.FittedProbabilities[k])
 	}
+	checkNominalOutput(t, c, res)
 	if c.Brant == nil {
 		if _, ok := out["brant"]; ok {
 			t.Errorf("outputs.brant present without params.brant")
@@ -232,6 +243,60 @@ func checkAgainstGolden(t *testing.T, c regordinal.OracleCase, res *types.Regres
 		tm, _ := terms[name].(map[string]any)
 		check("brant "+name, tm["statistic"].(float64), c.Brant.Terms[a])
 		check("brant p "+name, tm["p_value"].(float64), c.Brant.TermsP[a])
+	}
+}
+
+// checkNominalOutput compares outputs.nominal_test and the result's
+// warnings with the golden: absent without params.nominal_test (no key,
+// no warning); else every figure (NaN where R's partial fit failed) and
+// one PROCESSING_REGRESSION_DIAGNOSTIC warning per null figure, terms
+// first, then the omnibus.
+func checkNominalOutput(t *testing.T, c regordinal.OracleCase, res *types.RegressionResult) {
+	t.Helper()
+	nt, ok := res.Outputs["nominal_test"].(map[string]any)
+	if c.NominalTest == nil {
+		if _, present := res.Outputs["nominal_test"]; present || len(res.Warnings) > 0 {
+			t.Errorf("outputs.nominal_test %v / warnings %v without params.nominal_test", res.Outputs["nominal_test"], res.Warnings)
+		}
+		return
+	}
+	if !ok {
+		t.Fatalf("outputs.nominal_test = %v, want an object", res.Outputs["nominal_test"])
+	}
+	want := c.NominalTest
+	check := func(what string, got any, w *float64) {
+		t.Helper()
+		v, isNum := got.(float64)
+		if e := regordinal.NominalErr(v, w); !isNum || !(e <= regordinal.NominalRel) {
+			t.Errorf("nominal %s = %v, R %v", what, got, w)
+		}
+	}
+	check("statistic", nt["statistic"], want.Statistic)
+	check("p_value", nt["p_value"], want.PValue)
+	if nt["df"] != want.DF {
+		t.Errorf("nominal df %v, want %v", nt["df"], want.DF)
+	}
+	terms, _ := nt["terms"].(map[string]any)
+	if len(terms) != len(c.Predictors) {
+		t.Fatalf("nominal terms %v, want one per predictor %v", terms, c.Predictors)
+	}
+	for a, name := range c.Predictors {
+		tm, _ := terms[name].(map[string]any)
+		check("statistic "+name, tm["statistic"], want.Terms[a])
+		check("p_value "+name, tm["p_value"], want.TermsP[a])
+		if tm["df"] != want.TermsDF {
+			t.Errorf("nominal %s df %v, want %v", name, tm["df"], want.TermsDF)
+		}
+	}
+	if len(res.Warnings) != len(want.Failed) {
+		t.Fatalf("warnings %v, want one per failed partial fit %+v", res.Warnings, want.Failed)
+	}
+	for i, f := range want.Failed {
+		w := res.Warnings[i]
+		if w.Code != string(perr.PROCESSING_REGRESSION_DIAGNOSTIC) || w.Details["reason"] != regordinal.NominalReasons[f.Reason] ||
+			w.Details["scope"] != f.Scope || (f.Scope == "term") != (w.Details["term"] == f.Term) {
+			t.Errorf("warning %d = %s %v, want %s %s %q", i, w.Code, w.Details, f.Reason, f.Scope, f.Term)
+		}
 	}
 }
 
@@ -278,6 +343,55 @@ func TestRegOrdinal_MatchesPolrEndToEnd(t *testing.T) {
 			writeCohort(t, p, "ord.pulse", cs, rows, labels)
 			checkAgainstGolden(t, c, fitOne(t, p, "ord.pulse", caseSpec(c, c.LevelsParam)))
 		})
+	}
+}
+
+// TestRegOrdinal_HoldoutMatchesR: a holdout over the golden's own rows
+// plus its holdout_rows (id ≥ the case's n) fits exactly the golden fit
+// and reports the proper scores ord_scores computes in closed form from
+// predict(polr, type = "probs") — log_loss, brier, accuracy and rps,
+// weighted (frequency and probability cases), labeled and numeric
+// responses, every link — at 1e-10; rmse / mae / r2 are absent.
+func TestRegOrdinal_HoldoutMatchesR(t *testing.T) {
+	t.Parallel()
+	cases := 0
+	for _, c := range regordinal.LoadOracle(t) {
+		if c.Holdout == nil {
+			continue
+		}
+		cases++
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			p := newInstance(t, nil)
+			cs := cohortSpec{p: len(c.Predictors), id: true}
+			var labels []string
+			if c.Levels[0] != "1" {
+				cs.dict, labels = c.Levels, c.Levels
+			}
+			rows := append(slices.Clone(c.Rows), c.HoldoutRows...)
+			writeCohort(t, p, "ord.pulse", cs, rows, labels)
+			s := caseSpec(c, nil)
+			s.Holdout = "id >= " + strconv.Itoa(len(c.Rows))
+			res := fitOne(t, p, "ord.pulse", s)
+			checkAgainstGolden(t, c, res)
+			h, want := res.Holdout, c.Holdout
+			if h == nil || h.N != want.N || h.NNull != 0 || h.RMSE != nil || h.MAE != nil || h.R2 != nil {
+				t.Fatalf("holdout %+v: want n %d, no rmse / mae / r2", h, want.N)
+			}
+			for _, f := range []struct {
+				name      string
+				got       *float64
+				want, tol float64
+			}{{"log_loss", h.LogLoss, want.LogLoss, e2eRel}, {"brier", h.Brier, want.Brier, e2eRel},
+				{"accuracy", h.Accuracy, want.Accuracy, 0}, {"rps", h.RPS, want.RPS, e2eRel}} {
+				if f.got == nil || rel(*f.got, f.want) > f.tol {
+					t.Errorf("holdout %s = %v, R %.17g", f.name, f.got, f.want)
+				}
+			}
+		})
+	}
+	if cases < 6 {
+		t.Fatalf("%d golden cases carry a holdout; want the six classical ones", cases)
 	}
 }
 
@@ -355,15 +469,17 @@ func TestRegOrdinal_WorkerInvariant(t *testing.T) {
 	}
 }
 
-// TestRegOrdinal_OutputsMatchApplicability: a plain fit emits exactly
-// the RegressionResult keys the applicability row lists.
+// TestRegOrdinal_OutputsMatchApplicability: a plain fit — with the
+// opt-in exponentiated (U68 E3-S2) and margins (U68 E4-S1) blocks, which
+// the row lists — emits exactly the RegressionResult keys the
+// applicability row lists.
 func TestRegOrdinal_OutputsMatchApplicability(t *testing.T) {
 	t.Parallel()
 	c := goldenCase(t, "logit_two")
 	p := newInstance(t, nil)
 	writeCohort(t, p, "ord.pulse", cohortSpec{p: 2}, c.Rows, nil)
 	s := caseSpec(c, nil)
-	s.Vcov = false
+	s.Vcov, s.Exponentiate, s.Margins = false, true, &types.RegressionMargins{}
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(mustJSON(t, fitOne(t, p, "ord.pulse", s))), &keys); err != nil {
 		t.Fatal(err)
@@ -412,29 +528,35 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		code  perr.Code
 		slot  string
 	}{
-		"penalty":        {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
-		"selection":      {`,"selection":"forward","criterion":"aic"`, perr.PROCESSING_CONFIG, "selection"},
-		"resample":       {`,"resample":"jackknife"`, perr.PROCESSING_CONFIG, "resample"},
-		"bootstrap":      {`,"resample":"bootstrap"`, perr.PROCESSING_CONFIG, "resample"},
-		"margins":        {`,"margins":{}`, perr.PROCESSING_CONFIG, "margins"},
-		"collinearity":   {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
-		"covariance_hc3": {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
-		"covariance_hac": {`,"covariance":{"type":"hac","order_by":"x1"}`, perr.PROCESSING_CONFIG, "covariance"},
-		"save":           {`,"save":"m.pulse-model.json"`, perr.PROCESSING_CONFIG, "save"},
-		"link_top_level": {`,"link":"probit"`, perr.PROCESSING_CONFIG, "link"},
-		"family":         {`,"family":"binomial"`, perr.PROCESSING_CONFIG, "family"},
-		"max_iters":      {`,"max_iters":10`, perr.PROCESSING_CONFIG, "max_iters"},
-		"intercept":      {`,"intercept":false`, perr.PROCESSING_CONFIG, "intercept"},
-		"bounds":         {`,"bounds":{"nonnegative":["x1"]}`, perr.PROCESSING_CONFIG, "bounds"},
-		"prior":          {`,"prior":"nig"`, perr.PROCESSING_CONFIG, "prior"},
-		"holdout":        {`,"holdout":"x1 > 0"`, perr.PULSE_MODEL_SCORE_INVALID, ""},
-		"params_link":    {`,"params":{"link":"cauchit"}`, perr.PROCESSING_CONFIG, "params.link"},
-		"params_levels":  {`,"params":{"levels":["1","2","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
-		"params_two":     {`,"params":{"levels":["1","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
-		"params_brant":   {`,"params":{"link":"probit","brant":{}}`, perr.PROCESSING_CONFIG, "params.brant"},
-		"params_unknown": {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
-		"brant_key":      {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
-		"conf_level":     {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
+		"penalty": {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
+		// margins runs (U68 E4-S1) under the built-ins' shape and fit
+		// rules: resample stays refused (no_resample, U69 #639).
+		"margins_resample":  {`,"margins":{},"resample":"jackknife"`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_selection": {`,"margins":{},"selection":"forward","criterion":"aic"`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_type":      {`,"margins":{"type":"avg"}`, perr.PROCESSING_CONFIG, "margins"},
+		"margins_terms":     {`,"margins":{"terms":["x3"]}`, perr.PROCESSING_CONFIG, "margins"},
+		"collinearity":      {`,"collinearity":{}`, perr.PROCESSING_CONFIG, "collinearity"},
+		"covariance_hc3":    {`,"covariance":{"type":"hc3"}`, perr.PROCESSING_CONFIG, "covariance"},
+		"covariance_hac":    {`,"covariance":{"type":"hac","order_by":"x1"}`, perr.PROCESSING_CONFIG, "covariance"},
+		"link_top_level":    {`,"link":"probit"`, perr.PROCESSING_CONFIG, "link"},
+		"family":            {`,"family":"binomial"`, perr.PROCESSING_CONFIG, "family"},
+		"max_iters":         {`,"max_iters":10`, perr.PROCESSING_CONFIG, "max_iters"},
+		"intercept":         {`,"intercept":false`, perr.PROCESSING_CONFIG, "intercept"},
+		"bounds":            {`,"bounds":{"nonnegative":["x1"]}`, perr.PROCESSING_CONFIG, "bounds"},
+		"prior":             {`,"prior":"nig"`, perr.PROCESSING_CONFIG, "prior"},
+		"params_link":       {`,"params":{"link":"cauchit"}`, perr.PROCESSING_CONFIG, "params.link"},
+		"params_levels":     {`,"params":{"levels":["1","2","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
+		"params_two":        {`,"params":{"levels":["1","2"]}`, perr.PROCESSING_CONFIG, "params.levels"},
+		"params_brant":      {`,"params":{"link":"probit","brant":{}}`, perr.PROCESSING_CONFIG, "params.brant"},
+		"params_unknown":    {`,"params":{"lnk":"logit"}`, perr.PULSE_REQUEST_UNKNOWN_FIELD, ""},
+		"brant_key":         {`,"params":{"brant":{"by":"x1"}}`, perr.PROCESSING_CONFIG, "params"},
+		"nominal_test_key":  {`,"params":{"nominal_test":{"terms":["x1"]}}`, perr.PROCESSING_CONFIG, "params"},
+		"conf_level":        {`,"conf_level":2`, perr.PROCESSING_CONFIG, ""},
+		// The weighted modifiers follow the built-ins' weight rule (U68
+		// E2-S1): no weighted bootstrap, no weighted information criterion.
+		"bootstrap_weighted": {`,"resample":"bootstrap","weight":{"field":"w","kind":"frequency"}`, perr.PULSE_WEIGHT_UNSUPPORTED, ""},
+		"selection_weighted": {`,"selection":"forward","criterion":"aic","weight":{"field":"w","kind":"probability"}`, perr.PULSE_WEIGHT_UNSUPPORTED, ""},
+		"selection_cluster":  {`,"selection":"forward","criterion":"aic","covariance":{"type":"cluster","cluster":"g"}`, perr.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
 	}
 	for name, rc := range refused {
 		t.Run(name, func(t *testing.T) {
@@ -476,7 +598,32 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 		"probit":       `,"params":{"link":"probit"}`,
 		"cloglog":      `,"params":{"link":"cloglog"}`,
 		"brant":        `,"params":{"brant":{}}`,
-		"levels":       `,"params":{"levels":["1","2","3"]}`,
+		// The nominal test runs on every link (U68 E6-S1).
+		"nominal_test":         `,"params":{"nominal_test":{}}`,
+		"nominal_test_probit":  `,"params":{"link":"probit","nominal_test":{}}`,
+		"nominal_test_cloglog": `,"params":{"link":"cloglog","nominal_test":{}}`,
+		// Under a probability weight the output is absent, never refused.
+		"nominal_test_probability": `,"params":{"nominal_test":{}},"weight":{"field":"w","kind":"probability"}`,
+		"levels":                   `,"params":{"levels":["1","2","3"]}`,
+		// Its scorer (ATTR_REG_PREDICT) makes the fit saveable.
+		"save": `,"save":"m.pulse-model.json"`,
+		// Its probability vector scores a holdout (U68 E1-S3).
+		"holdout": `,"holdout":"x1 > 0"`,
+		// The engine's modifier drivers refit it (U68 E2-S1).
+		"selection":          `,"selection":"forward","criterion":"aic"`,
+		"jackknife":          `,"resample":"jackknife"`,
+		"jackknife_by":       `,"resample":"jackknife","jackknife_by":"g"`,
+		"bootstrap":          `,"resample":"bootstrap","bootstrap_iters":20,"rng_seed":3`,
+		"both":               `,"selection":"backward","criterion":"bic","resample":"jackknife","jackknife_groups":5`,
+		"jackknife_weighted": `,"resample":"jackknife","weight":{"field":"w","kind":"probability"}`,
+		// Its cumulative odds ratios (U68 E3-S2).
+		"exponentiate": `,"exponentiate":true,"covariance":{"type":"hc1"}`,
+		// Its per-level marginal effects (U68 E4-S1).
+		"margins":          `,"margins":{}`,
+		"margins_mem":      `,"margins":{"type":"mem","terms":["x2"]}`,
+		"margins_link":     `,"margins":{"scale":"link"},"covariance":{"type":"cluster","cluster":"g"}`,
+		"margins_holm":     `,"margins":{},"multiplicity":{"method":"holm"}`,
+		"margins_weighted": `,"margins":{},"weight":{"field":"w","kind":"frequency"}`,
 	} {
 		t.Run("runs_"+name, func(t *testing.T) {
 			t.Parallel()

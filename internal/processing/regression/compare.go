@@ -2,9 +2,11 @@ package regression
 
 import (
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -15,13 +17,16 @@ import (
 // The Compose runtime runs every fit a comparison names with a
 // model.VectorCapture on its bound set; the processor then resolves its
 // regression factories through OfferingFigures, which hands each
-// REG_OLS / REG_GLM engine the capture's offer. Nothing here reaches a
+// REG_OLS / REG_GLM / REG_MULTINOMIAL engine — and every
+// extension-shaped engine whose model declares Compare
+// (internal/regadapt) — the capture's offer. Nothing here reaches a
 // result or the public API, and a run without a capture computes none.
 
-// figuresOfferer is an engine that can offer its comparison figures at
-// finalize: the OLS, GLM and modifier engines.
-type figuresOfferer interface {
-	setFiguresOffer(offer func(*model.RegressionFigures))
+// FiguresOfferer is an engine that can offer its comparison figures at
+// finalize: the OLS, GLM, multinomial and modifier engines, and an extension-shaped
+// model's engine (internal/regadapt) whose declaration carries Compare.
+type FiguresOfferer interface {
+	SetFiguresOffer(offer func(*model.RegressionFigures))
 }
 
 // OfferingFigures wraps resolve so every engine its factories build that
@@ -40,8 +45,8 @@ func OfferingFigures(resolve Resolver, offer func(*model.RegressionFigures)) Res
 		return func(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, error) {
 			eng, err := f(spec, schema)
 			if err == nil {
-				if o, ok := eng.(figuresOfferer); ok {
-					o.setFiguresOffer(offer)
+				if o, ok := eng.(FiguresOfferer); ok {
+					o.SetFiguresOffer(offer)
 				}
 			}
 			return eng, err
@@ -83,6 +88,39 @@ func olsFitFigures(solve *olsSolveResult, predictors []string, cov [][]float64, 
 	}
 }
 
-func (e *olsEngine) setFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
-func (e *glmEngine) setFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
-func (e *modifierEngine) setFiguresOffer(offer func(*model.RegressionFigures)) { e.figures = offer }
+// multinomialFigures are an unpenalized REG_MULTINOMIAL fit's
+// comparison figures: Terms its "<category>:<term>" keys (category-major,
+// the covariance's order), TermKeys each term's K − 1 keys — so a
+// comparison tests (K − 1)·q coefficients for q added predictors — the
+// covariance the standard errors read (the inverse information or the
+// robust sandwich), the deviance −2ℓ, dispersion 1 (a likelihood ratio
+// divides by none), a Wald z table (WaldDF 0), and the residual df
+// (K − 1)·N* − d over the d coefficients: anova.multinom's Resid. df
+// (nrow · (K − 1) − edf; N* the rep() expansion's under a frequency
+// weight).
+func multinomialFigures(pr *multinomialProblem, predictors []string, keys []string, beta []float64, cov [][]float64, deviance, nStar float64) *model.RegressionFigures {
+	terms := append([]string{InterceptKey}, predictors...)
+	termKeys := make(map[string][]string, len(terms))
+	for _, c := range pr.nonRef {
+		for _, t := range terms {
+			termKeys[t] = append(termKeys[t], regmultinom.Key(pr.cats[c], t))
+		}
+	}
+	k := float64(len(pr.nonRef))
+	return &model.RegressionFigures{
+		Terms:        slices.Clone(keys),
+		TermKeys:     termKeys,
+		Coefficients: slices.Clone(beta),
+		Covariance:   cov,
+		Deviance:     deviance,
+		DFResidual:   float64(k*nStar) - float64(len(keys)),
+		Dispersion:   1,
+	}
+}
+
+func (e *olsEngine) SetFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
+func (e *glmEngine) SetFiguresOffer(offer func(*model.RegressionFigures))      { e.figures = offer }
+func (e *modifierEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) { e.figures = offer }
+func (e *multinomialEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) {
+	e.figures = offer
+}

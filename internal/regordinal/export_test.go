@@ -7,3 +7,22 @@ package regordinal
 type OracleCase = oracleCase
 
 var LoadOracle = loadOracle
+
+type OracleModifiers = oracleModifiers
+
+var LoadModifiers = loadModifiers
+
+type MarginsOracleCase = marginsOracleCase
+
+var LoadMarginsOracle = loadMarginsOracle
+
+type OracleNominal = oracleNominal
+
+var NominalErr = nominalErr
+
+var NominalReasons = nominalReasons
+
+const NominalRel = nominalRel
+
+// AuxTestFits is how many fits so far ran the Brant or the nominal test.
+func AuxTestFits() int64 { return auxTestFits.Load() }

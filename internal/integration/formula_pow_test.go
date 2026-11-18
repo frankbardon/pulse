@@ -207,7 +207,7 @@ func TestFormulaPow_HoldoutUsesOperator(t *testing.T) {
 		return resp.Regressions[0].Holdout
 	}
 	a, b := run("y ** 2 > 4"), run("pow(y, 2) > 4")
-	if a.N != b.N || a.N == 0 || math.Float64bits(a.RMSE) != math.Float64bits(b.RMSE) {
+	if a.N != b.N || a.N == 0 || math.Float64bits(*a.RMSE) != math.Float64bits(*b.RMSE) {
 		t.Errorf("holdout `**` %+v, pow() %+v", a, b)
 	}
 }

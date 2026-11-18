@@ -5708,9 +5708,72 @@
       ],
       "type": "object"
     },
+    "RegressionExponentiated": {
+      "additionalProperties": false,
+      "properties": {
+        "ci_lower": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "ci_upper": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "estimates": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "std_errors": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "estimates"
+      ],
+      "type": "object"
+    },
     "RegressionHoldout": {
       "additionalProperties": false,
       "properties": {
+        "accuracy": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "brier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "log_loss": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "mae": {
           "type": [
             "number",
@@ -5734,14 +5797,17 @@
             "number",
             "null"
           ]
+        },
+        "rps": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "required": [
-        "mae",
         "n",
-        "n_null",
-        "r2",
-        "rmse"
+        "n_null"
       ],
       "type": "object"
     },
@@ -5819,6 +5885,15 @@
         },
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "outcomes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "p_adjusted": {
           "additionalProperties": {
@@ -6063,6 +6138,9 @@
         "error": {
           "$ref": "#/$defs/SlotError"
         },
+        "exponentiated": {
+          "$ref": "#/$defs/RegressionExponentiated"
+        },
         "family": {
           "type": "string"
         },
@@ -6199,6 +6277,9 @@
             "null"
           ]
         },
+        "term_tests": {
+          "$ref": "#/$defs/RegressionTermTests"
+        },
         "theta": {
           "type": [
             "number",
@@ -6267,6 +6348,9 @@
         },
         "dispersion": {
           "type": "string"
+        },
+        "exponentiate": {
+          "type": "boolean"
         },
         "family": {
           "type": "string"
@@ -6361,6 +6445,9 @@
         "target": {
           "type": "string"
         },
+        "term_tests": {
+          "type": "boolean"
+        },
         "theta": {
           "type": "number"
         },
@@ -6411,6 +6498,69 @@
       "required": [
         "name",
         "predictors"
+      ],
+      "type": "object"
+    },
+    "RegressionTermTests": {
+      "additionalProperties": false,
+      "properties": {
+        "df": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "lr_chi2": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "lr_p_values": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "wald_chi2": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
+        "wald_p_values": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "df",
+        "terms",
+        "wald_chi2",
+        "wald_p_values"
       ],
       "type": "object"
     },
@@ -8289,4 +8439,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 55cfd8020c9a4f216a193bfd002163ba6bdb4a3371b63fdd5c68fa7f9a396b10
+// golden-hash: 59a9a5698b62cb0baa40150abe5ebe53c7c410be5c71038d7330f815730e8083

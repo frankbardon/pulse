@@ -107,8 +107,9 @@ const (
 	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
 	// fit whose own diagnostic crossed its threshold while the fit still
 	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
-	// post-warmup divergences, tree-depth saturation. details.reason
-	// names the diagnostic; the rest of details carries its figures. An
+	// post-warmup divergences, tree-depth saturation, or REG_ORDINAL's
+	// params.nominal_test partial fit that did not converge or crosses
+	// (that figure null). details.reason names the diagnostic; the rest of details carries its figures. An
 	// extension regression emits it through
 	// extend.RegressionOutput.Warnings; under Strict it fails the slot
 	// with this code.
@@ -824,9 +825,10 @@ const (
 	PULSE_ADVISORY_JACKKNIFE_COST Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 
 	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED is an advisory on a
-	// REG_OLS / REG_GLM slot fitting penalty l1 or elasticnet without a
-	// Resample modifier: the penalty selects the predictors from the
-	// data, so the coefficients' standard errors, p-values and
+	// REG_OLS / REG_GLM slot fitting penalty l1 or elasticnet — or a
+	// REG_MULTINOMIAL slot fitting any penalty (its symmetric form) —
+	// without a Resample modifier: the penalty selects the predictors
+	// from the data, so the coefficients' standard errors, p-values and
 	// confidence intervals have no valid analytical form and are
 	// reported null (key kept, intercept included). Raised by predict
 	// AND carried on the fit's RegressionResult.Advisories, from one
@@ -1879,8 +1881,12 @@ const (
 	// entry (a nested-model comparison of two `fits`) that cannot run:
 	// a missing or repeated name, a fit name that is missing, unknown,
 	// not a request-bound regression fit, or the same on both sides; fits
-	// that are not both REG_OLS or both REG_GLM; an unknown test; terms
-	// that are not nested; fit requests that are not on the same rows;
+	// that are not both REG_OLS, both REG_GLM, both REG_MULTINOMIAL or
+	// both one model declaring Compare (REG_ORDINAL, an embedder's); an
+	// unknown test; terms that are not nested; declared fits whose
+	// params.levels differ ("levels_differ"); multinomial fits whose
+	// reference differs ("reference_differs"); fit requests that are not
+	// on the same rows;
 	// or a fit or test the comparison does not support (reason
 	// "requires", with "requires" naming the condition). Refused
 	// identically by predict and the runtime before any fit or slot
@@ -1920,7 +1926,11 @@ const (
 	// predictor null on rows the restricted fit kept): the comparison
 	// fails alone (its ComposedResponse.Comparisons entry carries the
 	// error; PULSE_SLOT_FAILED lifts to the batch). Details carry
-	// "restricted", "full", "restricted_n_obs" and "full_n_obs".
+	// "restricted", "full", "restricted_n_obs" and "full_n_obs" — or,
+	// reason "terms_differ", two fits of a declared model (REG_ORDINAL)
+	// or of REG_MULTINOMIAL that estimated different non-tested terms
+	// (thresholds; another category set), under "restricted_terms" /
+	// "full_terms".
 	PULSE_COMPARISON_ROWS_DIFFER Code = "PULSE_COMPARISON_ROWS_DIFFER"
 
 	// PULSE_MODEL_NAME_COLLISION indicates two bound models sharing a

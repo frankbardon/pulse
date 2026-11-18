@@ -90,6 +90,8 @@ var precisionClass = map[string]string{
 	"regressions[*].two_log_lik": "round", "regressions[*].aic": "round",
 	"regressions[*].n_eff": "round", "regressions[*].residual_std_err": "round", "regressions[*].dispersion": "round",
 	"regressions[*].holdout.rmse": "round", "regressions[*].holdout.mae": "round", "regressions[*].holdout.r2": "round",
+	"regressions[*].holdout.log_loss": "round", "regressions[*].holdout.brier": "round", "regressions[*].holdout.accuracy": "round",
+	"regressions[*].holdout.rps":              "round",
 	"regressions[*].credible_intervals.*[*]":  "round",
 	"regressions[*].vcov.values[*][*]":        "round",
 	"regressions[*].correlation.values[*][*]": "round",
@@ -100,6 +102,10 @@ var precisionClass = map[string]string{
 	"regressions[*].margins.at.*": "round", "regressions[*].margins.p_adjusted.*": "round",
 	"regressions[*].collinearity.vif.*": "round", "regressions[*].collinearity.tolerance.*": "round",
 	"regressions[*].collinearity.gvif_scaled.*": "round",
+	"regressions[*].exponentiated.estimates.*":  "round", "regressions[*].exponentiated.std_errors.*": "round",
+	"regressions[*].exponentiated.ci_lower.*": "round", "regressions[*].exponentiated.ci_upper.*": "round",
+	"regressions[*].term_tests.wald_chi2.*": "round", "regressions[*].term_tests.wald_p_values.*": "round",
+	"regressions[*].term_tests.lr_chi2.*": "round", "regressions[*].term_tests.lr_p_values.*": "round",
 	"regressions[*].margins.multiplicity.alpha": "round",
 	// Matrices: primary rounds; auxiliary is keyed — `n` (the pairwise
 	// N, integer counts) is exempt, any future companion rounds.

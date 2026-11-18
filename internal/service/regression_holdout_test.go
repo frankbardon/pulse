@@ -106,7 +106,7 @@ func TestHoldout_PartitionsFitsAndScores(t *testing.T) {
 		t.Fatal("holdout figures absent")
 	}
 	rmse, mae, r2 := wantHoldout([]float64{18, 17, 24}, []float64{17, 19, 21}, []float64{1, 1, 1})
-	if h.N != 3 || h.NNull != 1 || !holdoutClose(h.RMSE, rmse) || !holdoutClose(h.MAE, mae) || !holdoutClose(h.R2, r2) {
+	if h.N != 3 || h.NNull != 1 || !holdoutClose(*h.RMSE, rmse) || !holdoutClose(*h.MAE, mae) || !holdoutClose(*h.R2, r2) {
 		t.Fatalf("holdout = %+v; want n 3, n_null 1, rmse %v, mae %v, r2 %v", *h, rmse, mae, r2)
 	}
 
@@ -159,7 +159,7 @@ func TestHoldout_Weighted(t *testing.T) {
 	r := onlyRegression(t, resp)
 	h := r.Holdout
 	rmse, mae, r2 := wantHoldout([]float64{18, 17}, []float64{17, 19}, []float64{1, 2})
-	if h == nil || h.N != 2 || h.NNull != 1 || !holdoutClose(h.RMSE, rmse) || !holdoutClose(h.MAE, mae) || !holdoutClose(h.R2, r2) {
+	if h == nil || h.N != 2 || h.NNull != 1 || !holdoutClose(*h.RMSE, rmse) || !holdoutClose(*h.MAE, mae) || !holdoutClose(*h.R2, r2) {
 		t.Fatalf("holdout = %+v; want n 2, n_null 1, rmse %v, mae %v, r2 %v", h, rmse, mae, r2)
 	}
 }

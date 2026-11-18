@@ -167,6 +167,36 @@ var modelRegressions = []types.RegressionType{types.REG_MMM_BAYES, types.REG_MMM
 // counts n_obs over the rows the model actually fits.
 type AdmitToken struct{}
 
+// ReplicatePin pins the engine's modifier refits of a model regression
+// (internal/regadapt's resample replicates and selection candidates) to
+// the slot's first successful fit, so every refit reports the same
+// coefficients: REG_ORDINAL's level set (U68 E2-S1). A model's pin hook
+// builds it from the slot's spec and that first fit's result.
+type ReplicatePin struct {
+	// Spec is the spec every later refit builds its model from.
+	Spec *types.RegressionSpec
+	// ReplicateSpec, when set, replaces Spec for the resample
+	// replicates alone (their outputs are discarded): REG_ORDINAL clears
+	// its Brant and nominal tests there. Selection candidates keep Spec.
+	ReplicateSpec *types.RegressionSpec
+	// Refusal maps a pinned refit's error (nil: kept as is) — a
+	// replicate that lost what the pin fixes gets its own reason.
+	Refusal func(error) error
+	// NoPValue names the coefficients that carry no p-value, under
+	// resample too (an ordinal threshold: ζ = 0 is no hypothesis).
+	NoPValue []string
+}
+
+// ReasonReplicateEmptyLevel is the PROCESSING_REGRESSION_INSUFFICIENT_DATA
+// details.reason of a pinned modifier refit (a resample replicate or a
+// selection candidate) whose rows carry no row at one of the response
+// levels the slot's first fit has: a REG_ORDINAL level
+// (internal/regordinal.ReplicatePin) or a REG_MULTINOMIAL category
+// (internal/processing/regression, U68 E2-S2). details.level names it,
+// details.levels the pinned set. A bootstrap skips such a replicate, a
+// jackknife fails the slot alone, a selection drops the candidate.
+const ReasonReplicateEmptyLevel = "replicate_empty_level"
+
 // OrdinalThresholdSeparator joins two adjacent levels into a REG_ORDINAL
 // threshold's coefficient name, "<level>|<next level>" (polr's zeta).
 const OrdinalThresholdSeparator = "|"

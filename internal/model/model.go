@@ -144,11 +144,11 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 	}
 	predictors = append([]string(nil), predictors...)
 	// An extension regression names its own coefficients (a nonlinear
-	// parameter is one): it need not have an intercept or one
-	// coefficient per predictor — its Scorer reads Result.Coefficients
-	// itself. A missing figure is NaN; a built-in's is an invariant
-	// violation.
-	extension := !BuiltinRegression(res.Type)
+	// parameter is one), as does REG_MULTINOMIAL ("<category>:<term>"):
+	// it need not have an intercept or one coefficient per predictor —
+	// its scorer reads Result.Coefficients itself. A missing figure is
+	// NaN; a built-in's is an invariant violation.
+	extension := NamesOwnCoefficients(res.Type)
 	intercept, ok := res.Coefficients[InterceptKey]
 	if !ok {
 		if !extension {

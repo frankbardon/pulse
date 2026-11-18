@@ -20,8 +20,8 @@ import (
 // written as a scalar expression string is resolved over the request's
 // params (InlineNumberFunc, the scalar-slot evaluator the caller hands
 // in: internal/scalarslot imports this package, so it cannot be called
-// from here). Then checkInline judges the type and the coefficient
-// names. The runtime and predict both load through LoadFiles, so they
+// from here). Its type is judged first (InlineTypes), then the codec,
+// then checkInline the coefficient names. The runtime and predict both load through LoadFiles, so they
 // resolve the same numbers and refuse the same body alike.
 
 // The PULSE_MODEL_REF_INVALID reasons an inline entry adds.
@@ -117,6 +117,15 @@ func loadInline(j int, r types.ModelRef, params types.Params, eval InlineNumberF
 	data, cerr := resolveInline(j, r, params, eval)
 	if cerr != nil {
 		return nil, cerr
+	}
+	// The type is judged first: a type no inline body may declare is
+	// refused as such, never by a section its own files require (a
+	// REG_MULTINOMIAL file's categories).
+	var probe struct {
+		Type types.RegressionType `json:"type"`
+	}
+	if json.Unmarshal(data, &probe) == nil && probe.Type != "" && !slices.Contains(inlineTypes, probe.Type) {
+		return nil, inlineTypeUnsupported(j, r, probe.Type)
 	}
 	f, derr := DecodeFile(InlineSourceName, data)
 	if derr != nil {
@@ -314,6 +323,18 @@ func inlineSaturation(f *File) string {
 	return f.Saturation
 }
 
+// inlineTypeUnsupported is the refusal of an inline body declaring a
+// type InlineTypes does not list.
+func inlineTypeUnsupported(j int, r types.ModelRef, t types.RegressionType) *errors.CodedError {
+	valid := make([]string, len(inlineTypes))
+	for i, it := range inlineTypes {
+		valid[i] = string(it)
+	}
+	return inlineRefInvalid(j, r, ReasonInlineTypeUnsupported,
+		fmt.Sprintf("declares type %s; an inline model is one of %v (coefficients only)", t, valid),
+		map[string]any{"type": string(t), "valid": valid})
+}
+
 // checkInline judges a decoded inline body: its type is one InlineTypes
 // lists, and its coefficients name exactly the terms the model reports
 // — the intercept and every predictor, plus, for a media-mix model,
@@ -323,13 +344,7 @@ func inlineSaturation(f *File) string {
 // ci_upper may name only those terms.
 func checkInline(j int, r types.ModelRef, f *File) *errors.CodedError {
 	if !slices.Contains(inlineTypes, f.Type) {
-		valid := make([]string, len(inlineTypes))
-		for i, t := range inlineTypes {
-			valid[i] = string(t)
-		}
-		return inlineRefInvalid(j, r, ReasonInlineTypeUnsupported,
-			fmt.Sprintf("declares type %s; an inline model is one of %v (coefficients only)", f.Type, valid),
-			map[string]any{"type": string(f.Type), "valid": valid})
+		return inlineTypeUnsupported(j, r, f.Type)
 	}
 	expected := append([]string{InterceptKey}, f.Predictors...)
 	if ModelRegression(f.Type) {

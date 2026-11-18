@@ -92,14 +92,14 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// a sweep-bound fit needs the sweep's winner and a fits entry
 		"capability:compose_sweep_bind": {{"capability:compose_sweep"}, {"capability:compose_fits"}},
 		// a comparison tests two fits, both REG_OLS or both REG_GLM
-		"capability:compose_compare": {{"capability:compose_fits"}, {"REG_GLM", "REG_OLS"}},
+		"capability:compose_compare": {{"capability:compose_fits"}, {"REG_GLM", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL"}},
 		"capability:crosstab_cells":  {{"capability:crosstab"}}, // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
-		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_OLS", "REG_ORDINAL", "capability:matrices"}},
+		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host
-		"capability:model_save": {requestHosts, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_OLS", "capability:matrices"}},
+		"capability:model_save": {requestHosts, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL", "capability:matrices"}},
 		// a holdout scores a regression slot's fit, from any request host
-		"capability:regression_holdout": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_OLS"}},
+		"capability:regression_holdout": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL"}},
 		"capability:regression_order":   {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL"}},
 		// parameters are read only by an expression, from any request host
 		// or a facet (its filterers read FacetRequest.params)

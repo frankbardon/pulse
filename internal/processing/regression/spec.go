@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
@@ -38,12 +39,18 @@ import (
 //     hand-built specs in tests.
 //
 // A spec is then held to validateConfLevel (0 < conf_level < 1, zero
-// the default), when it sets Vcov to validateVcov, and to the shared
-// covariance rule regcov.Check.
+// the default), when it sets Vcov to validateVcov, to the shared
+// covariance rule regcov.Check, and last to the selection-criterion
+// rule regresample.CheckSelectionCriterion.
 func ValidateRegression(spec *types.RegressionSpec) error {
 	// REG_MULTINOMIAL's refused knobs, and `reference` on any other
 	// built-in — the one rule predict applies too (internal/regmultinom).
 	if cerr := regmultinom.Check(spec); cerr != nil {
+		return cerr
+	}
+	// exponentiate (REG_MULTINOMIAL / REG_ORDINAL only), judged right
+	// after it as predict does — the one rule (internal/regexponent).
+	if cerr := regexponent.Check(spec); cerr != nil {
 		return cerr
 	}
 	if err := validateRegressionSpec(spec); err != nil {
@@ -95,6 +102,13 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	if cerr := collinearity.Check(spec); cerr != nil {
 		return cerr
 	}
+	// A selection names its criterion: SERVICE_VALIDATION {selection} —
+	// the one rule predict applies to every regression
+	// (internal/regresample.CheckSelectionCriterion), judged before any
+	// fit runs (U68 I13; the search's own check stays as a backstop).
+	if cerr := regresample.CheckSelectionCriterion(spec); cerr != nil {
+		return cerr
+	}
 	return nil
 }
 
@@ -124,6 +138,14 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 	}
 	if spec.Type == types.REG_BAYES_LINEAR {
 		return validateBayesLinearSpec(spec)
+	}
+	if spec.Type == types.REG_MULTINOMIAL {
+		// Penalty / Alpha / L1Ratio / Unpenalized: the rule predict
+		// applies too (internal/regpenalty; U68 E2-S3).
+		if cerr := regpenalty.Check(spec); cerr != nil {
+			return cerr
+		}
+		return nil
 	}
 	if spec.Type != types.REG_OLS {
 		// Penalty / Alpha / L1Ratio are REG_OLS-only knobs; ignore them

@@ -3,6 +3,7 @@ package descriptor
 import (
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -11,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
+	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -202,6 +204,23 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	if plan != nil {
 		regressions = plan.Regressions
 	}
+	// probabilityWeighted reports whether regressions[i] resolves to a
+	// probability weight (the weight resolver's verdict, read once).
+	var weights []descriptor.ResolvedWeight
+	weightsRead := false
+	probabilityWeighted := func(i int) bool {
+		if !weightsRead {
+			weightsRead = true
+			weights, _ = resolveRequestWeights(req, schema, opts)
+		}
+		slot := "regressions[" + strconv.Itoa(i) + "]"
+		for _, w := range weights {
+			if w.Slot == slot {
+				return w.Status == descriptor.WeightStatusApplied && w.Kind == string(types.WeightKindProbability)
+			}
+		}
+		return false
+	}
 	for i, r := range req.Regressions {
 		if r == nil {
 			continue
@@ -214,6 +233,38 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			// lower_bound basis (the model may report more — a
 			// nonlinear parameter — or fewer). A model not declaring
 			// PValues emits none.
+			//
+			// A declared margins block the shared rules admit adds its
+			// effects' p-values, at least one per term (a per-level
+			// model reports one per outcome and term — how many outcomes
+			// is the model's, so the basis is lower_bound): a member
+			// regression corrects them as their own family
+			// (MultiplicityFamilyMargins, the runtime fold's
+			// collectRegressionSites), anything else leaves them
+			// uncorrected.
+			if r.Margins != nil && decl.Margins && ExtensionRegressionSlotRefusal(r, decl) == nil {
+				effects := len(regmargins.Terms(r))
+				corrected := member && decl.PValues
+				addPValues(out, effects, descriptor.PValueBasisLowerBound, corrected)
+				if corrected && visit != nil && effects > 0 {
+					mrm := regressions[i]
+					mrm.Family = types.MultiplicityFamilyMargins
+					visit(effects, descriptor.PValueBasisLowerBound, mrm)
+				}
+			}
+			// REG_ORDINAL's params.brant and params.nominal_test (U68
+			// E6-S1) each add one p-value per predictor plus the omnibus
+			// — the nominal test's absent under a resolved probability
+			// weight, the runtime's own rule (regordinal.BrantPValues /
+			// NominalTestPValues); never corrected.
+			if opRoute(inst, r.Type) == types.REG_ORDINAL {
+				if n := regordinal.BrantPValues(r); n > 0 {
+					addPValues(out, n, descriptor.PValueBasisExact, false)
+				}
+				if n := regordinal.NominalTestPValues(r, probabilityWeighted(i)); n > 0 {
+					addPValues(out, n, descriptor.PValueBasisExact, false)
+				}
+			}
 			if !decl.PValues {
 				continue
 			}
@@ -236,14 +287,46 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		}
 		if routed == types.REG_MULTINOMIAL {
 			// One p-value per non-reference level and non-intercept
-			// predictor: the target dictionary's levels bound it (a level
-			// no fitted row carries is dropped at run time), so the basis
-			// is dictionary. A member's explicit list is exact.
+			// predictor — per level under a penalty, whose symmetric fit
+			// has no reference (only a resampled one reports p-values):
+			// the target dictionary's levels bound it (a level no fitted
+			// row carries is dropped at run time), so the basis is
+			// dictionary. A member's explicit list is exact.
+			// term_tests (U68 E4-S2) add per predictor the Wald p and —
+			// unless the slot's resolved weight is a probability one (no
+			// likelihood) — the LR p; never corrected (no multiplicity
+			// family reads them).
+			if r.TermTests && regmultinom.Check(r) == nil {
+				per := 2
+				if probabilityWeighted(i) {
+					per = 1
+				}
+				addPValues(out, per*len(r.Predictors), descriptor.PValueBasisExact, false)
+			}
+			levels, ok := regmultinom.Levels(schema, r.Target)
+			// A margins block the shared rule admits (U68 E4-S2) adds
+			// one p-value per category and term — every level on the
+			// response scale, every non-reference level on the link —
+			// on the same dictionary bound: its own family under a
+			// member regression (MultiplicityFamilyMargins), else
+			// uncorrected.
+			if ok && len(levels) >= 2 && r.Margins != nil && regmargins.Check(r) == nil {
+				outcomes := len(levels)
+				if r.Margins.EffectiveScale() == types.MarginsScaleLink {
+					outcomes--
+				}
+				effects := outcomes * len(regmargins.Terms(r))
+				addPValues(out, effects, descriptor.PValueBasisDictionary, member)
+				if member && visit != nil && effects > 0 {
+					mrm := regressions[i]
+					mrm.Family = types.MultiplicityFamilyMargins
+					visit(effects, descriptor.PValueBasisDictionary, mrm)
+				}
+			}
 			if member && regressions[i].ExplicitCoefficients {
 				addAt(len(regressions[i].Coefficients), descriptor.PValueBasisExact, regressions, i)
 				continue
 			}
-			levels, ok := regmultinom.Levels(schema, r.Target)
 			if !ok || len(levels) < 2 {
 				continue
 			}
@@ -253,7 +336,11 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 					n++
 				}
 			}
-			addAt(n*(len(levels)-1), descriptor.PValueBasisDictionary, regressions, i)
+			blocks := len(levels) - 1
+			if regpenalty.Symmetric(r) {
+				blocks = len(levels)
+			}
+			addAt(n*blocks, descriptor.PValueBasisDictionary, regressions, i)
 			continue
 		}
 		var corrected []string

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regmultinom"
@@ -118,6 +119,13 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	// table's).
 	if !extension {
 		if cerr := regmultinom.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// exponentiate on a type that does not report it — the
+		// runtime's rule itself (internal/regexponent, shared; an
+		// extension model's is the shared-slot table's, on the same
+		// predicate).
+		if cerr := regexponent.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 	}
@@ -304,12 +312,12 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	// that is PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED
 	// (predict_advisories.go), never a warning.
 
-	// Regularized OLS / GLM + Selection: regularization already
-	// does feature selection (lasso zeroes coefficients) or shrinks
-	// (ridge); pairing it with greedy stepwise / forward / backward
-	// is rarely meaningful but not strictly invalid. Warn the user
-	// so they know the combination is unusual.
-	if (reg.Type == types.REG_OLS || reg.Type == types.REG_GLM) && reg.Penalty != "" && reg.Selection != "" {
+	// Regularized OLS / GLM / multinomial + Selection: regularization
+	// already does feature selection (lasso zeroes coefficients) or
+	// shrinks (ridge); pairing it with greedy stepwise / forward /
+	// backward is rarely meaningful but not strictly invalid, so it runs.
+	// Warn the user so they know the combination is unusual.
+	if (reg.Type == types.REG_OLS || reg.Type == types.REG_GLM || reg.Type == types.REG_MULTINOMIAL) && reg.Penalty != "" && reg.Selection != "" {
 		env.AddWarning(
 			"PROCESSING_REGRESSION_REGULARIZED_SELECTION",
 			string(reg.Type)+" combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",

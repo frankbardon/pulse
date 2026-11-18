@@ -1067,12 +1067,14 @@ pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse: type RegressionOutputMeta field Key string "json:\"key\""
 pulse: type RegressionRegistration struct
 pulse: type RegressionRegistration field Accepts []pulse/encoding.FieldType
+pulse: type RegressionRegistration field Compare bool
 pulse: type RegressionRegistration field CovarianceTypes []pulse/types.CovarianceType
 pulse: type RegressionRegistration field DependsOn []string
 pulse: type RegressionRegistration field Description string
 pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
+pulse: type RegressionRegistration field Margins bool
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field NoResample bool
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
@@ -3247,6 +3249,14 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type CompareOutput struct
+pulse/extend: type CompareOutput field Coefficients []float64
+pulse/extend: type CompareOutput field Covariance [][]float64
+pulse/extend: type CompareOutput field DFResidual float64
+pulse/extend: type CompareOutput field Deviance float64
+pulse/extend: type CompareOutput field Terms []string
+pulse/extend: type CompareRegression interface
+pulse/extend: type CompareRegression imethod CompareFigures() (pulse/extend.CompareOutput, error)
 pulse/extend: type ComposeOverlayFunc func(spec *pulse/types.ComposeOverlaySpec, host pulse/extend.ComposeOverlayHost) (pulse/extend.OverlayOutput, error)
 pulse/extend: type ComposeOverlayHost interface
 pulse/extend: type ComposeOverlayHost imethod Reference() pulse/extend.ComposeOverlaySlot
@@ -3282,6 +3292,21 @@ pulse/extend: type FittedRegression field Type pulse/types.RegressionType
 pulse/extend: type Grouper interface
 pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
+pulse/extend: type MarginalEffect struct
+pulse/extend: type MarginalEffect field Estimate float64
+pulse/extend: type MarginalEffect field Outcome string
+pulse/extend: type MarginalEffect field StdErr *float64
+pulse/extend: type MarginalEffect field Term string
+pulse/extend: type MarginsOutput struct
+pulse/extend: type MarginsOutput field At map[string]float64
+pulse/extend: type MarginsOutput field Effects []pulse/extend.MarginalEffect
+pulse/extend: type MarginsOutput field Outcomes []string
+pulse/extend: type MarginsRegression interface
+pulse/extend: type MarginsRegression imethod Margins(req pulse/extend.MarginsRequest) (pulse/extend.MarginsOutput, error)
+pulse/extend: type MarginsRequest struct
+pulse/extend: type MarginsRequest field Scale string
+pulse/extend: type MarginsRequest field Terms []string
+pulse/extend: type MarginsRequest field Type string
 pulse/extend: type MatrixFactory func(spec *pulse/types.MatrixSpec, schema *pulse/encoding.Schema) (pulse/extend.MatrixOperator, error)
 pulse/extend: type MatrixInput struct
 pulse/extend: type MatrixInput field CoMoment *pulse/linalg.CoMoment
@@ -5814,6 +5839,7 @@ pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitemp
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type FitResult field RegressionResult.Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type FitResult field RegressionResult.Exponentiated *pulse/types.RegressionExponentiated "json:\"exponentiated,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
 pulse/types: type FitResult field RegressionResult.Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
@@ -5842,6 +5868,7 @@ pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[strin
 pulse/types: type FitResult field RegressionResult.Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type FitResult field RegressionResult.TermTests *pulse/types.RegressionTermTests "json:\"term_tests,omitempty\""
 pulse/types: type FitResult field RegressionResult.Theta float64 "json:\"theta,omitempty\""
 pulse/types: type FitResult field RegressionResult.ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
 pulse/types: type FitResult field RegressionResult.TwoLogLik float64 "json:\"two_log_lik,omitempty\""
@@ -6527,12 +6554,21 @@ pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters
 pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
 pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
 pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
+pulse/types: type RegressionExponentiated struct
+pulse/types: type RegressionExponentiated field CILower map[string]float64 "json:\"ci_lower,omitempty\""
+pulse/types: type RegressionExponentiated field CIUpper map[string]float64 "json:\"ci_upper,omitempty\""
+pulse/types: type RegressionExponentiated field Estimates map[string]float64 "json:\"estimates\""
+pulse/types: type RegressionExponentiated field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionHoldout struct
-pulse/types: type RegressionHoldout field MAE float64 "json:\"mae\""
+pulse/types: type RegressionHoldout field Accuracy *float64 "json:\"accuracy,omitempty\""
+pulse/types: type RegressionHoldout field Brier *float64 "json:\"brier,omitempty\""
+pulse/types: type RegressionHoldout field LogLoss *float64 "json:\"log_loss,omitempty\""
+pulse/types: type RegressionHoldout field MAE *float64 "json:\"mae,omitempty\""
 pulse/types: type RegressionHoldout field N int "json:\"n\""
 pulse/types: type RegressionHoldout field NNull int "json:\"n_null\""
-pulse/types: type RegressionHoldout field R2 float64 "json:\"r2\""
-pulse/types: type RegressionHoldout field RMSE float64 "json:\"rmse\""
+pulse/types: type RegressionHoldout field R2 *float64 "json:\"r2,omitempty\""
+pulse/types: type RegressionHoldout field RMSE *float64 "json:\"rmse,omitempty\""
+pulse/types: type RegressionHoldout field RPS *float64 "json:\"rps,omitempty\""
 pulse/types: type RegressionMargins struct
 pulse/types: type RegressionMargins field Scale string "json:\"scale,omitempty\""
 pulse/types: type RegressionMargins field Terms []string "json:\"terms,omitempty\""
@@ -6547,6 +6583,7 @@ pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_l
 pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
 pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type RegressionMarginsResult field Outcomes []string "json:\"outcomes,omitempty\""
 pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionMarginsResult field PValues map[string]float64 "json:\"p_values\""
 pulse/types: type RegressionMarginsResult field Scale string "json:\"scale\""
@@ -6588,6 +6625,7 @@ pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type RegressionResult field Dispersion float64 "json:\"dispersion,omitempty\""
 pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type RegressionResult field Exponentiated *pulse/types.RegressionExponentiated "json:\"exponentiated,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
@@ -6616,6 +6654,7 @@ pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "js
 pulse/types: type RegressionResult field Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
+pulse/types: type RegressionResult field TermTests *pulse/types.RegressionTermTests "json:\"term_tests,omitempty\""
 pulse/types: type RegressionResult field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionResult field ThetaStdErr float64 "json:\"theta_std_err,omitempty\""
 pulse/types: type RegressionResult field TwoLogLik float64 "json:\"two_log_lik,omitempty\""
@@ -6633,6 +6672,7 @@ pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovaria
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Dispersion string "json:\"dispersion,omitempty\""
+pulse/types: type RegressionSpec field Exponentiate bool "json:\"exponentiate,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionSpec field Holdout string "json:\"holdout,omitempty\""
 pulse/types: type RegressionSpec field Intercept *bool "json:\"intercept,omitempty\""
@@ -6660,6 +6700,7 @@ pulse/types: type RegressionSpec field Save string "json:\"save,omitempty\""
 pulse/types: type RegressionSpec field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionSpec field Solver string "json:\"solver,omitempty\""
 pulse/types: type RegressionSpec field Target string "json:\"target\""
+pulse/types: type RegressionSpec field TermTests bool "json:\"term_tests,omitempty\""
 pulse/types: type RegressionSpec field Theta float64 "json:\"theta,omitempty\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
@@ -6671,6 +6712,13 @@ pulse/types: type RegressionSpec method (RegressionSpec) StreamableAs(typeStream
 pulse/types: type RegressionTermGroup struct
 pulse/types: type RegressionTermGroup field Name string "json:\"name\""
 pulse/types: type RegressionTermGroup field Predictors []string "json:\"predictors\""
+pulse/types: type RegressionTermTests struct
+pulse/types: type RegressionTermTests field DF map[string]int "json:\"df\""
+pulse/types: type RegressionTermTests field LRChi2 map[string]float64 "json:\"lr_chi2,omitempty\""
+pulse/types: type RegressionTermTests field LRPValues map[string]float64 "json:\"lr_p_values,omitempty\""
+pulse/types: type RegressionTermTests field Terms []string "json:\"terms\""
+pulse/types: type RegressionTermTests field WaldChi2 map[string]float64 "json:\"wald_chi2\""
+pulse/types: type RegressionTermTests field WaldPValues map[string]float64 "json:\"wald_p_values\""
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
 pulse/types: type Request struct
@@ -7018,4 +7066,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7afe43627c74c732f0525c61ad34dfd4e81b9d9b3bc819ac50a131a2430f5f43
+// golden-hash: 77d178dc18f2e1bda502d7f10a1ae3a9c87f2b78bf54db81bf1b1227aa70af7e

@@ -188,11 +188,17 @@ func groupedJackknifeCore(ctx context.Context, spec *types.RegressionSpec, recor
 // bootstrapRun is a bootstrap's replicate statistics: the SE and
 // covariance of the successful replicates, the two-sided percentile
 // p-value of every coefficient, and the requested / successful
-// replicate counts.
+// replicate counts (requested − succeeded were skipped).
 type bootstrapRun struct {
 	se, p                []float64
 	cov                  [][]float64
 	requested, succeeded int
+}
+
+// echo writes the run's replicate counts on out (bootstrap_requested,
+// bootstrap_succeeded).
+func (r *bootstrapRun) echo(out *types.RegressionResult) {
+	out.BootstrapRequested, out.BootstrapSucceeded = r.requested, r.succeeded
 }
 
 // bootstrapCore is the non-parametric bootstrap over the fitted rows

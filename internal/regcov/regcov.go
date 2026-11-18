@@ -9,6 +9,7 @@ package regcov
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -39,10 +40,40 @@ const (
 	ReasonOrderTies = "order_by_ties"
 )
 
-// robustTypes are the regression types that take a robust covariance:
-// REG_OLS (residual sandwich), REG_GLM (IRLS score sandwich) and
-// REG_BAYES_LINEAR (Müller's sandwich posterior).
-var robustTypes = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
+// robustTypes are the regression types that take a robust covariance,
+// each with the robust estimators it computes (nil: every one):
+// REG_OLS (residual sandwich), REG_GLM (IRLS score sandwich),
+// REG_BAYES_LINEAR (Müller's sandwich posterior) and REG_MULTINOMIAL
+// (the score sandwich over its K − 1 blocks, U68 E3-S1: hc0 / hc1 /
+// cluster — hc2 / hc3 need a row leverage the multinomial's
+// block-structured hat matrix has no scalar form of, hac a series
+// order, as REG_ORDINAL).
+var robustTypes = map[types.RegressionType][]types.CovarianceType{
+	types.REG_OLS:          nil,
+	types.REG_GLM:          nil,
+	types.REG_BAYES_LINEAR: nil,
+	types.REG_MULTINOMIAL:  {types.CovarianceHC0, types.CovarianceHC1, types.CovarianceCluster},
+}
+
+// Types are the covariance.type values regression type t computes:
+// classical first, then its robust estimators in AllCovarianceTypes'
+// order — classical alone on a type without them.
+func Types(t types.RegressionType) []types.CovarianceType {
+	out := []types.CovarianceType{types.CovarianceClassical}
+	for _, ct := range types.AllCovarianceTypes() {
+		if ct != types.CovarianceClassical && supports(t, ct) {
+			out = append(out, ct)
+		}
+	}
+	return out
+}
+
+// supports reports whether regression type t computes the robust
+// covariance ct.
+func supports(t types.RegressionType, ct types.CovarianceType) bool {
+	only, ok := robustTypes[t]
+	return ok && (only == nil || slices.Contains(only, ct))
+}
 
 // Check returns the first fault of spec's covariance block, or nil when
 // it is absent or well formed and supported:
@@ -58,7 +89,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Covariance == nil {
 		return nil
 	}
-	return check(spec, slices.Contains(robustTypes, spec.Type))
+	return check(spec, supports(spec.Type, spec.Covariance.Type))
 }
 
 // CheckDeclared is Check for an extension regression model whose
@@ -90,6 +121,14 @@ func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 		return nil
 	}
 	switch {
+	case !robustType && len(robustTypes[spec.Type]) > 0:
+		// A type with some robust estimators, not this one.
+		var names []string
+		for _, ct := range Types(spec.Type)[1:] {
+			names = append(names, string(ct))
+		}
+		return Unsupported(spec, ReasonType, map[string]any{"supported": names},
+			"covariance "+string(c.Type)+" is not computed by "+string(spec.Type)+" (it computes "+strings.Join(names, ", ")+"; hc2 / hc3 need a per-row leverage and hac a series order); use one of those or drop covariance")
 	case !robustType:
 		return unsupported(spec, ReasonType, string(spec.Type))
 	case spec.Penalty != "":

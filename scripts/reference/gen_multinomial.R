@@ -10,9 +10,10 @@
 #
 # (then append the `// golden-hash:` footer the Makefile's reference
 # target writes). CI never runs R: the golden is committed. R 4.6.1 +
-# jsonlite + nnet 7.3-21 (a recommended package this R build does not
-# ship: install it into the user library from the Posit noble binary
-# repo, docs/src/internals/regenerating-goldens.md, The R toolchain).
+# jsonlite + MASS 7.3-66 (stepAIC, the modifiers block) + nnet 7.3-21
+# (a recommended package this R build does not ship: install it into
+# the user library from the Posit noble binary repo,
+# docs/src/internals/regenerating-goldens.md, The R toolchain).
 #
 # The model, per row i with predictors x_i (intercept first) and L
 # observed levels, the reference r:
@@ -33,7 +34,46 @@
 #     p = 2 pnorm(-|z|), ci = b -/+ qnorm(0.5 + conf/2) SE;
 #   deviance = -2 logLik, null_deviance the intercept-only model's
 #     (-2 sum_i w_i log(share of y_i)), two_log_lik = 2 logLik,
-#     aic = deviance + 2 K (p + 1) (multinom's edf).
+#     aic = deviance + 2 K (p + 1) (multinom's edf);
+#   fitted_probabilities: every row's category probabilities at the
+#     polished MLE (asserted equal to fitted(multinom) at 1e-6) — the
+#     per-row vector an ATTR_REG_PREDICT score of a training row reads;
+#   score_rows / score_probabilities / score_log_odds (U68 E1-S2): a
+#     fixed grid of new [x1, x2] rows, their category probabilities
+#     (asserted equal to predict(multinom, newdata, type = "probs") at
+#     1e-6) and every category's log-odds against the reference
+#     (x' beta_k; 0 for the reference) at the polished MLE;
+#   holdout_rows / holdout (U68 E1-S3): the grid rows labelled [x1, x2,
+#     y(, w)] and their weighted proper scores at the polished MLE
+#     (mn_scores: log_loss, brier, accuracy); on empty_level one more row
+#     at the dropped level, which no figure counts.
+#   robust (U68 E3-S1): the score sandwich V = B M B at the polished
+#     MLE, B = solve(H) (the classical vcov) and the per-row unit score
+#     s_i = (y_ik - pi_ik) (x) x_i over the non-reference blocks
+#     (category-major, the keys' order): hc0 M = sum_i w_i s_i s_i';
+#     hc1 = hc0 N* / (N* - d); cluster (CR1) M = sum_g S_g S_g', S_g =
+#     sum_{i in g} w_i s_i, scaled G / (G - 1) (N* - 1) / (N* - d) —
+#     d = K (p + 1) coefficients, N* = sum w (n unweighted, sum f under
+#     frequency, n_eff under probability: the w* above), the frequency
+#     sandwich on w* of every Pulse robust covariance. The clusters are
+#     a fixed function of the row index (no random draw): (5 (i - 1))
+#     mod 7 + 1. Each type carries vcov, std_errors, Wald z p_values and
+#     the normal ci_lower / ci_upper at conf.
+#   exponentiated (U68 E3-S2, exponentiate: true): the relative-risk
+#     ratios exp(b) — exp(coef(multinom)), asserted to 1e-6 — every key,
+#     their delta-method SE exp(b) SE and the exponentiated Wald interval
+#     exp(b -/+ qnorm(0.5 + conf/2) SE) (Stata mlogit, rrr); on the
+#     classical case and inside each robust type, on that type's SE.
+#   term_tests (U68 E4-S2, term_tests: true): per predictor j the joint
+#     test of its K coefficients b_j (one per non-reference level) on K
+#     df: wald_chi2 = b_j' solve(V_jj) b_j (asserted equal to
+#     car::linearHypothesis on the same coefficients and V) and,
+#     unless kind probability, lr_chi2 = the deviance of the polished
+#     refit without x_j (same rows, weights, categories, reference) less
+#     the fit's (asserted equal to car::Anova(multinom)'s type II LR at
+#     1e-6 — car refits with multinom's BFGS); p-values the upper chi2
+#     tails. Each robust type carries term_tests_wald on its own V (the
+#     likelihood ratio never reads a covariance). car 3.1-5.
 # Weights: "_freq" cases (integer f) are the rep()-expanded fit
 # (asserted equal to multinom(weights = f)); "_prob" cases are
 # multinom(weights = w*) with w* = w n_eff / sum(w), n_eff = (sum w)^2 /
@@ -45,10 +85,17 @@
 # Seeded (set.seed(20261102)). Rows are [x1, x2, y] or [x1, x2, y, w],
 # y the 0-based index of the row's level in `levels` (the target's
 # dictionary order).
+#
+# The `modifiers` block (U68 E2-S2) adds the resample / selection
+# oracles — the manual-deletion jackknife and MASS::stepAIC (MASS
+# 7.3-66) on multinom — drawn after every case under its own seed (see
+# the block below).
 
 suppressPackageStartupMessages({
   library(jsonlite)
   library(nnet)
+  library(MASS)
+  library(car)
 })
 
 if (!exists("out_dir")) {
@@ -65,6 +112,8 @@ if (!exists("write_golden")) {
 }
 if (R.version$major != "4" || R.version$minor != "6.1") stop("gen_multinomial.R pins R 4.6.1, got ", R.version.string)
 if (as.character(packageVersion("nnet")) != "7.3.21") stop("gen_multinomial.R pins nnet 7.3-21, got ", packageVersion("nnet"))
+if (as.character(packageVersion("MASS")) != "7.3.66") stop("gen_multinomial.R pins MASS 7.3-66, got ", packageVersion("MASS"))
+if (as.character(packageVersion("car")) != "3.1.5") stop("gen_multinomial.R pins car 3.1-5, got ", packageVersion("car"))
 
 mn_g17 <- function(v) {
   v <- unname(as.numeric(v))
@@ -101,6 +150,77 @@ mn_parts <- function(beta, X, Yi, w) {
 
 mn_cases <- list()
 
+# mn_expo: the exponentiated figures of beta at standard errors se (header).
+mn_expo <- function(beta, se, conf) {
+  q <- qnorm(0.5 + conf / 2)
+  list(estimates = mn_g17(exp(beta)), std_errors = mn_g17(exp(beta) * se),
+    ci_lower = mn_g17(exp(beta - q * se)), ci_upper = mn_g17(exp(beta + q * se)))
+}
+
+# mn_wald: the joint Wald test of every predictor (header), columns
+# 2..q of X, over the k non-reference blocks; m (when given) is the
+# multinom fit car::linearHypothesis checks it against.
+mn_wald <- function(beta, V, q, k, m = NULL) {
+  stat <- sapply(2:q, function(j) {
+    idx <- (seq_len(k) - 1) * q + j
+    w <- drop(t(beta[idx]) %*% solve(V[idx, idx, drop = FALSE], beta[idx]))
+    if (!is.null(m)) {
+      L <- matrix(0, k, length(beta)); L[cbind(seq_len(k), idx)] <- 1
+      mn_check("car::linearHypothesis", linearHypothesis(m, L, coef. = beta, vcov. = V)$Chisq[2], w, 1e-10)
+    }
+    w
+  })
+  list(wald_chi2 = mn_g17(stat), wald_p_values = mn_g17(pchisq(stat, k, lower.tail = FALSE)))
+}
+
+# mn_robust: the closed-form sandwich of every robust type (header).
+mn_robust <- function(X, Yi, P, w, V, beta, conf) {
+  R <- Yi[, -1, drop = FALSE] - P[, -1, drop = FALSE]
+  S <- do.call(cbind, lapply(seq_len(ncol(R)), function(k) X * R[, k]))
+  nstar <- sum(w); d <- ncol(S)
+  cl <- (5 * (seq_len(nrow(X)) - 1)) %% 7 + 1
+  hc0 <- V %*% crossprod(S, S * w) %*% V
+  Sg <- rowsum(S * w, cl)
+  G <- nrow(Sg)
+  vcovs <- list(
+    hc0 = hc0,
+    hc1 = hc0 * (nstar / (nstar - d)),
+    cluster = V %*% crossprod(Sg) %*% V * ((G / (G - 1)) * ((nstar - 1) / (nstar - d))))
+  q <- qnorm(0.5 + conf / 2)
+  out <- lapply(vcovs, function(v) {
+    se <- sqrt(diag(v))
+    list(vcov = mn_g17(as.vector(v)), std_errors = mn_g17(se), p_values = mn_g17(2 * pnorm(-abs(beta / se))),
+      ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se),
+      exponentiated = mn_expo(beta, se, conf),
+      term_tests_wald = mn_wald(beta, v, ncol(X), ncol(R)))
+  })
+  out$clusters <- I(cl)
+  out$n_clusters <- G
+  out
+}
+
+# The scored grid: new rows no fit saw, inside and outside the data's
+# range (no RNG draw, so the fitted cases' data are unchanged).
+mn_score_grid <- data.frame(x1 = c(-1, 0.5, 2.5, -0.25, 1.75, 0), x2 = c(-1.5, 1, 0.3, 2, -0.6, 0))
+
+# The holdout rows (U68 E1-S3): the score grid again, each row labelled
+# (cycling the fitted levels in dictionary order) and weighted on the
+# weighted cases — a `holdout` predicate holds them out of the same fit.
+# mn_scores folds their proper scores at the polished MLE: weighted
+# means (w the raw slot weight) of -ln P(y) (natural log), sum_k (P_k -
+# [y = k])^2 and [first argmax = y] in dictionary order (predict(multinom,
+# type = "probs") agreeing to 1e-6). A held-out row labelled a level the
+# fit dropped scores nothing (empty_level carries one).
+mn_scores <- function(P, y, w) {
+  n <- nrow(P)
+  O <- outer(y, seq_len(ncol(P)), "==") * 1
+  sw <- sum(w)
+  list(n = n,
+    log_loss = mn_g17(sum(w * -log(P[cbind(seq_len(n), y)])) / sw),
+    brier = mn_g17(sum(w * rowSums((P - O)^2)) / sw),
+    accuracy = mn_g17(sum(w * (max.col(P, ties.method = "first") == y)) / sw))
+}
+
 # mn_case fits y (a factor over `levels`, in that order) on x1 + x2.
 mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NULL, conf = 0.95) {
   y <- factor(levels[d$y + 1], levels = levels)
@@ -128,8 +248,34 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
   pp <- mn_parts(beta, X, Yi, w)
   if (max(abs(pp$g)) > 1e-9) stop(name, ": gradient not zero at the polished MLE")
   mn_check(paste(name, "multinom coefficients"), as.vector(t(coef(m))), beta, 1e-6)
+  mn_check(paste(name, "fitted(multinom)"), as.vector(fitted(m)), as.vector(pp$P), 1e-6)
+  Xs <- cbind(1, mn_score_grid$x1, mn_score_grid$x2)
+  eta_s <- cbind(0, Xs %*% matrix(beta, nrow = ncol(X)))
+  P_s <- exp(eta_s - apply(eta_s, 1, max))
+  P_s <- P_s / rowSums(P_s)
+  mn_check(paste(name, "predict(multinom, type = probs)"),
+    as.vector(predict(m, newdata = mn_score_grid, type = "probs")), as.vector(P_s), 1e-6)
   V <- solve(pp$H)
   mn_check(paste(name, "multinom vcov"), as.vector(vcov(m)), as.vector(V), 1e-4)
+  # Holdout: the grid rows labelled, P in dictionary order.
+  nh <- nrow(mn_score_grid)
+  observed_dict <- levels[levels %in% fitted_levels]
+  yh_lab <- observed_dict[(seq_len(nh) - 1) %% length(observed_dict) + 1]
+  wh <- if (is.null(kind)) rep(1, nh) else if (kind == "frequency") (seq_len(nh) - 1) %% 3 + 1 else 0.25 * (seq_len(nh) %% 5 + 2)
+  Pd <- P_s[, match(observed_dict, fitted_levels), drop = FALSE]
+  holdout <- mn_scores(Pd, match(yh_lab, observed_dict), wh)
+  hrows <- lapply(seq_len(nh), function(i) {
+    r <- c(mn_score_grid$x1[i], mn_score_grid$x2[i], match(yh_lab[i], levels) - 1)
+    if (!is.null(weight)) r <- c(r, wh[i])
+    mn_g17(r)
+  })
+  dropped <- setdiff(levels, observed)
+  if (length(dropped) > 0) {
+    # A held-out row at a level the fit dropped: not scored.
+    r <- c(0.25, -0.5, match(dropped[1], levels) - 1)
+    if (!is.null(weight)) r <- c(r, 1)
+    hrows[[nh + 1]] <- mn_g17(r)
+  }
   if (!is.null(weight) && kind == "frequency") {
     ex <- dd[rep(seq_len(nrow(dd)), weight), ]; ex$w <- 1
     me <- suppressWarnings(multinom(yy ~ x1 + x2, data = ex, Hess = TRUE, maxit = 1000,
@@ -158,7 +304,43 @@ mn_case <- function(name, d, levels, reference = NULL, weight = NULL, kind = NUL
     ci_lower = mn_g17(beta - q * se), ci_upper = mn_g17(beta + q * se),
     vcov = mn_g17(as.vector(V)),
     deviance = mn_g17(-2 * pp$ll), null_deviance = mn_g17(null_dev),
-    n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))))
+    n_obs = sum(w > 0), fitted_probabilities = mn_g17(as.vector(t(pp$P))),
+    score_rows = lapply(seq_len(nrow(mn_score_grid)), function(i) mn_g17(c(mn_score_grid$x1[i], mn_score_grid$x2[i]))),
+    score_probabilities = mn_g17(as.vector(t(P_s))), score_log_odds = mn_g17(as.vector(t(eta_s))),
+    holdout_rows = hrows, holdout = holdout,
+    robust = mn_robust(X, Yi, pp$P, w, V, beta, conf),
+    exponentiated = mn_expo(beta, se, conf))
+  mn_check(paste(name, "exp(coef(multinom))"), exp(as.vector(t(coef(m)))), exp(beta), 1e-6)
+  # term_tests: Wald on the classical V; LR against each polished refit
+  # without the term (car::Anova's refits read no RNG draw, but the
+  # stream is restored around them so no later case can move).
+  tt <- mn_wald(beta, V, ncol(X), k, m)
+  tt$terms <- I(c("x1", "x2"))
+  tt$df <- k
+  if (is.null(kind) || kind == "frequency") {
+    seed <- .Random.seed
+    av <- Anova(m)
+    assign(".Random.seed", seed, envir = globalenv())
+    lr <- sapply(2:ncol(X), function(j) {
+      Xr <- X[, -j, drop = FALSE]
+      mr <- suppressWarnings(multinom(as.formula(paste("yy ~", c("x2", "x1")[j - 1])), data = dd, weights = w,
+        maxit = 1000, reltol = 1e-16, trace = FALSE))
+      br <- as.vector(t(coef(mr)))
+      for (it in 1:100) {
+        pr <- mn_parts(br, Xr, Yi, w)
+        step <- solve(pr$H, pr$g)
+        br <- br + step
+        if (max(abs(step)) <= 1e-15 * max(1, max(abs(br)))) break
+      }
+      pr <- mn_parts(br, Xr, Yi, w)
+      if (max(abs(pr$g)) > 1e-9) stop(name, ": reduced fit gradient not zero")
+      2 * (pp$ll - pr$ll)
+    })
+    mn_check(paste(name, "car::Anova(multinom) LR"), av[["LR Chisq"]], lr, 1e-6)
+    tt$lr_chi2 <- mn_g17(lr)
+    tt$lr_p_values <- mn_g17(pchisq(lr, k, lower.tail = FALSE))
+  }
+  doc$term_tests <- tt
   if (is.null(kind) || kind == "frequency") {
     doc$two_log_lik <- mn_g17(2 * pp$ll)
     doc$aic <- mn_g17(-2 * pp$ll + 2 * k * 3)
@@ -193,14 +375,150 @@ d <- mn_draw(90, cbind(c(0.2, 0.6, 0.3), c(-0.1, -0.7, 0.5)))
 d$y <- ifelse(d$y == 0, 0, d$y + 1)
 mn_case("empty_level", d, c("a", "unused", "b", "c"))
 
+# Resample and selection (U68 E2-S2, #658): REG_MULTINOMIAL refit by the
+# engine's modifier drivers, every refit at the full fit's categories and
+# reference. Drawn AFTER every case above under its own seed, so no
+# case's rows move. Rows are [x..., y, g] (y the 0-based level index, g
+# a cluster id).
+#   * jackknife: the manual-deletion jackknife on multinom — n
+#     leave-one-out refits (each Newton-polished to its MLE from the full
+#     fit and checked against multinom on the same deletion to 1e-6), SE
+#     = sqrt((n - 1)/n sum_i (beta_(i) - mean)^2) over every coefficient;
+#     jackknife_by g: one refit per deleted cluster (sorted values),
+#     (G - 1)/G. Every deletion keeps every category (asserted).
+#   * selection: MASS::stepAIC on multinom — forward and both from y ~ 1,
+#     backward from the full model, scope the five predictors, k = 2 (AIC)
+#     and log(n) (BIC); a term enters or leaves across every non-reference
+#     category at once, and the criterion is extractAIC's deviance + k *
+#     edf, edf = (K - 1) (terms + 1). A greedy search over the POLISHED
+#     deviances re-runs each path and must pick the same terms, every
+#     step's winner ahead of the runner-up by more than 1e-3 (so
+#     multinom's ~1e-8 optimum cannot flip a step); selected lists the
+#     terms in stepAIC's order, coefficients the final model's polished
+#     MLE (category-major over (intercept) then the selected terms).
+set.seed(20261129)
+mn_mdraw <- function(n, B, p) {
+  d <- as.data.frame(matrix(round(rnorm(n * p), 3), n, p))
+  names(d) <- paste0("x", seq_len(p))
+  X <- cbind(1, as.matrix(d))
+  eta <- cbind(0, X %*% B)
+  P <- exp(eta) / rowSums(exp(eta))
+  d$y <- apply(P, 1, function(pp) sample.int(length(pp), 1, prob = pp)) - 1
+  d$g <- sample(1:8, n, replace = TRUE)
+  d
+}
+mn_mlevels <- c("a", "b", "c")
+# mn_mfit: multinom of y on preds over d (reference "a"), Newton-polished
+# from start (default: multinom's own optimum); returns beta and the
+# deviance.
+mn_mfit <- function(d, preds, start = NULL) {
+  yy <- factor(mn_mlevels[d$y + 1], levels = mn_mlevels)
+  if (any(table(yy) == 0)) stop("modifier refit lost a category")
+  dd <- data.frame(d[, preds, drop = FALSE], yy = yy)
+  f <- if (length(preds) == 0) yy ~ 1 else as.formula(paste("yy ~", paste(preds, collapse = " + ")))
+  m <- multinom(f, data = dd, maxit = 1000, reltol = 1e-16, trace = FALSE)
+  X <- cbind(1, as.matrix(d[, preds, drop = FALSE]))
+  Yi <- sapply(mn_mlevels, function(l) as.numeric(as.character(yy) == l))
+  w <- rep(1, nrow(d))
+  beta <- if (is.null(start)) as.vector(t(coef(m))) else start
+  for (it in 1:100) {
+    pp <- mn_parts(beta, X, Yi, w)
+    step <- solve(pp$H, pp$g)
+    beta <- beta + step
+    if (max(abs(step)) <= 1e-15 * max(1, max(abs(beta)))) break
+  }
+  pp <- mn_parts(beta, X, Yi, w)
+  if (max(abs(pp$g)) > 1e-9) stop("modifier refit: gradient not zero at the polished MLE")
+  mn_check("modifier refit multinom vs polished", as.vector(t(coef(m))), beta, 1e-6)
+  list(beta = beta, dev = -2 * pp$ll)
+}
+mn_jk_se <- function(reps, scale) {
+  mu <- colMeans(reps)
+  sqrt(scale * colSums(sweep(reps, 2, mu)^2))
+}
+mn_mrows <- function(d, preds) lapply(seq_len(nrow(d)), function(i) mn_g17(c(unlist(d[i, preds]), d$y[i], d$g[i])))
+mn_mkeys <- function(preds) as.vector(t(outer(mn_mlevels[-1], c("(intercept)", preds), paste, sep = ":")))
+
+d <- mn_mdraw(80, cbind(c(0.2, 0.9, -0.5), c(-0.3, -0.6, 0.8)), 2)
+preds <- c("x1", "x2")
+full <- mn_mfit(d, preds)
+loo <- t(sapply(seq_len(nrow(d)), function(i) mn_mfit(d[-i, ], preds, full$beta)$beta))
+gs <- sort(unique(d$g))
+grp <- t(sapply(gs, function(g) mn_mfit(d[d$g != g, ], preds, full$beta)$beta))
+mn_jackknife <- list(name = "jackknife", levels = mn_mlevels, predictors = preds, keys = mn_mkeys(preds),
+  coefficients = mn_g17(full$beta),
+  std_errors = mn_g17(mn_jk_se(loo, (nrow(d) - 1) / nrow(d))),
+  by_groups = length(gs),
+  by_std_errors = mn_g17(mn_jk_se(grp, (length(gs) - 1) / length(gs))),
+  rows = mn_mrows(d, preds))
+
+d <- mn_mdraw(220, cbind(c(0.3, 1.0, -0.8, 0.25, 0, 0), c(-0.2, -0.7, 0.9, 0, 0, 0)), 5)
+preds <- paste0("x", 1:5)
+dsel <- d
+dsel$yy <- factor(mn_mlevels[dsel$y + 1], levels = mn_mlevels)
+K1 <- length(mn_mlevels) - 1
+# mn_greedy re-runs one stepAIC path over polished deviances; it returns
+# the terms in entry order, stopping when no move lowers the criterion
+# and refusing a step whose winner leads the runner-up (or the stay) by
+# less than 1e-3.
+mn_greedy <- function(direction, k) {
+  crit <- function(active) mn_mfit(dsel, active)$dev + k * K1 * (length(active) + 1)
+  active <- if (direction == "backward") preds else character(0)
+  cur <- crit(active)
+  repeat {
+    moves <- list()
+    if (direction != "backward") for (t in setdiff(preds, active)) moves[[length(moves) + 1]] <- c(active, t)
+    if (direction != "forward") for (t in active) moves[[length(moves) + 1]] <- setdiff(active, t)
+    if (length(moves) == 0) break
+    cs <- sapply(moves, crit)
+    o <- order(cs)
+    gaps <- c(cur, cs[o[-1]]) - cs[o[1]]
+    if (any(abs(gaps) < 1e-3)) stop("selection ", direction, " k=", k, ": a step is within 1e-3 of a tie")
+    if (cs[o[1]] >= cur) break
+    active <- moves[[o[1]]]
+    cur <- cs[o[1]]
+  }
+  active
+}
+sc <- list(lower = ~1, upper = as.formula(paste("~", paste(preds, collapse = " + "))))
+m0 <- multinom(yy ~ 1, data = dsel, maxit = 1000, reltol = 1e-16, trace = FALSE)
+m1 <- multinom(as.formula(paste("yy ~", paste(preds, collapse = " + "))), data = dsel, maxit = 1000, reltol = 1e-16, trace = FALSE)
+mn_selection_runs <- list()
+for (crit_name in c("aic", "bic")) {
+  k <- if (crit_name == "aic") 2 else log(nrow(dsel))
+  for (direction in c("forward", "backward", "stepwise")) {
+    st <- stepAIC(if (direction == "backward") m1 else m0, scope = sc, k = k, trace = 0,
+                  direction = if (direction == "stepwise") "both" else direction)
+    sel <- setdiff(colnames(coef(st)), "(Intercept)")
+    mine <- mn_greedy(if (direction == "stepwise") "both" else direction, k)
+    if (!setequal(sel, mine) || (direction == "forward" && !identical(sel, mine))) stop("stepAIC ", direction, " ", crit_name, " picks ", paste(sel, collapse = ","), ", the polished search ", paste(mine, collapse = ","))
+    fit <- mn_mfit(dsel, sel)
+    mn_check(paste("stepAIC", direction, crit_name, "extractAIC"), extractAIC(st, k = k)[2], fit$dev + k * K1 * (length(sel) + 1), 1e-6)
+    mn_selection_runs[[length(mn_selection_runs) + 1]] <- list(direction = direction, criterion = crit_name,
+      selected = I(sel), steps = I(as.character(st$anova$Step)), keys = I(mn_mkeys(sel)),
+      coefficients = mn_g17(fit$beta), deviance = mn_g17(fit$dev))
+  }
+}
+mn_selection <- list(name = "selection", levels = mn_mlevels, predictors = preds,
+  n_obs = nrow(dsel), runs = mn_selection_runs, rows = mn_mrows(dsel, preds))
+
 write_golden("multinomial", list(
   generator = "scripts/reference/gen_multinomial.R",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
-    nnet = as.character(packageVersion("nnet"))),
+    nnet = as.character(packageVersion("nnet")), MASS = as.character(packageVersion("MASS")),
+    car = as.character(packageVersion("car"))),
   note = paste(
     "multinom(y ~ x1 + x2) Newton-polished to the MLE. keys category-major: <level>:(intercept), <level>:x1, <level>:x2 per",
     "non-reference level in fitted order (categories: reference first, then the observed levels in dictionary order);",
-    "vcov row-major over keys; fitted_probabilities row-major n x L over categories."),
-  cases = mn_cases
+    "vcov row-major over keys; fitted_probabilities row-major n x L over categories;",
+    "score_probabilities / score_log_odds row-major (score rows) x L over categories, log-odds vs the reference;",
+    "holdout = the weighted proper scores of holdout_rows [x1, x2, y(, w)] (a row at a dropped level scores nothing):",
+    "log_loss = mean -ln P(y), brier = mean sum_k (P_k - [y = k])^2, accuracy = mean [first argmax = y] in dictionary order;",
+    "robust = the closed-form score sandwich per type (hc0, hc1, cluster CR1 over clusters, one per row) in the keys' order;",
+    "exponentiated = exp(b), exp(b) SE, exp(b -/+ z SE) in the keys' order (the case's, and each robust type's on its SE);",
+    "term_tests = per predictor (x1, x2) the joint Wald chi2 on df = K non-reference levels (the classical V; each robust type's term_tests_wald on its own)",
+    "and the LR chi2 against the polished refit without it (car::Anova(multinom), type II; absent under probability weights), upper-tail p-values."),
+  cases = mn_cases,
+  modifiers = list(jackknife = mn_jackknife, selection = mn_selection)
 ))

@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-ordinal
-description: REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered.
+description: REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant and nominal tests, weights, refusals. Always buffered.
 kind: operator
 category: REG
 operator: REG_ORDINAL
@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ordinal]
 ```
 
-`REG_ORDINAL` fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` over the response's ordered levels (polr): one coefficient per predictor shifts every threshold alike.
+`REG_ORDINAL` fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` (polr): one coefficient per predictor shifts every threshold alike.
 
 ## Use when
 
@@ -26,30 +26,42 @@ Use something else:
 
 ## Params
 
-`link` / `levels` / `brant` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
+`link` / `levels` / `brant` / `nominal_test` sit under `params`; shared keys: [`regression-spec`](regression-spec.md).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | (required) | Ordered response: categorical or numeric, 3 to 100 levels. |
-| `predictors` | []field | (required) | Numeric predictors. |
-| `link` | enum | `logit` | `logit`, `probit`, `cloglog` (polr's method). |
-| `levels` | array | — | Level order, lowest first (labels, or values as written). Absent: dictionary order / ascending values. |
+| `target` | field | (required) | Categorical or numeric, 3 to 100 levels. |
+| `predictors` | []field | (required) | — |
+| `link` | enum | `logit` | `logit`, `probit`, `cloglog`. |
+| `levels` | array | — | Level order, lowest first. |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
-| `conf_level` | float | `0.95` | Wald CI coverage. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
-| `covariance` | object | — | `hc0`, `hc1`, `cluster`; `hc2` / `hc3` / `hac` refused. |
-| `weight` | object | — | Frequency or probability. |
-| `multiplicity` | object | — | Predictors' p-values join a family (thresholds carry none). |
+| `nominal_test` | object | — | `{}` adds `outputs.nominal_test`; any link; not probability-weighted. |
+| `conf_level` | float | `0.95` | CI level. |
+| `vcov` | bool | `false` | — |
+| `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
+| `exponentiate` | bool | `false` | — |
+| `margins` | object | — | [`regression-margins`](regression-margins.md). |
+| `weight` | object | — | — |
+| `multiplicity` | object | — | Predictors' p-values only. |
+| `holdout` | expr | — | Proper scores. |
+| `resample` | enum | — | [`op-reg-mod-resample`](op-reg-mod-resample.md). |
+| `bootstrap_iters` | int | `1000` | — |
+| `jackknife_groups` | int | — | — |
+| `jackknife_by` | field | — | — |
+| `rng_seed` | int | — | — |
+| `selection` | enum | — | [`op-reg-mod-selection`](op-reg-mod-selection.md). |
+| `criterion` | enum | — | `aic`, `bic`. |
 | `order` | object | — | Row order. |
+| `save` | string | — | Model file ([`regression-row-scores`](regression-row-scores.md)). |
 | `name` | string | — | Result name. |
 
 ## Inputs
 
-A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` does not list is dropped (R's `factor(y, levels =)` NA), as is a null cluster. Fewer than 3 or more than 100 levels on the fitted rows, or a listed level no row carries, fails the slot alone (`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `reason`).
+A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped, as is a null cluster. Too few / many levels, or a listed level no row carries: `INSUFFICIENT_DATA`, fails alone.
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `std_errors` from the inverse observed information (or the sandwich), `statistics` z, `p_values` predictors only, Wald `ci_*`; `deviance` = −2ℓ, `null_deviance` (thresholds only), `pseudo_r2`, `two_log_lik` / `aic` (absent under a probability weight). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` `{statistic, df, p_value, terms}` — omnibus df (K − 2)·p, per predictor K − 2.
+`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (none probability-weighted). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β of predictors); `margins`: dP(level)/dx, `"<level>:<term>"`.
 
 ## Reading the output
 
@@ -66,12 +78,13 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 
 ## Gotchas
 
-- Positive β: higher x, higher levels; logit `exp(β)` is the odds ratio of being above any level.
-- Dictionary order is import order: pass `levels` for a scale imported out of order.
-- A small Brant p-value says that predictor's effect differs across thresholds; the omnibus uses the symmetric covariance (the `brant` package's differs, its per-term figures agree).
+- Dictionary order = import order, else `levels`.
+- Small Brant / nominal p: an effect varies by step.
 - Frequency weights = the `rep()` expansion; probability weights follow `REG_GLM`'s rule (w* = w·n_eff/Σw).
-- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `selection`, `resample`, `margins`, `collinearity`, top-level `link` / `family`, `save`; `holdout` is `PULSE_MODEL_SCORE_INVALID` (no scorer).
-- Separation is `PROCESSING_REGRESSION_NO_CONVERGE`; the slot fails alone.
+- Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.
+- `resample` / `selection` refits keep the full fit's levels (`replicate_empty_level`); AIC / BIC k counts thresholds.
+- Separation: `NO_CONVERGE`, fails alone.
+- `compare`: `lrt` / `wald`, same `levels` ([`regression-comparison`](regression-comparison.md)).
 
 ## See
 

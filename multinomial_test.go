@@ -112,7 +112,8 @@ func mnReq(cohort string, specs ...*types.RegressionSpec) *Request {
 }
 
 // TestMultinomial_WorkerInvariant: the fits — unweighted with vcov,
-// frequency- and probability-weighted, a named reference — are
+// frequency- and probability-weighted, a named reference, under the
+// resample and selection modifiers, penalised — are
 // byte-identical across decode workers (one file) and shard workers
 // (the archive), and their categories follow the dictionary order.
 func TestMultinomial_WorkerInvariant(t *testing.T) {
@@ -129,6 +130,37 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 			s.Name = "m_prob"
 			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
 		}),
+		// A holdout's proper scores fold every held-out row's whole
+		// probability vector (U68 E1-S3), weighted.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Holdout = "m_hold", "id % 4 == 0"
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		// The modifiers (U68 E2-S2): a weighted delete-a-cluster
+		// jackknife, a bootstrap at the derived seed (rng_seed 0) and a
+		// stepwise selection resampled by a seeded grouped jackknife.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Resample, s.JackknifeBy, s.Vcov = "m_jk", "jackknife", "f", true
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample, s.BootstrapIters = "m_boot", "bootstrap", 25 }),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups, s.RNGSeed = "m_sel", "stepwise", "aic", "jackknife", 6, 4
+		}),
+		// The penalty (U68 E2-S3): a weighted elastic net with an
+		// unpenalised predictor, and a resampled lasso.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "m_enet", "elasticnet", 0.02, 0.4, []string{"x2"}
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Penalty, s.Alpha, s.Resample, s.JackknifeBy = "m_lasso", "l1", 0.01, "jackknife", "f"
+		}),
+		// A robust covariance (U68 E3-S1): a weighted cluster sandwich.
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Vcov, s.Covariance = "m_cl", true, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
+		}),
 	}
 	single, sharded := mnModes(t)
 	for _, group := range [][]scorerParityMode{single, sharded} {
@@ -142,6 +174,9 @@ func TestMultinomial_WorkerInvariant(t *testing.T) {
 				if r.Error != nil {
 					t.Fatalf("%s %s failed: %+v", m.name, r.Name, r.Error)
 				}
+			}
+			if h := resp.Regressions[3].Holdout; h == nil || h.LogLoss == nil || h.Brier == nil || h.Accuracy == nil || h.RPS != nil || h.RMSE != nil {
+				t.Fatalf("%s holdout %+v: want log_loss, brier and accuracy alone", m.name, h)
 			}
 			if r := resp.Regressions[0]; m.name == "serial" && (!slices.Equal(r.Categories, []string{"mid", "lo", "hi"}) || r.Reference != "mid") {
 				t.Fatalf("categories %v reference %q, want the dictionary order mid, lo, hi", r.Categories, r.Reference)
@@ -175,18 +210,93 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		requires string
 	}{
 		{"family", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Family = "binomial" })), errors.PROCESSING_CONFIG, "no_family"},
-		{"penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), errors.PROCESSING_CONFIG, "unpenalized"},
-		{"selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" })), errors.PROCESSING_CONFIG, "no_selection"},
-		{"resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Resample = "jackknife" })), errors.PROCESSING_CONFIG, "no_resample"},
-		{"robust covariance", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+		// U68 E2-S3: the penalty runs; a penalised fit is symmetric (no
+		// reference) and has no covariance; the knobs' coupling is the
+		// shared regpenalty rule's.
+		{"reference under penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Reference = "l2", 0.1, "lo" })), errors.PROCESSING_CONFIG, "unpenalized"},
+		{"penalty vcov", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Vcov = "l2", 0.1, true })), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"alpha without penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Alpha = 0.1 })), errors.PROCESSING_CONFIG, ""},
+		{"unpenalized without penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Unpenalized = []string{"x1"} })), errors.PROCESSING_CONFIG, ""},
+		{"unpenalized unknown", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"f"} })), errors.PROCESSING_CONFIG, ""},
+		// U68 E2-S2: a weighted bootstrap or selection is the built-in
+		// rule's refusal (a weighted jackknife runs, below).
+		{"weighted bootstrap", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.BootstrapIters = "bootstrap", 20
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		})), errors.PULSE_WEIGHT_UNSUPPORTED, ""},
+		{"weighted selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Selection, s.Criterion = "forward", "aic"
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		})), errors.PULSE_WEIGHT_UNSUPPORTED, ""},
+		{"selection without criterion", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Selection = "forward" })), errors.SERVICE_VALIDATION, ""},
+		{"jackknife_groups and jackknife_by", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample, s.JackknifeGroups, s.JackknifeBy = "jackknife", 4, "f"
+		})), errors.PROCESSING_CONFIG, ""},
+		// U68 E3-S1: hc0 / hc1 / cluster run (below); hc2 / hc3 / hac are
+		// the shared covariance rule's type refusal, and a robust type
+		// beside a penalty / resample / selection its refusal as on
+		// REG_OLS / REG_GLM (internal/regcov).
+		{"covariance hc2", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC2}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance hc3", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance hac", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "id"}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha = "l2", 0.1
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Resample = "jackknife"
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		{"covariance beside selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Selection, s.Criterion = "forward", "aic"
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0}
-		})), errors.PROCESSING_CONFIG, "classical_covariance"},
-		{"margins", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} })), errors.PROCESSING_CONFIG, "no_margins"},
+		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
+		// U68 E4-S2: margins run on the plain fit (below); beside a
+		// penalty, resample or selection they are the shared margins
+		// rule's refusal (internal/regmargins), as on REG_OLS / REG_GLM,
+		// and so are the joint term tests (internal/regmultinom).
+		{"margins under penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Margins, s.Penalty, s.Alpha = &types.RegressionMargins{}, "l2", 0.1
+		})), errors.PROCESSING_CONFIG, "unpenalized"},
+		{"margins under resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Margins, s.Resample = &types.RegressionMargins{}, "jackknife"
+		})), errors.PROCESSING_CONFIG, "no_resample"},
+		{"margins under selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Margins, s.Selection, s.Criterion = &types.RegressionMargins{}, "forward", "aic"
+		})), errors.PROCESSING_CONFIG, "no_selection"},
+		{"margins over a dependent predictor", func() *Request {
+			r := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+				s.Margins, s.Predictors = &types.RegressionMargins{}, []string{"x1", "x1_log"}
+			}))
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
+			return r
+		}(), errors.PROCESSING_CONFIG, "independent_predictors"},
+		{"term_tests under penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.TermTests, s.Penalty, s.Alpha = true, "l2", 0.1
+		})), errors.PROCESSING_CONFIG, "unpenalized"},
+		{"term_tests under resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.TermTests, s.Resample = true, "jackknife"
+		})), errors.PROCESSING_CONFIG, "no_resample"},
+		{"term_tests under selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.TermTests, s.Selection, s.Criterion = true, "forward", "aic"
+		})), errors.PROCESSING_CONFIG, "no_selection"},
+		{"term_tests on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, TermTests: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL"},
+		{"term_tests on REG_GLM", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_GLM, Family: "poisson", Target: "f", Predictors: []string{"x1"}, TermTests: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL"},
 		{"collinearity", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} })), errors.PROCESSING_CONFIG, "no_collinearity"},
-		{"save", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Save = "m.pulse-model.json" })), errors.PROCESSING_CONFIG, "no_save"},
 		{"intercept", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Intercept = new(bool) })), errors.PROCESSING_CONFIG, "intercept"},
 		{"unknown reference", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Reference = "top" })), errors.PROCESSING_CONFIG, "a level of the target"},
 		{"reference on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Reference: "lo"}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL"},
+		// U68 E3-S2: exponentiate is REG_MULTINOMIAL's and REG_ORDINAL's
+		// (internal/regexponent); every other built-in refuses it.
+		{"exponentiate on REG_OLS", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
+		{"exponentiate on REG_GLM", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_GLM, Family: "poisson", Target: "f", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
+		{"exponentiate on REG_BAYES_LINEAR", mnReq(mnCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1"}, Exponentiate: true}), errors.PROCESSING_CONFIG, "type REG_MULTINOMIAL or REG_ORDINAL"},
 		{"derived target", func() *Request {
 			r := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Target = "x1_log" }))
 			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
@@ -194,7 +304,6 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 		}(), errors.PROCESSING_CONFIG, "categorical_target"},
 		{"numeric target", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Target = "y" })), errors.PULSE_FIELD_TYPE_UNSUPPORTED, ""},
 		{"conf_level", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.ConfLevel = 1.5 })), errors.PROCESSING_CONFIG, ""},
-		{"holdout", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Holdout = "x1 > 1" })), errors.PULSE_MODEL_SCORE_INVALID, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := p.Process(ctx, tc.req)
@@ -217,30 +326,180 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 			}
 		})
 	}
-	// A `fits` entry cannot bind a multinomial fit: Compose and
-	// PredictCompose refuse it alike.
-	creq := &ComposedRequest{
-		Fits:     []types.FitSpec{{Name: "mf", Request: mnReq(mnCohort, mnSpec(nil))}},
-		Requests: []*Request{mnReq(mnCohort, mnSpec(nil))},
-	}
-	_, err := p.Compose(ctx, creq)
-	ce := codedOf(t, err)
-	if ce.Code != errors.PULSE_FIT_INVALID || ce.Details["reason"] != "regression_type" {
-		t.Fatalf("Compose: %v (details %v), want PULSE_FIT_INVALID regression_type", err, ce.Details)
-	}
-	env, err := p.PredictCompose(ctx, creq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	matched := false
-	for _, e := range env.Errors {
-		if e.Code == string(ce.Code) && e.Message == ce.Message {
-			matched = true
+	// The resample and selection modifiers run (U68 E2-S2) and predict
+	// accepts them: no refusal on either side.
+	t.Run("modifiers run", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample = "jk", "jackknife" }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Resample, s.JackknifeBy = "jk_w", "jackknife", "f"
+				s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Resample, s.BootstrapIters, s.RNGSeed = "boot", "bootstrap", 20, 3
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Selection, s.Criterion, s.Resample, s.JackknifeGroups = "sel", "backward", "bic", "jackknife", 5
+				// U68 E3-S2: the ratios follow the selected keys and the
+				// replicate standard errors.
+				s.Exponentiate = true
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
 		}
-	}
-	if !matched {
-		t.Errorf("PredictCompose errors %+v lack the runtime's %q", env.Errors, ce.Message)
-	}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		for _, r := range resp.Regressions {
+			if r.Error != nil || r.Resample == "" || len(r.StdErrors) == 0 {
+				t.Fatalf("%s: %+v", r.Name, r)
+			}
+		}
+		if r := resp.Regressions[3]; r.Selection != "backward" || r.JackknifeGroups != 5 || len(r.Coefficients) != 2*(len(r.SelectedFeatures)+1) {
+			t.Errorf("selection + resample: %+v", r)
+		}
+		r := resp.Regressions[3]
+		if e := r.Exponentiated; e == nil || len(e.Estimates) != len(r.Coefficients) || len(e.StdErrors) != len(r.StdErrors) {
+			t.Fatalf("exponentiated %+v over coefficients %v", e, r.Coefficients)
+		}
+		for k, b := range r.Coefficients {
+			if got, want := r.Exponentiated.StdErrors[k], math.Exp(b)*r.StdErrors[k]; math.Abs(got-want) > 1e-13*want {
+				t.Errorf("%s: exponentiated se %v, want exp(b)·SE %v", k, got, want)
+			}
+		}
+		for _, other := range resp.Regressions[:3] {
+			if other.Exponentiated != nil {
+				t.Errorf("%s: exponentiated block without the knob", other.Name)
+			}
+		}
+	})
+	// The penalty runs (U68 E2-S3) and predict accepts it: the
+	// symmetric fit reports every category's coefficients and no
+	// reference; without resample its inference is null and predict and
+	// the result raise the same PENALIZED_INFERENCE_UNDEFINED advisory
+	// (predict counts no p-value); with resample the replicate p-values
+	// are corrected over every category (predict counts levels ×
+	// predictors); a penalised selection runs and predict warns
+	// REGULARIZED_SELECTION, as for REG_OLS / REG_GLM.
+	t.Run("penalty runs", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Name, s.Penalty, s.Alpha = "l2", "l2", 0.05 }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "enet", "elasticnet", 0.02, 0.5, []string{"x2"}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Penalty, s.Alpha, s.Selection, s.Criterion = "sel", "l1", 0.01, "forward", "aic"
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		for i, r := range resp.Regressions {
+			if r.Error != nil || r.Reference != "" || r.Penalty == "" || len(r.Advisories) != 1 {
+				t.Fatalf("%s: %+v", r.Name, r)
+			}
+			if i < 2 && len(r.Coefficients) != 3*3 {
+				t.Errorf("%s: %d coefficients, want every category's", r.Name, len(r.Coefficients))
+			}
+			matched := false
+			for _, a := range pr.Advisories {
+				if a.Code == r.Advisories[0].Code && a.Message == r.Advisories[0].Message {
+					matched = true
+				}
+			}
+			if !matched {
+				t.Errorf("%s: predict advisories %+v lack the result's %+v", r.Name, pr.Advisories, r.Advisories[0])
+			}
+		}
+		warned := 0
+		for _, w := range pr.Warnings {
+			if w.Code == "PROCESSING_REGRESSION_REGULARIZED_SELECTION" {
+				warned++
+			}
+		}
+		if warned != 1 {
+			t.Errorf("predict warnings %+v: want REGULARIZED_SELECTION once", pr.Warnings)
+		}
+		if pr.PValues != nil && pr.PValues.Total != 0 {
+			t.Errorf("predict p_values %+v: a penalised fit without resample reports none", pr.PValues)
+		}
+		boot := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha, s.Resample, s.JackknifeGroups, s.RNGSeed = "l2", 0.05, "jackknife", 6, 2
+			s.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+		}))
+		pr, err = p.Predict(ctx, boot)
+		if err != nil || !pr.Valid || pr.PValues == nil || pr.PValues.Total != 6 {
+			t.Fatalf("resampled predict: %v %+v, p_values %+v; want 6 (3 levels × 2 predictors)", err, pr.Errors, pr.PValues)
+		}
+		resp, err = p.Process(ctx, boot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := resp.Regressions[0]; r.Error != nil || len(r.Advisories) != 0 || r.Multiplicity == nil || r.Multiplicity.M != 6 {
+			t.Fatalf("resampled penalised fit: %+v", r)
+		}
+	})
+	// A robust covariance runs (U68 E3-S1) and predict accepts it: hc0,
+	// hc1 and cluster (on f's three levels) each replace the standard
+	// errors and vcov, keep the coefficients and echo the estimator.
+	t.Run("robust covariance runs", func(t *testing.T) {
+		req := mnReq(mnCohort,
+			mnSpec(func(s *types.RegressionSpec) { s.Vcov = true }),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Vcov, s.Covariance = "hc0", true, &types.RegressionCovariance{Type: types.CovarianceHC0}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Covariance = "hc1", &types.RegressionCovariance{Type: types.CovarianceHC1}
+			}),
+			mnSpec(func(s *types.RegressionSpec) {
+				s.Name, s.Covariance = "cl", &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+			}),
+		)
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil {
+			t.Fatalf("runtime: %v", err)
+		}
+		classical := resp.Regressions[0]
+		want := map[string]types.CovarianceType{"hc0": types.CovarianceHC0, "hc1": types.CovarianceHC1, "cl": types.CovarianceCluster}
+		for _, r := range resp.Regressions[1:] {
+			if r.Error != nil || r.Covariance == nil || r.Covariance.Type != want[r.Name] || (r.Name == "cl" && r.Covariance.Clusters != 3) {
+				t.Fatalf("%s: %+v (covariance %+v)", r.Name, r, r.Covariance)
+			}
+			for k, b := range classical.Coefficients {
+				if r.Coefficients[k] != b || r.StdErrors[k] == classical.StdErrors[k] {
+					t.Errorf("%s %s: coef %v se %v, classical %v %v", r.Name, k, r.Coefficients[k], r.StdErrors[k], b, classical.StdErrors[k])
+				}
+			}
+		}
+		if classical.Covariance != nil || resp.Regressions[1].Vcov == nil {
+			t.Errorf("classical echo %+v, hc0 vcov %v", classical.Covariance, resp.Regressions[1].Vcov)
+		}
+	})
+	// A holdout runs (U68 E1-S3) and predict accepts it: no refusal on
+	// either side, the slot buffered.
+	t.Run("holdout runs", func(t *testing.T) {
+		req := mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) { s.Holdout = "x1 > 1" }))
+		pr, err := p.Predict(ctx, req)
+		if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+			t.Fatalf("predict: %v %+v", err, pr.Errors)
+		}
+		resp, err := p.Process(ctx, req)
+		if err != nil || resp.Regressions[0].Error != nil || resp.Regressions[0].Holdout == nil {
+			t.Fatalf("runtime: %v %+v", err, resp)
+		}
+	})
 }
 
 // TestMultinomial_Multiplicity: an own multiplicity block corrects every
@@ -347,5 +606,210 @@ func TestMultinomial_FailsAlone(t *testing.T) {
 	pr, err := p.Predict(ctx, req)
 	if err != nil || !pr.Valid {
 		t.Fatalf("predict %+v %v, want valid", pr, err)
+	}
+}
+
+// TestMultinomial_ReplicateCategoryLossFailsAlone: a leave-one-out
+// jackknife whose deletion empties a category the full fit has fails the
+// slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason
+// replicate_empty_level, details.level the category; PULSE_SLOT_FAILED)
+// while predict — which reads no row — accepts the request; Strict fails
+// the request with the slot's own code. A bootstrap over the same rows
+// skips the replicates that lost it (U68 E2-S2, decision D5).
+func TestMultinomial_ReplicateCategoryLossFailsAlone(t *testing.T) {
+	t.Parallel()
+
+	// hi kept on one interior row (the hi row of 50..110 with the
+	// smallest |x2|), every other hi row relabelled mid.
+	keep, best := -1, math.Inf(1)
+	for i := 50; i <= 110; i++ {
+		if r := mnRow(i); r[4] == "hi" {
+			if v, _ := strconv.ParseFloat(r[2], 64); math.Abs(v) < best {
+				keep, best = i, math.Abs(v)
+			}
+		}
+	}
+	var rows [][]string
+	for i := 0; i < mnRowsN; i++ {
+		r := mnRow(i)
+		if r[4] == "hi" && i != 2 && i != keep {
+			r[4] = "mid"
+		}
+		if i == 2 {
+			r[4] = "lo" // the dictionary order stays mid, lo, hi
+		}
+		rows = append(rows, r)
+	}
+	fsys := afero.NewMemMapFs()
+	createTestPulseFile(t, fsys, "one_hi.pulse", mnColumns, rows)
+	newP := func(strict bool) *Pulse {
+		p, err := New(Options{FS: fsys, Strict: strict})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	ctx := context.Background()
+	p := newP(false)
+	req := mnReq("one_hi.pulse",
+		mnSpec(func(s *types.RegressionSpec) { s.Name, s.Resample = "jk", "jackknife" }),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Resample, s.BootstrapIters, s.RNGSeed = "boot", "bootstrap", 40, 9
+		}),
+	)
+	if pr, err := p.Predict(ctx, req); err != nil || !pr.Valid || len(pr.Errors) != 0 {
+		t.Fatalf("predict: %v %+v", err, pr)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatalf("Process: %v (the slot should fail alone)", err)
+	}
+	jk, boot := resp.Regressions[0], resp.Regressions[1]
+	if jk.Error == nil || jk.Error.Code != string(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA) ||
+		jk.Error.Details["reason"] != "replicate_empty_level" || jk.Error.Details["level"] != "hi" || jk.Coefficients != nil {
+		t.Fatalf("jackknife slot %+v", jk.Error)
+	}
+	warned := false
+	for _, w := range resp.Warnings {
+		warned = warned || w.Code == string(errors.PULSE_SLOT_FAILED)
+	}
+	if !warned {
+		t.Errorf("no PULSE_SLOT_FAILED warning in %+v", resp.Warnings)
+	}
+	if boot.Error != nil || boot.BootstrapSucceeded >= boot.BootstrapRequested || !slices.Equal(boot.Categories, []string{"mid", "lo", "hi"}) {
+		t.Fatalf("bootstrap %+v: want some replicates skipped, every category kept", boot)
+	}
+	_, serr := newP(true).Process(ctx, req)
+	if ce := codedOf(t, serr); ce.Code != errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA || ce.Details["reason"] != "replicate_empty_level" {
+		t.Errorf("Strict Process: %v, want the slot's own INSUFFICIENT_DATA", serr)
+	}
+}
+
+// TestMultinomial_MarginsAndTermTests (U68 E4-S2): per-category margins
+// and the joint term tests run on the plain fit, predict accepting the
+// same request and counting exactly the p-values the run emits — the
+// non-intercept coefficients, one effect per category (response) or
+// non-reference category (link) and term, and per predictor the Wald and
+// (unless probability-weighted) LR p — with a member regression's
+// margins corrected as their own family and the term tests never.
+func TestMultinomial_MarginsAndTermTests(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	single, _ := mnModes(t)
+	p := single[0].p
+	req := mnReq(mnCohort,
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Margins, s.TermTests = "resp", &types.RegressionMargins{}, true
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+		}),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Margins, s.TermTests = "link_prob", &types.RegressionMargins{Type: types.MarginsMEM, Scale: types.MarginsScaleLink}, true
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindProbability})
+		}),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Margins, s.TermTests = "holm", &types.RegressionMargins{Type: types.MarginsMEM}, true
+			s.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+		}),
+	)
+	pr, err := p.Predict(ctx, req)
+	if err != nil || !pr.Valid || len(pr.Errors) != 0 {
+		t.Fatalf("predict: %v %+v", err, pr.Errors)
+	}
+	resp, err := p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emitted, uncorrected := 0, 0
+	for _, r := range resp.Regressions {
+		if r.Error != nil || r.Margins == nil || r.TermTests == nil {
+			t.Fatalf("%s: %+v", r.Name, r)
+		}
+		coefs := 0
+		for k := range r.PValues {
+			if !strings.HasSuffix(k, ":(intercept)") {
+				coefs++
+			}
+		}
+		tests := len(r.TermTests.WaldPValues) + len(r.TermTests.LRPValues)
+		emitted += coefs + len(r.Margins.PValues) + tests
+		uncorrected += tests
+		if r.Multiplicity == nil {
+			uncorrected += coefs + len(r.Margins.PValues)
+		}
+		wantOutcomes := r.Categories
+		if r.Margins.Scale == types.MarginsScaleLink {
+			wantOutcomes = slices.DeleteFunc(slices.Clone(r.Categories), func(c string) bool { return c == r.Reference })
+		}
+		if !slices.Equal(r.Margins.Outcomes, wantOutcomes) || len(r.Margins.Estimates) != len(wantOutcomes)*2 {
+			t.Errorf("%s: outcomes %v (%d effects), want %v", r.Name, r.Margins.Outcomes, len(r.Margins.Estimates), wantOutcomes)
+		}
+		if r.TermTests.DF["x1"] != len(r.Categories)-1 || (r.Name == "link_prob") != (r.TermTests.LRChi2 == nil) {
+			t.Errorf("%s: term_tests %+v", r.Name, r.TermTests)
+		}
+	}
+	if h := resp.Regressions[2]; h.Margins.Multiplicity == nil || len(h.Margins.PAdjusted) != 6 || h.TermTests == nil {
+		t.Errorf("holm: margins multiplicity %+v, p_adjusted %v", h.Margins.Multiplicity, h.Margins.PAdjusted)
+	}
+	if pr.PValues == nil || pr.PValues.Total != emitted || pr.PValues.Uncorrected != uncorrected || pr.PValues.Basis != descriptor.PValueBasisDictionary {
+		t.Fatalf("predict p_values %+v, the run emits %d (%d uncorrected)", pr.PValues, emitted, uncorrected)
+	}
+}
+
+// TestMultinomial_MarginsWorkerInvariant: the margins and term tests of
+// a weighted cluster-robust fit are byte-identical across decode
+// workers (one file) and shard workers (the archive), and absent knobs
+// leave every other figure byte-identical.
+func TestMultinomial_MarginsWorkerInvariant(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	specs := []*types.RegressionSpec{
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Margins, s.TermTests = "m", &types.RegressionMargins{}, true
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "f"}
+			s.Weight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+		}),
+		mnSpec(func(s *types.RegressionSpec) {
+			s.Name, s.Margins = "mem", &types.RegressionMargins{Type: types.MarginsMEM}
+			s.Reference = "hi"
+		}),
+	}
+	single, sharded := mnModes(t)
+	for _, group := range [][]scorerParityMode{single, sharded} {
+		var want []byte
+		for _, m := range group {
+			resp, err := m.p.Process(ctx, mnReq(m.cohort, specs...))
+			if err != nil {
+				t.Fatalf("%s: %v", m.name, err)
+			}
+			got, err := json.Marshal(resp.Regressions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want == nil {
+				want = got
+			} else if string(got) != string(want) {
+				t.Errorf("%s differs from %s", m.name, group[0].name)
+			}
+		}
+	}
+	p := single[0].p
+	with, err := p.Process(ctx, mnReq(mnCohort, specs[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainSpec := *specs[0]
+	plainSpec.Margins, plainSpec.TermTests = nil, false
+	plain, err := p.Process(ctx, mnReq(mnCohort, &plainSpec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := *with.Regressions[0]
+	r.Margins, r.TermTests = nil, nil
+	a, _ := json.Marshal(&r)
+	b, _ := json.Marshal(plain.Regressions[0])
+	if string(a) != string(b) {
+		t.Errorf("margins / term_tests moved another figure:\n%s\nvs\n%s", a, b)
 	}
 }

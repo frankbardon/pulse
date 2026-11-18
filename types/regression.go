@@ -68,7 +68,9 @@ const (
 	// default; probit; cloglog). It names its own threshold
 	// coefficients ("<level>|<next level>") beside the predictors and
 	// fits no intercept; params.brant adds the Brant test of the
-	// proportional-odds assumption. Always buffered (Newton–Raphson over
+	// proportional-odds assumption (logit) and params.nominal_test the
+	// likelihood-ratio test against the partial proportional-odds fit
+	// (any link). Always buffered (Newton–Raphson over
 	// every admitted row).
 	REG_ORDINAL RegressionType = "REG_ORDINAL"
 )
@@ -115,10 +117,11 @@ type RegressionSpec struct {
 	// linear regression.
 	Predictors []string `json:"predictors,omitempty"`
 
-	// Penalty selects the regularization scheme for REG_OLS and REG_GLM
-	// (binomial / poisson; gamma refuses it). One of "" (no penalty),
-	// "l1" (lasso), "l2" (ridge), or "elasticnet". REG_BAYES_LINEAR
-	// refuses it.
+	// Penalty selects the regularization scheme for REG_OLS, REG_GLM
+	// (binomial / poisson; gamma refuses it) and REG_MULTINOMIAL
+	// (glmnet's symmetric form: every category its own coefficients, no
+	// Reference). One of "" (no penalty), "l1" (lasso), "l2" (ridge), or
+	// "elasticnet". REG_BAYES_LINEAR refuses it.
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for l1 / l2 / elasticnet
@@ -129,11 +132,12 @@ type RegressionSpec struct {
 	// l2, 1 is pure l1. Only read when Penalty == "elasticnet".
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
-	// Unpenalized lists predictors the ridge penalty skips (REG_OLS,
-	// Penalty "l2" only): their diagonal entries of the penalised Gram
-	// get no α term — glmnet's penalty.factor 0. Each must name a
-	// predictor, once. Lasso / elastic net, REG_GLM and REG_BAYES_LINEAR
-	// refuse it (PROCESSING_CONFIG).
+	// Unpenalized lists predictors the penalty skips — glmnet's
+	// penalty.factor 0 (REG_OLS with Penalty "l2": no α term on their
+	// Gram diagonal; REG_MULTINOMIAL with any Penalty). Each must name a
+	// predictor, once. REG_OLS lasso / elastic net, REG_GLM,
+	// REG_BAYES_LINEAR and an unpenalised fit refuse it
+	// (PROCESSING_CONFIG).
 	Unpenalized []string `json:"unpenalized,omitempty"`
 
 	// Bounds constrains named REG_OLS coefficients (see
@@ -196,7 +200,8 @@ type RegressionSpec struct {
 	// other levels' are log-odds against it). Empty selects the first
 	// level, in dictionary order, that a fitted row carries —
 	// nnet::multinom's first factor level. A label outside the target's
-	// dictionary, or the field on any other regression, is refused with
+	// dictionary, the field beside a Penalty (a penalised fit is
+	// symmetric) or on any other regression, is refused with
 	// PROCESSING_CONFIG (details.requires; internal/regmultinom, the one
 	// rule predict applies); a named level no fitted row carries fails
 	// the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason
@@ -342,7 +347,11 @@ type RegressionSpec struct {
 	// link: ∂η/∂x, which is the coefficient), with delta-method standard
 	// errors on the fit's own coefficient covariance (classical or the
 	// robust Covariance) and the coefficient table's reference
-	// distribution. REG_OLS and REG_GLM only; refused with
+	// distribution. REG_OLS, REG_GLM, REG_MULTINOMIAL (each category's
+	// probability; on the link scale its log-odds against the
+	// reference, the coefficient) and a model regression declaring
+	// margins (REG_ORDINAL: each level's probability), keys
+	// "<level>:<term>" — RegressionMarginsResult.Outcomes; refused with
 	// PROCESSING_CONFIG (details.requires, the one rule predict applies:
 	// internal/regmargins) beside a Penalty, Selection, Resample or
 	// Bounds, on another type, or when a predictor is derived from
@@ -367,6 +376,34 @@ type RegressionSpec struct {
 	// basis model, on another type, or a malformed block. Absent is
 	// byte-identical. See RegressionCollinearity.
 	Collinearity *RegressionCollinearity `json:"collinearity,omitempty"`
+
+	// Exponentiate opts this regression into its exponentiated
+	// coefficients (RegressionResult.Exponentiated), reported BESIDE the
+	// raw coefficient table, which never moves: REG_MULTINOMIAL's
+	// relative-risk ratios exp(β) on every "<category>:<term>" key
+	// (Stata mlogit, rrr), REG_ORDINAL's cumulative odds ratios exp(β)
+	// on its predictors only (the thresholds are cut points, not
+	// effects; polr's exp(coef)). Each carries the delta-method standard
+	// error exp(β)·SE and the exponentiated interval exp(lower),
+	// exp(upper), on whatever covariance the fit used (classical, the
+	// robust Covariance, the resampled standard errors); where the
+	// standard error is null (a penalized fit) so are they. Any other
+	// regression type is refused with PROCESSING_CONFIG (details.slot
+	// "exponentiate", details.requires; the one rule predict applies:
+	// internal/regexponent). False is byte-identical.
+	Exponentiate bool `json:"exponentiate,omitempty"`
+
+	// TermTests opts this regression into a joint test of each predictor
+	// across every non-reference category (RegressionResult.TermTests):
+	// the Wald χ² of its K − 1 coefficients on the fit's own covariance
+	// (classical or the robust Covariance) and the likelihood-ratio χ²
+	// against the refit without it (car::Anova(multinom), type II), each
+	// on K − 1 degrees of freedom. REG_MULTINOMIAL only, unpenalized and
+	// without Resample or Selection; refused with PROCESSING_CONFIG
+	// (details.slot "term_tests", details.requires; the one rule
+	// predict applies: internal/regmultinom) otherwise. False is
+	// byte-identical.
+	TermTests bool `json:"term_tests,omitempty"`
 
 	// ConfLevel is the coverage of the coefficient confidence intervals
 	// (RegressionResult.CILower / CIUpper), 0 < ConfLevel < 1; zero
@@ -502,7 +539,7 @@ func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
 func AllMarginsScales() []string { return []string{MarginsScaleResponse, MarginsScaleLink} }
 
 // RegressionMargins is RegressionSpec.Margins: which marginal effects a
-// REG_OLS / REG_GLM fit reports. Every field has a default, so
+// REG_OLS / REG_GLM fit (or a model declaring margins) reports. Every field has a default, so
 // `"margins": {}` asks for the average marginal effect of every
 // predictor on the response scale.
 type RegressionMargins struct {
@@ -622,8 +659,10 @@ type RegressionCollinearityResult struct {
 
 // RegressionMarginsResult is RegressionResult.Margins: one marginal
 // effect per term with its delta-method inference. The maps are keyed by
-// term (a predictor name), like the coefficient table; Terms keeps the
-// order. An undefined figure is null on the wire, key kept.
+// term (a predictor name), like the coefficient table — or, when
+// Outcomes is present, "<outcome>:<term>", one effect per outcome level
+// and term; Terms (and Outcomes) keep the order. An undefined figure is
+// null on the wire, key kept.
 type RegressionMarginsResult struct {
 	// Type and Scale echo the resolved RegressionMargins.
 	Type  string `json:"type"`
@@ -631,6 +670,16 @@ type RegressionMarginsResult struct {
 
 	// Terms lists the reported predictors in their resolved order.
 	Terms []string `json:"terms"`
+
+	// Outcomes lists, in the model's level order, the outcome levels a
+	// categorical-response fit reports one effect on each of (REG_ORDINAL:
+	// each level's probability; on the link scale each level but the
+	// last, the cumulative P(Y ≤ level). REG_MULTINOMIAL: each fitted
+	// category's probability; on the link scale each non-reference
+	// category's log-odds against the reference). Present, every per-effect map
+	// is keyed "<outcome>:<term>" (the coefficients' "<category>:<term>"
+	// convention); absent, keyed by term.
+	Outcomes []string `json:"outcomes,omitempty"`
 
 	// Estimates maps each term to its marginal effect: under type ame
 	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response
@@ -754,13 +803,16 @@ type RegressionResult struct {
 	// Link echoes RegressionSpec.Link (GLM only).
 	Link string `json:"link,omitempty"`
 
-	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM).
+	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM /
+	// REG_MULTINOMIAL).
 	Penalty string `json:"penalty,omitempty"`
 
-	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM).
+	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM /
+	// multinomial).
 	Alpha float64 `json:"alpha,omitempty"`
 
-	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM).
+	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM /
+	// multinomial).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Prior echoes RegressionSpec.Prior (Bayes only).
@@ -862,7 +914,9 @@ type RegressionResult struct {
 
 	// Reference echoes the baseline category a REG_MULTINOMIAL fit
 	// read its log-odds against (RegressionSpec.Reference, or the first
-	// fitted level). Absent on every other regression.
+	// fitted level). Absent on a penalised multinomial fit (symmetric:
+	// every category in Categories carries coefficients) and on every
+	// other regression.
 	Reference string `json:"reference,omitempty"`
 
 	// Categories are the target levels a REG_MULTINOMIAL fit modelled,
@@ -980,6 +1034,16 @@ type RegressionResult struct {
 	// RegressionCollinearityResult); absent otherwise.
 	Collinearity *RegressionCollinearityResult `json:"collinearity,omitempty"`
 
+	// Exponentiated carries the exponentiated coefficients
+	// RegressionSpec.Exponentiate asked for (see
+	// RegressionExponentiated); absent otherwise and on a failed fit.
+	Exponentiated *RegressionExponentiated `json:"exponentiated,omitempty"`
+
+	// TermTests carries the joint predictor tests RegressionSpec.TermTests
+	// asked for (see RegressionTermTests); absent otherwise and on a
+	// failed fit.
+	TermTests *RegressionTermTests `json:"term_tests,omitempty"`
+
 	// Outputs holds an extension regression's own named extras, each key
 	// declared in its registration's OutputSchema; a non-finite float is
 	// null. The built-ins leave it absent.
@@ -1052,23 +1116,91 @@ type RegressionResult struct {
 	Error *SlotError `json:"error,omitempty"`
 }
 
+// RegressionExponentiated is RegressionResult.Exponentiated: the
+// coefficients on the ratio scale, keyed like Coefficients —
+// REG_MULTINOMIAL every key (relative-risk ratios), REG_ORDINAL its
+// predictors only (cumulative odds ratios; no threshold key). The raw
+// Coefficients, StdErrors, CILower and CIUpper are unchanged beside it.
+type RegressionExponentiated struct {
+	// Estimates maps each key to exp(β).
+	Estimates map[string]float64 `json:"estimates"`
+
+	// StdErrors maps each key the fit's StdErrors carries to the
+	// delta-method standard error exp(β)·SE (null where SE is null).
+	StdErrors map[string]float64 `json:"std_errors,omitempty"`
+
+	// CILower and CIUpper map each key the fit's CILower / CIUpper carry
+	// to exp of that bound: the interval of exp(β) at the fit's
+	// ConfLevel, asymmetric about Estimates (null where the bound is).
+	CILower map[string]float64 `json:"ci_lower,omitempty"`
+	CIUpper map[string]float64 `json:"ci_upper,omitempty"`
+}
+
+// RegressionTermTests is RegressionResult.TermTests: one joint test per
+// predictor of a REG_MULTINOMIAL fit, every map keyed by predictor —
+// the null that the predictor's coefficient is zero in every
+// non-reference category at once (car::Anova(multinom), type II; Stata
+// mlogit's test). An undefined figure is null on the wire, key kept.
+type RegressionTermTests struct {
+	// Terms lists the tested predictors in Predictors order.
+	Terms []string `json:"terms"`
+
+	// DF maps each term to its degrees of freedom, K − 1 (the number of
+	// non-reference categories).
+	DF map[string]int `json:"df"`
+
+	// WaldChi2 maps each term to the Wald statistic bᵀV⁻¹b over its
+	// K − 1 coefficients b, V their block of the fit's coefficient
+	// covariance (classical or the robust Covariance); WaldPValues to
+	// its upper χ²(DF) tail.
+	WaldChi2    map[string]float64 `json:"wald_chi2"`
+	WaldPValues map[string]float64 `json:"wald_p_values"`
+
+	// LRChi2 maps each term to the likelihood-ratio statistic, the
+	// deviance of the refit without the term (same rows, categories and
+	// reference) less the fit's; LRPValues to its upper χ²(DF) tail.
+	// Absent under a probability weight (a pseudo-likelihood, as
+	// two_log_lik); the likelihood never reads a robust covariance.
+	LRChi2    map[string]float64 `json:"lr_chi2,omitempty"`
+	LRPValues map[string]float64 `json:"lr_p_values,omitempty"`
+}
+
 // RegressionHoldout is RegressionResult.Holdout: the fitted model scored
 // on the rows RegressionSpec.Holdout held out of the fit, on the
 // response scale (a REG_GLM's inverse link). N counts the scored rows —
 // held-out rows whose target and every predictor are present and finite
 // (and, weighted, whose weight is valid and positive) — as a raw count,
 // weighted or not; NNull counts the rows whose predicate was null
-// (neither fitted nor held out). RMSE = √(Σw·e²/Σw), MAE = Σw·|e|/Σw
-// and R2 = 1 − Σw·e²/Σw·(y − ȳ)² about the held-out rows' own (weighted)
-// mean, e = y − ŷ, w the slot's weight (1 unweighted). An undefined
-// figure (R2 when the held-out targets do not vary) is NaN — null on
-// the wire, key kept.
+// (neither fitted nor held out). Every figure is a weighted mean over
+// the scored rows, w the slot's weight (1 unweighted).
+//
+// A numeric-target fit reports RMSE = √(Σw·e²/Σw), MAE = Σw·|e|/Σw and
+// R2 = 1 − Σw·e²/Σw·(y − ȳ)² about the held-out rows' own (weighted)
+// mean, e = y − ŷ; the categorical figures are nil (absent).
+//
+// A categorical-outcome fit (REG_ORDINAL, REG_MULTINOMIAL) predicts a
+// probability vector p over its K outcomes, scored against the observed
+// outcome y (one-hot o): LogLoss = Σw·(−ln p_y)/Σw (natural log),
+// Brier = Σw·Σ_k (p_k − o_k)²/Σw (the multi-class form, 0..2), Accuracy
+// = Σw·[argmax p = y]/Σw (the first on a tie) and, REG_ORDINAL only,
+// RPS = Σw·Σ_{k<K} (F_k − O_k)²/(K − 1)/Σw, the ranked probability
+// score over the cumulative F_k = Σ_{j≤k} p_j and O_k = [y ≤ k]. A
+// held-out row whose outcome the fit does not carry is not scored.
+// RMSE, MAE and R2 are nil (absent) there.
+//
+// An undefined figure (R2 when the held-out targets do not vary,
+// LogLoss when an observed outcome scored probability 0) is NaN or
+// +Inf — null on the wire, key kept.
 type RegressionHoldout struct {
-	N     int     `json:"n"`
-	NNull int     `json:"n_null"`
-	RMSE  float64 `json:"rmse"`
-	MAE   float64 `json:"mae"`
-	R2    float64 `json:"r2"`
+	N        int      `json:"n"`
+	NNull    int      `json:"n_null"`
+	RMSE     *float64 `json:"rmse,omitempty"`
+	MAE      *float64 `json:"mae,omitempty"`
+	R2       *float64 `json:"r2,omitempty"`
+	LogLoss  *float64 `json:"log_loss,omitempty"`
+	Brier    *float64 `json:"brier,omitempty"`
+	Accuracy *float64 `json:"accuracy,omitempty"`
+	RPS      *float64 `json:"rps,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

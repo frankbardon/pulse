@@ -30,13 +30,13 @@ func wantFeatures(t *testing.T, got *File, data []byte, want ...string) {
 	}
 }
 
-// TestModelFile_FeatureRegistry: the registry names the seven sections
+// TestModelFile_FeatureRegistry: the registry names the eight sections
 // in the order the writer lists them, and each governs a real document
 // key of File — the one entry a new section adds.
 func TestModelFile_FeatureRegistry(t *testing.T) {
 	t.Parallel()
 
-	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock, FeatureSaturation}
+	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock, FeatureSaturation, FeatureCategories}
 	if got := FileFeatures(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileFeatures() = %v, want %v", got, want)
 	}
@@ -119,6 +119,8 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 		{"outputs+sweep_axes", extResult, []string{FeatureOutputs, FeatureSweepAxes}, axes, nil},
 		{"outputs+adstock", hillFit, []string{FeatureOutputs, FeatureAdstock}, nil, adstock},
 		{"outputs+sweep_axes+adstock", hillFit, []string{FeatureOutputs, FeatureSweepAxes, FeatureAdstock}, axes, adstock},
+		{"categories", multinomialFit, []string{FeatureCategories}, nil, nil},
+		{"sweep_axes+categories", multinomialFit, []string{FeatureSweepAxes, FeatureCategories}, axes, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

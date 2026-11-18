@@ -8,25 +8,40 @@
 // Every refusal is PROCESSING_CONFIG with details.slot (the spec key)
 // and details.requires naming what the request must change:
 //
-//   - `reference` on any other regression (requires "type
-//     REG_MULTINOMIAL");
+//   - `reference` or `term_tests` on any other regression (requires
+//     "type REG_MULTINOMIAL");
 //   - a RegressionSpec knob the multinomial fit does not offer: a GLM
-//     family / link / theta / dispersion ("no_family"), a penalty
-//     ("unpenalized"), bounds ("unbounded"), selection ("no_selection"),
-//     a resample and its knobs ("no_resample"), the Bayesian prior
+//     family / link / theta / dispersion ("no_family"), `reference`
+//     beside a penalty ("unpenalized": the penalized fit is symmetric,
+//     U68 E2-S3), bounds ("unbounded"), the Bayesian prior
 //     ("no_prior"), solver ("no_solver"), intercept false ("intercept"),
-//     a robust covariance ("classical_covariance"), margins
-//     ("no_margins"), collinearity ("no_collinearity"), save
-//     ("no_save") — each a follow-up, never a silent no-op — and a
+//     collinearity ("no_collinearity") — each a follow-up, never a
+//     silent no-op — term_tests beside a penalty ("unpenalized"),
+//     selection ("no_selection") or resample ("no_resample"), and a
 //     negative max_iters / tol ("max_iters ≥ 0", "tol ≥ 0");
 //   - CheckTarget: the target is a categorical cohort field (its
 //     dictionary order is the category order; requires
 //     "categorical_target"), and `reference` one of its labels (requires
 //     "a level of the target").
 //
-// A holdout is refused by the shared scorer rule (nothing scores a
-// multinomial fit: model.HoldoutScorerRefusal), a numeric schema target
-// by the accepted-types table (internal/fieldaccept).
+// Resample and selection run (U68 E2-S2: every refit keeps the full
+// fit's categories and reference; selection is term-level), so the
+// shared rules (criterion, the jackknife knobs, weights) are theirs.
+// The penalty runs (U68 E2-S3: glmnet's symmetric multinomial, every
+// category its own coefficients, no reference): its knobs' coupling is
+// internal/regpenalty's.
+//
+// `save` writes a model file carrying the fit's categories (U68 E1-S2:
+// the fit scores one category per ATTR_REG_PREDICT slot). A holdout
+// scores each held-out row's category probabilities (U68 E1-S3:
+// regression.HoldoutOutcomeFigures — log_loss, brier, accuracy). A
+// numeric schema target is refused by the accepted-types table
+// (internal/fieldaccept). A robust covariance runs (U68 E3-S1: hc0 /
+// hc1 / cluster, the score sandwich): its rules, hc2 / hc3 / hac and the
+// penalty / resample / selection refusals included, are
+// internal/regcov's. Margins run (U68 E4-S2: each category's
+// probability, regression.multinomialMargins): their rules are
+// internal/regmargins'.
 package regmultinom
 
 import (
@@ -34,6 +49,10 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
+
+// RequiresTermTests is details.requires of the term_tests refusal on
+// any other regression type (the shared-slot table's too).
+const RequiresTermTests = "type REG_MULTINOMIAL"
 
 // Key is the result key of category's coefficient on term:
 // "<category>:<term>", nnet::multinom's vcov row name (term
@@ -64,18 +83,8 @@ var unsupportedKnobs = []unsupported{
 	{"link", "no_family", "the multinomial logit's link is the baseline-category logit", func(s *types.RegressionSpec) bool { return s.Link != "" }},
 	{"theta", "no_family", "theta is the negative binomial family's", func(s *types.RegressionSpec) bool { return s.Theta != 0 }},
 	{"dispersion", "no_family", "dispersion is a fixed-theta negative binomial's", func(s *types.RegressionSpec) bool { return s.Dispersion != "" }},
-	{"penalty", "unpenalized", "a penalized multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Penalty != "" }},
-	{"alpha", "unpenalized", "alpha is a penalty's strength", func(s *types.RegressionSpec) bool { return s.Alpha != 0 }},
-	{"l1_ratio", "unpenalized", "l1_ratio is an elastic-net penalty's mix", func(s *types.RegressionSpec) bool { return s.L1Ratio != 0 }},
-	{"unpenalized", "unpenalized", "unpenalized is a ridge penalty's", func(s *types.RegressionSpec) bool { return len(s.Unpenalized) != 0 }},
+	{"reference", "unpenalized", "a penalized fit is symmetric (every category carries coefficients, none is the reference)", func(s *types.RegressionSpec) bool { return s.Penalty != "" && s.Reference != "" }},
 	{"bounds", "unbounded", "coefficient bounds are a REG_OLS knob", func(s *types.RegressionSpec) bool { return s.Bounds.Active() }},
-	{"selection", "no_selection", "subset selection over a multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Selection != "" }},
-	{"criterion", "no_selection", "criterion drives a selection", func(s *types.RegressionSpec) bool { return s.Criterion != "" }},
-	{"resample", "no_resample", "a resampled multinomial fit is not built", func(s *types.RegressionSpec) bool { return s.Resample != "" }},
-	{"jackknife_groups", "no_resample", "jackknife_groups is a jackknife's", func(s *types.RegressionSpec) bool { return s.JackknifeGroups != 0 }},
-	{"jackknife_by", "no_resample", "jackknife_by is a jackknife's", func(s *types.RegressionSpec) bool { return s.JackknifeBy != "" }},
-	{"bootstrap_iters", "no_resample", "bootstrap_iters is a bootstrap's", func(s *types.RegressionSpec) bool { return s.BootstrapIters != 0 }},
-	{"rng_seed", "no_resample", "rng_seed seeds a resample", func(s *types.RegressionSpec) bool { return s.RNGSeed != 0 }},
 	{"prior", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return s.Prior != "" }},
 	{"prior_mu", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return len(s.PriorMu) != 0 }},
 	{"prior_precision", "no_prior", "a prior is REG_BAYES_LINEAR's", func(s *types.RegressionSpec) bool { return !s.PriorPrecision.IsZero() }},
@@ -84,10 +93,10 @@ var unsupportedKnobs = []unsupported{
 	{"credible_level", "no_prior", "credible_level is a posterior's", func(s *types.RegressionSpec) bool { return s.CredibleLevel != 0 }},
 	{"solver", "no_solver", "solver picks REG_OLS's least-squares method", func(s *types.RegressionSpec) bool { return s.Solver != "" }},
 	{"intercept", "intercept", "every category's linear predictor carries an intercept", func(s *types.RegressionSpec) bool { return s.Intercept != nil && !*s.Intercept }},
-	{"covariance", "classical_covariance", "a robust multinomial covariance is not built (the coefficient covariance is the inverse information)", func(s *types.RegressionSpec) bool { return s.Covariance.Robust() }},
-	{"margins", "no_margins", "marginal effects are reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Margins != nil }},
+	{"term_tests", "unpenalized", "a shrunken coefficient has no Wald or likelihood-ratio reference distribution", func(s *types.RegressionSpec) bool { return s.TermTests && s.Penalty != "" }},
+	{"term_tests", "no_selection", "after selection the tests ignore the search", func(s *types.RegressionSpec) bool { return s.TermTests && s.Selection != "" }},
+	{"term_tests", "no_resample", "the tests read the fit's analytical covariance and likelihood, not a replicate one", func(s *types.RegressionSpec) bool { return s.TermTests && s.Resample != "" }},
 	{"collinearity", "no_collinearity", "the variance inflation block is reported by REG_OLS and REG_GLM", func(s *types.RegressionSpec) bool { return s.Collinearity != nil }},
-	{"save", "no_save", "a multinomial fit has no model file", func(s *types.RegressionSpec) bool { return s.Save != "" }},
 }
 
 // Check returns the PROCESSING_CONFIG refusal of spec's knobs, or nil:
@@ -102,6 +111,10 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if spec.Reference != "" {
 			return refuse(spec, "reference", "does not accept reference; it names REG_MULTINOMIAL's baseline category",
 				"type REG_MULTINOMIAL", map[string]any{"reference": spec.Reference})
+		}
+		if spec.TermTests {
+			return refuse(spec, "term_tests", "does not accept term_tests: the joint predictor tests across categories are REG_MULTINOMIAL's; drop it",
+				RequiresTermTests, nil)
 		}
 		return nil
 	}

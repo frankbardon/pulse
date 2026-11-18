@@ -54,7 +54,9 @@ func InverseLink(family, link string) (func(float64) float64, error) {
 // factory of each scorable built-in regression — REG_OLS (penalties and
 // selection included) and REG_BAYES_LINEAR (its posterior mean) score
 // the linear predictor, REG_GLM its inverse link on the response scale
-// (the linear predictor on the link scale). model.ScorableType is this
+// (the linear predictor on the link scale), REG_MULTINOMIAL one
+// category's probability, the class or (link scale) one category's
+// log-odds against the reference (multinomial_score.go). model.ScorableType is this
 // table's static face (predict cannot import the engine);
 // TestBuiltinScorer_MatchesScorableType keeps them one set.
 func BuiltinScorer(t types.RegressionType) (model.ScorerFactory, bool) {
@@ -63,6 +65,8 @@ func BuiltinScorer(t types.RegressionType) (model.ScorerFactory, bool) {
 		return newLinearScorerFactory, true
 	case types.REG_GLM:
 		return newGLMScorer, true
+	case types.REG_MULTINOMIAL:
+		return newMultinomialScorer, true
 	}
 	// A model regression scores through its registration's scorer
 	// (RegisterModel); model.ScorableType, the static face of the

@@ -510,11 +510,11 @@ func TestMMMHill_ScorerHoldoutSaveReload(t *testing.T) {
 		y, _ := sc.Score(scoreRow{"tv_ad": r.tvAd, "search_ad": r.searchAd, "price": r.price})
 		sse += (r.y - y) * (r.y - y)
 	}
-	if want := math.Sqrt(sse / float64(h.Holdout.N)); !relClose(h.Holdout.RMSE, want, 1e-9) {
-		t.Errorf("holdout rmse %v, want %v from the scorer on the held-out rows", h.Holdout.RMSE, want)
+	if want := math.Sqrt(sse / float64(h.Holdout.N)); !relClose(*h.Holdout.RMSE, want, 1e-9) {
+		t.Errorf("holdout rmse %v, want %v from the scorer on the held-out rows", *h.Holdout.RMSE, want)
 	}
-	if !(h.Holdout.RMSE < 3*defaultTruth.noise) {
-		t.Errorf("holdout rmse %v, want near the noise %v", h.Holdout.RMSE, defaultTruth.noise)
+	if !(*h.Holdout.RMSE < 3*defaultTruth.noise) {
+		t.Errorf("holdout rmse %v, want near the noise %v", *h.Holdout.RMSE, defaultTruth.noise)
 	}
 }
 

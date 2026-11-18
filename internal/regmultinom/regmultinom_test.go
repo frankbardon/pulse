@@ -41,18 +41,10 @@ func TestCheck_Refusals(t *testing.T) {
 		{"link", "link", "no_family", func(s *types.RegressionSpec) { s.Link = "logit" }},
 		{"theta", "theta", "no_family", func(s *types.RegressionSpec) { s.Theta = 2 }},
 		{"dispersion", "dispersion", "no_family", func(s *types.RegressionSpec) { s.Dispersion = "estimated" }},
-		{"penalty", "penalty", "unpenalized", func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 1 }},
-		{"alpha", "alpha", "unpenalized", func(s *types.RegressionSpec) { s.Alpha = 1 }},
-		{"l1_ratio", "l1_ratio", "unpenalized", func(s *types.RegressionSpec) { s.L1Ratio = 0.5 }},
-		{"unpenalized", "unpenalized", "unpenalized", func(s *types.RegressionSpec) { s.Unpenalized = []string{"x"} }},
+		// U68 E2-S3: a penalised fit is symmetric, so it names no
+		// reference (the penalty knobs themselves are regpenalty's).
+		{"reference under penalty", "reference", "unpenalized", func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Reference = "l2", 1, "mid" }},
 		{"bounds", "bounds", "unbounded", func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"x"}} }},
-		{"selection", "selection", "no_selection", func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }},
-		{"criterion", "criterion", "no_selection", func(s *types.RegressionSpec) { s.Criterion = "aic" }},
-		{"resample", "resample", "no_resample", func(s *types.RegressionSpec) { s.Resample = "jackknife" }},
-		{"jackknife_groups", "jackknife_groups", "no_resample", func(s *types.RegressionSpec) { s.JackknifeGroups = 3 }},
-		{"jackknife_by", "jackknife_by", "no_resample", func(s *types.RegressionSpec) { s.JackknifeBy = "x" }},
-		{"bootstrap_iters", "bootstrap_iters", "no_resample", func(s *types.RegressionSpec) { s.BootstrapIters = 10 }},
-		{"rng_seed", "rng_seed", "no_resample", func(s *types.RegressionSpec) { s.RNGSeed = 3 }},
 		{"prior", "prior", "no_prior", func(s *types.RegressionSpec) { s.Prior = "nig" }},
 		{"prior_mu", "prior_mu", "no_prior", func(s *types.RegressionSpec) { s.PriorMu = []float64{0, 0} }},
 		{"prior_shape", "prior_shape", "no_prior", func(s *types.RegressionSpec) { s.PriorShape = 1 }},
@@ -60,12 +52,12 @@ func TestCheck_Refusals(t *testing.T) {
 		{"credible_level", "credible_level", "no_prior", func(s *types.RegressionSpec) { s.CredibleLevel = 0.9 }},
 		{"solver", "solver", "no_solver", func(s *types.RegressionSpec) { s.Solver = "qr" }},
 		{"intercept", "intercept", "intercept", func(s *types.RegressionSpec) { s.Intercept = &off }},
-		{"covariance", "covariance", "classical_covariance", func(s *types.RegressionSpec) {
-			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
-		}},
-		{"margins", "margins", "no_margins", func(s *types.RegressionSpec) { s.Margins = &types.RegressionMargins{} }},
+		// U68 E4-S2: margins run (their rules are regmargins'); the
+		// joint term tests read the plain fit's covariance and likelihood.
+		{"term_tests under penalty", "term_tests", "unpenalized", func(s *types.RegressionSpec) { s.TermTests, s.Penalty, s.Alpha = true, "l2", 1 }},
+		{"term_tests under selection", "term_tests", "no_selection", func(s *types.RegressionSpec) { s.TermTests, s.Selection, s.Criterion = true, "forward", "aic" }},
+		{"term_tests under resample", "term_tests", "no_resample", func(s *types.RegressionSpec) { s.TermTests, s.Resample = true, "jackknife" }},
 		{"collinearity", "collinearity", "no_collinearity", func(s *types.RegressionSpec) { s.Collinearity = &types.RegressionCollinearity{} }},
-		{"save", "save", "no_save", func(s *types.RegressionSpec) { s.Save = "m.pulse-model.json" }},
 		{"negative max_iters", "max_iters", "max_iters ≥ 0", func(s *types.RegressionSpec) { s.MaxIters = -1 }},
 		{"negative tol", "tol", "tol ≥ 0", func(s *types.RegressionSpec) { s.Tol = -1e-6 }},
 	}
@@ -82,15 +74,45 @@ func TestCheck_Refusals(t *testing.T) {
 	}
 	ok := base()
 	ok.Reference, ok.MaxIters, ok.Tol, ok.ConfLevel, ok.Vcov = "mid", 10, 1e-9, 0.9, true
+	ok.Save = "m.pulse-model.json" // U68 E1-S2: a multinomial fit saves
 	ok.Covariance = &types.RegressionCovariance{Type: types.CovarianceClassical}
+	// U68 E4-S2: margins and term_tests on the plain fit.
+	plain := base()
+	plain.Margins, plain.TermTests = &types.RegressionMargins{Scale: types.MarginsScaleLink}, true
+	plain.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+	if cerr := Check(plain); cerr != nil {
+		t.Fatalf("margins / term_tests refused: %v", cerr)
+	}
+	// U68 E2-S2: the resample and selection modifiers run.
+	ok.Resample, ok.JackknifeBy, ok.BootstrapIters, ok.RNGSeed = "jackknife", "g", 10, 3
+	ok.Selection, ok.Criterion = "stepwise", "bic"
 	if cerr := Check(ok); cerr != nil {
 		t.Fatalf("offered knobs refused: %v", cerr)
+	}
+	// U68 E2-S3: the penalty knobs run (their coupling is regpenalty's).
+	pen := base()
+	pen.Penalty, pen.Alpha, pen.L1Ratio, pen.Unpenalized = "elasticnet", 0.1, 0.5, []string{"x"}
+	if cerr := Check(pen); cerr != nil {
+		t.Fatalf("penalty knobs refused: %v", cerr)
+	}
+	// U68 E3-S1: a robust covariance passes this rule (every type: hc2 /
+	// hc3 / hac and the modifier pairings are regcov's refusals).
+	for _, ct := range types.AllCovarianceTypes() {
+		rob := base()
+		rob.Covariance = &types.RegressionCovariance{Type: ct}
+		if cerr := Check(rob); cerr != nil {
+			t.Fatalf("covariance %s refused by regmultinom: %v", ct, cerr)
+		}
 	}
 	ols := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}, Reference: "lo"}
 	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "reference" || cerr.Details["requires"] != "type REG_MULTINOMIAL" {
 		t.Fatalf("reference on REG_OLS: %v", cerr)
 	}
-	ols.Reference = ""
+	ols.Reference, ols.TermTests = "", true
+	if cerr := Check(ols); cerr == nil || cerr.Details["slot"] != "term_tests" || cerr.Details["requires"] != RequiresTermTests {
+		t.Fatalf("term_tests on REG_OLS: %v", cerr)
+	}
+	ols.TermTests = false
 	ols.Family = "binomial" // another engine's knob is not this rule's
 	if cerr := Check(ols); cerr != nil {
 		t.Fatalf("REG_OLS without reference: %v", cerr)

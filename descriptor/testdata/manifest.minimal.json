@@ -904,11 +904,11 @@
       },
       {
         "name": "regression-margins",
-        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear, ordinal and multinomial fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
-        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Model options beyond the textbook fit — a penalty over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -916,7 +916,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, an ordinal fit's per-level columns, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -1341,6 +1341,8 @@
           "regressions[*].covariance",
           "regressions[*].margins",
           "regressions[*].collinearity",
+          "regressions[*].exponentiated",
+          "regressions[*].term_tests",
           "regressions[*].advisories",
           "regressions[*].statistics",
           "regressions[*].outputs"
@@ -1453,4 +1455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3987fdfdfc6b8c92996601988a4d1da5c3e7f0d0fa6870cf16f778b7a104eb32
+// golden-hash: c726646998de68c152bcbc0fd5029b6ecbb3c72e1ecb5d1283173d15b08ba7a7

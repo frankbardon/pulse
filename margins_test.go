@@ -233,7 +233,7 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 		{"scale", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Scale = "odds" })), "scale response or link"},
 		{"unknown term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x3"} })), "a predictor"},
 		{"repeated term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x1", "x1"} })), "a predictor"},
-		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "type REG_OLS or REG_GLM"},
+		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
 		{"penalty", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), "unpenalized"},
 		{"selection", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" })), "no_selection"},
 		{"resample", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Resample = "jackknife" })), "no_resample"},
@@ -261,7 +261,27 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 			return r
 		}(), "independent_predictors"},
 		{"extension model", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_MMM_HILL, Target: "y", Predictors: xs,
-			Params: json.RawMessage(`{"channels":["x1"]}`), Margins: &types.RegressionMargins{}}), "type REG_OLS or REG_GLM"},
+			Params: json.RawMessage(`{"channels":["x1"]}`), Margins: &types.RegressionMargins{}}), "declared_margins"},
+		// An undeclared model's block is the slot table's refusal, never
+		// the dependence rule's.
+		{"extension model with a derived predictor", func() *Request {
+			r := marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_MMM_HILL, Target: "y", Predictors: []string{"x1", "x1_log"},
+				Params: json.RawMessage(`{"channels":["x1"]}`), Margins: &types.RegressionMargins{}})
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
+			return r
+		}(), "declared_margins"},
+		// REG_ORDINAL declares margins (U68 E4-S1): the built-ins' shape
+		// and fit rules judge its block.
+		{"ordinal resample", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
+			Resample: "jackknife", Margins: &types.RegressionMargins{}}), "no_resample"},
+		{"ordinal scale", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
+			Margins: &types.RegressionMargins{Scale: "odds"}}), "scale response or link"},
+		{"ordinal predictor derived from a predictor", func() *Request {
+			r := marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: []string{"x1", "x1_log"},
+				Margins: &types.RegressionMargins{}})
+			r.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "x1", Label: "x1_log"}}
+			return r
+		}(), "independent_predictors"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := p.Process(ctx, tc.req)

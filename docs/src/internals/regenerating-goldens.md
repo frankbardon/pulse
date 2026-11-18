@@ -455,6 +455,37 @@ which the Go loader then refuses) and refuses any other R than 4.6.1.
 `TestReferenceOracle_MarginsMatchR` holds the analytic figures at
 relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
 `marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
+Its `ordinal_cases` block (U68 E4-S1, drawn last under its own seed so
+no GLM case moves) pins `REG_ORDINAL`'s per-level effects: the closed
+forms at the polr MLE (polished by Newton, as `gen_ordinal.R` does) —
+logit / probit / cloglog, `ame` / `mem`, response and link scale, the
+analytic, hc1 and cluster covariances, a frequency-weighted pair against
+the `rep()` expansion — and `marginaleffects` on polr set to that MLE,
+its Jacobian Richardson-extrapolated (`marginaleffects_numDeriv`, d =
+0.03, r = 4; the default forward difference agrees to only ~1e-3 on
+polr). `TestOrdinalMarginsOracle_ClosedForms` /
+`TestRegOrdinal_MarginsMatchREndToEnd` hold them at `1e-9`,
+`TestOrdinalMarginsOracle_Marginaleffects` at `1e-7`
+(`internal/regordinal`). Its `multinomial_cases` block (U68 E4-S2, drawn
+last under its own seed, `set.seed(20261118)`, so no earlier case moves;
+needs `nnet` 7.3-21) pins `REG_MULTINOMIAL`'s per-category effects: the
+closed forms π_k(β_kj − Σ_m π_m β_mj) at the multinom MLE polished by
+Newton, the delta-method gradient asserted against a central difference
+— `ame` / `mem`, response and link scale (the coefficient), the
+classical, hc1 and cluster covariances, a named reference over four
+categories, a frequency-weighted pair against the `rep()` expansion, a
+probability-weighted `ame` — and `marginaleffects` `avg_slopes` /
+`slopes(type = "probs")` on multinom with its `wts` set to that MLE (the
+same Richardson-extrapolated Jacobian; measured within 1.1e-8).
+`TestMultinomialMarginsOracle_ClosedForms` holds them at `1e-9`
+(measured 1.3e-15), `TestMultinomialMarginsOracle_Marginaleffects` at
+`1e-7` (`internal/processing/regression`). Regenerate `margins.json` alone, under its own
+`R_LIBS` (the `Matrix` row below): `R_LIBS=<lib with Matrix 1.7-6,
+insight 1.7.0, marginaleffects 1.0.0> Rscript
+scripts/reference/gen_margins.R internal/processing/testdata/reference`,
+then append the hash footer as the Makefile's `reference` target does.
+A rerun moves the existing cases by a few ulps (well inside every
+tolerance).
 
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
@@ -491,7 +522,32 @@ dispersion and covariance. It needs MASS 7.3-66, `sandwich` 3.1-3 and
 `lmtest` 0.9-40 (with `zoo` 1.9-1, from the Posit noble binary repo; the
 golden records the versions) and refuses any other R than 4.6.1.
 `TestReferenceOracle_NestedMatchesR` (`internal/service`) runs every
-case through Compose and holds every figure at relative `1e-10`.
+case through Compose and holds every figure at relative `1e-10`. Its
+`ordinal_cases` block (U68 E5-S1, drawn after every other case under
+its own seed, so no earlier row moves) compares two `REG_ORDINAL` fits:
+each `polr` (logistic) is Newton-polished to its MLE on the analytic
+gradient and information (the script stops unless `polr` agrees to
+1e-6 against max(|θ|, 1)); `lrt` is `anova.polr` (statistic, df and p
+cross-checked to 1e-6 / 1e-5), `wald` the Wald on the polished
+information or hc1 sandwich, cross-checked against the same Wald on
+`vcov(polr)` / `sandwich(polr, adjust = TRUE)` at 1e-4; the frequency
+case is `polr(weights = w)` against its `rep()` expansion.
+`TestReferenceOracle_NestedOrdinalMatchesR` holds them at `1e-10`.
+Its `multinomial_cases` block (U68 E5-S2, drawn after the ordinal
+block under its own seed) compares two `REG_MULTINOMIAL` fits: each
+`multinom` is Newton-polished to its MLE (the script stops unless
+`multinom` agrees to 1e-6); `lrt` is `anova.multinom` (LR stat. to
+1e-5, Df and `Resid. df` = (K − 1)·N* − edf exactly — on the `rep()`
+expansion for the frequency case), `wald` the Wald over every
+`"<level>:<term>"` key of the added predictors on the polished
+information or hc1 sandwich, the classical one cross-checked against
+`vcov(multinom)` at 1e-4; one case names a reference.
+`TestReferenceOracle_NestedMultinomialMatchesR` holds them at `1e-10`;
+it needs `nnet` 7.3-21.
+Regenerate this golden alone (`Rscript scripts/reference/gen_nested.R
+internal/processing/testdata/reference`, then the hash footer): a
+rerun moves the existing cases' last digits (~1e-14 relative) — no
+row moves.
 
 `scripts/reference/gen_multinomial.R` writes `multinomial.json`:
 `REG_MULTINOMIAL` against `nnet::multinom(Hess = TRUE, maxit = 1000,
@@ -508,9 +564,72 @@ fit), probability weights on w* = w·n_eff/Σw (no likelihood) and a
 dictionary level no row carries (dropped). It needs `nnet` 7.3-21 (a
 recommended package; install it into the user library where the R
 build omits it) and refuses any other R than 4.6.1 or nnet version.
+Per case it also scores (U68 E1-S2) every training row — the fitted
+probabilities, asserted within 1e-6 of `fitted(multinom)` — and a fixed
+grid of new rows (`score_rows`: `score_probabilities`, asserted within
+1e-6 of `predict(multinom, type = "probs")`, and `score_log_odds`
+against the reference); the grid draws no random number, so the fitted
+cases' data are unchanged. The same grid, labelled (cycling the fitted
+levels) and weighted on the weighted cases, is each case's
+`holdout_rows` (U68 E1-S3), with `holdout` the weighted `log_loss`,
+`brier` and `accuracy` `mn_scores` folds from those probabilities
+(`empty_level` adds a row at its dropped level, which no figure
+counts). Each case's `robust` block (U68 E3-S1) is the closed-form
+score sandwich at the polished MLE (`sandwich` has no `multinom`
+method): B = `solve(H)`, the unit score (y − π) ⊗ x over the
+non-reference blocks, the meat on the case's weights — `hc0`, `hc1`
+(N*/(N* − d)) and `cluster` (CR1 over `clusters`, a fixed function of
+the row index, so no random number is drawn) — each with its `vcov`,
+standard errors, Wald p-values and intervals
+(`TestReferenceOracle_MultinomialRobustMatchesR`). An `exponentiated`
+block (U68 E3-S2) per case — and one inside each robust type, on that
+type's SE — carries exp(β) (asserted equal to `exp(coef(multinom))` at
+1e-6), the delta-method exp(β)·SE and exp(β ∓ z·SE)
+(`TestReferenceOracle_MultinomialExponentiatedMatchesR`); it adds keys
+only, so no other figure moves. A `term_tests` block (U68 E4-S2) per
+case carries each predictor's joint Wald χ² on the classical covariance
+(asserted equal to `car::linearHypothesis` at 1e-10) and — but under
+probability weights — the LR χ² against the Newton-polished refit
+without it (asserted equal to `car::Anova(multinom)`'s type II LR at
+1e-6; car refits with multinom's BFGS, the random stream restored
+around it), with upper-tail p-values; each robust type adds its own
+`term_tests_wald` (`TestReferenceOracle_MultinomialTermTestsMatchR`,
+1e-10). It needs `car` 3.1-5 and adds keys only.
 `TestReferenceOracle_MultinomialMatchesR`
-(`internal/processing/regression`) holds every figure at relative
-`1e-10`.
+(`internal/processing/regression`) holds every figure — the row scores
+read through the bound fit's production scorer — at relative `1e-10`.
+A `modifiers` block (U68 E2-S2), drawn after every case under its own
+seed so no case's rows move, adds the resample / selection oracles: the
+manual-deletion jackknife on `multinom` (every leave-one-out and
+delete-a-cluster refit Newton-polished from the full fit and checked
+against `multinom` on the same deletion to 1e-6) and `MASS::stepAIC` on
+`multinom` (forward / backward / both, k = 2 and log(n)), re-run as a
+greedy search over the polished deviances that must pick the same terms
+with every step's winner more than 1e-3 ahead; it needs MASS 7.3-66 and
+refuses another. `TestMultinomial_JackknifeMatchesR` /
+`TestMultinomial_SelectionMatchesStepAIC` hold them at `1e-8`.
+
+`scripts/reference/gen_multinomial_penalty.R` (U68 E2-S3) writes
+`multinomial_penalty.json`: penalised `REG_MULTINOMIAL` against
+`glmnet(family = "multinomial", type.multinomial = "ungrouped",
+standardize = FALSE, control = list(thresh = 1e-20, maxit = 1e7))` —
+Pulse's `alpha` as glmnet's `lambda`, `l1_ratio` as its `alpha`,
+`unpenalized` as `penalty.factor` 0 with `lambda · sum(pf) / nvars`
+undoing glmnet's rescaling. glmnet's solution is Newton-polished on the
+active set (signs fixed, each unpenalised term's flat direction removed
+by a rank-one gauge term) until the step is below 1e-15 relative, the
+unpenalised terms centred over the categories; the script asserts the
+polish within 1e-6 of glmnet and the KKT conditions of the stated
+objective at relative 1e-10, and the grid probabilities within 1e-6 of
+`predict(glmnet, type = "response")`. Cases: ridge / lasso / elastic
+net on three categories, `unpenalized` on each kind, a
+frequency-weighted elastic net, ridge and elastic net on four (lasso
+stays on an odd category count, where glmnet's median centring is
+unique). It needs glmnet 5.1 and refuses any other R than 4.6.1.
+`TestReferenceOracle_MultinomialPenaltyMatchesGlmnet`
+(`internal/processing/regression`) holds the coefficients (exact zeros
+exactly), deviances and the grid's probabilities and per-category
+linear predictors at relative `1e-10`.
 
 `scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
 `REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
@@ -603,10 +722,41 @@ numerically, so the script stops unless polr (reltol 1e-14) agrees to
 probabilities, and the Brant test re-run with the binary logits at their
 fixed point (the package's own figure reproduced exactly with its
 untransposed cross block and glm's default stop; the golden keeps the
-symmetric covariance). Frequency weights are asserted equal to the
+symmetric covariance). The nominal test (U68 E6-S1, `ordinal`
+2026.7-26) polishes each partial proportional-odds fit by Newton on its
+analytic derivatives from the polished MLE and stops unless `clm`'s
+logLik agrees to 1e-8 and `nominal_test`'s LRT (the omnibus: `clm`
+with every predictor nominal) to 1e-6; a non-converging or crossing
+partial fit is recorded `null` (`nominal_test.failed`, R's own figure
+as `r_reported`); the `nominal_noconverge` case pins one, `logit_freq`'s
+x1 a crossing; frequency-weighted cases cover every link (a probability
+weight leaves the output absent, so no case carries one there). Frequency weights are asserted equal to the
 `rep()` expansion. `TestOrdinalOracle_Design` and
 `TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
-figure at relative `1e-10` (measured within 2e-12).
+figure at relative `1e-10` (measured within 2e-12). Every case carries
+an `exponentiated` block (U68 E3-S2) on its own covariance: the
+predictors' exp(β) (asserted equal to `exp(coef(polr))` at 1e-6), exp(β)·SE
+and exp(β ∓ qnorm(0.975)·SE) — a classical unweighted case also matches
+`exp(confint.default(polr))` at 1e-4 —, held by
+`TestRegOrdinal_ExponentiatedMatchesR` at `1e-10`. Each classical case
+also carries its per-row scores at the MLE (U68): `row_eta` (xᵀβ,
+`polr`'s `$lp` agreeing to 1e-6) and `row_probabilities` (P(Y = k | x),
+`predict(polr, type = "probs")` agreeing to 1e-6), which
+`TestOrdinalOracle_RowScores` and `TestRegOrdinal_ScoresMatchPolrEndToEnd`
+hold the `ATTR_REG_PREDICT` columns to at `1e-10`. Those cases without
+`params.levels` also carry eight fixed grid rows (`holdout_rows`, no
+random draw) and their weighted proper scores (`holdout`: `log_loss`,
+`brier`, `accuracy`, `rps` — `ord_scores` over `predict(polr, type =
+"probs")`), which `TestRegOrdinal_HoldoutMatchesR` holds a `holdout`
+fit to at `1e-10` (U68 E1-S3). A `modifiers` block, drawn after every
+case under its own seed (so no case moves), holds the resample and
+selection oracles (U68 E2-S1): the manual-deletion jackknife on `polr`
+(leave-one-out and by cluster, each refit polished and checked against
+`polr` on the same deletion) and `MASS::stepAIC` on `polr` (forward /
+backward / both at k = 2 and log(n), re-run over polished deviances
+with every step's winner clear of the runner-up by 1e-3), which
+`TestRegOrdinal_JackknifeMatchesR` and
+`TestRegOrdinal_SelectionMatchesStepAIC` hold at `1e-8`.
 
 ### The R toolchain
 
@@ -619,11 +769,12 @@ is the whole list in one place.
 |---|---|---|
 | `jsonlite` | 2.0.0 | every golden (`gen_reference.R`) |
 | `Matrix` | 1.7-5 / 1.7-6 | 1.7-5: nearest-PD repair, `gen_singularity.R` rank (`gen_multivariate.R` pins it; a recommended package, ships with most R builds). 1.7-6: the version `marginaleffects` resolves, pinned and recorded by `gen_margins.R`. The two pins exclude each other, so regenerate the multivariate goldens and `margins.json` under separate library setups (`R_LIBS_USER`) |
-| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
-| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`) |
+| `nnet` | 7.3-21 | `REG_MULTINOMIAL` (`gen_multinomial.R`; `gen_margins.R`'s `multinomial_cases`; `gen_nested.R`'s `multinomial_cases`, `anova.multinom`; the weighted reference `reg_reference.R`); a recommended package — install it into the user library where the R build omits it |
+| `MASS` | 7.3-66 | `REG_GLM` negative binomial (`gen_glm_nb.R`: `glm.nb`, `theta.ml`, `negative.binomial`; `anova.negbin` in `gen_nested.R`; a recommended package — install it into the user library where the R build omits it); `REG_ORDINAL` (`gen_ordinal.R`: `polr`, `stepAIC`; `anova.polr` in `gen_nested.R`); `REG_MULTINOMIAL` modifiers (`gen_multinomial.R`: `stepAIC`) |
 | `brant` | 0.3.0 | the `REG_ORDINAL` Brant test (`gen_ordinal.R`); from the Posit noble binary repo |
+| `ordinal` | 2026.7-26 | the `REG_ORDINAL` nominal test (`gen_ordinal.R`: `clm`, `nominal_test`); with its import `ucminf` 1.2.3 (pinned; compiles Fortran, so install both with the workaround below) |
 | `psych` | 2.6.9 | reliability, KMO / Bartlett, minres / principal-axis / ML factor analysis, factor scores |
-| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6) |
+| `car` | 3.1-5 | VIF (`MAT_COLLINEARITY`, and the regression `collinearity` block in `gen_vif.R`; with `carData` 3.0-6); the multinomial `term_tests` (`gen_multinomial.R`: `linearHypothesis`, `Anova`) |
 | `ppcor` | 1.1 | partial correlation |
 | `perturb` | 2.10 | collinearity diagnostics (archived on CRAN; needs `gdata`) |
 | `corpcor` | 1.6.10 | `cor2pcor`; a `Hotelling` dependency |
@@ -634,7 +785,7 @@ is the whole list in one place.
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
-| `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
+| `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`) and `REG_MULTINOMIAL` (`gen_multinomial_penalty.R`); thresh / maxit through `control` |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
@@ -662,7 +813,7 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0", MASS = "7.3-66")
+            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

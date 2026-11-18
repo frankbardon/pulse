@@ -1,6 +1,7 @@
 package regcov
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -47,6 +48,20 @@ func TestCheck(t *testing.T) {
 		{"bayes hac", with(ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "", ""},
 		{"glm resample", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type, s.Resample = types.REG_GLM, "bootstrap" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonResample},
 		{"bayes selection", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type, s.Selection = types.REG_BAYES_LINEAR, "forward" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonSelection},
+		// REG_MULTINOMIAL (U68 E3-S1) computes hc0 / hc1 / cluster; hc2 /
+		// hc3 / hac are its type refusal, beside the penalty / resample /
+		// selection ones every robust type shares.
+		{"multinomial hc0", with(ols(&types.RegressionCovariance{Type: types.CovarianceHC0}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), "", ""},
+		{"multinomial hc1", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), "", ""},
+		{"multinomial cluster", with(ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g"}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), "", ""},
+		{"multinomial hc2", with(ols(&types.RegressionCovariance{Type: types.CovarianceHC2}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"multinomial hc3", with(ols(&types.RegressionCovariance{Type: types.CovarianceHC3}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"multinomial hac", with(ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"multinomial hc2 + penalty", with(ols(&types.RegressionCovariance{Type: types.CovarianceHC2}), func(s *types.RegressionSpec) { s.Type, s.Penalty = types.REG_MULTINOMIAL, "l2" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"multinomial penalty", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type, s.Penalty = types.REG_MULTINOMIAL, "l1" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonPenalty},
+		{"multinomial resample", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type, s.Resample = types.REG_MULTINOMIAL, "jackknife" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonResample},
+		{"multinomial selection", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type, s.Selection = types.REG_MULTINOMIAL, "forward" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonSelection},
+		{"multinomial classical", with(ols(&types.RegressionCovariance{Type: types.CovarianceClassical}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), "", ""},
 		{"type without the estimators", with(ols(hc1()), func(s *types.RegressionSpec) { s.Type = "REG_OTHER" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
 		{"ridge", with(ols(hc1()), func(s *types.RegressionSpec) { s.Penalty = "l2" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonPenalty},
 		{"resample", with(ols(hc1()), func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonResample},
@@ -88,5 +103,23 @@ func TestDataRefusals(t *testing.T) {
 	}
 	if e := OrderTies(spec, 7); e.Details["reason"] != ReasonOrderTies || e.Details["value"] != 7.0 || e.Details["order_by"] != "t" {
 		t.Errorf("OrderTies = %+v", e)
+	}
+}
+
+// TestTypes: the covariance types each regression type computes — every
+// one on REG_OLS / REG_GLM / REG_BAYES_LINEAR, classical, hc0, hc1 and
+// cluster on REG_MULTINOMIAL, classical alone elsewhere.
+func TestTypes(t *testing.T) {
+	t.Parallel()
+
+	if got := Types(types.REG_GLM); len(got) != len(types.AllCovarianceTypes()) {
+		t.Errorf("REG_GLM: %v", got)
+	}
+	want := []types.CovarianceType{types.CovarianceClassical, types.CovarianceHC0, types.CovarianceHC1, types.CovarianceCluster}
+	if got := Types(types.REG_MULTINOMIAL); !slices.Equal(got, want) {
+		t.Errorf("REG_MULTINOMIAL: %v, want %v", got, want)
+	}
+	if got := Types("REG_OTHER"); !slices.Equal(got, []types.CovarianceType{types.CovarianceClassical}) {
+		t.Errorf("REG_OTHER: %v", got)
 	}
 }

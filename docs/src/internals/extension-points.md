@@ -1016,6 +1016,8 @@ warnings is byte-identical.
 | `PValues` | the model emits coefficient p-values, so its slot takes a `multiplicity` block (family: the coefficients with a defined p, the intercept excluded) and predict counts them. Undeclared, the model emits none: `p_values` is null on every coefficient (under `resample` too), predict counts none, a block resolving to any method but `none` is `PULSE_MULTIPLICITY_INVALID` (`key: "method"`, `valid: ["none"]`) at predict and runtime alike, and a fit reporting a finite p-value is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `undeclared_p_value` (at `pulse.New` on the probe fit, and on every run) |
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
 | `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
+| `Margins` | the model reports marginal effects: its fitted value implements `extend.MarginsRegression`, so a spec's `margins` block is honoured — see **Marginal effects** below. Undeclared, `margins` is `PROCESSING_CONFIG` `{regression, slot: "margins", requires: "declared_margins"}` at predict and runtime alike |
+| `Compare` | two fits of the model can be compared as nested models by a Compose `compare` entry: its fitted value implements `extend.CompareRegression` — see **Nested-model comparisons** below. Undeclared, a comparison naming the type is `PULSE_COMPARISON_INVALID` reason `type_unsupported` (`requires: "type REG_OLS, REG_GLM, REG_MULTINOMIAL or declared_compare"`) at predict and runtime alike |
 | `NoResample` | the model opts out of the engine's resample driver (a row-subset refit would break it — it reads row order — or cost `bootstrap_iters` full fits): `resample`, `jackknife_groups`, `jackknife_by` and `bootstrap_iters` are `PROCESSING_CONFIG` `{regression, slot: "resample"}` (`key` names a set knob) at predict and runtime alike, and the manifest row lists no `resample` slot. `rng_seed` still reaches the factory (`spec.RNGSeed`) for the model's own use. Unset, every model accepts resample |
 | `RequiresOrder` | `func(*types.RegressionSpec) bool`, optional and spec-only: true for a spec the model can fit only over ordered rows (it carries state from one row to the next — an adstock, a lag). Such a spec without `order` is `PROCESSING_CONFIG` `{regression, slot: "order", reason: "order_required", requires: "order"}` at predict and runtime alike (`descx.ExtensionRegressionOrderRefusal`, before `Validate`); a panic is `PULSE_EXTENSION_SPEC_REFUSED`. With an `order` the engine hands the model its admitted rows sorted by `order.field` (per `order.partition` series) and contiguous — a repeat or a gap fails the slot alone with `PROCESSING_REGRESSION_ORDER` — so the model reads `rows.At(i)` in time order and never sorts. It judges a copy of the spec; nil requires no order |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
@@ -1039,6 +1041,7 @@ runtime adapter alike:
 | `penalty` (`alpha`, `l1_ratio`) | `Penalty` |
 | `selection` (`criterion`) | `SupportsSelection` |
 | `vcov` | `Vcov` |
+| `margins` | `Margins`; declared, the block then meets the built-ins' shape and fit rules (`regmargins.CheckDeclared`) |
 | `covariance` | the type is in `CovarianceTypes` |
 | `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`) | honoured unless `NoResample` — see **Modifiers** |
 | `rng_seed` | always honoured — the resample driver's seed, and the factory's `spec.RNGSeed` for the model's own use |
@@ -1049,6 +1052,64 @@ runtime adapter alike:
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params` | always honoured |
 | `multiplicity` | method `none` always; any other method needs `PValues` (`PULSE_MULTIPLICITY_INVALID` otherwise, from the shared multiplicity resolver) |
+
+**Marginal effects.** A registration declaring `Margins` takes the
+shared `margins` block (`{type, terms, scale}`). After a successful fit
+on a slot carrying one, the engine calls the fitted value's
+`Margins(extend.MarginsRequest{Type, Scale, Terms})` exactly once — so
+the model keeps what it needs (its design, its covariance) from the
+fit. The model returns each effect and its delta-method standard error
+(`extend.MarginalEffect{Outcome, Term, Estimate, StdErr}`, a nil
+`StdErr` null on the wire), plus `At` under `mem`; a categorical-response
+model lists `Outcomes` and reports one effect per outcome and term,
+keyed `"<outcome>:<term>"` on the result (whose `margins.outcomes` lists
+them — `REG_ORDINAL` is the built-in implementer). The engine writes the
+statistic, p-value and interval at `conf_level` on the coefficient
+table's rule (Student t on the reported `Fit.DF`, else the normal) and
+folds the effects into the regression's own `margins` multiplicity
+family; predict counts at least one p-value per term (basis
+`lower_bound`). The block is judged exactly as on `REG_OLS` / `REG_GLM`:
+a bad `type` / `scale` / `terms`, `penalty`, `selection`, `resample` or
+`bounds`, or a predictor derived from another predictor, is
+`PROCESSING_CONFIG` with `details.requires` at predict and runtime
+alike. A fitted value without the interface is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_margins`;
+effects not covering every requested term (per listed outcome) exactly
+once, an unlisted outcome or an `At` key that is not a predictor is
+reason `margins_shape` — at `pulse.New` (the probe fits once more with
+a default block) and on every run; a `Margins` panic at the probe is
+`PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `margins`).
+
+**Nested-model comparisons.** A registration declaring `Compare` can be
+read by a Compose `compare` entry (`regression-comparison` skill).
+After a successful fit that a comparison names — never otherwise — the
+engine calls the fitted value's `CompareFigures()` exactly once and
+reads `extend.CompareOutput{Terms, Coefficients, Covariance, Deviance,
+DFResidual}`: every estimated parameter (each predictor, plus any the
+model fits beside them — an ordinal model's thresholds), the estimates
+aligned with them, the covariance the standard errors read (classical
+or robust) square over them, −2·log-likelihood and the residual df.
+The comparison's rules are the built-ins': both fits this type, the
+restricted predictors a strict subset of the full fit's (the tested
+terms are the added predictors), the two requests equal but for the
+predictors and reporting knobs, no `penalty`, `selection` or bounds,
+`wald` refused under `resample`, `lrt` under a probability weight. The
+tests: `lrt` (the default) is the deviance change D₀ − D₁ on χ²(q) —
+the model's likelihood has no dispersion — and `wald` is
+b_Sᵀ V_SS⁻¹ b_S on χ²(q) over the full fit's covariance; `f` is refused
+(`requires: estimated_dispersion`). Two fits whose `params.levels`
+differ are `PULSE_COMPARISON_INVALID` reason `levels_differ`; fits whose
+non-predictor terms still differ by name once fitted fail the
+comparison alone (`PULSE_COMPARISON_ROWS_DIFFER`, reason
+`terms_differ`). A fitted value without the interface is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_compare`;
+figures with no term, an empty or repeated term, a predictor `Terms`
+does not name, or coefficients / covariance not aligned with `Terms`
+are reason `compare_shape` — at `pulse.New` (the probe maps its fit
+once more with a figures offer) and on every compared run; a
+`CompareFigures` panic at the probe is `PULSE_EXTENSION_FACTORY_PANIC`
+(`details.stage` `compare`). `REG_ORDINAL` is the built-in
+implementer (`anova.polr`).
 
 **Modifiers.** `resample` and `selection` run the built-in drivers
 around the model, every refit a fresh model from the factory (its spec

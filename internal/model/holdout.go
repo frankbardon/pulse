@@ -22,8 +22,12 @@ const HoldoutKey = "holdout"
 // PROCESSING_CONFIG reason draws_required (MMMBayesDrawsRefusal): its
 // scorer averages over the draws. A REG_MMM_HILL spec with
 // params.adstock is PROCESSING_CONFIG reason adstock_holdout
-// (MMMHillAdstockHoldoutRefusal). Nil when spec sets no holdout or its
-// fit can be scored.
+// (MMMHillAdstockHoldoutRefusal). A categorical-outcome fit (OutcomeType:
+// REG_ORDINAL, REG_MULTINOMIAL) takes a holdout like any scorable fit: it
+// scores the held-out rows' whole probability vector and reports the
+// proper scores (log_loss, brier, accuracy; rps on an ordered outcome)
+// instead of RMSE / MAE / R². Nil when spec sets no holdout or its fit
+// can be scored.
 func HoldoutScorerRefusal(spec *types.RegressionSpec, scorable ScorableFunc) *errors.CodedError {
 	if spec == nil || spec.Holdout == "" {
 		return nil

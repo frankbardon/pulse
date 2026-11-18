@@ -958,7 +958,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	"ATTR_REG_INFLUENCE":                    {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
-	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_OLS"},
+	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_BAYES", "REG_MMM_HILL", "REG_MULTINOMIAL", "REG_OLS", "REG_ORDINAL"},
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},
 	"OVERLAY_YOY":       {"GROUP_DATE"},
 	featFilterToFile:    {"FILTER_EXPRESSION"},
@@ -1004,10 +1004,10 @@ var hardEdges = map[string][]string{
 	// (a population file): without a regression or a vector battery
 	// there is nothing to save.
 	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
+		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL), featMatrices},
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
-	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS)},
+	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},
 	// An order sorts a regression slot's rows: without a regression
 	// there are no rows to order.
 	featRegOrder: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)},
@@ -1074,17 +1074,19 @@ var groupEdges = map[string][][]string{
 	// the sweep there is nothing to search, without the sampling modes
 	// no range axis (and no rng_seed to pin the search).
 	featSweepAdaptive: {{featComposeSweep}, {featSweepSampling}},
-	// A nested-model comparison tests two `fits` entries, both REG_OLS
-	// or both REG_GLM: without fits there is nothing to compare, without
-	// one of the two regressions no fit it can read.
-	featComposeCompare: {{featComposeFits}, {string(types.REG_GLM), string(types.REG_OLS)}},
+	// A nested-model comparison tests two `fits` entries, both REG_OLS,
+	// both REG_GLM, both REG_MULTINOMIAL (U68 E5-S2) or both REG_ORDINAL
+	// (a built-in declaring Compare, U68 E5-S1): without fits there is
+	// nothing to compare, without one of the regressions no fit it can
+	// read.
+	featComposeCompare: {{featComposeFits}, {string(types.REG_GLM), string(types.REG_MULTINOMIAL), string(types.REG_OLS), string(types.REG_ORDINAL)}},
 	// A multi-group fit is an inline SEM fit (MAT_SEM's or
 	// ATTR_SEM_SCORE's) that always models the means.
 	featSEMGroups: {{string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)}, {featSEMMeans}},
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS),
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_MULTINOMIAL), string(types.REG_OLS),
 			string(types.REG_ORDINAL), featMatrices},
 	},
 }

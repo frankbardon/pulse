@@ -11,7 +11,11 @@
 //
 //   - both names bind request-bound regression `fits` entries (not a
 //     vector / SEM fit, not `from_sweep`), two different ones, both
-//     REG_OLS or both REG_GLM;
+//     REG_OLS, both REG_GLM, both REG_MULTINOMIAL (admitted by the rule
+//     itself as a declared-like plan) or both one model whose
+//     declaration carries Compare (REG_ORDINAL, an embedder's: the
+//     declared predicate, read by predict and the runtime off the same
+//     instance view);
 //   - the restricted fit's terms — its predictors, plus "(intercept)"
 //     when it fits one — are all terms of the full fit, which adds at
 //     least one (the tested terms, in the full fit's order);
@@ -39,6 +43,25 @@
 //     or robust) — lmtest::waldtest(m0, m1, vcov = V); W/q on (q, df)
 //     where the coefficient table is Student t, χ² on q otherwise.
 //
+// A declared model (Plan.Declared) reports its own figures
+// (extend.CompareRegression): its terms are its predictors (an ordinal
+// fit's thresholds are no tested term), lrt is the plain deviance change
+// D₀ − D₁ on χ²(q) — anova.polr — and the default, wald is χ² on q, f is
+// refused (estimated_dispersion: no dispersion is estimated); two fits
+// whose params.levels differ are refused levels_differ (their thresholds
+// are other terms), and Compute fails the comparison alone
+// (PULSE_COMPARISON_ROWS_DIFFER, reason terms_differ) when the fits'
+// non-tested terms still differ by name.
+//
+// REG_MULTINOMIAL is planned the same way (Plan.Declared): its terms are
+// its predictors, and its figures map each to the K − 1
+// "<category>:<term>" keys it fits (model.RegressionFigures.TermKeys),
+// so lrt is anova.multinom — the deviance change on χ²((K − 1)·q) — and
+// wald reads every key of the added predictors; two fits naming
+// different references are refused reference_differs (their
+// coefficients are other contrasts), and fits whose category sets differ
+// fail alone at Compute (terms_differ).
+//
 // Default (empty test): R's anova default — f on REG_OLS and a family
 // that estimates its dispersion, lrt otherwise. Refused (reason
 // "requires", details.requires): a penalty ("unpenalized"), selection
@@ -64,6 +87,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
@@ -81,7 +105,20 @@ const (
 	RequiresNoResample          = "no_resample"
 	RequiresEstimatedDispersion = "estimated_dispersion"
 	RequiresNoProbabilityWeight = "no_probability_weight"
+	// RequiresComparableType is type_unsupported's requires: REG_OLS,
+	// REG_GLM, REG_MULTINOMIAL or a model whose declaration carries
+	// Compare.
+	RequiresComparableType = "type REG_OLS, REG_GLM, REG_MULTINOMIAL or declared_compare"
 )
+
+// builtinComparable reports a built-in regression type the rule admits
+// itself, never through the declared predicate: REG_OLS, REG_GLM and
+// REG_MULTINOMIAL (a declared-like plan, U68 E5-S2: its terms its
+// predictors, its figures one "<category>:<term>" key per non-reference
+// category and term).
+func builtinComparable(t types.RegressionType) bool {
+	return t == types.REG_OLS || t == types.REG_GLM || t == types.REG_MULTINOMIAL
+}
 
 // Plan is one comparison as Check resolved it: what Compute runs and
 // predict summarises.
@@ -105,6 +142,12 @@ type Plan struct {
 	LogLik bool
 	// FixedDispersion reports a family whose φ is fixed at 1.
 	FixedDispersion bool
+	// Declared reports an extension-shaped model whose declaration
+	// carries Compare (REG_ORDINAL, an embedder's): its terms are its
+	// predictors, its likelihood ratio the plain deviance change, its
+	// Wald test chi-square, and Compute holds the two fits' other terms
+	// (an ordinal model's thresholds) equal by name.
+	Declared bool
 }
 
 // FitNames returns every fit name a comparison reads (the fits the
@@ -147,7 +190,11 @@ func requires(i int, name, req, msg string, extra map[string]any) *errors.CodedE
 // defaultWeight (pulse.Options.DefaultWeight; nil for none). It returns
 // each comparison's Plan (index-aligned) — nil, nil without any — or the
 // first entry's refusal.
-func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeight *types.WeightSpec) ([]Plan, *errors.CodedError) {
+//
+// declared reports a regression type beyond REG_OLS / REG_GLM whose
+// declaration carries Compare (descriptor.ComparableRegressions — predict
+// and the runtime hand it the same instance view); nil admits none.
+func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeight *types.WeightSpec, declared func(types.RegressionType) bool) ([]Plan, *errors.CodedError) {
 	if len(compare) == 0 {
 		return nil, nil
 	}
@@ -175,7 +222,7 @@ func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeigh
 			return nil, invalid(i, c.Name, "name_duplicate", "the name is used by an earlier comparison", nil)
 		}
 		seen[c.Name] = true
-		p, err := checkOne(i, c, byName, available, defaultWeight)
+		p, err := checkOne(i, c, byName, available, defaultWeight, declared)
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +266,7 @@ func nonNil(s []string) []string {
 }
 
 // checkOne judges comparison i.
-func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpec, available []string, defaultWeight *types.WeightSpec) (Plan, *errors.CodedError) {
+func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpec, available []string, defaultWeight *types.WeightSpec, declared func(types.RegressionType) bool) (Plan, *errors.CodedError) {
 	p := Plan{Index: i, Name: c.Name, Restricted: c.Restricted, Full: c.Full}
 	f0, err := fitOf(i, c, "restricted", c.Restricted, byName, available)
 	if err != nil {
@@ -237,9 +284,9 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		field string
 		spec  *types.RegressionSpec
 	}{{"restricted", r0}, {"full", r1}} {
-		if side.spec.Type != types.REG_OLS && side.spec.Type != types.REG_GLM {
-			return p, invalid(i, c.Name, "type_unsupported", "the "+side.field+" fit is "+string(side.spec.Type)+"; a comparison reads REG_OLS or REG_GLM fits",
-				map[string]any{"field": side.field, "value": string(side.spec.Type), "requires": "type REG_OLS or REG_GLM"})
+		if !builtinComparable(side.spec.Type) && (declared == nil || !declared(side.spec.Type)) {
+			return p, invalid(i, c.Name, "type_unsupported", "the "+side.field+" fit is "+string(side.spec.Type)+"; a comparison reads REG_OLS, REG_GLM, REG_MULTINOMIAL or a model declaring comparisons",
+				map[string]any{"field": side.field, "value": string(side.spec.Type), "requires": RequiresComparableType})
 		}
 	}
 	if r0.Type != r1.Type {
@@ -247,6 +294,7 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 			map[string]any{"restricted_type": string(r0.Type), "full_type": string(r1.Type)})
 	}
 	p.Type = r0.Type
+	p.Declared = p.Type != types.REG_OLS && p.Type != types.REG_GLM
 	if c.Test != "" && !slices.Contains(types.AllComparisonTests(), c.Test) {
 		valid := make([]string, 0, 3)
 		for _, t := range types.AllComparisonTests() {
@@ -270,6 +318,9 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		}
 	}
 	terms0, terms1 := Terms(r0), Terms(r1)
+	if p.Declared {
+		terms0, terms1 = slices.Clone(r0.Predictors), slices.Clone(r1.Predictors)
+	}
 	var missing []string
 	for _, t := range terms0 {
 		if !slices.Contains(terms1, t) {
@@ -292,12 +343,31 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		return p, invalid(i, c.Name, "no_extra_terms", "the full fit adds no term to the restricted one", nil)
 	}
 	if keys := rowsDiffer(f0.Request, f1.Request); len(keys) > 0 {
+		if p.Type == types.REG_MULTINOMIAL && slices.Contains(keys, "regressions[0].reference") {
+			return p, invalid(i, c.Name, "reference_differs",
+				"the fits' reference categories differ, so their \"<category>:<term>\" coefficients are other contrasts and the models are not nested",
+				map[string]any{"restricted_reference": r0.Reference, "full_reference": r1.Reference})
+		}
+		if p.Declared && slices.Contains(keys, "regressions[0].params") {
+			if l0, l1 := paramLevels(r0), paramLevels(r1); string(l0) != string(l1) {
+				return p, invalid(i, c.Name, "levels_differ",
+					"the fits' outcome levels (params.levels) differ, so their thresholds are not the same terms and the models are not nested",
+					map[string]any{"restricted_levels": rawOrNil(l0), "full_levels": rawOrNil(l1)})
+			}
+		}
 		return p, invalid(i, c.Name, "request_mismatch",
 			"the fit requests differ beyond the regression's predictors, intercept and reporting knobs, so the fits are not on the same rows",
 			map[string]any{"keys": keys})
 	}
 	// The requests agree past here: the full fit's spec speaks for both.
 	estimates := true
+	if p.Declared {
+		// A declared model's deviance is −2ℓ: no dispersion is
+		// estimated, so a likelihood ratio divides by none and no F test
+		// is defined.
+		estimates = false
+		p.FixedDispersion = true
+	}
 	if p.Type == types.REG_GLM {
 		p.Family = r1.Family
 		switch {
@@ -320,8 +390,12 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 	switch p.Test {
 	case types.ComparisonTestF:
 		if !estimates {
+			fit := p.Family
+			if p.Declared {
+				fit = string(p.Type)
+			}
 			return p, requires(i, c.Name, RequiresEstimatedDispersion,
-				"an F test divides by an estimated dispersion; the "+p.Family+" fit fixes it (use lrt, or wald)", nil)
+				"an F test divides by an estimated dispersion; the "+fit+" fit fixes it (use lrt, or wald)", nil)
 		}
 		if probability {
 			return p, requires(i, c.Name, RequiresNoProbabilityWeight,
@@ -345,7 +419,7 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		// REG_OLS, and on a classical fit of a family that estimates its
 		// dispersion; Wald z otherwise (a robust REG_GLM fit too).
 		p.Distribution = types.ComparisonDistributionChiSquare
-		if p.Type == types.REG_OLS || (estimates && !r1.Covariance.Robust()) {
+		if !p.Declared && (p.Type == types.REG_OLS || (estimates && !r1.Covariance.Robust())) {
 			p.Distribution = types.ComparisonDistributionF
 		}
 	}
@@ -360,6 +434,43 @@ func Terms(spec *types.RegressionSpec) []string {
 		out = append(out, InterceptTerm)
 	}
 	return append(out, spec.Predictors...)
+}
+
+// paramLevels is a spec's params.levels as canonical JSON (nil when
+// absent): the outcome level set a declared categorical-response model
+// pins (REG_ORDINAL's), which its threshold terms are named by.
+func paramLevels(spec *types.RegressionSpec) json.RawMessage {
+	if len(spec.Params) == 0 {
+		return nil
+	}
+	// A lenient look: the model decodes (and records) params.levels
+	// itself.
+	var m map[string]any
+	if paramread.Probe(spec.Params, &m) != nil {
+		return nil
+	}
+	v, ok := m["levels"]
+	if !ok {
+		return nil
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return raw
+}
+
+// rawOrNil is a levels value for details: the decoded list, nil when
+// absent (the data's own order).
+func rawOrNil(raw json.RawMessage) any {
+	if raw == nil {
+		return nil
+	}
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return nil
+	}
+	return v
 }
 
 // probabilityWeighted reports a fit whose resolved weight (its slot

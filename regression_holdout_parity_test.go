@@ -7,11 +7,13 @@ import (
 	"math"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
@@ -148,8 +150,8 @@ func holdoutParityRoutes(t *testing.T, p *Pulse, c holdoutParityCase) *types.Reg
 			t.Errorf("holdout %s = %v (%#x), AGG route %v (%#x)", what, g, math.Float64bits(g), w, math.Float64bits(w))
 		}
 	}
-	bitEq("rmse", h.RMSE, agg.Data[0]["rmse"].(float64))
-	bitEq("mae", h.MAE, agg.Data[0]["mae"].(float64))
+	bitEq("rmse", *h.RMSE, agg.Data[0]["rmse"].(float64))
+	bitEq("mae", *h.MAE, agg.Data[0]["mae"].(float64))
 	rmseOp := agg.Components.Aggregations[0].Operator
 	if n := rmseOp["n_scored"]; n != h.N {
 		t.Errorf("holdout n = %d, AGG_RMSE n_scored = %v", h.N, n)
@@ -186,8 +188,8 @@ func holdoutParityRoutes(t *testing.T, p *Pulse, c holdoutParityCase) *types.Reg
 		sst += s.w * (d * d)
 	}
 	wantR2 := 1 - rmseOp["loss_sum"].(float64)/sst
-	if rel := math.Abs(h.R2-wantR2) / math.Max(1, math.Abs(wantR2)); !(rel <= 1e-12) {
-		t.Errorf("holdout r2 = %.17g, reference %.17g (rel %g)", h.R2, wantR2, rel)
+	if rel := math.Abs(*h.R2-wantR2) / math.Max(1, math.Abs(wantR2)); !(rel <= 1e-12) {
+		t.Errorf("holdout r2 = %.17g, reference %.17g (rel %g)", *h.R2, wantR2, rel)
 	}
 	if c.check != nil {
 		c.check(t, got)
@@ -396,25 +398,179 @@ var holdoutBuiltinPreds = map[types.RegressionType]string{types.REG_MMM_BAYES: "
 // ATTR_REG_PREDICT carries the same way, ordered by params.order.
 var holdoutBuiltinScores = map[types.RegressionType]string{types.REG_MMM_BAYES: `,"order":{"field":"week","partition":"market"}`}
 
+// holdoutOutcomeCases are the categorical-outcome built-ins' parity
+// cases over the weekly fixture: REG_ORDINAL on the frequency weight's
+// three values (numeric levels "1" < "2" < "3"), REG_MULTINOMIAL on the
+// market. outcomes are the levels / categories a slot names.
+var holdoutOutcomeCases = map[types.RegressionType]struct {
+	spec     func() *types.RegressionSpec
+	selector string
+	outcomes []string
+}{
+	types.REG_ORDINAL: {func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "reg-ordinal", Type: types.REG_ORDINAL, Target: "w", Predictors: []string{"tv_ad", "trend"}}
+	}, "level", []string{"1", "2", "3"}},
+	types.REG_MULTINOMIAL: {func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "reg-multinomial", Type: types.REG_MULTINOMIAL, Target: "market", Predictors: []string{"tv_ad", "trend"}}
+	}, "category", []string{"east", "west"}},
+}
+
+// holdoutOutcomeParityRoutes is holdoutParityRoutes for a categorical-
+// outcome fit: gate A as there (the fit is the filtered fit, only the
+// holdout block differs); gate B folds the proper scores test-side from
+// one ATTR_REG_PREDICT probability column per outcome, scored by a
+// Compose fit of the reference over the held-out rows — log_loss,
+// brier, accuracy and (ordered) rps within 1e-12 relative (the rows
+// come back in output order, not record order), n exactly — and holds
+// rmse / mae / r2 absent.
+func holdoutOutcomeParityRoutes(t *testing.T, p *Pulse, spec *types.RegressionSpec, selector string, outcomes []string) *types.RegressionResult {
+	t.Helper()
+	ctx := context.Background()
+	pred := holdoutParityPredicate
+
+	single := windowParityDerive()
+	hs := *spec
+	hs.Holdout = pred
+	single.Regressions = []*types.RegressionSpec{&hs}
+	resp, err := p.Process(ctx, single)
+	if err != nil {
+		t.Fatalf("single route Process: %v", err)
+	}
+	got := resp.Regressions[0]
+	if got == nil || got.Error != nil || got.Holdout == nil {
+		t.Fatalf("single route holdout fit failed: %+v", got)
+	}
+
+	mat := "holdout-" + spec.Name + ".pulse"
+	if _, err := p.Materialize(ctx, windowParityDerive(), mat, MaterializeOptions{Overwrite: true}); err != nil {
+		t.Fatalf("reference Materialize: %v", err)
+	}
+	expr := func(e string) []*types.Filterer {
+		return []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: e}}
+	}
+	trainFit := &Request{Cohort: &types.Cohort{Filename: mat}, Filterers: expr("!(" + pred + ")"),
+		Regressions: []*types.RegressionSpec{spec}}
+	refResp, err := p.Process(ctx, trainFit)
+	if err != nil {
+		t.Fatalf("reference fit Process: %v", err)
+	}
+	fit := *got
+	fit.Holdout = nil
+	assertRegressionsBitEqual(t, []*types.RegressionResult{&fit}, refResp.Regressions)
+
+	var cols []*types.Attribute
+	for i, o := range outcomes {
+		cols = append(cols, &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: "p" + strconv.Itoa(i),
+			Params: json.RawMessage(`{"fit":"` + spec.Name + `","output":"probability","` + selector + `":"` + o + `"}`)})
+	}
+	rows := &Request{Label: "rows", Cohort: &types.Cohort{Filename: mat}, Filterers: expr(pred), Attributes: cols,
+		Windows: []*types.Window{{Type: types.WIN_ROW_NUMBER, Label: "row", PartitionBy: []string{"market"},
+			OrderBy: []types.OrderKey{{Field: "week"}}}}}
+	ref, err := p.Compose(ctx, &ComposedRequest{
+		Fits:     []types.FitSpec{{Name: spec.Name, Request: trainFit}},
+		Requests: []*Request{rows},
+	})
+	if err != nil {
+		t.Fatalf("reference Compose: %v", err)
+	}
+	k := len(outcomes)
+	ordered := spec.Type == types.REG_ORDINAL
+	var n int
+	var logLoss, brier, correct, rps float64
+	for _, r := range ref.Responses[0].Data {
+		label, ok := r[spec.Target].(string)
+		if !ok {
+			v, isNum := numberOf(r[spec.Target])
+			if !isNum {
+				continue
+			}
+			label = strconv.FormatFloat(v, 'g', -1, 64)
+		}
+		y := slices.Index(outcomes, label)
+		pv := make([]float64, k)
+		scored := y >= 0
+		for j := range pv {
+			v, isNum := r["p"+strconv.Itoa(j)].(float64)
+			pv[j], scored = v, scored && isNum
+		}
+		if !scored {
+			continue
+		}
+		n++
+		arg := 0
+		var cum float64
+		for j, v := range pv {
+			o := 0.0
+			if j == y {
+				o = 1
+			}
+			brier += (v - o) * (v - o)
+			if v > pv[arg] {
+				arg = j
+			}
+			if ordered && j < k-1 {
+				cum += v
+				c := 0.0
+				if y <= j {
+					c = 1
+				}
+				rps += (cum - c) * (cum - c) / float64(k-1)
+			}
+		}
+		logLoss -= math.Log(pv[y])
+		if arg == y {
+			correct++
+		}
+	}
+	h := got.Holdout
+	if h.N != n || h.RMSE != nil || h.MAE != nil || h.R2 != nil || (h.RPS != nil) != ordered {
+		t.Fatalf("holdout %+v: reference scored %d rows; want no rmse / mae / r2, rps iff ordered", *h, n)
+	}
+	near := func(what string, g *float64, w float64) {
+		t.Helper()
+		if g == nil || !(math.Abs(*g-w)/math.Max(1, math.Abs(w)) <= 1e-12) {
+			t.Errorf("holdout %s = %v, reference %.17g", what, g, w)
+		}
+	}
+	nf := float64(n)
+	near("log_loss", h.LogLoss, logLoss/nf)
+	near("brier", h.Brier, brier/nf)
+	near("accuracy", h.Accuracy, correct/nf)
+	if ordered {
+		near("rps", h.RPS, rps/nf)
+	}
+	return got
+}
+
 // TestHoldout_EveryScorableBuiltin: every built-in regression type with
 // a scorer takes a holdout and passes gates A and B (REG_MMM_BAYES
 // through its draws, its held-out rows' raw spend adstocked with the
 // train rows' adstock carried in — a carried ATTR_REG_PREDICT's figure
-// exactly); the ones without
-// (REG_ORDINAL and REG_MULTINOMIAL, whose fits predict a distribution
-// over levels, not one score) have no case — their holdout slot is
-// refused alike by predict and the runtime (internal/regordinal
-// TestRegOrdinal_RefusalsPredictMatchRuntime,
-// TestMultinomial_PredictMatchesRuntime).
+// exactly). REG_ORDINAL and REG_MULTINOMIAL score a probability per
+// level / category: their holdout reports the proper scores of that
+// vector, pinned against ATTR_REG_PREDICT's probability columns
+// (holdoutOutcomeParityRoutes). Every built-in has a scorer.
 func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 	t.Parallel()
 
 	p := windowParityPulse(t, Options{})
 	for _, typ := range types.AllRegressionTypes() {
-		if _, scorable := regression.BuiltinScorer(typ); !scorable {
-			if _, listed := holdoutBuiltinCases[typ]; listed || (typ != types.REG_MULTINOMIAL && typ != types.REG_ORDINAL) {
-				t.Errorf("%s has no scorer: only REG_MULTINOMIAL and REG_ORDINAL are expected to, without a holdout parity case", typ)
+		if oc, outcome := holdoutOutcomeCases[typ]; outcome || model.OutcomeType(typ) {
+			if _, listed := holdoutBuiltinCases[typ]; listed || !outcome || !model.OutcomeType(typ) {
+				t.Errorf("%s: a categorical-outcome type takes a holdoutOutcomeCases case, never a holdoutBuiltinCases one", typ)
+				continue
 			}
+			if _, scorable := regression.BuiltinScorer(typ); !scorable {
+				t.Errorf("%s has no scorer: its ATTR_REG_PREDICT columns need one", typ)
+				continue
+			}
+			t.Run(string(typ), func(t *testing.T) {
+				holdoutOutcomeParityRoutes(t, p, oc.spec(), oc.selector, oc.outcomes)
+			})
+			continue
+		}
+		if _, scorable := regression.BuiltinScorer(typ); !scorable {
+			t.Errorf("%s has no scorer: every built-in regression has one", typ)
 			continue
 		}
 		mk, ok := holdoutBuiltinCases[typ]
@@ -466,9 +622,9 @@ func TestHoldout_BayesCarryoverOptOut(t *testing.T) {
 	if h.N != want.n {
 		t.Errorf("carryover false n = %d, pre-carry-over %d", h.N, want.n)
 	}
-	near("rmse", h.RMSE, want.rmse)
-	near("mae", h.MAE, want.mae)
-	near("r2", h.R2, want.r2)
+	near("rmse", *h.RMSE, want.rmse)
+	near("mae", *h.MAE, want.mae)
+	near("r2", *h.R2, want.r2)
 
 	carried := holdoutBuiltinCases[types.REG_MMM_BAYES]()
 	carried.Holdout = "week > 46"
@@ -478,8 +634,8 @@ func TestHoldout_BayesCarryoverOptOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c := resp.Regressions[0].Holdout; c == nil || c.RMSE == h.RMSE {
-		t.Errorf("carried holdout %+v did not move from the as-given %v", c, h.RMSE)
+	if c := resp.Regressions[0].Holdout; c == nil || *c.RMSE == *h.RMSE {
+		t.Errorf("carried holdout %+v did not move from the as-given %v", c, *h.RMSE)
 	}
 }
 
@@ -519,7 +675,7 @@ func TestHoldout_ResampleScoresPointEstimate(t *testing.T) {
 					t.Fatalf("%s coefficient %s = %v, point estimate %v", name, k, r.Coefficients[k], v)
 				}
 			}
-			if *r.Holdout != *plain.Holdout && !(math.IsNaN(r.Holdout.R2) && math.IsNaN(plain.Holdout.R2)) {
+			if !holdoutFiguresEqual(r.Holdout, plain.Holdout) {
 				t.Fatalf("%s holdout %+v, point-estimate holdout %+v", name, *r.Holdout, *plain.Holdout)
 			}
 		})
@@ -543,7 +699,7 @@ func TestHoldout_ParityExtensionWithScorer(t *testing.T) {
 	p := holdoutExtensionInstance(t, centredScorerFactory)
 	spec := &types.RegressionSpec{Name: "centred", Type: regScoredName, Target: "sales", Predictors: []string{"tv_ad"}}
 	got := holdoutParityRoutes(t, p, holdoutParityCase{name: "centred", spec: spec})
-	if got.Holdout.N != holdoutParityHeldN() || !(got.Holdout.RMSE > 0) {
+	if got.Holdout.N != holdoutParityHeldN() || !(*got.Holdout.RMSE > 0) {
 		t.Fatalf("extension holdout = %+v", *got.Holdout)
 	}
 }
@@ -722,4 +878,21 @@ func TestBayesInfluence_RefusedByDesignPredictRuntimeParity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// holdoutFiguresEqual reports whether two holdout blocks carry the same
+// counts and, figure by figure, the same presence and bits (NaN equal
+// to NaN).
+func holdoutFiguresEqual(a, b *types.RegressionHoldout) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	same := func(x, y *float64) bool {
+		if x == nil || y == nil {
+			return x == y
+		}
+		return math.Float64bits(*x) == math.Float64bits(*y) || (math.IsNaN(*x) && math.IsNaN(*y))
+	}
+	return a.N == b.N && a.NNull == b.NNull && same(a.RMSE, b.RMSE) && same(a.MAE, b.MAE) && same(a.R2, b.R2) &&
+		same(a.LogLoss, b.LogLoss) && same(a.Brier, b.Brier) && same(a.Accuracy, b.Accuracy) && same(a.RPS, b.RPS)
 }

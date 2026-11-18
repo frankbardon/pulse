@@ -136,7 +136,7 @@ The result:
   },
   "returned": {
     "preset": "standard",
-    "digest": "rp1:abd3a74537a2a306192c3189cce38b981668cac105275015cad2c2145ef54a08",
+    "digest": "rp1:3740c6cf7d1b2603620bc368cb97f40488ddae2bc40c4df12447e16826612255",
     "precision": 4
   }
 }

@@ -29,20 +29,25 @@ import (
 // on the rep() expansion.
 
 type nestedCase struct {
-	Name                 string      `json:"name"`
-	Test                 string      `json:"test"`
-	N                    int         `json:"n"`
-	Family               string      `json:"family"`
-	Link                 string      `json:"link"`
-	Theta                float64     `json:"theta"`
-	Dispersion           string      `json:"dispersion"`
-	Covariance           string      `json:"covariance"`
-	Weight               string      `json:"weight"`
-	Restricted           []string    `json:"restricted"`
-	Full                 []string    `json:"full"`
-	RestrictedIntercept  bool        `json:"restricted_intercept"`
-	Terms                []string    `json:"terms"`
-	Distribution         string      `json:"distribution"`
+	Name                string   `json:"name"`
+	Test                string   `json:"test"`
+	N                   int      `json:"n"`
+	Family              string   `json:"family"`
+	Link                string   `json:"link"`
+	Theta               float64  `json:"theta"`
+	Dispersion          string   `json:"dispersion"`
+	Covariance          string   `json:"covariance"`
+	Weight              string   `json:"weight"`
+	Restricted          []string `json:"restricted"`
+	Full                []string `json:"full"`
+	RestrictedIntercept bool     `json:"restricted_intercept"`
+	Terms               []string `json:"terms"`
+	Distribution        string   `json:"distribution"`
+	// Levels / Reference: a multinomial case's target dictionary (y the
+	// 1-based index into it) and its named reference ("" for the first
+	// observed level).
+	Levels               []string    `json:"levels"`
+	Reference            string      `json:"reference"`
 	Rows                 [][]float64 `json:"rows"`
 	Statistic            float64     `json:"statistic"`
 	DF                   float64     `json:"df"`
@@ -58,6 +63,15 @@ type nestedCase struct {
 }
 
 func loadNested(t *testing.T) []nestedCase {
+	t.Helper()
+	cases, _, _ := loadNestedDoc(t)
+	return cases
+}
+
+// loadNestedDoc is nested.json's OLS / GLM cases, its REG_ORDINAL
+// ordinal_cases (U68 E5-S1) and its REG_MULTINOMIAL multinomial_cases
+// (U68 E5-S2).
+func loadNestedDoc(t *testing.T) (cases, ordinal, multinomial []nestedCase) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "processing", "testdata", "reference", "nested.json"))
 	if err != nil {
@@ -76,14 +90,18 @@ func loadNested(t *testing.T) []nestedCase {
 		RVersion string            `json:"r_version"`
 		Packages map[string]string `json:"packages"`
 		Cases    []nestedCase      `json:"cases"`
+		Ordinal  []nestedCase      `json:"ordinal_cases"`
+		Multinom []nestedCase      `json:"multinomial_cases"`
 	}
 	if err := json.Unmarshal([]byte(body), &doc); err != nil {
 		t.Fatalf("decode nested.json: %v", err)
 	}
-	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["lmtest"] != "0.9.40" || len(doc.Cases) != 21 {
-		t.Fatalf("nested.json: R %q, lmtest %q, %d cases", doc.RVersion, doc.Packages["lmtest"], len(doc.Cases))
+	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["lmtest"] != "0.9.40" || doc.Packages["nnet"] != "7.3.21" ||
+		len(doc.Cases) != 21 || len(doc.Ordinal) != 4 || len(doc.Multinom) != 4 {
+		t.Fatalf("nested.json: R %q, lmtest %q, nnet %q, %d cases, %d ordinal cases, %d multinomial cases",
+			doc.RVersion, doc.Packages["lmtest"], doc.Packages["nnet"], len(doc.Cases), len(doc.Ordinal), len(doc.Multinom))
 	}
-	return doc.Cases
+	return doc.Cases, doc.Ordinal, doc.Multinom
 }
 
 const nestedCohort = "nested.pulse"
@@ -100,24 +118,45 @@ func nestedSchema() *encoding.Schema {
 
 func (c nestedCase) service(t *testing.T) *Service {
 	t.Helper()
+	schema := nestedSchema()
+	if c.Family == "multinomial" {
+		// y is a categorical over the case's levels, stored as its
+		// 0-based dictionary code.
+		dict := encoding.NewDictionary()
+		for _, l := range c.Levels {
+			if _, err := dict.Add(l); err != nil {
+				t.Fatal(err)
+			}
+		}
+		schema.Fields[3] = encoding.Field{Name: "y", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 24, Dictionary: dict}
+		schema.Fields[4].ByteOffset = 25
+	}
 	rows := make([][]uint64, len(c.Rows))
 	for i, r := range c.Rows {
 		rows[i] = make([]uint64, len(r))
 		for j, v := range r {
 			rows[i][j] = math.Float64bits(v)
+			if j == 3 && c.Family == "multinomial" {
+				rows[i][j] = uint64(v) - 1
+			}
 		}
 	}
-	return New(setupTestFS(t, nestedCohort, nestedSchema(), rows))
+	return New(setupTestFS(t, nestedCohort, schema, rows))
 }
 
 // fit is the case's fit request over predictors.
 func (c nestedCase) fit(predictors []string, intercept bool) *types.Request {
 	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors}
-	if !intercept {
+	switch {
+	case c.Family == "ordinal":
+		spec.Type = types.REG_ORDINAL
+	case c.Family == "multinomial":
+		spec.Type, spec.Reference = types.REG_MULTINOMIAL, c.Reference
+	case !intercept:
 		f := false
 		spec.Intercept = &f
 	}
-	if c.Family != "gaussian" {
+	if c.Family != "gaussian" && c.Family != "ordinal" && c.Family != "multinomial" {
 		spec.Type, spec.Family, spec.Link, spec.Tol, spec.MaxIters = types.REG_GLM, c.Family, c.Link, 1e-13, 200
 		spec.Theta, spec.Dispersion = c.Theta, c.Dispersion
 	}
@@ -159,8 +198,43 @@ func nestedRel(got, want float64) float64 {
 // terms are R's.
 func TestReferenceOracle_NestedMatchesR(t *testing.T) {
 	t.Parallel()
+	checkNestedOracle(t, loadNested(t))
+}
+
+// TestReferenceOracle_NestedOrdinalMatchesR: two REG_ORDINAL fits
+// compared through the declared-compare hook (regordinal's
+// extend.CompareRegression, U68 E5-S1) — the likelihood ratio, its df
+// (the added predictors), the residual df Σw − (predictors + thresholds)
+// and the deviances agree with anova.polr, and the Wald statistic on the
+// full fit's classical or hc1 covariance with the R Wald on the polished
+// polr information, at 1e-10 relative; the frequency-weighted case
+// against polr(weights = w).
+func TestReferenceOracle_NestedOrdinalMatchesR(t *testing.T) {
+	t.Parallel()
+	_, ordinal, _ := loadNestedDoc(t)
+	checkNestedOracle(t, ordinal)
+}
+
+// TestReferenceOracle_NestedMultinomialMatchesR: two REG_MULTINOMIAL fits
+// compared (U68 E5-S2, D7) — the likelihood ratio, its df (K − 1 per
+// added predictor), the residual df (K − 1)·N* − edf and the deviances
+// agree with anova.multinom, and the Wald statistic over every
+// "<level>:<term>" key of the added predictors on the full fit's
+// classical or hc1 covariance with the R Wald on the polished multinom
+// information (cross-checked on vcov(multinom)), at 1e-10 relative; a
+// named reference and a frequency-weighted case against the rep()
+// expansion.
+func TestReferenceOracle_NestedMultinomialMatchesR(t *testing.T) {
+	t.Parallel()
+	_, _, multinomial := loadNestedDoc(t)
+	checkNestedOracle(t, multinomial)
+}
+
+// checkNestedOracle runs every case through Compose and holds it to R.
+func checkNestedOracle(t *testing.T, cases []nestedCase) {
+	t.Helper()
 	worst := map[string]float64{}
-	for _, c := range loadNested(t) {
+	for _, c := range cases {
 		resp, err := c.service(t).Compose(context.Background(), c.batch())
 		if err != nil {
 			t.Fatalf("%s: Compose: %v", c.Name, err)
@@ -183,7 +257,7 @@ func TestReferenceOracle_NestedMatchesR(t *testing.T) {
 			if e > worst[what] {
 				worst[what] = e
 			}
-			if e > 1e-10 {
+			if !(e <= 1e-10) { // NaN fails too
 				t.Errorf("%s: %s = %.17g, want %.17g (rel %.2g)", c.Name, what, g, w, e)
 			}
 		}

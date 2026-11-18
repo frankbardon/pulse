@@ -34,6 +34,16 @@ type ExtensionRegression struct {
 	// SupportsSelection reports that the model can be refit over a
 	// predictor subset, so the selection driver may wrap it.
 	SupportsSelection bool
+	// Margins reports that the model reports marginal effects
+	// (RegressionRegistration.Margins; its fitted value implements
+	// extend.MarginsRegression), so a spec's margins block is honoured —
+	// judged by regmargins.CheckDeclared — rather than refused.
+	Margins bool
+	// Compare reports that two fits of the model can be compared as
+	// nested models (RegressionRegistration.Compare; its fitted value
+	// implements extend.CompareRegression), so regcompare.Check admits
+	// the type rather than refusing it type_unsupported.
+	Compare bool
 	// NoResample reports that the model opts out of the engine's
 	// resample driver (RegressionRegistration.NoResample): resample and
 	// its knobs are refused, not honoured.
@@ -155,6 +165,20 @@ func regressionExtensionFor(inst *InstanceSnapshot, snap *ExtensionsSnapshot, t 
 		return m, d, true
 	}
 	return modelRegressionFor(t)
+}
+
+// ComparableRegressions is the predicate regcompare.Check reads for a
+// type beyond REG_OLS / REG_GLM / REG_MULTINOMIAL (the built-ins the rule
+// admits itself): an extension-shaped REG_* model the
+// instance offers (snap, else the instance's own projection; a model
+// regression too) whose declaration carries Compare. Predict
+// (validateComposeExpanded) and the Compose runtime (compareRefusal)
+// both judge through it, so the two admit the same types.
+func ComparableRegressions(inst *InstanceSnapshot, snap *ExtensionsSnapshot) func(types.RegressionType) bool {
+	return func(t types.RegressionType) bool {
+		_, decl, ok := regressionExtensionFor(inst, snap, t)
+		return ok && decl.Compare
+	}
 }
 
 // isRegisteredRegression reports whether t is an extension REG_* model

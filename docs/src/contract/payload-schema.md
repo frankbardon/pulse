@@ -996,7 +996,8 @@ the additive `omitempty` `RegressionSpec` string `dispersion`
 `summary.glm`). Every other family leaves `theta` and `theta_std_err`
 absent.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
-terms, scale}`, `REG_OLS` / `REG_GLM`) adds the additive `omitempty`
+terms, scale}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
+model declaring `Margins`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
 (`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
@@ -1007,7 +1008,14 @@ and — gated on `capability:multiplicity` like the coefficient twins —
 (`AppliedMultiplicity`, `family: "margins"`) echo: under the
 regression's own block the terms form one family per regression, apart
 from the coefficients'. An undefined figure is `null`,
-key kept. A request without `margins` is byte-identical.
+key kept. A request without `margins` is byte-identical. On a
+per-level fit (`REG_ORDINAL`, `REG_MULTINOMIAL` — U68 E4-S2, every
+fitted category on the response scale, the non-reference ones on the
+link — or an extension model whose
+`extend.MarginsRegression` lists outcomes) the block adds the additive
+`omitempty` string array `outcomes` (the levels, in order) and every
+map is keyed `"<outcome>:<term>"`; absent, the maps are keyed by term
+(`REG_OLS` / `REG_GLM` bytes unchanged).
 An additive `omitempty` `RegressionSpec` object `collinearity`
 (`{basis, groups}`, `REG_OLS` / `REG_GLM`; `basis` `model` |
 `predictors`, `groups` an array of `{name, predictors}`) adds the
@@ -1055,7 +1063,9 @@ regressions (`REG_MMM_HILL`, `REG_MMM_BAYES`, `REG_ORDINAL`) answer in
 the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
 beside the predictors (no intercept), leaves their `p_values` `null`,
 and fills `outputs` `link`, `levels`, `thresholds`,
-`fitted_probabilities` and, with `params.brant`, `brant`.
+`fitted_probabilities` and, with `params.brant`, `brant` (with
+`params.nominal_test`, `nominal_test`: `{statistic, df, p_value, terms}`,
+a failed partial fit's figures `null`; absent under a probability weight).
 `REG_MMM_HILL` with `params.adstock` appends `decay:<channel>` (and
 `peak:<channel>`) after `s:<channel>`, adds `outputs.condition_number`
 (`null` when the joint block does not invert) and, above 1e6, carries
@@ -1179,8 +1189,18 @@ positive weight present; a raw count), `n_null` the null-predicate
 rows, the figures on the response scale (a `REG_GLM`'s inverse link)
 weighted by the slot `weight`, `r2` = 1 − SSE/SST about the held-out
 rows' own mean — `null` (key kept) when the held-out targets do not
-vary. Absent `holdout` is byte-identical and `format_version` stays
-`"1.1"`. A predicate that does not compile as a boolean or names an
+vary. A categorical-outcome fit (`REG_ORDINAL`, `REG_MULTINOMIAL`, U68
+E1-S3) scores each held-out row's probability vector p instead and
+reports `{n, n_null, log_loss, brier, accuracy}` (`REG_ORDINAL` adds
+`rps`), weighted means over the scored rows: `log_loss` = −ln p_y
+(natural log; `null` when p_y is 0), `brier` = Σ_k (p_k − [y = k])²,
+`accuracy` = the share whose most probable outcome (the first on a tie)
+is y, `rps` = Σ_{k<K} (F_k − [y ≤ k])²/(K − 1) over the cumulative
+probabilities F_k; `rmse` / `mae` / `r2` are absent there, as the
+categorical figures are on a numeric fit (every figure is an
+`omitempty` key). A held-out row whose outcome the fit does not carry
+is not scored. Absent `holdout` is byte-identical, a numeric fit's
+block is byte-identical, and `format_version` stays `"1.1"`. A predicate that does not compile as a boolean or names an
 unknown column is `PULSE_FORMULA_COMPILE_ERROR`; a type the instance
 cannot score is `PULSE_MODEL_SCORE_INVALID` `details.reason`
 `no_scorer` — both refused identically at predict and at runtime. No
@@ -1231,7 +1251,61 @@ every other regression. The per-coefficient maps (`coefficients`,
 `significant_adjusted`) and `vcov`'s row / column keys read
 `"<level>:<term>"` per non-reference level (`"<level>:(intercept)"` for
 the intercept). Absent is byte-identical and `format_version` stays
-`"1.1"`.
+`"1.1"`. A multinomial fit binds under a Compose `fits` entry, saves
+(its model file lists feature `categories`) and loads through `models`
+(U68 E1-S2); `ATTR_REG_PREDICT` scores it one column per slot
+(`params.category`: P(y = category), the default output;
+`params.output: class`: the most probable category's 0-based index in
+`categories`; `params.scale: link`: the category's log-odds against the
+reference), and `coef()` reads its `"<level>:<term>"` keys. A `holdout`
+reports its proper scores (Regression holdout, U68 E1-S3). Under
+`resample` / `selection` (U68 E2-S2) the result echoes them as a
+built-in's does (`resample`, `bootstrap_requested` /
+`bootstrap_succeeded`, `jackknife_groups`, `selection`, `criterion`,
+`selected_features`), the per-coefficient maps keep the
+`"<level>:<term>"` keys, and a resampled fit adds `statistics` (the
+Wald z on the replicate SE); every refit keeps the full fit's
+`categories` and `reference`. Under a `penalty` (U68 E2-S3; the spec's
+`penalty`, `alpha`, `l1_ratio` and `unpenalized` keys, echoed as
+`penalty` / `alpha` / `l1_ratio`) the fit is glmnet's symmetric form:
+`reference` is absent, the per-coefficient maps carry `"<level>:<term>"`
+for EVERY level in `categories`, `std_errors` / `p_values` / `ci_lower`
+/ `ci_upper` are `null` on every key (with
+`advisories[PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]`) unless
+`resample` replaces them, and `two_log_lik` / `aic` / `vcov` are absent.
+No key is added; `format_version` stays `"1.1"`.
+
+An additive `omitempty` boolean `RegressionSpec.exponentiate` (U68
+E3-S2, `REG_MULTINOMIAL` and `REG_ORDINAL` only; any other type is
+`PROCESSING_CONFIG` with `details.slot: exponentiate` and
+`details.requires: type REG_MULTINOMIAL or REG_ORDINAL`, at predict and
+at runtime alike) adds the additive `omitempty` object
+`RegressionResult.exponentiated` (`RegressionExponentiated`): the
+key-keyed number maps `estimates` (exp(β)), `std_errors` (the
+delta-method exp(β)·SE), `ci_lower` / `ci_upper` (exp of each interval
+bound), keyed like `coefficients` — every `"<level>:<term>"` key on a
+multinomial fit (relative-risk ratios), the predictors only on an
+ordinal fit (cumulative odds ratios; no threshold key). `std_errors`,
+`ci_lower` and `ci_upper` carry exactly the keys their raw twins carry,
+on whatever covariance the fit used (classical, robust, resampled); a
+raw `null` stays `null` (a penalized multinomial fit: exp(β) beside
+`null` figures). The raw maps never move. In the `standard` preset (not
+`minimal`); every float is rounded by `return.precision`. Absent is
+byte-identical and `format_version` stays `"1.1"`.
+
+An additive `omitempty` boolean `RegressionSpec.term_tests` (U68 E4-S2,
+`REG_MULTINOMIAL` only; any other type, or beside a `penalty`,
+`selection` or `resample`, is `PROCESSING_CONFIG` with
+`details.slot: term_tests`, at predict and at runtime alike) adds the
+additive `omitempty` object `RegressionResult.term_tests`
+(`RegressionTermTests`): `terms` (string array, the predictors), and the
+term-keyed maps `df` (integers, K − 1), `wald_chi2` / `wald_p_values`
+(numbers; on the fit's covariance) and the additive `omitempty`
+`lr_chi2` / `lr_p_values` (numbers; against the refit without the term,
+absent under a probability weight). An undefined figure is `null`, key
+kept. In the `standard` preset (not `minimal`); every float is rounded
+by `return.precision`. Absent is byte-identical and `format_version`
+stays `"1.1"`.
 
 ## Per-group aggregation components
 
@@ -1571,8 +1645,8 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`, `regression_type` — a `REG_MULTINOMIAL` fit, which
-nothing binds); a fit request's own refusal keeps its
+`vector_source`; a `REG_MULTINOMIAL` fit binds since U68 E1-S2 — the
+`regression_type` reason is gone); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -1723,7 +1797,11 @@ that converged (null when none did).
 comparison of two regression `fits` entries, run once after the fits
 with no record data (R's `anova(m0, m1)` / `lmtest::waldtest`). `test`
 is the `ComparisonTest` enum `f` / `lrt` / `wald` (absent: `f` on
-`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise);
+`REG_OLS` and a family that estimates its dispersion, `lrt` otherwise —
+and on a model declaring comparisons, `REG_ORDINAL`, whose `f` is
+refused and whose two fits need equal `params.levels`, reason
+`levels_differ`, and on `REG_MULTINOMIAL`, whose `f` is refused and
+whose two fits need an equal `reference`, reason `reference_differs`);
 `multiplicity` (gated by `capability:multiplicity`) inherits the batch
 block, family `compose` only. Predict and the runtime refuse an entry
 identically before any fit or slot runs — `PULSE_COMPARISON_INVALID`
@@ -1746,7 +1824,14 @@ row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
 full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
 (`slot_kind` `comparisons`). Both slots are gated by
 `capability:compose_compare` (a dependency on `capability:compose_fits`
-and `REG_OLS` or `REG_GLM`). `pulse_predict` with `composed` lists the
+and `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`). On
+`REG_MULTINOMIAL` the `terms` are the added predictors and `df` counts
+their K − 1 `"<level>:<term>"` coefficients each, (K − 1)·len(`terms`),
+and each fit's residual df is (K − 1)·N* − rank (`anova.multinom`).
+Two declared or multinomial fits whose non-tested terms (ordinal
+thresholds, multinomial categories) differ once fitted fail the
+comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` `reason:
+terms_differ`. `pulse_predict` with `composed` lists the
 entries as `compare [{name, restricted, full, test, distribution,
 terms}]` on the predict result (not payload-reachable). The figures a
 comparison reads off each fit beyond its wire result (its residual
@@ -1788,7 +1873,8 @@ list naming exactly the optional sections it carries: `robust_covariance`
 standard errors, `outputs` — its coefficients named by the model — for an
 extension regression whose registration supplies a scorer, `dispersion`
 for a classical `vcov` fit that carries one, `theta` for a `REG_GLM`
-`negative_binomial` fit; versions 2 to 6 of earlier builds are refused
+`negative_binomial` fit, `categories` — with `reference` — for every
+`REG_MULTINOMIAL` fit; versions 2 to 6 of earlier builds are refused
 with a re-save message; `.pulse-model.json`; the format is in
 `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root

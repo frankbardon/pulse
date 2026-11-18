@@ -4391,7 +4391,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
           "params": [
             {
               "name": "fit",
@@ -4410,7 +4410,7 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "REG_GLM only: response applies the inverse link (the fit's fitted means); link returns the linear predictor.",
+              "description": "REG_GLM, REG_ORDINAL and REG_MULTINOMIAL only: response applies the inverse link (the fit's fitted means; a categorical-outcome fit's params.output); link returns the linear predictor (ordinal: η = xᵀβ, no output or level; multinomial: params.category's log-odds against the reference, 0 for the reference itself, no output).",
               "enum_values": [
                 "response",
                 "link"
@@ -4440,6 +4440,30 @@
               "type": "object",
               "required": false,
               "description": "{field, partition?}: the scoring frame's period field (unsigned integer, date or datetime) and series field ordering a carried score's rows; required to carry (else order_required), refused otherwise. The rows' raw spend is adstocked at the fit's kernel in that order, each series contiguous at the fit's period (a repeat or gap is PROCESSING_REGRESSION_ORDER). Makes the slot two-pass."
+            },
+            {
+              "name": "output",
+              "type": "enum",
+              "required": false,
+              "description": "REG_ORDINAL: probability P(y = level) and cumulative P(y ≤ level) (both need level; probability is the default with one), expected Σ k·P(y = k) over the levels numbered 1..K (the default without level), class the 1-based position of the most probable level. REG_MULTINOMIAL: probability P(y = category) (the default; needs category), class the most probable category's 0-based dictionary index among the fit's categories (dictionary order; a level no fitted row carried is not counted). Refused on any other fit (outcome_unsupported); an output the fit's type lacks is output_unknown.",
+              "enum_values": [
+                "probability",
+                "cumulative",
+                "expected",
+                "class"
+              ]
+            },
+            {
+              "name": "level",
+              "type": "string",
+              "required": false,
+              "description": "REG_ORDINAL only: one level of the fit (outputs.levels, as written: \"high\", \"3\") for output probability / cumulative; an unknown level is outcome_unknown. for_each over the levels gives one column each. Refused on any other fit."
+            },
+            {
+              "name": "category",
+              "type": "string",
+              "required": false,
+              "description": "REG_MULTINOMIAL only: one category of the fit (its categories, as written) for output probability or scale link — required by both (outcome_required); an unknown category is outcome_unknown (judged by predict once the categories are known: a loaded model file, else the run). for_each over the categories gives one column each. Refused on any other fit."
             }
           ],
           "accepts_types": [
@@ -9632,7 +9656,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys.",
+        "emits_type_note": "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"\u003clevel\u003e:\u003cterm\u003e\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated); margins adds the per-category marginal effects; term_tests adds the joint predictor tests. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
         "streamable": false,
         "streamable_hint": "Always buffered; Newton-Raphson requires multiple passes over the data.",
         "params": [
@@ -9657,8 +9681,44 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).",
+            "description": "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary, or a penalty, is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).",
             "slot": true
+          },
+          {
+            "name": "penalty",
+            "type": "enum",
+            "required": false,
+            "default": "",
+            "description": "glmnet's symmetric multinomial (ungrouped): every category gets coefficients, no reference; REG_GLM's objective over all of them. Null inference unless resampled.",
+            "enum_values": [
+              "",
+              "elasticnet",
+              "l1",
+              "l2"
+            ],
+            "slot": true
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "description": "Penalty strength, \u003e 0 (glmnet's lambda).",
+            "slot": true
+          },
+          {
+            "name": "l1_ratio",
+            "type": "float",
+            "required": false,
+            "description": "elasticnet mix, 0 \u003c l1_ratio \u003c 1 (glmnet's alpha).",
+            "slot": true
+          },
+          {
+            "name": "unpenalized",
+            "type": "list",
+            "required": false,
+            "description": "Any penalty: predictors left unshrunk (glmnet's penalty.factor 0).",
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "max_iters",
@@ -9677,6 +9737,72 @@
             "slot": true
           },
           {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Orthogonal resampling layer: every replicate refits at the full fit's categories and reference; a bootstrap replicate missing one is skipped, a jackknife one fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason replicate_empty_level).",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ],
+            "slot": true
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
+          },
+          {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed, echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
+          },
+          {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper, term-level: a predictor enters or leaves across every non-reference category at once (MASS::stepAIC on multinom).",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ],
+            "slot": true
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection: deviance + k·(K−1)·(terms + 1), k = 2 (aic) or ln(n_obs) (bic).",
+            "enum_values": [
+              "aic",
+              "bic"
+            ],
+            "slot": true
+          },
+          {
             "name": "conf_level",
             "type": "float",
             "required": false,
@@ -9689,14 +9815,21 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.",
+            "description": "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors (the robust sandwich under covariance). A penalty refuses it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "covariance",
+            "type": "object",
+            "required": false,
+            "description": "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.",
             "slot": true
           },
           {
             "name": "weight",
             "type": "object",
             "required": false,
-            "description": "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.",
+            "description": "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out. Bootstrap / selection refuse one (PULSE_WEIGHT_UNSUPPORTED); a weighted jackknife runs.",
             "slot": true
           },
           {
@@ -9707,6 +9840,36 @@
             "slot": true
           },
           {
+            "name": "exponentiate",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the relative-risk ratios exp(β) on every \"\u003clevel\u003e:\u003cterm\u003e\" key (Stata mlogit, rrr), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled); null SE and bounds under a penalty.",
+            "slot": true
+          },
+          {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_MULTINOMIAL per category, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with outcomes: scale response dπ_k/dx (every fitted level; they sum to 0), link the level's log-odds against the reference (its coefficient). Wald z.",
+            "slot": true
+          },
+          {
+            "name": "term_tests",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add term_tests: per predictor the joint test of its K−1 coefficients on df K−1 — Wald χ² on the fit's covariance (robust under covariance) and the LR χ² against the refit without it (car::Anova(multinom), type II; absent under a probability weight). Never corrected by multiplicity. Beside penalty, selection or resample, or on another type: PROCESSING_CONFIG.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, log_loss, brier, accuracy}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "order",
             "type": "object",
             "required": false,
@@ -9714,11 +9877,37 @@
             "slot": true
           },
           {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json) keeping its coefficients, categories and reference (feature categories); a `models` entry loads it and ATTR_REG_PREDICT scores it per category.",
+            "slot": true
+          },
+          {
             "name": "name",
             "type": "string",
             "required": false,
-            "description": "Result alias.",
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
             "slot": true
+          }
+        ],
+        "modifiers": [
+          {
+            "name": "resample",
+            "description": "Orthogonal resampling layer; non-empty forces the buffered path.",
+            "enum_values": [
+              "bootstrap",
+              "jackknife"
+            ]
+          },
+          {
+            "name": "selection",
+            "description": "Automated subset-selection wrapper; non-empty forces the buffered path. Requires criterion when set.",
+            "enum_values": [
+              "backward",
+              "forward",
+              "stepwise"
+            ]
           }
         ],
         "intents": [
@@ -10056,6 +10245,48 @@
             "names_column": true
           },
           {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ],
+            "slot": true
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
+          },
+          {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true,
+            "names_column": true
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
+          },
+          {
             "name": "conf_level",
             "type": "float",
             "required": false,
@@ -10078,11 +10309,42 @@
             "slot": true
           },
           {
+            "name": "selection",
+            "type": "enum",
+            "required": false,
+            "description": "Subset-selection wrapper: the engine refits the model over predictor subsets; a top-level key of the regression entry.",
+            "enum_values": [
+              "",
+              "backward",
+              "forward",
+              "stepwise"
+            ],
+            "slot": true
+          },
+          {
+            "name": "criterion",
+            "type": "enum",
+            "required": false,
+            "description": "Information criterion driving selection; a top-level key of the regression entry.",
+            "enum_values": [
+              "aic",
+              "bic"
+            ],
+            "slot": true
+          },
+          {
             "name": "vcov",
             "type": "bool",
             "required": false,
             "default": false,
             "description": "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "margins",
+            "type": "object",
+            "required": false,
+            "description": "{type, terms, scale}: adds margins, the model's marginal effect of each term (ame default, or mem at the weighted means; scale response default, or link) with its delta-method std error on the fit's own covariance; the engine adds statistic, p-value and interval at conf_level (t on the fit's df, else normal). A categorical-outcome model reports one effect per outcome level, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with margins.outcomes listing the levels. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor (independent_predictors). A multiplicity block corrects the effects as a family of their own (family margins). A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -10093,10 +10355,32 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, log_loss, brier, accuracy, rps}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
             "name": "weight",
             "type": "object",
             "required": false,
             "description": "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "exponentiate",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the predictors' cumulative odds ratios exp(β) (polr's exp(coef); no threshold key), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled). A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -10129,6 +10413,12 @@
             "type": "object",
             "required": false,
             "description": "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."
+          },
+          {
+            "name": "nominal_test",
+            "type": "object",
+            "required": false,
+            "description": "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC; absent under a probability weight (no likelihood)."
           }
         ],
         "intents": [
@@ -10164,6 +10454,11 @@
             "key": "brant",
             "json_type": "object",
             "description": "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."
+          },
+          {
+            "key": "nominal_test",
+            "json_type": "object",
+            "description": "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC. Absent under a probability weight (no likelihood)."
           }
         ]
       }
@@ -14899,11 +15194,11 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS, GLM, multinomial or model-regression fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
-        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
+        "description": "Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS, GLM, ordinal or multinomial fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-multinomial",
@@ -14915,7 +15210,7 @@
       },
       {
         "name": "op-reg-ordinal",
-        "description": "REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant test, weights, refusals. Always buffered."
+        "description": "REG_ORDINAL — ordinal (proportional-odds) regression of an ordered response, MASS::polr's model, logit / probit / cloglog; thresholds, Brant and nominal tests, weights, refusals. Always buffered."
       },
       {
         "name": "op-synth-bernoulli",
@@ -15195,11 +15490,11 @@
       },
       {
         "name": "regression-margins",
-        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares and generalized linear fits, response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Marginal effects on a regression — average marginal effects (ame) and marginal effects at the mean (mem) on least-squares, generalized linear, ordinal and multinomial fits (per level), response or link scale, delta-method standard errors that follow the fit's covariance (classical, HC, cluster, HAC), execution and the refusals. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-model-options",
-        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Model options beyond the textbook fit — a penalty over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -15211,7 +15506,7 @@
       },
       {
         "name": "regression-row-scores",
-        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, an ordinal fit's per-level columns, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-spec",
@@ -21543,6 +21838,8 @@
           "regressions[*].covariance",
           "regressions[*].margins",
           "regressions[*].collinearity",
+          "regressions[*].exponentiated",
+          "regressions[*].term_tests",
           "regressions[*].advisories",
           "regressions[*].holdout",
           "regressions[*].statistics",
@@ -21673,4 +21970,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 33670e6f5c02dea3d1fa0895901e140912d2406a24e8c8a124b732d1eb925826
+// golden-hash: b02c03e347b03b3e5f68231885b66fcf2355d284fe44999bd8dbf19f714bc262

@@ -1179,6 +1179,45 @@ type RegressionRegistration struct {
 	// replicate_coefficients). Limits.RequestTimeout is read before
 	// every refit.
 	CovarianceTypes []types.CovarianceType
+	// Margins declares that the model reports marginal effects: its
+	// fitted value implements extend.MarginsRegression, which the engine
+	// calls once after a successful fit on a slot carrying a margins
+	// block (types.RegressionSpec.Margins). The model computes each
+	// effect and its delta-method standard error; the engine writes the
+	// statistic, p-value and interval at conf_level (a Student t on the
+	// fit's reported df, else the normal), the result's
+	// types.RegressionMarginsResult — keyed by term, or "<outcome>:<term>"
+	// with Outcomes for a per-level model — and the margins multiplicity
+	// family. Declared, the block is judged by the built-ins' shape and
+	// fit rules (type, scale, terms; refused beside penalty, selection,
+	// resample or bounds, and over a predictor derived from another —
+	// PROCESSING_CONFIG with details.requires) at predict and at runtime
+	// alike; a value without the interface, or effects not covering
+	// every requested (outcome, term) once, is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason missing_margins
+	// / margins_shape), at pulse.New's probe (which fits a spec carrying
+	// a default margins block) and on every run. Undeclared, margins is
+	// refused with PROCESSING_CONFIG {regression, slot: "margins"}.
+	Margins bool
+	// Compare declares that two fits of the model can be compared as
+	// nested models by a Compose `compare` entry
+	// (types.ComposedRequest.Compare): its fitted value implements
+	// extend.CompareRegression, which the engine calls once after a
+	// successful fit a comparison names. Declared, the comparison's
+	// rules are the built-ins' (both fits this type, the restricted
+	// predictors a subset of the full fit's on the same rows, no
+	// penalty, selection or bounds, a Wald test refused under resample
+	// and a likelihood ratio under a probability weight), its terms are
+	// the predictors and its tests lrt (the default) and wald — an F
+	// test is refused (requires estimated_dispersion) — at predict and
+	// at runtime alike; two fits whose params.levels differ are
+	// PULSE_COMPARISON_INVALID reason levels_differ. A value without the
+	// interface, or figures that do not name every predictor once with
+	// square covariance, is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH
+	// (reason missing_compare / compare_shape) at pulse.New's probe and
+	// on every compared run. Undeclared, a comparison naming the type
+	// is PULSE_COMPARISON_INVALID reason type_unsupported.
+	Compare bool
 	// NoResample opts the model out of the engine's resample driver —
 	// for a model a row-subset refit would break (one that reads row
 	// order, say) or make prohibitively slow (a sampler refit

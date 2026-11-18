@@ -392,7 +392,8 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 		Field: "std_errors.*",
 		Means: "How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix (nnet::multinom's Hessian).",
 		Caveats: []string{
-			"They assume the model is right; no robust (sandwich) form is offered for this model.",
+			"They assume the model is right unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); " +
+				"p_values, the intervals and vcov follow it.",
 		},
 	},
 	{
@@ -442,7 +443,105 @@ var interpRegMultinomial = slices.Concat([]descriptor.Interpretation{
 			"A fit that cannot converge within max_iters is refused rather than reported.",
 		},
 	},
-})
+}, regOutcomeHoldout, regExponentiated("the relative-risk ratio exp(coefficient) of this <category>:<term> key: the factor by which the odds of the category against the reference multiply per one-unit increase in the term's predictor, other predictors held fixed; <category>:(intercept) is those odds when every predictor is 0.",
+	"It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely."),
+	interpRegMultinomialMargins, interpRegMultinomialTermTests)
+
+// interpRegMultinomialMargins reads REG_MULTINOMIAL's per-category
+// margins block (U68 E4-S2): one effect per category and term, keyed
+// "<category>:<term>".
+var interpRegMultinomialMargins = []descriptor.Interpretation{
+	{
+		Field: "margins.estimates.*",
+		Means: "The marginal effect of this term on one category's probability (requested by margins), keyed \"<category>:<term>\" (margins.outcomes lists the categories): " +
+			"the change in P(Y = category) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). " +
+			"On the link scale it is the change in the category's log-odds against the reference — the coefficient itself, with its standard error.",
+		Sign: map[string]string{
+			"+": "a higher value of the predictor makes this category more likely, other predictors held fixed",
+			"-": "a higher value of the predictor makes this category less likely, other predictors held fixed",
+		},
+		Caveats: append([]string{
+			"A term's effects over all categories sum to 0: probability moves between categories. Its sign can differ from the coefficient's, which compares the category with the reference only.",
+		}, regMarginsCommon...),
+	},
+	{
+		Field: "margins.std_errors.*",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+	},
+	{
+		Field:   "margins.p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"A Wald z, as the coefficients': the p-value and interval use the normal distribution."},
+	},
+}
+
+// interpRegMultinomialTermTests reads REG_MULTINOMIAL's term_tests block
+// (U68 E4-S2): per predictor the joint test of its coefficients across
+// every non-reference category.
+var interpRegMultinomialTermTests = []descriptor.Interpretation{
+	{
+		Field: "term_tests.wald_chi2.*",
+		Means: "The Wald chi-square of this predictor (requested by term_tests): whether its coefficients are zero in every non-reference category at once, on df = categories - 1, from the fit's own covariance (classical, or the request's robust covariance). Larger is stronger evidence the predictor matters to the outcome.",
+		Caveats: []string{
+			"It tests the predictor as a whole: a large value can come from one category alone, so read the per-category coefficients or margins for where.",
+			"Its p-value is not corrected by a multiplicity block.",
+		},
+	},
+	{
+		Field:   "term_tests.wald_p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"The upper chi-square tail of wald_chi2 on df."},
+	},
+	{
+		Field: "term_tests.lr_chi2.*",
+		Means: "The likelihood-ratio chi-square of this predictor: how much the deviance rises when the model is refitted without it on the same rows (car::Anova on multinom, type II), on df = categories - 1. Larger is stronger evidence.",
+		Caveats: []string{
+			"Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood). It never reads a robust covariance.",
+			"With few rows per category it is usually more reliable than the Wald test; the two disagreeing is itself a warning.",
+		},
+	},
+	{
+		Field:   "term_tests.lr_p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"The upper chi-square tail of lr_chi2 on df."},
+	},
+	{
+		Field: "term_tests.df.*",
+		Means: "The test's degrees of freedom: the number of non-reference categories, one coefficient each.",
+	},
+}
+
+// regExponentiated reads the exponentiated block (exponentiate: true)
+// of REG_MULTINOMIAL and REG_ORDINAL: means is the estimate's reading,
+// caveats the type's own.
+func regExponentiated(means string, caveats ...string) []descriptor.Interpretation {
+	return []descriptor.Interpretation{
+		{
+			Field: "exponentiated.estimates.*",
+			Means: "The coefficient on the ratio scale (requested by exponentiate): " + means,
+			Sign: map[string]string{
+				"+": "a ratio above 1: higher predictor values multiply the odds up",
+				"-": "a ratio below 1: higher predictor values multiply the odds down",
+			},
+			Caveats: append(caveats, "1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction."),
+		},
+		{
+			Field: "exponentiated.std_errors.*",
+			Means: "The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.",
+			Caveats: []string{
+				"The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.",
+			},
+		},
+		{
+			Field: "exponentiated.ci_lower.*",
+			Means: "exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.",
+		},
+		{
+			Field: "exponentiated.ci_upper.*",
+			Means: "exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.",
+		},
+	}
+}
 
 var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	{
@@ -610,7 +709,7 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 		Caveats: []string{
 			"Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score " +
 				"by that many standard deviations, under cloglog it is a log hazard ratio.",
-			"It assumes the effect is the same at every step (proportional odds); params.brant tests it.",
+			"It assumes the effect is the same at every step (proportional odds); params.brant (logit) or params.nominal_test (any link) tests it.",
 			regCoefCausal,
 			regCoefUnits,
 			regCoefCollinear,
@@ -681,13 +780,78 @@ var interpRegOrdinal = slices.Concat([]descriptor.Interpretation{
 		Field: "outputs.*",
 		Means: "outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; " +
 			"outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: " +
-			"a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.",
+			"a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it; " +
+			"outputs.nominal_test, with params.nominal_test, the same question on any link as a likelihood-ratio test against a fit that frees the predictor's effect at every step (every predictor for the omnibus).",
 		Caveats: []string{
 			"The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.",
 			"A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.",
+			"A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight there is no likelihood, so nominal_test is absent.",
 		},
 	},
-})
+}, regOutcomeHoldout, regExponentiated("the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).",
+	"Under probit or cloglog it is not an odds ratio: exp of a probit shift has no ratio reading, and under cloglog it is a hazard ratio."), []descriptor.Interpretation{
+	{
+		Field: "holdout.rps",
+		Means: "The ranked probability score on the held-out rows: per row the squared gaps between the predicted cumulative probability P(Y <= k) and whether the outcome is at most k, " +
+			"summed over the K - 1 cut points and divided by K - 1, then averaged; 0 is perfect, lower is better.",
+		Caveats: []string{
+			"Unlike log_loss and brier it respects the order: predicting a neighbouring level costs less than a distant one.",
+		},
+	},
+}, interpRegOrdinalMargins)
+
+// interpRegOrdinalMargins reads REG_ORDINAL's per-level margins block
+// (U68 E4-S1): one effect per level and term, keyed "<level>:<term>".
+var interpRegOrdinalMargins = []descriptor.Interpretation{
+	{
+		Field: "margins.estimates.*",
+		Means: "The marginal effect of this term on one level's probability (requested by margins), keyed \"<level>:<term>\" (margins.outcomes lists the levels): " +
+			"the change in P(Y = level) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). " +
+			"On the link scale it is the change in the cumulative link of P(Y <= level) — minus the coefficient, the same at every level but the last.",
+		Sign: map[string]string{
+			"+": "a higher value of the predictor makes this level more likely, other predictors held fixed",
+			"-": "a higher value of the predictor makes this level less likely, other predictors held fixed",
+		},
+		Caveats: append([]string{
+			"A term's effects over all levels sum to 0: probability moves between levels. A positive coefficient lowers the lowest level and raises the highest; a middle level's effect can take either sign.",
+		}, regMarginsCommon...),
+	},
+	{
+		Field: "margins.std_errors.*",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).",
+	},
+	{
+		Field:   "margins.p_values.*",
+		Shared:  SharedPValue,
+		Caveats: []string{"A Wald z, as the coefficients': the p-value and interval use the normal distribution."},
+	},
+}
+
+// regOutcomeHoldout reads the proper scores a holdout over a
+// categorical-outcome fit (REG_ORDINAL, REG_MULTINOMIAL) reports: each
+// held-out row's probability vector against its observed outcome,
+// averaged with the slot weight.
+var regOutcomeHoldout = []descriptor.Interpretation{
+	{
+		Field: "holdout.log_loss",
+		Means: "The mean of -ln P(observed outcome) over the held-out rows (natural log): how surprised the model is by what happened; 0 is perfect, lower is better.",
+		Caveats: []string{
+			"It punishes a confident miss without limit: a held-out outcome given probability 0 makes it infinite (null).",
+			"Compare it only between models scored on the same held-out rows; always predicting each outcome's share is the baseline to beat.",
+		},
+	},
+	{
+		Field: "holdout.brier",
+		Means: "The mean over the held-out rows of the squared gaps between each outcome's predicted probability and 1 for the observed outcome, 0 for the others, summed over the outcomes: 0 is perfect, 2 the worst, lower is better.",
+	},
+	{
+		Field: "holdout.accuracy",
+		Means: "The share of held-out rows whose most probable outcome is the observed one (the first on a tie).",
+		Caveats: []string{
+			"It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.",
+		},
+	},
+}
 
 var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
 	{

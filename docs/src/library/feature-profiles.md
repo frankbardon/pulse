@@ -175,11 +175,11 @@ one name in every group must be enabled:
 | `OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR` | `AGG_WELFORD`, `AGG_VARIANCE` or `AGG_STDDEV` (any one) |
 | `OVERLAY_PROP_Z_VS_PRIOR` | `AGG_AVERAGE` |
 | `ATTR_REG_FITTED`, `ATTR_REG_INFLUENCE`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
-| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one) |
+| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
-| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS`, `REG_ORDINAL`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
+| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL` (any one; a regression `holdout` scores that slot's fit — a categorical-outcome fit by its probability vector's proper scores) |
 | `capability:regression_order` | any built-in regression (`REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_BAYES`, `REG_MMM_HILL`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL`; a regression `order` sorts that slot's rows) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA`, `capability:regression_holdout` or `capability:compose_optimize` (any one; a request `params` value is read only by an expression) |
 | `capability:sem_meanstructure` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `meanstructure` param and `~ 1` model lines) |
@@ -191,7 +191,7 @@ one name in every group must be enabled:
 | `capability:compose_base` | `capability:compose` (the batch `base` merged into every explicit slot; hidden, a set `base` is an unknown field) |
 | `capability:materialize_output` | `capability:materialize` (the materialize-only request `output` slot, which lays out the written cohort; hidden, a set `output` is an unknown field) |
 | `capability:compose_sweep_bind` | `capability:compose_sweep` and `capability:compose_fits` (a `fits` entry's `from_sweep`, binding the ranked sweep winner as a named fit; hidden, a set `from_sweep` is an unknown field) |
-| `capability:compose_compare` | `capability:compose_fits`, and `REG_GLM` or `REG_OLS` (the batch `compare` nested-model comparisons of two fits and the `comparisons` they produce; hidden, a set `compare` is an unknown field while `fits` stay) |
+| `capability:compose_compare` | `capability:compose_fits`, and `REG_GLM`, `REG_MULTINOMIAL`, `REG_OLS` or `REG_ORDINAL` (the batch `compare` nested-model comparisons of two fits and the `comparisons` they produce; hidden, a set `compare` is an unknown field while `fits` stay) |
 | `capability:compose_post_fit` | `capability:compose_fits` (the batch `post_fit` runs of embedder-registered post-fit operators and the `post_fit` results they produce; hidden, a set `post_fit` is an unknown field while `fits` stay, and no post-fit operator can be enabled) |
 | `capability:sem_bootstrap` | `MAT_SEM` (its `resample`, `bootstrap_iters`, `rng_seed` and `ci_level` params) |
 | `capability:sem_ordinal` | `ATTR_SEM_SCORE` or `MAT_SEM` (their `estimator`, `ordered` and `parameterization` params: the DWLS / WLSMV ordinal fit, and its EBM scores) |

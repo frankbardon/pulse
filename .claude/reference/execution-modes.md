@@ -39,6 +39,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
 | Compose fits; Result pre-phase; Post-fit phase | `execution-modes/compose.md` |
+| Categorical-outcome scores (`REG_ORDINAL` / `REG_MULTINOMIAL` `ATTR_REG_PREDICT` columns, `model.ProbabilityScorer`, the outcome rule, the holdout's proper scores) | `execution-modes/categorical-scores.md` |
 | Adaptive sweeps (strategy registry, budget, rounds inside phase 0, penalised failures, predict budget) | `execution-modes/compose-adaptive.md` |
 | Parallel Compose; Compose banner; Compose base; Item fan-out (`for_each`) | `execution-modes/compose-parallel-banner.md` |
 | Scalar-expression slots (`internal/scalarslot`, `internal/windowscalar` window params, `unresolved_scalars`, adding a scalar slot) | `execution-modes/scalar-slots.md` |

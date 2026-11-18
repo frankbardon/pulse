@@ -61,7 +61,32 @@ func Compute(p Plan, restricted, full *types.RegressionResult, g0, g1 *model.Reg
 		}
 		return out, nil
 	}
-	q := float64(len(p.Terms))
+	// The tested coefficients: each tested term's keys in the full
+	// fit's figures (REG_MULTINOMIAL's one per non-reference category;
+	// the term itself elsewhere), in the figures' order.
+	tested := testedKeys(g1, p.Terms)
+	if p.Declared {
+		if r0, r1 := otherTerms(g0, nil), otherTerms(g1, tested); !slices.Equal(r0, r1) {
+			// A declared model's non-predictor terms (an ordinal
+			// model's thresholds; a multinomial fit's restricted keys,
+			// named by its categories) are named by its fitted levels:
+			// the fits estimated different ones, so they are not
+			// nested.
+			out.Error = &types.SlotError{
+				Code:    string(errors.PULSE_COMPARISON_ROWS_DIFFER),
+				Message: "fits " + p.Restricted + " and " + p.Full + " estimated different terms beside the tested ones (outcome levels), so they cannot be compared",
+				Details: map[string]any{
+					"reason":     "terms_differ",
+					"restricted": p.Restricted, "full": p.Full,
+					"restricted_terms": r0, "full_terms": r1,
+				},
+			}
+			return out, nil
+		}
+	}
+	// q counts the tested coefficients: len(p.Terms) but on
+	// REG_MULTINOMIAL, (K − 1)·len(p.Terms) — anova.multinom's Df.
+	q := float64(len(tested))
 	out.Distribution = p.Distribution
 	out.Terms = slices.Clone(p.Terms)
 	out.DF = q
@@ -95,7 +120,7 @@ func Compute(p Plan, restricted, full *types.RegressionResult, g0, g1 *model.Reg
 		}
 		out.PValue = chiSquareP(out.Statistic, q)
 	case types.ComparisonTestWald:
-		w := wald(g1, p.Terms)
+		w := wald(g1, tested)
 		if p.Distribution == types.ComparisonDistributionF {
 			out.DFResidual = g1.WaldDF
 			out.Statistic = w / q
@@ -157,4 +182,40 @@ func wald(g *model.RegressionFigures, terms []string) float64 {
 		w += float64(b[a] * x.At(a))
 	}
 	return w
+}
+
+// testedKeys is the coefficient keys of terms in g, in g.Terms order:
+// each term's TermKeys (a multinomial fit's "<category>:<term>" keys),
+// or the term itself when g maps none. A term g does not fit stays
+// (unsorted, after the fitted ones), so wald reads it as missing.
+func testedKeys(g *model.RegressionFigures, terms []string) []string {
+	var keys []string
+	for _, t := range terms {
+		if ks, ok := g.TermKeys[t]; ok {
+			keys = append(keys, ks...)
+		} else {
+			keys = append(keys, t)
+		}
+	}
+	pos := func(k string) int {
+		if i := slices.Index(g.Terms, k); i >= 0 {
+			return i
+		}
+		return len(g.Terms)
+	}
+	slices.SortStableFunc(keys, func(a, b string) int { return pos(a) - pos(b) })
+	return keys
+}
+
+// otherTerms is g's terms outside tested, sorted: the terms both fits of
+// a nested pair must share.
+func otherTerms(g *model.RegressionFigures, tested []string) []string {
+	out := []string{}
+	for _, t := range g.Terms {
+		if !slices.Contains(tested, t) {
+			out = append(out, t)
+		}
+	}
+	slices.Sort(out)
+	return out
 }

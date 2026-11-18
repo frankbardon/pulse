@@ -1,11 +1,13 @@
 package regression
 
 import (
+	"context"
 	"math"
 	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regmultinom"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
@@ -55,14 +57,12 @@ import (
 type multinomialEngine struct {
 	spec   *types.RegressionSpec
 	levels []string // the target's dictionary, in order
+	// figures, when set (OfferingFigures), receives the unpenalized
+	// fit's nested-model comparison figures (multinomialFigures);
+	// under a modifier, the base fit's alone.
+	figures func(*model.RegressionFigures)
 
 	finalized bool
-
-	// fitted, when set, receives the converged fitted probabilities,
-	// row-major n × len(categories) over the result's Categories, of the
-	// rows that entered the fit in record order. A test seam (the
-	// oracle's fitted probabilities); nil in every production fit.
-	fitted func(categories []string, probs []float64)
 }
 
 // newMultinomialEngine validates a REG_MULTINOMIAL spec against schema
@@ -74,6 +74,8 @@ func newMultinomialEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"multinomialEngine constructed for a non-multinomial spec", map[string]any{"type": string(spec.Type)})
 	}
+	// ValidateRegression ends with the selection-criterion rule —
+	// predict's rule itself (the extension adapter's too).
 	if err := ValidateRegression(spec); err != nil {
 		return nil, err
 	}
@@ -113,7 +115,8 @@ type multinomialProblem struct {
 	n, q  int
 	cats  []string
 	ref   int
-	// nonRef maps a non-reference block k to its category index.
+	// nonRef maps a non-reference block k to its category index — every
+	// category, in order, when ref is −1 (the penalised symmetric form).
 	nonRef []int
 }
 
@@ -125,18 +128,29 @@ func (pr *multinomialProblem) dim() int { return len(pr.nonRef) * pr.q }
 func (pr *multinomialProblem) rowEval(beta []float64, i int, eta, pi []float64) float64 {
 	q := pr.q
 	xi := pr.x[i*q : (i+1)*q]
-	m := 0.0
 	for c := range eta {
 		eta[c] = 0
 	}
 	for k, c := range pr.nonRef {
 		b := beta[k*q : (k+1)*q]
 		eta[c] = LinearPredictor(b[0], b[1:], xi[1:])
-		if eta[c] > m {
-			m = eta[c]
+	}
+	m, s := multinomialSoftmax(eta, pi)
+	return eta[pr.y[i]] - m - detmath.Log(s)
+}
+
+// multinomialSoftmax is THE category-probability kernel of a
+// baseline-category logit: π_c = exp(η_c − m) / Σ_l exp(η_l − m), m the
+// largest η (the reference's 0 included), written into pi; it returns m
+// and the sum. The fit (rowEval) and every scored row
+// (MultinomialFitted.Probabilities) run it, so a scored training row's
+// probabilities are the fit's own bit for bit.
+func multinomialSoftmax(eta, pi []float64) (m, s float64) {
+	for _, e := range eta {
+		if e > m {
+			m = e
 		}
 	}
-	s := 0.0
 	for c := range eta {
 		pi[c] = detmath.Exp(eta[c] - m)
 		s += pi[c]
@@ -144,7 +158,7 @@ func (pr *multinomialProblem) rowEval(beta []float64, i int, eta, pi []float64) 
 	for c := range pi {
 		pi[c] /= s
 	}
-	return eta[pr.y[i]] - m - detmath.Log(s)
+	return m, s
 }
 
 // logLik is ℓ = Σ w*·log π_{i,y_i} at beta (−Inf when a row's
@@ -160,9 +174,9 @@ func (pr *multinomialProblem) logLik(beta []float64) float64 {
 }
 
 // system returns ℓ, the score ∇ℓ and the information I (row-major,
-// both triangles) at beta; probs, when non-nil (n × len(cats)), receives
-// the fitted probabilities.
-func (pr *multinomialProblem) system(beta, probs []float64) (ll float64, grad, info []float64) {
+// both triangles) at beta. A row's fitted probabilities are its scored
+// ones (MultinomialFitted, the shared multinomialSoftmax kernel).
+func (pr *multinomialProblem) system(beta []float64) (ll float64, grad, info []float64) {
 	q, kk, d := pr.q, len(pr.nonRef), pr.dim()
 	grad = make([]float64, d)
 	info = make([]float64, d*d)
@@ -172,9 +186,6 @@ func (pr *multinomialProblem) system(beta, probs []float64) (ll float64, grad, i
 	for i := 0; i < pr.n; i++ {
 		w := pr.prior[i]
 		ll += float64(w * pr.rowEval(beta, i, eta, pi))
-		if probs != nil {
-			copy(probs[i*len(pr.cats):], pi)
-		}
 		xi := pr.x[i*q : (i+1)*q]
 		for k, ck := range pr.nonRef {
 			yk := 0.0
@@ -223,16 +234,42 @@ func (pr *multinomialProblem) system(beta, probs []float64) (ll float64, grad, i
 }
 
 // FitBuffered builds the design (listwise null deletion, the target read
-// as its categorical label), then runs Newton-Raphson to the MLE.
+// as its categorical label), then runs Newton-Raphson to the MLE — under
+// the Resample / Selection modifiers, many times (FitBufferedContext).
 func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), records)
+}
+
+// FitBufferedContext is FitBuffered under ctx (ContextBufferedEngine):
+// with no modifier it is the one fit (ctx unread, so the result is
+// byte-identical to a fit before the modifiers existed); under
+// Resample / Selection every refit reads ctx first
+// (multinomial_modifiers.go).
+func (e *multinomialEngine) FitBufferedContext(ctx context.Context, records []Record) (*types.RegressionResult, error) {
 	if e.finalized {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, "multinomialEngine.FitBuffered called after Finalize")
 	}
 	e.finalized = true
+	if e.spec.Resample != "" || e.spec.Selection != "" {
+		return e.fitModified(ctx, records)
+	}
+	res, _, err := e.fitRows(records, nil)
+	return res, err
+}
+
+// fitRows is one fit of e.spec over records: the design, then Newton to
+// the MLE. pin, when set, fixes the categories and reference (a
+// modifier refit's, multinomialPin). It returns the result and its
+// coefficient keys in order.
+func (e *multinomialEngine) fitRows(records []Record, pin *multinomialPin) (*types.RegressionResult, []string, error) {
 	spec := e.spec
 	p := len(spec.Predictors)
 	q := p + 1
 	rw := newRowWeights(spec)
+	// A robust covariance's cluster key (nil for a classical spec, so
+	// its design is unchanged); a null key drops the row listwise.
+	keyOf := robustKeyReader(spec)
+	var keys []robustRowKey
 
 	x := make([]float64, 0, len(records)*q)
 	labels := make([]string, 0, len(records))
@@ -242,9 +279,10 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	for _, rec := range records {
 		label, ok, err := targetLabel(rec, spec.Target)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if !ok {
+		if !ok || (pin != nil && !slices.Contains(pin.cats, label)) {
+			// A pinned refit fits the pinned categories' rows only.
 			continue
 		}
 		complete := true
@@ -263,6 +301,13 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 		if !ok {
 			continue
 		}
+		if keyOf != nil {
+			key, ok := keyOf(rec)
+			if !ok {
+				continue
+			}
+			keys = append(keys, key)
+		}
 		x = append(x, 1)
 		x = append(x, xBuf...)
 		labels = append(labels, label)
@@ -277,14 +322,14 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	}
 	n := len(labels)
 	if rw.basis.FloorN(int64(n), sumW) < float64(q) {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"REG_MULTINOMIAL requires n ≥ p + 1 observations after listwise null deletion",
 			map[string]any{"n": n, "p": p, "required": q})
 	}
 
-	pr, err := e.problem(x, labels, prior, n, q)
+	pr, err := e.problem(x, labels, prior, n, q, pin)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if aliased := aliasedColumns(x, prior, n, q); len(aliased) > 0 {
 		names := make([]string, len(aliased))
@@ -294,45 +339,57 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 				names[i] = spec.Predictors[j-1]
 			}
 		}
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"REG_MULTINOMIAL design matrix is rank deficient: a column is a linear combination of the columns before it (collinear predictors, or a constant predictor aliased with the intercept); drop it",
 			map[string]any{"columns": names, "n": n, "p": p})
 	}
 
+	if pen := newMultinomialPenalty(spec); pen != nil {
+		// glmnet's symmetric multinomial (multinomial_penalty.go).
+		return e.penalizedResult(pr, pen, rw, sumW, sumWSq)
+	}
 	beta, iters, err := e.newton(pr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var probs []float64
-	if e.fitted != nil {
-		probs = make([]float64, n*len(pr.cats))
-	}
-	ll, _, info := pr.system(beta, probs)
-	if e.fitted != nil {
-		e.fitted(slices.Clone(pr.cats), probs)
-	}
+	ll, _, info := pr.system(beta)
 	d := pr.dim()
 	f, ok := factorSPD(d, info)
 	if !ok {
-		return nil, e.noConverge(pr, iters, "information_singular")
+		return nil, nil, e.noConverge(pr, iters, "information_singular")
 	}
 	inv, ierr := f.Inverse()
 	if ierr != nil {
-		return nil, e.noConverge(pr, iters, "information_singular")
+		return nil, nil, e.noConverge(pr, iters, "information_singular")
 	}
 
-	keys := e.keys(pr)
+	// A robust covariance replaces the inverse information behind the
+	// standard errors, the Wald p-values, the intervals and vcov
+	// (multinomial_covariance.go).
+	var robust *sandwichFit
+	var robustSE []float64
+	if spec.Covariance.Robust() {
+		robust, robustSE, err = e.multinomialSandwich(pr, beta, inv, keys, rw.basis.NStar(sumW, sumWSq))
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	coefKeys := e.keys(pr)
 	coefs := make(map[string]float64, d)
 	ses := make(map[string]float64, d)
 	ps := make(map[string]float64, d)
 	variances := make([]float64, d)
-	for j, key := range keys {
+	for j, key := range coefKeys {
 		v := inv.At(j, j)
 		if v < 0 {
 			v = 0
 		}
 		variances[j] = v
 		se := math.Sqrt(v)
+		if robust != nil {
+			se = robustSE[j]
+		}
 		coefs[key], ses[key] = beta[j], se
 		ps[key] = waldZTwoSidedP(beta[j], se)
 	}
@@ -363,10 +420,38 @@ func (e *multinomialEngine) FitBuffered(records []Record) (*types.RegressionResu
 	}
 	rw.note(res, sumW, sumWSq)
 	attachIntervals(res, resolvedConfLevel(spec), 0, false)
-	if spec.Vcov {
-		AttachVcovKeys(res, keys, symVcov(d, inv.At, 1, variances))
+	// Cov(β) as the standard errors read it: the robust sandwich, or the
+	// inverse information (its diagonal the clamped variances).
+	coefCov := func() [][]float64 {
+		if robust != nil {
+			return robust.v
+		}
+		return symVcov(d, inv.At, 1, variances)
 	}
-	return res, nil
+	if robust != nil {
+		res.Covariance = robust.info
+	}
+	if spec.Vcov {
+		AttachVcovKeys(res, coefKeys, coefCov())
+	}
+	if e.figures != nil {
+		// The figures a Compose nested-model comparison reads
+		// (compare.go): −2ℓ, anova.multinom's residual df and the
+		// covariance the standard errors read.
+		e.figures(multinomialFigures(pr, spec.Predictors, coefKeys, beta, coefCov(), deviance, rw.basis.NStar(sumW, sumWSq)))
+	}
+	if spec.Margins != nil || spec.TermTests {
+		// Per-category marginal effects and the joint term tests
+		// (multinomial_margins.go), on the same covariance.
+		v := coefCov()
+		if spec.Margins != nil {
+			res.Margins = e.multinomialMargins(pr, beta, v, res)
+		}
+		if spec.TermTests {
+			res.TermTests = e.multinomialTermTests(pr, beta, v, ll, logLikDefined(rw.basis))
+		}
+	}
+	return res, coefKeys, nil
 }
 
 // targetLabel reads rec's target label: its categorical dictionary
@@ -384,11 +469,16 @@ func targetLabel(rec Record, target string) (string, bool, error) {
 // problem orders the fitted categories (the dictionary order; a label
 // outside the dictionary — impossible for a cohort field — after it,
 // sorted), drops the levels no row carries, resolves the reference and
-// indexes every row's category.
-func (e *multinomialEngine) problem(x []float64, labels []string, prior []float64, n, q int) (*multinomialProblem, error) {
+// indexes every row's category. Under a pin the categories and the
+// reference are the pin's, and a pinned category no row carries is the
+// replicate_empty_level refusal (pinnedProblem).
+func (e *multinomialEngine) problem(x []float64, labels []string, prior []float64, n, q int, pin *multinomialPin) (*multinomialProblem, error) {
 	seen := map[string]bool{}
 	for _, l := range labels {
 		seen[l] = true
+	}
+	if pin != nil {
+		return pin.problem(x, labels, prior, n, q, seen)
 	}
 	var cats []string
 	for _, l := range e.levels {
@@ -408,6 +498,11 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 			"REG_MULTINOMIAL needs at least two target levels among the fitted rows",
 			map[string]any{"n": n, "categories": cats, "reason": "one_category"})
 	}
+	if e.spec.Penalty != "" {
+		// A penalised fit is symmetric: every category is a block, none
+		// the reference (multinomial_penalty.go).
+		return newMultinomialProblem(x, labels, prior, n, q, cats, -1), nil
+	}
 	ref := 0
 	if e.spec.Reference != "" {
 		ref = slices.Index(cats, e.spec.Reference)
@@ -417,6 +512,13 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 				map[string]any{"reference": e.spec.Reference, "categories": cats, "reason": "reference_empty"})
 		}
 	}
+	return newMultinomialProblem(x, labels, prior, n, q, cats, ref), nil
+}
+
+// newMultinomialProblem indexes every row's category over cats (ref the
+// reference's index; −1 for the penalised symmetric form, where every
+// category is a block).
+func newMultinomialProblem(x []float64, labels []string, prior []float64, n, q int, cats []string, ref int) *multinomialProblem {
 	index := make(map[string]int, len(cats))
 	for i, c := range cats {
 		index[c] = i
@@ -431,7 +533,7 @@ func (e *multinomialEngine) problem(x []float64, labels []string, prior []float6
 			nonRef = append(nonRef, c)
 		}
 	}
-	return &multinomialProblem{x: x, y: y, prior: prior, n: n, q: q, cats: cats, ref: ref, nonRef: nonRef}, nil
+	return &multinomialProblem{x: x, y: y, prior: prior, n: n, q: q, cats: cats, ref: ref, nonRef: nonRef}
 }
 
 // shares are the w*-weighted category shares.
@@ -494,7 +596,7 @@ func (e *multinomialEngine) newton(pr *multinomialProblem) ([]float64, int, erro
 	}
 	history := [][]float64{slices.Clone(beta)}
 	for iter := 1; iter <= maxIters; iter++ {
-		ll, grad, info := pr.system(beta, nil)
+		ll, grad, info := pr.system(beta)
 		f, ok := factorSPD(d, info)
 		if !ok {
 			return nil, iter, e.failure(pr, beta, history, iter, maxIters, tol, "information_singular")

@@ -23,7 +23,7 @@ import (
 // no root package; an engine-package test imports it directly.
 
 // ModelRegressionAdapter returns model regression t's adapter — its
-// descriptor declaration, its factory and its optional scorer — and
+// descriptor declaration, its factory and its optional scorers — and
 // whether t is one.
 func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 	decl, ok := descx.ModelRegressionDeclaration(t)
@@ -34,14 +34,20 @@ func ModelRegressionAdapter(t types.RegressionType) (RegressionAdapter, bool) {
 	if !ok {
 		factory = regordinal.Factories[t]
 	}
+	scorer, ok := regmmm.Scorers[t]
+	if !ok {
+		scorer = regordinal.Scorers[t]
+	}
 	return RegressionAdapter{
 		Name:        t,
 		Decl:        decl,
 		WeightAware: descx.ModelRegressionWeightAware(t),
 		Factory:     factory,
-		Scorer:      regmmm.Scorers[t],
+		Scorer:      scorer,
 		BoundScorer: regmmm.BoundScorers[t],
+		ParamScorer: regordinal.ParamScorers[t],
 		Dispersion:  regmmm.Dispersions[t],
+		Pin:         regordinal.ReplicatePins[t],
 	}, true
 }
 
@@ -58,6 +64,17 @@ func init() {
 			scorer = AdaptRegressionScorer(a)
 		}
 		regression.RegisterModel(t, AdaptRegressionFactory(a), scorer)
+		if pf, ok := regordinal.Probabilities[t]; ok {
+			// A categorical-outcome fit's whole probability vector: what
+			// a holdout over it scores (U68 E1-S3).
+			regression.RegisterModelProbabilities(t, func(b *model.Bound) (model.ProbabilityScorer, error) {
+				fit, err := FittedRegression(b)
+				if err != nil {
+					return nil, err
+				}
+				return pf(fit)
+			})
+		}
 		if tf, ok := regmmm.Tangents[t]; ok {
 			// A nonlinear least-squares fit's tangent plane: what a
 			// leverage / influence slot over it reads (U71 E2-S6).

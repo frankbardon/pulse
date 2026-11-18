@@ -1,10 +1,10 @@
 ---
 name: regression-row-scores
-description: Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills.
+description: Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, an ordinal fit's per-level columns, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [ATTR_REG, fitted value, residual, leverage, influence, Cook's distance, DFFITS, studentized residual, GLM leverage, dispersion, scoring, params.fit, bound fit, save, load, no_scorer, slot_fields, PULSE_FIT_UNAVAILABLE]
+covers: [ATTR_REG, fitted value, residual, leverage, influence, Cook's distance, DFFITS, studentized residual, GLM leverage, dispersion, scoring, params.fit, bound fit, save, load, no_scorer, slot_fields, PULSE_FIT_UNAVAILABLE, ordinal, level, outcome]
 ---
 
 # Per-row regression scores
@@ -74,6 +74,29 @@ On the predict attribute, `terms` scores a subset (`(intercept)` opt-in) and `bo
 ## A registered model
 
 An embedder-registered regression scores through its registration's scorer, whole model only (no `terms`, no `lower` / `upper` bound); with none it is `no_scorer`. Its saved model loads only where that regression is registered and enabled, else `PULSE_MODEL_REGRESSION_UNREGISTERED`.
+
+<!-- feature: REG_ORDINAL -->
+## An ordinal fit
+
+`REG_ORDINAL` predicts a probability per level; one slot is one column, `params.output`:
+
+- `expected` (default): Σ k·P(y = k), levels numbered 1..K in fitted order; `class`: the most probable level's number.
+- `probability` (the default with `level`) P(y = level) and `cumulative` P(y ≤ level) need `level`, as written (`"high"`, `"3"`); `for_each` over the levels gives a column each.
+- `scale: link` is xᵀβ (no `output` / `level`).
+- Refused, predict too: `level` / `output` on another fit (`outcome_unsupported`); an unknown level (`outcome_unknown`, judged by predict when `params.levels` pins them or a model file names them); a missing `level` (`outcome_required`).
+<!-- /feature -->
+
+<!-- feature: REG_MULTINOMIAL -->
+## A multinomial fit
+
+`REG_MULTINOMIAL` scores one category per slot: `category` (as in `Categories`) gives P(y = category), the default; `output: class` the most probable category's 0-based index in `Categories`; `scale: link` the category's log-odds vs the reference. `for_each` over the categories gives a column each. A missing `category` is `outcome_required`, an unknown one `outcome_unknown` (predict judges it from a model file; over `fits` the run does). No `terms` / `bound`; the fitted / residual / design attributes refuse it (`type_unsupported`).
+<!-- /feature -->
+
+<!-- feature: capability:regression_holdout -->
+## Holdout on a categorical fit
+
+A `holdout` scores each held-out row's probability vector p against its outcome y; slot-weighted means: `log_loss` −ln p_y (natural), `brier` Σ_k (p_k − [y = k])², `accuracy` [argmax p = y] (first on a tie); ordinal adds `rps` Σ_{k<K} (F_k − [y ≤ k])²/(K − 1), F cumulative. No `rmse` / `mae` / `r2`; an outcome the fit lacks is skipped.
+<!-- /feature -->
 
 <!-- feature: capability:model_save, capability:models -->
 ## Save, then load

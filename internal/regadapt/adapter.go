@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -54,12 +55,25 @@ type RegressionAdapter struct {
 	// model's lower / upper bound, which model.CheckScoreFor admits for
 	// that type alone.
 	BoundScorer func(fit extend.FittedRegression, bound string) (extend.RowScorer, error)
+	// ParamScorer, when set (a model regression's only —
+	// internal/regordinal.ParamScorers), builds the scorer for the whole
+	// ATTR_REG_PREDICT reference instead of Scorer: a categorical-outcome
+	// fit's params.level / output / scale column, which
+	// model.CheckScoreFor admits for that type alone.
+	ParamScorer func(fit extend.FittedRegression, p model.ScoreParams) (extend.RowScorer, error)
 	// Dispersion, when set (a model regression's only —
 	// internal/regmmm.Dispersions), reads the estimated dispersion φ̂
 	// the model's Vcov carries (Vcov = φ̂·(JᵀJ)⁻¹), attached as
 	// RegressionResult.Dispersion beside the Vcov; ok=false attaches
 	// none.
 	Dispersion func(spec *types.RegressionSpec, out extend.RegressionOutput) (float64, bool)
+	// Pin, when set (a model regression's only —
+	// internal/regordinal.ReplicatePins), pins every modifier refit
+	// after the slot's first successful one (regressionModifierEngine):
+	// the spec later refits build their model from, the mapping of a
+	// pinned refit's refusal, and the coefficients that keep no p-value
+	// under resample.
+	Pin func(spec *types.RegressionSpec, first *types.RegressionResult) (model.ReplicatePin, error)
 }
 
 // regProbeDetails marks a registration probe's weighted pass on a
@@ -104,7 +118,16 @@ type RegressionDriver struct {
 	// view is the reused single-row weighted view of the streaming arm
 	// (a Record is valid only for the call that received it).
 	view regWeightedRecord
+	// figures, when set (regression.OfferingFigures on a fit a Compose
+	// comparison names), receives the fit's comparison figures — read
+	// off extend.CompareRegression after a successful fit when the
+	// declaration carries Compare.
+	figures func(*model.RegressionFigures)
 }
+
+// SetFiguresOffer hands the driver the comparison-figures offer
+// (regression.FiguresOfferer through its engines; pulse.New's probe).
+func (d *RegressionDriver) SetFiguresOffer(offer func(*model.RegressionFigures)) { d.figures = offer }
 
 func NewRegressionDriver(reg RegressionAdapter, spec *types.RegressionSpec, model extend.Regression) *RegressionDriver {
 	d := &RegressionDriver{reg: reg, spec: spec, model: model}
@@ -308,7 +331,186 @@ func (d *RegressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 		res.Outputs = maps.Clone(out.Outputs)
 	}
 	res.Warnings = cloneRegressionWarnings(out.Warnings)
+	if d.spec.Margins != nil && d.reg.Decl.Margins {
+		if err := d.attachMargins(res); err != nil {
+			return nil, err
+		}
+	}
+	if d.figures != nil && d.reg.Decl.Compare {
+		if err := d.offerFigures(); err != nil {
+			return nil, err
+		}
+	}
 	return res, nil
+}
+
+// offerFigures asks the fitted model for its nested-model comparison
+// figures (extend.CompareRegression, declared by the registration's
+// Compare), holds them to the spec (VerifyCompareOutput) and offers them
+// to the comparison capture: a likelihood with no dispersion (1) and a
+// Wald z table (WaldDF 0). A model error fails the fit as a fit error
+// does.
+func (d *RegressionDriver) offerFigures() error {
+	m, ok := d.model.(extend.CompareRegression)
+	if !ok {
+		return regMismatch(d.reg, "missing_compare",
+			"declares Compare but its model does not implement extend.CompareRegression", nil, false)
+	}
+	out, err := m.CompareFigures()
+	if err != nil {
+		return err
+	}
+	if err := VerifyCompareOutput(d.reg, d.spec, out, false); err != nil {
+		return err
+	}
+	cov := make([][]float64, len(out.Covariance))
+	for i, row := range out.Covariance {
+		cov[i] = slices.Clone(row)
+	}
+	d.figures(&model.RegressionFigures{
+		Terms:        slices.Clone(out.Terms),
+		Coefficients: slices.Clone(out.Coefficients),
+		Covariance:   cov,
+		Deviance:     out.Deviance,
+		DFResidual:   out.DFResidual,
+		Dispersion:   1,
+	})
+	return nil
+}
+
+// VerifyCompareOutput holds a model's comparison figures to its spec —
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason compare_shape: no
+// term, an empty or repeated term, a predictor Terms does not name,
+// Coefficients not aligned with Terms, or a Covariance that is not
+// square over Terms. The probe and every compared run apply it.
+func VerifyCompareOutput(reg RegressionAdapter, spec *types.RegressionSpec, out extend.CompareOutput, weighted bool) error {
+	shape := func(msg string, extra map[string]any) error {
+		return regMismatch(reg, "compare_shape", msg, extra, weighted)
+	}
+	if len(out.Terms) == 0 {
+		return shape("returned comparison figures with no term", nil)
+	}
+	for i, t := range out.Terms {
+		if t == "" || slices.Contains(out.Terms[:i], t) {
+			return shape(fmt.Sprintf("returned a comparison term %q that is empty or repeated", t), map[string]any{"term": t})
+		}
+	}
+	for _, p := range spec.Predictors {
+		if !slices.Contains(out.Terms, p) {
+			return shape(fmt.Sprintf("returned comparison terms %v without the predictor %q", out.Terms, p), map[string]any{"predictor": p})
+		}
+	}
+	q := len(out.Terms)
+	if len(out.Coefficients) != q {
+		return shape(fmt.Sprintf("returned %d comparison coefficients for %d terms", len(out.Coefficients), q),
+			map[string]any{"coefficients": len(out.Coefficients), "terms": q})
+	}
+	if len(out.Covariance) != q {
+		return shape(fmt.Sprintf("returned a comparison covariance of %d rows for %d terms", len(out.Covariance), q),
+			map[string]any{"rows": len(out.Covariance), "terms": q})
+	}
+	for i, row := range out.Covariance {
+		if len(row) != q {
+			return shape(fmt.Sprintf("returned a comparison covariance row %d of %d columns for %d terms", i, len(row), q),
+				map[string]any{"row": i, "columns": len(row), "terms": q})
+		}
+	}
+	return nil
+}
+
+// attachMargins asks the fitted model for the slot's marginal effects
+// (extend.MarginsRegression, declared by the registration's Margins),
+// holds them to the request (VerifyMarginsOutput) and writes
+// res.Margins with the engine's inference
+// (regression.AttachExtensionMargins). A model error fails the slot as a
+// fit error does.
+func (d *RegressionDriver) attachMargins(res *types.RegressionResult) error {
+	m, ok := d.model.(extend.MarginsRegression)
+	if !ok {
+		return regMismatch(d.reg, "missing_margins",
+			"declares Margins but its model does not implement extend.MarginsRegression", nil, false)
+	}
+	req := extend.MarginsRequest{
+		Type:  d.spec.Margins.EffectiveType(),
+		Scale: d.spec.Margins.EffectiveScale(),
+		Terms: regmargins.Terms(d.spec),
+	}
+	out, err := m.Margins(req)
+	if err != nil {
+		return err
+	}
+	est, se, err := VerifyMarginsOutput(d.reg, d.spec, req, out, false)
+	if err != nil {
+		return err
+	}
+	var at map[string]float64
+	if req.Type == types.MarginsMEM {
+		at = out.At
+	}
+	regression.AttachExtensionMargins(res, d.spec, out.Outcomes, est, se, at)
+	return nil
+}
+
+// regMismatch is a PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH of reg
+// with details {category, name, reason[, extra]}.
+func regMismatch(reg RegressionAdapter, reason, msg string, extra map[string]any, weighted bool) error {
+	details := map[string]any{"category": extCategoryRegression, "name": string(reg.Name), "reason": reason}
+	maps.Copy(details, extra)
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+		fmt.Sprintf("regression %q %s", reg.Name, msg), regProbeDetails(details, weighted))
+}
+
+// VerifyMarginsOutput holds a model's marginal effects to the request —
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason margins_shape: an
+// empty or repeated outcome, an effect on a term req does not list or on
+// an outcome out.Outcomes does not (an outcome set without Outcomes), a
+// repeated (outcome, term) pair, a missing one, or (type mem) an At key
+// that is not a predictor. It returns the estimates and standard errors
+// keyed regmargins.Key(outcome, term), a nil StdErr NaN. The probe and
+// every run apply it.
+func VerifyMarginsOutput(reg RegressionAdapter, spec *types.RegressionSpec, req extend.MarginsRequest, out extend.MarginsOutput, weighted bool) (est, se map[string]float64, err error) {
+	shape := func(msg string, extra map[string]any) error {
+		return regMismatch(reg, "margins_shape", msg, extra, weighted)
+	}
+	for i, o := range out.Outcomes {
+		if o == "" || slices.Contains(out.Outcomes[:i], o) {
+			return nil, nil, shape(fmt.Sprintf("returned an outcome %q that is empty or repeated", o), map[string]any{"outcome": o})
+		}
+	}
+	want := len(req.Terms)
+	if len(out.Outcomes) > 0 {
+		want *= len(out.Outcomes)
+	}
+	est = make(map[string]float64, want)
+	se = make(map[string]float64, want)
+	for _, e := range out.Effects {
+		if !slices.Contains(req.Terms, e.Term) {
+			return nil, nil, shape(fmt.Sprintf("returned an effect on %q, which is not a requested term %v", e.Term, req.Terms),
+				map[string]any{"term": e.Term})
+		}
+		if (len(out.Outcomes) == 0 && e.Outcome != "") || (len(out.Outcomes) > 0 && !slices.Contains(out.Outcomes, e.Outcome)) {
+			return nil, nil, shape(fmt.Sprintf("returned an effect on outcome %q, which its Outcomes %v does not list", e.Outcome, out.Outcomes),
+				map[string]any{"outcome": e.Outcome, "term": e.Term})
+		}
+		key := regmargins.Key(e.Outcome, e.Term)
+		if _, dup := est[key]; dup {
+			return nil, nil, shape(fmt.Sprintf("returned the effect %q twice", key), map[string]any{"effect": key})
+		}
+		est[key] = e.Estimate
+		se[key] = figureOrNaN(e.StdErr)
+	}
+	if len(est) != want {
+		return nil, nil, shape(fmt.Sprintf("returned %d effects, want %d (one per requested term, per outcome when Outcomes is set)", len(est), want),
+			map[string]any{"effects": len(est), "want": want})
+	}
+	if req.Type == types.MarginsMEM {
+		for k := range out.At {
+			if !slices.Contains(spec.Predictors, k) {
+				return nil, nil, shape(fmt.Sprintf("returned At[%q], which is not a predictor", k), map[string]any{"at": k})
+			}
+		}
+	}
+	return est, se, nil
 }
 
 // cloneRegressionWarnings copies a model's warnings (each entry and its
@@ -489,12 +691,20 @@ func FittedRegression(b *model.Bound) (extend.FittedRegression, error) {
 // AdaptRegressionScorer wraps the registration's Scorer as the engine's
 // model.ScorerFactory. model.CheckScoreFor already refused params.terms
 // and — but for a type with a BoundScorer — a lower / upper bound on the
-// fit, so p carries only the fit name and that bound.
+// fit, and params.level / category / output / scale but on a type with a
+// ParamScorer, so p carries only the fit name, that bound and those.
 func AdaptRegressionScorer(reg RegressionAdapter) model.ScorerFactory {
 	return func(b *model.Bound, p model.ScoreParams) (model.RowScorer, error) {
 		fit, err := FittedRegression(b)
 		if err != nil {
 			return nil, err
+		}
+		if reg.ParamScorer != nil {
+			ref := reg
+			ref.Scorer = func(fit extend.FittedRegression) (extend.RowScorer, error) {
+				return reg.ParamScorer(fit, p)
+			}
+			return BuildRegressionScorer(ref, fit, false)
 		}
 		if reg.BoundScorer != nil {
 			bound := reg
@@ -600,6 +810,12 @@ func (e *regressionEngine) FitBufferedContext(ctx context.Context, records []reg
 		recs[i] = view
 	}
 	return e.d.fitRows(ctx, recs)
+}
+
+// SetFiguresOffer hands the driver the comparison-figures offer
+// (regression.FiguresOfferer).
+func (e *regressionEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) {
+	e.d.SetFiguresOffer(offer)
 }
 
 // streamingRegressionEngine adds the engine's streaming drive
@@ -744,6 +960,18 @@ type regressionModifierEngine struct {
 	reg    RegressionAdapter
 	spec   *types.RegressionSpec
 	schema *encoding.Schema
+	// figures, when set (regression.FiguresOfferer), is handed to the
+	// base fit's driver alone — the first refit of an unselected slot,
+	// over every row and predictor (a comparison refuses selection) —
+	// never to a replicate's.
+	figures func(*model.RegressionFigures)
+	offered bool
+}
+
+// SetFiguresOffer keeps the comparison-figures offer for the base fit
+// (regression.FiguresOfferer).
+func (e *regressionModifierEngine) SetFiguresOffer(offer func(*model.RegressionFigures)) {
+	e.figures = offer
 }
 
 // Fit fits over no rows (the engine's record-less entry point).
@@ -758,11 +986,61 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // FitBufferedContext runs the modifiers under ctx
 // (regression.ContextBufferedEngine): a request deadline stops the
 // refit loop between two fits.
+//
+// A model with a Pin hook (REG_ORDINAL) has every refit after the
+// first successful one — the base fit, or under selection the search's
+// first candidate — built from the pinned spec (REG_ORDINAL: the first
+// fit's levels as params.levels), its refusals mapped by the pin, and
+// the pin's NoPValue coefficients keep a NaN p-value under resample.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
-	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
-		return e.refit(ctx, recs, predictors)
+	var pin *model.ReplicatePin
+	fit := func(replicate bool, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		spec := e.spec
+		if pin != nil {
+			spec = pin.Spec
+			if replicate && pin.ReplicateSpec != nil {
+				spec = pin.ReplicateSpec
+			}
+		}
+		res, keys, err := e.refit(ctx, spec, recs, predictors)
+		if err != nil {
+			if pin != nil && pin.Refusal != nil {
+				err = pin.Refusal(err)
+			}
+			return nil, nil, err
+		}
+		if pin == nil && e.reg.Pin != nil {
+			p, pinErr := e.reg.Pin(e.spec, res)
+			if pinErr != nil {
+				return nil, nil, pinErr
+			}
+			pin = &p
+		}
+		return res, keys, nil
 	}
-	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.Decl.PValues, records, refit,
+	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		return fit(false, recs, predictors)
+	}
+	replicate := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		return fit(true, recs, predictors)
+	}
+	res, err := e.runModifiers(ctx, records, refit, replicate)
+	if err != nil || pin == nil || res.Resample == "" {
+		return res, err
+	}
+	for _, k := range pin.NoPValue {
+		if _, ok := res.PValues[k]; ok {
+			res.PValues[k] = math.NaN()
+		}
+	}
+	return res, nil
+}
+
+// runModifiers is RunExtensionModifiersReplicates over refit (base fit,
+// selection candidates) and replicate (resample replicates) with the
+// adapter's contract-fault constructors.
+func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []regression.Record, refit, replicate regression.ExtensionFit) (*types.RegressionResult, error) {
+	return regression.RunExtensionModifiersReplicates(ctx, e.spec, e.reg.Decl.PValues, records, refit, replicate,
 		func() error { return RegressionSelectionDevianceMismatch(e.reg, false) },
 		func(base, got []string) error {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
@@ -772,10 +1050,11 @@ func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, recor
 		})
 }
 
-// refit is one fresh fit of the model over recs with predictors active,
-// under the operation's ctx (a ContextRegression model's FitContext).
-func (e *regressionModifierEngine) refit(ctx context.Context, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
-	inner := *e.spec
+// refit is one fresh fit of the model built from spec over recs with
+// predictors active, under the operation's ctx (a ContextRegression
+// model's FitContext).
+func (e *regressionModifierEngine) refit(ctx context.Context, spec *types.RegressionSpec, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+	inner := *spec
 	inner.Predictors = slices.Clone(predictors)
 	inner.Resample, inner.JackknifeGroups, inner.JackknifeBy, inner.BootstrapIters, inner.RNGSeed = "", 0, "", 0, 0
 	inner.Selection, inner.Criterion = "", ""
@@ -798,6 +1077,11 @@ func (e *regressionModifierEngine) refit(ctx context.Context, recs []regression.
 		}
 	}
 	d := NewRegressionDriver(e.reg, &inner, model)
+	if e.figures != nil && !e.offered && e.spec.Selection == "" {
+		// The base fit: RunExtensionModifiers fits it first.
+		e.offered = true
+		d.SetFiguresOffer(e.figures)
+	}
 	out, err := d.fitOutput(ctx, views)
 	if err != nil {
 		return nil, nil, err

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regexponent"
 	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/internal/regordinal"
 	"github.com/frankbardon/pulse/types"
@@ -56,9 +57,26 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 		WeightAware: true,
 		Target:      descriptor.Param{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "any", Description: "Ordered response: a categorical or numeric field, 3 to 100 levels; a top-level key of the regression entry.", Slot: true},
 		Decl: ExtensionRegression{
-			Vcov:            true,
-			PValues:         true,
-			NoResample:      true,
+			Vcov:    true,
+			PValues: true,
+			// Scored per row by regordinal.ParamScorer (ATTR_REG_PREDICT:
+			// params.level / output / scale), so it saves and loads; a
+			// holdout reports the proper scores of its probability vector.
+			Scorer: true,
+			// Resample and selection refit it through the engine's
+			// extension drivers, every refit pinned to the first fit's
+			// levels (regordinal.ReplicatePin, U68 E2-S1); selection's
+			// AIC / BIC read its deviance, k = predictors + thresholds.
+			SupportsSelection: true,
+			// Marginal effects of each predictor on each level's
+			// probability (regordinal's extend.MarginsRegression; U68
+			// E4-S1), keyed "<level>:<term>".
+			Margins: true,
+			// Nested-model comparisons (Compose compare: lrt =
+			// anova.polr's deviance change, wald on the full fit's
+			// covariance) through regordinal's
+			// extend.CompareRegression (U68 E5-S1).
+			Compare:         true,
 			CovarianceTypes: regordinal.CovarianceTypes(),
 			OutputKeys:      regordinal.OutputKeys(),
 			OutputSchema:    slices.Clone(regordinal.OutputSchema),
@@ -151,6 +169,7 @@ var ordinalParams = []descriptor.Param{
 	{Name: "link", Type: "enum", EnumValues: regordinal.Links(), Default: regordinal.LinkLogit, Description: "Cumulative link F in P(Y ≤ k | x) = F(ζ_k − xᵀβ) (polr's method): logit (default), probit or cloglog."},
 	{Name: "levels", Type: "list", Description: "Level order, lowest first: a categorical's labels or a number's values as written (\"2.5\"); 3 to 100, each once. A row whose response is unlisted is dropped (R's factor NA); a listed level no row carries fails the slot. Absent: dictionary order, or ascending values."},
 	{Name: "brant", Type: "object", Description: "{}: adds outputs.brant, the Brant test of proportional odds (omnibus and per predictor; the brant package). Logit only (details.requires link logit)."},
+	{Name: "nominal_test", Type: "object", Description: "{}: adds outputs.nominal_test, the likelihood-ratio test of proportional odds against the partial proportional-odds fit (omnibus and per predictor; ordinal::nominal_test). Any link; a figure whose partial fit fails is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC; absent under a probability weight (no likelihood)."},
 }
 
 // bayesOutputKeys are REG_MMM_BAYES's declared Outputs keys, in order.
@@ -206,6 +225,11 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 			if p.Name == "target" && m.Target.Name != "" {
 				p = m.Target
 			}
+			if p.Name == "holdout" && model.OutcomeType(t) {
+				// A categorical-outcome fit's holdout reports the proper
+				// scores of its probability vector, not rmse / mae / r2.
+				p.Description = outcomeHoldoutParamDescription(model.OrderedOutcomes(t))
+			}
 			params = append(params, p)
 			if p.Name == "resample" {
 				// The resample knobs the engine's driver reads, which a
@@ -215,6 +239,11 @@ func modelRegressionMetas() []descriptor.RegressionMeta {
 		}
 		if m.WeightAware {
 			params = append(params, descriptor.Param{Name: "weight", Type: "object", Description: "{field, kind}: frequency or probability row weight (REG_GLM's prior-weight rule; no two_log_lik / aic under probability); absent inherits the request's, null opts out.", Slot: true})
+		}
+		if regexponent.Admits(t) {
+			// The shared-slot table's exponentiate rule admits exactly
+			// these (internal/regexponent).
+			params = append(params, descriptor.Param{Name: "exponentiate", Type: "bool", Default: false, Description: ordinalExponentiateDescription, Slot: true})
 		}
 		params = append(params, descriptor.Param{Name: "name", Type: "string", Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true})
 		out = append(out, descriptor.RegressionMeta{

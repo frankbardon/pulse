@@ -18,13 +18,32 @@ import (
 // `holdout` slot (every built-in, and an extension model with a scorer).
 const holdoutParamDescription = "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path."
 
+// outcomeHoldoutParamDescription is the manifest description of the
+// shared `holdout` slot on a categorical-outcome regression
+// (REG_ORDINAL, ordered: true; REG_MULTINOMIAL): its fit scores each
+// held-out row's whole probability vector, so the figures are the
+// proper scores, not rmse / mae / r2 (absent).
+func outcomeHoldoutParamDescription(ordered bool) string {
+	figures := "log_loss, brier, accuracy"
+	if ordered {
+		figures += ", rps"
+	}
+	return "Boolean expression over the built record: true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, " +
+		figures + "}, the proper scores of each held-out row's probability vector (no rmse / mae / r2); forces the buffered path."
+}
+
 // orderParamDescription is the manifest description of the shared
 // `order` block (every built-in and every extension model).
 const orderParamDescription = "{field, partition, gaps}: fit the rows in order — sorted by field (an unsigned integer period index, date or datetime), per partition series (a categorical / integer market field; ragged ends fine) — after listwise deletion; gaps refuse (the default and only policy) fails the slot alone with PROCESSING_REGRESSION_ORDER on a repeated period (duplicate) or a step that is not the cadence, the smallest positive step (gap). A null field or partition drops its row. Required by an order-dependent model (reason order_required); forces the buffered path."
 
 // marginsParamDescription is the manifest description of the margins
-// block shared by REG_OLS and REG_GLM.
+// block shared by REG_OLS, REG_GLM and REG_MULTINOMIAL.
 const marginsParamDescription = "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'."
+
+// extensionMarginsParamDescription is the manifest description of the
+// margins block on an extension or model regression declaring Margins
+// (the model computes its effects; the engine its inference).
+const extensionMarginsParamDescription = "{type, terms, scale}: adds margins, the model's marginal effect of each term (ame default, or mem at the weighted means; scale response default, or link) with its delta-method std error on the fit's own covariance; the engine adds statistic, p-value and interval at conf_level (t on the fit's df, else normal). A categorical-outcome model reports one effect per outcome level, keyed \"<level>:<term>\" with margins.outcomes listing the levels. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor (independent_predictors). A multiplicity block corrects the effects as a family of their own (family margins). A top-level key of the regression entry."
 
 // collinearityParamDescription is the manifest description of the
 // collinearity block shared by REG_OLS and REG_GLM.
@@ -176,23 +195,49 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_MULTINOMIAL),
 			Description:    "Multinomial (baseline-category) logistic regression of a categorical target on numeric predictors: one coefficient set per non-reference level, log-odds against the reference level (nnet::multinom, Stata mlogit, SPSS NOMREG).",
 			AcceptsTypes:   acceptsTypes(types.REG_MULTINOMIAL),
-			EmitsTypeNote:  "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"<level>:<term>\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys.",
+			EmitsTypeNote:  "RegressionResult with reference, categories (the fitted levels in dictionary order), and per non-reference level and term coefficients, std errors, Wald z p-values and ci_lower / ci_upper keyed \"<level>:<term>\" (nnet's vcov names; the intercept term is (intercept)), conf_level, deviance (-2 logLik), null deviance, McFadden pseudo-R², two_log_lik and aic (absent under a probability weight); vcov adds the inverse-information covariance over those keys; a robust covariance swaps in its sandwich and adds its covariance echo; exponentiate adds the relative-risk ratios beside them (exponentiated); margins adds the per-category marginal effects; term_tests adds the joint predictor tests. A penalty: every level's coefficients, no reference, no two_log_lik / aic.",
 			Streamable:     types.REG_MULTINOMIAL.Streamable(),
 			StreamableHint: "Always buffered; Newton-Raphson requires multiple passes over the data.",
 			Params: []descriptor.Param{
 				{Name: "target", Type: "field", NamesColumn: true, Required: true, FieldFilter: "categorical", Description: "Categorical response field (a cohort field, not a derived column): its dictionary labels are the categories, in dictionary order; a level no fitted row carries is dropped.", Slot: true},
 				{Name: "predictors", Type: "list", NamesColumn: true, Required: true, Description: "Predictor field names (numeric only).", Slot: true},
-				{Name: "reference", Type: "string", Required: false, Description: "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).", Slot: true},
+				{Name: "reference", Type: "string", Required: false, Description: "The baseline category, one of the target's labels (default: the first fitted level in dictionary order, as multinom). Its coefficients are fixed at 0; a label outside the dictionary, or a penalty, is PROCESSING_CONFIG, a level no fitted row carries fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason reference_empty).", Slot: true},
+				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "glmnet's symmetric multinomial (ungrouped): every category gets coefficients, no reference; REG_GLM's objective over all of them. Null inference unless resampled.", Slot: true},
+				{Name: "alpha", Type: "float", Required: false, Description: "Penalty strength, > 0 (glmnet's lambda).", Slot: true},
+				{Name: "l1_ratio", Type: "float", Required: false, Description: "elasticnet mix, 0 < l1_ratio < 1 (glmnet's alpha).", Slot: true},
+				{Name: "unpenalized", Type: "list", NamesColumn: true, Required: false, Description: "Any penalty: predictors left unshrunk (glmnet's penalty.factor 0).", Slot: true},
 				{Name: "max_iters", Type: "int", Required: false, Default: 50, Description: "Newton-Raphson iteration cap.", Slot: true},
 				{Name: "tol", Type: "float", Required: false, Default: 1e-8, Description: "Relative convergence tolerance on the coefficient step; convergence is quadratic, so the estimate is the MLE to double precision.", Slot: true},
+				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer: every replicate refits at the full fit's categories and reference; a bootstrap replicate missing one is skipped, a jackknife one fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA, reason replicate_empty_level).", Slot: true},
+				{Name: "bootstrap_iters", Type: "int", Required: false, Default: 1000, Description: "Replicate count when resample == bootstrap, used as given; <= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).", Slot: true},
+				{Name: "jackknife_groups", Type: "int", Required: false, Description: "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed, echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.", Slot: true},
+				{Name: "jackknife_by", Type: "field", NamesColumn: true, Required: false, Description: "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.", Slot: true},
+				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.", Slot: true},
+				{Name: "selection", Type: "enum", Required: false, EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper, term-level: a predictor enters or leaves across every non-reference category at once (MASS::stepAIC on multinom).", Slot: true},
+				{Name: "criterion", Type: "enum", Required: false, EnumValues: []string{"aic", "bic"}, Description: "Information criterion driving selection: deviance + k·(K−1)·(terms + 1), k = 2 (aic) or ln(n_obs) (bic).", Slot: true},
 				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: Wald normal coefficient ∓ z·SE.", Slot: true},
-				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors.", Slot: true},
-				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out.", Slot: true},
+				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, the inverse information at the estimate — multinom's solve(Hessian)) and its correlation, keyed like the coefficients, category-major; √diag = std_errors (the robust sandwich under covariance). A penalty refuses it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).", Slot: true},
+				{Name: "covariance", Type: "object", Required: false, Description: "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.", Slot: true},
+				{Name: "weight", Type: "object", Required: false, Description: "{field, kind}: frequency (the rep() expansion's fit) or probability row weight (multinom(weights = w*), w* = w·n_eff/Σw; no two_log_lik / aic); absent inherits the request's, null opts out. Bootstrap / selection refuse one (PULSE_WEIGHT_UNSUPPORTED); a weighted jackknife runs.", Slot: true},
 				{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values — by default every non-intercept coefficient of every non-reference level; coefficients lists \"<level>:<term>\" keys; adds p_adjusted / significant_adjusted.", Slot: true},
+				{Name: "exponentiate", Type: "bool", Required: false, Default: false, Description: multinomialExponentiateDescription, Slot: true},
+				{Name: "margins", Type: "object", Required: false, Description: marginsParamDescription + " On REG_MULTINOMIAL per category, keyed \"<level>:<term>\" with outcomes: scale response dπ_k/dx (every fitted level; they sum to 0), link the level's log-odds against the reference (its coefficient). Wald z.", Slot: true},
+				{Name: "term_tests", Type: "bool", Required: false, Default: false, Description: "Add term_tests: per predictor the joint test of its K−1 coefficients on df K−1 — Wald χ² on the fit's covariance (robust under covariance) and the LR χ² against the refit without it (car::Anova(multinom), type II; absent under a probability weight). Never corrected by multiplicity. Beside penalty, selection or resample, or on another type: PROCESSING_CONFIG.", Slot: true},
+				{Name: "holdout", Type: "string", Required: false, Description: outcomeHoldoutParamDescription(false), Slot: true},
 				{Name: "order", Type: "object", Required: false, Description: orderParamDescription, Slot: true},
-				{Name: "name", Type: "string", Required: false, Description: "Result alias.", Slot: true},
+				{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json) keeping its coefficients, categories and reference (feature categories); a `models` entry loads it and ATTR_REG_PREDICT scores it per category.", Slot: true},
+				{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},
 			},
+			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
 		},
 	}
 	return append(builtins, modelRegressionMetas()...)
 }
+
+// multinomialExponentiateDescription / ordinalExponentiateDescription
+// are the exponentiate param of the two types internal/regexponent
+// admits (every other type refuses it).
+const (
+	multinomialExponentiateDescription = "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the relative-risk ratios exp(β) on every \"<level>:<term>\" key (Stata mlogit, rrr), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled); null SE and bounds under a penalty."
+	ordinalExponentiateDescription     = "Add exponentiated {estimates, std_errors, ci_lower, ci_upper} beside the raw table, which never moves: the predictors' cumulative odds ratios exp(β) (polr's exp(coef); no threshold key), the delta-method SE exp(β)·SE and exp of each interval bound, on whatever covariance the fit used (classical, robust, resampled). A top-level key of the regression entry."
+)

@@ -11,7 +11,8 @@ import (
 )
 
 // extension_modifiers.go drives the Resample and Selection modifiers
-// around an extension (registered) REG_* model with the built-in
+// around an extension (registered) REG_* model — and REG_MULTINOMIAL,
+// a built-in refit the same way (multinomial_modifiers.go) — with the built-in
 // drivers' own replicate loops (resample_core.go) and greedy search
 // (selection.go). The model is opaque: every refit is one fresh fit of
 // the registration over a row subset (resample) or under a predictor
@@ -35,7 +36,8 @@ type ExtensionFit func(recs []Record, predictors []string) (res *types.Regressio
 // 2k, BIC = deviance + ln(n)·k, with k the fit's coefficient count and
 // n its n_obs. A candidate fit that reports no deviance is
 // PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason missing_deviance)
-// via missingDeviance; a candidate's data-dependent refusal (the
+// via missingDeviance (nil: every fit reports one — a built-in's,
+// REG_MULTINOMIAL); a candidate's data-dependent refusal (the
 // per-slot codes) drops it, any other error stops the run.
 //
 // Resample refits the model over the fitted rows (the target, every
@@ -59,6 +61,25 @@ func RunExtensionModifiers(
 	pValues bool,
 	records []Record,
 	fit ExtensionFit,
+	missingDeviance func() error,
+	mismatch func(base, got []string) error,
+) (*types.RegressionResult, error) {
+	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch)
+}
+
+// RunExtensionModifiersReplicates is RunExtensionModifiers with the
+// resample replicates fitted by replicate rather than fit: the base fit
+// and every selection candidate (the chosen one is the result) go
+// through fit, and only the replicates — whose outputs are discarded,
+// only their coefficients read — through replicate, so a model can skip
+// work a replicate's figures never reach (REG_ORDINAL's Brant and
+// nominal tests).
+func RunExtensionModifiersReplicates(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	pValues bool,
+	records []Record,
+	fit, replicate ExtensionFit,
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
 ) (*types.RegressionResult, error) {
@@ -92,7 +113,7 @@ func RunExtensionModifiers(
 	if spec.Resample == "" {
 		return base, nil
 	}
-	return extensionResample(ctx, spec, pValues, records, active, base, keys, fit, mismatch)
+	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch)
 }
 
 // extensionFatal reports whether a refit error must stop a modifier
@@ -110,7 +131,7 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 		if err != nil {
 			return nil, err
 		}
-		if !slices.Contains(res.ReportedFigures, "deviance") {
+		if missingDeviance != nil && !slices.Contains(res.ReportedFigures, "deviance") {
 			return nil, missingDeviance()
 		}
 		return &refitResult{N: res.NObs, Deviance: res.Deviance, Params: len(keys)}, nil
@@ -174,7 +195,7 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 		var run *bootstrapRun
 		if run, err = bootstrapCore(ctx, spec, rows, active, q, rep, extensionFatal); err == nil {
 			se, cov, bootP = run.se, run.cov, run.p
-			out.BootstrapRequested, out.BootstrapSucceeded = run.requested, run.succeeded
+			run.echo(&out)
 		}
 	default:
 		err = unknownResample(spec)

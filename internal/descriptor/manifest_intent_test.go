@@ -64,8 +64,34 @@ var scopedManifestExceptions = map[string]float64{
 	// (U71 E2-S4, #551; feature growth: the carryover param on both
 	// media-mix models and ATTR_REG_PREDICT's carryover / order, plus
 	// the adstock_state output key on both models) measured 15.94%
-	// (41,454 of 260,096 bytes).
-	IntentDrivers: 0.160,
+	// (41,454 of 260,096 bytes). A holdout on REG_ORDINAL and
+	// REG_MULTINOMIAL (U68 E1-S3; feature growth: one shared `holdout`
+	// Param row on each, their proper-score figures) measured 16.04%
+	// (42,037 of 262,095 bytes), up from 15.99%. Resample and selection
+	// on REG_ORDINAL (U68 E2-S1; feature growth: its row's seven
+	// modifier Params — resample, its four knobs, selection, criterion)
+	// measured 16.27% (42,773 of 262,831 bytes). Resample and selection
+	// on REG_MULTINOMIAL (U68 E2-S2; feature growth: the same seven
+	// modifier Params on its row plus its `modifiers` block) measured
+	// 16.56% (43,686 of 263,744 bytes). The penalty on REG_MULTINOMIAL
+	// (U68 E2-S3; feature growth: four required structural Params on its
+	// row — penalty, alpha, l1_ratio, unpenalized — the slim manifest
+	// blanks every description, so there is no prose to trim) measured
+	// 16.69% (44,082 of 264,140 bytes). A robust covariance on
+	// REG_MULTINOMIAL (U68 E3-S1; feature growth: one structural
+	// `covariance` Param on its row, its description blanked by the slim
+	// manifest) measured 16.72% (44,166 of 264,224 bytes). Margins on
+	// REG_ORDINAL (U68 E4-S1; feature growth: one structural `margins`
+	// Param on its row, its description blanked by the slim manifest)
+	// measured 16.81% (44,478 of 264,536 bytes). Margins and term tests
+	// on REG_MULTINOMIAL (U68 E4-S2; feature growth: two structural
+	// Params on its row — margins, term_tests — descriptions blanked by
+	// the slim manifest) measured 16.88% (44,685 of 264,743 bytes). The
+	// nominal test on REG_ORDINAL (U68 E6-S1; feature growth: one
+	// structural `nominal_test` Param and one output key on its row,
+	// descriptions blanked by the slim manifest) measured 16.92% (44,803
+	// of 264,861 bytes).
+	IntentDrivers: 0.1692,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

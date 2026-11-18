@@ -542,7 +542,7 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 **Caveats:**
 
-- They assume the model is right; no robust (sandwich) form is offered for this model.
+- They assume the model is right unless the request's covariance names a robust one: hc0 or hc1 (the sandwich over each row's score) or cluster (rows grouped by a field); p_values, the intervals and vcov follow it.
 
 #### `p_values.*`
 
@@ -628,6 +628,123 @@ Newton-Raphson steps taken before the coefficients stopped changing (relative ch
 **Caveats:**
 
 - A fit that cannot converge within max_iters is refused rather than reported.
+
+#### `holdout.log_loss`
+
+The mean of -ln P(observed outcome) over the held-out rows (natural log): how surprised the model is by what happened; 0 is perfect, lower is better.
+
+**Caveats:**
+
+- It punishes a confident miss without limit: a held-out outcome given probability 0 makes it infinite (null).
+- Compare it only between models scored on the same held-out rows; always predicting each outcome's share is the baseline to beat.
+
+#### `holdout.brier`
+
+The mean over the held-out rows of the squared gaps between each outcome's predicted probability and 1 for the observed outcome, 0 for the others, summed over the outcomes: 0 is perfect, 2 the worst, lower is better.
+
+#### `holdout.accuracy`
+
+The share of held-out rows whose most probable outcome is the observed one (the first on a tie).
+
+**Caveats:**
+
+- It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.
+
+#### `exponentiated.estimates.*`
+
+The coefficient on the ratio scale (requested by exponentiate): the relative-risk ratio exp(coefficient) of this &lt;category&gt;:&lt;term&gt; key: the factor by which the odds of the category against the reference multiply per one-unit increase in the term's predictor, other predictors held fixed; &lt;category&gt;:(intercept) is those odds when every predictor is 0.
+
+**Sign:**
+
+- `+`: a ratio above 1: higher predictor values multiply the odds up
+- `-`: a ratio below 1: higher predictor values multiply the odds down
+
+**Caveats:**
+
+- It is a ratio of odds against the reference, not of probabilities: a ratio above 1 does not mean the category itself grows more likely.
+- 1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction.
+
+#### `exponentiated.std_errors.*`
+
+The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.
+
+**Caveats:**
+
+- The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.
+
+#### `exponentiated.ci_lower.*`
+
+exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.
+
+#### `exponentiated.ci_upper.*`
+
+exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term on one category's probability (requested by margins), keyed "&lt;category&gt;:&lt;term&gt;" (margins.outcomes lists the categories): the change in P(Y = category) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale it is the change in the category's log-odds against the reference — the coefficient itself, with its standard error.
+
+**Sign:**
+
+- `+`: a higher value of the predictor makes this category more likely, other predictors held fixed
+- `-`: a higher value of the predictor makes this category less likely, other predictors held fixed
+
+**Caveats:**
+
+- A term's effects over all categories sum to 0: probability moves between categories. Its sign can differ from the coefficient's, which compares the category with the reference only.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- A Wald z, as the coefficients': the p-value and interval use the normal distribution.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.wald_chi2.*`
+
+The Wald chi-square of this predictor (requested by term_tests): whether its coefficients are zero in every non-reference category at once, on df = categories - 1, from the fit's own covariance (classical, or the request's robust covariance). Larger is stronger evidence the predictor matters to the outcome.
+
+**Caveats:**
+
+- It tests the predictor as a whole: a large value can come from one category alone, so read the per-category coefficients or margins for where.
+- Its p-value is not corrected by a multiplicity block.
+
+#### `term_tests.wald_p_values.*`
+
+**Caveats:**
+
+- The upper chi-square tail of wald_chi2 on df.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.lr_chi2.*`
+
+The likelihood-ratio chi-square of this predictor: how much the deviance rises when the model is refitted without it on the same rows (car::Anova on multinom, type II), on df = categories - 1. Larger is stronger evidence.
+
+**Caveats:**
+
+- Absent on a probability-weighted fit (a weighted pseudo-likelihood is not a likelihood). It never reads a robust covariance.
+- With few rows per category it is usually more reliable than the Wald test; the two disagreeing is itself a warning.
+
+#### `term_tests.lr_p_values.*`
+
+**Caveats:**
+
+- The upper chi-square tail of lr_chi2 on df.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `term_tests.df.*`
+
+The test's degrees of freedom: the number of non-reference categories, one coefficient each.
 
 <a id="op-reg_ols"></a>
 
@@ -835,7 +952,7 @@ A predictor's coefficient is the shift of the latent scale for a one-unit increa
 **Caveats:**
 
 - Raised to the power e, a logit coefficient is an odds ratio per one-unit increase, of being above any given level; under probit it shifts a normal latent score by that many standard deviations, under cloglog it is a log hazard ratio.
-- It assumes the effect is the same at every step (proportional odds); params.brant tests it.
+- It assumes the effect is the same at every step (proportional odds); params.brant (logit) or params.nominal_test (any link) tests it.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
 - With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
@@ -940,9 +1057,97 @@ Newton-Raphson steps taken before the coefficients and thresholds stopped changi
 
 #### `outputs.*`
 
-outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it.
+outputs.levels and outputs.thresholds name the fitted order and the threshold coefficients; outputs.link the link; outputs.fitted_probabilities the mean fitted probability of each level over the fitted rows; outputs.brant, with params.brant, the Brant test: a chi-square omnibus and one per predictor of the effect being the same at every step, whose small p-value says the proportional-odds assumption fails for it; outputs.nominal_test, with params.nominal_test, the same question on any link as a likelihood-ratio test against a fit that frees the predictor's effect at every step (every predictor for the omnibus).
 
 **Caveats:**
 
 - The Brant test reads K - 1 separate binary logits, so it needs enough rows at every level; a sparse level makes it unreliable, and a split a predictor separates leaves its figures null.
 - A non-significant Brant test does not prove the assumption holds; with many rows a trivial difference is significant.
+- A nominal_test figure is null, with a warning, when the freed fit does not converge (a predictor separates one step) or its fitted steps cross; under a probability weight there is no likelihood, so nominal_test is absent.
+
+#### `holdout.log_loss`
+
+The mean of -ln P(observed outcome) over the held-out rows (natural log): how surprised the model is by what happened; 0 is perfect, lower is better.
+
+**Caveats:**
+
+- It punishes a confident miss without limit: a held-out outcome given probability 0 makes it infinite (null).
+- Compare it only between models scored on the same held-out rows; always predicting each outcome's share is the baseline to beat.
+
+#### `holdout.brier`
+
+The mean over the held-out rows of the squared gaps between each outcome's predicted probability and 1 for the observed outcome, 0 for the others, summed over the outcomes: 0 is perfect, 2 the worst, lower is better.
+
+#### `holdout.accuracy`
+
+The share of held-out rows whose most probable outcome is the observed one (the first on a tie).
+
+**Caveats:**
+
+- It ignores how confident each prediction is, and a rare outcome can go unpredicted while accuracy stays high: read it beside log_loss or brier.
+
+#### `exponentiated.estimates.*`
+
+The coefficient on the ratio scale (requested by exponentiate): the cumulative odds ratio exp(coefficient) of this predictor: under the logit link the factor by which the odds of a higher rather than a lower level multiply per one-unit increase, at every step of the scale, other predictors held fixed. Thresholds are not exponentiated (they are cut points, not effects).
+
+**Sign:**
+
+- `+`: a ratio above 1: higher predictor values multiply the odds up
+- `-`: a ratio below 1: higher predictor values multiply the odds down
+
+**Caveats:**
+
+- Under probit or cloglog it is not an odds ratio: exp of a probit shift has no ratio reading, and under cloglog it is a hazard ratio.
+- 1 means no association; the raw coefficient beside it is its natural log, and the two always agree in direction.
+
+#### `exponentiated.std_errors.*`
+
+The ratio's delta-method standard error, exp(coefficient) x the coefficient's standard error, on the fit's own covariance (classical, robust or resampled); null where that standard error is.
+
+**Caveats:**
+
+- The ratio's sampling distribution is skewed, so judge it by the exponentiated interval, not by ratio ± a multiple of this.
+
+#### `exponentiated.ci_lower.*`
+
+exp of the coefficient interval's lower bound: the lower bound of the ratio's interval at conf_level, which is not symmetric about the ratio.
+
+#### `exponentiated.ci_upper.*`
+
+exp of the coefficient interval's upper bound: the upper bound of the ratio's interval at conf_level.
+
+#### `holdout.rps`
+
+The ranked probability score on the held-out rows: per row the squared gaps between the predicted cumulative probability P(Y <= k) and whether the outcome is at most k, summed over the K - 1 cut points and divided by K - 1, then averaged; 0 is perfect, lower is better.
+
+**Caveats:**
+
+- Unlike log_loss and brier it respects the order: predicting a neighbouring level costs less than a distant one.
+
+#### `margins.estimates.*`
+
+The marginal effect of this term on one level's probability (requested by margins), keyed "&lt;level&gt;:&lt;term&gt;" (margins.outcomes lists the levels): the change in P(Y = level) per unit of the predictor, in probability units, averaged over the fitted rows (ame) or at the predictor means (mem, its point in at). On the link scale it is the change in the cumulative link of P(Y <= level) — minus the coefficient, the same at every level but the last.
+
+**Sign:**
+
+- `+`: a higher value of the predictor makes this level more likely, other predictors held fixed
+- `-`: a higher value of the predictor makes this level less likely, other predictors held fixed
+
+**Caveats:**
+
+- A term's effects over all levels sum to 0: probability moves between levels. A positive coefficient lowers the lowest level and raises the highest; a middle level's effect can take either sign.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
+
+#### `margins.std_errors.*`
+
+The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).
+
+#### `margins.p_values.*`
+
+**Caveats:**
+
+- A Wald z, as the coefficients': the p-value and interval use the normal distribution.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).

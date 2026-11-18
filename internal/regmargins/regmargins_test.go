@@ -46,13 +46,15 @@ func TestCheck_Refusals(t *testing.T) {
 		{"ok", base(func(*types.RegressionSpec) {}), ""},
 		{"ok mem link", base(func(s *types.RegressionSpec) { s.Margins.Type, s.Margins.Scale = "mem", "link" }), ""},
 		{"ok ols", base(func(s *types.RegressionSpec) { s.Type, s.Family = types.REG_OLS, "" }), ""},
+		{"ok multinomial", base(func(s *types.RegressionSpec) { s.Type, s.Family = types.REG_MULTINOMIAL, "" }), ""},
+		{"multinomial penalty", base(func(s *types.RegressionSpec) { s.Type, s.Family, s.Penalty = types.REG_MULTINOMIAL, "", "l2" }), "unpenalized"},
 		{"no block", base(func(s *types.RegressionSpec) { s.Margins, s.Penalty = nil, "l1" }), ""},
 		{"extension", base(func(s *types.RegressionSpec) { s.Type = "REG_ACME_THING" }), ""},
 		{"type", base(func(s *types.RegressionSpec) { s.Margins.Type = "x" }), "type ame or mem"},
 		{"scale", base(func(s *types.RegressionSpec) { s.Margins.Scale = "x" }), "scale response or link"},
 		{"term", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"c"} }), "a predictor"},
 		{"repeat", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"a", "a"} }), "a predictor"},
-		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS or REG_GLM"},
+		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
 		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
 		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
 		{"resample", base(func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), "no_resample"},
@@ -112,8 +114,76 @@ func TestCheckDependent(t *testing.T) {
 	if CheckDependent(s, reads) != nil {
 		t.Error("REG_BAYES_LINEAR judged (Check refuses it first)")
 	}
+	// U68 E4-S2: REG_MULTINOMIAL reports margins, so it is judged.
+	s.Type = types.REG_MULTINOMIAL
+	if cerr := CheckDependent(s, reads); cerr == nil || cerr.Details["requires"] != "independent_predictors" {
+		t.Errorf("REG_MULTINOMIAL not judged: %v", cerr)
+	}
+	// A model or extension regression declaring margins (its caller —
+	// the field-reference walk — skips an undeclared one) is judged.
+	s.Type = types.REG_ORDINAL
+	if cerr := CheckDependent(s, reads); cerr == nil || cerr.Details["requires"] != "independent_predictors" {
+		t.Errorf("REG_ORDINAL not judged: %v", cerr)
+	}
 	s.Type, s.Margins = types.REG_OLS, nil
 	if CheckDependent(s, reads) != nil {
 		t.Error("no block judged")
+	}
+}
+
+// TestCheckDeclared: a declared extension or model regression's block
+// meets Check's shape and fit refusals with the same details — but no
+// type rule — and a well-formed block or none passes.
+func TestCheckDeclared(t *testing.T) {
+	t.Parallel()
+
+	base := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
+		s := &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: []string{"a", "b"}, Margins: &types.RegressionMargins{}}
+		mut(s)
+		return s
+	}
+	for _, tc := range []struct {
+		name     string
+		spec     *types.RegressionSpec
+		requires string
+	}{
+		{"ok", base(func(*types.RegressionSpec) {}), ""},
+		{"ok mem link", base(func(s *types.RegressionSpec) { s.Margins.Type, s.Margins.Scale = "mem", "link" }), ""},
+		{"ok extension", base(func(s *types.RegressionSpec) { s.Type = "REG_ACME_THING" }), ""},
+		{"no block", base(func(s *types.RegressionSpec) { s.Margins, s.Resample = nil, "bootstrap" }), ""},
+		{"type", base(func(s *types.RegressionSpec) { s.Margins.Type = "x" }), "type ame or mem"},
+		{"scale", base(func(s *types.RegressionSpec) { s.Margins.Scale = "x" }), "scale response or link"},
+		{"term", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"c"} }), "a predictor"},
+		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
+		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
+		{"resample", base(func(s *types.RegressionSpec) { s.Resample = "jackknife" }), "no_resample"},
+		{"bounds", base(func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"a"}} }), "unbounded"},
+	} {
+		cerr := CheckDeclared(tc.spec)
+		switch {
+		case tc.requires == "" && cerr != nil:
+			t.Errorf("%s: refused %v", tc.name, cerr)
+		case tc.requires != "" && (cerr == nil || cerr.Code != errors.PROCESSING_CONFIG || cerr.Details["requires"] != tc.requires ||
+			cerr.Details["slot"] != "margins"):
+			t.Errorf("%s: %v, want PROCESSING_CONFIG slot margins requires %q", tc.name, cerr, tc.requires)
+		}
+	}
+}
+
+// TestResultKeys: per term without outcomes; outcome-major
+// "<outcome>:<term>" with them.
+func TestResultKeys(t *testing.T) {
+	t.Parallel()
+
+	mg := &types.RegressionMarginsResult{Terms: []string{"x", "z"}}
+	if got := ResultKeys(mg); !slices.Equal(got, []string{"x", "z"}) {
+		t.Errorf("keys %v", got)
+	}
+	mg.Outcomes = []string{"lo", "hi"}
+	if got := ResultKeys(mg); !slices.Equal(got, []string{"lo:x", "lo:z", "hi:x", "hi:z"}) {
+		t.Errorf("per-outcome keys %v", got)
+	}
+	if ResultKeys(nil) != nil || Key("", "x") != "x" || Key("a", "x") != "a:x" {
+		t.Error("Key / nil")
 	}
 }

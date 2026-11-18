@@ -3,7 +3,8 @@
 // extension contract (extend.Regression) and registered by
 // internal/regadapt as a model regression (internal/model.ModelRegression):
 // its params, factory and model, the Brant test of the proportional-odds
-// assumption (brant.go) and the robust covariances. The declaration
+// assumption (brant.go), the likelihood-ratio test against the partial
+// proportional-odds fit (nominal.go) and the robust covariances. The declaration
 // (description, params, outputs) is internal/descriptor's
 // model-regression table, which both predict and the engine adapter
 // read; purpose and interpretation are the descriptor's built-in
@@ -16,6 +17,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -47,11 +49,16 @@ const ThresholdSeparator = pmodel.OrdinalThresholdSeparator
 // brantParams is params.brant: an opt-in block with no keys today.
 type brantParams struct{}
 
+// nominalTestParams is params.nominal_test: an opt-in block with no
+// keys today.
+type nominalTestParams struct{}
+
 // params is the params object.
 type params struct {
-	Link   string       `json:"link"`
-	Levels []string     `json:"levels"`
-	Brant  *brantParams `json:"brant"`
+	Link        string             `json:"link,omitempty"`
+	Levels      []string           `json:"levels,omitempty"`
+	Brant       *brantParams       `json:"brant,omitempty"`
+	NominalTest *nominalTestParams `json:"nominal_test,omitempty"`
 }
 
 // OutputSchema is REG_ORDINAL's declared Outputs.
@@ -61,6 +68,7 @@ var OutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "thresholds", JSONType: "array", Description: "The threshold coefficients' names, in order (no p-value)."},
 	{Key: "fitted_probabilities", JSONType: "object", Description: "Per level: the weighted mean fitted P(Y = level | x) over the fitted rows."},
 	{Key: "brant", JSONType: "object", Description: "With params.brant: {statistic, df, p_value} omnibus ((K − 2)·p df) and terms per predictor (K − 2 df); null when a binary split separates."},
+	{Key: "nominal_test", JSONType: "object", Description: "With params.nominal_test, any link: the likelihood-ratio test of proportional odds against the partial proportional-odds fit (ordinal::nominal_test) — {statistic, df, p_value} omnibus (every predictor non-parallel, (K − 2)·p df) and terms per predictor (that predictor non-parallel, K − 2 df); a figure whose partial fit does not converge or crosses its cumulative probabilities is null, with warning PROCESSING_REGRESSION_DIAGNOSTIC. Absent under a probability weight (no likelihood)."},
 }
 
 // OutputKeys are OutputSchema's keys, in order.
@@ -173,7 +181,43 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 	if w := spec.Weight.Spec(); w != nil {
 		m.probability = w.EffectiveKind() == types.WeightKindProbability
 	}
+	m.nominalTest = nominalTestRuns(p.NominalTest != nil, m.probability)
 	return m, nil
+}
+
+// nominalTestRuns is the one rule for whether outputs.nominal_test is
+// computed: params.nominal_test set and no probability weight — a
+// likelihood ratio needs a likelihood, and a probability-weighted fit
+// reports none (no two_log_lik / aic; REG_MULTINOMIAL's term_tests LR
+// is absent there too), so the output is absent, never refused.
+func nominalTestRuns(requested, probability bool) bool {
+	return requested && !probability
+}
+
+// BrantPValues is how many p-values outputs.brant carries for spec:
+// one per predictor plus the omnibus with params.brant, else 0 — and 0
+// for a refused spec (params.brant beside a non-logit link). Every
+// weight kind runs it. Predict counts them (internal/descriptor) on the
+// rule the runtime applies (Factory's brant flag).
+func BrantPValues(spec *types.RegressionSpec) int {
+	p, _, err := decodeParams(spec)
+	if err != nil || p.Brant == nil {
+		return 0
+	}
+	return len(spec.Predictors) + 1
+}
+
+// NominalTestPValues is how many p-values outputs.nominal_test carries
+// for spec under a resolved weight of kind probability (true) or not:
+// one per predictor plus the omnibus, or 0 — no params.nominal_test, a
+// refused spec, or a probability weight (the output is absent). Predict
+// counts them (internal/descriptor) on the rule the runtime applies.
+func NominalTestPValues(spec *types.RegressionSpec, probability bool) int {
+	p, _, err := decodeParams(spec)
+	if err != nil || !nominalTestRuns(p.NominalTest != nil, probability) {
+		return 0
+	}
+	return len(spec.Predictors) + 1
 }
 
 // SpecRefusal is Factory's refusal of spec, or nil when Factory builds:
@@ -193,15 +237,24 @@ func SpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, err.Error(), map[string]any{"type": string(Name)})
 }
 
+// auxTestFits counts the fits that ran the Brant or the nominal test —
+// a test seam (export_test.go) pinning that resample replicates skip
+// them (ReplicatePin's ReplicateSpec).
+var auxTestFits atomic.Int64
+
 // model is one slot's buffered fit.
 type model struct {
 	spec        *types.RegressionSpec
 	link        link
 	levels      []string // params.levels; nil = the data's own order
 	brant       bool
+	nominalTest bool
 	cov         types.CovarianceType
 	cluster     string
 	probability bool
+	// fitted is the last successful Fit's state, read by Margins and
+	// CompareFigures.
+	fitted *fitState
 }
 
 // levelOf reads row rec's response: its label and its natural order key
@@ -346,6 +399,8 @@ func (m *model) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 			return extend.RegressionOutput{}, err
 		}
 	}
+	m.fitted = &fitState{d: d, theta: sol.theta, vcov: vcov, levels: levels,
+		thresholds: thresholds, deviance: -float64(2 * sol.ll), dfResidual: nStar - float64(q)}
 	return m.output(d, sol, vcov, levels, thresholds), nil
 }
 
@@ -503,6 +558,9 @@ func (m *model) output(d *design, sol *solution, vcov [][]float64, levels, thres
 		"thresholds":           slices.Clone(thresholds),
 		"fitted_probabilities": fp,
 	}
+	if m.brant || m.nominalTest {
+		auxTestFits.Add(1)
+	}
 	if m.brant {
 		b := d.brant()
 		terms := make(map[string]any, d.p)
@@ -512,5 +570,38 @@ func (m *model) output(d *design, sol *solution, vcov [][]float64, levels, thres
 		}
 		out.Outputs["brant"] = map[string]any{"statistic": b.stat, "df": b.df, "p_value": b.p, "terms": terms}
 	}
+	if m.nominalTest {
+		m.attachNominalTest(&out, d, sol)
+	}
 	return out
+}
+
+// attachNominalTest adds outputs.nominal_test and a
+// PROCESSING_REGRESSION_DIAGNOSTIC warning per figure left null.
+func (m *model) attachNominalTest(out *extend.RegressionOutput, d *design, sol *solution) {
+	nt := d.nominalTest(m.link, sol)
+	figure := func(f nominalFigure) map[string]any {
+		return map[string]any{"statistic": f.stat, "df": f.df, "p_value": f.p}
+	}
+	terms := make(map[string]any, d.p)
+	for a, name := range m.spec.Predictors {
+		terms[name] = figure(nt.terms[a])
+	}
+	o := figure(nt.omnibus)
+	o["terms"] = terms
+	out.Outputs["nominal_test"] = o
+	for _, f := range nt.failures {
+		what, details := "every predictor", map[string]any{"reason": f.reason, "scope": "omnibus", "iterations": f.iters}
+		if f.term >= 0 {
+			what = m.spec.Predictors[f.term]
+			details["scope"], details["term"] = "term", what
+		}
+		msg := fmt.Sprintf("%s: params.nominal_test: the partial proportional-odds fit with %s non-parallel did not converge (%s); its statistic and p-value are null", Name, what, f.cause)
+		if f.reason == ReasonNominalNoConverge {
+			details["cause"] = f.cause
+		} else {
+			msg = fmt.Sprintf("%s: params.nominal_test: the partial proportional-odds fit with %s non-parallel crosses its cumulative probabilities at a fitted row; its statistic and p-value are null", Name, what)
+		}
+		out.Warnings = append(out.Warnings, &types.ResponseWarning{Code: string(perr.PROCESSING_REGRESSION_DIAGNOSTIC), Message: msg, Details: details})
+	}
 }

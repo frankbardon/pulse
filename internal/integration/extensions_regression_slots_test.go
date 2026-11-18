@@ -128,11 +128,20 @@ func TestExtensions_RegressionSharedSlotsRefused(t *testing.T) {
 			if key != slot {
 				want["key"] = key
 			}
-			if slot == "margins" || slot == "collinearity" {
+			switch slot {
+			case "collinearity":
 				// The built-in rule's word for the fix
-				// (internal/regmargins, internal/collinearity), on the
+				// (internal/collinearity, internal/regexponent), on the
 				// table's refusal too.
 				want["requires"] = "type REG_OLS or REG_GLM"
+			case "exponentiate":
+				want["requires"] = "type REG_MULTINOMIAL or REG_ORDINAL"
+			case "term_tests":
+				// U68 E4-S2: REG_MULTINOMIAL's alone (internal/regmultinom).
+				want["requires"] = "type REG_MULTINOMIAL"
+			case "margins":
+				// The registration's Margins declaration (U68 E4-S1).
+				want["requires"] = "declared_margins"
 			}
 			if !reflect.DeepEqual(ce.Details, want) {
 				t.Errorf("runtime details = %v, want %v", ce.Details, want)

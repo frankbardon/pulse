@@ -97,7 +97,7 @@ func TestCheck_Refusals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Check(tc.compare, tc.fits, tc.def)
+			_, err := Check(tc.compare, tc.fits, tc.def, nil)
 			if err == nil {
 				t.Fatal("accepted")
 			}
@@ -164,7 +164,7 @@ func TestCheck_Plans(t *testing.T) {
 			fits := pair(tc.r0, tc.r1)
 			fits[0].Request.Label, fits[0].Request.Weight = "a", &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 			fits[1].Request.Weight = &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
-			plans, err := Check(one(tc.test), fits, &types.WeightSpec{Field: "w"})
+			plans, err := Check(one(tc.test), fits, &types.WeightSpec{Field: "w"}, nil)
 			if err != nil {
 				t.Fatalf("refused: %v %v", err, err.Details)
 			}
@@ -178,7 +178,7 @@ func TestCheck_Plans(t *testing.T) {
 	// instance default.
 	r0, r1 := ols("a"), ols("a", "b")
 	r0.Weight, r1.Weight = types.NullSlotWeight(), types.NullSlotWeight()
-	if _, err := Check(one(""), pair(r0, r1), &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}); err != nil {
+	if _, err := Check(one(""), pair(r0, r1), &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}, nil); err != nil {
 		t.Fatalf("opted-out weight refused: %v", err)
 	}
 }
@@ -302,5 +302,261 @@ func TestRegCompare_ImportBoundary(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// ordinal is a REG_ORDINAL spec over preds (a model declaring Compare
+// under declaredOrdinal), params.levels pinned when levels is set.
+func ordinal(levels string, preds ...string) *types.RegressionSpec {
+	s := &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: preds}
+	if levels != "" {
+		s.Params = []byte(`{"link":"logit","levels":` + levels + `}`)
+	}
+	return s
+}
+
+// declaredOrdinal is the declared predicate admitting REG_ORDINAL.
+func declaredOrdinal(t types.RegressionType) bool { return t == types.REG_ORDINAL }
+
+// TestCheck_Declared: a type whose declaration carries Compare is
+// admitted only through the declared predicate; its terms are its
+// predictors, lrt its default, wald chi-square, f refused for want of an
+// estimated dispersion, and differing params.levels refused
+// levels_differ — ahead of the generic request_mismatch.
+func TestCheck_Declared(t *testing.T) {
+	t.Parallel()
+
+	// Undeclared (nil predicate): type_unsupported with the new requires.
+	_, err := Check(one(""), pair(ordinal("", "a"), ordinal("", "a", "b")), nil, nil)
+	if err == nil || err.Details["reason"] != "type_unsupported" || err.Details["requires"] != RequiresComparableType {
+		t.Fatalf("undeclared: %v %v", err, err.Details)
+	}
+	// Another type the predicate does not admit stays refused.
+	if _, err := Check(one(""), pair(ordinal("", "a"), &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"a", "b"}}), nil, declaredOrdinal); err == nil || err.Details["reason"] != "type_unsupported" {
+		t.Fatalf("bayes beside a declared type: %v", err)
+	}
+	if _, err := Check(one(""), pair(ols("a"), ordinal("", "a", "b")), nil, declaredOrdinal); err == nil || err.Details["reason"] != "type_mismatch" {
+		t.Fatalf("mixed types: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		test   types.ComparisonTest
+		r0, r1 *types.RegressionSpec
+		want   types.ComparisonTest
+		dist   types.ComparisonDistribution
+		terms  []string
+	}{
+		{"default lrt", "", ordinal("", "a"), ordinal("", "b", "a", "c"), types.ComparisonTestLRT, types.ComparisonDistributionChiSquare, []string{"b", "c"}},
+		{"wald chi-square", types.ComparisonTestWald, ordinal(`["1","2","3"]`, "a"), ordinal(`["1","2","3"]`, "a", "b"), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}},
+		{"robust wald chi-square", types.ComparisonTestWald, func() *types.RegressionSpec {
+			s := ordinal("", "a")
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+			return s
+		}(), func() *types.RegressionSpec {
+			s := ordinal("", "a", "b")
+			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+			return s
+		}(), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}},
+	} {
+		plans, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, declaredOrdinal)
+		if err != nil {
+			t.Fatalf("%s: refused %v %v", tc.name, err, err.Details)
+		}
+		p := plans[0]
+		if !p.Declared || !p.FixedDispersion || p.LogLik || p.Test != tc.want || p.Distribution != tc.dist || !slices.Equal(p.Terms, tc.terms) {
+			t.Fatalf("%s: plan %+v", tc.name, p)
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		test     types.ComparisonTest
+		r0, r1   *types.RegressionSpec
+		reason   string
+		requires string
+	}{
+		{"f", types.ComparisonTestF, ordinal("", "a"), ordinal("", "a", "b"), "requires", RequiresEstimatedDispersion},
+		{"not nested", "", ordinal("", "a", "c"), ordinal("", "a", "b"), "not_nested", ""},
+		{"no extra predictor", "", ordinal("", "a"), ordinal("", "a"), "no_extra_terms", ""},
+		{"levels differ", "", ordinal(`["1","2","3"]`, "a"), ordinal(`["3","2","1"]`, "a", "b"), "levels_differ", ""},
+		{"levels pinned on one side", "", ordinal("", "a"), ordinal(`["1","2","3"]`, "a", "b"), "levels_differ", ""},
+		{"other params differ", "", ordinal(`["1","2","3"]`, "a"), func() *types.RegressionSpec {
+			s := ordinal("", "a", "b")
+			s.Params = []byte(`{"link":"probit","levels":["1","2","3"]}`)
+			return s
+		}(), "request_mismatch", ""},
+		{"wald under resample", types.ComparisonTestWald, func() *types.RegressionSpec { s := ordinal("", "a"); s.Resample = "jackknife"; return s }(),
+			func() *types.RegressionSpec { s := ordinal("", "a", "b"); s.Resample = "jackknife"; return s }(), "requires", RequiresNoResample},
+		{"selection", "", ordinal("", "a"), func() *types.RegressionSpec { s := ordinal("", "a", "b"); s.Selection = "forward"; return s }(), "requires", RequiresNoSelection},
+	} {
+		_, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, declaredOrdinal)
+		if err == nil || err.Code != errors.PULSE_COMPARISON_INVALID || err.Details["reason"] != tc.reason {
+			t.Fatalf("%s: got %v, want reason %s", tc.name, err, tc.reason)
+		}
+		if tc.requires != "" && err.Details["requires"] != tc.requires {
+			t.Fatalf("%s: requires %v, want %s", tc.name, err.Details["requires"], tc.requires)
+		}
+	}
+	// levels_differ names both level sets.
+	_, err = Check(one(""), pair(ordinal(`["1","2","3"]`, "a"), ordinal(`["3","2","1"]`, "a", "b")), nil, declaredOrdinal)
+	if l, ok := err.Details["full_levels"].([]any); !ok || len(l) != 3 || l[0] != "3" || err.Details["restricted_levels"] == nil {
+		t.Fatalf("levels details %v", err.Details)
+	}
+}
+
+// TestCompute_Declared: a declared plan's likelihood ratio is the plain
+// deviance change, its Wald chi-square on the full fit's covariance over
+// the tested predictors; fits whose other terms (thresholds) differ by
+// name fail alone with PULSE_COMPARISON_ROWS_DIFFER reason terms_differ.
+func TestCompute_Declared(t *testing.T) {
+	t.Parallel()
+
+	full := &types.RegressionResult{NObs: 40}
+	restricted := &types.RegressionResult{NObs: 40}
+	g1 := figures([]string{"a", "b", "1|2", "2|3"}, []float64{0.7, -0.5, -1, 1}, [][]float64{
+		{0.04, 0.01, 0, 0}, {0.01, 0.0625, 0, 0}, {0, 0, 0.1, 0.02}, {0, 0, 0.02, 0.1}}, 70, 36, 1, 0)
+	g0 := figures([]string{"a", "1|2", "2|3"}, []float64{0.6, -0.9, 0.9}, nil, 79, 37, 1, 0)
+	p := Plan{Name: "c", Restricted: "m0", Full: "m1", Terms: []string{"b"}, Declared: true, FixedDispersion: true,
+		Test: types.ComparisonTestLRT, Distribution: types.ComparisonDistributionChiSquare}
+	r, err := Compute(p, restricted, full, g0, g1)
+	if err != nil || r.Error != nil || r.Statistic != 9 || r.Dispersion != 1 || r.DF != 1 || r.FullDFResidual != 36 {
+		t.Fatalf("lrt: %v %+v", err, r)
+	}
+	p.Test = types.ComparisonTestWald
+	r, _ = Compute(p, restricted, full, g0, g1)
+	if want := 0.25 / 0.0625; math.Abs(r.Statistic-want) > 1e-15 || r.DFResidual != 0 {
+		t.Fatalf("wald %v, want %v (%+v)", r.Statistic, want, r)
+	}
+	other := *g0
+	other.Terms = []string{"a", "low|mid", "mid|high"}
+	r, err = Compute(p, restricted, full, &other, g1)
+	if err != nil || r.Error == nil || r.Error.Code != string(errors.PULSE_COMPARISON_ROWS_DIFFER) || r.Error.Details["reason"] != "terms_differ" {
+		t.Fatalf("terms differ: %v %+v", err, r.Error)
+	}
+	// An OLS / GLM plan never reads the terms rule (its intercept is a
+	// tested term there).
+	p.Declared = false
+	if r, _ = Compute(p, restricted, full, &other, g1); r.Error != nil {
+		t.Fatalf("undeclared plan read the terms rule: %+v", r.Error)
+	}
+}
+
+// multinomial is a REG_MULTINOMIAL spec over preds, its reference named
+// when ref is set.
+func multinomial(ref string, preds ...string) *types.RegressionSpec {
+	return &types.RegressionSpec{Type: types.REG_MULTINOMIAL, Target: "y", Predictors: preds, Reference: ref}
+}
+
+// TestCheck_Multinomial: REG_MULTINOMIAL is admitted by the rule itself
+// (no declared predicate) as a declared-like plan — its terms its
+// predictors, lrt its default, wald chi-square, f refused for want of an
+// estimated dispersion, a penalty refused — and two fits naming
+// different references are refused reference_differs, ahead of the
+// generic request_mismatch.
+func TestCheck_Multinomial(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		test   types.ComparisonTest
+		r0, r1 *types.RegressionSpec
+		want   types.ComparisonTest
+		terms  []string
+	}{
+		{"default lrt", "", multinomial("", "a"), multinomial("", "b", "a", "c"), types.ComparisonTestLRT, []string{"b", "c"}},
+		{"wald", types.ComparisonTestWald, multinomial("hi", "a"), multinomial("hi", "a", "b"), types.ComparisonTestWald, []string{"b"}},
+	} {
+		plans, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, nil)
+		if err != nil {
+			t.Fatalf("%s: refused %v %v", tc.name, err, err.Details)
+		}
+		p := plans[0]
+		if !p.Declared || !p.FixedDispersion || p.LogLik || p.Test != tc.want || p.Distribution != types.ComparisonDistributionChiSquare || !slices.Equal(p.Terms, tc.terms) {
+			t.Fatalf("%s: plan %+v", tc.name, p)
+		}
+	}
+	for _, tc := range []struct {
+		name     string
+		test     types.ComparisonTest
+		r0, r1   *types.RegressionSpec
+		reason   string
+		requires string
+	}{
+		{"f", types.ComparisonTestF, multinomial("", "a"), multinomial("", "a", "b"), "requires", RequiresEstimatedDispersion},
+		{"reference differs", "", multinomial("lo", "a"), multinomial("hi", "a", "b"), "reference_differs", ""},
+		{"reference named on one side", "", multinomial("", "a"), multinomial("hi", "a", "b"), "reference_differs", ""},
+		{"target differs", "", multinomial("", "a"), func() *types.RegressionSpec { s := multinomial("", "a", "b"); s.Target = "z"; return s }(), "request_mismatch", ""},
+		{"penalty", "", multinomial("", "a"), func() *types.RegressionSpec { s := multinomial("", "a", "b"); s.Penalty, s.Alpha = "l2", 0.1; return s }(), "requires", RequiresUnpenalized},
+		{"mixed types", "", ols("a"), multinomial("", "a", "b"), "type_mismatch", ""},
+	} {
+		_, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, nil)
+		if err == nil || err.Code != errors.PULSE_COMPARISON_INVALID || err.Details["reason"] != tc.reason {
+			t.Fatalf("%s: got %v, want reason %s", tc.name, err, tc.reason)
+		}
+		if tc.requires != "" && err.Details["requires"] != tc.requires {
+			t.Fatalf("%s: requires %v, want %s", tc.name, err.Details["requires"], tc.requires)
+		}
+	}
+	_, err := Check(one(""), pair(multinomial("lo", "a"), multinomial("", "a", "b")), nil, nil)
+	if err.Details["restricted_reference"] != "lo" || err.Details["full_reference"] != "" {
+		t.Fatalf("reference details %v", err.Details)
+	}
+}
+
+// TestCompute_Multinomial: figures whose terms fit one coefficient per
+// non-reference category (TermKeys) test every key of the added
+// predictors — DF = (K − 1)·added on both tests, the Wald over the
+// whole block of the full fit's covariance — and fits whose other keys
+// differ (another category set) fail alone, reason terms_differ.
+func TestCompute_Multinomial(t *testing.T) {
+	t.Parallel()
+
+	keys := func(cats []string, terms ...string) ([]string, map[string][]string) {
+		var all []string
+		by := map[string][]string{}
+		for _, c := range cats {
+			for _, term := range terms {
+				k := c + ":" + term
+				all = append(all, k)
+				by[term] = append(by[term], k)
+			}
+		}
+		return all, by
+	}
+	k1, by1 := keys([]string{"b", "c"}, InterceptTerm, "a", "x")
+	k0, by0 := keys([]string{"b", "c"}, InterceptTerm, "a")
+	// Block-diagonal but for one covariance between the two tested keys
+	// (b:x, c:x), so the Wald reads the off-diagonal cell.
+	cov := make([][]float64, 6)
+	for i := range cov {
+		cov[i] = make([]float64, 6)
+		cov[i][i] = 0.04
+	}
+	cov[2][5], cov[5][2] = 0.01, 0.01
+	g1 := figures(k1, []float64{0.1, 0.2, 0.3, -0.1, 0.4, -0.2}, cov, 180, 194, 1, 0)
+	g1.TermKeys = by1
+	g0 := figures(k0, []float64{0.1, 0.2, -0.1, 0.4}, nil, 186, 196, 1, 0)
+	g0.TermKeys = by0
+	res := &types.RegressionResult{NObs: 100}
+	p := Plan{Name: "c", Restricted: "m0", Full: "m1", Terms: []string{"x"}, Declared: true, FixedDispersion: true,
+		Test: types.ComparisonTestLRT, Distribution: types.ComparisonDistributionChiSquare}
+	r, err := Compute(p, res, res, g0, g1)
+	if err != nil || r.Error != nil || r.Statistic != 6 || r.DF != 2 || !slices.Equal(r.Terms, []string{"x"}) {
+		t.Fatalf("lrt: %v %+v", err, r)
+	}
+	p.Test = types.ComparisonTestWald
+	r, _ = Compute(p, res, res, g0, g1)
+	// [0.3, -0.2] · inv([[0.04, 0.01], [0.01, 0.04]]) · [0.3, -0.2]
+	det := 0.04*0.04 - 0.01*0.01
+	want := (0.04*0.3*0.3 - 2*0.01*0.3*-0.2 + 0.04*0.2*0.2) / det
+	if !(math.Abs(r.Statistic-want) <= 1e-12*want) || r.DF != 2 {
+		t.Fatalf("wald %v df %v, want %v df 2", r.Statistic, r.DF, want)
+	}
+	other := *g0
+	other.Terms, other.TermKeys = keys([]string{"b", "d"}, InterceptTerm, "a")
+	r, err = Compute(p, res, res, &other, g1)
+	if err != nil || r.Error == nil || r.Error.Details["reason"] != "terms_differ" {
+		t.Fatalf("categories differ: %v %+v", err, r.Error)
 	}
 }
