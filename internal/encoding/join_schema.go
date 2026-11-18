@@ -53,5 +53,9 @@ func JoinedSchema(left, right *encoding.Schema, as string) (*encoding.Schema, er
 		v.FieldIndex += len(left.Fields)
 		vectors = append(vectors, v)
 	}
-	return &encoding.Schema{Fields: fields, Vectors: vectors}, nil
+	// The cohort default zone field is the LEFT cohort's: its fields keep
+	// their names, so the default still names a joined field. The right
+	// cohort's default is never inherited (a right field renamed by
+	// `as` would be a second, competing default).
+	return &encoding.Schema{Fields: fields, Vectors: vectors, ZoneField: left.ZoneField}, nil
 }

@@ -40,10 +40,15 @@ type zoneSlot struct {
 // call it, so a request is refused or accepted identically by both.
 //
 // Precedence per zone-capable slot: slot `tz` → slot `tz_field` →
-// req.TimeZoneField → req.TimeZone → defaultZone
+// req.TimeZoneField → req.TimeZone → the cohort default zone field
+// (schema.ZoneField, echoed source "cohort") → defaultZone
 // (pulse.Options.DefaultTimeZone) → "UTC". A `tz_field` /
-// `time_zone_field` names a categorical field read per row; its rules
-// are resolveFieldZone's. Rules, in evaluation order:
+// `time_zone_field` / cohort default names a categorical field read
+// per row; its rules are resolveFieldZone's, the cohort default
+// inheriting exactly like `time_zone_field`. The cohort default is the
+// schema's: a joined schema carries the LEFT cohort's (never the
+// right's), a chain stage >= 1's synthesised schema none, and a nil
+// schema none. Rules, in evaluation order:
 //
 //   - an unknown req.TimeZone or defaultZone → PULSE_TIMEZONE_UNKNOWN,
 //     whether or not a zone-capable slot is present;
@@ -142,8 +147,9 @@ func requestZoneSlots(req *types.Request, inst *InstanceSnapshot) []zoneSlot {
 }
 
 // ResolveFacetZones is ResolveZones for a FacetRequest: its filterers
-// resolve through slot `tz` → req.TimeZone → defaultZone → "UTC" under
-// the same rules.
+// resolve through slot `tz` → slot `tz_field` → req.TimeZoneField →
+// req.TimeZone → the cohort default zone field → defaultZone → "UTC"
+// under the same rules.
 func ResolveFacetZones(req *types.FacetRequest, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if req == nil {
 		return []descriptor.ResolvedZone{}, nil
@@ -162,6 +168,10 @@ func resolveZoneSlots(slots []zoneSlot, requestZone, requestZoneField string, sc
 		load = temporal.LoadZone
 	}
 	out := []descriptor.ResolvedZone{}
+	cohortZoneField := ""
+	if schema != nil {
+		cohortZoneField = schema.ZoneField
+	}
 
 	// The inherited zone: request → options → default. Validated up
 	// front so an unknown name is refused even with no capable slot.
@@ -235,12 +245,10 @@ func resolveZoneSlots(slots []zoneSlot, requestZone, requestZoneField string, sc
 
 		// A per-row zone field: the slot's own `tz_field`, else the
 		// request's `time_zone_field` — both outrank every zone name but
-		// the slot's own `tz`.
-		if zoneField, explicit := s.tzField, s.tzField != ""; s.tz == "" && (explicit || requestZoneField != "") {
-			if !explicit {
-				zoneField = requestZoneField
-			}
-			rz, err := resolveFieldZone(s, zoneField, explicit, fieldType, known, instants, schema)
+		// the slot's own `tz` — else, below the request's `time_zone`,
+		// the cohort's default zone field.
+		if zoneField, source := zoneFieldFor(s, requestZone, requestZoneField, cohortZoneField); zoneField != "" {
+			rz, err := resolveFieldZone(s, zoneField, source, fieldType, known, instants, schema)
 			if err != nil {
 				return nil, err
 			}
@@ -290,15 +298,37 @@ func resolveZoneSlots(slots []zoneSlot, requestZone, requestZoneField string, sc
 	return out, nil
 }
 
+// zoneFieldFor returns the per-row zone field slot s reads and the
+// level it comes from — ZoneSourceField for the slot's own `tz_field`
+// or the request's `time_zone_field`, ZoneSourceCohort for the cohort
+// default — or "" when a zone name (slot `tz`, request `time_zone`) or
+// no field at all applies. Precedence: slot `tz` → slot `tz_field` →
+// request `time_zone_field` → request `time_zone` → cohort default.
+func zoneFieldFor(s zoneSlot, requestZone, requestZoneField, cohortZoneField string) (string, string) {
+	switch {
+	case s.tz != "":
+		return "", ""
+	case s.tzField != "":
+		return s.tzField, descriptor.ZoneSourceField
+	case requestZoneField != "":
+		return requestZoneField, descriptor.ZoneSourceField
+	case requestZone != "":
+		return "", ""
+	default:
+		return cohortZoneField, descriptor.ZoneSourceCohort
+	}
+}
+
 // detailZoneField is the CodedError.Details key carrying a slot's
 // per-row zone field (`tz_field`, or the inherited `time_zone_field`).
 const detailZoneField = "tz_field"
 
 // resolveFieldZone resolves one zone-capable slot whose zone is read
-// per row from zoneField — its own `tz_field` (explicit) or the
-// request's inherited `time_zone_field`. The echo is source "field",
-// tz_field named and tz null (the zone varies per row). Rules, mirroring
-// a zone name's:
+// per row from zoneField — its own `tz_field` (explicit), the request's
+// inherited `time_zone_field` or the cohort's inherited default
+// (source ZoneSourceCohort; every other field is ZoneSourceField). The
+// echo is that source, tz_field named and tz null (the zone varies per
+// row). Rules, mirroring a zone name's:
 //
 //   - an explicit `tz_field` on a field in the schema that is not
 //     `datetime` → PROCESSING_CONFIG {slot, operator, tz_field, field,
@@ -318,8 +348,9 @@ const detailZoneField = "tz_field"
 // after this one, refuses it — against the joined schema of a join and
 // the synthesised schema of a chain stage alike. A nil schema skips
 // every field-dependent rule.
-func resolveFieldZone(s zoneSlot, zoneField string, explicit bool, fieldType string, known, instants bool, schema *encoding.Schema) (descriptor.ResolvedZone, error) {
-	rz := descriptor.ResolvedZone{Slot: s.slot, Operator: s.operator, FieldType: fieldType, TZField: zoneField, Source: descriptor.ZoneSourceField}
+func resolveFieldZone(s zoneSlot, zoneField, source string, fieldType string, known, instants bool, schema *encoding.Schema) (descriptor.ResolvedZone, error) {
+	explicit := s.tzField != ""
+	rz := descriptor.ResolvedZone{Slot: s.slot, Operator: s.operator, FieldType: fieldType, TZField: zoneField, Source: source}
 	if schema == nil {
 		return rz, nil
 	}
@@ -353,8 +384,12 @@ func resolveFieldZone(s zoneSlot, zoneField string, explicit bool, fieldType str
 		}
 	}
 	if !known {
+		advice := "name a datetime schema field"
+		if source == descriptor.ZoneSourceCohort {
+			advice += `, or override the cohort default with a request "time_zone" (e.g. "UTC")`
+		}
 		return rz, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s: %s reads a per-row zone from field %q onto field %q, which is not in the schema; a zone cannot be applied to a derived field — name a datetime schema field", s.slot, s.operator, zoneField, s.field),
+			fmt.Sprintf("%s: %s reads a per-row zone from field %q onto field %q, which is not in the schema; a zone cannot be applied to a derived field — %s", s.slot, s.operator, zoneField, s.field, advice),
 			map[string]any{"slot": s.slot, "operator": s.operator, detailZoneField: zoneField})
 	}
 	return rz, nil
@@ -504,8 +539,8 @@ func zoneCapableAdvice(inst *InstanceSnapshot) string {
 // Two write-sets: an inherited zone NAME (request `time_zone` or the
 // options default) that is not UTC-equivalent is written into the
 // slot's `tz`; an inherited per-row zone FIELD (request
-// `time_zone_field`) resolved onto a `datetime` slot is written into
-// the slot's `tz_field`. zones is ResolveZones' result for req; load
+// `time_zone_field`, or the cohort default) resolved onto a `datetime`
+// slot is written into the slot's `tz_field`. zones is ResolveZones' result for req; load
 // resolves a name (nil: temporal.LoadZone).
 //
 // The operator factories see only the slot and the schema, so the zone
@@ -693,7 +728,7 @@ func inheritedZoneWrites(zones []descriptor.ResolvedZone, load ZoneLoader) map[s
 	for _, z := range zones {
 		var w zoneWrite
 		switch {
-		case z.Source == descriptor.ZoneSourceField:
+		case z.Source == descriptor.ZoneSourceField || z.Source == descriptor.ZoneSourceCohort:
 			if z.TZField == "" || (z.FieldType != "" && z.FieldType != encoding.FieldTypeDateTime.String()) {
 				continue
 			}

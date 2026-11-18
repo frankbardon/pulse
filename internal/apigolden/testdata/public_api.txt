@@ -1776,6 +1776,7 @@ pulse/descriptor: type InspectResult field Layout *pulse/descriptor.InspectLayou
 pulse/descriptor: type InspectResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type InspectResult field Shards []pulse/descriptor.ShardInfo "json:\"shards\""
 pulse/descriptor: type InspectResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
+pulse/descriptor: type InspectResult field ZoneField string "json:\"zone_field,omitempty\""
 pulse/descriptor: type InspectVector struct
 pulse/descriptor: type InspectVector field Dim int "json:\"dim\""
 pulse/descriptor: type InspectVector field Kind string "json:\"kind,omitempty\""
@@ -2441,6 +2442,7 @@ pulse/descriptor: const WeightStatusNone untyped string = "none"
 pulse/descriptor: const WeightStatusOptedOut untyped string = "opted_out"
 pulse/descriptor: const WeightStatusSkippedNotWeightAware untyped string = "skipped_not_weight_aware"
 pulse/descriptor: const WeightSuggestionSourceSPSSSidecar untyped string = "spss_sidecar"
+pulse/descriptor: const ZoneSourceCohort untyped string = "cohort"
 pulse/descriptor: const ZoneSourceDefault untyped string = "default"
 pulse/descriptor: const ZoneSourceField untyped string = "field"
 pulse/descriptor: const ZoneSourceOptions untyped string = "options"
@@ -7070,4 +7072,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 35c8ecc74e80a6c08fa58a77495cc9aba2cce3e855447117f49181f3af6ae019
+// golden-hash: 0d02fb7fc736fbc805253746ae27047038154c2ea4d89b6923625bfd214e1374

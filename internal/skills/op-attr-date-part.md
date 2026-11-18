@@ -34,7 +34,7 @@ One `f64` integer per record: `year` = YYYY, `month` = 1..12, `day` = 1..31, `ye
 - Row-local one-pass — streams cleanly.
 - A grouping key (`month_day` for seasonality, `iso_weekday` sorts Monday first) or a post-filter `FEAT` substitute.
 - `hour` on a `date` → `PULSE_FIELD_TYPE_UNSUPPORTED`; unknown `part` → `PROCESSING_CONFIG`.
-- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → default → UTC); null `tz_field` cell → `null`. A `date` ignores zones (explicit refused).
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → cohort default field → default → UTC); null `tz_field` cell → `null`. A `date` ignores zones (explicit refused).
 
 ## See
 
