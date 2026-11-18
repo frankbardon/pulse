@@ -505,6 +505,51 @@ func (m *Manager) Touch(_ context.Context, p string) error {
 	return m.writeSidecar(sidecarPath, sidecar)
 }
 
+// RecordZoneField keeps the sidecar of the managed handle whose .pulse
+// file sits at p in step with a default zone field set or cleared on
+// the cohort itself (Pulse.SetCohortZoneField): the sidecar's
+// zone_field becomes field, and "" removes it (omitempty — a cleared
+// sidecar is byte-identical to one that never recorded a default). The
+// caller runs it only AFTER the cohort rewrite succeeded, so a refused
+// rewrite leaves the sidecar untouched.
+//
+// No-op — and no sidecar is created — when p is outside the imports
+// directory, when no sidecar sits beside it, or when the sidecar already
+// records field. A sidecar that cannot be read or replaced is an error,
+// never skipped: the cohort and its sidecar would silently disagree. The
+// replacement is written beside it and published by one rename.
+func (m *Manager) RecordZoneField(_ context.Context, p, field string) error {
+	if !m.isInsideImportsDir(p) {
+		return nil
+	}
+	sidecarPath := p + SidecarSuffix
+	exists, err := afero.Exists(m.afs, sidecarPath)
+	if err != nil {
+		return fmt.Errorf("imports: stat sidecar %s: %w", sidecarPath, err)
+	}
+	if !exists {
+		return nil
+	}
+	sidecar, err := m.readSidecar(sidecarPath)
+	if err != nil {
+		return fmt.Errorf("imports: reading sidecar %s: %w", sidecarPath, err)
+	}
+	if sidecar.ZoneField == field {
+		return nil
+	}
+	sidecar.ZoneField = field
+	tmp := sidecarPath + ".tmp"
+	if err := m.writeSidecar(tmp, sidecar); err != nil {
+		_ = m.afs.Remove(tmp)
+		return fmt.Errorf("imports: writing sidecar %s: %w", tmp, err)
+	}
+	if err := m.afs.Rename(tmp, sidecarPath); err != nil {
+		_ = m.afs.Remove(tmp)
+		return fmt.Errorf("imports: replacing sidecar %s: %w", sidecarPath, err)
+	}
+	return nil
+}
+
 // Sweep deletes every managed handle whose sidecar has expired against
 // the Manager's clock. Returns the list of handles that were swept (in
 // alphabetical order) and the first error encountered, if any. A

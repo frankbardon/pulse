@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/observe"
 )
@@ -47,7 +48,10 @@ type CohortZoneResult = service.CohortZoneResult
 // the new bytes — no variable changes); a point-lookup index is staled
 // (its fingerprint covers the cohort's bytes) and listed in
 // InvalidatedSidecars with its rebuild command, never rebuilt. A
-// managed import's expiry slides.
+// managed import's expiry slides and its imports sidecar records the
+// new default (zone_field; removed on a clear), so a re-import from the
+// sidecar's recorded settings reproduces it — a failure to update that
+// sidecar is a SidecarWarnings entry, never silent.
 func (p *Pulse) SetCohortZoneField(ctx context.Context, path, field string) (*CohortZoneResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpCohortZone, path: path}, func(ctx context.Context) (*CohortZoneResult, error) {
 		if field == "" {
@@ -73,8 +77,17 @@ func (p *Pulse) setCohortZoneField(ctx context.Context, path, field string) (*Co
 	// The SPSS sidecar is read BEFORE the rewrite stales it.
 	carry, carryWarn := p.prepareSidecarCarry(path)
 	res, err := p.svc.SetCohortZoneField(ctx, path, field)
-	if err != nil || !res.Changed {
+	if err != nil {
 		return res, err
+	}
+	// Only after the cohort rewrite succeeded: the managed import
+	// sidecar's zone_field follows the cohort (an unchanged cohort whose
+	// sidecar already agrees writes nothing).
+	if w := p.recordManagedZone(ctx, path, res.ZoneField); w != nil {
+		res.SidecarWarnings = append(res.SidecarWarnings, w)
+	}
+	if !res.Changed {
+		return res, nil
 	}
 	p.touchManaged(ctx, path)
 	if res.Layout == service.CohortLayoutSingleFile {
@@ -108,4 +121,20 @@ func (p *Pulse) setCohortZoneField(ctx context.Context, path, field string) (*Co
 	}
 	res.SidecarWarnings = append(res.SidecarWarnings, sidecarScanWarning(path, err))
 	return res, nil
+}
+
+// recordManagedZone keeps a managed import's sidecar in step with the
+// cohort's default zone field; nil when path is not a managed handle or
+// the sidecar was updated (or already agreed). A failure is the coded
+// warning the caller reports — the cohort rewrite itself has succeeded.
+func (p *Pulse) recordManagedZone(ctx context.Context, path, field string) *errors.CodedError {
+	if p.imports == nil {
+		return nil
+	}
+	if err := p.imports.RecordZoneField(ctx, path, field); err != nil {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_RESOURCE,
+			"the default zone field was rewritten but the managed import sidecar beside the cohort could not be updated; it still records the import-time zone_field, so fix or remove the sidecar before relying on it to re-import",
+			map[string]any{"cohort": path, "zone_field": field, "sidecar": path + imports.SidecarSuffix, "error": err.Error()})
+	}
+	return nil
 }

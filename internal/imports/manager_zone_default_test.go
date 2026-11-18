@@ -84,3 +84,66 @@ func TestSidecar_ZoneFieldOmittedWhenUnset(t *testing.T) {
 		t.Fatalf("set ZoneField missing from the sidecar: %s", b)
 	}
 }
+
+// TestManager_RecordZoneField: a set default lands on the managed
+// sidecar, a clear removes it byte-identically, a matching value writes
+// nothing, and a path outside the pool (or with no sidecar) creates no
+// sidecar.
+func TestManager_RecordZoneField(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	m, afs, _ := newTestManager(t)
+	if err := afero.WriteFile(afs, "src.csv", []byte(zoneDefaultCSV), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := m.Open(ctx, Spec{SourcePath: "src.csv", Handle: "rows"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sidecarPath := res.Path + SidecarSuffix
+	orig, err := afero.ReadFile(afs, sidecarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.RecordZoneField(ctx, res.Path, "zone"); err != nil {
+		t.Fatal(err)
+	}
+	sc, err := m.readSidecar(sidecarPath)
+	if err != nil || sc.ZoneField != "zone" {
+		t.Fatalf("after set: sidecar zone_field = %q (%v), want zone", sc.ZoneField, err)
+	}
+	if left, _ := afero.Exists(afs, sidecarPath+".tmp"); left {
+		t.Fatal("the staged sidecar was left behind")
+	}
+	if err := m.RecordZoneField(ctx, res.Path, ""); err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := afero.ReadFile(afs, sidecarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(cleared, orig) {
+		t.Fatalf("set then clear is not byte-identical:\n%s\nwant\n%s", cleared, orig)
+	}
+
+	// A path outside the imports pool, and one inside it with no
+	// sidecar, are left alone: no sidecar appears.
+	for _, p := range []string{"plain.pulse", m.ImportsDir() + "/orphan.pulse"} {
+		if err := m.RecordZoneField(ctx, p, "zone"); err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		if made, _ := afero.Exists(afs, p+SidecarSuffix); made {
+			t.Fatalf("%s: a sidecar was created for a non-managed cohort", p)
+		}
+	}
+
+	// A sidecar that cannot be read is an error, never skipped.
+	if err := afero.WriteFile(afs, sidecarPath, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RecordZoneField(ctx, res.Path, "zone"); err == nil {
+		t.Fatal("a malformed sidecar was silently skipped")
+	}
+}
