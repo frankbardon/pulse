@@ -53,7 +53,7 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `null` (counted
 ## Gotchas
 
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
-- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`.
+- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`; the run warns `PULSE_ATTR_ZERO_SPREAD` (details `n`, `spread: stddev`, `reason` `constant` / `single_value` / `no_mass` (no weighted mass)) — under Strict it fails with that code. Runtime only: predict cannot see the data.
 - Not a percentile — same shape as the underlying distribution.
 
 ## See

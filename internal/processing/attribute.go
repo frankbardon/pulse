@@ -44,6 +44,9 @@ import (
 type popScoreState struct {
 	weight *types.WeightSpec
 	bucket weighting.Welford
+	// zeroSpread raises PULSE_ATTR_ZERO_SPREAD for a zero sd
+	// (attribute_zero_spread.go).
+	zeroSpread
 	// Locked at Finalize.
 	finalMean   float64
 	finalStdDev float64
@@ -51,7 +54,7 @@ type popScoreState struct {
 }
 
 func newPopScoreState(attr *types.Attribute) popScoreState {
-	return popScoreState{weight: attr.Weight.Spec()}
+	return popScoreState{weight: attr.Weight.Spec(), zeroSpread: newZeroSpread(attr, zeroSpreadStdDev)}
 }
 
 func (s *popScoreState) prePass(r *Record, field string) {
@@ -59,6 +62,7 @@ func (s *popScoreState) prePass(r *Record, field string) {
 	if !ok {
 		return
 	}
+	s.seen++
 	w := 1.0
 	if s.weight != nil {
 		var reason weighting.Reason
@@ -77,6 +81,7 @@ func (s *popScoreState) finalize() {
 		s.finalMean = s.bucket.Mean
 		s.finalStdDev = math.Sqrt(s.bucket.M2 / s.bucket.SumW)
 	}
+	s.settle(s.finalStdDev == 0, s.bucket.N)
 	s.finalized = true
 }
 
@@ -189,16 +194,19 @@ func computeTwoPass(a TwoPassAttribute, records []*Record, field string) ([]floa
 // a zero range (max = min: a constant field or one non-null row) is
 // 0/0, so every row scores AttributeNull (U50 E7-S2).
 type normalizedAttribute struct {
-	seen     bool
+	any      bool
 	min, max float64
 	rng      float64
+	// zeroSpread raises PULSE_ATTR_ZERO_SPREAD for a zero range
+	// (attribute_zero_spread.go); its seen counts the non-null values.
+	zeroSpread
 }
 
 func newNormalizedAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
 	if err := rejectSetFieldForNumericAttribute(attr, schema); err != nil {
 		return nil, err
 	}
-	return &normalizedAttribute{}, nil
+	return &normalizedAttribute{zeroSpread: newZeroSpread(attr, zeroSpreadRange)}, nil
 }
 
 func (a *normalizedAttribute) PrePass(r *Record, field string) error {
@@ -206,9 +214,10 @@ func (a *normalizedAttribute) PrePass(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	if !a.seen {
+	a.seen++
+	if !a.any {
 		a.min, a.max = v, v
-		a.seen = true
+		a.any = true
 		return nil
 	}
 	if v < a.min {
@@ -222,6 +231,7 @@ func (a *normalizedAttribute) PrePass(r *Record, field string) error {
 
 func (a *normalizedAttribute) Finalize() error {
 	a.rng = a.max - a.min
+	a.settle(a.rng == 0, a.seen)
 	return nil
 }
 

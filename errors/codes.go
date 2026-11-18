@@ -738,6 +738,17 @@ const (
 	// PROCESSING_CONFIG instead.
 	PULSE_ATTR_SCALE_OUT_OF_RANGE Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 
+	// PULSE_ATTR_ZERO_SPREAD is a runtime Response warning raised once
+	// per ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED slot whose spread
+	// (the population sd, or max − min) over the filter-passing base is
+	// exactly 0, so every row's score is 0/0 and null. details carry
+	// label, type, field, n (the contributing values), spread (stddev |
+	// range) and reason (constant | single_value | no_mass — a weighted
+	// slot whose non-null values carry no valid positive weight). An
+	// empty or all-null base does not warn. Runtime only (the spread is
+	// data); under Strict the run fails with this code instead.
+	PULSE_ATTR_ZERO_SPREAD Code = "PULSE_ATTR_ZERO_SPREAD"
+
 	// PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE is a runtime Response warning
 	// raised once per ATTR_PREVIOUS_STATE slot when a subject's records
 	// tie on the order value with DIFFERENT states, so the next time
@@ -5013,6 +5024,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
 	PULSE_ATTR_SCALE_OUT_OF_RANGE,
+	PULSE_ATTR_ZERO_SPREAD,
 	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,

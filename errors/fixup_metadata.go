@@ -1222,6 +1222,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ATTR_ZERO_SPREAD: {
+		Message: "A scoring attribute's spread (population standard deviation, or max − min) over its base is zero — a constant field, a single contributing value, or no weighted mass — so every row's score is 0/0 and null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Field"},
+				Hint:   "Score a field that varies over the filtered base, widen the filters so more than one value contributes, or check the weight field (details.reason no_mass: no non-null value carries a valid positive weight). details.n counts the contributing values, details.spread names stddev or range.",
+			},
+		},
+	},
 	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE: {
 		Message: "An ATTR_PREVIOUS_STATE subject has two or more records at one time point (the same order value) carrying different states, so its next time point has no single previous state; those records are null, never a guessed order.",
 		Fixups: []Fixup{
