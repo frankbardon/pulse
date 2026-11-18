@@ -4,7 +4,7 @@ description: Importing naive datetimes recorded in a local zone — source_tz, p
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [source_tz, column_source_tz, source_tz_field, dst_policy, --source-tz, --source-tz-field, --dst-policy, PULSE_IMPORT_DST_AMBIGUOUS, PULSE_IMPORT_DST_NONEXISTENT, PULSE_IMPORT_DST_RESOLVED, zone_warnings]
+covers: [source_tz, column_source_tz, source_tz_field, dst_policy, --source-tz, --source-tz-field, --dst-policy, --zone-field, PULSE_IMPORT_DST_AMBIGUOUS, PULSE_IMPORT_DST_NONEXISTENT, PULSE_IMPORT_DST_RESOLVED, zone_warnings]
 ---
 
 # Import in a source zone
@@ -28,10 +28,14 @@ Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Ar
 - A missing zone column, or one typed `datetime`, is `SERVICE_VALIDATION`.
 - `date` columns are never zoned; a `col=Zone` naming one is `CLI_INPUT`.
 
+## Cohort default zone
+
+`--zone-field COL` (`ImportJob.ZoneField` / `ConvertJob.ZoneField`) declares the written cohort's DEFAULT per-row zone field (`zone_field` in its schema; see `time-zones`). Explicit only: `--source-tz-field` never implies it, though both may name one column. `COL` must import as `categorical_*` with every value `UTC` or IANA (no `±HH:MM`): missing or non-categorical is `SERVICE_VALIDATION` (`details.option` `zone_field`) before any row; a bad value is `PULSE_TIMEZONE_UNKNOWN` (`dictionary_index`) before anything is written; the same codes on every surface. `import predict` judges it too; `convert` needs `--keep-pulse` (`reason` `no_cohort`); refused on a `.pulse` source.
+
 ## On the managed import
 
 <!-- feature: capability:import -->
-`pulse_import` takes `source_tz`, `column_source_tz`, `dst_policy` and `source_tz_field`; resolved DST warnings ride its `zone_warnings`, skipped rows its `rows_dropped`.
+`pulse_import` takes `source_tz`, `column_source_tz`, `dst_policy`, `source_tz_field` and `zone_field`; resolved DST warnings ride its `zone_warnings`, skipped rows its `rows_dropped`.
 <!-- /feature -->
 The zone is kept on the managed sidecar, so a handle read in one zone is never reused for another: re-import with `overwrite: true` to change it.
 

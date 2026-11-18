@@ -125,6 +125,15 @@ type Spec struct {
 	// empty-cell fallback; ColumnSourceTZ still wins per column).
 	// Persisted onto the sidecar as source_tz_field, omitted when empty.
 	SourceTZField string
+	// ZoneField declares the managed cohort's DEFAULT per-row zone field
+	// (the 0x02 ZONE section), exactly as io.ImportJob.ZoneField: refused
+	// with SERVICE_VALIDATION (details.option "zone_field") when it names
+	// no categorical field, PULSE_TIMEZONE_UNKNOWN when an entry is not a
+	// zone. Declared explicitly, never implied by SourceTZField. Persisted
+	// onto the sidecar as zone_field, omitted when empty. Refused on a
+	// .pulse passthrough (SERVICE_VALIDATION, reason "passthrough"),
+	// which is never re-encoded.
+	ZoneField string
 
 	// Groups declares parent groups exactly as io.ImportJob.Groups does:
 	// each stores its distinct member tuples once in the schema block
@@ -301,6 +310,10 @@ type Sidecar struct {
 	// (Spec.SourceTZField). Omitted when unset, so every sidecar without
 	// it is unchanged.
 	SourceTZField string `json:"source_tz_field,omitempty"`
+	// ZoneField records the cohort default zone field the handle was
+	// imported with (Spec.ZoneField; the cohort's own schema carries it
+	// too). Omitted when unset, so every sidecar without it is unchanged.
+	ZoneField string `json:"zone_field,omitempty"`
 	// Vectors records the vector declarations the handle was imported
 	// with (Spec.Vectors). Omitted when none, so a vector-free sidecar
 	// is unchanged.

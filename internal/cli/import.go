@@ -62,6 +62,7 @@ func importFlags() []cli.Flag {
 		&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 		&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 		&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+		&cli.StringFlag{Name: "zone-field", Usage: zoneFieldFlagUsage},
 		&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
 		&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
 	}
@@ -305,6 +306,7 @@ func importPredictCmd() *cli.Command {
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+			&cli.StringFlag{Name: "zone-field", Usage: "Judge a --zone-field declaration exactly as 'import <format> --zone-field' would (the measured pass builds the dictionaries the import writes)"},
 			&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
 			&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
 		},

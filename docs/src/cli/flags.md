@@ -727,6 +727,38 @@ pulse import csv -i shipments.csv -o shipments.pulse \
   --source-tz-field warehouse_tz --source-tz UTC
 ```
 
+### `--zone-field` (cohort default zone)
+
+Available on: every `import <format>` leaf, `import auto`, `import predict`
+and `convert` (with `--keep-pulse`).
+
+`--zone-field col` declares the written cohort's DEFAULT per-row zone
+field: `col` must import as a `categorical_*` column whose every value is
+`UTC` or an IANA `Area/Location` name (never a fixed offset). The cohort
+stores it in its schema (the `0x02` ZONE section, so it travels with every
+copy) and `pulse inspect` shows it as `zone_field`; every zone-aware slot
+then reads each row in its own zone unless the request names a zone
+(predict echoes `source: "cohort"`). It is declared explicitly and is never
+implied by `--source-tz-field`, which says how the SOURCE's literals were
+recorded; the two may name the same column. A `col` the source does not
+carry, or one that is not categorical, is `SERVICE_VALIDATION`
+(`details.option` `zone_field`, `details.zone_field`) before any row is
+read; an entry that is not a zone is `PULSE_TIMEZONE_UNKNOWN`
+(`details.zone_field`, `dictionary_index`) before anything is written. Both
+codes are the same from the CLI, the library (`ImportJob.ZoneField`) and
+`pulse_import` (`zone_field`) — not re-coded `CLI_INPUT`. `import predict`
+judges the declaration over the dictionaries the import would write. On
+`convert` it declares the `--keep-pulse` cohort's default (the target file
+carries no schema), so without `--keep-pulse` it is refused
+(`reason` `no_cohort`). `import auto` records it on the sidecar
+(`zone_field`) and refuses it for a `.pulse` source (`reason`
+`passthrough`). Without the flag the cohort is byte-identical to before.
+
+```bash
+pulse import csv -i shipments.csv -o shipments.pulse \
+  --source-tz-field warehouse_tz --zone-field warehouse_tz
+```
+
 ### `--tz` (export)
 
 Available on: every `export <format>` leaf and `export predict`.
@@ -919,7 +951,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, `--zone-field` (the cohort default zone), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

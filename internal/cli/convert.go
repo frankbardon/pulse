@@ -35,6 +35,7 @@ func ConvertCommand() *cli.Command {
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage + ". A zoned naive value is written to the target as its UTC instant (…Z)"},
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+			&cli.StringFlag{Name: "zone-field", Usage: "Declare the --keep-pulse cohort's default per-row zone field (as 'import <format> --zone-field'); requires --keep-pulse — the target file carries no schema"},
 		},
 		// A --source-tz col=Zone value is one flag even when the column
 		// name carries a ','.

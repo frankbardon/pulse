@@ -329,6 +329,25 @@ type ImportJob struct {
 	// loaded once per distinct name per pass; DST policy applies per row.
 	// Empty (the default) changes nothing.
 	SourceTZField string
+	// ZoneField declares the written cohort's DEFAULT per-row zone field
+	// (encoding.Schema.ZoneField, the 0x02 ZONE section): every
+	// zone-capable request slot then resolves per row from it unless the
+	// request names a zone. Declared explicitly, never implied by
+	// SourceTZField (that option says how the SOURCE's literals were
+	// recorded; this one what the COHORT's readers default to — they may
+	// name the same column). Held to encoding.Schema.ValidateZoneField:
+	// a name naming no field, or a field that is not categorical_*, is
+	// refused before the row pass with SERVICE_VALIDATION
+	// (details.option "zone_field", details.zone_field); a dictionary
+	// entry the full pass builds that is not a valid zone ("UTC" or an
+	// IANA Area/Location name) is PULSE_TIMEZONE_UNKNOWN
+	// (details.zone_field, dictionary_index) before anything is written.
+	// Predict reaches both verdicts (a declared ZoneField runs the
+	// measured pass, whose dictionaries are Run's). Composes with Groups,
+	// ElideConstants and Vectors. Empty (the default) writes no section:
+	// the cohort is byte-identical to one written without the field.
+	// CLI `--zone-field`.
+	ZoneField string
 	// DSTPolicy decides a naive literal a source zone's DST transition
 	// makes ambiguous (shown twice) or nonexistent (skipped): DSTPolicyError
 	// (the default; "" means it) refuses the import at the first such row
@@ -669,6 +688,15 @@ type ConvertJob struct {
 	ColumnSourceTZ map[string]string
 	SourceTZField  string
 	DSTPolicy      DSTPolicy
+	// ZoneField declares the KeepPulseAt intermediate's default per-row
+	// zone field, with ImportJob.ZoneField's semantics and refusals; the
+	// target (a tabular file) carries no schema and is unaffected. Without
+	// KeepPulseAt there is no cohort to declare it on, so a non-empty
+	// ZoneField is refused (SERVICE_VALIDATION, details.option
+	// "zone_field", reason "no_cohort") by Run and Predict alike. A bad
+	// dictionary entry is refused after the row pass, before the
+	// intermediate is written. Empty (the default) changes nothing.
+	ZoneField string
 }
 
 // NewConvertJob creates a ConvertJob with default settings.

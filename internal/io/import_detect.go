@@ -164,7 +164,8 @@ type ImportProjection struct {
 	RowsImported int `json:"rows_imported"`
 	RowErrors    int `json:"row_errors"`
 	// FlatFileBytes is the exact size of the 0x01 cohort (no groups,
-	// no elision).
+	// no elision) — the 0x02 one carrying only its ZONE section when
+	// the job declares a ZoneField.
 	FlatFileBytes int64 `json:"flat_file_bytes"`
 	// ProjectedFileBytes is the exact size of the cohort this job would
 	// write: its admitted Groups plus, with ElideConstants, the
@@ -175,9 +176,12 @@ type ImportProjection struct {
 	ElisionBytesSaved int64 `json:"elision_bytes_saved,omitempty"`
 }
 
-// measuring reports whether Predict must run the measured pass.
+// measuring reports whether Predict must run the measured pass. A
+// declared ZoneField needs it too: only the measured pass builds the
+// dictionaries Run writes, and the zone field's entries are judged over
+// exactly those (same entries, same order, same dictionary_index).
 func (j *ImportJob) measuring() bool {
-	return j.SuggestGroups || len(j.Groups) > 0 || j.ElideConstants
+	return j.SuggestGroups || len(j.Groups) > 0 || j.ElideConstants || j.ZoneField != ""
 }
 
 // measuredLayout is where each field of an import's logical row sits. The
@@ -771,9 +775,15 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 
 	// sizing is the final schema carrying the dictionaries the pass
 	// built — what Run would write for the flat cohort.
-	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors}
+	// A declared default zone field rides it, so the write-time verdict
+	// on the zone field's dictionary is Run's (the preamble write
+	// validates it) and the sizes count the ZONE section.
+	sizing := &encoding.Schema{Fields: append([]encoding.Field(nil), schema.Fields...), Vectors: schema.Vectors, ZoneField: j.ZoneField}
 	for i, d := range dicts {
 		sizing.Fields[i].Dictionary = d
+	}
+	if err := sizing.ValidateZoneField(); err != nil {
+		return nil, zoneFieldRefusal(err)
 	}
 	flatPre, err := preambleBytes(sizing)
 	if err != nil {
@@ -806,6 +816,7 @@ func (j *ImportJob) measuredPass(ctx context.Context, schema *encoding.Schema, i
 		if grouped, err = groupedSizing(sizing, allSpecs, declTrackers); err != nil {
 			return nil, err
 		}
+		grouped.ZoneField = sizing.ZoneField
 		pre, err := preambleBytes(grouped)
 		if err != nil {
 			return nil, err

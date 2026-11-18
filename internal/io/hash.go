@@ -79,7 +79,8 @@ func (j *ExportJob) Hash() string {
 // interfaces) so neither is serialisable nor part of the job's
 // semantic identity for cache-keying purposes. The source-zone options
 // (SourceTZ, ColumnSourceTZ, SourceTZField, DSTPolicy) participate: each
-// changes the target's datetime text and the kept cohort. All
+// changes the target's datetime text and the kept cohort. So does
+// ZoneField, the kept cohort's declared default zone field. All
 // `omitempty`, so a zone-free job's hash is unchanged.
 type convertJobHashShape struct {
 	KeepPulseAt     string                `json:"keep_pulse_at,omitempty"`
@@ -91,6 +92,7 @@ type convertJobHashShape struct {
 	ColumnSourceTZ  map[string]string     `json:"column_source_tz,omitempty"`
 	SourceTZField   string                `json:"source_tz_field,omitempty"`
 	DSTPolicy       DSTPolicy             `json:"dst_policy,omitempty"`
+	ZoneField       string                `json:"zone_field,omitempty"`
 }
 
 // Hash returns the canonical content hash of the ConvertJob. Same
@@ -113,5 +115,6 @@ func (j *ConvertJob) Hash() string {
 		ColumnSourceTZ:  j.ColumnSourceTZ,
 		SourceTZField:   j.SourceTZField,
 		DSTPolicy:       j.DSTPolicy,
+		ZoneField:       j.ZoneField,
 	})
 }

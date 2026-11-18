@@ -16,6 +16,7 @@ import (
 // source-zone import flags; --dst-policy's values are pio.DSTPolicies.
 const (
 	sourceTZFlagUsage      = "Zone naive datetime values were recorded in (IANA name such as America/New_York, UTC, or a fixed +HH:MM / -HH:MM offset); stored values stay UTC instants. Bare Zone applies to every datetime column (date columns are skipped); repeatable col=Zone sets one column and wins over the bare form. A value with its own Z or offset ignores the zone"
+	zoneFieldFlagUsage     = "Declare the written cohort's DEFAULT per-row zone field: a column of IANA zone names (UTC or Area/Location) that imports as categorical. Zone-aware requests then read each row in its own zone unless they name a zone. Never implied by --source-tz-field (they may name the same column). A column that is missing or not categorical is SERVICE_VALIDATION; an entry that is not a zone is PULSE_TIMEZONE_UNKNOWN (writes format 0x02)"
 	sourceTZFieldFlagUsage = "Column whose cell holds each row's source zone (same spellings as --source-tz); every naive datetime column not named by a col=Zone --source-tz reads in its own row's zone. A bare --source-tz is the fallback for an empty zone cell (else the row is a row error); an unknown zone name is a PULSE_TIMEZONE_UNKNOWN row error. The zone column itself imports as an ordinary column"
 )
 
@@ -33,6 +34,9 @@ type sourceZoneFlags struct {
 	cols   map[string]string
 	field  string
 	policy pio.DSTPolicy
+	// zoneField is --zone-field: the written cohort's declared default
+	// zone field (ImportJob / ConvertJob / imports.Spec ZoneField).
+	zoneField string
 }
 
 // sourceZoneCLIFlags returns fresh --source-tz / --dst-policy flags for
@@ -44,6 +48,7 @@ func sourceZoneCLIFlags() []cli.Flag {
 		&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 		&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 		&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+		&cli.StringFlag{Name: "zone-field", Usage: zoneFieldFlagUsage},
 	}
 }
 
@@ -54,6 +59,7 @@ func applySourceZoneFlags(cmd *cli.Command, job *pio.ImportJob) error {
 		return err
 	}
 	job.SourceTZ, job.ColumnSourceTZ, job.SourceTZField, job.DSTPolicy = f.tz, f.cols, f.field, f.policy
+	job.ZoneField = f.zoneField
 	return nil
 }
 
@@ -65,6 +71,7 @@ func applyConvertZoneFlags(cmd *cli.Command, job *pio.ConvertJob) error {
 		return err
 	}
 	job.SourceTZ, job.ColumnSourceTZ, job.SourceTZField, job.DSTPolicy = f.tz, f.cols, f.field, f.policy
+	job.ZoneField = f.zoneField
 	return nil
 }
 
@@ -108,6 +115,9 @@ func parseSourceZoneFlags(cmd *cli.Command) (sourceZoneFlags, error) {
 		out.cols[col] = zone
 	}
 	out.field = cmd.String("source-tz-field")
+	// Empty on a leaf without --zone-field (convert predict): nothing is
+	// declared.
+	out.zoneField = cmd.String("zone-field")
 	// An empty value is a leaf without the flag: the policy stays unset
 	// and the library default (error) applies.
 	if p := cmd.String("dst-policy"); p != "" {
@@ -125,10 +135,13 @@ func parseSourceZoneFlags(cmd *cli.Command) (sourceZoneFlags, error) {
 // cliSourceZoneError re-codes the library's source-zone OPTION refusal (a
 // --source-tz column the source does not carry, or one that is not
 // datetime) as CLI_INPUT: from the command line it is a flag mistake.
-// Every other error passes through unchanged.
+// Every other error passes through unchanged — the --zone-field refusal
+// included: it is the cohort default zone's own rule (the one inspect,
+// the library and pulse_import report), kept SERVICE_VALIDATION on every
+// surface.
 func cliSourceZoneError(err error) error {
 	var ce *perr.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_VALIDATION || ce.Details[iio.DetailOption] == nil {
+	if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_VALIDATION || ce.Details[iio.DetailOption] == nil || ce.Details[iio.DetailOption] == "zone_field" {
 		return err
 	}
 	details := map[string]any{}

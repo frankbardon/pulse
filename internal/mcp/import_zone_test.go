@@ -132,3 +132,58 @@ func TestPulseImport_SourceTZField(t *testing.T) {
 		t.Fatalf("missing zone column: err = %v", err)
 	}
 }
+
+// TestPulseImport_ZoneField: zone_field declares the managed cohort's
+// default per-row zone field (inspect reads it back), and every refusal
+// surfaces exactly as the library's ImportJob raises it — same code,
+// message and details.
+func TestPulseImport_ZoneField(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	csv := "local,zone\n2026-07-01 12:00,America/New_York\n2026-07-01 12:00,Asia/Tokyo\n2026-07-01 12:00,Mars/Olympus\n"
+	if err := afero.WriteFile(afs, "zf.csv", []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(afs, "ok.csv", []byte(csv[:strings.LastIndex(strings.TrimSuffix(csv, "\n"), "\n")+1]), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := invokeImport(t, p, `{"source":"ok.csv","zone_field":"zone"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := p.Inspect(context.Background(), out["path"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ins.ZoneField != "zone" {
+		t.Fatalf("inspect zone_field = %q, want zone", ins.ZoneField)
+	}
+
+	for _, tc := range []struct{ field, code string }{
+		{"tz", string(perr.SERVICE_VALIDATION)},
+		{"local", string(perr.SERVICE_VALIDATION)},
+		{"zone", string(perr.PULSE_TIMEZONE_UNKNOWN)},
+	} {
+		_, merr := invokeImport(t, p, `{"source":"zf.csv","handle":"h_`+tc.field+`","zone_field":"`+tc.field+`"}`)
+		var mce *perr.CodedError
+		if !stderrors.As(merr, &mce) || string(mce.Code) != tc.code {
+			t.Fatalf("%s: MCP err = %v, want %s", tc.field, merr, tc.code)
+		}
+		r, err := pio.NewReader(pio.FormatCSV, afs, "zf.csv", pio.ReaderOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		job := pio.NewImportJob(r, "lib.pulse")
+		job.FS, job.ZoneField = afero.NewMemMapFs(), tc.field
+		_, lerr := job.Run(context.Background())
+		var lce *perr.CodedError
+		if !stderrors.As(lerr, &lce) || lce.Code != mce.Code || lce.Message != mce.Message || mustJSON(t, lce.Details) != mustJSON(t, mce.Details) {
+			t.Fatalf("%s: library = %v %v\nMCP     = %v %v", tc.field, lerr, lce, merr, mce.Details)
+		}
+	}
+}

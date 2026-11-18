@@ -606,6 +606,7 @@ pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
 pulse: type ImportSidecar field SourceTZField string "json:\"source_tz_field,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
 pulse: type ImportSidecar field Vectors []pulse/io.VectorDecl "json:\"vectors,omitempty\""
+pulse: type ImportSidecar field ZoneField string "json:\"zone_field,omitempty\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
 pulse: type ImportSpec = pulse/internal/imports.Spec
 pulse: type ImportSpec underlying struct
@@ -630,6 +631,7 @@ pulse: type ImportSpec field StrictRows bool
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
 pulse: type ImportSpec field Vectors []pulse/io.VectorDecl
+pulse: type ImportSpec field ZoneField string
 pulse: type IndexFreshnessReason = pulse/internal/service.IndexFreshnessReason
 pulse: type IndexFreshnessReason underlying string
 pulse: type IndexInfo = pulse/internal/service.IndexInfo
@@ -3579,6 +3581,7 @@ pulse/io: type ConvertJob field SourceTZ string
 pulse/io: type ConvertJob field SourceTZField string
 pulse/io: type ConvertJob field StrictRows bool
 pulse/io: type ConvertJob field Target pulse/internal/io.Writer
+pulse/io: type ConvertJob field ZoneField string
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
 pulse/io: type ConvertJob method (*ConvertJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ConvertJob method (*ConvertJob) Run(ctx context.Context) (*pulse/internal/io.ConvertReport, error)
@@ -3771,6 +3774,7 @@ pulse/io: type ImportJob field StrictRows bool
 pulse/io: type ImportJob field SuggestGroups bool
 pulse/io: type ImportJob field Target string
 pulse/io: type ImportJob field Vectors []pulse/internal/io.VectorDecl
+pulse/io: type ImportJob field ZoneField string
 pulse/io: type ImportJob method (*ImportJob) Predict(ctx context.Context) (*pulse/internal/io.PredictReport, error)
 pulse/io: type ImportJob method (*ImportJob) Run(ctx context.Context) (*pulse/internal/io.ImportReport, error)
 pulse/io: type ImportProjection = pulse/internal/io.ImportProjection
@@ -7072,4 +7076,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0d02fb7fc736fbc805253746ae27047038154c2ea4d89b6923625bfd214e1374
+// golden-hash: 88ef5fc19464e630126813efbb9f69af1d7500509e243728c4e9073560440d2a

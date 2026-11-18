@@ -308,6 +308,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 				"vector declarations apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
 				map[string]any{"reason": "passthrough", "source_path": spec.SourcePath, "format": format})
 		}
+		if spec.ZoneField != "" {
+			return nil, perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+				"a default zone field is declared when a source is converted; a .pulse source is used as-is and never re-encoded",
+				map[string]any{"option": "zone_field", encoding.DetailZoneField: spec.ZoneField, "reason": "passthrough", "source_path": spec.SourcePath, "format": format})
+		}
 		if spec.InlineBytes != nil {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline pulse-format imports are not supported; write the bytes to disk and import by path")
@@ -404,6 +409,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		ColumnSourceTZ:      spec.ColumnSourceTZ,
 		DSTPolicy:           string(spec.DSTPolicy),
 		SourceTZField:       spec.SourceTZField,
+		ZoneField:           spec.ZoneField,
 		Vectors:             spec.Vectors,
 	}
 	if ttl > 0 {
@@ -637,6 +643,7 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	job.SourceTZ = spec.SourceTZ
 	job.ColumnSourceTZ = spec.ColumnSourceTZ
 	job.SourceTZField = spec.SourceTZField
+	job.ZoneField = spec.ZoneField
 	job.DSTPolicy = spec.DSTPolicy
 	job.Schema = spec.Schema
 	job.IgnoreExtra = spec.IgnoreExtra
