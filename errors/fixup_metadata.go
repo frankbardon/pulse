@@ -1313,6 +1313,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND: {
+		Message: "An ATTR_FORMULA feeds a nullable input, with no guard, to an operand that cannot take nil (arithmetic, an ordering comparison, unary minus, an index or a nil-rejecting function), so the run fails with an evaluation error on the first row where it is null; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "Guard each field in details.fields with field ?? 0, a field != nil ? ... : ... ternary or a field != nil && ... short-circuit, or filter the null rows out before the formula runs.",
+			},
+		},
+	},
 	PULSE_ADVISORY_JACKKNIFE_COST: {
 		Message: "A regression runs the leave-one-out jackknife over a large cohort, so the run refits the model once per row and its cost grows with the square of the row count; this is an advisory, not an error.",
 		Fixups: []Fixup{

@@ -806,6 +806,16 @@ const (
 	// slot, the formula label, the unguarded fields and literal_nil.
 	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
 
+	// PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND is a predict advisory: an
+	// ATTR_FORMULA feeds a nullable input — a nullable schema field, or
+	// an earlier attribute's output that can be null — unguarded to an
+	// operand that rejects nil (arithmetic, an ordering compare, unary
+	// minus, an index, a nil-rejecting built-in's argument), so the run
+	// fails with an evaluation error on the first row where it is null.
+	// One per such formula; details carry the slot, the formula label,
+	// the unguarded fields and each one's operand_kind.
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND Code = "PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND"
+
 	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
 	// series overlay that reads its rows in order (prior, rolling,
 	// baseline, sibling) runs over two or more groupers with no
@@ -5033,6 +5043,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,

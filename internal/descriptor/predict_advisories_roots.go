@@ -114,7 +114,8 @@ func facetAdvisories(plan []ResolvedMultiplicity, pv *descriptor.PValueCount, op
 // slot path prefixed "requests[i]." and details.request = i), then
 // PULSE_ADVISORY_MANY_TESTS over the Compose-host overlays' p-values
 // (hostPV, always a lower_bound). plan is ResolveComposeMultiplicity's;
-// planOK false (a refused batch) withholds every p-value count.
+// planOK false (a refused batch) withholds every p-value count; refused
+// (the batch already carries an error) runs no extension factory.
 //
 // It also returns ComposeValidationResult.Slots: per slot, the
 // streamability verdict Process predict gives it (computeStreamable over
@@ -124,7 +125,7 @@ func facetAdvisories(plan []ResolvedMultiplicity, pv *descriptor.PValueCount, op
 // reads them, after the slot advisories and before the host many-tests
 // note. slotModels are the slots' bound-model catalogs (validateComposeSlots,
 // index-aligned; nil none): each slot's verdict reads its own.
-func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK bool, hostPV *descriptor.PValueCount, opts *PredictOptions, slotModels []model.Catalog) ([]descriptor.Advisory, []descriptor.ComposeSlotPredict) {
+func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK, refused bool, hostPV *descriptor.PValueCount, opts *PredictOptions, slotModels []model.Catalog) ([]descriptor.Advisory, []descriptor.ComposeSlotPredict) {
 	if req == nil {
 		return nil, nil
 	}
@@ -204,6 +205,7 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 			prefix:          at + ".",
 			extra:           map[string]any{"request": i},
 			subject:         "The request at " + at + " emits",
+			refused:         refused,
 		})...)
 	}
 	out = append(out, fitJackknifeCostAdvisories(req, opts, inst)...)

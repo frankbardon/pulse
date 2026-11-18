@@ -24,7 +24,7 @@ examples_tags: [feature-engineering, streaming-friendly]
 
 ## Output
 
-One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`; predict: `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT`). Arithmetic on a null field → `PROCESSING_RUNTIME` at run time only: guard it, `x ?? 0`.
+One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_null`; predict: `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT`). `x * 2` on a null `x` → `PROCESSING_RUNTIME` (predict: `PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND`); use `x ?? 0`.
 
 <!-- generated: contract -->
 
@@ -32,7 +32,7 @@ One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_
 
 - Reads source fields and EARLIER attribute labels (declared order); stage across requests via Compose / ProcessChain.
 - **`total(expr)`** (this operator only): the cohort-wide post-filter sum, the same on every row (`x * 1000 / total(x)`); two-pass, frequency weights only. Detail and refusals: `formula-totals`.
-- The text goes in the `expression` slot; `params.expression` is not read — an empty slot is `PROCESSING_CONFIG`, predict too.
+- The text goes in the `expression` slot; `params.expression` is not read; an empty slot is `PROCESSING_CONFIG`.
 <!-- feature: capability:params -->
 - `income * params.rate` reads the request constant `"params": {"rate": 1.1}` (`request-params`).
 <!-- /feature -->

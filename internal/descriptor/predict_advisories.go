@@ -37,6 +37,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	errors.PULSE_ADVISORY_EXTRA_PASS,
 	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND,
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	errors.PULSE_ADVISORY_JACKKNIFE_COST,
@@ -119,6 +120,9 @@ type advisoryInput struct {
 	prefix  string
 	extra   map[string]any
 	subject string
+	// refused: the request already carries an error, so no rule may run
+	// an extension factory (formulaNullableOperandAdvisories).
+	refused bool
 }
 
 // computeAdvisories runs every advisory rule, in advisoryCodes order.
@@ -149,6 +153,7 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	}
 	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
 	add(formulaNullableAdvisories(in.req, in.schema, in.prefix, in.inst)...)
+	add(formulaNullableOperandAdvisories(in.req, in.schema, in.prefix, in.inst, !in.refused)...)
 	add(seriesAxisAdvisories(in.req, in.schema, in.prefix, in.inst)...)
 	add(extensionParamsAdvisories(in.req, in.prefix, in.inst)...)
 	if in.recordsKnown {
@@ -583,7 +588,8 @@ func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapsh
 // The runtime writes such a row's value as a null under the label
 // (formulaAttribute.Row: a nil result is AttributeNull); a null fed to
 // an operator instead raises an evaluation error, never a null, so it
-// never fires. Names outside the schema (an earlier attribute's label, a
+// never fires here — that is PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND's
+// (formulaNullableOperandAdvisories). Names outside the schema (an earlier attribute's label, a
 // feature output) and function results are not judged. details {slot,
 // operator, label, fields, literal_nil}.
 func formulaNullableAdvisories(req *types.Request, schema *encoding.Schema, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {

@@ -249,11 +249,12 @@ var errorOwners = map[errors.Code][]string{
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a
 	// hidden capability:weighting withholds.
-	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
-	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
-	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
-	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
-	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT: own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:   own(advisoryQuantityOperators()...),
+	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:       own(advisoryParametricTestNames()...),
+	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED:  own(featWeighting),
+	errors.PULSE_ADVISORY_EXTRA_PASS:               own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT:  own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND: own("ATTR_FORMULA"),
 	// Fires only on a regression that accepts resample jackknife.
 	errors.PULSE_ADVISORY_JACKKNIFE_COST:                own("REG_OLS", "REG_GLM"),
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),

@@ -678,6 +678,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		inst:            opts.Instance,
 		records:         matrixRecords,
 		recordsKnown:    matrixRecords >= 0,
+		refused:         len(env.Errors) > 0,
 	})
 
 	// If any errors were added, mark invalid.

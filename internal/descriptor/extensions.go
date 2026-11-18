@@ -165,6 +165,15 @@ type ExtensionsSnapshot struct {
 	// declares one. Never serialised.
 	AttributeDictionaries prevstate.Inherits `json:"-"`
 
+	// AttributeEmitsNull answers, per extension attribute, whether the
+	// instance its Factory builds for a slot's spec over a schema emits
+	// null (extend.NullableAttribute) — the runtime's own hook, asked of
+	// the instance the run builds. A factory error or panic answers
+	// false. Predict's nullable-operand advisory reads it (an earlier
+	// extension attribute's label fed to an ATTR_FORMULA operand).
+	// Never serialised.
+	AttributeEmitsNull map[types.AttributeType]func(*types.Attribute, *encoding.Schema) bool `json:"-"`
+
 	// Purposes carries each registration's optional Purpose, keyed by
 	// registered operator name, already validated at pulse.New. The
 	// manifest projects only its intent IDs (OperatorMeta.Intents); the

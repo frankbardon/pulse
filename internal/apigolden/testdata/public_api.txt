@@ -2814,6 +2814,7 @@ pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_CONSTRAINT_ACTIVE pulse/errors.Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
+pulse/errors: const PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND pulse/errors.Code = "PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND"
 pulse/errors: const PULSE_ADVISORY_FORMULA_NULLABLE_RESULT pulse/errors.Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
@@ -2831,6 +2832,7 @@ pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHI
 pulse/errors: const PULSE_ATTRIBUTE_WINDOW_ORDER pulse/errors.Code = "PULSE_ATTRIBUTE_WINDOW_ORDER"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+pulse/errors: const PULSE_ATTR_ZERO_SPREAD pulse/errors.Code = "PULSE_ATTR_ZERO_SPREAD"
 pulse/errors: const PULSE_AUC_DELONG_WEIGHTED pulse/errors.Code = "PULSE_AUC_DELONG_WEIGHTED"
 pulse/errors: const PULSE_BANNER_INVALID pulse/errors.Code = "PULSE_BANNER_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
@@ -7091,4 +7093,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ea346b73462357d2d4b522fc5c913dd2c9a0d59cccbd25be40fad2cdf0d9ac90
+// golden-hash: 0c193f517b8881584d138e400e4db1c0b078d1136aa07878f69a1a3af20faa1f

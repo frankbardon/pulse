@@ -50,8 +50,8 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 `"holdout": "week >= 91"` (a bool expression) fits on the other rows and reports `holdout {n, n_null, rmse, mae, r2}` beside the fit, kept by every `return` preset.
 
-- `n` counts scored rows; `n_null` the null-predicate rows (neither train nor held out). No held-out row: that slot fails alone, `PROCESSING_REGRESSION_INSUFFICIENT_DATA` `reason: holdout_empty`.
-- Penalty, `bounds`, `selection` and `resample` fit on train rows; held-out rows are scored with the point estimate. `n` equals the RMSE aggregator's `n_scored` (zero / invalid-weight rows out); a NaN / ±Inf target row is dropped.
+- `n` counts scored rows; `n_null` the null-predicate rows (neither train nor held out; never fatal). No held-out row: that slot fails alone, `PROCESSING_REGRESSION_INSUFFICIENT_DATA` `reason: holdout_empty`.
+- Penalty, `bounds`, `selection` and `resample` fit on train rows; held-out rows score with the point estimate. `n` equals the RMSE aggregator's `n_scored` (zero / invalid-weight rows out); a NaN / ±Inf target drops.
 - A registered model needs a scorer (`PULSE_MODEL_SCORE_INVALID` `no_scorer`). A bad predicate is `PULSE_FORMULA_COMPILE_ERROR`. Predict: buffered only.
 
 ## A registered regression

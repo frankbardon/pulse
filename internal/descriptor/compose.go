@@ -470,7 +470,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	if merr == nil && opts.instance().Enabled(featMultiplicity) {
 		result.PValues = countComposeHostPValues(req, multPlan, opts)
 	}
-	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts, slotModels)
+	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, len(env.Errors) > 0, result.PValues, opts, slotModels)
 	result.Advisories = append(result.Advisories, optimizeGradientAdvisories(checked, opts.instance())...)
 	for k := range result.Slots {
 		i := result.Slots[k].Request

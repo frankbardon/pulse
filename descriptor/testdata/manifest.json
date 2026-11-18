@@ -12460,7 +12460,7 @@
         ]
       }
     ],
-    "error_codes_count": 481,
+    "error_codes_count": 482,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12506,6 +12506,7 @@
       "PULSE_ADVISORY_CONSTRAINT_ACTIVE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
+      "PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND",
       "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
@@ -21990,4 +21991,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4ea4fb385c3e4cf309877aba3170b480d05e2b63e6a2373fdd4fca0782c8b03b
+// golden-hash: dd0e24b7407d4872b1883ea8bb4a4c7b45dcd5c00291d34a87ddd3563dfaae99
