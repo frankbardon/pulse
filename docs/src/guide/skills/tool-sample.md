@@ -13,8 +13,9 @@ After running a request, to inspect the underlying data, or before authoring a f
 
 ## Input
 
-- `path` (string, required): filesystem path to the `.pulse` file.
+- `path` (string): filesystem path to the `.pulse` file. Required unless `union` is set; never both.
 - `count` (number, optional): maximum rows to return. Default `10`.
+- `union` (`[{cohort, label}]`, optional): several cohorts sampled as one, rows in member order, each carrying its member label in `union_source_field` (default `_source`). See [`cohort-union`](cohort-union.md).
 
 ## Output
 

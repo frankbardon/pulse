@@ -55,13 +55,13 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 	}{
 		{"nil hides nothing", nil, &types.Request{}, nil},
 		{"unscoped hides nothing", UnscopedInstanceSnapshot(&ExtensionsSnapshot{}), &types.Request{}, nil},
-		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors", "weight"}},
-		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "output", "params", "populations", "vectors", "weight"}},
-		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors", "weight"}},
-		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors", "weight"}},
-		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "params", "populations", "vectors", "weight"}},
-		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors", "weight"}},
-		{"weighting enabled", scopedOnly(featProcess, featWeighting), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors"}},
+		{"process only", scopedOnly(featProcess, "AGG_COUNT"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"crosstab with a matrix kind", scopedOnly(featProcess, featCrosstab, "OVERLAY_SHARE_OF_ROW"), types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "output", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"joins only", scopedOnly(featProcess, featJoins), &types.Request{}, []string{"crosstab", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"crosstab host without a kind", scopedOnly(featProcess, featCrosstab), &types.Request{}, []string{"joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"series kind via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"kind enabled but its host hidden", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"weighting enabled", scopedOnly(featProcess, featWeighting), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors"}},
 		{"nested aggregation weight", scopedOnly(featProcess), &types.Aggregation{}, []string{"for_each", "weight"}},
 		{"nested aggregation for_each enabled", scopedOnly(featProcess, featForEach), &types.Aggregation{}, []string{"weight"}},
 		{"nested test weight", scopedOnly(featProcess), &types.Test{}, []string{"multiplicity", "weight"}},
@@ -81,8 +81,8 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"nested overlay weight", scopedOnly(featProcess), &types.OverlaySpec{}, []string{"multiplicity", "weight"}},
 		{"nested group weight", scopedOnly(featProcess), &types.Group{}, []string{"weight"}},
 		{"nested weight with weighting", scopedOnly(featProcess, featWeighting), &types.Group{}, nil},
-		{"multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "output", "overlays", "params", "populations", "vectors", "weight"}},
-		{"matrices enabled", scopedOnly(featProcess, featMatrices), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "output", "overlays", "params", "populations", "weight"}},
+		{"multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "output", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"matrices enabled", scopedOnly(featProcess, featMatrices), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "output", "overlays", "params", "populations", "union", "union_source_field", "weight"}},
 		{"nested matrix weight", scopedOnly(featProcess), &types.MatrixSpec{}, []string{"for_each", "multiplicity", "weight"}},
 		{"nested matrix multiplicity enabled", scopedOnly(featProcess, featMultiplicity), &types.MatrixSpec{}, []string{"for_each", "weight"}},
 		{"nested matrix for_each enabled", scopedOnly(featProcess, featForEach), &types.MatrixSpec{}, []string{"multiplicity", "weight"}},
@@ -114,25 +114,31 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"response overlays via compose", scopedOnly(featProcess, featCompose, "OVERLAY_DELTA_VS_PRIOR"), &types.Response{}, []string{"matrices"}},
 		{"response overlay kind without its host", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Response{}, []string{"matrices", "overlays"}},
 		{"response overlays via matrix result", scopedOnly(featProcess, featMatrices, "OVERLAY_MATRIX_GROUP_SUMMARY"), &types.Response{}, nil},
-		{"request overlays via matrix result", scopedOnly(featProcess, featMatrices, "OVERLAY_MATRIX_GROUP_SUMMARY"), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "output", "params", "populations", "weight"}},
+		{"request overlays via matrix result", scopedOnly(featProcess, featMatrices, "OVERLAY_MATRIX_GROUP_SUMMARY"), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "output", "params", "populations", "union", "union_source_field", "weight"}},
 		{"compose overlays result hidden", scopedOnly(featCompose, featComposeSweep, featSweepSampling, featComposeFits, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedResponse{}, []string{"banner", "comparisons", "optimizations", "overlays", "post_fit"}},
 		{"chain overlays result", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainResponse{}, nil},
 		{"chain overlays result hidden", scopedOnly(featProcessChain, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ChainResponse{}, []string{"overlays"}},
 		{"facet overlays result", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetResult{}, nil},
 		{"facet overlays result hidden", scopedOnly(featFacet, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.FacetResult{}, []string{"overlays"}},
-		{"chain overlays", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, []string{"params"}},
-		{"chain overlays hidden", scopedOnly(featProcessChain), &types.ChainRequest{}, []string{"overlays", "params"}},
-		{"facet overlays", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"models", "params"}},
-		{"facet overlays hidden", scopedOnly(featFacet, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.FacetRequest{}, []string{"models", "overlays", "params"}},
-		{"facet models enabled", scopedOnly(featFacet, featModels, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"params"}},
-		{"facet params enabled", scopedOnly(featFacet, featModels, featParams, "FILTER_EXPRESSION", "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, nil},
-		{"request models enabled", scopedOnly(featProcess, featModels, featCrosstab, featJoins, featWeighting, featMultiplicity, featMatrices, featParams, featMaterializeOutput, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, nil},
-		{"materialize output enabled", scopedOnly(featProcess, featMaterialize, featMaterializeOutput), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "overlays", "params", "populations", "vectors", "weight"}},
-		{"request params enabled", scopedOnly(featProcess, featParams, "FILTER_EXPRESSION"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "populations", "vectors", "weight"}},
+		{"chain overlays", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, []string{"params", "union", "union_source_field"}},
+		{"chain overlays hidden", scopedOnly(featProcessChain), &types.ChainRequest{}, []string{"overlays", "params", "union", "union_source_field"}},
+		{"facet overlays", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"models", "params", "union", "union_source_field"}},
+		{"facet overlays hidden", scopedOnly(featFacet, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.FacetRequest{}, []string{"models", "overlays", "params", "union", "union_source_field"}},
+		{"facet models enabled", scopedOnly(featFacet, featModels, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"params", "union", "union_source_field"}},
+		{"facet params enabled", scopedOnly(featFacet, featModels, featParams, "FILTER_EXPRESSION", "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"union", "union_source_field"}},
+		{"request models enabled", scopedOnly(featProcess, featModels, featCrosstab, featJoins, featWeighting, featMultiplicity, featMatrices, featParams, featMaterializeOutput, "OVERLAY_SHARE_OF_ROW"), &types.Request{}, []string{"union", "union_source_field"}},
+		{"materialize output enabled", scopedOnly(featProcess, featMaterialize, featMaterializeOutput), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "overlays", "params", "populations", "union", "union_source_field", "vectors", "weight"}},
+		{"request params enabled", scopedOnly(featProcess, featParams, "FILTER_EXPRESSION"), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "populations", "union", "union_source_field", "vectors", "weight"}},
 		{"compose params enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeFits, featComposeSweep, featMultiplicity, featParams, "FILTER_EXPRESSION", "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"base", "compare", "optimize", "post_fit"}},
 		{"compose post_fit enabled", scopedOnly(featCompose, featComposeFits, featComposePostFit, "REG_OLS"), &types.ComposedRequest{}, []string{"banner", "base", "compare", "multiplicity", "optimize", "overlays", "params", "sweep"}},
-		{"chain params enabled", scopedOnly(featProcessChain, featParams, "FILTER_EXPRESSION", "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, nil},
-		{"sample has no gated slot", scopedOnly(), &types.SampleRequest{}, nil},
+		{"chain params enabled", scopedOnly(featProcessChain, featParams, "FILTER_EXPRESSION", "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, []string{"union", "union_source_field"}},
+		{"sample union hidden", scopedOnly(), &types.SampleRequest{}, []string{"union", "union_source_field"}},
+		{"sample union enabled", scopedOnly(featSample, featUnion), &types.SampleRequest{}, nil},
+		{"lookup union hidden", scopedOnly(featLookup), &types.LookupRequest{}, []string{"union", "union_source_field"}},
+		{"lookup union enabled", scopedOnly(featLookup, featUnion), &types.LookupRequest{}, nil},
+		{"request union enabled", scopedOnly(featProcess, featUnion), &types.Request{}, []string{"crosstab", "joins", "matrices", "models", "multiplicity", "output", "overlays", "params", "populations", "vectors", "weight"}},
+		{"chain union enabled", scopedOnly(featProcessChain, featUnion, "OVERLAY_DELTA_VS_STAGE"), &types.ChainRequest{}, []string{"params"}},
+		{"facet union enabled", scopedOnly(featFacet, featUnion, "OVERLAY_INDEX_VS_POP"), &types.FacetRequest{}, []string{"models", "params"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -258,8 +264,8 @@ func TestSlotRefusal_NestedRootsAreLocated(t *testing.T) {
 	if _, located := ce.Details["stage"]; located || !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"overlays"}) {
 		t.Errorf("chain root: %v", ce.Details)
 	}
-	// (union / union_source_field ride no feature gate yet.)
-	if valid, _ := ce.Details["valid_keys"].([]string); !reflect.DeepEqual(valid, []string{"cohort", "stages", "union", "union_source_field"}) {
+	// The union slots ride capability:union, hidden here.
+	if valid, _ := ce.Details["valid_keys"].([]string); !reflect.DeepEqual(valid, []string{"cohort", "stages"}) {
 		t.Errorf("chain root valid_keys = %v", valid)
 	}
 

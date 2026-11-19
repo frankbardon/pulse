@@ -17,6 +17,7 @@
     "capability:facet",
     "capability:sample",
     "capability:joins",
+    "capability:union",
     "capability:crosstab",
     "capability:crosstab_cells",
     "capability:lookup",

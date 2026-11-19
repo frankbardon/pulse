@@ -21,6 +21,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Windows-first** — an aggregation, grouper or crosstab axis reading a window or post-window label runs the windows over the record rows BEFORE the groups / aggregations / crosstab; one classifier, `vectors.WindowsFirst`; buffered, request weight refused. `skills/windows-first.md`; `execution-modes.md` (Windows-first).
 - **Filter precompute** (grouped cohorts) — a filter over ONE group's members is evaluated once per dictionary entry, per-row otherwise. `execution-modes.md`.
 - **Grouped tier-1 tests** — `groups` + `tests[]` run every test once per composite group key, buffered; flat `tests[]` with `group_key`. `skills/statistical-testing.md`.
+- **Cohort union** (`union` / `union_source_field` on Request, ChainRequest, FacetRequest, SampleRequest, LookupRequest; `capability:union`) — several labelled cohorts read as one in-memory shard archive with a virtual categorical source field; every single-cohort surface but a join's right side. `skills/cohort-union.md`; `execution-modes/union.md`.
 - **Point lookup** (`pulse.Lookup`) — O(1) key-exact rows via a prebuilt sidecar index; single-file cohorts, equality-only, full-key. `skills/tool-lookup.md`.
 - **Cooperative cancellation** — every serial per-record loop polls ctx every 4,096 rows (`processing.CtxPoller`) and returns the ctx error unchanged; section below.
 - **Overlays** (`Request.Overlays`, `Response.Overlays`) — additive post-result decorations keyed to host coordinates that **never mutate the base payload**. `skills/overlay-system.md`.
@@ -48,6 +49,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Post-window attributes (transformed predictors, U57); Windows-first (mmm-followups E4); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/filters-and-expressions.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |
+| Cohort union (shape / merge rules, in-memory archive runtime, surfaces, refusals, feature gate, observability) | `execution-modes/union.md` |
 | Overlays (hosts, Level / Within, per-host wiring, FORMULA, displaced contributor bullets through "Adding an overlay kind", Weighted hosts, Overlay knobs) | `execution-modes/overlays.md` |
 | Overlays — COMPOSE host: the COMPOSE arm, Compose series value + key, Compose fan-out (one layer per target) | `execution-modes/overlays-compose.md` |
 | Overlays — SERIES host: series measure (`params.field`), series partitions (`params.partition_by`), YoY partitions, SERIES FORMULA, rolling windows | `execution-modes/overlays-series.md` |

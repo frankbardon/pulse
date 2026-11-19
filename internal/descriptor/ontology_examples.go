@@ -42,6 +42,9 @@ var exampleCapabilityDetectors = []exampleCapabilityDetector{
 	{featCompose, func(_ ontologyExample, body any) bool { return rootHasKey(body, "requests") }},
 	{featProcessChain, func(_ ontologyExample, body any) bool { return rootHasKey(body, "stages") }},
 	{featJoins, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "joins") }},
+	// A `union` key at any depth (a request root, a Compose slot, a
+	// chain root) reads several cohorts as one: capability:union.
+	{featUnion, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "union") }},
 	// A `weight` key at any depth — the request root or any slot's —
 	// is the weighting surface (AGG_WEIGHTED_MEAN's params.weight_field
 	// is a different key and stays ungated).

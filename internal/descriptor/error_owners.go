@@ -475,18 +475,18 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_JOIN_TOO_MANY:             own(featJoins),
 	errors.PULSE_JOIN_FIELD_COLLISION:      own(featJoins),
 
-	// The union codes are raised by the request's own union slot, which
-	// every request host carries; a union on a join's right side only
-	// where a join is written.
-	errors.PULSE_UNION_COHORT_CONFLICT:      shared,
-	errors.PULSE_UNION_MEMBER_INVALID:       shared,
-	errors.PULSE_UNION_LABEL_INVALID:        shared,
-	errors.PULSE_UNION_SOURCE_FIELD_INVALID: shared,
-	errors.PULSE_UNION_MEMBER_LIMIT:         shared,
-	errors.PULSE_UNION_SCHEMA_MISMATCH:      shared,
-	errors.PULSE_UNION_JOIN_RIGHT:           own(featJoins),
-	errors.PULSE_UNION_NESTED:               shared,
-	errors.PULSE_UNION_UNSUPPORTED:          shared,
+	// The union codes are raised only by a set union slot (or a
+	// misplaced `union` key, which strict decode reads as a plain
+	// unknown key on an instance hiding the union): capability:union.
+	errors.PULSE_UNION_COHORT_CONFLICT:      own(featUnion),
+	errors.PULSE_UNION_MEMBER_INVALID:       own(featUnion),
+	errors.PULSE_UNION_LABEL_INVALID:        own(featUnion),
+	errors.PULSE_UNION_SOURCE_FIELD_INVALID: own(featUnion),
+	errors.PULSE_UNION_MEMBER_LIMIT:         own(featUnion),
+	errors.PULSE_UNION_SCHEMA_MISMATCH:      own(featUnion),
+	errors.PULSE_UNION_JOIN_RIGHT:           own(featUnion),
+	errors.PULSE_UNION_NESTED:               own(featUnion),
+	errors.PULSE_UNION_UNSUPPORTED:          own(featUnion),
 
 	// Range compilation runs for a named range table (loaded under
 	// capability:range_tables), for the inline ranges of the range

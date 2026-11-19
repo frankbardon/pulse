@@ -344,7 +344,7 @@ func invokers(cfg Config) map[string]InvokeFunc {
 		toolmeta.ToolProcess:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandleProcess),
 		toolmeta.ToolProcessChain:   makeInvoke(withReturnDefault(cfg, strictChainDecode, fillChainReturn), HandleProcessChain),
 		toolmeta.ToolCompose:        makeInvoke(withReturnDefault(cfg, strictComposedDecode, fillComposeReturn), HandleCompose),
-		toolmeta.ToolSample:         makeInvoke(strictDecode[SampleIn], HandleSample),
+		toolmeta.ToolSample:         makeInvoke(strictSampleDecode, HandleSample),
 		toolmeta.ToolFacet:          makeInvoke(strictDecode[FacetIn], HandleFacet),
 		toolmeta.ToolFacetSchema:    makeInvoke(strictDecode[FacetSchemaIn], HandleFacetSchema),
 		toolmeta.ToolLookup:         makeInvoke(strictDecode[LookupIn], HandleLookup),

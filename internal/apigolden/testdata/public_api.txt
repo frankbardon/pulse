@@ -93,6 +93,8 @@ pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
+pulse: type ChainRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type ChainRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type ChainRequest method (*ChainRequest) Hash() string
 pulse: type ChainResponse = pulse/types.ChainResponse
 pulse: type ChainResponse underlying struct
@@ -406,6 +408,8 @@ pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overla
 pulse: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse: type FacetRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type FacetRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
 pulse: type FacetResult = pulse/types.FacetResult
 pulse: type FacetResult underlying struct
@@ -723,6 +727,8 @@ pulse: type LookupRequest field Field string "json:\"field,omitempty\""
 pulse: type LookupRequest field Keys []pulse/types.LookupKey "json:\"keys,omitempty\""
 pulse: type LookupRequest field Multiplicity pulse/types.LookupMultiplicity "json:\"multiplicity,omitempty\""
 pulse: type LookupRequest field ReturnColumns []string "json:\"return_columns,omitempty\""
+pulse: type LookupRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type LookupRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type LookupRequest field Value string "json:\"value,omitempty\""
 pulse: type LookupRequest method (*LookupRequest) Hash() string
 pulse: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/types.LookupKey
@@ -1187,6 +1193,8 @@ pulse: type SampleRequest underlying struct
 pulse: type SampleRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
 pulse: type SampleRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type SampleRequest field N int "json:\"n\""
+pulse: type SampleRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type SampleRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type SampleResult struct
 pulse: type SampleResult field Rows []pulse.Record
 pulse: type SampleResult field Warnings []pulse.SampleWarning
@@ -1903,6 +1911,7 @@ pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
+pulse/descriptor: type Manifest field Union *pulse/descriptor.UnionCapability "json:\"union,omitempty\""
 pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
 pulse/descriptor: type ManifestScope struct
 pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
@@ -2421,6 +2430,12 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type UnionCapability struct
+pulse/descriptor: type UnionCapability field DefaultSourceField string "json:\"default_source_field\""
+pulse/descriptor: type UnionCapability field MaxMembers int "json:\"max_members\""
+pulse/descriptor: type UnionCapability field Name string "json:\"name\""
+pulse/descriptor: type UnionCapability field Rules []string "json:\"rules\""
+pulse/descriptor: type UnionCapability field Surfaces []string "json:\"surfaces\""
 pulse/descriptor: type UnionMemberPredict struct
 pulse/descriptor: type UnionMemberPredict field Cohort string "json:\"cohort\""
 pulse/descriptor: type UnionMemberPredict field Label string "json:\"label\""
@@ -5565,6 +5580,8 @@ pulse/types: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\"
 pulse/types: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
+pulse/types: type ChainRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type ChainRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type ChainRequest method (*ChainRequest) Hash() string
 pulse/types: type ChainResponse struct
 pulse/types: type ChainResponse field Final *pulse/types.Response "json:\"final\""
@@ -5805,6 +5822,8 @@ pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"
 pulse/types: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse/types: type FacetRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type FacetRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
 pulse/types: type FacetResult struct
 pulse/types: type FacetResult field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
@@ -6034,6 +6053,8 @@ pulse/types: type LookupRequest field Field string "json:\"field,omitempty\""
 pulse/types: type LookupRequest field Keys []pulse/types.LookupKey "json:\"keys,omitempty\""
 pulse/types: type LookupRequest field Multiplicity pulse/types.LookupMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type LookupRequest field ReturnColumns []string "json:\"return_columns,omitempty\""
+pulse/types: type LookupRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type LookupRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type LookupRequest field Value string "json:\"value,omitempty\""
 pulse/types: type LookupRequest method (*LookupRequest) Hash() string
 pulse/types: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/types.LookupKey
@@ -6927,6 +6948,8 @@ pulse/types: type SampleRequest struct
 pulse/types: type SampleRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
 pulse/types: type SampleRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type SampleRequest field N int "json:\"n\""
+pulse/types: type SampleRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type SampleRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type SeriesEntry struct
 pulse/types: type SeriesEntry field Key pulse/types.AxisKey "json:\"key\""
 pulse/types: type SeriesEntry field Summary pulse/types.OverlaySummary "json:\"summary\""
@@ -7141,4 +7164,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1e3a4c072ed0ca3dea371ebd2ddcc84a3868658bf7e12860078aac756ff9f86c
+// golden-hash: f5b46607dfedacd126515fd648e178acbfa4c43f7c8350d5660a055f7304feb2

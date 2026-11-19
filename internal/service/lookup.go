@@ -99,6 +99,11 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
 	}
+	// A union slot the instance hides (capability:union) is an unknown
+	// field, before any union rule judges it.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, nil, err
+	}
 	// The union shape rules (a source field without a union, a cohort
 	// beside one, a bad member or label) before anything is opened.
 	if err := descx.UnionShapeRefusalOf(req.Cohort, req.Union, req.UnionSourceField); err != nil {

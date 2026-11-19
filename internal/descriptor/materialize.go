@@ -48,7 +48,8 @@ const materializeDescriptionMax = 1000
 // MaterializeSlotRefusal is the materialize slot gate: a request slot
 // that does not yield one value per source record is refused with
 // PULSE_MATERIALIZE_SLOT_UNSUPPORTED, details.slot naming its JSON key,
-// in Request field order. Accepted: cohort, label, features,
+// in Request field order. Accepted: cohort (or union /
+// union_source_field, gated by capability:union), label, features,
 // filterers, attributes, windows, sort (the output row order), weight,
 // time_zone, output (the written cohort's layout,
 // MaterializeOutputLayout) and disable_components (which has nothing to

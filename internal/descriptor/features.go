@@ -134,6 +134,7 @@ var (
 	featCrosstab          = FeatureName(FeatureKindCapability, "crosstab")
 	featCrosstabCells     = FeatureCrosstabCells
 	featJoins             = FeatureName(FeatureKindCapability, "joins")
+	featUnion             = FeatureUnion
 	featStream            = FeatureName(FeatureKindCapability, "stream")
 	featWatch             = FeatureName(FeatureKindCapability, "watch")
 	featFilterToFile      = FeatureName(FeatureKindCapability, "filter_to_file")
@@ -287,6 +288,14 @@ const FeatureComposeSweepBind = "capability:compose_sweep_bind"
 // universe's extension edges) reads it too.
 const FeatureComposePostFit = "capability:compose_post_fit"
 
+// FeatureUnion is capability:union — the cohort union: the `union` and
+// `union_source_field` slots of a Request, ChainRequest, FacetRequest,
+// SampleRequest and LookupRequest, which read several labelled cohorts
+// as one record stream tagged by a virtual source field. Hidden, a set
+// union slot is an unknown field on every root. Exported for the root
+// facade and the MCP binder.
+const FeatureUnion = "capability:union"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -318,6 +327,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("facet"),              // Facet, FacetSchema
 	capability("sample"),             // Sample, SampleWithRequest
 	capability("joins"),              // Request.Joins slot
+	capability("union"),              // the union / union_source_field slots (several labelled cohorts read as one)
 	capability("crosstab"),           // Request.Crosstab slot
 	capability("crosstab_cells"),     // CrosstabSpec.Cells (several measures as stub rows)
 	capability("lookup"),             // Lookup
@@ -650,6 +660,12 @@ var requestSlotCapabilities = map[string]bool{
 // FacetRequest.Params their params.<name> reads).
 var modelsHosts = []string{featProcess, featCompose, featProcessChain, featFacet}
 
+// unionHosts is the any-of host group of capability:union: every root
+// carrying the union slots — the request hosts (a Process, a Compose
+// slot, a chain's stage 0; streaming and materialize ride Process), the
+// rich facet, sample and the point lookup.
+var unionHosts = []string{featProcess, featCompose, featProcessChain, featFacet, featSample, featLookup}
+
 // slotTokenSet is the prose vocabulary one slot-owning capability owns:
 // the wire tokens that name its request / response slots, and the topic
 // a guidance sentence naming one of them must be about.
@@ -699,6 +715,12 @@ var slotTokens = map[string]slotTokenSet{
 	},
 	// `joins` is an English verb ("joins the family").
 	featJoins: {},
+	// `union` is set-algebra English too (a set field's union, a
+	// widened dictionary); the source-field key is wire-specific.
+	featUnion: {
+		tokens: []string{"union_source_field"},
+		topic:  regexp.MustCompile(`(?i)\b(?:union|cohorts?|members?|_source|labell?ed)\b`),
+	},
 	// The overlay hosts' slot is `overlays`, shared by all four hosts;
 	// the overlay kinds a hidden host runs are operator names the scrub
 	// already removes.
@@ -1138,6 +1160,8 @@ func withDependencies(rows []Feature) []Feature {
 			}
 		case f.Name == featModels, f.Name == featParams:
 			groups = append(groups, append([]string(nil), modelsHosts...))
+		case f.Name == featUnion:
+			groups = append(groups, append([]string(nil), unionHosts...))
 		case f.Kind == FeatureKindOperator, requestSlotCapabilities[f.Name]:
 			groups = append(groups, append([]string(nil), requestHosts...))
 		case processOnly[f.Name]:

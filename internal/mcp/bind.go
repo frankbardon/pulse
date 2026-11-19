@@ -248,7 +248,7 @@ func BindForInstanceWithJoins(schema *encoding.Schema, joins []JoinTarget, inst 
 	}
 	out[toolmeta.ToolCompose] = composeBody
 
-	sampleBody, err := buildSampleSchema(left)
+	sampleBody, err := buildSampleSchema(left, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -878,8 +878,10 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 }
 
 // addUnionSlots declares a root's `union` / `union_source_field`
-// slots (types.Request, types.ChainRequest, types.FacetRequest) on its
-// properties: the payload schema's parity holds them in step.
+// slots (types.Request, types.ChainRequest, types.FacetRequest, and
+// pulse_sample's arguments) on its properties: the payload schema's
+// parity holds them in step. Each caller drops them with the root's
+// other hidden slots (dropHiddenSlots) when capability:union is hidden.
 func addUnionSlots(props map[string]any) {
 	props["union"] = map[string]any{
 		"type":        "array",
@@ -2455,16 +2457,19 @@ func enumerationSweepSchema() map[string]any {
 }
 
 // buildSampleSchema describes the pulse_sample tool params.
-func buildSampleSchema(c fieldClassification) (json.RawMessage, error) {
+func buildSampleSchema(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	props := map[string]any{
+		"path":  map[string]any{"type": "string", "description": "Filesystem path to the .pulse file. Required unless union is set; never both."},
+		"count": map[string]any{"type": "number", "description": "Maximum rows to return (default 10)"},
+	}
+	addUnionSlots(props)
 	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"path":  map[string]any{"type": "string", "description": "Filesystem path to the .pulse file"},
-			"count": map[string]any{"type": "number", "description": "Maximum rows to return (default 10)"},
-		},
-		"required":             []string{"path"},
+		"type":                 "object",
+		"properties":           props,
 		"additionalProperties": true,
 	}
+	// SampleIn spreads types.SampleRequest's union slots at its root.
+	dropHiddenSlots(outer, &types.SampleRequest{}, inst)
 	_ = c
 	return json.Marshal(outer)
 }

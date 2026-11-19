@@ -196,6 +196,13 @@ type Manifest struct {
 	// Omitted (nil) when the instance does not offer capability:joins.
 	Join *JoinCapability `json:"join,omitempty"`
 
+	// Union is the cohort-union capability descriptor (Request.Union and
+	// its twins on the chain, facet, sample and lookup roots): the
+	// default source-field name, the member ceiling, the surfaces that
+	// read a union and the refusals. Omitted (nil) when the instance does
+	// not offer capability:union.
+	Union *UnionCapability `json:"union,omitempty"`
+
 	// Crosstab is the cross-tabulation endpoint capability
 	// descriptor (Request.Crosstab). Carries the normalize / shape
 	// allowlists plus the per-aggregator margin-reducibility
@@ -307,7 +314,7 @@ func ScopedManifestElidedKeys() []string {
 		"cohort_types", "commands", "components_schemas", "error_codes", "error_codes_count",
 		"error_domains", "export", "extensions", "facet", "import", "join",
 		"limits", "mcp_tools", "operations", "process_chain",
-		"synth_distributions",
+		"synth_distributions", "union",
 	}
 }
 
@@ -338,6 +345,7 @@ type scopedManifestWire struct {
 	Operations         *struct{} `json:"operations,omitempty"`
 	ProcessChain       *struct{} `json:"process_chain,omitempty"`
 	SynthDistributions *struct{} `json:"synth_distributions,omitempty"`
+	Union              *struct{} `json:"union,omitempty"`
 }
 
 // MarshalJSON encodes the manifest. The unscoped manifest (Scope nil)

@@ -180,6 +180,20 @@ var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(feat
 // with one of its kinds.
 var requestOverlaysSlotGate = gatedSlot{key: "overlays", visible: overlayGate(featCrosstab, featCompose, featMatrices)}
 
+// unionSlotGates gate the `union` / `union_source_field` keys of every
+// root that reads a union (Request, ChainRequest, FacetRequest,
+// SampleRequest, LookupRequest): capability:union. Hidden, either key is
+// an unknown field, `union_source_field` alone included.
+var unionSlotGates = []gatedSlot{
+	{key: "union", visible: capabilityGate(featUnion)},
+	{key: "union_source_field", visible: capabilityGate(featUnion)},
+}
+
+// withUnionSlots returns slots followed by the union gates.
+func withUnionSlots(slots ...gatedSlot) []gatedSlot {
+	return append(slots, unionSlotGates...)
+}
+
 // sweepSamplingGate gates every key only a sampled sweep (mode random /
 // lhs) reads or writes: capability:compose_sweep_sampling.
 var sweepSamplingGate = capabilityGate(featSweepSampling)
@@ -190,19 +204,19 @@ var sweepSamplingGate = capabilityGate(featSweepSampling)
 // schema (structSchema reads HiddenSlotKeys per struct) and the nested
 // refusal (nestedWeightRefusal) consult.
 var gatedSlots = map[reflect.Type][]gatedSlot{
-	reflect.TypeOf(types.Request{}): {
-		{key: "crosstab", visible: capabilityGate(featCrosstab)},
-		{key: "joins", visible: capabilityGate(featJoins)},
+	reflect.TypeOf(types.Request{}): withUnionSlots(
+		gatedSlot{key: "crosstab", visible: capabilityGate(featCrosstab)},
+		gatedSlot{key: "joins", visible: capabilityGate(featJoins)},
 		requestOverlaysSlotGate,
-		{key: "vectors", visible: capabilityGate(featMatrices)},
-		{key: "matrices", visible: capabilityGate(featMatrices)},
+		gatedSlot{key: "vectors", visible: capabilityGate(featMatrices)},
+		gatedSlot{key: "matrices", visible: capabilityGate(featMatrices)},
 		weightSlotGate,
 		multiplicitySlotGate,
 		modelsSlotGate,
 		populationsSlotGate,
 		paramsSlotGate,
 		outputSlotGate,
-	},
+	),
 	reflect.TypeOf(types.Aggregation{}): {weightSlotGate, forEachSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
 	// MEASURE-folded payload slots it alone produces.
@@ -330,18 +344,21 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	// slot's `models`; its `for_each` rides capability:for_each, like an
 	// item's.
 	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate, forEachSlotGate},
-	reflect.TypeOf(types.ChainRequest{}): {
-		{key: "overlays", visible: overlayGate(featProcessChain)},
+	reflect.TypeOf(types.ChainRequest{}): withUnionSlots(
+		gatedSlot{key: "overlays", visible: overlayGate(featProcessChain)},
 		paramsSlotGate,
-	},
+	),
 	reflect.TypeOf(types.ChainResponse{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 	},
-	reflect.TypeOf(types.FacetRequest{}): {
-		{key: "overlays", visible: overlayGate(featFacet)},
+	reflect.TypeOf(types.FacetRequest{}): withUnionSlots(
+		gatedSlot{key: "overlays", visible: overlayGate(featFacet)},
 		modelsSlotGate,
 		paramsSlotGate,
-	},
+	),
+	// The sample and point-lookup roots carry only the union slots.
+	reflect.TypeOf(types.SampleRequest{}): withUnionSlots(),
+	reflect.TypeOf(types.LookupRequest{}): withUnionSlots(),
 	reflect.TypeOf(types.FacetResult{}): {
 		{key: "overlays", visible: overlayGate(featFacet)},
 	},
@@ -531,6 +548,7 @@ func setSlots(v any) []string {
 		if r.Output != nil {
 			out = append(out, outputSlotGate.key)
 		}
+		out = appendUnionSlots(out, r.Union, r.UnionSourceField)
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -569,6 +587,9 @@ func setSlots(v any) []string {
 		if r != nil && len(r.Params) > 0 {
 			out = append(out, "params")
 		}
+		if r != nil {
+			out = appendUnionSlots(out, r.Union, r.UnionSourceField)
+		}
 	case *types.FacetRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -579,6 +600,30 @@ func setSlots(v any) []string {
 		if r != nil && len(r.Params) > 0 {
 			out = append(out, "params")
 		}
+		if r != nil {
+			out = appendUnionSlots(out, r.Union, r.UnionSourceField)
+		}
+	case *types.SampleRequest:
+		if r != nil {
+			out = appendUnionSlots(out, r.Union, r.UnionSourceField)
+		}
+	case *types.LookupRequest:
+		if r != nil {
+			out = appendUnionSlots(out, r.Union, r.UnionSourceField)
+		}
+	}
+	return out
+}
+
+// appendUnionSlots appends the union keys a root sets: `union` when it
+// names a member, `union_source_field` when it names the field (set
+// without a union too — strict decode refuses any set key).
+func appendUnionSlots(out []string, union []types.UnionMember, sourceField string) []string {
+	if len(union) > 0 {
+		out = append(out, "union")
+	}
+	if sourceField != "" {
+		out = append(out, "union_source_field")
 	}
 	return out
 }

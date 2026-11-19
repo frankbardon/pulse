@@ -115,7 +115,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_sweep_adaptive`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_post_fit`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:regression_order`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_sweep_adaptive`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_post_fit`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:regression_order`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:union`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -153,6 +153,12 @@ one name in every group must be enabled:
 - `capability:models` and `capability:params` need a host that runs
   requests or `capability:facet` (a facet's `models` feed its filters'
   `coef()`, its `params` their `params.<name>` reads).
+- `capability:union` (the `union` / `union_source_field` slots, which
+  read several labelled cohorts as one) needs any root that carries
+  them: `capability:process`, `capability:compose`,
+  `capability:process_chain`, `capability:facet`, `capability:sample`
+  or `capability:lookup`. Hidden, either key is an unknown field on
+  every root and the `PULSE_UNION_*` codes leave the error list.
 - `capability:crosstab_cells` (several measures in one crosstab) needs
   `capability:crosstab`.
 - `capability:multiplicity` needs nothing: its blocks ride every request

@@ -38,6 +38,18 @@ done
 echo "==> indexing experiment.pulse on id"
 "$PULSE_BIN" index build "$DATA_DIR/experiment.pulse" --key id --json > /dev/null
 
+# The synthetic twin of customers.pulse the union example
+# (tests/38_union_source_vs_twin.json) compares with its source: a
+# default profile, its spec at 200 rows, generated rows only, seed 7 —
+# the same twin internal/integration's buildCustomersTwinFixture writes.
+echo "==> generating customers_twin.pulse"
+rm -f "$DATA_DIR/customers_twin.pulse" "$DATA_DIR/customers.profile.json"
+"$PULSE_BIN" profile create --input "$DATA_DIR/customers.pulse" \
+  --output "$DATA_DIR/customers.profile.json" > /dev/null
+"$PULSE_BIN" synth from-profile --profile "$DATA_DIR/customers.profile.json" \
+  --source "$DATA_DIR/customers.pulse" --output "$DATA_DIR/customers_twin.pulse" \
+  --rows 200 --seed 7 --synthetic-only --json > /dev/null
+
 echo
 echo "Cohorts written to: $DATA_DIR"
 echo "Examples reference cohort.data_dir = \"$DATA_DIR\" so requests run unmodified."

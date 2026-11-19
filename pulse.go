@@ -2084,7 +2084,7 @@ type SampleWarning struct {
 // Sample, returning a SampleResult with no Warnings and no
 // transformation applied to the rows.
 func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
-	return observed(p, ctx, opSpec{kind: observe.OpSample, cohort: sampleCohort(req)}, func(ctx context.Context) (*SampleResult, error) {
+	return observed(p, ctx, sampleOp(req), func(ctx context.Context) (*SampleResult, error) {
 		return p.sampleWithRequest(ctx, req)
 	})
 }

@@ -1,6 +1,7 @@
 package strictjson
 
 import (
+	"reflect"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -98,5 +99,29 @@ func TestDecode_MisplacedUnionIsCodedOnEveryRoot(t *testing.T) {
 	ce := codedOf(t, decoders["chain"](`{"union":[`+member+`],"stages":[{"request":{"joins":[{"union":[`+member+`],"on":[{"left_field":"k","right_field":"k"}]}]}}]}`))
 	if ce.Code != perr.PULSE_UNION_JOIN_RIGHT || ce.Details["path"] != "joins[0].union" {
 		t.Errorf("chain stage join: %s at %v, want PULSE_UNION_JOIN_RIGHT", ce.Code, ce.Details["path"])
+	}
+}
+
+// On an instance hiding the union (Options.Hidden names `union` on a
+// types.Request), a `union` key on a join is a plain unknown key — the
+// refusal a build without a union gives — never a PULSE_UNION_* code.
+func TestDecode_MisplacedUnionPlainWhenUnionHidden(t *testing.T) {
+	t.Parallel()
+	hidden := Options{Hidden: func(t reflect.Type) []string {
+		if t == reflect.TypeFor[types.Request]() {
+			return []string{"union", "union_source_field"}
+		}
+		return nil
+	}}
+	body := `{"joins":[{"union":[{"cohort":{"filename":"b.pulse"},"label":"b"}],"on":[{"left_field":"k","right_field":"k"}]}]}`
+	_, err := Decode[types.Request]([]byte(body), hidden)
+	ce := codedOf(t, err)
+	if ce.Code != perr.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "joins[0].union" {
+		t.Errorf("hidden: %s at %v, want PULSE_REQUEST_UNKNOWN_FIELD at joins[0].union", ce.Code, ce.Details["path"])
+	}
+	// The visible twin keeps the coded refusal.
+	_, err = Decode[types.Request]([]byte(body), Options{})
+	if ce := codedOf(t, err); ce.Code != perr.PULSE_UNION_JOIN_RIGHT {
+		t.Errorf("visible: %s, want PULSE_UNION_JOIN_RIGHT", ce.Code)
 	}
 }

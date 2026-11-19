@@ -400,6 +400,32 @@ type JoinCapability struct {
 	Limitations []string `json:"limitations"`
 }
 
+// UnionCapability describes the cohort union surfaced by the `union` /
+// `union_source_field` request slots: several labelled cohorts read as
+// one record stream, each record tagged with its member's label in a
+// virtual categorical source field. The manifest carries it under
+// Manifest.Union.
+type UnionCapability struct {
+	// Name is the canonical identifier ("cohort_union").
+	Name string `json:"name"`
+
+	// DefaultSourceField is the virtual source field's name when
+	// union_source_field is empty ("_source").
+	DefaultSourceField string `json:"default_source_field"`
+
+	// MaxMembers is the ceiling on the flattened member count: every
+	// member a single file, every shard of a member archive counted on
+	// its own (the shard-archive ceiling).
+	MaxMembers int `json:"max_members"`
+
+	// Surfaces lists, sorted, the instance's entry points that read a
+	// union (a request's own root, never a join's right side).
+	Surfaces []string `json:"surfaces"`
+
+	// Rules lists the union's merge rules and refusals for LLM clients.
+	Rules []string `json:"rules"`
+}
+
 // MetricMeta describes one registered distance / similarity metric in
 // Manifest.Matrix.Metrics.
 type MetricMeta struct {

@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	stderrors "errors"
+	"reflect"
 
 	perr "github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -28,6 +29,33 @@ func strictDecode[In any](raw json.RawMessage, inst *descx.InstanceSnapshot) (In
 		return in, nil
 	}
 	err := strictjson.DecodeRequestInto(raw, &in, descx.StrictOptions(inst), "tool arguments")
+	return in, err
+}
+
+// strictSampleDecode is strictDecode for pulse_sample, whose argument
+// struct (SampleIn) spreads types.SampleRequest's union slots at its
+// root: a union key the instance hides (capability:union) is refused as
+// an unknown argument, valid_keys over the visible ones.
+func strictSampleDecode(raw json.RawMessage, inst *descx.InstanceSnapshot) (SampleIn, error) {
+	var in SampleIn
+	if len(raw) == 0 {
+		return in, nil
+	}
+	opts := descx.StrictOptions(inst)
+	if hidden := descx.HiddenSlotKeys(&types.SampleRequest{}, inst); len(hidden) > 0 {
+		base := opts.Hidden
+		sampleIn := reflect.TypeFor[SampleIn]()
+		opts.Hidden = func(t reflect.Type) []string {
+			if t == sampleIn {
+				return hidden
+			}
+			if base == nil {
+				return nil
+			}
+			return base(t)
+		}
+	}
+	err := strictjson.DecodeRequestInto(raw, &in, opts, "tool arguments")
 	return in, err
 }
 

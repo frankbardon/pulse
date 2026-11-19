@@ -91,7 +91,7 @@ func BuildManifestForIntent(inst *InstanceSnapshot, intent string) (*descriptor.
 	m.ErrorCodesCount, m.ErrorDomains, m.ErrorCodes = 0, nil, nil
 	m.MCPTools, m.CohortTypes = nil, nil
 	m.Extensions = descriptor.ExtensionsManifest{}
-	m.Facet, m.ProcessChain, m.Join, m.Export, m.Import = nil, nil, nil, nil, nil
+	m.Facet, m.ProcessChain, m.Join, m.Export, m.Import, m.Union = nil, nil, nil, nil, nil, nil
 	m.Limits = nil
 	m.ComponentsSchemas = descriptor.ComponentsSchemasBlock{}
 

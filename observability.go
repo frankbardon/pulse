@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	stderrors "errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,9 @@ type opSpec struct {
 	// cohort is resolved to a path lazily (resolveCohortPath
 	// concatenates, which would allocate on the off path).
 	cohort *types.Cohort
+	// union is the request's cohort union when it names one in place of
+	// cohort; resolved lazily like cohort (unionCohortPath).
+	union []types.UnionMember
 	// req hashes the operation's request lazily; nil when there is none.
 	req interface{ Hash() string }
 }
@@ -34,7 +38,27 @@ func (op opSpec) cohortPath() string {
 	if op.cohort != nil {
 		return resolveCohortPath(op.cohort)
 	}
+	if len(op.union) > 0 {
+		return unionCohortPath(op.union)
+	}
 	return op.path
+}
+
+// unionCohortSep joins a union's member paths in OperationInfo.Cohort.
+const unionCohortSep = "+"
+
+// unionCohortPath is the Cohort a union-reading operation reports: its
+// members' cohort paths in declared order joined by "+" — identifiers
+// only, never a member label (caller text). A member with no cohort
+// contributes an empty path (the union rules refuse it).
+func unionCohortPath(members []types.UnionMember) string {
+	paths := make([]string, len(members))
+	for i, m := range members {
+		if m.Cohort != nil {
+			paths[i] = resolveCohortPath(m.Cohort)
+		}
+	}
+	return strings.Join(paths, unionCohortSep)
 }
 
 func (op opSpec) requestHash() string {
@@ -173,9 +197,7 @@ func (run *opRun) startChild(ctx context.Context, index int, req *types.Request)
 		Index:  index,
 	}
 	if req != nil {
-		if req.Cohort != nil {
-			info.Cohort = resolveCohortPath(req.Cohort)
-		}
+		info.Cohort = opSpec{cohort: req.Cohort, union: req.Union}.cohortPath()
 		info.RequestHash = req.Hash()
 	}
 	child := p.beginOp(ctx, info)
@@ -373,28 +395,28 @@ func requestOp(kind observe.OperationKind, req *Request) opSpec {
 	if req == nil {
 		return opSpec{kind: kind}
 	}
-	return opSpec{kind: kind, cohort: req.Cohort, req: req}
+	return opSpec{kind: kind, cohort: req.Cohort, union: req.Union, req: req}
 }
 
 func chainOp(kind observe.OperationKind, req *ChainRequest) opSpec {
 	if req == nil {
 		return opSpec{kind: kind}
 	}
-	return opSpec{kind: kind, cohort: req.Cohort, req: req}
+	return opSpec{kind: kind, cohort: req.Cohort, union: req.Union, req: req}
 }
 
 func facetOp(kind observe.OperationKind, req *FacetRequest) opSpec {
 	if req == nil {
 		return opSpec{kind: kind}
 	}
-	return opSpec{kind: kind, cohort: req.Cohort, req: req}
+	return opSpec{kind: kind, cohort: req.Cohort, union: req.Union, req: req}
 }
 
 func lookupOp(kind observe.OperationKind, req *LookupRequest) opSpec {
 	if req == nil {
 		return opSpec{kind: kind}
 	}
-	return opSpec{kind: kind, cohort: req.Cohort, req: req}
+	return opSpec{kind: kind, cohort: req.Cohort, union: req.Union, req: req}
 }
 
 func requestHasher(req *Request) interface{ Hash() string } {
@@ -418,11 +440,11 @@ func synthHasher(spec *SynthSpec, tables map[string]synth.LookupTable) interface
 	return synthIdentity{spec: spec, tables: tables}
 }
 
-func sampleCohort(req *SampleRequest) *types.Cohort {
+func sampleOp(req *SampleRequest) opSpec {
 	if req == nil {
-		return nil
+		return opSpec{kind: observe.OpSample}
 	}
-	return req.Cohort
+	return opSpec{kind: observe.OpSample, cohort: req.Cohort, union: req.Union}
 }
 
 func filterToFileSource(req *FilterToFileRequest) string {

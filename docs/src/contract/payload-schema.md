@@ -367,6 +367,32 @@ and `label`. A `union` key on a join (its right side) is
 only and reports `record_count` (the members' total) and `union`
 (`[{label, cohort, record_count, shards}]`).
 
+**Which surfaces execute a union.** Process and its stream
+(`--stream`, `ProcessStream`), every Compose slot (serial and
+parallel), a ProcessChain's stage 0 (the chain root's `union`; later
+stages read the stage before), FacetSchema, Sample (the request form —
+`SampleWithRequest`, MCP `pulse_sample`), Materialize (the source field
+is written as a column, derived columns are described "derived from
+union"), Lookup (always a scan of the members in declared order; no
+sidecar index is read or written) and a join's LEFT side (the union is
+the request's own cohort; the join's right names one cohort). Every
+predict root (Predict, PredictCompose, PredictChain, PredictFacet,
+PredictMaterialize) sizes a union the same way, header and schema only.
+
+**Refused.** A union on a join's RIGHT side
+(`PULSE_UNION_JOIN_RIGHT`) and a nested union — a member, or a member's
+cohort, carrying its own `union` (`PULSE_UNION_NESTED`) — are refused
+when the request is decoded, located by `details.path` like any
+unknown key. A single-source predict handed a union (the library
+`descriptor`-level predict over one reader) is `PULSE_UNION_UNSUPPORTED`.
+
+**Feature gate.** Both keys ride `capability:union` on every root: an
+instance whose feature profile omits it has no `union` /
+`union_source_field` property and no `UnionMember` def, refuses either
+key (`union_source_field` alone included) as `PULSE_REQUEST_UNKNOWN_FIELD`,
+lists no `PULSE_UNION_*` code, and reads a `union` key on a join as a
+plain unknown key.
+
 ## Materialize output slot
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort

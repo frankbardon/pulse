@@ -54,8 +54,13 @@ type InspectJoin struct {
 
 // SampleIn is the input contract for pulse_sample.
 type SampleIn struct {
-	Path  string `json:"path" jsonschema:"Filesystem path to the .pulse file"`
+	Path  string `json:"path,omitempty" jsonschema:"Filesystem path to the .pulse file. Required unless union is set; never both."`
 	Count int    `json:"count,omitempty" jsonschema:"Maximum rows to return (default 10)"`
+	// Union samples several labelled cohorts read as one record stream
+	// in place of path (types.SampleRequest.Union).
+	Union []types.UnionMember `json:"union,omitempty" jsonschema:"Several labelled cohorts ({cohort, label}) sampled as one record stream in place of path, rows in member order, each carrying its member label in the virtual union_source_field column."`
+	// UnionSourceField names the union's virtual source field.
+	UnionSourceField string `json:"union_source_field,omitempty" jsonschema:"Name of the virtual source column a union adds (default _source); only with union, and never a member's own field name."`
 }
 
 // FacetIn is the input contract for pulse_facet.
@@ -211,7 +216,7 @@ type DedupIn struct {
 // as pulse_dedup's: it changes no byte written, and the warnings it
 // would escalate are returned either way.
 type MaterializeIn struct {
-	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone, output (the written cohort's columns: columns XOR exclude, each {from, as, description, nullable, type, precision, scale, on_cast_error, recode, bucket}, applied last; recode {map, order} rewrites a categorical's labels before type, a map key the source dictionary lacks refused with PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL; bucket {ranges XOR range_table} writes a numeric or date column as the categorical of its range labels, a value outside every range failing like a cast; type casts exactly or fails PULSE_MATERIALIZE_CAST_FAILED unless on_cast_error is null; with it no derived column is required) and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD."`
+	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone, output (the written cohort's columns: columns XOR exclude, each {from, as, description, nullable, type, precision, scale, on_cast_error, recode, bucket}, applied last; recode {map, order} rewrites a categorical's labels before type, a map key the source dictionary lacks refused with PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL; bucket {ranges XOR range_table} writes a numeric or date column as the categorical of its range labels, a value outside every range failing like a cast; type casts exactly or fails PULSE_MATERIALIZE_CAST_FAILED unless on_cast_error is null; with it no derived column is required) and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD. A union in place of cohort writes several labelled cohorts read as one, each record's member label written as the union_source_field column (default _source)."`
 	Out       string         `json:"out,omitempty" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). Required unless predict is set. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
 	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
 	Predict   bool           `json:"predict,omitempty" jsonschema:"Validate without executing: answer under predict with the output schema the run would write (columns: name, type, nullable, description, from, derived, dictionary), the derived column names and the data-dependent risks, every static refusal as a coded errors entry (valid false). Reads the source's header and schema only; nothing is written and out is not needed."`

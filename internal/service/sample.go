@@ -39,6 +39,11 @@ func (s *Service) sampleWithRequest(ctx context.Context, req *types.SampleReques
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "sample request is required")
 	}
+	// A union slot the instance hides (capability:union) is an unknown
+	// field, before any union rule judges it.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, nil, err
+	}
 	// The union shape rules, before anything is opened.
 	if err := descx.UnionShapeRefusalOf(req.Cohort, req.Union, req.UnionSourceField); err != nil {
 		return nil, nil, err

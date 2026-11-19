@@ -184,7 +184,8 @@ type OperationInfo struct {
 	// child operation; 0 for a top-level operation.
 	Index int
 	// Cohort is the cohort path the operation addresses, empty when it
-	// addresses none.
+	// addresses none. An operation reading a cohort union reports its
+	// members' cohort paths in declared order joined by "+".
 	Cohort string
 	// RequestHash is the canonical request hash (the request type's
 	// Hash method), empty when the operation takes no request.

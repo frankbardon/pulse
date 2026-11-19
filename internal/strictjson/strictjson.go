@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -100,6 +101,11 @@ type Unknown struct {
 	LocationIndex int
 	// Aliases are Options.Aliases for Type, carried to the refusal.
 	Aliases map[string]string
+	// unionHidden reports that the calling instance hides the request
+	// union (Options.Hidden names `union` on a types.Request): a
+	// misplaced `union` key is then a plain unknown key, as on a build
+	// that never had a union.
+	unionHidden bool
 }
 
 // KeyPath is the path of the first offending key: Path + "." + Keys[0]
@@ -122,7 +128,17 @@ func (u *Unknown) Error() *perr.CodedError {
 	return ce
 }
 
+// unionHidden reports whether the walk's instance hides the request
+// union: Options.Hidden names `union` on a types.Request.
+func (w *walker) unionHidden() bool {
+	if w.opts.Hidden == nil {
+		return false
+	}
+	return slices.Contains(w.opts.Hidden(requestType), "union")
+}
+
 var (
+	requestType     = reflect.TypeFor[types.Request]()
 	joinSpecType    = reflect.TypeFor[types.JoinSpec]()
 	unionMemberType = reflect.TypeFor[types.UnionMember]()
 	cohortType      = reflect.TypeFor[types.Cohort]()
@@ -134,6 +150,9 @@ var (
 // (PULSE_UNION_NESTED). The details stay the unknown-key refusal's, so
 // the key is still located. ok is false for any other unknown key.
 func (u *Unknown) misplacedUnion() (perr.Code, string, bool) {
+	if u.unionHidden {
+		return "", "", false
+	}
 	hasUnion := false
 	for _, k := range u.Keys {
 		hasUnion = hasUnion || k == "union"
@@ -585,7 +604,7 @@ func (w *walker) object(t reflect.Type, raw []byte, path, full string, root bool
 			locKey, locIndex = loc, enclosingIndex(full)
 		}
 		return &Unknown{Path: path, FullPath: full, Keys: unknown, First: first, Valid: valid, Type: t,
-			LocationKey: locKey, LocationIndex: locIndex, Aliases: aliases}
+			LocationKey: locKey, LocationIndex: locIndex, Aliases: aliases, unionHidden: w.unionHidden()}
 	}
 	if !w.opts.DocumentOrder {
 		if u := refuse(); u != nil {

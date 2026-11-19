@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "tests",
+    "description": "Real cohort vs its synthetic twin in ONE request: a union reads customers.pulse (label source) and customers_twin.pulse (label twin, written by synth from-profile --synthetic-only) as one record stream, each row tagged in the virtual _source field. Two-sample Kolmogorov-Smirnov on income and a chi-square of region by _source ask whether the twin reproduces the source's distributions; group by _source for side-by-side figures. Inside the secure zone the tagged output (one cohort, _synthetic column) answers the same question with no union.",
+    "intents": [
+      "compare_groups",
+      "distribution_shape"
+    ],
+    "name": "union_source_vs_twin",
+    "operators": [
+      "TEST_CHISQ",
+      "TEST_KS"
+    ],
+    "tags": [
+      "comparison",
+      "distribution-shape",
+      "hypothesis-test",
+      "nonparametric",
+      "tier-1-test",
+      "two-sample"
+    ]
+  },
+  "union": [
+    {
+      "cohort": {"filename": "customers.pulse", "data_dir": ".data"},
+      "label": "source"
+    },
+    {
+      "cohort": {"filename": "customers_twin.pulse", "data_dir": ".data"},
+      "label": "twin"
+    }
+  ],
+  "tests": [
+    {
+      "type": "TEST_KS",
+      "field": "income",
+      "split_by": "_source",
+      "alpha": 0.05,
+      "label": "income_source_vs_twin"
+    },
+    {
+      "type": "TEST_CHISQ",
+      "rows": "region",
+      "cols": "_source",
+      "alpha": 0.05,
+      "label": "region_by_source"
+    }
+  ]
+}
