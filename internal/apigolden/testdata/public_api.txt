@@ -4657,12 +4657,16 @@ pulse/synth: type CorrelationStat field Rho float64 "json:\"rho\""
 pulse/synth: type DateProfile = pulse/internal/synth.DateProfile
 pulse/synth: type DateProfile underlying struct
 pulse/synth: type DateProfile field End string "json:\"end\""
+pulse/synth: type DateProfile field MonthStart string "json:\"month_start,omitempty\""
+pulse/synth: type DateProfile field Months []int "json:\"months,omitempty\""
 pulse/synth: type DateProfile field Start string "json:\"start\""
 pulse/synth: type DateProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: type DatetimeProfile = pulse/internal/synth.DatetimeProfile
 pulse/synth: type DatetimeProfile underlying struct
 pulse/synth: type DatetimeProfile field End string "json:\"end\""
 pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
+pulse/synth: type DatetimeProfile field MonthStart string "json:\"month_start,omitempty\""
+pulse/synth: type DatetimeProfile field Months []int "json:\"months,omitempty\""
 pulse/synth: type DatetimeProfile field Start string "json:\"start\""
 pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: const DefaultDisclosureSample untyped int = 10000
@@ -5180,6 +5184,7 @@ pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
 pulse/synth: type TimeShapeFidelity underlying struct
 pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
 pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
+pulse/synth: type TimeShapeFidelity field MonthTVD float64 "json:\"month_tvd\""
 pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
 pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
 pulse/synth: type UtilityCoefficient underlying struct
@@ -7104,4 +7109,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e4fa26cfb642259d07ad13125675889ce4aa62d364b25a2d4ab01162db6103e2
+// golden-hash: 667b6d959e83211e62f0da093003b2c76ec8bd23e4defbb0b0aad49397bef3a8

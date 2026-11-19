@@ -709,11 +709,16 @@ type CategoryHit struct {
 }
 
 // DateProfile holds the (start, end) range of date values plus a weekday
-// histogram for Mode-A reconstruction.
+// histogram for Mode-A reconstruction, and the per-calendar-month volume
+// series (see DatetimeProfile.Months).
 type DateProfile struct {
 	Start    string `json:"start"`
 	End      string `json:"end"`
 	Weekdays [7]int `json:"weekdays"`
+	// MonthStart / Months: see DatetimeProfile. Absent in a document
+	// captured before the series existed, which rebuilds as before.
+	MonthStart string `json:"month_start,omitempty"`
+	Months     []int  `json:"months,omitempty"`
 }
 
 // DatetimeProfile is a `datetime` column's marginal on the UTC clock the
@@ -728,6 +733,14 @@ type DatetimeProfile struct {
 	End      string  `json:"end"`
 	Weekdays [7]int  `json:"weekdays"`
 	Hours    [24]int `json:"hours"`
+	// MonthStart (YYYY-MM, Start's month) and Months: the non-null count
+	// per calendar month from MonthStart through End's month — the
+	// volume series that carries a trend and a seasonal swing, rebuilt as
+	// month_weights. Read on the same clock as Weekdays. Absent in a
+	// document captured before the series existed, which rebuilds as
+	// before.
+	MonthStart string `json:"month_start,omitempty"`
+	Months     []int  `json:"months,omitempty"`
 }
 
 // CorrelationStat is a captured pairwise correlation entry.
@@ -810,6 +823,7 @@ type dateAcc struct {
 	minDays  int64
 	maxDays  int64
 	weekdays [7]int
+	months   map[int64]int // running month index → count
 }
 
 // datetimeAcc accumulates a datetime column on the UTC clock.
@@ -818,6 +832,7 @@ type datetimeAcc struct {
 	minDays, maxDays int64
 	weekdays         [7]int // ISO, Monday first
 	hours            [24]int
+	months           map[int64]int // running month index (year*12 + month-1) → count
 }
 
 func (a *datetimeAcc) observe(v float64) {
@@ -829,6 +844,7 @@ func (a *datetimeAcc) observe(v float64) {
 	a.maxDays = max(a.maxDays, day)
 	a.weekdays[temporal.ISOWeekdayOf(p.Weekday)-1]++
 	a.hours[p.Hour]++
+	a.months[int64(p.Year)*12+int64(p.Month)-1]++
 }
 
 // setAcc accumulates a set_* field's per-option (bit-position) selection
@@ -1074,14 +1090,14 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			meta, _ := schema.Vector(fi)
 			vecAccs[f.Name] = newVecAcc(meta, includeStats || opts.FitShape)
 		case f.Type == encoding.FieldTypeDate:
-			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
+			dateAccs[f.Name] = &dateAcc{minDays: math.MaxInt64, maxDays: math.MinInt64, months: map[int64]int{}}
 		case f.Type == encoding.FieldTypeDateTime:
 			// A datetime is captured as its own marginal — day range plus
 			// weekday and hour histograms — and never reaches the numeric
 			// branch below: a normal over epoch seconds loses the
 			// weekday / hour shape, and as a "numeric" it would join the
 			// correlations, pairs and models a uniform_datetime cannot.
-			datetimeAccs[f.Name] = &datetimeAcc{minDays: math.MaxInt64, maxDays: math.MinInt64}
+			datetimeAccs[f.Name] = &datetimeAcc{minDays: math.MaxInt64, maxDays: math.MinInt64, months: map[int64]int{}}
 		case f.Type.IsCategorical():
 			catAccs[f.Name] = &catAcc{hist: make(map[string]int)}
 			if opts.IncludeConditional {
@@ -1393,6 +1409,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 				}
 				wd := dayOfWeek(days)
 				da.weekdays[wd]++
+				da.months[temporal.MonthIndex(days)]++
 			case f.Type.IsCategorical():
 				ca := catAccs[f.Name]
 				if isNull {
@@ -1709,6 +1726,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 					Weekdays: da.weekdays,
 					Hours:    da.hours,
 				}
+				fp.Datetime.MonthStart, fp.Datetime.Months = monthSeries(da.months)
 			}
 		case f.Type == encoding.FieldTypeDate:
 			da := dateAccs[f.Name]
@@ -1722,6 +1740,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 					End:      daysToISO(da.maxDays),
 					Weekdays: da.weekdays,
 				}
+				fp.Date.MonthStart, fp.Date.Months = monthSeries(da.months)
 			}
 		case f.Type.IsCategorical():
 			ca := catAccs[f.Name]
@@ -1901,26 +1920,62 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 // its weight times its days in range), so each weekday's count is
 // divided by how many such days [start, end] holds — a partial week at
 // either end would otherwise over-weight the weekdays it repeats.
-func datetimeParamsFromProfile(dp *DatetimeProfile) map[string]any {
-	params := map[string]any{"start": dp.Start, "end": dp.End}
+// month_weights rebuild the captured month series (monthParamFromProfile).
+// warning is non-empty when a series is present but does not fit the
+// range.
+func datetimeParamsFromProfile(name string, dp *DatetimeProfile) (params map[string]any, warning string) {
+	params = map[string]any{"start": dp.Start, "end": dp.End}
 	if start, end, err := parseDayRange(FieldSpec{Params: params}, DistUniformDateTime); err == nil {
 		days := weekdayDayCounts(start, end)
 		weekdays := make([]any, 7)
+		perDay := make([]float64, 7)
 		for i := range weekdays {
 			w := 0.0
 			if days[i] > 0 {
 				w = float64(dp.Weekdays[i]) / float64(days[i])
 			}
 			weekdays[i] = w
+			perDay[i] = w
 		}
 		params["weekday_weights"] = weekdays
+		warning = monthParamFromProfile(name, params, start, end, dp.MonthStart, dp.Months, perDay)
 	}
 	hours := make([]any, 24)
 	for h := range hours {
 		hours[h] = float64(dp.Hours[h])
 	}
 	params["hour_weights"] = hours
-	return params
+	return params, warning
+}
+
+// dateParamsFromProfile rebuilds a captured date as uniform_date params:
+// the range, plus month_weights from the month series (weekday weight 1,
+// since uniform_date draws no weekday).
+func dateParamsFromProfile(name string, dp *DateProfile) (params map[string]any, warning string) {
+	params = map[string]any{"start": dp.Start, "end": dp.End}
+	if start, end, err := parseDayRange(FieldSpec{Params: params}, DistUniformDate); err == nil {
+		warning = monthParamFromProfile(name, params, start, end, dp.MonthStart, dp.Months, []float64{1, 1, 1, 1, 1, 1, 1})
+	}
+	return params, warning
+}
+
+// monthParamFromProfile sets params["month_weights"] from a captured
+// month series spanning at least two months (one month carries no
+// volume shape, so it keeps the old one-draw-path spec). A document
+// without a series sets nothing — it rebuilds exactly as before. A
+// series that does not fit [start, end] (a hand-edited document) sets
+// nothing and returns a warning rather than shipping wrong weights.
+func monthParamFromProfile(name string, params map[string]any, start, end int64, monthStart string, months []int, weekday []float64) string {
+	if len(months) < 2 {
+		return ""
+	}
+	w, ok := monthWeightsFromCounts(start, end, monthStart, months, weekday)
+	if !ok {
+		return fmt.Sprintf("month series for field %q (month_start %q, %d months) does not fit its range %s..%s; month_weights not emitted, its volume regenerates flat",
+			name, monthStart, len(months), params["start"], params["end"])
+	}
+	params[monthWeightsParam] = w
+	return ""
 }
 
 // weekdayDayCounts returns how many days of each ISO weekday (Monday
@@ -2651,6 +2706,7 @@ func collapseCells(counts map[[2]string]int, cellCap int) []ContingencyCell {
 // them may discard with `_`.
 func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	s := &Spec{RowCount: rowCount}
+	var monthWarnings []string
 	for _, fp := range p.Fields {
 		fs := FieldSpec{
 			Name:        fp.Name,
@@ -2699,12 +2755,18 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			fs.Params = map[string]any{"options": options, "frequencies": freqs}
 		case fp.Date != nil:
 			fs.Distribution = DistUniformDate
-			fs.Params = map[string]any{
-				"start": fp.Date.Start, "end": fp.Date.End,
+			var w string
+			fs.Params, w = dateParamsFromProfile(fp.Name, fp.Date)
+			if w != "" {
+				monthWarnings = append(monthWarnings, w)
 			}
 		case fp.Datetime != nil:
 			fs.Distribution = DistUniformDateTime
-			fs.Params = datetimeParamsFromProfile(fp.Datetime)
+			var w string
+			fs.Params, w = datetimeParamsFromProfile(fp.Name, fp.Datetime)
+			if w != "" {
+				monthWarnings = append(monthWarnings, w)
+			}
 		case fp.Categorical != nil:
 			vals := make([]any, len(fp.Categorical.Top))
 			weights := make([]any, len(fp.Categorical.Top))
@@ -3130,6 +3192,9 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 	// prevented would invert the causal order. They are worded
 	// distinctly ("not applied") so neither kind can be mistaken for the
 	// other by a reader or by a test matching on the message.
+	// A month series that did not fit its range comes first: it is a
+	// fact about one field's own marginal, before any cross-field drop.
+	modelWarnings = append(monthWarnings, modelWarnings...)
 	if len(modelWarnings) > 0 {
 		return s, append(modelWarnings, conflicts.warnings...)
 	}

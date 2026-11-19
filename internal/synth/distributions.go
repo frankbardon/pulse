@@ -833,6 +833,9 @@ const dateEpoch = "1970-01-01"
 
 type uniformDateSampler struct {
 	startDays, endDays int64
+	// months draws the day by month intensity when the spec carries
+	// month_weights (one Float64 instead of one Int64N); nil otherwise.
+	months *monthDayPicker
 }
 
 func newUniformDateSampler(f FieldSpec) (sampler, error) {
@@ -847,10 +850,18 @@ func newUniformDateSampler(f FieldSpec) (sampler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &uniformDateSampler{startDays: startDays, endDays: endDays}, nil
+	months, err := newMonthDayPicker(f, startDays, endDays, []float64{1, 1, 1, 1, 1, 1, 1})
+	if err != nil {
+		return nil, err
+	}
+	return &uniformDateSampler{startDays: startDays, endDays: endDays, months: months}, nil
 }
 
+// next draws one day: one draw, always.
 func (u *uniformDateSampler) next(rng *rand.Rand) (any, bool) {
+	if u.months != nil {
+		return float64(u.months.pick(rng.Float64())), false
+	}
 	span := u.endDays - u.startDays
 	off := rng.Int64N(span + 1)
 	return float64(u.startDays + off), false

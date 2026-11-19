@@ -12374,6 +12374,12 @@
             "type": "string",
             "required": true,
             "description": "ISO-8601 calendar date (YYYY-MM-DD); inclusive, may equal start but not precede it."
+          },
+          {
+            "name": "month_weights",
+            "type": "list",
+            "required": false,
+            "description": "One non-negative per-day weight per calendar month the range touches, start's month first: a month's share is its weight times its days in range (trend + season). Uniform when absent."
           }
         ],
         "intents": [
@@ -12429,6 +12435,12 @@
             "type": "list",
             "required": false,
             "description": "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."
+          },
+          {
+            "name": "month_weights",
+            "type": "list",
+            "required": false,
+            "description": "One non-negative per-day weight per calendar month the range touches, start's month first; a day's weight is weekday weight × month weight (trend + season). Uniform when absent."
           }
         ],
         "intents": [
@@ -21998,4 +22010,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 90f4421ba5fd19d0efe6ac5a46e21665eef4122587dc180d76cc5cd24b1407cc
+// golden-hash: 63f9b2b6d851e948c64f5a8355995df86ed82ede2d263b4047bb2b1e70f6e6b9

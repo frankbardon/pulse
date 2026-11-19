@@ -409,9 +409,11 @@ that fits it:
 | `datetime` | `TEST_KS` over epoch seconds, plus `shape` | Cohen's d | KS and d read instants as one line; a planted schedule lives in the daily and weekly cycle |
 | `categorical_*`, `packed_bool` | `TEST_CHISQ` (contingency against `_synthetic`) | Cramér's V | for a `packed_bool` the 2x2 χ² is the two-sample proportion test, and V = \|phi\| |
 
-A `datetime` entry's `shape` is `{"clock": "utc", "hour_tvd", "weekday_tvd"}`:
+A `datetime` entry's `shape` is `{"clock": "utc", "hour_tvd", "weekday_tvd", "month_tvd"}`:
 the total variation distance (0 = the same cycle, 1 = no shared bin)
-between the partitions' hour-of-day and ISO-weekday histograms, read
+between the partitions' hour-of-day, ISO-weekday and calendar-month
+histograms (`month_tvd` reads the volume trend and season the profile's
+`months` series rebuilds as `month_weights`), read
 on the UTC clock — the schema stores instants and no zone, and both
 partitions are read on the same clock. Measured: the same days drawn at
 evening instead of morning hours read d = −0.06 (`very small`) and KS

@@ -24,6 +24,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 | `dst_policy` | string | error | DST gap / overlap: `error`, `earlier` or `later` (import spellings). |
 | `hour_weights` | list | — | 24 non-negative weights, local hours 0..23; uniform when absent. |
 | `weekday_weights` | list | — | 7 non-negative weights, Monday first (ISO); uniform when absent. |
+| `month_weights` | list | — | One per month spanned, `start`'s first; day weight = weekday × month. |
 
 ## Inputs
 
@@ -31,7 +32,7 @@ Field `type:` — `datetime` only (epoch SECONDS, `int64`). Refused on any other
 
 ## Output
 
-Per row a local wall-clock reading (weekday weight × days in range, then hour, then a uniform second; four RNG draws), converted to its UTC instant in the row's zone; the file stores the instant.
+Per row a local wall-clock reading (weekday weight × days in range, then hour, then a uniform second; four RNG draws, three with `month_weights`), converted to its UTC instant in the row's zone; the file stores the instant.
 
 <!-- generated: contract -->
 

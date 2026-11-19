@@ -117,6 +117,7 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 			Params: []descriptor.Param{
 				{Name: "start", Type: "string", Required: true, Description: "ISO-8601 calendar date (YYYY-MM-DD)."},
 				{Name: "end", Type: "string", Required: true, Description: "ISO-8601 calendar date (YYYY-MM-DD); inclusive, may equal start but not precede it."},
+				{Name: "month_weights", Type: "list", Required: false, Description: "One non-negative per-day weight per calendar month the range touches, start's month first: a month's share is its weight times its days in range (trend + season). Uniform when absent."},
 			},
 		},
 		{
@@ -131,6 +132,7 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 				{Name: "dst_policy", Type: "string", Required: false, Default: "error", Description: "A local time a DST transition skips or repeats: \"error\" stops the run, \"earlier\" takes the pre-transition offset, \"later\" the post-transition one (the import's spellings)."},
 				{Name: "hour_weights", Type: "list", Required: false, Description: "24 non-negative weights for local hours 0..23; uniform when absent."},
 				{Name: "weekday_weights", Type: "list", Required: false, Description: "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."},
+				{Name: "month_weights", Type: "list", Required: false, Description: "One non-negative per-day weight per calendar month the range touches, start's month first; a day's weight is weekday weight × month weight (trend + season). Uniform when absent."},
 			},
 		},
 		{

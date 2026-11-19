@@ -88,9 +88,9 @@ var distributionParamKeys = map[string][]string{
 	DistWeightedCategorical: {"values", "weights"},
 	DistDiscrete:            {"values", "weights"},
 	DistMixture:             {"means", "stds", "weights"},
-	DistUniformDate:         {"start", "end"},
+	DistUniformDate:         {"start", "end", "month_weights"},
 	DistUniformDateTime: {"start", "end", "time_zone", "time_zone_field", "dst_policy",
-		"hour_weights", "weekday_weights"},
+		"hour_weights", "weekday_weights", "month_weights"},
 	DistRegex:        {"pattern", "max_repeat"},
 	DistConstant:     {"value", "options"}, // options: set_* fields only (setOnlyParam)
 	DistSetBernoulli: {"options", "frequencies"},

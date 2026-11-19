@@ -86,6 +86,16 @@ the import's spellings: `error` (default) stops the run with
 `later` resolve it and the run warns how many it resolved. A null zone
 cell makes the datetime null. Detail: `skills/synth-datetime.md`.
 
+`month_weights` (on `uniform_datetime` and `uniform_date`) adds a volume
+series: one weight per calendar month the range touches, `start`'s month
+first. Like `weekday_weights` it is a per-DAY intensity, and the two are
+separable — a day's weight is its weekday weight times its month weight —
+so `[1, 1.1, 1.2, …]` is a trend and a summer-high series a season. A
+spec with it draws a `uniform_datetime` row in three RNG draws (day,
+hour, second) instead of four; a spec without it draws exactly as
+before. `synth from-profile` rebuilds the captured month counts as
+`month_weights`.
+
 ### Trends, seasons and planted windows
 
 Three rule / constraint functions read a `date` or `datetime` field on its

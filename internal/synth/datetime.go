@@ -44,8 +44,10 @@ import (
 // # Determinism
 //
 // The sampler consumes exactly four draws per row whatever the weights —
-// a weekday, an occurrence of it, an hour, a second — so the per-row RNG
-// sequence is a function of the spec alone. The conversion stage
+// a weekday, an occurrence of it, an hour, a second — or, when the spec
+// carries month_weights, three (a day, an hour, a second;
+// month_weights.go), so the per-row RNG sequence is a function of the
+// spec alone. The conversion stage
 // consumes NO randomness. A spec without a zoned datetime field compiles
 // no stage (nil), so its draw sequence and bytes are unchanged.
 //
@@ -85,6 +87,11 @@ type uniformDateTimeSampler struct {
 	dayTotal float64
 	hourCum  [24]float64
 	hourSum  float64
+
+	// months, when the spec carries month_weights, draws the day by
+	// weekday × month intensity in ONE draw (month_weights.go); nil keeps
+	// the weekday + occurrence draw every pre-existing spec uses.
+	months *monthDayPicker
 
 	// The zone the reading is read in. zone is nil for a per-row zone
 	// (zoneField set) and for an unzoned / UTC-equivalent field.
@@ -151,6 +158,9 @@ func newUniformDateTimeSampler(f FieldSpec) (sampler, error) {
 	for h := range 24 {
 		s.hourSum += hours[h]
 		s.hourCum[h] = s.hourSum
+	}
+	if s.months, err = newMonthDayPicker(f, startDay, endDay, weekday); err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -289,8 +299,16 @@ func pickCumulative(cum []float64, u float64) int {
 	return last
 }
 
-// next draws one local wall-clock reading: four draws, always.
+// next draws one local wall-clock reading: four draws (weekday,
+// occurrence, hour, second), or three (day, hour, second) when the spec
+// carries month_weights — a function of the spec alone either way.
 func (s *uniformDateTimeSampler) next(rng *rand.Rand) (any, bool) {
+	if s.months != nil {
+		day := s.months.pick(rng.Float64())
+		hour := pickCumulative(s.hourCum[:], float64(rng.Float64()*s.hourSum))
+		sec := rng.Int64N(temporal.SecondsPerHour)
+		return float64(temporal.WallSeconds(day, int64(hour), sec)), false
+	}
 	wd := pickCumulative(s.dayCum[:], float64(rng.Float64()*s.dayTotal))
 	k := rng.Int64N(s.count[wd])
 	day := s.firstDay[wd] + 7*k

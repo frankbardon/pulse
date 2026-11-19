@@ -3,6 +3,7 @@ package synth
 import (
 	"bytes"
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -52,13 +53,16 @@ const TimeShapeClockUTC = "utc"
 
 // TimeShapeFidelity is a datetime field's cycle comparison: the total
 // variation distance between the source and synthetic partitions'
-// hour-of-day (24 bins) and ISO weekday (7 bins) histograms, each in
-// [0, 1] — 0 when the two cycles match, 1 when they share no bin.
+// hour-of-day (24 bins), ISO weekday (7 bins) and calendar-month (one
+// bin per month either partition touches) histograms, each in [0, 1] —
+// 0 when the two match, 1 when they share no bin. MonthTVD reads the
+// volume series a trend or a seasonal swing lives in (month_weights).
 type TimeShapeFidelity struct {
 	// Clock is the clock the bins are read on (TimeShapeClockUTC).
 	Clock      string  `json:"clock"`
 	HourTVD    float64 `json:"hour_tvd"`
 	WeekdayTVD float64 `json:"weekday_tvd"`
+	MonthTVD   float64 `json:"month_tvd"`
 }
 
 // marginalTest returns the test that scores f's marginal against
@@ -99,6 +103,7 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 	type cycle struct {
 		hour    [2][24]int
 		weekday [2][7]int
+		month   map[int64]*[2]int // running month index → per-partition count
 		n       [2]int
 	}
 	var entries []*FieldFidelity
@@ -114,6 +119,9 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 		return
 	}
 	cycles := make([]cycle, len(entries))
+	for i := range cycles {
+		cycles[i].month = map[int64]*[2]int{}
+	}
 	rr := encx.NewRecordReader(bytes.NewReader(records), mergedSchema)
 	values := make(map[string]float64, len(mergedSchema.Fields))
 	nulls := make(map[string]bool, len(mergedSchema.Fields))
@@ -138,6 +146,13 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 			c := &cycles[i]
 			c.hour[part][p.Hour]++
 			c.weekday[part][temporal.ISOWeekdayOf(p.Weekday)-1]++
+			mi := int64(p.Year)*12 + int64(p.Month) - 1
+			mc := c.month[mi]
+			if mc == nil {
+				mc = &[2]int{}
+				c.month[mi] = mc
+			}
+			mc[part]++
 			c.n[part]++
 		}
 	}
@@ -150,8 +165,26 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 			Clock:      TimeShapeClockUTC,
 			HourTVD:    histogramTVD(c.hour[0][:], c.hour[1][:], c.n[0], c.n[1]),
 			WeekdayTVD: histogramTVD(c.weekday[0][:], c.weekday[1][:], c.n[0], c.n[1]),
+			MonthTVD:   monthTVD(c.month, c.n[0], c.n[1]),
 		}
 	}
+}
+
+// monthTVD is histogramTVD over the calendar months either partition
+// touches, laid out in month order (never map order), so the sum is
+// order-fixed.
+func monthTVD(months map[int64]*[2]int, na, nb int) float64 {
+	keys := make([]int64, 0, len(months))
+	for k := range months {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	a := make([]int, len(keys))
+	b := make([]int, len(keys))
+	for i, k := range keys {
+		a[i], b[i] = months[k][0], months[k][1]
+	}
+	return histogramTVD(a, b, na, nb)
 }
 
 // histogramTVD is half the L1 distance between two count histograms
