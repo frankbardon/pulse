@@ -179,3 +179,30 @@ func TestSynth_DisclosureOverBudgetRefusesBeforeGeneration(t *testing.T) {
 		t.Errorf("disclosure off: %v, want the run to fit", err)
 	}
 }
+
+// TestSynth_DisclosureOverComparisonLimitRefusesBeforeGeneration (#595):
+// a disclosure pass past Limits.MaxDisclosureComparisons refuses the
+// call with PULSE_LIMIT_EXCEEDED naming it before anything is written;
+// at the limit the same run writes the twin and the report.
+func TestSynth_DisclosureOverComparisonLimitRefusesBeforeGeneration(t *testing.T) {
+	t.Parallel()
+	const comparisons = 200 * 300 // every one of 200 generated rows (under the sample) x 300 source rows
+	p, fs := newDisclosurePulse(t, Limits{MaxDisclosureComparisons: comparisons - 1})
+	_, _, err := runDisclosureTwin(t, p, fs, utilityFixtureSpec(300, 100, 0, 0.5), utilityFixtureSpec(200, 100, 0, 0.5),
+		SynthOptions{FidelityReportPath: "/r.json"})
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED || ce.Details["limit"] != "max_disclosure_comparisons" ||
+		ce.Details["observed"] != int64(comparisons) {
+		t.Fatalf("err = %v, want PULSE_LIMIT_EXCEEDED on max_disclosure_comparisons observing %d", err, comparisons)
+	}
+	for _, path := range []string{"/twin.pulse", "/r.json"} {
+		if ok, _ := afero.Exists(fs, path); ok {
+			t.Errorf("a refused call wrote %s", path)
+		}
+	}
+	at, atFS := newDisclosurePulse(t, Limits{MaxDisclosureComparisons: comparisons})
+	if _, report, err := runDisclosureTwin(t, at, atFS, utilityFixtureSpec(300, 100, 0, 0.5), utilityFixtureSpec(200, 100, 0, 0.5),
+		SynthOptions{FidelityReportPath: "/r.json"}); err != nil || parseDisclosure(t, report) == nil {
+		t.Errorf("at the limit: %v, want a report with a disclosure section", err)
+	}
+}

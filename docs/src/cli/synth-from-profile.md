@@ -925,13 +925,18 @@ The distance reads at most `--disclosure-sample` generated rows (default
 are drawn from the section's own stream, seeded by `--seed` and
 independent of generation, so the output cohort is byte-identical with
 the section on or off and the section is byte-identical for a fixed
-seed on every architecture. The cost is sample × source row comparisons;
-the working set — every source row decoded plus its exact-match key —
-is charged against the instance's `max_estimated_memory` limit
-([Tuning Limits](../library/tuning-limits.md)) **before** generation. Past
-it the call is refused `PULSE_LIMIT_EXCEEDED` and writes nothing; lower
-`--disclosure-sample`, pass `--no-disclosure`, or raise the limit
-(`--limit max_estimated_memory=…`).
+seed on every architecture. The cost is min(sample, generated rows) ×
+source row comparisons, charged against the instance's
+`max_disclosure_comparisons` limit (default 50,000,000,000, a few
+minutes of work); the working set — every source row decoded plus its
+exact-match key — is charged against `max_estimated_memory`
+([Tuning Limits](../library/tuning-limits.md)). Both are checked
+**before** generation. Past either the call is refused
+`PULSE_LIMIT_EXCEEDED` (its `limit` detail names which) and writes
+nothing; lower `--disclosure-sample`, pass `--no-disclosure`, or raise
+the limit (`--limit max_disclosure_comparisons=…`,
+`--limit max_estimated_memory=…`). Cancelling the call stops the
+distance pass between worker chunks.
 
 ```bash
 jq '.disclosure | {exact_match_rate, dcr_median, dcr_p5}' out.fidelity.json

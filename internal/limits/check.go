@@ -143,6 +143,13 @@ func CheckMMMDrawValues(l Limits, values int64) *errors.CodedError {
 	return Check(l, MaxMMMDrawValues, values)
 }
 
+// CheckDisclosureComparisons refuses a fidelity report's disclosure
+// pass that would make more than MaxDisclosureComparisons sampled x
+// source row comparisons.
+func CheckDisclosureComparisons(l Limits, comparisons int64) *errors.CodedError {
+	return Check(l, MaxDisclosureComparisons, comparisons)
+}
+
 // FirstCertain returns the error of the first Certain finding in fs —
 // the pre-flight refusal — or nil when none is certain.
 func FirstCertain(fs []Finding) *errors.CodedError {

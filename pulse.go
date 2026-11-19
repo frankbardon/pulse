@@ -2323,8 +2323,9 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 	// a request the engine refuses fails the call with its own code and
 	// nothing is written. See fidelityModelRefit.
 	// The disclosure section's working set is charged to the instance's
-	// MaxEstimatedMemory before anything runs, so an over-budget report
-	// refuses the call and writes nothing (internal/synth/disclosure.go).
+	// MaxEstimatedMemory, and its comparisons to MaxDisclosureComparisons,
+	// before anything runs, so an over-budget report refuses the call and
+	// writes nothing (internal/synth/disclosure.go).
 	if err := checkDisclosureBudget(p.fsys, spec, opts, p.Limits()); err != nil {
 		return nil, err
 	}
@@ -2344,7 +2345,7 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 		// the caller supplied (capture-time, translation-time) and the
 		// ones generation itself raised. See mergeFidelityWarnings for
 		// why the fold lives here rather than at the CLI leaf.
-		if err := writeSynthFidelityReport(p.fsys, tagged, opts, spec,
+		if err := writeSynthFidelityReport(ctx, p.fsys, tagged, opts, spec,
 			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings), refit.fold(ctx, output, opts.SyntheticOnly)); err != nil {
 			return nil, err
 		}

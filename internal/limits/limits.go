@@ -44,6 +44,11 @@ const (
 	DefaultMaxExpandedItems   int64         = 1_000
 	DefaultMaxMMMGeos         int64         = 50
 	DefaultMaxMMMDrawValues   int64         = 10_000_000
+	// DefaultMaxDisclosureComparisons is measured: 5 x 10^10 sampled x
+	// source row comparisons (10,000 x 5,000,000) took 173 s on a
+	// 10-core Apple M1 Max over a ten-column cohort
+	// (docs/src/library/tuning-limits.md).
+	DefaultMaxDisclosureComparisons int64 = 50_000_000_000
 )
 
 // Limits holds the instance resource limits. On an input layer a zero
@@ -115,6 +120,13 @@ type Limits struct {
 	// Checked before any sampling (on a geo panel once the fit has read
 	// its geos). Default 10,000,000.
 	MaxMMMDrawValues int64
+
+	// MaxDisclosureComparisons bounds the synthetic-data fidelity
+	// report's disclosure pass: min(disclosure sample, generated rows) x
+	// source rows distance-to-closest-record comparisons. Checked by the
+	// Synth pre-flight beside MaxEstimatedMemory, before generation, so
+	// an over-limit run writes nothing. Default 50,000,000,000.
+	MaxDisclosureComparisons int64
 }
 
 // Name is a limit's snake_case key — the spelling the feature profile
@@ -136,6 +148,8 @@ const (
 	MaxExpandedItems   Name = "max_expanded_items"
 	MaxMMMGeos         Name = "max_mmm_geos"
 	MaxMMMDrawValues   Name = "max_mmm_draw_values"
+
+	MaxDisclosureComparisons Name = "max_disclosure_comparisons"
 )
 
 // field binds a Name to its Go field. Reads go through Limits.value (a
@@ -178,6 +192,8 @@ func (l *Limits) value(n Name) int64 {
 		return l.MaxMMMGeos
 	case MaxMMMDrawValues:
 		return l.MaxMMMDrawValues
+	case MaxDisclosureComparisons:
+		return l.MaxDisclosureComparisons
 	}
 	return 0
 }
@@ -219,6 +235,9 @@ var fields = []field{
 	{MaxMMMDrawValues, "MaxMMMDrawValues",
 		func(l *Limits, v int64) { l.MaxMMMDrawValues = v },
 		DefaultMaxMMMDrawValues},
+	{MaxDisclosureComparisons, "MaxDisclosureComparisons",
+		func(l *Limits, v int64) { l.MaxDisclosureComparisons = v },
+		DefaultMaxDisclosureComparisons},
 }
 
 func lookup(n Name) (field, bool) {

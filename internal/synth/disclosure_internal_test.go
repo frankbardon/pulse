@@ -2,11 +2,13 @@ package synth
 
 import (
 	"bytes"
+	"context"
 	stderrors "errors"
 	"fmt"
 	"math"
 	"reflect"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -80,6 +82,17 @@ func disclosureCohort(t *testing.T, src, fresh []byte, copies int) (*encoding.Sc
 	return merged, buf.Bytes()
 }
 
+// computeDisclosureT runs the pass under a live context and fails the
+// test on an error.
+func computeDisclosureT(t *testing.T, schema *encoding.Schema, records []byte, seed int64, sample, workers int) *DisclosureFidelity {
+	t.Helper()
+	d, err := computeDisclosure(context.Background(), schema, records, seed, sample, workers)
+	if err != nil {
+		t.Fatalf("computeDisclosure: %v", err)
+	}
+	return d
+}
+
 func synthBytesT(t *testing.T, spec *Spec, seed int64) []byte {
 	t.Helper()
 	data, _, err := SynthBytes(spec, Options{Seed: seed})
@@ -99,7 +112,7 @@ func TestDisclosure_ExactCopiesReportMatchesAndZeroDistance(t *testing.T) {
 	fresh := synthBytesT(t, disclosureEveryTypeSpec(20), 2)
 
 	schema, records := disclosureCohort(t, src, fresh, 5)
-	d := computeDisclosure(schema, records, 7, DefaultDisclosureSample, 4)
+	d := computeDisclosureT(t, schema, records, 7, DefaultDisclosureSample, 4)
 	if d.Error != "" {
 		t.Fatalf("Error = %q", d.Error)
 	}
@@ -123,7 +136,7 @@ func TestDisclosure_ExactCopiesReportMatchesAndZeroDistance(t *testing.T) {
 
 	// Copies alone: every row matches and every distance is 0.
 	allCopies, recs := disclosureCohortCopiesOnly(t, src, 10)
-	d = computeDisclosure(allCopies, recs, 7, DefaultDisclosureSample, 1)
+	d = computeDisclosureT(t, allCopies, recs, 7, DefaultDisclosureSample, 1)
 	if d.ExactMatches != 10 || d.ExactMatchRate != 1 || d.DCRMedian != 0 || d.DCRP5 != 0 {
 		t.Errorf("copies only: %+v, want 10 matches, rate 1, DCR 0", d)
 	}
@@ -155,9 +168,9 @@ func TestDisclosure_WorkerCountMovesNoBit(t *testing.T) {
 	t.Parallel()
 	schema, records := disclosureCohort(t, synthBytesT(t, disclosureEveryTypeSpec(80), 11),
 		synthBytesT(t, disclosureEveryTypeSpec(40), 12), 3)
-	want := computeDisclosure(schema, records, 5, DefaultDisclosureSample, 1)
+	want := computeDisclosureT(t, schema, records, 5, DefaultDisclosureSample, 1)
 	for _, w := range []int{2, 3, 8, 64} {
-		if got := computeDisclosure(schema, records, 5, DefaultDisclosureSample, w); !reflect.DeepEqual(got, want) ||
+		if got := computeDisclosureT(t, schema, records, 5, DefaultDisclosureSample, w); !reflect.DeepEqual(got, want) ||
 			math.Float64bits(got.DCRMedian) != math.Float64bits(want.DCRMedian) ||
 			math.Float64bits(got.DCRP5) != math.Float64bits(want.DCRP5) {
 			t.Errorf("workers=%d: %+v, want %+v", w, got, want)
@@ -193,7 +206,7 @@ func TestDisclosure_SampleIsSeededCappedAndDistinct(t *testing.T) {
 
 	schema, records := disclosureCohort(t, synthBytesT(t, disclosureEveryTypeSpec(30), 21),
 		synthBytesT(t, disclosureEveryTypeSpec(40), 22), 4)
-	d := computeDisclosure(schema, records, 9, 6, 2)
+	d := computeDisclosureT(t, schema, records, 9, 6, 2)
 	if d.SampleRows != 6 || d.SyntheticRows != 44 || d.ExactMatches != 4 {
 		t.Errorf("capped: %+v, want 6 sampled of 44, all 4 copies matched", d)
 	}
@@ -298,7 +311,7 @@ func TestDisclosure_EmptySourceIsAnErrorNotAFigure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := computeDisclosure(merged, nil, 1, DefaultDisclosureSample, 1)
+	d := computeDisclosureT(t, merged, nil, 1, DefaultDisclosureSample, 1)
 	if d.Error == "" || d.SourceRows != 0 {
 		t.Errorf("empty cohort: %+v, want an Error", d)
 	}
@@ -427,5 +440,100 @@ func TestDisclosure_ExactKeyIsFaithfulPerType(t *testing.T) {
 		if len(distinct) < 2 {
 			t.Errorf("%s: fixture drew %d distinct values, want at least 2", name, len(distinct))
 		}
+	}
+}
+
+// TestDisclosure_BudgetChargesMaxDisclosureComparisons (#595): the
+// pre-flight charges min(sample, generated rows) x source rows against
+// MaxDisclosureComparisons beside the memory charge, refuses one past
+// it with PULSE_LIMIT_EXCEEDED naming the limit, and passes at it or
+// when Unlimited.
+func TestDisclosure_BudgetChargesMaxDisclosureComparisons(t *testing.T) {
+	t.Parallel()
+	fs := afero.NewMemMapFs()
+	if err := afero.WriteFile(fs, "/src.pulse", synthBytesT(t, disclosureEveryTypeSpec(50), 43), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := Options{SourceCohort: "/src.pulse", FidelityReportPath: "/r.json", DisclosureSample: 20}
+	spec := disclosureEveryTypeSpec(30)
+	const want = 20 * 50 // the sample (20) caps the 30 generated rows
+	if got := DisclosureComparisons(50, 30, 20); got != want {
+		t.Fatalf("DisclosureComparisons = %d, want %d", got, want)
+	}
+	if err := CheckDisclosureBudget(fs, spec, opts, limits.Limits{MaxDisclosureComparisons: want}); err != nil {
+		t.Errorf("at the limit: %v, want nil", err)
+	}
+	if err := CheckDisclosureBudget(fs, spec, opts, limits.Limits{MaxDisclosureComparisons: limits.Unlimited}); err != nil {
+		t.Errorf("unlimited: %v, want nil", err)
+	}
+	err := CheckDisclosureBudget(fs, spec, opts, limits.Limits{MaxDisclosureComparisons: want - 1})
+	if ce := codedErr(err); ce == nil || ce.Code != "PULSE_LIMIT_EXCEEDED" ||
+		ce.Details["limit"] != string(limits.MaxDisclosureComparisons) || ce.Details["observed"] != int64(want) ||
+		ce.Details["configured"] != int64(want-1) {
+		t.Errorf("one under: %v, want PULSE_LIMIT_EXCEEDED on max_disclosure_comparisons observing %d", err, want)
+	}
+	// Fewer generated rows than the sample: the generated rows count.
+	small := disclosureEveryTypeSpec(7)
+	if err := CheckDisclosureBudget(fs, small, opts, limits.Limits{MaxDisclosureComparisons: 7 * 50}); err != nil {
+		t.Errorf("7 generated rows at 350: %v, want nil", err)
+	}
+	if ce := codedErr(CheckDisclosureBudget(fs, small, opts, limits.Limits{MaxDisclosureComparisons: 7*50 - 1})); ce == nil ||
+		ce.Details["limit"] != string(limits.MaxDisclosureComparisons) {
+		t.Errorf("7 generated rows at 349: %v, want max_disclosure_comparisons", ce)
+	}
+	off := opts
+	off.DisableDisclosure = true
+	if err := CheckDisclosureBudget(fs, spec, off, limits.Limits{MaxDisclosureComparisons: 1}); err != nil {
+		t.Errorf("disabled: %v, want nil", err)
+	}
+	if got := DisclosureComparisons(math.MaxInt64, 1<<40, 1<<30); got != math.MaxInt64 {
+		t.Errorf("overflowing product = %d, want saturation at MaxInt64", got)
+	}
+	if got := DisclosureComparisons(0, 30, 20); got != 0 {
+		t.Errorf("empty source = %d, want 0", got)
+	}
+}
+
+// cancelAfterCtx is a context whose Err turns Canceled from its n-th
+// call on, so a test can cancel the pass between two specific polls.
+type cancelAfterCtx struct {
+	context.Context
+	calls atomic.Int64
+	n     int64
+}
+
+func (c *cancelAfterCtx) Err() error {
+	if c.calls.Add(1) >= c.n {
+		return context.Canceled
+	}
+	return nil
+}
+
+// TestDisclosure_CancelStopsBetweenChunks (#595): the distance pass reads
+// ctx before every chunk a worker claims, so a cancel arriving after the
+// first chunk stops it with ctx's error, and a cancelled ctx before the
+// pass computes nothing.
+func TestDisclosure_CancelStopsBetweenChunks(t *testing.T) {
+	t.Parallel()
+	schema, records := disclosureCohort(t, synthBytesT(t, disclosureEveryTypeSpec(40), 61),
+		synthBytesT(t, disclosureEveryTypeSpec(5*disclosureChunkRows), 62), 0)
+	// One worker: poll 1 is the entry check, poll 2 admits chunk 0,
+	// poll 3 (before chunk 1) reports the cancel.
+	ctx := &cancelAfterCtx{Context: context.Background(), n: 3}
+	if d, err := computeDisclosure(ctx, schema, records, 3, DefaultDisclosureSample, 1); !stderrors.Is(err, context.Canceled) || d != nil {
+		t.Fatalf("cancelled mid-pass: %+v, %v; want nil, context.Canceled", d, err)
+	}
+	if got := ctx.calls.Load(); got != 4 {
+		t.Errorf("ctx polled %d times, want 4 (entry, chunk 0, chunk 1 refused, exit)", got)
+	}
+	pre, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := computeDisclosure(pre, schema, records, 3, DefaultDisclosureSample, 4); !stderrors.Is(err, context.Canceled) {
+		t.Errorf("pre-cancelled: %v, want context.Canceled", err)
+	}
+	report := &FidelityReport{}
+	opts := Options{SourceCohort: "/s.pulse", FidelityReportPath: "/r.json"}
+	if err := BuildDisclosure(pre, report, schema, records, opts); !stderrors.Is(err, context.Canceled) || report.Disclosure != nil {
+		t.Errorf("BuildDisclosure cancelled: %v, section %+v; want context.Canceled and no section", err, report.Disclosure)
 	}
 }

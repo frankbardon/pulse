@@ -266,6 +266,7 @@ pulse: const DefaultMaxChainStages int64 = 1000
 pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
 pulse: const DefaultMaxDerivedColumns int64 = 1000
+pulse: const DefaultMaxDisclosureComparisons int64 = 50000000000
 pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
@@ -466,6 +467,7 @@ pulse: type FeatureProfileLimits field MaxChainStages int64 "json:\"max_chain_st
 pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose_slots,omitempty\""
 pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
 pulse: type FeatureProfileLimits field MaxDerivedColumns int64 "json:\"max_derived_columns,omitempty\""
+pulse: type FeatureProfileLimits field MaxDisclosureComparisons int64 "json:\"max_disclosure_comparisons,omitempty\""
 pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
 pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
@@ -686,6 +688,7 @@ pulse: type Limits field MaxChainStages int64
 pulse: type Limits field MaxComposeSlots int64
 pulse: type Limits field MaxCrosstabCells int64
 pulse: type Limits field MaxDerivedColumns int64
+pulse: type Limits field MaxDisclosureComparisons int64
 pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
@@ -7101,4 +7104,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: c2aa0dc65f267643e65363201140a071bd16e05681068eff6f5360366f4ae1ca
+// golden-hash: e4fa26cfb642259d07ad13125675889ce4aa62d364b25a2d4ab01162db6103e2

@@ -5,7 +5,7 @@
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
     "feature_set_digest": "fs1:0139f0e6d494bc8b0b2bac621377c89751780645c8971c7e6dde5ff6099dd44c",
-    "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
+    "limits_digest": "lim1:18bee67244ef377da11de93fa8f92ebee778ebe12f345e8d3862a9c40d3bd5d7",
     "commands": [
       {
         "name": "process",
@@ -15660,7 +15660,7 @@
       },
       {
         "name": "synth-disclosure-report",
-        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance memory limit."
+        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance comparison and memory limits."
       },
       {
         "name": "synth-fidelity-report",
@@ -21986,10 +21986,16 @@
         "value": 10000000,
         "default": 10000000,
         "unit": "count"
+      },
+      {
+        "name": "max_disclosure_comparisons",
+        "value": 50000000000,
+        "default": 50000000000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd5db0b45a47f20bca12360d7bec60ab47dc30985d09c09e86b2b294a3e2a5a3
+// golden-hash: 90f4421ba5fd19d0efe6ac5a46e21665eef4122587dc180d76cc5cd24b1407cc

@@ -1,10 +1,10 @@
 ```yaml
 name: synth-disclosure-report
-description: The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance memory limit.
+description: The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance comparison and memory limits.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth from-profile, fidelity report, disclosure, exact match, distance to closest record, DCR, Gower, --disclosure-sample, --no-disclosure]
+covers: [synth from-profile, fidelity report, disclosure, exact match, distance to closest record, DCR, Gower, --disclosure-sample, --no-disclosure, max_disclosure_comparisons]
 requires: [capability:synth]
 ```
 
@@ -44,7 +44,7 @@ The mean, over every output column, of a per-column term in [0, 1]:
 
 `--disclosure-sample N` (`SynthOptions.DisclosureSample`, default 10000; a negative value is `SERVICE_VALIDATION`) caps the rows the distance reads. Past the cap the rows are drawn from the section's own counter-based stream, seeded by `--seed`, never the generation RNG. The exact-match count always reads every generated row (it is a hash lookup).
 
-The cost is sample x source row comparisons. The working set (every source row decoded, plus its exact-match key) is charged against `Options.Limits.MaxEstimatedMemory` BEFORE generation. Past it, the call is refused `PULSE_LIMIT_EXCEEDED` (`limit: max_estimated_memory`) and writes nothing. Lower the cap, pass `--no-disclosure`, or raise the limit. The default limit is unlimited.
+The cost is min(sample, generated rows) x source row comparisons, charged against `Options.Limits.MaxDisclosureComparisons` (`max_disclosure_comparisons`, default 50,000,000,000, a few minutes of work). The working set (every source row decoded, plus its exact-match key) is charged against `Options.Limits.MaxEstimatedMemory` (default unlimited). Both are checked BEFORE generation. Past either, the call is refused `PULSE_LIMIT_EXCEEDED` (`limit` names which) and writes nothing. Lower the cap, pass `--no-disclosure`, or raise the limit (`--limit max_disclosure_comparisons=…`; `-1` lifts it). A cancelled context stops the distance pass between worker chunks.
 
 ## Determinism
 

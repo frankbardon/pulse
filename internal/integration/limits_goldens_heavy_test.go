@@ -47,6 +47,8 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 		MaxExpandedItems:   pulse.DefaultMaxExpandedItems,
 		MaxMMMGeos:         pulse.DefaultMaxMMMGeos,
 		MaxMMMDrawValues:   pulse.DefaultMaxMMMDrawValues,
+
+		MaxDisclosureComparisons: pulse.DefaultMaxDisclosureComparisons,
 	}
 	if got := p.Limits(); got != want {
 		t.Fatalf("effective limits %+v, want the built-in defaults %+v", got, want)
