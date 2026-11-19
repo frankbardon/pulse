@@ -47,7 +47,7 @@ pulse api facet --input PATH --field NAME [--json]
 | `--histogram-min`  |      | float  | (none) | Histogram lower bound (required with `--histogram`) |
 | `--histogram-max`  |      | float  | (none) | Histogram upper bound (required with `--histogram`) |
 | `--additive`       |      | string | (none) | Compute additive contribution counts for this field; repeatable |
-| `--labels`         |      | string | (none) | Categorical label binding: `field=table[:replace|augment]`. Repeatable |
+| `--labels`         |      | string | (none) | Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: `field=table[:replace|augment]`. Repeatable |
 | `--json`           |      | bool   | false  | Emit the standard envelope |
 | `--echo-request`   |      | bool   | false  | Include the resolved `FacetRequest` on `envelope.request` |
 

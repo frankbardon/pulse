@@ -29,6 +29,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/mcp/toolmeta"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
@@ -2461,8 +2462,21 @@ func buildFacetSchema(c fieldClassification) (json.RawMessage, error) {
 
 // buildLabelsSchema returns the JSON Schema fragment for a Request /
 // FacetRequest Labels slot.
+//
+// The field enum lists the categorical fields, then the integer-coded
+// u4 / u8 / u16 / u32 ones (labelcodes.CodeMax, in schema order). A
+// binding on an integer-coded field is augment-only on a response
+// (PULSE_LABEL_REPLACE_NUMERIC), so with any present each binding
+// carries an if/then requiring mode "augment" for them. A cohort with
+// no integer-coded field gets the categorical-only fragment unchanged.
 func buildLabelsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
-	if len(c.Categorical) == 0 {
+	var coded []string
+	for _, name := range c.AllFields {
+		if _, ok := labelcodes.CodeMax(c.Types[name]); ok && !slices.Contains(coded, name) {
+			coded = append(coded, name)
+		}
+	}
+	if len(c.Categorical) == 0 && len(coded) == 0 {
 		return nil
 	}
 	tables := labelTableNames(inst)
@@ -2473,6 +2487,10 @@ func buildLabelsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 		"type":        "string",
 		"description": "Categorical field whose values will be translated to labels.",
 		"enum":        c.Categorical,
+	}
+	if len(coded) > 0 {
+		field["description"] = "Categorical field whose values will be translated to labels, or an integer-coded u4 / u8 / u16 / u32 field (mode \"augment\" only; table keys are the codes' decimal spellings)."
+		field["enum"] = append(slices.Clone(c.Categorical), coded...)
 	}
 	table := map[string]any{
 		"type":        "string",
@@ -2492,6 +2510,16 @@ func buildLabelsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 		},
 		"required":             []string{"field", "table"},
 		"additionalProperties": false,
+	}
+	if len(coded) > 0 {
+		binding["if"] = map[string]any{
+			"properties": map[string]any{"field": map[string]any{"enum": coded}},
+			"required":   []string{"field"},
+		}
+		binding["then"] = map[string]any{
+			"properties": map[string]any{"mode": map[string]any{"const": "augment"}},
+			"required":   []string{"mode"},
+		}
 	}
 	return map[string]any{
 		"type":        "array",

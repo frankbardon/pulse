@@ -329,7 +329,7 @@ func (p *labelPass) notAppliedWarnings(bindings, auto []*types.LabelBinding, gro
 func labelNotApplied(index int, b *types.LabelBinding, reason string) *types.ResponseWarning {
 	msg := fmt.Sprintf("labels[%d]: binding on field %q was not applied: the field is not an output column or key of this response", index, b.Field)
 	if reason == labelReasonAugmentAxis {
-		msg = fmt.Sprintf("labels[%d]: augment-mode binding on field %q was not applied to the crosstab matrix axis keys (an axis key has no sibling column); use mode \"replace\" or shape \"long\"", index, b.Field)
+		msg = fmt.Sprintf("labels[%d]: augment-mode binding on field %q was not applied to the crosstab matrix axis keys (an axis key has no sibling column); use shape \"long\", or mode \"replace\" on a categorical field", index, b.Field)
 	}
 	return &types.ResponseWarning{
 		Code:    string(errors.PULSE_LABEL_NOT_APPLIED),

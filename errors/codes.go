@@ -2299,9 +2299,10 @@ const (
 	// references a schema field whose type is not one of
 	// categorical_u8 / categorical_u16 / categorical_u32. Labels
 	// translate dictionary string values; other types have no
-	// dictionary key to translate. An export or a convert also accepts an
+	// dictionary key to translate. Every surface also accepts an
 	// integer-coded u4 / u8 / u16 / u32 field, keyed by its stored
-	// integers' decimal spellings.
+	// integers' decimal spellings (a response surface in augment mode
+	// only, PULSE_LABEL_REPLACE_NUMERIC).
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
 
 	// PULSE_LABEL_TABLE_UNKNOWN indicates a LabelBinding references a
@@ -2324,12 +2325,23 @@ const (
 
 	// PULSE_LABEL_KEY_INVALID indicates a label binding on an
 	// integer-coded field (u4 / u8 / u16 / u32, on an export — `.sav` value
-	// labels or a row format's replace / augment) whose table carries a key that is not the canonical decimal spelling of a
+	// labels or a row format's replace / augment — a convert, or a response
+	// surface's augment binding) whose table carries a key that is not the canonical decimal spelling of a
 	// value the field can store (text, a leading zero, a fraction, a
 	// negative, or past the type's maximum). The stored integers are the
 	// codes, so such a key could never label a value; it is refused rather
 	// than silently dropped.
 	PULSE_LABEL_KEY_INVALID Code = "PULSE_LABEL_KEY_INVALID"
+
+	// PULSE_LABEL_REPLACE_NUMERIC indicates a replace-mode label binding
+	// (the default mode) on an integer-coded u4 / u8 / u16 / u32 field of
+	// a response surface — process, sample, facet, chain or compose. A
+	// response carries such a field as a number (a sample cell) or its
+	// decimal text (a group key); replacing it with label text would make
+	// a column of numbers and strings, so a binding on it must use augment
+	// mode, which keeps the number and adds the "<field>_label" sibling.
+	// An export or convert writes text cells and still accepts replace.
+	PULSE_LABEL_REPLACE_NUMERIC Code = "PULSE_LABEL_REPLACE_NUMERIC"
 
 	// PULSE_LABEL_TABLE_NOT_ENUMERABLE indicates a reverse lookup
 	// (ResolveLabel / pulse_label_resolve) was attempted against a
@@ -5222,6 +5234,7 @@ var allCodes = []Code{
 	PULSE_LABEL_FIELD_COLLISION,
 	PULSE_LABEL_DUPLICATE_BINDING,
 	PULSE_LABEL_KEY_INVALID,
+	PULSE_LABEL_REPLACE_NUMERIC,
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,

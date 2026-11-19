@@ -2962,6 +2962,7 @@ pulse/errors: const PULSE_LABEL_FIELD_UNKNOWN pulse/errors.Code = "PULSE_LABEL_F
 pulse/errors: const PULSE_LABEL_KEY_INVALID pulse/errors.Code = "PULSE_LABEL_KEY_INVALID"
 pulse/errors: const PULSE_LABEL_LOOKUP_MISS pulse/errors.Code = "PULSE_LABEL_LOOKUP_MISS"
 pulse/errors: const PULSE_LABEL_NOT_APPLIED pulse/errors.Code = "PULSE_LABEL_NOT_APPLIED"
+pulse/errors: const PULSE_LABEL_REPLACE_NUMERIC pulse/errors.Code = "PULSE_LABEL_REPLACE_NUMERIC"
 pulse/errors: const PULSE_LABEL_TABLE_NOT_ENUMERABLE pulse/errors.Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
 pulse/errors: const PULSE_LABEL_TABLE_UNKNOWN pulse/errors.Code = "PULSE_LABEL_TABLE_UNKNOWN"
 pulse/errors: const PULSE_LIMIT_EXCEEDED pulse/errors.Code = "PULSE_LIMIT_EXCEEDED"
@@ -7094,4 +7095,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d504ae80c22fe4763baa8c8f62322bd4ec5badf7eb4b478542ed6f682e89bcb7
+// golden-hash: 8f99d964be07c31ad5ab343be9b419589ceb7619a1e4573c5be39e457b7faa03

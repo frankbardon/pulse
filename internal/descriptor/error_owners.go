@@ -503,6 +503,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LABEL_FIELD_COLLISION:       shared,
 	errors.PULSE_LABEL_DUPLICATE_BINDING:     shared,
 	errors.PULSE_LABEL_KEY_INVALID:           shared,
+	errors.PULSE_LABEL_REPLACE_NUMERIC:       own(featLabels),
 	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  shared,
 	errors.PULSE_LABEL_COLLISION:             shared,
 	errors.PULSE_LABEL_LOOKUP_MISS:           shared,

@@ -3361,12 +3361,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) or a convert also accepts an integer-coded u4 / u8 / u16 / u32 field.",
+		Message: "A LabelBinding references a field that is neither categorical nor integer-coded. Labels translate dictionary string values, or the decimal spellings of an integer-coded u4 / u8 / u16 / u32 field's codes; floats, u64, dates and the other types have no stable key to translate.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export or convert, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field or a u4 / u8 / u16 / u32 code field. For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
 	},
@@ -3402,12 +3402,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_KEY_INVALID: {
-		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format or a convert) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format, a convert or a response surface) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Table"},
 				Hint:   "Bind a table keyed by the field's stored integers in plain decimal (\"1\", \"7\" — no leading zeros, signs or fractions, within the type's range); details carry the offending key and the field's maximum.",
+			},
+		},
+	},
+	PULSE_LABEL_REPLACE_NUMERIC: {
+		Message: "A replace-mode label binding (the default mode) names an integer-coded u4 / u8 / u16 / u32 field on a response surface (process, sample, facet, chain, compose); replacing the field's numbers with label text would make a column of numbers and strings, so such a binding is augment-only.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "Set mode \"augment\": the numeric value stays and a \"<field>_label\" string column carries the label (null on a code the table lacks).",
 			},
 		},
 	},

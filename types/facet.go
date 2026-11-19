@@ -51,9 +51,10 @@ type FacetRequest struct {
 
 	// Labels rewrites or augments per-value keys in the response
 	// using embedder-registered label tables. Each binding's Field
-	// must appear in Fields and reference a categorical column;
-	// numeric fields ignore labels. See types.LabelBinding for
-	// semantics.
+	// must appear in Fields and reference a categorical column (an
+	// integer-coded u4–u32 binding validates, augment only, but its
+	// field facets numerically — no value keys — so it warns
+	// PULSE_LABEL_NOT_APPLIED). See types.LabelBinding for semantics.
 	Labels []*LabelBinding `json:"labels,omitempty"`
 
 	// Overlays is the list of FACET-host overlay-layer specifications

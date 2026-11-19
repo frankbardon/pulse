@@ -248,6 +248,12 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Description: t.Description,
 			HasRowsData: t.Rows != nil,
 		})
+		if entries, ok := labelTableEntries(t); ok {
+			if snap.LabelTableEntries == nil {
+				snap.LabelTableEntries = make(map[string][]string, len(ext.LabelTables))
+			}
+			snap.LabelTableEntries[name] = entries
+		}
 	}
 	for name, t := range ext.RangeTables {
 		labels := make([]string, 0, len(t.Ranges)+len(t.NumericRanges))
@@ -405,4 +411,25 @@ func attributeEmitsNullHooks(regs []AttributeRegistration) map[types.AttributeTy
 		}
 	}
 	return out
+}
+
+// labelTableEntries lists a label table's own entries the way the
+// runtime resolver's Entries does (processing.LabelResolver.Entries): a
+// Rows table's keys in byte-wise sorted order, else a Lookup table's
+// Order; ok is false when the table can list neither. Predict's binding
+// validator reads the result (ExtensionsSnapshot.LabelTableEntries) to
+// check an integer-coded field's keys.
+func labelTableEntries(t LabelTable) ([]string, bool) {
+	if t.Rows != nil {
+		keys := make([]string, 0, len(t.Rows))
+		for k := range t.Rows {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys, true
+	}
+	if len(t.Order) > 0 {
+		return append([]string(nil), t.Order...), true
+	}
+	return nil, false
 }

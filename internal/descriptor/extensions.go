@@ -50,7 +50,16 @@ type ExtensionsSnapshot struct {
 	LookupTables     []descriptor.LookupTableMeta
 	ReferenceVectors []descriptor.ReferenceVectorMeta
 	LabelTables      []descriptor.LabelTableMeta
-	RangeTables      []descriptor.RangeTableMeta
+	// LabelTableEntries is each ENUMERABLE label table's own entries,
+	// keyed by table name: a Rows table's keys (sorted), else a Lookup
+	// table's Order — the list the runtime resolver's Entries returns. A
+	// table that can list neither (Lookup only, no Order) is absent.
+	// ValidateLabels checks a binding on an integer-coded field
+	// (u4 / u8 / u16 / u32) against it (PULSE_LABEL_KEY_INVALID), so
+	// predict and the runtime judge the keys from one source. Never
+	// projected into the manifest (LabelTableMeta stays shape-only).
+	LabelTableEntries map[string][]string
+	RangeTables       []descriptor.RangeTableMeta
 	// RangeTableLabels is each registered range table's labels in
 	// authored order, keyed by table name: predict's view of what a
 	// GROUP_NUMERIC_RANGES unmatched_label may not collide with. Never

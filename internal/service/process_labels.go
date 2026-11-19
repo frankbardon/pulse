@@ -76,7 +76,7 @@ func applyLabelsToResponse(req *types.Request, resp *types.Response, r *processi
 				continue
 			}
 			p.reached[field] = true
-			raw, ok := rawAsString(v)
+			raw, ok := labelKeyOf(v, r.Mode(field))
 			if !ok {
 				continue
 			}

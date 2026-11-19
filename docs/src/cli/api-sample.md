@@ -26,7 +26,7 @@ pulse api sample --input PATH [--count N] [--json]
 | `--input`        | `-i` | string | (required) | Cohort `.pulse` file path |
 | `--count`        | `-n` | int    | 10         | Rows to sample |
 | `--json`         |      | bool   | false      | Emit the standard envelope |
-| `--labels`       |      | string | (none)     | Categorical label binding: `field=table[:replace|augment]`. Repeatable. Requires `PULSE_LABEL_TABLES_DIR` or a programmatically registered label table |
+| `--labels`       |      | string | (none)     | Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: `field=table[:replace|augment]`. Repeatable. Requires `PULSE_LABEL_TABLES_DIR` or a programmatically registered label table |
 | `--echo-request` |      | bool   | false      | Include the resolved `SampleRequest` on `envelope.request` |
 
 ## Output (text mode)
