@@ -51,10 +51,13 @@ type FacetRequest struct {
 
 	// Labels rewrites or augments per-value keys in the response
 	// using embedder-registered label tables. Each binding's Field
-	// must appear in Fields and reference a categorical column (an
-	// integer-coded u4–u32 binding validates, augment only, but its
-	// field facets numerically — no value keys — so it warns
-	// PULSE_LABEL_NOT_APPLIED). See types.LabelBinding for semantics.
+	// must appear in Fields and reference a categorical column or an
+	// integer-coded u4–u32 one (augment only). An augment binding on
+	// an integer-coded field makes its entry discrete — per-code
+	// counts keyed by the code's decimal spelling, under the
+	// categorical order, DiscreteTopK cut and MaxGroups limit — with a
+	// "<field>_label" sibling; unbound, the field stays numeric. See
+	// types.LabelBinding for semantics.
 	Labels []*LabelBinding `json:"labels,omitempty"`
 
 	// Overlays is the list of FACET-host overlay-layer specifications
@@ -135,7 +138,8 @@ type FacetResult struct {
 
 // FacetField wraps either a discrete or numeric summary.
 type FacetField struct {
-	// Kind is "discrete" | "numeric".
+	// Kind is "discrete" | "numeric". An integer-coded field is
+	// "numeric" unless an augment label binding names it.
 	Kind string `json:"kind"`
 
 	// TypeName is the field's Pulse type as a string ("u8", "f64",

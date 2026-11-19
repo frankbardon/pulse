@@ -134,7 +134,7 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 	// Per-kind host-arm gate (CHISQ_VS_POP rejects numeric;
 	// KS_VS_POP rejects categorical). INDEX_VS_POP / ZSCORE_VS_POP
 	// accept both arms (the runtime handler dispatches internally).
-	validateFacetOverlayHostArm(env, schema, spec, hostField, index)
+	validateFacetOverlayHostArm(env, req, schema, spec, hostField, index)
 }
 
 // resolveFacetOverlayHostField returns the FacetRequest.Fields entry
@@ -186,8 +186,8 @@ func resolveFacetOverlayHostField(env *descriptor.Envelope, req *types.FacetRequ
 }
 
 // validateFacetOverlayHostArm enforces the per-kind host-arm gate.
-// CHISQ_VS_POP requires a discrete (categorical / boolean) host;
-// KS_VS_POP requires a numeric host. INDEX_VS_POP / ZSCORE_VS_POP
+// CHISQ_VS_POP requires a discrete (categorical / boolean, or labelled
+// integer-coded) host; KS_VS_POP requires a numeric host. INDEX_VS_POP / ZSCORE_VS_POP
 // accept both arms — the runtime handler dispatches internally.
 //
 // When schema is nil the gate short-circuits — the runtime handler
@@ -196,7 +196,7 @@ func resolveFacetOverlayHostField(env *descriptor.Envelope, req *types.FacetRequ
 // schema (defensive — the FacetSchema validator already gates this) the
 // gate short-circuits as well; the missing-field error has already
 // surfaced from validateFacetSchemaRequest.
-func validateFacetOverlayHostArm(env *descriptor.Envelope, schema *encoding.Schema, spec *types.OverlaySpec, hostField string, index int) {
+func validateFacetOverlayHostArm(env *descriptor.Envelope, req *types.FacetRequest, schema *encoding.Schema, spec *types.OverlaySpec, hostField string, index int) {
 	if schema == nil {
 		return
 	}
@@ -204,34 +204,13 @@ func validateFacetOverlayHostArm(env *descriptor.Envelope, schema *encoding.Sche
 	if f == nil {
 		return
 	}
-	switch spec.Kind {
-	case types.OverlayKindChiSqVsPop:
-		// Discrete arm only — χ² goodness-of-fit requires categorical
-		// buckets to form the observed × expected contingency.
-		if facetIsNumeric(f.Type) && !f.Type.IsCategorical() {
-			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"overlay "+string(spec.Kind)+" requires a discrete host field; got numeric field "+hostField+" ("+f.Type.String()+")",
-				map[string]any{
-					"index": index,
-					"kind":  string(spec.Kind),
-					"field": hostField,
-					"type":  f.Type.String(),
-				})
-		}
-	case types.OverlayKindKSVsPop:
-		// Numeric arm only — KS distance requires an ordered numeric
-		// distribution (the CDF is undefined on unordered categorical
-		// buckets).
-		if !facetIsNumeric(f.Type) || f.Type.IsCategorical() {
-			env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
-				"overlay "+string(spec.Kind)+" requires a numeric host field; got non-numeric field "+hostField+" ("+f.Type.String()+")",
-				map[string]any{
-					"index": index,
-					"kind":  string(spec.Kind),
-					"field": hostField,
-					"type":  f.Type.String(),
-				})
-		}
+	// The shared gate (overlayhost.FacetHostArmRefusal) on the shape the
+	// facet tallies: a categorical / boolean field, or a labelled
+	// integer-coded one (FacetCodedField), is discrete.
+	coded := FacetCodedField(req, f)
+	discrete := coded || !facetIsNumeric(f.Type) || f.Type.IsCategorical()
+	if cerr := overlayhost.FacetHostArmRefusal(spec.Kind, hostField, f.Type.String(), discrete, coded, index); cerr != nil {
+		addCodedError(env, cerr)
 	}
 }
 

@@ -146,9 +146,9 @@ func intLabelWarnings(ws []*types.ResponseWarning) map[string]map[string]any {
 // rows, chain stages and compose slots — with a "<field>_label" string
 // sibling (null on a code the table lacks, one PULSE_LABEL_LOOKUP_MISS
 // naming it), while the numeric cell and every figure stay exactly the
-// unlabelled run's. A null cell gets no lookup. Facet tallies the field
-// numerically (no value keys) and a matrix crosstab's axis keys have no
-// sibling column: both warn PULSE_LABEL_NOT_APPLIED and change nothing.
+// unlabelled run's. A null cell gets no lookup. A matrix crosstab's axis
+// keys have no sibling column: it warns PULSE_LABEL_NOT_APPLIED and
+// changes nothing. (Facet: TestLabels_IntegerCodedFacetDiscrete.)
 func TestLabels_IntegerCodedAugmentOnResponses(t *testing.T) {
 	t.Parallel()
 	p := intLabelsPulse(t)
@@ -240,25 +240,6 @@ func TestLabels_IntegerCodedAugmentOnResponses(t *testing.T) {
 			}
 			if d := intLabelWarnings(matrix.Warnings)[string(perrors.PULSE_LABEL_NOT_APPLIED)]; d["reason"] != "augment_on_matrix_axis" {
 				t.Errorf("matrix axis warning details = %v, want reason augment_on_matrix_axis", d)
-			}
-		})
-		t.Run(f.name+"/facet", func(t *testing.T) {
-			req := func(labels []*types.LabelBinding) *types.FacetRequest {
-				return &types.FacetRequest{Cohort: intCohort(), Fields: []string{f.name}, Labels: labels}
-			}
-			plain, err := p.FacetSchema(ctx, req(nil))
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := p.FacetSchema(ctx, req(augmentOn(f.name, "codes")))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(got.Fields, plain.Fields) {
-				t.Errorf("an augment binding changed the numeric facet: %v vs %v", got.Fields, plain.Fields)
-			}
-			if d := intLabelWarnings(got.Warnings)[string(perrors.PULSE_LABEL_NOT_APPLIED)]; d["reason"] != "field_not_in_output" {
-				t.Errorf("facet warning details = %v, want reason field_not_in_output", d)
 			}
 		})
 		t.Run(f.name+"/chain", func(t *testing.T) {

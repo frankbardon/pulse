@@ -10,7 +10,7 @@ requires: [capability:facet]
 
 # Facet design
 
-Two entry points. `pulse.Facet(ctx, path, field)` returns distinct values. `pulse.FacetSchema(ctx, *FacetRequest)` is the rich multi-field endpoint — counts, null tallies, streaming numeric stats, optional percentiles, fixed-width histograms, additive contribution counts, FACET-host overlays.
+Two entry points. `pulse.Facet(ctx, path, field)`: distinct values. `pulse.FacetSchema(ctx, *FacetRequest)` is the rich multi-field endpoint — counts, null tallies, streaming numeric stats, optional percentiles, fixed-width histograms, additive contribution counts, FACET-host overlays.
 
 ```jsonc
 {
@@ -30,11 +30,11 @@ Two entry points. `pulse.Facet(ctx, path, field)` returns distinct values. `puls
 
 ## Discrete vs numeric dispatch
 
-Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric. `numeric_percentiles` / `include_histogram` on a non-numeric field compute nothing: one `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning each (predict and `FacetResult.Warnings`). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
+Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric, except a `u4`–`u32` field under an augment label binding: per-code counts ([`label-display`](label-display.md)). `numeric_percentiles` / `include_histogram` on a non-numeric field compute nothing: one `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning each (predict and `FacetResult.Warnings`). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
 
 ## TopK, percentiles, histograms
 
-`discrete_top_k > 0` keeps top K by count (desc, ties asc), sets `Discrete.TruncatedAt = distinct - K`, warns `PULSE_FACET_VALUES_TRUNCATED`. `numeric_percentiles` ∈ `(0,1)` force the buffered path per field (sort + linear interp). Keys serialise as `p<int>` or `p%g`. Values match the percentile aggregator to float64. Histograms stream into fixed-width buckets; bin width `(max-min)/bins`; values outside `[min,max]` drop from the histogram (still feed mean/stddev/count). `histogram_bins` default 20, max 256.
+`discrete_top_k > 0` keeps top K by count (desc, ties asc), sets `Discrete.TruncatedAt = distinct - K`, warns `PULSE_FACET_VALUES_TRUNCATED`. `numeric_percentiles` ∈ `(0,1)` force the buffered path per field (sort + linear interp). Keys serialise as `p<int>` or `p%g`. Values match the percentile aggregator. Histograms stream into fixed-width buckets; bin width `(max-min)/bins`; values outside `[min,max]` drop from the histogram (still feed mean/stddev/count). `histogram_bins` default 20, max 256.
 
 ## Additive contribution counts
 
@@ -59,9 +59,9 @@ A filterer naming an unknown field — or, outside an expression filter, none �
 | `OVERLAY_CHISQ_VS_POP` | scalar | buffered | discrete only | χ² goodness-of-fit + df + p-value |
 | `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + `ks.test` p-value |
 
-Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; a numeric-only kind on a categorical field ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
+Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field, or a numeric-only kind on a discrete one, ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
 
-Mixing streamable + buffered kinds forces the orchestrator buffered; descriptive math stays byte-equivalent. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
+Mixing streamable + buffered kinds runs buffered; math is unchanged. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
 
 ## Multiplicity
 

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
@@ -871,7 +872,8 @@ func FacetLimitFindings(req *types.FacetRequest, schema *encoding.Schema, l limi
 // facet counts against MaxGroups — the runtime counts each faceted
 // field (Fields and AdditiveFields) separately, so the bound is the
 // largest per-field one: a categorical field's dictionary size, two
-// for packed_bool, clamped by records when known (>= 0). A numeric
+// for packed_bool, a labelled integer-coded field's code range
+// (FacetCodedField), clamped by records when known (>= 0). A numeric
 // field mints no group (its accumulator is a summary), and an unknown
 // field is refused elsewhere; false when no faceted field counts.
 func FacetGroupBound(req *types.FacetRequest, schema *encoding.Schema, records int64) (int64, bool) {
@@ -891,6 +893,11 @@ func FacetGroupBound(req *types.FacetRequest, schema *encoding.Schema, records i
 			n = int64(f.Dictionary.Count())
 		case f.Type == encoding.FieldTypePackedBool:
 			n = 2
+		case FacetCodedField(req, f):
+			// A labelled integer-coded field mints one value per stored
+			// code: up to the type's code range.
+			max, _ := labelcodes.CodeMax(f.Type)
+			n = int64(max) + 1
 		default:
 			continue
 		}
@@ -927,7 +934,7 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 			continue
 		}
 		mi.ValueStateAggregations++
-		if len(req.NumericPercentiles) > 0 {
+		if len(req.NumericPercentiles) > 0 && !FacetCodedField(req, f) {
 			mi.ValueStateAggregations++
 		}
 	}
