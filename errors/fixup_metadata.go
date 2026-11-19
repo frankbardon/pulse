@@ -3243,6 +3243,95 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_UNION_COHORT_CONFLICT: {
+		Message: "The request sets both cohort and union. A union replaces the request cohort, so only one may be set.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Cohort"},
+				Hint:   "Remove cohort and list that cohort as a union member with its own label, or remove union to read the one cohort.",
+			},
+		},
+	},
+	PULSE_UNION_MEMBER_INVALID: {
+		Message: "A union member names no cohort: every member needs a cohort object with a filename.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Union", "*", "Cohort"},
+				Hint:   "Give the member at details.member a cohort {filename, data_dir} naming a .pulse file, shard archive or archive#shard.pulse anchor, or drop the member.",
+			},
+		},
+	},
+	PULSE_UNION_LABEL_INVALID: {
+		Message: "A union member label is empty or repeats another member's label. Each label is one value of the union's source field, so labels must be non-empty and unique.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Union", "*", "Label"},
+				Hint:   "Give the member at details.member a non-empty label no other member uses (details.reason says whether it was empty or a duplicate of details.first).",
+			},
+		},
+	},
+	PULSE_UNION_SOURCE_FIELD_INVALID: {
+		Message: "The union's virtual source field cannot be added: its name is already a field of the member cohorts (reason collision), or union_source_field is set on a request with no union (reason without_union).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"UnionSourceField"},
+				Hint:   "For reason collision, set union_source_field to a name no member field uses (the default is _source); for reason without_union, remove union_source_field or add a union.",
+			},
+		},
+	},
+	PULSE_UNION_MEMBER_LIMIT: {
+		Message: "The union reads more cohorts than one shard archive may hold (65,535), counting each shard archive member as its shards.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Union"},
+				Hint:   "List fewer members, or compact shard-archive members (pulse shard compact) so the flattened shard count is at most details.limit.",
+			},
+		},
+	},
+	PULSE_UNION_SCHEMA_MISMATCH: {
+		Message: "A union member's schema cannot merge with the members before it under the shard-archive rules: set fields widen, but field names, types, bit positions, vector dims, categorical widths, nullability and the default zone field must agree, and dictionaries must fit their width.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Re-import the member at details.member (label details.label) with the schema the earlier members use; details.archive_code and details.dimension name the rule a shard archive would refuse the same pair with.",
+			},
+		},
+	},
+	PULSE_UNION_JOIN_RIGHT: {
+		Message: "A union was placed on a join's right side. A union is read only as the request's own cohort; a join's right side names one cohort path.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Joins", "*", "Right"},
+				Hint:   "Name one cohort in the join's right, and move the union to the request's own union slot (the join's left side).",
+			},
+		},
+	},
+	PULSE_UNION_NESTED: {
+		Message: "A union was placed inside a union member. Unions do not nest.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Union", "*"},
+				Hint:   "List every cohort as a member of the request's one union, each with its own label.",
+			},
+		},
+	},
+	PULSE_UNION_UNSUPPORTED: {
+		Message: "This operation does not read a union of cohorts.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Union"},
+				Hint:   "Run the operation against one cohort (set cohort instead of union), or merge the members into one shard archive first (pulse shard create).",
+			},
+		},
+	},
 	PULSE_JOIN_FIELD_UNKNOWN: {
 		Message: "A JoinSpec.On entry references a field not present in either the left or right cohort's schema.",
 		Fixups: []Fixup{

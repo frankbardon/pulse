@@ -79,6 +79,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		// --- Request root and every slot family ---
 		{family: "request", body: req(`"aggregatoins":[]`), unknown: "aggregatoins"},
 		{family: "request.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},` + agg + `}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "request.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],` + agg + `}`, path: "union[0].lable", unknown: "lable"},
 		{family: "request.filterers", body: req(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","valuse":["a"]}]`), path: "filterers[0].valuse", unknown: "valuse"},
 		{family: "request.filterers.params", body: req(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","values":["a"],"params":{"negete":true}}]`), path: "filterers[0].params.negete", unknown: "negete"},
 		{family: "request.aggregations", body: req(`"aggregations":[{"type":"AGG_SUM","field":"n","lable":"t"}]`), path: "aggregations[0].lable", unknown: "lable"},

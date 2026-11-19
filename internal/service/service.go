@@ -731,7 +731,7 @@ func (s *Service) Process(ctx context.Context, req *types.Request) (*types.Respo
 }
 
 func (s *Service) process(ctx context.Context, req *types.Request) (*types.Response, error) {
-	if req.Cohort == nil {
+	if req.Cohort == nil && len(req.Union) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
 	// Every expression of this run folds the request's params: the
@@ -749,6 +749,13 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// hidden slot never reaches the code that would execute it.
 	if err := s.slotRefusal(req); err != nil {
 		return nil, markLocated(err)
+	}
+	// The union rules, as predict runs them right after the slot gate
+	// (descx.UnionShapeRefusal). Execution over a union is not wired
+	// yet: a valid union is refused PULSE_UNION_UNSUPPORTED, never read
+	// as one cohort.
+	if err := descx.UnionRunRefusal(req, "process"); err != nil {
+		return nil, err
 	}
 	// Every item for_each expands next, before any other check reads
 	// the item lists (descx.ExpandRequestItems — the expansion predict

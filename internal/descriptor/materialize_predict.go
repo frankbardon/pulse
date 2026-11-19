@@ -227,12 +227,16 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 		addCodedError(env, err)
 		result.Valid = false
 	}
-	if req == nil || req.Cohort == nil {
+	if req == nil || (req.Cohort == nil && len(req.Union) == 0) {
 		fail(errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required"))
 		return nil
 	}
 	inst := opts.instance()
 	if err := MaterializeSlotGate(req, inst); err != nil {
+		fail(err)
+		return nil
+	}
+	if err := UnionRunRefusal(req, "materialize"); err != nil {
 		fail(err)
 		return nil
 	}

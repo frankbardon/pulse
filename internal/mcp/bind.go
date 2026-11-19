@@ -884,6 +884,28 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 // holds the two in step.
 func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *descx.InstanceSnapshot) {
 	props["label"] = map[string]any{"type": "string", "description": "Slot label. In a pulse_compose batch it names this slot for Compose overlay reference / targets (empty auto-defaults to request_<i+1>); standalone it has no effect."}
+	props["union"] = map[string]any{
+		"type":        "array",
+		"description": "Several labelled cohorts read as one record stream, in place of cohort (never both). Member schemas merge by the shard-archive rules; a virtual categorical source field (union_source_field, default _source) carries each record's member label.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"cohort": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"filename": map[string]any{"type": "string"},
+						"data_dir": map[string]any{"type": "string"},
+					},
+					"required":             []string{"filename"},
+					"additionalProperties": true,
+				},
+				"label": map[string]any{"type": "string", "description": "The member's value in the source field: non-empty, unique within the union."},
+			},
+			"required":             []string{"cohort", "label"},
+			"additionalProperties": true,
+		},
+	}
+	props["union_source_field"] = map[string]any{"type": "string", "description": "Name of the union's virtual source field (default _source); only with union, and never a member's own field name."}
 	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
 	props["time_zone_field"] = zoneFieldSchema("Request-level per-row zone: a categorical field of IANA zone names inherited by every zone-capable slot that sets neither `tz` nor `tz_field`; outranks time_zone (expressions' to_day() still read time_zone).")
 	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses Response.Components for this request; false forces them on even when the engine default disables them. Omit to inherit."}

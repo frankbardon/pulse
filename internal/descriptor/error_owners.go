@@ -475,6 +475,19 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_JOIN_TOO_MANY:             own(featJoins),
 	errors.PULSE_JOIN_FIELD_COLLISION:      own(featJoins),
 
+	// The union codes are raised by the request's own union slot, which
+	// every request host carries; a union on a join's right side only
+	// where a join is written.
+	errors.PULSE_UNION_COHORT_CONFLICT:      shared,
+	errors.PULSE_UNION_MEMBER_INVALID:       shared,
+	errors.PULSE_UNION_LABEL_INVALID:        shared,
+	errors.PULSE_UNION_SOURCE_FIELD_INVALID: shared,
+	errors.PULSE_UNION_MEMBER_LIMIT:         shared,
+	errors.PULSE_UNION_SCHEMA_MISMATCH:      shared,
+	errors.PULSE_UNION_JOIN_RIGHT:           own(featJoins),
+	errors.PULSE_UNION_NESTED:               shared,
+	errors.PULSE_UNION_UNSUPPORTED:          shared,
+
 	// Range compilation runs for a named range table (loaded under
 	// capability:range_tables), for the inline ranges of the range
 	// operators and for a materialize output column's bucket

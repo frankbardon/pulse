@@ -1757,6 +1757,13 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
+	if len(req.Union) > 0 {
+		env, err := p.predictUnionEnvelope(ctx, req, false)
+		if err != nil {
+			return nil, err
+		}
+		return predictResultOf(env)
+	}
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
@@ -1834,6 +1841,9 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 	}
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
+	}
+	if len(req.Union) > 0 {
+		return p.predictUnionEnvelope(ctx, req, true)
 	}
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")

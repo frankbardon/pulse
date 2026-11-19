@@ -67,7 +67,7 @@ func (s *Service) Materialize(ctx context.Context, req *types.Request, sink Mate
 }
 
 func (s *Service) materialize(ctx context.Context, req *types.Request, sink MaterializeSink) error {
-	if req == nil || req.Cohort == nil {
+	if req == nil || (req.Cohort == nil && len(req.Union) == 0) {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
 	s = s.forRequest(req)
@@ -75,6 +75,10 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	// accepted (every other operation refuses it).
 	if err := descx.MaterializeSlotGate(req, s.instance); err != nil {
 		return markLocated(err)
+	}
+	// Materializing a union is not wired yet (predict refuses alike).
+	if err := descx.UnionRunRefusal(req, "materialize"); err != nil {
+		return err
 	}
 	// Every item for_each expands before the materialize gates read
 	// the item lists, so every expanded item becomes a column.

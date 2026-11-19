@@ -1154,6 +1154,8 @@ pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse: type Request field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type Request field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -2215,6 +2217,7 @@ pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"st
 pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
+pulse/descriptor: type PredictResult field Union []pulse/descriptor.UnionMemberPredict "json:\"union,omitempty\""
 pulse/descriptor: type PredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictResult field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"-\""
@@ -2418,6 +2421,11 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type UnionMemberPredict struct
+pulse/descriptor: type UnionMemberPredict field Cohort string "json:\"cohort\""
+pulse/descriptor: type UnionMemberPredict field Label string "json:\"label\""
+pulse/descriptor: type UnionMemberPredict field RecordCount int64 "json:\"record_count\""
+pulse/descriptor: type UnionMemberPredict field Shards int "json:\"shards\""
 pulse/descriptor: type UnresolvedScalar struct
 pulse/descriptor: type UnresolvedScalar field Expression string "json:\"expression\""
 pulse/descriptor: type UnresolvedScalar field Path string "json:\"path\""
@@ -3244,6 +3252,15 @@ pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKN
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
+pulse/errors: const PULSE_UNION_COHORT_CONFLICT pulse/errors.Code = "PULSE_UNION_COHORT_CONFLICT"
+pulse/errors: const PULSE_UNION_JOIN_RIGHT pulse/errors.Code = "PULSE_UNION_JOIN_RIGHT"
+pulse/errors: const PULSE_UNION_LABEL_INVALID pulse/errors.Code = "PULSE_UNION_LABEL_INVALID"
+pulse/errors: const PULSE_UNION_MEMBER_INVALID pulse/errors.Code = "PULSE_UNION_MEMBER_INVALID"
+pulse/errors: const PULSE_UNION_MEMBER_LIMIT pulse/errors.Code = "PULSE_UNION_MEMBER_LIMIT"
+pulse/errors: const PULSE_UNION_NESTED pulse/errors.Code = "PULSE_UNION_NESTED"
+pulse/errors: const PULSE_UNION_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_UNION_SCHEMA_MISMATCH"
+pulse/errors: const PULSE_UNION_SOURCE_FIELD_INVALID pulse/errors.Code = "PULSE_UNION_SOURCE_FIELD_INVALID"
+pulse/errors: const PULSE_UNION_UNSUPPORTED pulse/errors.Code = "PULSE_UNION_UNSUPPORTED"
 pulse/errors: const PULSE_VECTOR_DUPLICATE pulse/errors.Code = "PULSE_VECTOR_DUPLICATE"
 pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
 pulse/errors: const PULSE_VECTOR_FIELD_NOT_SCALAR pulse/errors.Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
@@ -5724,6 +5741,7 @@ pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.P
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
 pulse/types: const DefaultMultiplicityAlpha untyped float = 1/20
 pulse/types: const DefaultProfileBins untyped int = 10
+pulse/types: const DefaultUnionSourceField untyped string = "_source"
 pulse/types: type ExtensionGroupFanOutFunc func(pulse/types.GroupType) (fansOut bool, known bool)
 pulse/types: const FEAT_BUCKETIZE pulse/types.FeatureType = "FEAT_BUCKETIZE"
 pulse/types: const FEAT_DATE_FEATURES pulse/types.FeatureType = "FEAT_DATE_FEATURES"
@@ -6800,6 +6818,8 @@ pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitemp
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse/types: type Request field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type Request field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse/types: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -7044,6 +7064,9 @@ pulse/types: type TestResult field Warnings []string "json:\"warnings,omitempty\
 pulse/types: type TestResult method (TestResult) MarshalJSON() ([]byte, error)
 pulse/types: type TestType string
 pulse/types: type TestType method (TestType) Streamable() bool
+pulse/types: type UnionMember struct
+pulse/types: type UnionMember field Cohort *pulse/types.Cohort "json:\"cohort\""
+pulse/types: type UnionMember field Label string "json:\"label\""
 pulse/types: func ValidPairwiseNBasis(s string) bool
 pulse/types: func ValidPairwiseNSource(s string) bool
 pulse/types: func ValidPairwisePSource(s string) bool
@@ -7118,4 +7141,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3cf43c5fd2779a52d88e0ac2c52d20e1bd919676fe0e6212a5229f9fb4644e98
+// golden-hash: 1e3a4c072ed0ca3dea371ebd2ddcc84a3868658bf7e12860078aac756ff9f86c

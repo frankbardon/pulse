@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 116,
+    "error_codes_count": 124,
     "error_domains": [
       "CLI",
       "DATA",
@@ -498,6 +498,14 @@
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TIMEZONE_UNKNOWN",
+      "PULSE_UNION_COHORT_CONFLICT",
+      "PULSE_UNION_LABEL_INVALID",
+      "PULSE_UNION_MEMBER_INVALID",
+      "PULSE_UNION_MEMBER_LIMIT",
+      "PULSE_UNION_NESTED",
+      "PULSE_UNION_SCHEMA_MISMATCH",
+      "PULSE_UNION_SOURCE_FIELD_INVALID",
+      "PULSE_UNION_UNSUPPORTED",
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
@@ -1461,4 +1469,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 735094961c6c3a40f24cfbfde268fe6180be3c51f650dbc46edb3cdc314e870b
+// golden-hash: 35d67cddeb2ae5135ba5152da56e75c072b2cb2e9dd27ee4041524d44b5ce36f

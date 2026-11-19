@@ -539,8 +539,8 @@ func apiPredictCmd() *cli.Command {
 				return err
 			}
 
-			if req.Cohort == nil {
-				msg := "request must have a cohort"
+			if req.Cohort == nil && len(req.Union) == 0 {
+				msg := "request must have a cohort or a union"
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", msg)
 				}

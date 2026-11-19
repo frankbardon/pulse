@@ -243,6 +243,13 @@ func (p *Pulse) PredictMaterialize(ctx context.Context, req *Request) (*descript
 		if req == nil {
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: materialize request is required")
 		}
+		if len(req.Union) > 0 {
+			// Refused by the union gate before any member is read (the
+			// runtime's own gate), so no cohort is opened.
+			opts := p.predictOptions(ctx, sidecarFacts{})
+			p.predictRootOptions(&opts)
+			return descx.ValidateMaterializeWithOptions(nil, req, &opts), nil
+		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 			p.predictRootOptions(opts)
 			return descx.ValidateMaterializeWithOptions(src.rs, req, opts)

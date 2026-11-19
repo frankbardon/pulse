@@ -12472,7 +12472,7 @@
         ]
       }
     ],
-    "error_codes_count": 483,
+    "error_codes_count": 492,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12941,6 +12941,15 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_UNION_COHORT_CONFLICT",
+      "PULSE_UNION_JOIN_RIGHT",
+      "PULSE_UNION_LABEL_INVALID",
+      "PULSE_UNION_MEMBER_INVALID",
+      "PULSE_UNION_MEMBER_LIMIT",
+      "PULSE_UNION_NESTED",
+      "PULSE_UNION_SCHEMA_MISMATCH",
+      "PULSE_UNION_SOURCE_FIELD_INVALID",
+      "PULSE_UNION_UNSUPPORTED",
       "PULSE_VECTOR_DUPLICATE",
       "PULSE_VECTOR_EMPTY",
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
@@ -22010,4 +22019,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 63f9b2b6d851e948c64f5a8355995df86ed82ede2d263b4047bb2b1e70f6e6b9
+// golden-hash: 1975f0acecff9683c6daeba296b0ebbac67c71e35f9d62637672ed39c1d40c24

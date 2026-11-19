@@ -2215,6 +2215,64 @@ const (
 	// outer-join fills.
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED Code = "PULSE_JOIN_KIND_NOT_IMPLEMENTED"
 
+	// PULSE_UNION_COHORT_CONFLICT indicates a request set both Cohort
+	// and Union. A union replaces the request cohort; the two are
+	// mutually exclusive.
+	PULSE_UNION_COHORT_CONFLICT Code = "PULSE_UNION_COHORT_CONFLICT"
+
+	// PULSE_UNION_MEMBER_INVALID indicates a Request.Union member that
+	// names no cohort (a missing cohort object or an empty filename).
+	// details.member is the member's index.
+	PULSE_UNION_MEMBER_INVALID Code = "PULSE_UNION_MEMBER_INVALID"
+
+	// PULSE_UNION_LABEL_INVALID indicates a Request.Union member label
+	// that is empty or repeats an earlier member's label: each label is
+	// one value of the union's source field, so it must be non-empty and
+	// unique. details.reason is "empty" or "duplicate"; details.member
+	// the offending member's index (details.first the earlier one for a
+	// duplicate).
+	PULSE_UNION_LABEL_INVALID Code = "PULSE_UNION_LABEL_INVALID"
+
+	// PULSE_UNION_SOURCE_FIELD_INVALID indicates the union's virtual
+	// source field cannot be added: details.reason "collision" (the name
+	// is a field the merged member schema already carries) or
+	// "without_union" (Request.UnionSourceField set on a request with no
+	// Union).
+	PULSE_UNION_SOURCE_FIELD_INVALID Code = "PULSE_UNION_SOURCE_FIELD_INVALID"
+
+	// PULSE_UNION_MEMBER_LIMIT indicates a union reads more cohorts
+	// than one shard archive may hold (65,535, the archive shard
+	// ceiling): either more members than that, or more once every shard
+	// archive member is flattened into its shards. details carry
+	// member_count or shard_count and limit.
+	PULSE_UNION_MEMBER_LIMIT Code = "PULSE_UNION_MEMBER_LIMIT"
+
+	// PULSE_UNION_SCHEMA_MISMATCH indicates a union member's schema
+	// cannot merge with the members before it, under exactly the rules a
+	// shard archive applies to an arriving shard (set fields widen;
+	// field names, types, bit positions, vector dims, categorical widths,
+	// nullability and the default zone field never do; dictionaries
+	// union within their width). details carry the archive refusal's own
+	// details (details.dimension included where the archive names one),
+	// archive_code (the shard code the same pair would raise in an
+	// archive), member and label.
+	PULSE_UNION_SCHEMA_MISMATCH Code = "PULSE_UNION_SCHEMA_MISMATCH"
+
+	// PULSE_UNION_JOIN_RIGHT indicates a request JSON placed a `union`
+	// on a join's right side. A union is read only as a request's own
+	// (left) cohort; a join's right side names one cohort path.
+	PULSE_UNION_JOIN_RIGHT Code = "PULSE_UNION_JOIN_RIGHT"
+
+	// PULSE_UNION_NESTED indicates a request JSON placed a `union`
+	// inside a union member. Unions do not nest: list every cohort as a
+	// member of the one union.
+	PULSE_UNION_NESTED Code = "PULSE_UNION_NESTED"
+
+	// PULSE_UNION_UNSUPPORTED indicates an operation that does not read
+	// a Request.Union received one. details.operation names the
+	// operation.
+	PULSE_UNION_UNSUPPORTED Code = "PULSE_UNION_UNSUPPORTED"
+
 	// PULSE_JOIN_FIELD_UNKNOWN indicates an OnPair references a field
 	// not present in the corresponding cohort's schema. Surfaced by
 	// internal/descriptor.ValidateJoin and at runtime by the join orchestrator.
@@ -5217,6 +5275,15 @@ var allCodes = []Code{
 	PULSE_FOR_EACH_EXPR_SPLICE,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
+	PULSE_UNION_COHORT_CONFLICT,
+	PULSE_UNION_MEMBER_INVALID,
+	PULSE_UNION_LABEL_INVALID,
+	PULSE_UNION_SOURCE_FIELD_INVALID,
+	PULSE_UNION_MEMBER_LIMIT,
+	PULSE_UNION_SCHEMA_MISMATCH,
+	PULSE_UNION_JOIN_RIGHT,
+	PULSE_UNION_NESTED,
+	PULSE_UNION_UNSUPPORTED,
 	PULSE_JOIN_FIELD_UNKNOWN,
 	PULSE_JOIN_KEYS_EMPTY,
 	PULSE_JOIN_TOO_MANY,

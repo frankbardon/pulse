@@ -336,6 +336,35 @@ same gate): each sweep slot's request then takes the axis value as
 value). `FilterToFileRequest` (a library-only Go root, not a payload
 root) carries a `params` of its own with the same rules.
 
+## Union slots
+
+`union` on `Request` (`#/$defs/UnionMember` `{cohort, label}`, both
+required) reads several labelled cohorts as ONE record stream in place
+of `cohort`; `union_source_field` (a string, default `_source`) names
+the virtual categorical source field the union adds — one dictionary
+entry per label, in declared order, so `groups: [{field: "_source"}]`
+splits by member. Both are additive: `format_version` stays `"1.1"` and
+a request without them is byte-identical. Rules the schema cannot say,
+judged by predict and the runtime alike before any member is read:
+`cohort` and `union` together is `PULSE_UNION_COHORT_CONFLICT`; a member
+without a cohort filename `PULSE_UNION_MEMBER_INVALID`; an empty or
+repeated label `PULSE_UNION_LABEL_INVALID` (`details.reason` `empty` /
+`duplicate`); `union_source_field` without a `union`, or naming a field
+a member carries, `PULSE_UNION_SOURCE_FIELD_INVALID` (`details.reason`
+`without_union` / `collision`); more than 65,535 members — or shards,
+once each shard-archive member is flattened —
+`PULSE_UNION_MEMBER_LIMIT`. Member schemas merge by the shard-archive
+rules (set fields widen; names, types, vector dims, categorical widths,
+nullability and the default zone field must agree; dictionaries union
+within their width): a pair an archive refuses is
+`PULSE_UNION_SCHEMA_MISMATCH`, carrying the archive refusal's details
+(`details.dimension` where it names one) plus `archive_code`, `member`
+and `label`. A `union` key on a join (its right side) is
+`PULSE_UNION_JOIN_RIGHT`; one inside a union member is
+`PULSE_UNION_NESTED`. Predict reads each member's header and schema
+only and reports `record_count` (the members' total) and `union`
+(`[{label, cohort, record_count, shards}]`).
+
 ## Materialize output slot
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort

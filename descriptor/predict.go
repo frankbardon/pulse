@@ -21,6 +21,12 @@ type PredictResult struct {
 	// Empty (but non-nil) for single-file cohorts. Listed in zip
 	// central-directory order.
 	Shards []ShardInfo `json:"shards"`
+	// Union lists each member of a Request.Union in declared order —
+	// its label, cohort filename, record count (summed over its shards)
+	// and flattened shard count. RecordCount is then the union's total
+	// and the request is judged over the merged schema, the virtual
+	// source field included. Absent for a request without a union.
+	Union []UnionMemberPredict `json:"union,omitempty"`
 	// Streamable reports whether ProcessStream / process --stream can
 	// emit rows without buffering the entire result. False whenever the
 	// request uses groups, attributes, windows, decimal fields, or any
@@ -946,6 +952,14 @@ type Suggestion struct {
 	Current    any      `json:"current,omitempty"`
 	Proposed   []any    `json:"proposed,omitempty"`
 	Confidence float64  `json:"confidence"`
+}
+
+// UnionMemberPredict is one member of a predicted Request.Union.
+type UnionMemberPredict struct {
+	Label       string `json:"label"`
+	Cohort      string `json:"cohort"`
+	RecordCount int64  `json:"record_count"`
+	Shards      int    `json:"shards"`
 }
 
 // PredictSchemaInfo summarizes the schema used for prediction.
