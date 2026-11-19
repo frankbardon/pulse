@@ -26,7 +26,7 @@ A `union` reads several cohorts — waves, regions, before / after, a real cohor
 ## The source field
 
 - Named by `union_source_field`, default `_source`; appended LAST to the merged schema.
-- A non-nullable categorical whose dictionary is the labels in declared order, so groups keep member order. Use it like any categorical field: group, filter, crosstab axis, test split, regression predictor.
+- A non-nullable categorical whose dictionary is the labels in declared order (entry index = member index). Grouped output still follows the grouper's normal sort, not member order: members `zeta, alpha` group as `alpha, zeta`. Use it like any categorical field: group, filter, crosstab axis, test split, regression predictor.
 - Labels: non-empty, unique. A member field already named like the source field is refused — rename the source field.
 
 ## Merge rules (the shard-archive rules)

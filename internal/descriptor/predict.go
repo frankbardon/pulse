@@ -1878,7 +1878,8 @@ func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *e
 	return joined
 }
 
-// validateOperatorTypes reports every top-level slot whose operator
+// validateOperatorTypes reports every top-level slot (and crosstab axis
+// grouper) whose operator
 // Type is still empty once defaults have (or, under DisableDefaults,
 // have not) run. The runtime refuses each one at operator construction
 // with PROCESSING_CONFIG "unknown <family> type: "; predict mirrors
@@ -1920,6 +1921,21 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request, schema 
 	for i, g := range req.Groups {
 		if g != nil && g.Type == "" && !isVec(g.Field) {
 			report("group", "groups["+strconv.Itoa(i)+"]")
+		}
+	}
+	// A crosstab axis grouper defaults like a top-level group, so one
+	// still typeless here (DisableDefaults, a field with no grouper rule)
+	// is the same runtime refusal.
+	if ct := req.Crosstab; ct != nil {
+		for i, g := range ct.Rows {
+			if g != nil && g.Type == "" && !isVec(g.Field) {
+				report("group", "crosstab.rows["+strconv.Itoa(i)+"]")
+			}
+		}
+		for i, g := range ct.Columns {
+			if g != nil && g.Type == "" && !isVec(g.Field) {
+				report("group", "crosstab.columns["+strconv.Itoa(i)+"]")
+			}
 		}
 	}
 }

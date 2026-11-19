@@ -95,7 +95,9 @@ const defaultDateComponent = "day"
 // Rules:
 //   - The crosstab cell — and each measure of a multi-measure
 //     crosstab.cells — is an aggregation slot and defaults like one
-//     (Path ["Crosstab", "Cell" | "Cells", i, "Type"]).
+//     (Path ["Crosstab", "Cell" | "Cells", i, "Type"]); each crosstab
+//     row / column axis grouper is a grouper slot and defaults like a
+//     top-level group (Path ["Crosstab", "Rows" | "Columns", i, "Type"]).
 //   - Defaults never override an explicit Type.
 //   - Defaults never cross categories (a missing aggregator does not
 //     insert a grouper, and vice versa).
@@ -148,30 +150,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 	}
 
 	for i, grp := range req.Groups {
-		if grp == nil || grp.Type != "" || grp.Field == "" {
-			continue
-		}
-		f := schema.Field(grp.Field)
-		if f == nil {
-			continue
-		}
-		rule, ok := defaultRules[f.Type]
-		if !ok || rule.Group == "" || inst.Hidden(string(rule.Group)) {
-			continue
-		}
-		grp.Type = rule.Group
-
-		// Apply category-specific parameter defaults so the inferred
-		// grouper is runnable without further configuration.
-		applyDefaultGroupParams(grp)
-
-		applied = append(applied, descriptor.DefaultApplied{
-			Path:     []string{"Groups", strconv.Itoa(i), "Type"},
-			Field:    grp.Field,
-			Type:     string(rule.Group),
-			Category: "grouper",
-			Reason:   f.Type.String() + " → " + string(rule.Group) + " (rule: " + rule.FamilyTag + ")",
-		})
+		applied = appendGroupDefault(applied, grp, schema, inst, i, "Groups")
 	}
 
 	// The crosstab cell aggregations — the single Cell, or each measure
@@ -205,11 +184,52 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 				Reason:   f.Type.String() + " → " + string(rule.Agg) + " (rule: " + rule.FamilyTag + ")",
 			})
 		}
+		// The axis groupers default exactly as a top-level group does.
+		// A banner's column groups and section rows are expanded into
+		// these axes before any slot runs, so they default here too.
+		for i, grp := range ct.Rows {
+			applied = appendGroupDefault(applied, grp, schema, inst, i, "Crosstab", "Rows")
+		}
+		for i, grp := range ct.Columns {
+			applied = appendGroupDefault(applied, grp, schema, inst, i, "Crosstab", "Columns")
+		}
 	}
 
 	applied = append(applied, resolveMetricDefaults(req, cohort, inst)...)
 
 	return applied
+}
+
+// appendGroupDefault fills grp's Type from its field type's grouper
+// rule (plus the rule's parameter defaults, applyDefaultGroupParams)
+// when grp names a field but no Type, and appends the DefaultApplied
+// entry at prefix ++ [i, "Type"]. A nil slot, an explicit Type, an
+// unknown field, a type with no grouper rule or a rule whose operator
+// inst hides leaves grp untouched and appends nothing. Shared by the
+// top-level groups and the crosstab axes so the two never drift.
+func appendGroupDefault(applied []descriptor.DefaultApplied, grp *types.Group, schema *encoding.Schema, inst *InstanceSnapshot, i int, prefix ...string) []descriptor.DefaultApplied {
+	if grp == nil || grp.Type != "" || grp.Field == "" {
+		return applied
+	}
+	f := schema.Field(grp.Field)
+	if f == nil {
+		return applied
+	}
+	rule, ok := defaultRules[f.Type]
+	if !ok || rule.Group == "" || inst.Hidden(string(rule.Group)) {
+		return applied
+	}
+	grp.Type = rule.Group
+	// Category-specific parameter defaults make the inferred grouper
+	// runnable without further configuration.
+	applyDefaultGroupParams(grp)
+	return append(applied, descriptor.DefaultApplied{
+		Path:     append(slices.Clone(prefix), strconv.Itoa(i), "Type"),
+		Field:    grp.Field,
+		Type:     string(rule.Group),
+		Category: "grouper",
+		Reason:   f.Type.String() + " → " + string(rule.Group) + " (rule: " + rule.FamilyTag + ")",
+	})
 }
 
 // resolveMetricDefaults fills the metric of every metric-taking matrix
@@ -315,8 +335,8 @@ func applyDefaultGroupParams(grp *types.Group) {
 
 // cloneRequestForDefaults returns a shallow-deep hybrid copy of req
 // sufficient for ResolveDefaults to mutate without touching the caller's
-// request. Only the slots ResolveDefaults inspects (Aggregations, Groups)
-// are deeply cloned; the rest is left shared because predict treats it as
+// request. Only the slots ResolveDefaults writes (Aggregations, Groups,
+// the crosstab cell(s) and axes) are deeply cloned; the rest is left shared because predict treats it as
 // read-only.
 //
 // Used by predict to compute DefaultsApplied without altering the request
@@ -353,17 +373,29 @@ func cloneRequestForDefaults(req *types.Request) *types.Request {
 				}
 			}
 		}
+		// The axis groupers default in place too.
+		ct.Rows = cloneGroupsForDefaults(ct.Rows)
+		ct.Columns = cloneGroupsForDefaults(ct.Columns)
 		clone.Crosstab = &ct
 	}
-	if len(req.Groups) > 0 {
-		clone.Groups = make([]*types.Group, len(req.Groups))
-		for i, g := range req.Groups {
-			if g == nil {
-				continue
-			}
-			gc := *g
-			clone.Groups[i] = &gc
-		}
-	}
+	clone.Groups = cloneGroupsForDefaults(req.Groups)
 	return &clone
+}
+
+// cloneGroupsForDefaults copies a grouper list and every grouper in it,
+// so a default written into the copy never reaches the caller. A nil or
+// empty list is returned as is.
+func cloneGroupsForDefaults(groups []*types.Group) []*types.Group {
+	if len(groups) == 0 {
+		return groups
+	}
+	out := make([]*types.Group, len(groups))
+	for i, g := range groups {
+		if g == nil {
+			continue
+		}
+		gc := *g
+		out[i] = &gc
+	}
+	return out
 }

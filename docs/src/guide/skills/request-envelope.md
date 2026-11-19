@@ -79,7 +79,7 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | `categorical_*`, `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
 
-Never override explicit `type` or cross categories; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); never overridden, never across categories. Disable: `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 

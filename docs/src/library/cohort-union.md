@@ -42,7 +42,10 @@ The same request as JSON (`pulse api process`, MCP `pulse_process`):
   `PULSE_UNION_MEMBER_INVALID`.
 - `union_source_field` names the virtual field (default `_source`). It
   is a non-nullable categorical appended after every member field; its
-  dictionary is the labels in declared order. Setting it without a
+  dictionary is the labels in declared order (entry index = member
+  index). Grouped output still follows the grouper's normal sort, not
+  member order: members `zeta, alpha` group as `alpha, zeta`. Setting
+  it without a
   union, or to a name a member already uses, is
   `PULSE_UNION_SOURCE_FIELD_INVALID`.
 
