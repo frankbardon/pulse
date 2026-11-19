@@ -1,10 +1,10 @@
 {
   "data": [
     {
-      "kurt_income": 4.908,
-      "mean_income": 4.804e+04,
-      "skew_income": 1.825,
-      "stddev_income": 3.225e+04
+      "kurt_income": 2.991,
+      "mean_income": 4.378e+04,
+      "skew_income": 1.603,
+      "stddev_income": 2.721e+04
     }
   ],
   "metadata": {

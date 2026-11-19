@@ -133,9 +133,9 @@ The result:
 {
   "data": [
     {
-      "ci_lower_95": 4.356e+04,
-      "ci_upper_95": 5.252e+04,
-      "mean_income": 4.804e+04
+      "ci_lower_95": 4e+04,
+      "ci_upper_95": 4.756e+04,
+      "mean_income": 4.378e+04
     }
   ],
   "metadata": {
@@ -150,7 +150,7 @@ The result:
         "n": 200,
         "n_null": 0,
         "operator": {
-          "sum": 9.608e+06
+          "sum": 8.756e+06
         }
       },
       {
@@ -159,9 +159,9 @@ The result:
         "n_null": 0,
         "operator": {
           "alpha": 0.05,
-          "lower": 4.356e+04,
-          "mean": 4.804e+04,
-          "stderr": 2286,
+          "lower": 4e+04,
+          "mean": 4.378e+04,
+          "stderr": 1929,
           "t_critical": 1.96
         }
       },
@@ -171,10 +171,10 @@ The result:
         "n_null": 0,
         "operator": {
           "alpha": 0.05,
-          "mean": 4.804e+04,
-          "stderr": 2286,
+          "mean": 4.378e+04,
+          "stderr": 1929,
           "t_critical": 1.96,
-          "upper": 5.252e+04
+          "upper": 4.756e+04
         }
       }
     ],

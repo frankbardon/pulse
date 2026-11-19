@@ -9,20 +9,20 @@
       "label": "revenue_lift_paired",
       "type": "TEST_PAIRED_T",
       "variant": "paired_two_sided",
-      "statistic": 23.95,
+      "statistic": 23.97,
       "df": 399,
-      "p_value": 3.227e-79,
+      "p_value": 2.807e-79,
       "alpha": 0.05,
       "reject_null": true,
       "details": {
-        "ci_high": 33.43,
-        "ci_low": 28.36,
+        "ci_high": 33.69,
+        "ci_low": 28.58,
         "effect_size": {
           "cohens_d": 1.198
         },
-        "mean_diff": 30.9,
+        "mean_diff": 31.14,
         "n": 400,
-        "variance": 665.6
+        "variance": 675.2
       }
     }
   ],

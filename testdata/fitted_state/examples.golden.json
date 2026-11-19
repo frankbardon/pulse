@@ -3,9 +3,9 @@
   "attributes": null,
   "data": [
    {
-    "max_d2": 30.337187997599898,
+    "max_d2": 18.24047252176547,
     "mean_d2": 1.99,
-    "min_p": 1.8685510399476112e-8
+    "min_p": 0.00004850774806988349
    }
   ],
   "warnings": null
@@ -14,15 +14,15 @@
   "attributes": null,
   "data": [
    {
-    "mean_pc1": -0.04074365477612893,
-    "mean_pc2_varimax": -2.5353271351740654e-16,
-    "sd_pc1": 0.928597011124142,
+    "mean_pc1": -0.07435993430503078,
+    "mean_pc2_varimax": 6.27871028053678e-16,
+    "sd_pc1": 0.9986560365404121,
     "treatment": "control"
    },
    {
-    "mean_pc1": 0.045486302422026545,
-    "mean_pc2_varimax": 0.46644273494835653,
-    "sd_pc1": 1.06982417188919,
+    "mean_pc1": 0.06933076000420821,
+    "mean_pc2_varimax": 0.46454985584831365,
+    "sd_pc1": 0.9938366806307924,
     "treatment": "variant"
    }
   ],
@@ -32,28 +32,49 @@
   "attributes": null,
   "data": [
    {
-    "mean_f1_bartlett": 0.0007594285668856821,
-    "mean_f1_regression": 1.058788689696187,
-    "sd_f1_bartlett": 0.9580418790805575,
-    "sd_f1_regression": 1.8505139837157192,
+    "mean_f1_bartlett": -0.07581931185986088,
+    "mean_f1_regression": -1.9353152098707334,
+    "sd_f1_bartlett": 1.0017792251022897,
+    "sd_f1_regression": 1.520398170361306,
     "treatment": "control"
    },
    {
-    "mean_f1_bartlett": -0.0008478276593275011,
-    "mean_f1_regression": -1.1820339339994304,
-    "sd_f1_bartlett": 1.0468401552155588,
-    "sd_f1_regression": 1.2193559646024346,
+    "mean_f1_bartlett": 0.07069143569542666,
+    "mean_f1_regression": 1.8044243261113788,
+    "sd_f1_bartlett": 1.0070917250671003,
+    "sd_f1_regression": 2.6229785924638813,
     "treatment": "variant"
    }
   ],
   "warnings": [
+   {
+    "code": "PULSE_MATRIX_NOT_CONVERGED",
+    "message": "f1_regression: the minres extraction (fa_minres) stopped after 200 iterations, short of its tolerance; the scores use the last iterate",
+    "details": {
+     "attribute": "f1_regression",
+     "iterations": 200,
+     "max_iterations": 200,
+     "members": [
+      "revenue_before",
+      "revenue",
+      "session_minutes"
+     ],
+     "n": 400,
+     "n_star": 400,
+     "p": 3,
+     "scope": "fit",
+     "solver": "fa_minres",
+     "tolerance": 1e-10,
+     "type": "ATTR_FACTOR_SCORE"
+    }
+   },
    {
     "code": "PULSE_MATRIX_HEYWOOD",
     "message": "f1_regression: a Heywood case — the fit gives 1 member(s) a uniqueness at or below 0 (or at the maximum-likelihood floor); the scores use the loadings as fitted, not repaired",
     "details": {
      "attribute": "f1_regression",
      "heywood_members": [
-      "revenue_before"
+      "revenue"
      ],
      "members": [
       "revenue_before",
@@ -66,18 +87,17 @@
      "scope": "fit",
      "type": "ATTR_FACTOR_SCORE",
      "uniquenesses": [
-      -0.3859399162343251
+      -0.9004219233183652
      ]
     }
    },
    {
-    "code": "PULSE_MATRIX_HEYWOOD",
-    "message": "f1_bartlett: a Heywood case — the fit gives 1 member(s) a uniqueness at or below 0 (or at the maximum-likelihood floor); the scores use the loadings as fitted, not repaired",
+    "code": "PULSE_MATRIX_NOT_CONVERGED",
+    "message": "f1_bartlett: the ml extraction (fa_ml) stopped after 200 iterations, short of its tolerance; the scores use the last iterate",
     "details": {
      "attribute": "f1_bartlett",
-     "heywood_members": [
-      "revenue_before"
-     ],
+     "iterations": 200,
+     "max_iterations": 200,
      "members": [
       "revenue_before",
       "revenue",
@@ -87,10 +107,9 @@
      "n_star": 400,
      "p": 3,
      "scope": "fit",
-     "type": "ATTR_FACTOR_SCORE",
-     "uniquenesses": [
-      0.004997026402758786
-     ]
+     "solver": "fa_ml",
+     "tolerance": 1e-10,
+     "type": "ATTR_FACTOR_SCORE"
     }
    }
   ]
@@ -130,15 +149,15 @@
   ],
   "data": [
    {
-    "avg_gap_abs": 117.86516587677725,
-    "avg_gap_mahal": 3.4046733322011,
-    "avg_gap_std": 1.0347792586229618,
+    "avg_gap_abs": 117.16829015544042,
+    "avg_gap_mahal": 3.4335446667844196,
+    "avg_gap_std": 1.145689843270588,
     "treatment": "control"
    },
    {
-    "avg_gap_abs": 121.4916402116402,
-    "avg_gap_mahal": 1.7583432791145588,
-    "avg_gap_std": 1.0214371323929559,
+    "avg_gap_abs": 112.86314009661837,
+    "avg_gap_mahal": 1.8714030026237956,
+    "avg_gap_std": 1.0557100481071902,
     "treatment": "variant"
    }
   ],

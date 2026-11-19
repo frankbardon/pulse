@@ -103,38 +103,38 @@ The result:
       "name": "revenue_clustered_by_region",
       "type": "REG_OLS",
       "coefficients": {
-        "(intercept)": -0.02415,
-        "revenue_before": 1.224,
-        "session_minutes": 0.2382
+        "(intercept)": 1.539,
+        "revenue_before": 1.214,
+        "session_minutes": 0.2731
       },
       "std_errors": {
-        "(intercept)": 1.787,
-        "revenue_before": 0.007101,
-        "session_minutes": 0.1366
+        "(intercept)": 6.086,
+        "revenue_before": 0.05653,
+        "session_minutes": 0.04534
       },
       "p_values": {
-        "(intercept)": 0.9901,
-        "revenue_before": 4.301e-07,
-        "session_minutes": 0.1796
+        "(intercept)": 0.8167,
+        "revenue_before": 0.0002211,
+        "session_minutes": 0.009171
       },
       "ci_lower": {
-        "(intercept)": -5.71,
-        "revenue_before": 1.202,
-        "session_minutes": -0.1966
+        "(intercept)": -17.83,
+        "revenue_before": 1.034,
+        "session_minutes": 0.1288
       },
       "ci_upper": {
-        "(intercept)": 5.661,
-        "revenue_before": 1.247,
-        "session_minutes": 0.673
+        "(intercept)": 20.91,
+        "revenue_before": 1.394,
+        "session_minutes": 0.4174
       },
       "df": 3,
       "conf_level": 0.95,
-      "r2": 0.9566,
-      "adj_r2": 0.9564,
-      "two_log_lik": -3513,
-      "aic": 3521,
+      "r2": 0.9364,
+      "adj_r2": 0.9361,
+      "two_log_lik": -3584,
+      "aic": 3592,
       "n_obs": 400,
-      "residual_std_err": 19.61,
+      "residual_std_err": 21.43,
       "covariance": {
         "type": "cluster",
         "cluster": "region",
@@ -157,7 +157,7 @@ The result:
 }
 ```
 
-Earlier spending explains nearly all of it. R-squared is close to one, and each extra unit of earlier revenue goes with somewhat more than one extra unit now, an estimate pinned down tightly. Session time adds nothing that can be told apart from noise once earlier spending is in the model: its interval spans zero. The standard errors treat customers in the same region as a cluster that may share conditions; with only a handful of regions that check is deliberately cautious. A coefficient describes how revenue moves with a predictor in this data, not what would happen if you changed that predictor.
+Earlier spending explains nearly all of it. R-squared is close to one, and each extra unit of earlier revenue goes with somewhat more than one extra unit now, and its interval stays above one. Session time adds a little once earlier spending is in the model: its interval stays above zero, but a minute more goes with only a fraction of a unit of revenue, small beside what earlier spending carries. The standard errors treat customers in the same region as a cluster that may share conditions; with only a handful of regions that check is deliberately cautious. A coefficient describes how revenue moves with a predictor in this data, not what would happen if you changed that predictor.
 
 ## How to read the result
 

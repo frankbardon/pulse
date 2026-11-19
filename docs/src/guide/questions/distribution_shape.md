@@ -118,10 +118,10 @@ The result:
 {
   "data": [
     {
-      "kurt_income": 4.908,
-      "mean_income": 4.804e+04,
-      "skew_income": 1.825,
-      "stddev_income": 3.225e+04
+      "kurt_income": 2.991,
+      "mean_income": 4.378e+04,
+      "skew_income": 1.603,
+      "stddev_income": 2.721e+04
     }
   ],
   "metadata": {
@@ -137,7 +137,7 @@ The result:
 }
 ```
 
-It is clearly skewed to the right. Skewness is well above zero, which means a long tail of high earners pulls the average up, and the excess kurtosis is well above zero too, so extreme incomes turn up far more often than a bell curve would predict. The standard deviation is about two thirds of the mean, another sign of a wide, lopsided spread. For a measure shaped like this, report the median beside the mean, and consider a log transform before a test that assumes a bell shape. On a sample of this size a single extreme income can move skewness and kurtosis a lot, so read percentiles or a histogram beside them.
+It is clearly skewed to the right. Skewness is well above zero, which means a long tail of high earners pulls the average up, and the excess kurtosis is well above zero too, so extreme incomes turn up far more often than a bell curve would predict. The standard deviation is about three fifths of the mean, another sign of a wide, lopsided spread. For a measure shaped like this, report the median beside the mean, and consider a log transform before a test that assumes a bell shape. On a sample of this size a single extreme income can move skewness and kurtosis a lot, so read percentiles or a histogram beside them.
 
 ## How to read the result
 

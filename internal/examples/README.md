@@ -10,7 +10,8 @@ example is just authoring JSON — no new CSV, schema, or build step.
 internal/examples/
 ├── README.md                  # this file
 ├── fixtures/                  # shared CSVs + schemas + generator + build script
-│   ├── gen.go                 # deterministic CSV generator (run once)
+│   ├── gen.go                 # portable CSV generator (package fixtures)
+│   ├── cmd/genfixtures/       # writes the generated CSVs (go run)
 │   ├── build.sh               # CSV -> .pulse importer (writes ./.data)
 │   ├── *.csv                  # checked-in source data
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
@@ -67,13 +68,20 @@ index on `experiment.pulse` (`id`). Every example request has
 | `mmm_weekly.pulse` | A weekly media-mix series, two markets x 104 weeks (208 rows): `market` (categorical, `east` / `west`), `week` (u16), `tv` / `radio` / `search` / `social` spend, `price` / `promo` controls and `sales` (f64). Sales carry a TRUE geometric adstock decay of 0.5 on every channel plus a Hill saturation, the decay `compose/08_mmm_decay_sweep.json` and the seeded lhs search `compose/11_mmm_decay_lhs_sweep.json` look for; `TestExamples_ComposeRunClean` runs every compose example clean. Rows come from `internal/mmmfixture` (`fixtures/gen.go` `writeMMMWeekly`). |
 | `brand_survey.pulse` | A two-wave brand-perception survey (1200 respondents, 600 per wave): `id` (u32), `wave` (categorical, `wave1` / `wave2`), `q1`-`q3` (quality), `v1`-`v3` (value), `s1`-`s3` (service) (u8, 1-5) and `recommend` (u8, 0-10). Three correlated factors; wave 2's latent means are PLANTED — value −0.30 and service +0.70 factor SD (−0.24 / +0.525 in marker units), quality 0 — so a scalar-invariant multi-group `MAT_SEM` recovers the shift (`matrices/16_sem_multigroup.json`, `compose/09_sem_invariance_sweep.json`, `TestExamples_SEMInvarianceLadderSweep`); per-row latent scores from that fit average to the same shift by wave and drive `recommend` in an OLS (`attributes/25_sem_score.json`, `compose/10_sem_fit_scores.json`, `TestExamples_SEMFitScoresFeedRegression`); the ratings fitted as ordinal (WLSMV) recover the shift too (`matrices/18_sem_ordinal.json`, `attributes/26_sem_ordinal_score.json`, `TestExamples_SEMOrdinalRecipe`). Row for row the lavaan oracles' data: `internal/brandfixture` over `internal/sem/testdata/brand_spec.json` (`fixtures/gen.go` `writeBrandSurvey`). |
 
-The generator (`fixtures/gen.go`) is deterministic — re-running with the
-same seed produces byte-identical CSVs. Re-generate from scratch:
+The generator (`fixtures/gen.go`, package `fixtures`) is portable:
+math/rand/v2 PCG streams, `detmath.NormFloat64` / `detmath.Exp` and
+barriered multiply-adds, so it writes the same bytes on every
+architecture. `TestFixtures_RegenerateByteIdentical` regenerates every
+CSV in memory and byte-compares it with the committed file. Re-generate
+from scratch:
 
 ```
-go run internal/examples/fixtures/gen.go
+go run ./internal/examples/fixtures/cmd/genfixtures
 ./internal/examples/fixtures/build.sh
 ```
+
+A changed CSV moves downstream goldens; regenerate each through its own
+path ([Regenerating Goldens](../../docs/src/internals/regenerating-goldens.md)).
 
 ## Running
 
@@ -163,7 +171,7 @@ the generated docs quote real figures without executing a request.
    shared cohort filenames above.
 4. If your category needs a field that's not in any shared cohort, add
    it to `fixtures/gen.go` and the matching schema in
-   `fixtures/schemas/`. Re-run the generator and check in the new CSV.
+   `fixtures/schemas/`. Re-run the generator (`go run ./internal/examples/fixtures/cmd/genfixtures`) and check in the new CSV.
 5. Drop in a `run-all.sh` for the category (copy from `features/` and
    adjust the glob).
 6. Optionally add an end-to-end test in `internal/integration/examples_test.go` mirroring

@@ -143,6 +143,34 @@ nothing noticing. Regenerate with the command above or
 to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
 (`go test ./internal/cli/ -run TestShardingSnapshots -update`).
 
+## Example fixture CSVs are generator-pinned and portable
+
+The generated CSVs under `internal/examples/fixtures/` come from
+package `fixtures` (`gen.go`): math/rand/v2 PCG streams, normal draws
+from `detmath.NormFloat64`, exponentials from `detmath.Exp` and every
+multiply-add barriered as `float64(x*y)`, so the generator writes the
+same bytes on every architecture. Both cross-arch scans cover it, and
+`TestFixtures_RegenerateByteIdentical` regenerates every CSV in memory
+and byte-compares it with the committed file, so CI's amd64 run proves
+the bytes committed on arm64. Hand-built CSVs (`all_types`,
+`card_issuers`, `tier_migrations`, `plan_history*`,
+`warehouse_orders`) are not generated.
+
+A deliberate generator change moves the CSVs and everything that reads
+them. Regenerate in this order, each through its own path, and commit
+them together:
+
+```bash
+go run ./internal/examples/fixtures/cmd/genfixtures
+go test -count=1 ./internal/integration -run 'TestExamples_StoryGoldens$' -update
+go test -count=1 ./internal/integration -run 'TestFittedState_ExamplesGolden$' -update-fitted-examples
+make docs
+```
+
+Then re-read every changed story's `_meta.interpretation`: its prose
+quotes the story golden in words ("about a fifth", "the interval spans
+zero"), and no test checks that the words still match the figures.
+
 ## R reference goldens are an external oracle, not a snapshot
 
 `internal/processing/testdata/reference/*.json` hold R's values for the

@@ -111,22 +111,22 @@ The result:
 {
   "data": [
     {
-      "age_null": 3,
+      "age_null": 5,
       "channel": "paper",
-      "income_null": 52,
-      "income_present": 48
+      "income_null": 42,
+      "income_present": 58
     },
     {
-      "age_null": 7,
+      "age_null": 5,
       "channel": "phone",
-      "income_null": 16,
-      "income_present": 84
+      "income_null": 13,
+      "income_present": 87
     },
     {
-      "age_null": 4,
+      "age_null": 5,
       "channel": "web",
-      "income_null": 7,
-      "income_present": 93
+      "income_null": 4,
+      "income_present": 96
     }
   ],
   "metadata": {
@@ -142,7 +142,7 @@ The result:
 }
 ```
 
-Not evenly. Every channel has some blank incomes, but about half of the paper forms leave income blank, far more than the web forms, with phone in between, while age is blank on only a handful of forms in every channel. Missing income therefore depends on how the form arrived, so an average income over the present rows leans towards web applicants; compare the channels, or weight them back, before you report one figure for everyone. A null here is a blank answer, not a zero income: the counts of present values leave the blanks out instead of treating them as nothing earned.
+Not evenly. Every channel has some blank incomes, but about two in five paper forms leave income blank, far more than the web forms, with phone in between, while age is blank on only a handful of forms in every channel. Missing income therefore depends on how the form arrived, so an average income over the present rows leans towards web applicants; compare the channels, or weight them back, before you report one figure for everyone. A null here is a blank answer, not a zero income: the counts of present values leave the blanks out instead of treating them as nothing earned.
 
 ## How to read the result
 

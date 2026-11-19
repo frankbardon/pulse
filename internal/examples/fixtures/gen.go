@@ -1,38 +1,45 @@
-//go:build ignore
-
-// Generator for the shared CSV fixtures referenced by every category
-// under internal/examples/. Run from the repo root:
+// Package fixtures generates the shared CSV fixtures every category
+// under internal/examples/ reads. Regenerate them from the repo root:
 //
-//	go run internal/examples/fixtures/gen.go
+//	go run ./internal/examples/fixtures/cmd/genfixtures
 //
-// Output is written into internal/examples/fixtures/. The same seed produces
-// byte-identical output so the CSVs are checked in.
+// The CSVs are committed, and TestFixtures_RegenerateByteIdentical
+// regenerates every one in memory and byte-compares it with the
+// committed file, so a fixture is pinned by its generator. The
+// generator is portable by construction: math/rand/v2 PCG streams,
+// normal variates from detmath.NormFloat64, exponentials from
+// detmath.Exp, and every multiply-add written with a float64(...)
+// barrier so it cannot fuse. The same bytes come out on every
+// architecture, which CI's amd64 run of the pin test proves.
 //
-// Not generated here: all_types.csv. That fixture is hand-curated
-// because it exists specifically to exercise every one of the 17
-// supported field types end to end (decimal128 with per-field
-// precision/scale, etc.). Random generation does not buy us anything
-// when the goal is type coverage on a 5-row file.
-package main
+// Not generated here: all_types.csv and the hand-built cohorts
+// (card_issuers, tier_migrations, plan_history, plan_history_wide,
+// warehouse_orders). all_types exists to exercise every supported
+// field type end to end (decimal128 with per-field precision/scale,
+// etc.); random generation buys nothing on a 5-row type-coverage file.
+package fixtures
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"math"
-	"math/rand"
-	"os"
-	"path/filepath"
+	"math/rand/v2"
 	"strconv"
 	"time"
 
 	"github.com/frankbardon/pulse/internal/brandfixture"
 	"github.com/frankbardon/pulse/internal/mmmfixture"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 const (
 	seed       = 20260501
-	outputDir  = "internal/examples/fixtures"
 	dateFormat = "2006-01-02"
+
+	// BrandSpecPath is the module-relative path of the SEM brand spec
+	// whose rows brand_survey.csv carries; Generate takes its bytes.
+	BrandSpecPath = "internal/sem/testdata/brand_spec.json"
 )
 
 var (
@@ -46,42 +53,80 @@ var (
 		"engineer", "teacher", "nurse", "driver", "analyst",
 		"artist", "manager", "writer",
 	}
-	categories  = []string{"A", "B", "C", "D", "E"}
-	treatments  = []string{"control", "variant"}
-	segments    = []string{"segment_a", "segment_b", "segment_c"}
-	conversions = []string{"yes", "no"}
+	categories = []string{"A", "B", "C", "D", "E"}
+	treatments = []string{"control", "variant"}
+	segments   = []string{"segment_a", "segment_b", "segment_c"}
 )
 
-func main() {
-	r := rand.New(rand.NewSource(seed))
-	must(writeTransactions(r, 200))
-	must(writeCustomers(r, 200))
-	must(writeOrders(r, 200))
-	must(writeTrainingData(r, 300))
-	must(writeExperiment(r, 400))
-	must(writeRepeatedMeasures(r, 40))
-	// The survey battery draws from its own source so adding it left
-	// every CSV above byte-identical.
-	must(writeSurvey(rand.New(rand.NewSource(seed+1)), 300))
-	// The subscriber flags draw nothing from r: every value is a
-	// function of the row index, so the showcase tests can derive their
-	// expected numbers by hand.
-	must(writeSubscribers(48))
-	// The one-trait battery draws from its own source too, so adding it
-	// left every CSV above byte-identical.
-	must(writeBattery(rand.New(rand.NewSource(seed+2)), 300))
-	// The intake forms draw from their own source as well, so adding
-	// them left every CSV above byte-identical.
-	must(writeIntake(rand.New(rand.NewSource(seed+3)), 300))
+// File is one generated fixture: its file name under
+// internal/examples/fixtures/ and its exact CSV bytes.
+type File struct {
+	Name string
+	Data []byte
+}
+
+// newStream returns the seeded PCG source of one fixture family. Each
+// family draws from its own stream, so adding a family never moves
+// the bytes of another.
+func newStream(stream uint64) *rand.Rand {
+	return rand.New(rand.NewPCG(seed, stream))
+}
+
+// Generate returns every generated fixture CSV, in a fixed order.
+// brandSpec is the content of BrandSpecPath. The result is a pure
+// function of the code and brandSpec: identical on every architecture.
+func Generate(brandSpec []byte) ([]File, error) {
+	g := &generator{}
+	r := newStream(0)
+	g.add("transactions.csv", func(w *csv.Writer) error { return writeTransactions(w, r, 200) })
+	g.add("customers.csv", func(w *csv.Writer) error { return writeCustomers(w, r, 200) })
+	g.add("orders.csv", func(w *csv.Writer) error { return writeOrders(w, r, 200) })
+	g.add("training_data.csv", func(w *csv.Writer) error { return writeTrainingData(w, r, 300) })
+	g.add("experiment.csv", func(w *csv.Writer) error { return writeExperiment(w, r, 400) })
+	g.add("repeated_measures.csv", func(w *csv.Writer) error { return writeRepeatedMeasures(w, r, 40) })
+	g.add("survey.csv", func(w *csv.Writer) error { return writeSurvey(w, newStream(1), 300) })
+	// The subscriber flags draw nothing: every value is a function of
+	// the row index, so the showcase tests can derive their expected
+	// numbers by hand.
+	g.add("subscribers.csv", func(w *csv.Writer) error { return writeSubscribers(w, 48) })
+	g.add("battery.csv", func(w *csv.Writer) error { return writeBattery(w, newStream(2), 300) })
+	g.add("intake.csv", func(w *csv.Writer) error { return writeIntake(w, newStream(3), 300) })
 	// The weekly media-mix cohort draws nothing from a source: it is the
 	// mmmfixture rows verbatim, so the decay-sweep example and the
 	// acceptance suites read the same data.
-	must(writeMMMWeekly())
-	// The brand survey draws nothing from r either: it is the lavaan
-	// oracles' rows (internal/brandfixture over brand_spec.json and its
-	// seed), so the SEM examples read the data the oracles fit.
-	must(writeBrandSurvey())
-	fmt.Println("wrote the fixture CSVs to", outputDir)
+	g.add("mmm_weekly.csv", writeMMMWeekly)
+	// The brand survey draws nothing from a source either: it is the
+	// lavaan oracles' rows (internal/brandfixture over brand_spec.json
+	// and its seed), so the SEM examples read the data the oracles fit.
+	g.add("brand_survey.csv", func(w *csv.Writer) error { return writeBrandSurvey(w, brandSpec) })
+	if g.err != nil {
+		return nil, g.err
+	}
+	return g.files, nil
+}
+
+// generator runs the writers in order, keeping the first error.
+type generator struct {
+	files []File
+	err   error
+}
+
+func (g *generator) add(name string, write func(*csv.Writer) error) {
+	if g.err != nil {
+		return
+	}
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	if err := write(w); err != nil {
+		g.err = fmt.Errorf("%s: %w", name, err)
+		return
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		g.err = fmt.Errorf("%s: %w", name, err)
+		return
+	}
+	g.files = append(g.files, File{Name: name, Data: buf.Bytes()})
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -103,9 +148,7 @@ func main() {
 //   - session_minutes vs revenue follow different shapes: revenue is
 //     log-normal, session_minutes is half-normal, so a KS two-sample
 //     comparing them across treatments shows distribution structure.
-func writeExperiment(r *rand.Rand, n int) error {
-	w, close := openCSV("experiment.csv")
-	defer close()
+func writeExperiment(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{
 		"id", "treatment", "region", "segment", "converted",
 		"revenue_before", "revenue", "session_minutes", "period",
@@ -127,9 +170,9 @@ func writeExperiment(r *rand.Rand, n int) error {
 		"segment_c": 0.50,
 	}
 	for i := range n {
-		treatment := treatments[r.Intn(len(treatments))]
-		region := regions[r.Intn(len(regions))]
-		segment := segments[r.Intn(len(segments))]
+		treatment := treatments[r.IntN(len(treatments))]
+		region := regions[r.IntN(len(regions))]
+		segment := segments[r.IntN(len(segments))]
 		// Conversion depends on segment AND treatment so chi-square on
 		// (region, converted) is independent but (segment, converted)
 		// is dependent.
@@ -145,23 +188,23 @@ func writeExperiment(r *rand.Rand, n int) error {
 		// same log-normal as revenue but without the treatment lift
 		// and without the time drift. Paired t-test and Wilcoxon
 		// signed-rank examples test the per-unit delta.
-		base := math.Exp(4.5 + 0.5*r.NormFloat64())
+		base := detmath.Exp(4.5 + float64(0.5*detmath.NormFloat64(r)))
 		treatmentLift := 1.0
 		if treatment == "variant" {
 			treatmentLift = 1.22
 		}
-		periodIdx := r.Intn(90)
-		drift := 1.0 + 0.003*float64(periodIdx)
+		periodIdx := r.IntN(90)
+		drift := 1.0 + float64(0.003*float64(periodIdx))
 		revenueBefore := base * regionLift[region]
 		revenue := revenueBefore * treatmentLift * drift
 		// session_minutes: half-normal with treatment lift.
-		sessionBase := math.Abs(r.NormFloat64()) * 15.0
+		sessionBase := math.Abs(detmath.NormFloat64(r)) * 15.0
 		// Asymmetric treatment effect on session_minutes: variant shifts
 		// the right tail more than the median, so KS detects a clear
 		// distribution change even though mean differences stay modest.
 		sessionTreatLift := 1.0
 		if treatment == "variant" {
-			sessionTreatLift = 1.0 + 0.35*math.Abs(r.NormFloat64())
+			sessionTreatLift = 1.0 + float64(0.35*math.Abs(detmath.NormFloat64(r)))
 		}
 		sessionMinutes := sessionBase * sessionTreatLift
 		period := start.AddDate(0, 0, periodIdx).Format(dateFormat)
@@ -179,21 +222,18 @@ func writeExperiment(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeTransactions produces id (u32) and amount (f64). Amounts are
 // log-normally distributed so FEAT_LOG visibly compresses the tail.
-func writeTransactions(r *rand.Rand, n int) error {
-	w, close := openCSV("transactions.csv")
-	defer close()
+func writeTransactions(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{"id", "amount"}); err != nil {
 		return err
 	}
 	for i := range n {
 		// log-normal: exp(N(mu, sigma)) with mu=4, sigma=1.2
-		amt := math.Exp(4.0 + 1.2*r.NormFloat64())
+		amt := detmath.Exp(4.0 + float64(1.2*detmath.NormFloat64(r)))
 		if err := w.Write([]string{
 			itoa(i + 1),
 			fmt.Sprintf("%.2f", amt),
@@ -201,25 +241,22 @@ func writeTransactions(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeCustomers covers id, age, income, region, city. Income is again
 // log-normal; region is uniform over 4 values; city is sampled from a
 // long tail to exercise FEAT_FREQUENCY_ENCODE.
-func writeCustomers(r *rand.Rand, n int) error {
-	w, close := openCSV("customers.csv")
-	defer close()
+func writeCustomers(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{"id", "age", "income", "region", "city"}); err != nil {
 		return err
 	}
 	for i := range n {
-		age := 18 + r.Intn(60)
-		income := math.Exp(10.5 + 0.6*r.NormFloat64())
-		region := regions[r.Intn(len(regions))]
+		age := 18 + r.IntN(60)
+		income := detmath.Exp(10.5 + float64(0.6*detmath.NormFloat64(r)))
+		region := regions[r.IntN(len(regions))]
 		// Skew city: weight toward the first few entries.
-		cityIdx := int(math.Abs(r.NormFloat64()) * float64(len(cities)) / 3)
+		cityIdx := int(math.Abs(detmath.NormFloat64(r)) * float64(len(cities)) / 3)
 		if cityIdx >= len(cities) {
 			cityIdx = len(cities) - 1
 		}
@@ -234,24 +271,21 @@ func writeCustomers(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeOrders produces id, order_date, revenue. Dates span a full year
 // so FEAT_DATE_FEATURES yields all four quarters and seven dow values.
-func writeOrders(r *rand.Rand, n int) error {
-	w, close := openCSV("orders.csv")
-	defer close()
+func writeOrders(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{"id", "order_date", "revenue", "ordered_at"}); err != nil {
 		return err
 	}
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	for i := range n {
-		offset := r.Intn(365)
+		offset := r.IntN(365)
 		day := start.AddDate(0, 0, offset)
 		date := day.Format(dateFormat)
-		revenue := math.Exp(6.0 + 0.8*r.NormFloat64())
+		revenue := detmath.Exp(6.0 + float64(0.8*detmath.NormFloat64(r)))
 		// ordered_at: the order's instant (a `datetime`) on order_date,
 		// its UTC time of day derived from the row index so the column
 		// draws nothing from r and every other fixture stays
@@ -266,16 +300,13 @@ func writeOrders(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeTrainingData covers every field referenced by examples 07-10.
 // label is binary (0/1) with class imbalance ~30% positives so
 // stratified split has a meaningful effect.
-func writeTrainingData(r *rand.Rand, n int) error {
-	w, close := openCSV("training_data.csv")
-	defer close()
+func writeTrainingData(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{
 		"id", "region", "occupation", "label", "category", "price", "income", "signup_date",
 	}); err != nil {
@@ -283,9 +314,9 @@ func writeTrainingData(r *rand.Rand, n int) error {
 	}
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	for i := range n {
-		region := regions[r.Intn(len(regions))]
-		occupation := occupations[r.Intn(len(occupations))]
-		category := categories[r.Intn(len(categories))]
+		region := regions[r.IntN(len(regions))]
+		occupation := occupations[r.IntN(len(occupations))]
+		category := categories[r.IntN(len(categories))]
 		// Bias label toward category A and occupation 'analyst' to make
 		// target-encoding interesting.
 		labelProb := 0.20
@@ -299,9 +330,9 @@ func writeTrainingData(r *rand.Rand, n int) error {
 		if r.Float64() < labelProb {
 			label = 1
 		}
-		price := math.Exp(3.5 + 0.7*r.NormFloat64())
-		income := math.Exp(10.5 + 0.5*r.NormFloat64())
-		offset := r.Intn(500)
+		price := detmath.Exp(3.5 + float64(0.7*detmath.NormFloat64(r)))
+		income := detmath.Exp(10.5 + float64(0.5*detmath.NormFloat64(r)))
+		offset := r.IntN(500)
 		signup := start.AddDate(0, 0, offset).Format(dateFormat)
 		if err := w.Write([]string{
 			itoa(i + 1),
@@ -316,8 +347,7 @@ func writeTrainingData(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeRepeatedMeasures produces a small repeated-measures cohort designed
@@ -332,9 +362,7 @@ func writeTrainingData(r *rand.Rand, n int) error {
 //	subject_id    — categorical, n distinct values
 //	condition     — categorical, {baseline, treatment_a, treatment_b}
 //	metric        — f64
-func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
-	w, close := openCSV("repeated_measures.csv")
-	defer close()
+func writeRepeatedMeasures(w *csv.Writer, r *rand.Rand, nSubjects int) error {
 	if err := w.Write([]string{"subject_id", "condition", "metric"}); err != nil {
 		return err
 	}
@@ -349,11 +377,11 @@ func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
 	for s := range nSubjects {
 		// Subject-level baseline ability ~ N(20, 4). Carries through every
 		// condition so within-subject correlation is large.
-		baseline := 20.0 + 4.0*r.NormFloat64()
+		baseline := 20.0 + float64(4.0*detmath.NormFloat64(r))
 		subjID := fmt.Sprintf("subj_%03d", s+1)
 		for _, c := range conditions {
 			// Per-cell noise small relative to subject baseline.
-			metric := baseline + c.lift + 0.8*r.NormFloat64()
+			metric := baseline + c.lift + float64(0.8*detmath.NormFloat64(r))
 			if err := w.Write([]string{
 				subjID,
 				c.name,
@@ -363,8 +391,7 @@ func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
 			}
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeSurvey produces a six-item rating battery with a planted
@@ -380,9 +407,7 @@ func writeRepeatedMeasures(r *rand.Rand, nSubjects int) error {
 //	id      — u32, 1..n
 //	panel   — categorical, {a, b}
 //	q1..q6  — f64 ratings centred on 4 (two decimals)
-func writeSurvey(r *rand.Rand, n int) error {
-	w, close := openCSV("survey.csv")
-	defer close()
+func writeSurvey(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{"id", "panel", "q1", "q2", "q3", "q4", "q5", "q6"}); err != nil {
 		return err
 	}
@@ -394,9 +419,9 @@ func writeSurvey(r *rand.Rand, n int) error {
 	}
 	const phi = 0.35
 	for i := range n {
-		z1, z2 := r.NormFloat64(), r.NormFloat64()
+		z1, z2 := detmath.NormFloat64(r), detmath.NormFloat64(r)
 		service := z1
-		value := phi*z1 + math.Sqrt(1-phi*phi)*z2
+		value := float64(phi*z1) + float64(math.Sqrt(1-float64(phi*phi))*z2)
 		panel := "a"
 		if i%2 == 1 {
 			panel = "b"
@@ -405,15 +430,14 @@ func writeSurvey(r *rand.Rand, n int) error {
 		for _, l := range loadings {
 			common := float64(l[0]*service) + float64(l[1]*value)
 			communality := float64(l[0]*l[0]) + float64(l[1]*l[1]) + float64(2*l[0]*l[1]*phi)
-			item := common + float64(math.Sqrt(1-communality)*r.NormFloat64())
+			item := common + float64(math.Sqrt(1-communality)*detmath.NormFloat64(r))
 			row = append(row, fmt.Sprintf("%.2f", 4+float64(1.2*item)))
 		}
 		if err := w.Write(row); err != nil {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeBattery produces a six-item Likert battery measuring ONE latent
@@ -430,9 +454,7 @@ func writeSurvey(r *rand.Rand, n int) error {
 //	id                         — u32, 1..n
 //	bat_energy .. bat_absorbed — u8 ratings 1..5, positively keyed
 //	bat_dread                  — u8 rating 1..5, reverse-keyed
-func writeBattery(r *rand.Rand, n int) error {
-	w, close := openCSV("battery.csv")
-	defer close()
+func writeBattery(w *csv.Writer, r *rand.Rand, n int) error {
 	header := []string{"id", "bat_energy", "bat_proud", "bat_absorbed", "bat_recommend", "bat_time_flies", "bat_dread"}
 	if err := w.Write(header); err != nil {
 		return err
@@ -442,10 +464,10 @@ func writeBattery(r *rand.Rand, n int) error {
 	// Cut points on the unit-variance item scale: 1 | 2 | 3 | 4 | 5.
 	cuts := [4]float64{-1.5, -0.5, 0.5, 1.5}
 	for i := range n {
-		trait := r.NormFloat64()
+		trait := detmath.NormFloat64(r)
 		row := []string{itoa(i + 1)}
 		for _, l := range loadings {
-			item := float64(l*trait) + float64(math.Sqrt(1-l*l)*r.NormFloat64())
+			item := float64(l*trait) + float64(math.Sqrt(1-float64(l*l))*detmath.NormFloat64(r))
 			rating := 1
 			for _, c := range cuts {
 				if item > c {
@@ -458,8 +480,7 @@ func writeBattery(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeIntake produces the missing-data cohort the data_quality
@@ -477,9 +498,7 @@ func writeBattery(r *rand.Rand, n int) error {
 //	income  — f64, nullable; log-normal yearly income, left blank on
 //	          about 5% of web, 15% of phone and 40% of paper forms, so
 //	          the missing rate depends on the channel
-func writeIntake(r *rand.Rand, n int) error {
-	w, close := openCSV("intake.csv")
-	defer close()
+func writeIntake(w *csv.Writer, r *rand.Rand, n int) error {
 	if err := w.Write([]string{"id", "channel", "age", "income"}); err != nil {
 		return err
 	}
@@ -487,11 +506,11 @@ func writeIntake(r *rand.Rand, n int) error {
 	incomeGap := map[string]float64{"web": 0.05, "phone": 0.15, "paper": 0.40}
 	for i := range n {
 		channel := channels[i%len(channels)]
-		age := itoa(18 + r.Intn(63))
+		age := itoa(18 + r.IntN(63))
 		if r.Float64() < 0.03 {
 			age = ""
 		}
-		income := fmt.Sprintf("%.2f", math.Exp(10.8+0.5*r.NormFloat64()))
+		income := fmt.Sprintf("%.2f", detmath.Exp(10.8+float64(0.5*detmath.NormFloat64(r))))
 		if r.Float64() < incomeGap[channel] {
 			income = ""
 		}
@@ -499,8 +518,7 @@ func writeIntake(r *rand.Rand, n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeSubscribers produces the flag-and-money cohort the U45 showcase
@@ -521,9 +539,7 @@ func writeIntake(r *rand.Rand, n int) error {
 //     follows it by 4, 18, 29, 41, 58 or 90 days (i%6), so the same
 //     day gap lands in different calendar months.
 //   - revenue / cost are cents-exact money.
-func writeSubscribers(n int) error {
-	w, close := openCSV("subscribers.csv")
-	defer close()
+func writeSubscribers(w *csv.Writer, n int) error {
 	if err := w.Write([]string{"id", "arm", "converted", "plan", "churned", "late_payment", "defaulted", "signup_date", "first_repeat_order", "revenue", "cost"}); err != nil {
 		return err
 	}
@@ -571,26 +587,7 @@ func writeSubscribers(n int) error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
-}
-
-func openCSV(name string) (*csv.Writer, func()) {
-	path := filepath.Join(outputDir, name)
-	f, err := os.Create(path)
-	must(err)
-	w := csv.NewWriter(f)
-	return w, func() {
-		w.Flush()
-		f.Close()
-	}
-}
-
-func must(err error) {
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return nil
 }
 
 func itoa(i int) string {
@@ -600,9 +597,7 @@ func itoa(i int) string {
 // writeMMMWeekly writes mmm_weekly.csv from mmmfixture.Rows(): two
 // markets x 104 weeks of four channel spends, two controls and sales,
 // floats at full precision so the cohort equals the fixture's.
-func writeMMMWeekly() error {
-	w, close := openCSV("mmm_weekly.csv")
-	defer close()
+func writeMMMWeekly(w *csv.Writer) error {
 	if err := w.Write([]string{"market", "week", "tv", "radio", "search", "social", "price", "promo", "sales"}); err != nil {
 		return err
 	}
@@ -616,8 +611,7 @@ func writeMMMWeekly() error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
 
 // writeBrandSurvey writes brand_survey.csv: the generic two-wave brand
@@ -628,17 +622,11 @@ func writeMMMWeekly() error {
 // recommend 0-10. Wave 2's latent means are PLANTED: value −0.30 and
 // service +0.70 in factor SD (−0.24 and +0.525 in marker units),
 // quality 0 — the shift a scalar-invariant multi-group MAT_SEM reads.
-func writeBrandSurvey() error {
-	body, err := os.ReadFile(filepath.Join("internal", "sem", "testdata", "brand_spec.json"))
-	if err != nil {
-		return err
-	}
+func writeBrandSurvey(w *csv.Writer, body []byte) error {
 	spec, err := brandfixture.Parse(body)
 	if err != nil {
 		return err
 	}
-	w, close := openCSV("brand_survey.csv")
-	defer close()
 	if err := w.Write(append([]string{"id", spec.WaveField}, spec.Columns()...)); err != nil {
 		return err
 	}
@@ -651,6 +639,5 @@ func writeBrandSurvey() error {
 			return err
 		}
 	}
-	w.Flush()
-	return w.Error()
+	return nil
 }
