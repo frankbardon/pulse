@@ -26,7 +26,8 @@ type fieldTypeRefusalCase struct {
 	code errors.Code
 	// ownMessage marks a runtime constructor refusal that keeps its own
 	// message (a remedy naming the operators the instance offers):
-	// predict matches its code and count, not its prose.
+	// predict matches its code and count, not its prose. Every other
+	// case matches code, message and details.
 	ownMessage bool
 }
 
@@ -125,7 +126,7 @@ func valueReaderRefusalCases() []fieldTypeRefusalCase {
 		if r := fieldaccept.Refusal(op, slot, "f", ft); r != nil {
 			code = r.Code
 		}
-		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: code, ownMessage: true})
+		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: code, ownMessage: !setOperator(op)})
 	}
 	scalar := func(ft encoding.FieldType) bool { return !ft.IsVector() }
 	// A set_* column on an operator that reads a value: 19 ops x 6 rungs.
@@ -235,10 +236,67 @@ func TestFieldTypeRefusal_RuntimeRefusesPredictAgrees(t *testing.T) {
 			t.Errorf("%s x %s predict: %v, want one %s", c.op, c.ft, got, c.code)
 			continue
 		}
-		if !c.ownMessage && env.Errors[0].Message != ce.Message {
+		if c.ownMessage {
+			continue
+		}
+		if env.Errors[0].Message != ce.Message {
 			t.Errorf("%s x %s: predict message %q, runtime %q", c.op, c.ft, env.Errors[0].Message, ce.Message)
 		}
+		want, _ := json.Marshal(ce.Details)
+		have, _ := json.Marshal(env.Errors[0].Details)
+		if string(want) != string(have) {
+			t.Errorf("%s x %s: predict details %s, runtime %s", c.op, c.ft, have, want)
+		}
 	}
+}
+
+// setOperator reports whether op is one of the four set families
+// (AGG_SET_* / ATTR_SET_* / FILTER_SET_* / GROUP_SET_*), whose
+// constructors refuse a non-set column with the accepted-types table's
+// own refusal: predict and runtime agree on code, message and details.
+func setOperator(op string) bool {
+	for _, p := range []string{"AGG_SET_", "ATTR_SET_", "FILTER_SET_", "GROUP_SET_"} {
+		if strings.HasPrefix(op, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestFieldTypeRefusal_SetOpChainStageOne pins a set operator over a
+// chain stage-1 column: stage 0's AGG_SUM label is an f64 column of the
+// stage-1 cohort, so AGG_SET_UNION over it is the table's refusal,
+// located at details.stage = 1, and predict reports the identical entry
+// (code, message, details).
+func TestFieldTypeRefusal_SetOpChainStageOne(t *testing.T) {
+	t.Parallel()
+
+	p, _, cohort := acceptanceCohort(t)
+	ctx := context.Background()
+	mk := func() *pulse.ChainRequest {
+		return &pulse.ChainRequest{Cohort: &types.Cohort{Filename: cohort}, Stages: []*types.ChainStage{
+			{Name: "a", Request: &types.Request{
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}},
+			}},
+			{Name: "b", Request: &types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SET_UNION, Field: "s", Label: "u"}},
+			}},
+		}}
+	}
+	_, rerr := p.ProcessChain(ctx, mk())
+	ce := requireCode(t, rerr, errors.PULSE_FIELD_TYPE_UNSUPPORTED)
+	if ce.Details["stage"] != 1 || ce.Details["field_type"] != "f64" {
+		t.Fatalf("details = %v, want stage=1 field_type=f64", ce.Details)
+	}
+	env, err := p.PredictChain(ctx, mk())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env.Errors) != 1 {
+		t.Fatalf("predict errors = %+v, want one", env.Errors)
+	}
+	sameEntry(t, env, rerr)
 }
 
 // TestFieldTypeRefusal_SafePairsStillRun pins the other direction: the

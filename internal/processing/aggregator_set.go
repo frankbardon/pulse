@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,10 +58,23 @@ func setAggDict(agg *types.Aggregation, schema *encoding.Schema) (*encoding.Dict
 			string(agg.Type)+": unknown field "+agg.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-			string(agg.Type)+": field "+agg.Field+" is not a set type")
+		return nil, setFieldRefusal(string(agg.Type), agg.Field, f.Type)
 	}
 	return f.Dictionary, nil
+}
+
+// setFieldRefusal refuses a non-set column on a set operator
+// (AGG_SET_* / ATTR_SET_* / FILTER_SET_* / GROUP_SET_*) with the
+// accepted-types table's own refusal (fieldaccept.Refusal), so predict,
+// which reads the same table, reports the identical code, message and
+// details. A type the table does not judge (a vector, the field-
+// reference walk's refusal) keeps the plain message.
+func setFieldRefusal(op, field string, ft encoding.FieldType) error {
+	if cerr := fieldaccept.Refusal(op, fieldaccept.SlotField, field, ft); cerr != nil {
+		return cerr
+	}
+	return errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
+		op+": field "+field+" is not a set type")
 }
 
 // setMaskComponentWords projects a SetMask into the wire form the
