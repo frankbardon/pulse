@@ -1324,6 +1324,7 @@ pulse: type SynthSpec field Fields []pulse/internal/synth.FieldSpec "json:\"fiel
 pulse: type SynthSpec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse: type SynthSpec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
 pulse: type SynthSpec field PairArbitration string "json:\"pair_arbitration,omitempty\""
+pulse: type SynthSpec field PairStrengthFloor *float64 "json:\"pair_strength_floor,omitempty\""
 pulse: type SynthSpec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse: type SynthSpec field RowCount int "json:\"row_count\""
 pulse: type SynthSpec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -4662,6 +4663,7 @@ pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
 pulse/synth: type DatetimeProfile field Start string "json:\"start\""
 pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: const DefaultDisclosureSample untyped int = 10000
+pulse/synth: const DefaultPairStrengthFloor untyped float = 1/50
 pulse/synth: const DisclosureDistanceGower untyped string = "gower"
 pulse/synth: type DisclosureFidelity = pulse/internal/synth.DisclosureFidelity
 pulse/synth: type DisclosureFidelity underlying struct
@@ -5138,6 +5140,7 @@ pulse/synth: type Spec field Fields []pulse/internal/synth.FieldSpec "json:\"fie
 pulse/synth: type Spec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse/synth: type Spec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
 pulse/synth: type Spec field PairArbitration string "json:\"pair_arbitration,omitempty\""
+pulse/synth: type Spec field PairStrengthFloor *float64 "json:\"pair_strength_floor,omitempty\""
 pulse/synth: type Spec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse/synth: type Spec field RowCount int "json:\"row_count\""
 pulse/synth: type Spec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -7098,4 +7101,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 93fad56547cf9892d7e2d508e3597690ecaf240a4212f7dce57a1745ccdc6f05
+// golden-hash: c2aa0dc65f267643e65363201140a071bd16e05681068eff6f5360366f4ae1ca

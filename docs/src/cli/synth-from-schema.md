@@ -264,7 +264,13 @@ priority order. Among the pairs themselves the **strongest association**
 wins (bias-corrected Cramér's V for a categorical or set-option target,
 adjusted η² for a numeric one, which reads each category's `n`); set
 `"pair_arbitration": "declared"` at the top level of the spec to keep
-the first-declared pair instead.
+the first-declared pair instead. When even the strongest pair for a
+field measures below the noise floor — top-level `"pair_strength_floor"`,
+default `0.02` on the Cramér's V scale (an η² is compared against its
+square) — no pair carries a real association, so the first-declared one
+keeps the field and each dropped pair's warning names the floor. Set
+`"pair_strength_floor": 0` for the floorless rule; a negative value is
+refused (`SERVICE_VALIDATION`).
 
 ## Structural rules
 

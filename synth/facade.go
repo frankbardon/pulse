@@ -58,6 +58,12 @@ const (
 	PairArbitrationDeclared = isynth.PairArbitrationDeclared
 )
 
+// DefaultPairStrengthFloor is strength arbitration's noise floor when
+// Spec.PairStrengthFloor is unset, on the Cramér's V scale (a numeric
+// target's ε² is compared against its square): a contested target whose
+// strongest bidder is below it goes to the first-declared bidder.
+const DefaultPairStrengthFloor = isynth.DefaultPairStrengthFloor
+
 // Effect-size measures, as they appear on FieldEffectSize.Measure.
 const (
 	EffectMeasureCohensD  = isynth.EffectMeasureCohensD
