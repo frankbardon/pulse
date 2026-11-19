@@ -5185,12 +5185,15 @@ pulse/synth: type TargetRateLevel field SourceMean float64 "json:\"source_mean,o
 pulse/synth: type TargetRateLevel field SourceN int "json:\"source_n\""
 pulse/synth: type TargetRateLevel field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
 pulse/synth: type TargetRateLevel field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: const TimeShapeClockLocal untyped string = "local"
 pulse/synth: const TimeShapeClockUTC untyped string = "utc"
 pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
 pulse/synth: type TimeShapeFidelity underlying struct
 pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
 pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
 pulse/synth: type TimeShapeFidelity field MonthTVD float64 "json:\"month_tvd\""
+pulse/synth: type TimeShapeFidelity field TimeZone string "json:\"time_zone,omitempty\""
+pulse/synth: type TimeShapeFidelity field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
 pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
 pulse/synth: type UtilityCoefficient underlying struct
@@ -7115,4 +7118,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d25fe17fc88004b0c8c5b76b02d4d549a5d0dc773060a6da24c4cb3255b87ff1
+// golden-hash: 3cf43c5fd2779a52d88e0ac2c52d20e1bd919676fe0e6212a5229f9fb4644e98

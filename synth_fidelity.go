@@ -80,7 +80,7 @@ func writeSynthFidelityReport(ctx context.Context, fs afero.Fs, data []byte, opt
 	records := data[len(data)-r.Len():]
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
-	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
+	report := synth.BuildFidelityReportForSpec(schema, records, sourceRows, syntheticRows, runFidelityTest, spec)
 	// A flagged marginal on a field a structural rule writes names the
 	// rules: the rule pass reaches generated rows only, so the difference
 	// may be the rule's own effect. A rules-free spec adds nothing.

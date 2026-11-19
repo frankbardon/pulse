@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/synth"
@@ -63,5 +64,54 @@ func TestSynthFidelity_MonthTVDReadsTheVolumeSeries(t *testing.T) {
 	}
 	if f.Shape.MonthTVD < 0.12 || f.Shape.HourTVD > 0.05 || f.Shape.WeekdayTVD > 0.05 {
 		t.Errorf("flat twin shape = %+v, want month_tvd ≥ 0.12 with hour / weekday ≤ 0.05", f.Shape)
+	}
+}
+
+// TestSynthFidelity_ShapeReadsTheCaptureClock (#594, U76 E3-S3): a twin
+// rebuilt from a profile captured on a local clock gets its datetime
+// shape read on that clock end to end — the written report names it and
+// scores the local schedule as matched.
+func TestSynthFidelity_ShapeReadsTheCaptureClock(t *testing.T) {
+	t.Parallel()
+
+	evening := make([]any, 24)
+	for h := range evening {
+		evening[h] = 0.0
+		if h >= 20 {
+			evening[h] = 1.0
+		}
+	}
+	source := func() *synth.Spec {
+		return &synth.Spec{RowCount: 4000, Fields: []synth.FieldSpec{
+			{Name: "ts", Type: "datetime", Distribution: synth.DistUniformDateTime, Params: map[string]any{
+				"start": "2026-01-07", "end": "2026-03-24", "time_zone": "America/New_York",
+				"hour_weights": evening, "weekday_weights": []any{1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0}}},
+		}}
+	}
+	src, _, err := synth.SynthBytes(source(), synth.Options{Seed: 21})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prof, err := synth.ProfileBytes(src, synth.ProfileOptions{TimeZone: "America/New_York"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	twin, _ := synth.SpecFromProfile(prof, 4000)
+	report, raw, err := writeUtilityReport(t, source(), twin, SynthOptions{FidelityReportPath: "/report.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := fieldEntry(report, "ts")
+	if e == nil || e.Shape == nil {
+		t.Fatal("ts: no shape")
+	}
+	if e.Shape.Clock != synth.TimeShapeClockLocal || e.Shape.TimeZone != "America/New_York" {
+		t.Errorf("shape clock %q zone %q; want local America/New_York", e.Shape.Clock, e.Shape.TimeZone)
+	}
+	if e.Shape.HourTVD > 0.05 || e.Shape.WeekdayTVD > 0.05 {
+		t.Errorf("faithful local shape %+v; want hour / weekday tvd ≤ 0.05", e.Shape)
+	}
+	if !strings.Contains(string(raw), `"time_zone": "America/New_York"`) {
+		t.Errorf("written report does not name the zone")
 	}
 }

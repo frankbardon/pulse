@@ -409,15 +409,22 @@ that fits it:
 | `datetime` | `TEST_KS` over epoch seconds, plus `shape` | Cohen's d | KS and d read instants as one line; a planted schedule lives in the daily and weekly cycle |
 | `categorical_*`, `packed_bool` | `TEST_CHISQ` (contingency against `_synthetic`) | Cramér's V | for a `packed_bool` the 2x2 χ² is the two-sample proportion test, and V = \|phi\| |
 
-A `datetime` entry's `shape` is `{"clock": "utc", "hour_tvd", "weekday_tvd", "month_tvd"}`:
+A `datetime` entry's `shape` is `{"clock", "hour_tvd", "weekday_tvd", "month_tvd"}`:
 the total variation distance (0 = the same cycle, 1 = no shared bin)
 between the partitions' hour-of-day, ISO-weekday and calendar-month
 histograms (`month_tvd` reads the volume trend and season the profile's
-`months` series rebuilds as `month_weights`), read
-on the UTC clock, even when the profile was captured on a local one
-(`profile create --time-zone`, or the cohort's default zone field): both
-partitions are read on the same clock, so a twin faithful to a local
-schedule is faithful on UTC too. Measured: the same days drawn at
+`months` series rebuilds as `month_weights`), read on the clock the
+datetime was generated on — the clock its profile was captured on.
+`"clock": "utc"` when the spec field names no zone (or a UTC-equivalent
+one); `"clock": "local"` with `"time_zone"` (one fixed zone, from
+`profile create --time-zone`) or `"time_zone_field"` (each row read in
+its own zone, from `--time-zone-field` or the cohort's default zone
+field) beside it. Both partitions are read on that one clock. A reading
+whose zone cell is null has no local clock: it is left out of every bin,
+never read on UTC, and the report's `warnings` gives the source and
+synthetic counts (capture leaves the same readings out). A zone field the
+compared cohort does not carry (an `"output": false` helper) falls back
+to `utc` with a warning. Measured: the same days drawn at
 evening instead of morning hours read d = −0.06 (`very small`) and KS
 p = 0.07, with `hour_tvd` 1.0.
 

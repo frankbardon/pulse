@@ -70,9 +70,15 @@ const (
 	EffectMeasureCramersV = isynth.EffectMeasureCramersV
 )
 
-// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names: a
-// datetime field's hour-of-day and weekday bins are read in UTC.
+// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names when a
+// datetime field names no zone: its hour-of-day, weekday and month bins
+// are read in UTC.
 const TimeShapeClockUTC = isynth.TimeShapeClockUTC
+
+// TimeShapeClockLocal is the clock TimeShapeFidelity.Clock names when a
+// datetime field's spec names a zone: the bins are read in
+// TimeShapeFidelity.TimeZone, or per row in TimeShapeFidelity.TimeZoneField.
+const TimeShapeClockLocal = isynth.TimeShapeClockLocal
 
 // Utility verdicts, as they appear on TargetRateFidelity.Verdict, and
 // fit statistics, as they appear on UtilityModelFit.Statistic.
