@@ -324,7 +324,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("index"),              // BuildIndex, VerifyIndex, ListIndexes, DropIndex
 	capability("shard"),              // every shard-archive method
 	capability("import"),             // managed import pool
-	capability("export"),             // Export, Convert, ImportTransfer, ExportTransfer
+	capability("export"),             // Export, Convert, PredictExport, PredictConvert, ImportTransfer, ExportTransfer
 	capability("filter_to_file"),     // FilterToFile*
 	capability("dedup"),              // Dedup
 	capability("materialize"),        // pulse_materialize, pulse api materialize (the facade stays ungated)

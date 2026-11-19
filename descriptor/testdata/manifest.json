@@ -14535,7 +14535,7 @@
       },
       {
         "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
+        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob / ConvertJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
         "name": "lookup-formulas",
@@ -21991,4 +21991,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd0e24b7407d4872b1883ea8bb4a4c7b45dcd5c00291d34a87ddd3563dfaae99
+// golden-hash: cc2fc909294e6c83c953549add1495542b8821ade03ad98150146755d7dd77a0

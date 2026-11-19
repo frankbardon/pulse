@@ -1509,7 +1509,7 @@ func (p *Pulse) importTransfer(ctx context.Context, job *pio.TransferImportJob) 
 // as a row export refuses them (PULSE_LABEL_FIELD_UNKNOWN,
 // PULSE_LABEL_DUPLICATE_BINDING, PULSE_LABEL_FIELD_NOT_CATEGORICAL,
 // PULSE_LABEL_KEY_INVALID), against the schema convert resolves, before
-// anything is written; ConvertJob.Predict makes the same check.
+// anything is written; PredictConvert makes the same check.
 func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpConvert}, func(ctx context.Context) (*pio.ConvertReport, error) {
 		return p.convert(ctx, job)
@@ -1534,6 +1534,41 @@ func (p *Pulse) convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertR
 		job.LabelResolver = r
 	}
 	return job.Run(ctx)
+}
+
+// PredictConvert validates a conversion without writing it:
+// ConvertJob.Predict run the way Convert runs the job. When job.Labels is
+// non-empty and job.LabelResolver is nil, the resolver is built from the
+// instance's registered LabelTables first, exactly as Convert builds it —
+// so every label refusal Convert raises is raised here with the same code,
+// against the same resolved schema: PULSE_LABEL_TABLE_UNKNOWN,
+// PULSE_LABEL_FIELD_UNKNOWN, PULSE_LABEL_DUPLICATE_BINDING,
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL and PULSE_LABEL_KEY_INVALID (which
+// needs the table's entries, so a bare ConvertJob.Predict with no resolver
+// never raises it). The job's FS field is set to the instance's filesystem
+// if not already set. Nothing is written to the target. Reports as a
+// `predict` operation.
+func (p *Pulse) PredictConvert(ctx context.Context, job *pio.ConvertJob) (*pio.PredictReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpPredict}, func(ctx context.Context) (*pio.PredictReport, error) {
+		return p.predictConvert(ctx, job)
+	})
+}
+
+func (p *Pulse) predictConvert(ctx context.Context, job *pio.ConvertJob) (*pio.PredictReport, error) {
+	if job == nil {
+		return nil, argumentError("pulse: predict convert requires a job")
+	}
+	if job.FS == nil {
+		job.FS = p.fsys
+	}
+	if job.LabelResolver == nil && len(job.Labels) > 0 {
+		r, err := p.newIOLabelResolver(job.Labels)
+		if err != nil {
+			return nil, err
+		}
+		job.LabelResolver = r
+	}
+	return job.Predict(ctx)
 }
 
 // Type aliases re-exported from the imports package so embedders can

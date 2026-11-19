@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/frankbardon/pulse"
 	perrors "github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
@@ -36,6 +37,7 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 			&cli.StringFlag{Name: "zone-field", Usage: "Declare the --keep-pulse cohort's default per-row zone field (as 'import <format> --zone-field'); requires --keep-pulse — the target file carries no schema"},
+			&cli.StringSliceFlag{Name: "labels", Usage: convertLabelsFlagUsage},
 		},
 		// A --source-tz col=Zone value is one flag even when the column
 		// name carries a ','.
@@ -132,7 +134,22 @@ func ConvertCommand() *cli.Command {
 				job.Schema = schema
 			}
 
-			report, err := job.Run(ctx)
+			var report *pio.ConvertReport
+			if labelArgs := cmd.StringSlice("labels"); len(labelArgs) > 0 {
+				// As the export leaves: bindings resolve against the
+				// instance's label tables (PULSE_LABEL_TABLES_DIR loads at
+				// newPulse), so the convert runs through the facade.
+				p, perr := convertLabelsPulse(ctx, job, labelArgs)
+				if perr != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", perr)
+					}
+					return perr
+				}
+				report, err = p.Convert(ctx, job)
+			} else {
+				report, err = job.Run(ctx)
+			}
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
@@ -194,6 +211,7 @@ func convertPredictCmd() *cli.Command {
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
+			&cli.StringSliceFlag{Name: "labels", Usage: convertPredictLabelsFlagUsage},
 		},
 		DisableSliceFlagSeparator: true,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -249,7 +267,19 @@ func convertPredictCmd() *cli.Command {
 				return zerr
 			}
 
-			report, err := job.Predict(ctx)
+			var report *pio.PredictReport
+			if labelArgs := cmd.StringSlice("labels"); len(labelArgs) > 0 {
+				p, perr := convertLabelsPulse(ctx, job, labelArgs)
+				if perr != nil {
+					if jsonOut {
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", perr)
+					}
+					return perr
+				}
+				report, err = p.PredictConvert(ctx, job)
+			} else {
+				report, err = job.Predict(ctx)
+			}
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
@@ -269,4 +299,24 @@ func convertPredictCmd() *cli.Command {
 			return nil
 		},
 	}
+}
+
+// convertLabelsFlagUsage is `pulse convert --labels`: the export leaves'
+// binding, applied to the converted row stream.
+var convertLabelsFlagUsage = "Label binding on a categorical or integer-coded u4/u8/u16/u32 field of the resolved schema: " + labelBindingGrammar + ". Repeatable. Labels the converted rows (every target, .sav included); refused before anything is written with the export's codes. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."
+
+// convertPredictLabelsFlagUsage is `pulse convert predict --labels`.
+var convertPredictLabelsFlagUsage = "Label binding to check, as 'pulse convert --labels' takes it: " + labelBindingGrammar + ". Repeatable. Predicts every label refusal the convert would raise (an unregistered table, an unknown field, a field bound twice, a field neither categorical nor integer-coded u4-u32, an integer field's non-decimal table key) with its own code. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."
+
+// convertLabelsPulse parses the --labels bindings onto job and returns the
+// facade instance whose label tables resolve them. A malformed binding is
+// the caller's CLI_INPUT; an instance that cannot start returns its own
+// coded error.
+func convertLabelsPulse(ctx context.Context, job *iio.ConvertJob, labelArgs []string) (*pulse.Pulse, error) {
+	bindings, err := parseLabelBindings(labelArgs)
+	if err != nil {
+		return nil, err
+	}
+	job.Labels = bindings
+	return newPulse(ctx)
 }

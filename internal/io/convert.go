@@ -495,6 +495,10 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if err := j.checkZoneField(schema); err != nil {
 		return nil, err
 	}
+	// Run's projection refusal (PULSE_EXPORT_FIELD_UNKNOWN), in Run's order.
+	if _, err := resolveIncludeMask(schema, j.Includes); err != nil {
+		return nil, err
+	}
 
 	// Run's label-binding refusals, on the same schema and terms.
 	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil)); err != nil {

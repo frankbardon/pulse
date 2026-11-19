@@ -219,6 +219,10 @@ func obsCalls() []obsCall {
 			_, err := p.Convert(ctx, &pio.ConvertJob{Source: newMockReader([]string{"a"}, [][]string{{"1"}}), Target: wbuf()})
 			return err
 		}},
+		{"PredictConvert", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
+			_, err := p.PredictConvert(ctx, &pio.ConvertJob{Source: newMockReader([]string{"a"}, [][]string{{"1"}}), Target: wbuf()})
+			return err
+		}},
 		{"SweepImports", observe.OpImportsSweep, func(ctx context.Context, p *Pulse) error { _, err := p.SweepImports(ctx); return err }},
 		{"Drop", observe.OpDrop, func(ctx context.Context, p *Pulse) error { return p.Drop(ctx, "no-such-handle") }},
 		{"Sample", observe.OpSample, func(ctx context.Context, p *Pulse) error { _, err := p.Sample(ctx, obsCohort, 1); return err }},

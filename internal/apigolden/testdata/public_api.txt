@@ -945,6 +945,7 @@ pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Reques
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictChain(ctx context.Context, req *pulse.ChainRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse.ComposedRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictConvert(ctx context.Context, job *pulse/io.ConvertJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictEnvelope(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictExport(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
@@ -7093,4 +7094,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0c193f517b8881584d138e400e4db1c0b078d1136aa07878f69a1a3af20faa1f
+// golden-hash: d504ae80c22fe4763baa8c8f62322bd4ec5badf7eb4b478542ed6f682e89bcb7

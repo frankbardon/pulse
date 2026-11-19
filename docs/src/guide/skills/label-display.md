@@ -1,6 +1,6 @@
 ```yaml
 name: label-display
-description: Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values.
+description: Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob / ConvertJob. Display-only — filters / formulas / sort keys still see raw values.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict
@@ -33,7 +33,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 Or `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename minus `.json` = table name). Flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic and disk-loaded tables can't share a name.
 
-**Pulse's own sidecars are skipped; any other unparseable `*.json` is fatal.** `*.spss.json`, `*.meta.json` and `*.indexes.json` are skipped (a cohort directory is safe); any other unparseable `*.json` fails `pulse.New` naming the path. `PULSE_RANGE_TABLES_DIR` alike.
+Pulse's own `*.spss.json`, `*.meta.json` and `*.indexes.json` sidecars are skipped (a cohort directory is safe); **any other unparseable `*.json` fails `pulse.New`**, naming the path. `PULSE_RANGE_TABLES_DIR` alike.
 
 ### 2. Attach a binding
 
@@ -58,7 +58,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | `Process` group keys | group key → label, and every `group_key` echoing it | sibling column in each output row |
 | Crosstab matrix axes | `row_keys` / `column_keys` → label; overlay keys follow, a pairwise PAIR key rebuilt from the labelled legs | not applied: `PULSE_LABEL_NOT_APPLIED` (no sibling on a key; use `replace` or shape `long`) |
 | `ProcessChain` stages | every stage's `labels` + `Options.AutoLabels`, bar a `replace` default on a key an earlier stage replaced | every stage |
-| `Export` / `Convert` | column value → label (also a `u4`–`u32` code, as text) | extra column inserted after source |
+| `Export` / `Convert` (a converted `.sav` holds label text) | column value → label (also a `u4`–`u32` code, as text) | extra column inserted after source |
 | `.sav` export | value labels on the code (table key order; `u4`–`u32` too), cells untouched | same — [`spss-export`](spss-export.md) |
 
 Only key TEXT moves: overlay coordinates address the same host cell; no figure changes. A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
@@ -71,7 +71,7 @@ A value absent from the table falls back to the raw string (an unmatched code ke
 
 ## Validation surface
 
-Validated before any record is read or written; predict reports the same codes:
+Validated before any record is read or written; predict (`PredictConvert` too) reports the same codes:
 
 | Code | Meaning |
 |---|---|
