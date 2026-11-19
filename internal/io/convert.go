@@ -124,6 +124,11 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	if err != nil {
 		return nil, err
 	}
+	// So is the declared default zone field: it needs a cohort to ride
+	// (KeepPulseAt) and a categorical field to name.
+	if err := j.checkZoneField(schema); err != nil {
+		return nil, err
+	}
 
 	// Build dictionaries for categorical fields.
 	dicts := make(map[int]*encoding.Dictionary)
@@ -211,6 +216,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			SourceTZField:  j.SourceTZField,
 			DSTPolicy:      j.DSTPolicy,
 			StrictRows:     j.StrictRows,
+			ZoneField:      j.ZoneField,
 		}
 	}
 
@@ -367,6 +373,16 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		relayoutOffsets(schema)
 	}
 
+	// The declared zone field's dictionary — every entry the row loop
+	// interned — is judged before the intermediate is written, with the
+	// rule the intermediate's write applies (Predict probes the same
+	// entries).
+	if j.ZoneField != "" {
+		if err := zoneFieldRefusal(withZoneField(schema, j.ZoneField).ValidateZoneField()); err != nil {
+			return nil, err
+		}
+	}
+
 	// Write intermediate pulse file if requested. Its rows are the
 	// SOURCE's, imported under the convert's schema, so it can skip rows
 	// the text pass carried through; that is a drop of its own.
@@ -476,6 +492,13 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := j.checkZoneField(schema); err != nil {
+		return nil, err
+	}
+	// Run's projection refusal (PULSE_EXPORT_FIELD_UNKNOWN), in Run's order.
+	if _, err := resolveIncludeMask(schema, j.Includes); err != nil {
+		return nil, err
+	}
 
 	// Run's label-binding refusals, on the same schema and terms.
 	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil)); err != nil {
@@ -484,20 +507,24 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 
 	// Count rows. A zoned datetime cell is parsed as Run parses it, so a
 	// DST refusal Run would raise is predicted and a resolved count is
-	// reported; without a source zone no cell is read.
+	// reported; a declared zone field's cells are interned in Run's
+	// field order (a row Run drops at an earlier zoned cell interns
+	// nothing after it). Without either, no cell is read.
+	probe := newZoneFieldProbe(schema, j.ZoneField)
 	rowCount := 0
 	err = j.Source.ReadRows(ctx, func(row []string) error {
 		rowCount++
-		if zones == nil {
+		if zones == nil && probe == nil {
 			return nil
 		}
 		zones.beginRow(row)
 		for i, f := range schema.Fields {
-			if !zones.zoned(i) || f.CsvColumnIdx >= len(row) {
+			if f.CsvColumnIdx >= len(row) {
 				continue
 			}
 			raw := strings.TrimSpace(row[f.CsvColumnIdx])
-			if isNullToken(raw) {
+			probe.observe(i, raw)
+			if !zones.zoned(i) || isNullToken(raw) {
 				continue
 			}
 			if _, zerr := zones.render(i, raw, f.Name, rowCount); zerr != nil {
@@ -510,6 +537,9 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := probe.verdict(schema, j.ZoneField); err != nil {
 		return nil, err
 	}
 
@@ -555,6 +585,19 @@ func (j *ConvertJob) inferSchema() (*encoding.Schema, []InferenceWarning, error)
 		return nil, nil, err
 	}
 	return res.Schema, res.Warnings, nil
+}
+
+// checkZoneField is the declared zone field's pre-pass verdict, shared
+// by Run and Predict: refused without a KeepPulseAt cohort to ride, then
+// ImportJob's own check against the resolved schema.
+func (j *ConvertJob) checkZoneField(schema *encoding.Schema) error {
+	if j.ZoneField == "" {
+		return nil
+	}
+	if j.KeepPulseAt == "" {
+		return zoneFieldNoCohort(j.ZoneField)
+	}
+	return checkZoneField(schema, j.ZoneField)
 }
 
 func (j *ConvertJob) zoneJob() *ImportJob {

@@ -328,6 +328,7 @@ var flagValues = map[string]valueSource{
 	"disclosure-sample":  freeValue,
 	"source-tz":          freeValue,
 	"source-tz-field":    freeValue,
+	"zone-field":         freeValue,
 	"tz":                 freeValue,
 	"time-zone":          freeValue,
 	"vector":             freeValue,

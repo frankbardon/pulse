@@ -48,6 +48,7 @@ var lifecycleKinds = map[observe.OperationKind]bool{
 	observe.OpShardAdd:     true,
 	observe.OpShardRemove:  true,
 	observe.OpShardCompact: true,
+	observe.OpCohortZone:   true,
 }
 
 // durationMS renders a duration as fractional milliseconds.
@@ -256,6 +257,11 @@ func resultWarningCodes(out any) []string {
 	case *RemoveShardResult:
 		if v != nil {
 			addCohesion(v.Warnings)
+		}
+	case *CohortZoneResult:
+		if v != nil {
+			addCohesion(v.Warnings)
+			addCoded(v.SidecarWarnings)
 		}
 	case *VerifyResult:
 		if v != nil {

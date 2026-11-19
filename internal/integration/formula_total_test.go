@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/observe"
@@ -580,13 +581,20 @@ func TestFormulaTotal_ExtraPassAdvisory(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Predict: %v", err)
 			}
+			// The cohort's score is nullable, so the formula also raises
+			// PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND; only this rule's
+			// code is judged here.
 			var got []string
+			var mine []descriptor.Advisory
 			for _, a := range res.Advisories {
-				got = append(got, a.Code)
+				if a.Code == code {
+					got = append(got, a.Code)
+					mine = append(mine, a)
+				}
 			}
 			if tc.advisory {
-				if len(got) != 1 || got[0] != code || res.Advisories[0].Details["label"] != "out" ||
-					res.Advisories[0].Details["added_scans"] != 1 {
+				if len(got) != 1 || mine[0].Details["label"] != "out" ||
+					mine[0].Details["added_scans"] != 1 {
 					t.Fatalf("advisories %+v, want one %s for out adding 1 scan", res.Advisories, code)
 				}
 			} else if len(got) != 0 {

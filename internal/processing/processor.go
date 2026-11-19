@@ -1500,6 +1500,19 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 			}
 		}
 	}
+	// Under Strict a refusing attribute's warning is the run's error,
+	// read once every stage is Finalized and in DECLARED order — the
+	// buffered arm's applyAttribute check (ATTR_ZSCORE / ATTR_TSCORE /
+	// ATTR_NORMALIZED's PULSE_ATTR_ZERO_SPREAD).
+	if p.strictWeights {
+		for i := range stages {
+			if sr, ok := stages[i].row.(attributeStrictRefuser); ok {
+				if cerr := sr.strictRefusal(); cerr != nil {
+					return nil, cerr
+				}
+			}
+		}
+	}
 	iter.Reset()
 	// A stage a prepass layer needed already scored every row once:
 	// reset its own counters (attributeTallyResetter) so the emission

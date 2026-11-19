@@ -738,6 +738,17 @@ const (
 	// PROCESSING_CONFIG instead.
 	PULSE_ATTR_SCALE_OUT_OF_RANGE Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 
+	// PULSE_ATTR_ZERO_SPREAD is a runtime Response warning raised once
+	// per ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED slot whose spread
+	// (the population sd, or max − min) over the filter-passing base is
+	// exactly 0, so every row's score is 0/0 and null. details carry
+	// label, type, field, n (the contributing values), spread (stddev |
+	// range) and reason (constant | single_value | no_mass — a weighted
+	// slot whose non-null values carry no valid positive weight). An
+	// empty or all-null base does not warn. Runtime only (the spread is
+	// data); under Strict the run fails with this code instead.
+	PULSE_ATTR_ZERO_SPREAD Code = "PULSE_ATTR_ZERO_SPREAD"
+
 	// PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE is a runtime Response warning
 	// raised once per ATTR_PREVIOUS_STATE slot when a subject's records
 	// tie on the order value with DIFFERENT states, so the next time
@@ -794,6 +805,16 @@ const (
 	// the label on such rows. One per such formula; details carry the
 	// slot, the formula label, the unguarded fields and literal_nil.
 	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT Code = "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT"
+
+	// PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND is a predict advisory: an
+	// ATTR_FORMULA feeds a nullable input — a nullable schema field, or
+	// an earlier attribute's output that can be null — unguarded to an
+	// operand that rejects nil (arithmetic, an ordering compare, unary
+	// minus, an index, a nil-rejecting built-in's argument), so the run
+	// fails with an evaluation error on the first row where it is null.
+	// One per such formula; details carry the slot, the formula label,
+	// the unguarded fields and each one's operand_kind.
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND Code = "PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND"
 
 	// PULSE_ADVISORY_SERIES_AXIS_NOT_DATE is a predict advisory: a
 	// series overlay that reads its rows in order (prior, rolling,
@@ -1653,6 +1674,16 @@ const (
 	// silently is indistinguishable from a cheap append.
 	PULSE_SHARD_GROUPS_REWRITTEN Code = "PULSE_SHARD_GROUPS_REWRITTEN"
 
+	// PULSE_SHARD_ZONE_REWRITTEN is emitted as a WARNING (not an error)
+	// when `pulse cohort zone set` / `clear` (Pulse.SetCohortZoneField /
+	// ClearCohortZoneField) changes a shard ARCHIVE's default zone field:
+	// the canonical schema AND every shard payload's schema block are
+	// rewritten (records copied verbatim) and the archive is republished
+	// by one rename. Mandatory for the reason PULSE_SHARD_SET_WIDENED is:
+	// a whole-archive rewrite that happens silently is indistinguishable
+	// from a cheap schema edit.
+	PULSE_SHARD_ZONE_REWRITTEN Code = "PULSE_SHARD_ZONE_REWRITTEN"
+
 	// PULSE_SHARD_RESERVED_NAME indicates a caller attempted to insert
 	// a shard whose basename collides with the reserved canonical
 	// schema entry name (`_schema.pulse`). The reserved name is
@@ -2268,9 +2299,10 @@ const (
 	// references a schema field whose type is not one of
 	// categorical_u8 / categorical_u16 / categorical_u32. Labels
 	// translate dictionary string values; other types have no
-	// dictionary key to translate. An export or a convert also accepts an
+	// dictionary key to translate. Every surface also accepts an
 	// integer-coded u4 / u8 / u16 / u32 field, keyed by its stored
-	// integers' decimal spellings.
+	// integers' decimal spellings (a response surface in augment mode
+	// only, PULSE_LABEL_REPLACE_NUMERIC).
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
 
 	// PULSE_LABEL_TABLE_UNKNOWN indicates a LabelBinding references a
@@ -2293,12 +2325,23 @@ const (
 
 	// PULSE_LABEL_KEY_INVALID indicates a label binding on an
 	// integer-coded field (u4 / u8 / u16 / u32, on an export — `.sav` value
-	// labels or a row format's replace / augment) whose table carries a key that is not the canonical decimal spelling of a
+	// labels or a row format's replace / augment — a convert, or a response
+	// surface's augment binding) whose table carries a key that is not the canonical decimal spelling of a
 	// value the field can store (text, a leading zero, a fraction, a
 	// negative, or past the type's maximum). The stored integers are the
 	// codes, so such a key could never label a value; it is refused rather
 	// than silently dropped.
 	PULSE_LABEL_KEY_INVALID Code = "PULSE_LABEL_KEY_INVALID"
+
+	// PULSE_LABEL_REPLACE_NUMERIC indicates a replace-mode label binding
+	// (the default mode) on an integer-coded u4 / u8 / u16 / u32 field of
+	// a response surface — process, sample, facet, chain or compose. A
+	// response carries such a field as a number (a sample cell) or its
+	// decimal text (a group key); replacing it with label text would make
+	// a column of numbers and strings, so a binding on it must use augment
+	// mode, which keeps the number and adds the "<field>_label" sibling.
+	// An export or convert writes text cells and still accepts replace.
+	PULSE_LABEL_REPLACE_NUMERIC Code = "PULSE_LABEL_REPLACE_NUMERIC"
 
 	// PULSE_LABEL_TABLE_NOT_ENUMERABLE indicates a reverse lookup
 	// (ResolveLabel / pulse_label_resolve) was attempted against a
@@ -5003,6 +5046,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
 	PULSE_ATTR_SCALE_OUT_OF_RANGE,
+	PULSE_ATTR_ZERO_SPREAD,
 	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,
@@ -5011,6 +5055,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED,
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_FORMULA_NULLABLE_RESULT,
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,
@@ -5116,6 +5161,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
 	PULSE_SHARD_SET_WIDENED,
 	PULSE_SHARD_GROUPS_REWRITTEN,
+	PULSE_SHARD_ZONE_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_SHARD_COUNT_LIMIT,
@@ -5188,6 +5234,7 @@ var allCodes = []Code{
 	PULSE_LABEL_FIELD_COLLISION,
 	PULSE_LABEL_DUPLICATE_BINDING,
 	PULSE_LABEL_KEY_INVALID,
+	PULSE_LABEL_REPLACE_NUMERIC,
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,

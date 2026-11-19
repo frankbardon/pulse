@@ -78,7 +78,7 @@ func TestEnumsDistinct(t *testing.T) {
 	for _, v := range AllScopes() {
 		scopes = append(scopes, string(v))
 	}
-	check("operation kinds", ops, 41)
+	check("operation kinds", ops, 42)
 	check("phases", phases, 8)
 	check("arms", arms, 6)
 	check("scopes", scopes, 2)

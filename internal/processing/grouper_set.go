@@ -37,8 +37,7 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 			string(grp.Type)+": unknown field "+grp.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-			string(grp.Type)+": field "+grp.Field+" is not a set type")
+		return nil, setFieldRefusal(string(grp.Type), grp.Field, f.Type)
 	}
 	return f.Dictionary, nil
 }

@@ -15,10 +15,11 @@ import (
 func CohortCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "cohort",
-		Usage: "Inspect and filter .pulse cohort files",
+		Usage: "Inspect, filter and re-declare .pulse cohort files",
 		Commands: []*cli.Command{
 			cohortInspectCmd(),
 			cohortFilterCmd(),
+			cohortZoneCmd(),
 		},
 	}
 }

@@ -206,7 +206,13 @@ func (p *Pulse) rake(ctx context.Context, req *RakeRequest) (*RakeResult, error)
 	}
 	// The builder opens before any record is read, so an existing target
 	// without Overwrite (SERVICE_VALIDATION) costs no scan.
-	b, err := p.NewCohortBuilder(ctx, req.Out, encoding.Schema{Fields: fields},
+	// The source's default zone field (ZONE section) carries, unless the
+	// weight column replaced it.
+	zone := src.ZoneField
+	if replace >= 0 && src.Fields[replace].Name == zone {
+		zone = ""
+	}
+	b, err := p.NewCohortBuilder(ctx, req.Out, encoding.Schema{Fields: fields, ZoneField: zone},
 		CohortBuilderOptions{Overwrite: req.Overwrite})
 	if err != nil {
 		return nil, err

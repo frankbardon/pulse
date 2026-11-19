@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"math"
+	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
@@ -124,7 +126,7 @@ func applyLabelResolverToRows(rows []map[string]any, r *processing.LabelResolver
 			if !r.Has(field) {
 				continue
 			}
-			raw, ok := rawAsString(v)
+			raw, ok := labelKeyOf(v, r.Mode(field))
 			if !ok {
 				continue
 			}
@@ -156,6 +158,37 @@ func rawAsString(v any) (string, bool) {
 	}
 	s, ok := v.(string)
 	return s, ok
+}
+
+// labelKeyOf is the table key a bound row cell is looked up by. A
+// string — a categorical's dictionary text, or an integer-coded field's
+// group key, already its decimal spelling — is the key as is. Under
+// augment mode a whole, non-negative number is too, as its decimal
+// spelling: a sample cell of an integer-coded u4 / u8 / u16 / u32 field
+// (labelcodes; such a binding is augment-only, PULSE_LABEL_REPLACE_NUMERIC,
+// so replace never meets a number). A nil cell (null) and any other
+// value report false: no lookup, no sibling — the categorical rule.
+func labelKeyOf(v any, mode types.LabelMode) (string, bool) {
+	if s, ok := rawAsString(v); ok || mode != types.LabelModeAugment {
+		return s, ok
+	}
+	switch x := v.(type) {
+	case float64:
+		if x >= 0 && x <= 1<<53 && x == math.Trunc(x) {
+			return strconv.FormatUint(uint64(x), 10), true
+		}
+	case uint64:
+		return strconv.FormatUint(x, 10), true
+	case int64:
+		if x >= 0 {
+			return strconv.FormatInt(x, 10), true
+		}
+	case int:
+		if x >= 0 {
+			return strconv.Itoa(x), true
+		}
+	}
+	return "", false
 }
 
 // sampleOffsetLimit is the internal helper that powers Sample and the

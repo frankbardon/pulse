@@ -87,6 +87,27 @@ the same way. `shard add`, `shard create`, `shard verify`, the anchored
 `NewCohortBuilder` pre-check and the archive record reader all apply the
 one rule (`ValidateStructuralCohesion`).
 
+### Default zone field
+
+A cohort's default per-row zone field (the `0x02` ZONE schema section,
+`import --zone-field`) is archive-wide: every shard is decoded under the
+canonical schema, so every shard must declare the SAME default, or none.
+A shard that disagrees is refused by that same rule with
+`PULSE_SHARD_SCHEMA_MISMATCH` (`details.dimension: zone_field`) on
+`create`, `add`, `verify` and the builder's append pre-check — never
+adopted from either side. Every archive rewrite (`add` with a widen or a
+regroup, `remove`, `compact`, `extract`) carries it unchanged.
+
+To declare or remove the default on an existing archive, run `pulse
+cohort zone set ARCHIVE FIELD` / `pulse cohort zone clear ARCHIVE`
+(`Pulse.SetCohortZoneField` / `ClearCohortZoneField`). It rewrites the
+canonical `_schema.pulse` AND every shard payload's schema block (records
+are copied verbatim, the DIST counts carried), publishes the result by
+one rename — a failure leaves the archive byte-identical — and reports
+the mandatory `PULSE_SHARD_ZONE_REWRITTEN` warning (`shards_rewritten`)
+plus every per-shard point-lookup sidecar it staled. An anchored
+`archive#shard` path is refused: a shard cannot diverge from its archive.
+
 ### Set-width auto-widen
 
 **Two** conditions trigger it, and they compose:
@@ -419,6 +440,8 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
 | `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `internal/service/shard_compact.go` | `compact` |
+| `internal/service/cohort_zone.go` | `cohort zone set` / `clear` over an archive: canonical + every shard re-declared, `PULSE_SHARD_ZONE_REWRITTEN` |
+| `internal/encoding/zone_rewrite.go` | The schema-only zone rewrite (`SetZoneFieldBytes` / `SetZoneFieldFile`) |
 | `internal/service/index_upkeep.go` | Point-lookup index upkeep on `add` / `remove` (build before publish) |
 | `internal/encoding/archive_append.go` | The hand-written Zip64 tail writer: `ReadArchiveDirectory`, `ArchiveAppender` |
 | `internal/service/shard_append.go` | The in-place tail append of an ordinary `add` |

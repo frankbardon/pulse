@@ -40,6 +40,8 @@ Gates: `TestComposePredict_SlotBodyMatchesRuntime`, `TestComposePredict_HiddenSl
 
 ## Suggested weight — sidecar metadata, never records
 
+`InspectResult.ZoneField` (`zone_field`, additive `omitempty`) is the cohort's declared default zone field (`encoding.Schema.ZoneField`), copied from the schema block on both the single-file and the archive arm — no record is read; zone resolution: `execution-modes/per-row-zones.md`. Gate: `TestTimeZoneCohort_InspectShowsDefault`.
+
 `InspectResult.SuggestedWeight` / `PredictResult.SuggestedWeight` (`suggested_weight {field, source: "spss_sidecar", kind: "probability"}`, additive `omitempty`) name the weighting variable the cohort's SPSS metadata sidecar (`cohort.pulse.spss.json`, `payload.weight.variable`) records. Contract: `.claude/reference/weighting.md` (SPSS suggestion).
 
 - **Who reads what.** The FACADE reads the sidecar — `Pulse.sidecarWeightVariable` (root `weight_suggest.go`) through `spss.LoadSidecar` on the instance `afero.Fs` — and hands the variable NAME down: `descx.InspectWith(rs, opts, InspectMetadata{WeightVariable, Instance})` for inspect, `PredictOptions.SuggestedWeightVariable` for predict. `internal/descriptor` never opens a file, so `TestPredictNoExecutionImports` and "predict.go reads only header + schema" both hold. The one judgement is `descx.SuggestWeight(schema, variable, inst)`: nil unless the variable is a column of the schema just read (the canonical schema for an archive; the COHORT schema, not a joined one, for predict) of a weight-capable type (`IsWeightFieldType`) and the instance offers `capability:weighting`.

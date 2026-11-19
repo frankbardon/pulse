@@ -37,6 +37,8 @@ type CohesionWarning struct {
 //   - Vector dim, for a vec_f32 / vec_f64 field (the element type is
 //     the type byte). The dim decides the stride but is not in the type
 //     byte, so a trailing vector's dim mismatch is caught nowhere else.
+//   - The default zone field (Schema.ZoneField, details.dimension
+//     "zone_field"): equal on both sides, "" included.
 //   - Nullable, one-directionally (details.dimension "nullable"; see
 //     nullabilityCohesion): a non-nullable canonical field refuses a
 //     nullable incoming one, and a nullable canonical field admits a
@@ -65,6 +67,22 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 			map[string]any{
 				"canonical_field_count": len(canonical.Fields),
 				"incoming_field_count":  len(incoming.Fields),
+			})
+	}
+
+	// The cohort default zone field (ZONE section) is archive-wide: every
+	// shard is read under the canonical schema, so a shard declaring
+	// another default (or none, against a declared one) would have its
+	// datetime rows resolved in zones it never declared. Refused, never
+	// adopted from either side.
+	if canonical.ZoneField != incoming.ZoneField {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
+			fmt.Sprintf("default zone field differs: canonical=%q, incoming=%q (every shard of an archive must declare the same default; set it on the shard with `pulse cohort zone set` or clear it with `pulse cohort zone clear` first)",
+				canonical.ZoneField, incoming.ZoneField),
+			map[string]any{
+				"dimension":            "zone_field",
+				"canonical_zone_field": canonical.ZoneField,
+				"incoming_zone_field":  incoming.ZoneField,
 			})
 	}
 
@@ -797,7 +815,7 @@ func cloneSchema(s *encoding.Schema) *encoding.Schema {
 	if s == nil {
 		return nil
 	}
-	out := &encoding.Schema{Fields: make([]encoding.Field, len(s.Fields))}
+	out := &encoding.Schema{Fields: make([]encoding.Field, len(s.Fields)), ZoneField: s.ZoneField}
 	for i, f := range s.Fields {
 		out.Fields[i] = f
 		if f.Dictionary != nil {
@@ -820,7 +838,7 @@ func cloneSchema(s *encoding.Schema) *encoding.Schema {
 // are cloned as cloneSchema clones them (they are small and a caller
 // may mutate them).
 func shareSchema(s *encoding.Schema) *encoding.Schema {
-	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...)}
+	out := &encoding.Schema{Fields: append([]encoding.Field(nil), s.Fields...), ZoneField: s.ZoneField}
 	out.Groups = cloneGroups(s.Groups)
 	out.Vectors = CloneVectors(s.Vectors)
 	return out

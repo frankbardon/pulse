@@ -28,8 +28,9 @@ import (
 // without another header version. A tag appearing twice, reserved bits
 // set, or a payload not consumed exactly are all ENCODING_INVALID.
 //
-// Two sections are defined, both always REQUIRED and written in tag
-// order: tag 1 GROUPS (below) and tag 2 VECTORS (vector.go).
+// Three sections are defined, all always REQUIRED and written in tag
+// order: tag 1 GROUPS (below), tag 2 VECTORS (vector.go) and tag 3 ZONE
+// (zone.go).
 //
 // Section tag 1, GROUPS (always REQUIRED):
 //
@@ -59,13 +60,16 @@ const (
 
 // writeSchemaExtension writes the 0x02 extension block for s: one
 // section per 0x02 feature the schema uses, emitted in ascending tag
-// order (GROUPS = 1, VECTORS = 2), so the bytes are a function of the
+// order (GROUPS = 1, VECTORS = 2, ZONE = 3), so the bytes are a function of the
 // schema's content alone.
 func writeSchemaExtension(w io.Writer, s *Schema) error {
 	if err := s.ValidateVectors(); err != nil {
 		return err
 	}
 	if err := s.ValidateGroups(); err != nil {
+		return err
+	}
+	if err := s.ValidateZoneField(); err != nil {
 		return err
 	}
 	type section struct {
@@ -81,6 +85,11 @@ func writeSchemaExtension(w io.Writer, s *Schema) error {
 	if s.HasVectors() {
 		sec := &section{tag: sectionTagVectors}
 		writeVectorsSection(&sec.body, s)
+		secs = append(secs, sec)
+	}
+	if s.HasZoneField() {
+		sec := &section{tag: sectionTagZone}
+		writeZoneSection(&sec.body, s)
 		secs = append(secs, sec)
 	}
 	le := binary.LittleEndian
@@ -231,7 +240,8 @@ func (x *extReader) skipN(n uint64, what string) error {
 const exactAllocLimit = 64 << 20
 
 // readSchemaExtension reads the 0x02 extension block into s and
-// validates the resulting vectors and groups against s.Fields.
+// validates the resulting vectors, default zone field and groups
+// against s.Fields.
 //
 // Order matters and is NOT the disk order: a group's entry width is a
 // sum of its members' FieldWidth, and a vector member's width needs its
@@ -303,6 +313,10 @@ func readSchemaExtension(r io.Reader, s *Schema, layoutOnly bool) error {
 			if err := readVectorsSection(sec, s); err != nil {
 				return err
 			}
+		case sectionTagZone:
+			if err := readZoneSection(sec, s); err != nil {
+				return err
+			}
 		default:
 			if flags&sectionFlagRequired != 0 {
 				return errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
@@ -325,6 +339,11 @@ func readSchemaExtension(r io.Reader, s *Schema, layoutOnly bool) error {
 			map[string]any{"extension_length": extLen, "trailing": lr.N, "version": FormatVersionV2})
 	}
 	if err := s.ValidateVectors(); err != nil {
+		return err
+	}
+	// A layout-only read skipped the dictionaries, so it checks the
+	// default zone field's shape but not its entries.
+	if err := s.validateZoneField(!layoutOnly); err != nil {
 		return err
 	}
 	for g, ew := range declaredWidths {

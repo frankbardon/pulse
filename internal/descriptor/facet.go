@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
@@ -368,8 +369,11 @@ func ValidateFacetFromBytes(data []byte, req *types.FacetRequest) *descriptor.En
 // that order. Predict adds them to the envelope; the runtime
 // (service.facetSchema) appends them to FacetResult.Warnings as coded
 // entries, so the two sides carry the same count, wording and details.
+//
+// A labelled integer-coded field (FacetCodedField) is tallied as
+// discrete codes, so it is non-numeric here.
 func FacetNotMeaningfulWarnings(req *types.FacetRequest, f *encoding.Field) []descriptor.EnvelopeEntry {
-	if req == nil || f == nil || facetIsNumeric(f.Type) {
+	if req == nil || f == nil || (facetIsNumeric(f.Type) && !FacetCodedField(req, f)) {
 		return nil
 	}
 	var out []descriptor.EnvelopeEntry
@@ -387,6 +391,32 @@ func FacetNotMeaningfulWarnings(req *types.FacetRequest, f *encoding.Field) []de
 		add("include_histogram")
 	}
 	return out
+}
+
+// FacetCodedField reports whether a rich facet tallies f as discrete
+// per-code counts rather than a numeric summary: f is an integer-coded
+// field (u4 / u8 / u16 / u32, labelcodes.CodeMax) and an augment-mode
+// label binding of req names it. Each stored integer is then one
+// discrete value (its decimal spelling), counted, ordered and capped by
+// the categorical rules (discrete_top_k, Options.Limits.MaxGroups), and
+// the binding's "<field>_label" sibling FacetField carries the labels.
+// Without such a binding the field keeps its numeric summary,
+// byte-identically. The one rule predict (FacetNotMeaningfulWarnings,
+// FacetGroupBound, the overlay host-arm gate) and the runtime
+// accumulator choice (service.facetSchema) share.
+func FacetCodedField(req *types.FacetRequest, f *encoding.Field) bool {
+	if req == nil || f == nil || len(req.Labels) == 0 {
+		return false
+	}
+	if _, ok := labelcodes.CodeMax(f.Type); !ok {
+		return false
+	}
+	for _, b := range req.Labels {
+		if b != nil && b.Field == f.Name && b.LabelModeOrDefault() == types.LabelModeAugment {
+			return true
+		}
+	}
+	return false
 }
 
 func facetIsNumeric(t encoding.FieldType) bool {

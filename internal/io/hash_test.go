@@ -219,6 +219,11 @@ func TestConvertJob_Hash_SourceZoneParticipates(t *testing.T) {
 		"column_source_tz": func(j *ConvertJob) { j.ColumnSourceTZ = map[string]string{"t": "Asia/Tokyo"} },
 		"source_tz_field":  func(j *ConvertJob) { j.SourceTZField = "zone" },
 		"dst_policy":       func(j *ConvertJob) { j.DSTPolicy = DSTPolicyLater },
+		// The same column name as source_tz_field above, in the other
+		// slot: declaring the cohort default is not reading the source
+		// in the column's zones, so the two must not collide.
+		"zone_field":       func(j *ConvertJob) { j.ZoneField = "zone" },
+		"zone_field_other": func(j *ConvertJob) { j.ZoneField = "site_zone" },
 	} {
 		j := &ConvertJob{KeepPulseAt: "k.pulse", Includes: []string{"x"}}
 		set(j)

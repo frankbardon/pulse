@@ -146,6 +146,12 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A declared default zone field must name a categorical field of the
+	// resolved schema; its dictionary is judged again at write time,
+	// once the full pass has built it.
+	if err := checkZoneField(schema, j.ZoneField); err != nil {
+		return nil, err
+	}
 
 	// Parent-group declarations are checked against the resolved schema
 	// BEFORE the row pass, so a typo'd field name or a field claimed by
@@ -336,7 +342,10 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// applied) and the records. No record count prefix — the format is
 	// header + schema + records per §5.3. Record count is derived from file
 	// size and per-record byte size.
-	elision, written, err := writeCohortPayload(&buf, schema, recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants, specs)
+	// The declared default zone field rides the written schema only (a
+	// copy): the encoder validates its dictionary — the full pass's —
+	// before a byte is written.
+	elision, written, err := writeCohortPayload(&buf, withZoneField(schema, j.ZoneField), recordsBuf.Bytes(), bitmapBuf.Bytes(), fullBitmapSize, rowsImported, j.ElideConstants, specs)
 	if err != nil {
 		return nil, withSourceRow(err, rowErrors)
 	}
@@ -459,6 +468,7 @@ func writeCohortPayload(buf *bytes.Buffer, schema *encoding.Schema, recs, bms []
 		}
 	}
 	grouped := enc.Schema()
+	grouped.ZoneField = schema.ZoneField
 	if err := encx.WritePreamble(buf, grouped); err != nil {
 		return nil, nil, err
 	}
@@ -562,6 +572,11 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	// Source zones: the same verdict Run reaches before its row pass.
 	zones, err := j.resolveSourceZones(schema)
 	if err != nil {
+		return nil, err
+	}
+	// The declared default zone field: Run's pre-pass verdict here, its
+	// write-time dictionary verdict on the measured pass (measuring).
+	if err := checkZoneField(schema, j.ZoneField); err != nil {
 		return nil, err
 	}
 

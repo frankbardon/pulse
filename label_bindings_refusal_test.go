@@ -93,11 +93,21 @@ func TestExport_RowLabelBindingShapeRefusals(t *testing.T) {
 // date.
 const labelConvertSource = "region,n,score,day\nNE,1,1.5,2024-01-01\nSO,2,2.5,2024-01-02\nWE,7,3.5,2024-01-03\n"
 
+// convertMode picks how convertWithLabels drives the job: the Convert
+// facade, the PredictConvert facade (which builds Convert's resolver), or a
+// bare ConvertJob.Predict with no resolver.
+type convertMode int
+
+const (
+	convertRun convertMode = iota
+	convertPredictFacade
+	convertPredictBare
+)
+
 // convertWithLabels runs a CSV-to-CSV convert of labelConvertSource with
-// the bindings. predict runs ConvertJob.Predict instead: Convert has no
-// predict facade, so withResolver hands it the resolver Convert builds;
-// without one only the refusals that need no table entries can fire.
-func convertWithLabels(t *testing.T, p *Pulse, schema *encoding.Schema, predict, withResolver bool, bindings []types.LabelBinding) (pio.BufferWriter, error) {
+// the bindings and projection, in the given mode. The report is a
+// *pio.ConvertReport for convertRun and a *pio.PredictReport otherwise.
+func convertWithLabels(t *testing.T, p *Pulse, schema *encoding.Schema, mode convertMode, includes []string, bindings []types.LabelBinding) (pio.BufferWriter, any, error) {
 	t.Helper()
 	r, err := pio.NewReaderFromBytes(pio.FormatCSV, []byte(labelConvertSource), pio.ReaderOptions{})
 	if err != nil {
@@ -109,29 +119,29 @@ func convertWithLabels(t *testing.T, p *Pulse, schema *encoding.Schema, predict,
 	}
 	j := iio.NewConvertJob(r, w)
 	j.Schema = schema
+	j.Includes = includes
 	for i := range bindings {
 		b := bindings[i]
 		j.Labels = append(j.Labels, &b)
 	}
-	if !predict {
-		_, err = p.Convert(context.Background(), j)
-		return w, err
+	switch mode {
+	case convertRun:
+		rep, err := p.Convert(context.Background(), j)
+		return w, rep, err
+	case convertPredictFacade:
+		rep, err := p.PredictConvert(context.Background(), j)
+		return w, rep, err
+	default:
+		rep, err := j.Predict(context.Background())
+		return w, rep, err
 	}
-	if withResolver {
-		res, rerr := p.newIOLabelResolver(j.Labels)
-		if rerr != nil {
-			return w, rerr
-		}
-		j.LabelResolver = res
-	}
-	_, err = j.Predict(context.Background())
-	return w, err
 }
 
 // TestConvert_LabelBindingRefusalsMatchExport: a convert's label bindings
 // are checked against the schema convert resolves (inferred or declared)
-// with the row export's rules and codes, before a byte is written — in
-// Run and in Predict alike. A valid categorical or integer-coded binding
+// with the row export's rules and codes, before a byte is written — and
+// PredictConvert raises every code Convert does, the unregistered table and
+// the unknown projection field included, then reports Convert's figures. A valid categorical or integer-coded binding
 // converts exactly as before.
 func TestConvert_LabelBindingRefusalsMatchExport(t *testing.T) {
 	t.Parallel()
@@ -146,25 +156,30 @@ func TestConvert_LabelBindingRefusalsMatchExport(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		schema   *encoding.Schema
+		includes []string
 		bindings []types.LabelBinding
 		want     perrors.Code
 	}{
-		{"categorical", nil, []types.LabelBinding{{Field: "region", Table: "regions"}}, ""},
-		{"integer coded", nil, []types.LabelBinding{{Field: "n", Table: "counts", Mode: types.LabelModeAugment}}, ""},
-		{"float", nil, []types.LabelBinding{{Field: "score", Table: "floats"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
-		{"date", nil, []types.LabelBinding{{Field: "day", Table: "counts"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
-		{"integer coded text keys", nil, []types.LabelBinding{{Field: "n", Table: "regions"}}, perrors.PULSE_LABEL_KEY_INVALID},
-		{"integer coded leading zero", nil, []types.LabelBinding{{Field: "n", Table: "padded"}}, perrors.PULSE_LABEL_KEY_INVALID},
+		{"categorical", nil, nil, []types.LabelBinding{{Field: "region", Table: "regions"}}, ""},
+		{"integer coded", nil, nil, []types.LabelBinding{{Field: "n", Table: "counts", Mode: types.LabelModeAugment}}, ""},
+		{"float", nil, nil, []types.LabelBinding{{Field: "score", Table: "floats"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
+		{"date", nil, nil, []types.LabelBinding{{Field: "day", Table: "counts"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
+		{"integer coded text keys", nil, nil, []types.LabelBinding{{Field: "n", Table: "regions"}}, perrors.PULSE_LABEL_KEY_INVALID},
+		{"integer coded leading zero", nil, nil, []types.LabelBinding{{Field: "n", Table: "padded"}}, perrors.PULSE_LABEL_KEY_INVALID},
 		// An inferred integer may promote past its sampled width in the
 		// row pass, so its keys are bounded by u32, the widest coded type.
-		{"inferred integer past its sampled width", nil, []types.LabelBinding{{Field: "n", Table: "wide"}}, ""},
-		{"declared integer past the type", declared, []types.LabelBinding{{Field: "n", Table: "wide"}}, perrors.PULSE_LABEL_KEY_INVALID},
-		{"declared float", declared, []types.LabelBinding{{Field: "score", Table: "floats"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
-		{"unknown field", nil, []types.LabelBinding{{Field: "nope", Table: "regions"}}, perrors.PULSE_LABEL_FIELD_UNKNOWN},
-		{"duplicate", nil, []types.LabelBinding{{Field: "region", Table: "regions"}, {Field: "region", Table: "regions"}}, perrors.PULSE_LABEL_DUPLICATE_BINDING},
+		{"inferred integer past its sampled width", nil, nil, []types.LabelBinding{{Field: "n", Table: "wide"}}, ""},
+		{"declared integer past the type", declared, nil, []types.LabelBinding{{Field: "n", Table: "wide"}}, perrors.PULSE_LABEL_KEY_INVALID},
+		{"declared float", declared, nil, []types.LabelBinding{{Field: "score", Table: "floats"}}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
+		{"unknown field", nil, nil, []types.LabelBinding{{Field: "nope", Table: "regions"}}, perrors.PULSE_LABEL_FIELD_UNKNOWN},
+		{"duplicate", nil, nil, []types.LabelBinding{{Field: "region", Table: "regions"}, {Field: "region", Table: "regions"}}, perrors.PULSE_LABEL_DUPLICATE_BINDING},
+		{"table unknown", nil, nil, []types.LabelBinding{{Field: "region", Table: "no_such_table"}}, perrors.PULSE_LABEL_TABLE_UNKNOWN},
+		{"table unknown beside an unknown field", nil, nil, []types.LabelBinding{{Field: "nope", Table: "no_such_table"}}, perrors.PULSE_LABEL_TABLE_UNKNOWN},
+		{"include unknown", nil, []string{"nope"}, nil, perrors.PULSE_EXPORT_FIELD_UNKNOWN},
+		{"include unknown before a bad binding", nil, []string{"nope"}, []types.LabelBinding{{Field: "score", Table: "floats"}}, perrors.PULSE_EXPORT_FIELD_UNKNOWN},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w, err := convertWithLabels(t, p, tc.schema, false, false, tc.bindings)
+			w, _, err := convertWithLabels(t, p, tc.schema, convertRun, tc.includes, tc.bindings)
 			if got := labelRefusalCode(err); got != tc.want {
 				t.Fatalf("Convert code = %q, want %q", got, tc.want)
 			}
@@ -174,17 +189,23 @@ func TestConvert_LabelBindingRefusalsMatchExport(t *testing.T) {
 					t.Errorf("a refused convert wrote %q", w.Bytes())
 				}
 			}
-			_, err = convertWithLabels(t, p, tc.schema, true, true, tc.bindings)
+			_, _, err = convertWithLabels(t, p, tc.schema, convertPredictFacade, tc.includes, tc.bindings)
 			if got := labelRefusalCode(err); got != tc.want {
-				t.Errorf("ConvertJob.Predict code = %q, want %q", got, tc.want)
+				t.Errorf("PredictConvert code = %q, want %q", got, tc.want)
 			}
 			// With no resolver, every refusal but a key's (which needs the
-			// table's entries) is still raised from the bindings alone.
+			// table's entries) or a table's (which needs the resolver
+			// build) is still raised from the bindings alone.
 			want := tc.want
-			if want == perrors.PULSE_LABEL_KEY_INVALID {
+			switch {
+			case want == perrors.PULSE_LABEL_KEY_INVALID:
+				want = ""
+			case want == perrors.PULSE_LABEL_TABLE_UNKNOWN && tc.bindings[0].Field == "nope":
+				want = perrors.PULSE_LABEL_FIELD_UNKNOWN
+			case want == perrors.PULSE_LABEL_TABLE_UNKNOWN:
 				want = ""
 			}
-			_, err = convertWithLabels(t, p, tc.schema, true, false, tc.bindings)
+			_, _, err = convertWithLabels(t, p, tc.schema, convertPredictBare, tc.includes, tc.bindings)
 			if got := labelRefusalCode(err); got != want {
 				t.Errorf("ConvertJob.Predict (no resolver) code = %q, want %q", got, want)
 			}
@@ -192,9 +213,28 @@ func TestConvert_LabelBindingRefusalsMatchExport(t *testing.T) {
 	}
 
 	// A valid binding converts byte for byte as before.
-	w, err := convertWithLabels(t, p, nil, false, false, []types.LabelBinding{{Field: "region", Table: "regions"}, {Field: "n", Table: "counts", Mode: types.LabelModeAugment}})
+	valid := []types.LabelBinding{{Field: "region", Table: "regions"}, {Field: "n", Table: "counts", Mode: types.LabelModeAugment}}
+	w, run, err := convertWithLabels(t, p, nil, convertRun, nil, valid)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// PredictConvert reports the figures the run produces: the resolved
+	// schema and the row count.
+	_, pred, err := convertWithLabels(t, p, nil, convertPredictFacade, nil, valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr, pr := run.(*pio.ConvertReport), pred.(*pio.PredictReport)
+	if pr.EstimatedRows != rr.RowsConverted {
+		t.Errorf("PredictConvert EstimatedRows = %d, Convert RowsConverted = %d", pr.EstimatedRows, rr.RowsConverted)
+	}
+	if len(pr.Schema.Fields) != len(rr.Schema.Fields) {
+		t.Fatalf("PredictConvert schema has %d fields, Convert %d", len(pr.Schema.Fields), len(rr.Schema.Fields))
+	}
+	for i := range pr.Schema.Fields {
+		if pf, rf := pr.Schema.Fields[i], rr.Schema.Fields[i]; pf.Name != rf.Name || pf.Type != rf.Type {
+			t.Errorf("field %d: PredictConvert %s %s, Convert %s %s", i, pf.Name, pf.Type, rf.Name, rf.Type)
+		}
 	}
 	if err := w.Close(); err != nil {
 		t.Fatal(err)

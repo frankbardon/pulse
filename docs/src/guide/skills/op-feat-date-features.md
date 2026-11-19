@@ -58,7 +58,7 @@ Columns prefixed by `Label` (default the field name):
 - `dow` is ISO (`6` = Saturday, `7` = Sunday; formerly `0` = Sunday) of the LOCAL day; ignores `week_start`.
 - Local Saturdays out: `FILTER_EXCLUDE` on `<prefix>_dow` `["6"]`; with `tz_field` each row reads its own zone.
 - Suffixes are `dow` / `quarter` (not `day_of_week` / `is_weekend`).
-- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → default → UTC). A `date` ignores zones (explicit refused).
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → cohort default field → default → UTC). A `date` ignores zones (explicit refused).
 
 ## See
 

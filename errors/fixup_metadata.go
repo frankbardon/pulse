@@ -1222,6 +1222,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ATTR_ZERO_SPREAD: {
+		Message: "A scoring attribute's spread (population standard deviation, or max − min) over its base is zero — a constant field, a single contributing value, or no weighted mass — so every row's score is 0/0 and null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Field"},
+				Hint:   "Score a field that varies over the filtered base, widen the filters so more than one value contributes, or check the weight field (details.reason no_mass: no non-null value carries a valid positive weight). details.n counts the contributing values, details.spread names stddev or range.",
+			},
+		},
+	},
 	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE: {
 		Message: "An ATTR_PREVIOUS_STATE subject has two or more records at one time point (the same order value) carrying different states, so its next time point has no single previous state; those records are null, never a guessed order.",
 		Fixups: []Fixup{
@@ -1300,6 +1310,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Attributes", "*", "Expression"},
 				Hint:   "No change is needed when a null is the right answer for those rows. To give every row a number, guard each field in details.fields with field ?? 0 or a field == nil ? 0 : field ternary, and replace a literal nil branch with a number.",
+			},
+		},
+	},
+	PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND: {
+		Message: "An ATTR_FORMULA feeds a nullable input, with no guard, to an operand that cannot take nil (arithmetic, an ordering comparison, unary minus, an index or a nil-rejecting function), so the run fails with an evaluation error on the first row where it is null; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Attributes", "*", "Expression"},
+				Hint:   "Guard each field in details.fields with field ?? 0, a field != nil ? ... : ... ternary or a field != nil && ... short-circuit, or filter the null rows out before the formula runs.",
 			},
 		},
 	},
@@ -2434,6 +2454,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_ZONE_REWRITTEN: {
+		Message: "A `pulse cohort zone set` / `clear` on a shard archive rewrote the canonical `_schema.pulse` and every shard payload's schema block to declare the new default zone field (details.zone_field, details.previous_zone_field, details.shards_rewritten); records were copied verbatim and the archive was republished atomically. The archive is correct; the warning exists because a whole-archive rewrite must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed. Rebuild any point-lookup index the result lists under invalidated_sidecars (`pulse index build`). To avoid the rewrite, declare the default at import (`--zone-field`) on every shard before `pulse shard create`.",
+			},
+		},
+	},
 	PULSE_SHARD_RESERVED_NAME: {
 		Message: "Cannot insert a shard whose basename collides with the reserved canonical schema entry (`_schema.pulse`); the reserved name is addressable only through the archive's canonical-schema channel.",
 		Fixups: []Fixup{
@@ -3332,12 +3361,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) or a convert also accepts an integer-coded u4 / u8 / u16 / u32 field.",
+		Message: "A LabelBinding references a field that is neither categorical nor integer-coded. Labels translate dictionary string values, or the decimal spellings of an integer-coded u4 / u8 / u16 / u32 field's codes; floats, u64, dates and the other types have no stable key to translate.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export or convert, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field or a u4 / u8 / u16 / u32 code field. For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
 	},
@@ -3373,12 +3402,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_KEY_INVALID: {
-		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format or a convert) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format, a convert or a response surface) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Table"},
 				Hint:   "Bind a table keyed by the field's stored integers in plain decimal (\"1\", \"7\" — no leading zeros, signs or fractions, within the type's range); details carry the offending key and the field's maximum.",
+			},
+		},
+	},
+	PULSE_LABEL_REPLACE_NUMERIC: {
+		Message: "A replace-mode label binding (the default mode) names an integer-coded u4 / u8 / u16 / u32 field on a response surface (process, sample, facet, chain, compose); replacing the field's numbers with label text would make a column of numbers and strings, so such a binding is augment-only.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Mode"},
+				Hint:   "Set mode \"augment\": the numeric value stays and a \"<field>_label\" string column carries the label (null on a code the table lacks).",
 			},
 		},
 	},

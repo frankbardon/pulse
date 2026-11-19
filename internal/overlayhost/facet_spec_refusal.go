@@ -71,3 +71,43 @@ func FacetSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index in
 // facetWeightReason is why a FACET-host overlay refuses a set weight
 // (PULSE_WEIGHT_UNSUPPORTED details.reason).
 const facetWeightReason = "a facet is never weighted — its host distribution and the population it is compared against are unweighted counts — so set \"weight\": null or drop the key"
+
+// FacetHostArmRefusal is the per-kind host-arm gate of a FACET-host
+// spec, shared by predict (descriptor.validateFacetOverlayHostArm, from
+// the schema) and the runtime FACET loop (service.applyFacetOverlays,
+// from the finalised host entry), both right after the host field
+// resolves and before any population work, so both raise the same code,
+// message and details. discrete is the host field's tallied shape;
+// coded marks an integer-coded field a label binding turned discrete
+// (descriptor.FacetCodedField), named in the message and details. nil
+// when the kind reads the shape:
+//
+//   - OVERLAY_CHISQ_VS_POP needs a discrete host (χ² goodness-of-fit
+//     over buckets) — a labelled integer-coded field is one;
+//   - OVERLAY_KS_VS_POP needs a numeric host (an ordered CDF) — a
+//     labelled integer-coded field is not one: its numeric summary is
+//     gone;
+//   - OVERLAY_INDEX_VS_POP / OVERLAY_ZSCORE_VS_POP read either.
+//
+// Both refusals are PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE
+// {index, kind, field, type} (+ "label_coded": true when coded).
+func FacetHostArmRefusal(kind types.OverlayKind, field, typeName string, discrete, coded bool, index int) *errors.CodedError {
+	var msg string
+	switch {
+	case kind == types.OverlayKindChiSqVsPop && !discrete:
+		msg = "overlay " + string(kind) + " requires a discrete host field; got numeric field " + field + " (" + typeName + ")"
+	case kind == types.OverlayKindKSVsPop && discrete:
+		msg = "overlay " + string(kind) + " requires a numeric host field; got non-numeric field " + field + " (" + typeName + ")"
+		if coded {
+			msg = "overlay " + string(kind) + " requires a numeric host field; field " + field + " (" + typeName +
+				") is tallied as discrete codes because an augment label binding names it — drop the binding to compare its numeric distribution"
+		}
+	default:
+		return nil
+	}
+	details := map[string]any{"index": index, "kind": string(kind), "field": field, "type": typeName}
+	if coded {
+		details["label_coded"] = true
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, msg, details)
+}

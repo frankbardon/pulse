@@ -49,9 +49,10 @@ type MaterializeGroups struct {
 // MaterializeOutputSchema is the flat (ungrouped) schema a materialize
 // run hands its cohort writer over layout: the layout's fields in output
 // order, each kept vec_* source field's VECTORS entry (dim, kind, scale,
-// labels) re-indexed to its output position. schema is the source's.
+// labels) re-indexed to its output position, and the source's default
+// zone field (MaterializeZoneField). schema is the source's.
 func MaterializeOutputSchema(schema *encoding.Schema, layout []MaterializeOutputField) *encoding.Schema {
-	out := &encoding.Schema{Fields: make([]encoding.Field, len(layout))}
+	out := &encoding.Schema{Fields: make([]encoding.Field, len(layout)), ZoneField: MaterializeZoneField(schema, layout)}
 	for i, col := range layout {
 		out.Fields[i] = col.Field
 		if col.Source >= 0 && col.Field.Type.IsVector() && schema != nil {
@@ -59,6 +60,40 @@ func MaterializeOutputSchema(schema *encoding.Schema, layout []MaterializeOutput
 				v.FieldIndex = i
 				out.Vectors = append(out.Vectors, v)
 			}
+		}
+	}
+	return out
+}
+
+// MaterializeZoneField is the default zone field (the ZONE section) the
+// cohort a materialize run writes over layout declares: the source's,
+// following its column — the output name of the column that COPIES the
+// source's zone field verbatim (not rebuilt by a cast, recode or bucket;
+// of several copies, the one keeping the source's name, else the first).
+// "" when the source declares none or no column copies it: the default
+// cannot outlive its column, and a rebuilt column's values are no longer
+// the source's zones.
+func MaterializeZoneField(schema *encoding.Schema, layout []MaterializeOutputField) string {
+	if schema == nil || schema.ZoneField == "" {
+		return ""
+	}
+	src := -1
+	for i := range schema.Fields {
+		if schema.Fields[i].Name == schema.ZoneField {
+			src = i
+			break
+		}
+	}
+	out := ""
+	for _, col := range layout {
+		if col.Source != src || src < 0 || col.Rebuild || col.Cast != nil || col.Recode != nil || col.Bucket != nil {
+			continue
+		}
+		if col.Field.Name == schema.ZoneField {
+			return col.Field.Name
+		}
+		if out == "" {
+			out = col.Field.Name
 		}
 	}
 	return out

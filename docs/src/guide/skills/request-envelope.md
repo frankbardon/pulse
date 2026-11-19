@@ -94,13 +94,13 @@ Never override explicit `type` or cross categories; tests / filterers / attrs / 
 
 `time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
-Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
+Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → cohort `zone_field` → `Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
 
 On a `datetime` field instants read on their local day. Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; explicit `tz` on a `date` field (even `"UTC"`); a non-UTC zone on a derived field. An inherited zone on a `date` field is not applied. UTC is byte-identical to no zone.
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, `weights` / `suggested_weight` ([`weighting`](weighting.md)), `resolved_vectors`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default|field`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
+`streamable`, `streamable_reasons`, `defaults_applied`, `weights` / `suggested_weight` ([`weighting`](weighting.md)), `resolved_vectors`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, tz_field, source}`; [`time-zones`](time-zones.md)), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 

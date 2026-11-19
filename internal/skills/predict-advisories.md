@@ -11,10 +11,10 @@ covers: [advisories, PULSE_ADVISORY, analysis fit, suppress advisories]
 
 An **advisory** answers "does this analysis fit the data", not "will this run" (errors, warnings). `pulse_predict` / `pulse api predict --json` carry them in `data.advisories`, one `{code, message, details}` per finding, omitted when none fires.
 
-- **Not a warning.** Advisories ride their own slot, never the envelope `warnings`. `--strict` never turns one into an error and `valid` never changes.
+- **Not a warning:** own slot, never the envelope `warnings`; `--strict` never escalates one, `valid` never changes.
 - **Never changes execution:** the request runs as written.
-- **Authoritative metadata only:** the request, the schema and its dictionaries, figures predict computed — no name or value-shape guessing.
-- **`details.suggested`** is a replacement operator name or a request patch to merge — never a rewritten request — and only ever names something this instance offers.
+- **Authoritative metadata only:** request, schema, dictionaries, predict's own figures — no guessing.
+- **`details.suggested`**: a replacement operator or a request patch to merge (never a rewritten request), only ever one this instance offers.
 
 ## Codes
 
@@ -36,10 +36,11 @@ An **advisory** answers "does this analysis fit the data", not "will this run" (
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
 <!-- /feature -->
 <!-- feature: ATTR_FORMULA -->
-| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1, shared per layer) |
-| `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT` | an `ATTR_FORMULA` result can be nil (a nullable field or literal `nil` reaches it unguarded by `??` or a `== nil` ternary), so those rows are null | `slot`, `operator`, `label`, `fields`, `literal_nil` |
+| `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1, shared per layer) |
+| `PULSE_ADVISORY_FORMULA_NULLABLE_RESULT` | an `ATTR_FORMULA` result can be nil (a nullable field or literal `nil` reaches it unguarded), so those rows are null | `slot`, `operator`, `label`, `fields`, `literal_nil` |
+| `PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND` | an `ATTR_FORMULA` feeds a nullable input (field or earlier label) unguarded to arithmetic, `<`, unary `-`, an index or a nil-rejecting function: the run fails on a null row | `slot`, `operator`, `label`, `fields`, `operand_kind` |
 <!-- /feature -->
-| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay (prior, rolling, baseline, sibling) on ≥ 2 groupers, no `params.partition_by`, runs down a non-date last grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a date grouper to move last); Compose adds `request`, `target` |
+| `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay on ≥ 2 groupers, no `params.partition_by`, runs down a non-date last grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a date grouper to move last); Compose adds `request`, `target` |
 | `PULSE_ADVISORY_JACKKNIFE_COST` | a leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` (multinomial: any penalty) fit without `resample`: SEs, p, CIs null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested` (`resample`) |
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | result only: a least-squares `bounds` bound without `resample`, nulls SEs, p, CIs, `vcov` | `slot`, `operator`, `active`, `suggested` |
@@ -56,11 +57,11 @@ The SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric imp
 
 ## Roots
 
-Request predict runs every rule. <!-- feature: capability:facet -->Facet predict runs them too; only the many-tests note can fire (one p-value per population-comparison overlay, in its own `p_values`). <!-- /feature --><!-- feature: capability:compose -->Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then the split-families note, then a many-tests note over its own overlays. Its `slots[]` show each slot's `streamable`, `p_values` and `families` (`id` `compose`, or local such as `requests[0]#request`); set `family: "compose"` on each slot's block to pool them. Their overlay `p_values` are `lower_bound`. <!-- /feature --><!-- feature: capability:process_chain -->Chain predict carries no advisories.<!-- /feature -->
+Request predict runs every rule. <!-- feature: capability:facet -->Facet predict runs them too; only the many-tests note can fire (one p-value per population-comparison overlay, in its own `p_values`). <!-- /feature --><!-- feature: capability:compose -->Compose predict forwards each slot's advisories in slot order, attributed by `details.request` (the slot index) and a `requests[i].` prefix on `slot`, then the split-families note, then a many-tests note over its own overlays. Its `slots[]` show each slot's `streamable`, `p_values` and `families`; set `family: "compose"` on each slot's block to pool them. Their overlay `p_values` are `lower_bound`. <!-- /feature --><!-- feature: capability:process_chain -->Chain predict carries no advisories.<!-- /feature -->
 
 ## Suppression
 
-`Options.SuppressAdvisories` (codes) drops a code from predict and a result's `advisories` alike. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.
+`Options.SuppressAdvisories` (codes) drops a code from predict and a result's `advisories` alike. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. No per-request or CLI knob.
 
 ## See
 

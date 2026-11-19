@@ -32,7 +32,7 @@ Refused before anything is read (`PULSE_MATERIALIZE_CAST_UNSUPPORTED`, `details.
 
 **Labels.** A label parses as a number in decimal syntax only (`"3"`, `"-2.5"`, `"1e3"`; never `" 3"`, `"NaN"`, hex), exactly for an integer / `decimal128` target. A number becomes its label as JSON prints it — integers in digits, `3.0` → `"3"`, `1e6` → `"1000000"`, `-0` → `"0"`, an exponent only past 1e21 or under 1e-6 — and a `decimal128` at its scale (`"3.50"`). The written dictionary is built in FIRST-SEEN output order (after filters and sort).
 
-**Zone.** `date` ↔ `datetime` reads local days in the request `time_zone`, else the instance default zone, else UTC — never a per-record `time_zone_field`. A day whose midnight a DST jump skips starts at its first instant ([`time-zones`](time-zones.md)).
+**Zone.** `date` ↔ `datetime` reads local days in the request `time_zone`, else the instance default zone, else UTC — never a per-record `time_zone_field` or cohort default zone field. A day whose midnight a DST jump skips starts at its first instant ([`time-zones`](time-zones.md)).
 
 **Decimal shape.** `precision` (1..38) and `scale` (0..precision) shape a `decimal128` target only; omitted, a decimal column keeps its own shape and any other column takes 38 / 0. A float casts its shortest printed form (`0.1`, not its binary tail).
 

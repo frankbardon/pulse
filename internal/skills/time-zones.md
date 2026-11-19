@@ -13,13 +13,17 @@ Storage is always UTC. `datetime` = epoch SECONDS, `date` = epoch DAYS (never in
 
 ## Which zone applies
 
-Per slot: slot `tz` -> slot `tz_field` -> request `time_zone_field` -> request `time_zone` -> `Options.DefaultTimeZone` -> UTC. Predict resolves the same way and echoes `time_zones[]` (`slot`, `tz`, `source` = slot|request|options|default|field). `tz` on a `date` field, or on an operator that is not zone-capable, is `PROCESSING_CONFIG`. An inherited zone on a `date` field is simply not applied (`tz: null`). A non-UTC zone on a derived field (absent from the schema, e.g. a chain stage output) is refused: "a zone cannot be applied to a derived field".
+Per slot: slot `tz` -> slot `tz_field` -> request `time_zone_field` -> request `time_zone` -> cohort `zone_field` -> `Options.DefaultTimeZone` -> UTC. Predict resolves the same way and echoes `time_zones[]` (`slot`, `tz`, `tz_field`, `source` = slot|field|request|cohort|options|default). `tz` on a `date` field, or on an operator that is not zone-capable, is `PROCESSING_CONFIG`. An inherited zone on a `date` field is not applied (`tz: null`). A non-UTC zone on a derived field (absent from the schema) is refused.
 
 UTC, `Etc/UTC` and absent are byte-identical to the pre-zone output.
 
 ## Per-row zones
 
-When each record has its own zone (a warehouse, a store), name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
+When each record has its own zone, name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
+
+A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked when the cohort is written and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). A cohort declaring one is format `0x02`; a Pulse build older than the section refuses to open it. `inspect` shows it as `zone_field`.
+
+It is inherited like `time_zone_field`, below any request zone (echo `source: "cohort"`, `tz_field`, `tz: null`): skipped on a `date` field, refused on a derived field (override: request `time_zone`, e.g. `"UTC"`). A join takes the LEFT cohort's default, never the right's. A chain stage 1+ takes NO per-row zone, permanently: no datetime survives a stage, so its `time_zone_field` / `tz_field` is `SERVICE_VALIDATION`.
 
 A NULL zone cell (or an out-of-dictionary code) gives the row NO local value, never a UTC fallback: groupers count it in `n_null` (no bucket).
 <!-- feature: ATTR_DATE_PART, FEAT_DATE_FEATURES -->

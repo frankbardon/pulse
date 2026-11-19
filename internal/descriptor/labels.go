@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -83,10 +84,21 @@ func ValidateLabels(
 				map[string]any{"index": i, "field": b.Field})
 			continue
 		}
-		if !isCategoricalFieldType(field.Type) {
+		codeMax, coded := labelcodes.CodeMax(field.Type)
+		if !isCategoricalFieldType(field.Type) && !coded {
 			env.AddError(string(errors.PULSE_LABEL_FIELD_NOT_CATEGORICAL),
-				fmt.Sprintf("labels[%d]: field %q is %s; labels require categorical_*", i, b.Field, field.Type),
+				fmt.Sprintf("labels[%d]: field %q is %s; labels require categorical_* or an integer-coded u4 / u8 / u16 / u32 field", i, b.Field, field.Type),
 				map[string]any{"index": i, "field": b.Field, "field_type": field.Type.String()})
+			continue
+		}
+		if coded && mode == types.LabelModeReplace {
+			// A response carries an integer-coded field as a number (a
+			// sample cell) or its decimal text (a group key); replacing
+			// it with label text would make a column of numbers and
+			// strings, so the binding is augment-only.
+			env.AddError(string(errors.PULSE_LABEL_REPLACE_NUMERIC),
+				fmt.Sprintf("labels[%d]: field %q is an integer-coded %s field; a binding on it must use mode %q (a %q binding would turn its numbers into label text)", i, b.Field, field.Type, types.LabelModeAugment, types.LabelModeReplace),
+				map[string]any{"index": i, "field": b.Field, "field_type": field.Type.String(), "mode": string(types.LabelModeReplace)})
 			continue
 		}
 		if !labelTableRegistered(snap, inst, b.Table) {
@@ -94,6 +106,22 @@ func ValidateLabels(
 				fmt.Sprintf("labels[%d]: table %q not registered on Service", i, b.Table),
 				map[string]any{"index": i, "field": b.Field, "table": b.Table})
 			continue
+		}
+		if coded {
+			// The export rule: the table's keys must be the decimal
+			// spellings of values the field stores. A table that cannot
+			// list its entries (Lookup only) is looked up cell by cell,
+			// unchecked.
+			if entries, ok := snap.LabelTableEntries[b.Table]; ok {
+				if ce := labelcodes.CheckKeys(fmt.Sprintf("labels[%d]", i), "labels", b.Field, field.Type, codeMax, entries); ce != nil {
+					details := map[string]any{"index": i}
+					for k, v := range ce.Details {
+						details[k] = v
+					}
+					env.AddError(string(ce.Code), ce.Message, details)
+					continue
+				}
+			}
 		}
 
 		if mode == types.LabelModeAugment {

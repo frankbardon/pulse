@@ -232,6 +232,7 @@ var errorOwners = map[errors.Code][]string{
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
 	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY:  own("ATTR_CODE_IN"),
 	errors.PULSE_ATTR_SCALE_OUT_OF_RANGE:      own("ATTR_SCALE_SCORE"),
+	errors.PULSE_ATTR_ZERO_SPREAD:             own("ATTR_ZSCORE", "ATTR_TSCORE", "ATTR_NORMALIZED"),
 	errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE: own("ATTR_PREVIOUS_STATE"),
 	// Predict advisories: the two-group rule fires only on the two
 	// two-sample tests; the many-tests rule needs the p-value count,
@@ -248,11 +249,12 @@ var errorOwners = map[errors.Code][]string{
 	// that treat a field as a quantity (mean-family aggregators,
 	// parametric tests); the weight rule wraps suggested_weight, which a
 	// hidden capability:weighting withholds.
-	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:  own(advisoryQuantityOperators()...),
-	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
-	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
-	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
-	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT: own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC:   own(advisoryQuantityOperators()...),
+	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:       own(advisoryParametricTestNames()...),
+	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED:  own(featWeighting),
+	errors.PULSE_ADVISORY_EXTRA_PASS:               own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_RESULT:  own("ATTR_FORMULA"),
+	errors.PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND: own("ATTR_FORMULA"),
 	// Fires only on a regression that accepts resample jackknife.
 	errors.PULSE_ADVISORY_JACKKNIFE_COST:                own("REG_OLS", "REG_GLM"),
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),
@@ -385,6 +387,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_DESCRIPTION_DIVERGENCE: own(featShard),
 	errors.PULSE_SHARD_SET_WIDENED:            own(featShard),
 	errors.PULSE_SHARD_GROUPS_REWRITTEN:       own(featShard),
+	errors.PULSE_SHARD_ZONE_REWRITTEN:         own(featShard),
 	errors.PULSE_SHARD_RESERVED_NAME:          shared,
 	errors.PULSE_SHARD_NAME_COLLISION:         own(featShard),
 	errors.PULSE_SHARD_COUNT_LIMIT:            own(featShard),
@@ -500,6 +503,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LABEL_FIELD_COLLISION:       shared,
 	errors.PULSE_LABEL_DUPLICATE_BINDING:     shared,
 	errors.PULSE_LABEL_KEY_INVALID:           shared,
+	errors.PULSE_LABEL_REPLACE_NUMERIC:       own(featLabels),
 	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  shared,
 	errors.PULSE_LABEL_COLLISION:             shared,
 	errors.PULSE_LABEL_LOOKUP_MISS:           shared,

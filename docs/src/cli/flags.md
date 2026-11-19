@@ -49,7 +49,7 @@ row data, filter values or error messages. An unknown value is
 | `PULSE_DATA_DIR`        | `pulse mcp` (required unless `--data-dir`), `pulse import auto / list / drop` | conditionally | Base directory for cohort files and the managed-imports pool. A relative value is made absolute against the working directory at startup. Every other leaf resolves its `--input` / positional / `--output` paths against the working directory and ignores it |
 | `PULSE_IMPORTS_DIR`     | `pulse import auto / list / drop`                                    | no | Managed-imports subdir under the data root. Defaults to `imports` |
 | `PULSE_IMPORT_TTL`      | `pulse import auto`                                                  | no | Default TTL for managed imports. Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. Defaults to `7d` |
-| `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`, `pulse export * --labels` | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename, its key order the table's entry order (the `.sav` value-label code order) |
+| `PULSE_LABEL_TABLES_DIR`| `pulse api sample --labels`, `pulse api facet --labels`, `pulse export * --labels`, `pulse convert [predict] --labels` | no | Directory of JSON files auto-loaded as label tables at `pulse.New` time; each `*.json` becomes one table keyed by its filename, its key order the table's entry order (the `.sav` value-label code order) |
 | `PULSE_MCP_NO_COHORT_SCAN`| `pulse mcp`                                                        | no | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources. Same as `--no-cohort-scan`; cohorts stay readable by URI, only `resources/list` loses them |
 | `PULSE_FEATURE_PROFILE` | `pulse mcp` only                                                     | no | OS path (cwd-relative or absolute) to a feature profile JSON file. Same as `--feature-profile`, which wins when both are set. Every other leaf ignores it |
 
@@ -727,6 +727,38 @@ pulse import csv -i shipments.csv -o shipments.pulse \
   --source-tz-field warehouse_tz --source-tz UTC
 ```
 
+### `--zone-field` (cohort default zone)
+
+Available on: every `import <format>` leaf, `import auto`, `import predict`
+and `convert` (with `--keep-pulse`).
+
+`--zone-field col` declares the written cohort's DEFAULT per-row zone
+field: `col` must import as a `categorical_*` column whose every value is
+`UTC` or an IANA `Area/Location` name (never a fixed offset). The cohort
+stores it in its schema (the `0x02` ZONE section, so it travels with every
+copy) and `pulse inspect` shows it as `zone_field`; every zone-aware slot
+then reads each row in its own zone unless the request names a zone
+(predict echoes `source: "cohort"`). It is declared explicitly and is never
+implied by `--source-tz-field`, which says how the SOURCE's literals were
+recorded; the two may name the same column. A `col` the source does not
+carry, or one that is not categorical, is `SERVICE_VALIDATION`
+(`details.option` `zone_field`, `details.zone_field`) before any row is
+read; an entry that is not a zone is `PULSE_TIMEZONE_UNKNOWN`
+(`details.zone_field`, `dictionary_index`) before anything is written. Both
+codes are the same from the CLI, the library (`ImportJob.ZoneField`) and
+`pulse_import` (`zone_field`) — not re-coded `CLI_INPUT`. `import predict`
+judges the declaration over the dictionaries the import would write. On
+`convert` it declares the `--keep-pulse` cohort's default (the target file
+carries no schema), so without `--keep-pulse` it is refused
+(`reason` `no_cohort`). `import auto` records it on the sidecar
+(`zone_field`) and refuses it for a `.pulse` source (`reason`
+`passthrough`). Without the flag the cohort is byte-identical to before.
+
+```bash
+pulse import csv -i shipments.csv -o shipments.pulse \
+  --source-tz-field warehouse_tz --zone-field warehouse_tz
+```
+
 ### `--tz` (export)
 
 Available on: every `export <format>` leaf and `export predict`.
@@ -807,7 +839,8 @@ pulse cohort filter -i sales.pulse -o eu_flat.pulse --flatten --filter 'region =
 
 ### `--labels` (export)
 
-Available on: every `export <format>` leaf and `export predict`.
+Available on: every `export <format>` leaf, `export predict`, `convert`
+and `convert predict`.
 
 `--labels FIELD=TABLE[:replace|augment]` binds a label table (from
 `PULSE_LABEL_TABLES_DIR`) to a field. On every row format (`csv`, `tsv`,
@@ -840,6 +873,20 @@ empty; one `PULSE_LABEL_LOOKUP_MISS` warning per field summarises them.
 ```bash
 PULSE_LABEL_TABLES_DIR=./labels \
   pulse export csv -i survey.pulse -o survey.csv --labels gender=gender_names:augment
+```
+
+`convert` takes the same bindings against the schema it resolves
+(inferred, declared by `--schema`, or the source's own) and labels the
+converted ROW stream on every target, `.sav` included — a `.sav` written
+by `convert` carries the label text in its cells, not value labels. Each
+refusal above is raised before anything is written, plus
+`PULSE_LABEL_TABLE_UNKNOWN` for an unregistered table; an inferred
+integer column may widen in the row pass, so its keys are bounded by
+`u32`. `convert predict --labels` raises every one of them with the
+convert's own code (the library spelling is `Pulse.PredictConvert`).
+
+```bash
+PULSE_LABEL_TABLES_DIR=./labels pulse convert survey.csv survey.sav --labels region=regions
 ```
 
 ### Vector fields (export)
@@ -889,6 +936,8 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
 | `pulse api sample` | Return sample rows from a cohort | [api sample](api-sample.md) |
 | `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file: `-i IN -o OUT` plus `--filter EXPR` and / or `--include-from FILE --include-field F` (AND-combined, set first); `--time-zone Zone` is the zone a `to_day()` in `--filter` reads (absent = UTC) | [`--time-zone`](#--time-zone-cohort-filter) |
+| `pulse cohort zone set` | Declare `FIELD` — a `categorical_*` field whose every entry is `UTC` or an IANA zone — as the cohort's DEFAULT per-row zone field (the `0x02` ZONE schema section `import --zone-field` writes): `pulse cohort zone set COHORT FIELD` (or `-i` / `-f`). A schema-only atomic rewrite (records copied verbatim, temp file + fsync + rename), so a refusal or a failure leaves the cohort byte-identical; re-declaring the same default writes nothing. A shard archive is rewritten whole — `_schema.pulse` and every shard, which must agree — with the mandatory `PULSE_SHARD_ZONE_REWRITTEN` warning; an anchored `archive#shard` path is refused. A bad field is `SERVICE_VALIDATION` (`details.option` `zone_field`), a non-zone entry `PULSE_TIMEZONE_UNKNOWN`. The SPSS metadata sidecar is carried; a stale point-lookup index is listed with its rebuild command (`data.invalidated_sidecars`) | `--help` |
+| `pulse cohort zone clear` | Remove the cohort's default per-row zone field: the same rewrite with no default, so set then clear returns the original bytes; a cohort declaring none is left untouched | `--help` |
 | `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
 | `pulse completion bash` | Print the bash completion script on stdout (`source <(pulse completion bash)`) | [completion](completion.md) |
 | `pulse completion fish` | Print the fish completion script on stdout (save it as `~/.config/fish/completions/pulse.fish`) | [completion](completion.md) |
@@ -919,7 +968,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, `--zone-field` (the cohort default zone), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

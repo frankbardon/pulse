@@ -286,7 +286,7 @@ func apiSampleCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -372,7 +372,7 @@ func apiFacetCmd() *cli.Command {
 			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
 			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: " + labelBindingGrammar + ". Repeatable."},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable."},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved FacetRequest on the envelope under \"request\"."},
 		},

@@ -64,7 +64,7 @@ var categoryTable = []categoryDef{
 	{Name: "filterer", Recipe: "docs/src/internals/adding-filterer.md", Aliases: []string{"filter", "filterers"}, Prefix: "FILTER_", Dir: "types", AllFunc: "AllFiltererTypes", Skill: "op-filter-",
 		Manual: append(append([]string{}, opManual...), udComps, refComps)},
 	{Name: "grouper", Recipe: "docs/src/internals/adding-grouper.md", Aliases: []string{"group", "groupers"}, Prefix: "GROUP_", Dir: "types", AllFunc: "AllGroupTypes", Skill: "op-group-",
-		Manual: append(append([]string{}, opManual...), udComps, refComps, ".claude/reference/execution-modes/time-and-defaults.md")},
+		Manual: append(append([]string{}, opManual...), udComps, refComps, ".claude/reference/execution-modes/time-and-defaults.md", ".claude/reference/execution-modes/per-row-zones.md")},
 	{Name: "window", Recipe: "docs/src/internals/adding-window.md", Aliases: []string{"win", "windows"}, Prefix: "WIN_", Dir: "types", AllFunc: "AllWindowTypes", Skill: "op-win-",
 		Manual: append(append([]string{}, opManual...), udWeighting, refWeight)},
 	{Name: "feature", Recipe: "docs/src/internals/adding-feature.md", Aliases: []string{"feat", "features"}, Prefix: "FEAT_", Dir: "types", AllFunc: "AllFeatureTypes", Skill: "op-feat-",

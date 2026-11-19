@@ -308,6 +308,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 				"vector declarations apply only when a source is converted; a .pulse source is used as-is and never re-encoded",
 				map[string]any{"reason": "passthrough", "source_path": spec.SourcePath, "format": format})
 		}
+		if spec.ZoneField != "" {
+			return nil, perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+				"a default zone field is declared when a source is converted; a .pulse source is used as-is and never re-encoded",
+				map[string]any{"option": "zone_field", encoding.DetailZoneField: spec.ZoneField, "reason": "passthrough", "source_path": spec.SourcePath, "format": format})
+		}
 		if spec.InlineBytes != nil {
 			return nil, perr.NewCodedError(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
 				"inline pulse-format imports are not supported; write the bytes to disk and import by path")
@@ -404,6 +409,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		ColumnSourceTZ:      spec.ColumnSourceTZ,
 		DSTPolicy:           string(spec.DSTPolicy),
 		SourceTZField:       spec.SourceTZField,
+		ZoneField:           spec.ZoneField,
 		Vectors:             spec.Vectors,
 	}
 	if ttl > 0 {
@@ -497,6 +503,51 @@ func (m *Manager) Touch(_ context.Context, p string) error {
 	}
 	sidecar.ExpiresAt = m.now().Add(time.Duration(sidecar.TTLSeconds) * time.Second)
 	return m.writeSidecar(sidecarPath, sidecar)
+}
+
+// RecordZoneField keeps the sidecar of the managed handle whose .pulse
+// file sits at p in step with a default zone field set or cleared on
+// the cohort itself (Pulse.SetCohortZoneField): the sidecar's
+// zone_field becomes field, and "" removes it (omitempty — a cleared
+// sidecar is byte-identical to one that never recorded a default). The
+// caller runs it only AFTER the cohort rewrite succeeded, so a refused
+// rewrite leaves the sidecar untouched.
+//
+// No-op — and no sidecar is created — when p is outside the imports
+// directory, when no sidecar sits beside it, or when the sidecar already
+// records field. A sidecar that cannot be read or replaced is an error,
+// never skipped: the cohort and its sidecar would silently disagree. The
+// replacement is written beside it and published by one rename.
+func (m *Manager) RecordZoneField(_ context.Context, p, field string) error {
+	if !m.isInsideImportsDir(p) {
+		return nil
+	}
+	sidecarPath := p + SidecarSuffix
+	exists, err := afero.Exists(m.afs, sidecarPath)
+	if err != nil {
+		return fmt.Errorf("imports: stat sidecar %s: %w", sidecarPath, err)
+	}
+	if !exists {
+		return nil
+	}
+	sidecar, err := m.readSidecar(sidecarPath)
+	if err != nil {
+		return fmt.Errorf("imports: reading sidecar %s: %w", sidecarPath, err)
+	}
+	if sidecar.ZoneField == field {
+		return nil
+	}
+	sidecar.ZoneField = field
+	tmp := sidecarPath + ".tmp"
+	if err := m.writeSidecar(tmp, sidecar); err != nil {
+		_ = m.afs.Remove(tmp)
+		return fmt.Errorf("imports: writing sidecar %s: %w", tmp, err)
+	}
+	if err := m.afs.Rename(tmp, sidecarPath); err != nil {
+		_ = m.afs.Remove(tmp)
+		return fmt.Errorf("imports: replacing sidecar %s: %w", sidecarPath, err)
+	}
+	return nil
 }
 
 // Sweep deletes every managed handle whose sidecar has expired against
@@ -637,6 +688,7 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	job.SourceTZ = spec.SourceTZ
 	job.ColumnSourceTZ = spec.ColumnSourceTZ
 	job.SourceTZField = spec.SourceTZField
+	job.ZoneField = spec.ZoneField
 	job.DSTPolicy = spec.DSTPolicy
 	job.Schema = spec.Schema
 	job.IgnoreExtra = spec.IgnoreExtra

@@ -68,6 +68,12 @@ type InspectResult struct {
 	// no weight, the variable is not a weight-capable column of this
 	// schema, or the instance hides row weighting.
 	SuggestedWeight *SuggestedWeight `json:"suggested_weight,omitempty"`
+	// ZoneField names the cohort's declared default per-row zone field
+	// (encoding.Schema.ZoneField): every zone-capable slot no request
+	// zone reaches reads its zone per row from it (predict echoes source
+	// "cohort"). Read from the schema block, never a record. Omitted when
+	// the cohort declares none.
+	ZoneField string `json:"zone_field,omitempty"`
 }
 
 // WeightSuggestionSourceSPSSSidecar is SuggestedWeight.Source for a

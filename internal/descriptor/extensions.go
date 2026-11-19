@@ -50,7 +50,16 @@ type ExtensionsSnapshot struct {
 	LookupTables     []descriptor.LookupTableMeta
 	ReferenceVectors []descriptor.ReferenceVectorMeta
 	LabelTables      []descriptor.LabelTableMeta
-	RangeTables      []descriptor.RangeTableMeta
+	// LabelTableEntries is each ENUMERABLE label table's own entries,
+	// keyed by table name: a Rows table's keys (sorted), else a Lookup
+	// table's Order — the list the runtime resolver's Entries returns. A
+	// table that can list neither (Lookup only, no Order) is absent.
+	// ValidateLabels checks a binding on an integer-coded field
+	// (u4 / u8 / u16 / u32) against it (PULSE_LABEL_KEY_INVALID), so
+	// predict and the runtime judge the keys from one source. Never
+	// projected into the manifest (LabelTableMeta stays shape-only).
+	LabelTableEntries map[string][]string
+	RangeTables       []descriptor.RangeTableMeta
 	// RangeTableLabels is each registered range table's labels in
 	// authored order, keyed by table name: predict's view of what a
 	// GROUP_NUMERIC_RANGES unmatched_label may not collide with. Never
@@ -164,6 +173,15 @@ type ExtensionsSnapshot struct {
 	// (prevstate.KeySchemaWith) is the runtime's. Nil when none
 	// declares one. Never serialised.
 	AttributeDictionaries prevstate.Inherits `json:"-"`
+
+	// AttributeEmitsNull answers, per extension attribute, whether the
+	// instance its Factory builds for a slot's spec over a schema emits
+	// null (extend.NullableAttribute) — the runtime's own hook, asked of
+	// the instance the run builds. A factory error or panic answers
+	// false. Predict's nullable-operand advisory reads it (an earlier
+	// extension attribute's label fed to an ATTR_FORMULA operand).
+	// Never serialised.
+	AttributeEmitsNull map[types.AttributeType]func(*types.Attribute, *encoding.Schema) bool `json:"-"`
 
 	// Purposes carries each registration's optional Purpose, keyed by
 	// registered operator name, already validated at pulse.New. The

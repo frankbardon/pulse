@@ -110,6 +110,8 @@ func newExitFixture(t *testing.T) exitFixture {
 	// import, PULSE_IMPORT_ROWS_DROPPED (#304).
 	writeExitFile(t, f.p("partial.csv"), "id,picks\n1,a|b\n2,\n3,b\n")
 	mustRun("import", "csv", "-i", f.p("sets.csv"), "-o", f.p("sets.pulse"), "--schema", f.p("sets.schema.json"))
+	writeExitFile(t, f.p("zones.csv"), "id,tz\n1,UTC\n2,Europe/Berlin\n")
+	mustRun("import", "csv", "-i", f.p("zones.csv"), "-o", f.p("zones.pulse"))
 
 	c := `{"filename":"` + jsonEsc(f.cohort) + `"}`
 	bad := `{"filename":"` + jsonEsc(f.missing) + `"}`
@@ -191,6 +193,8 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "cohort inspect", fatal: []string{m}, ok: []string{f.cohort}},
 		{leaf: "cohort filter", fatal: []string{"-i", m, "-o", f.p("x.pulse"), "--filter", "age > 10"},
 			ok: []string{"-i", f.cohort, "-o", f.p("filtered.pulse"), "--filter", "age > 10"}},
+		{leaf: "cohort zone set", fatal: []string{f.p("zones.pulse"), "id"}, ok: []string{f.p("zones.pulse"), "tz"}},
+		{leaf: "cohort zone clear", fatal: []string{m}, ok: []string{f.p("zones.pulse")}},
 		{leaf: "convert", fatal: []string{f.p("missing.csv"), f.p("x.tsv")}, ok: []string{f.csv, f.p("conv.tsv")},
 			warn:   append(slices.Clone(partialSchema), "--keep-pulse", f.p("keep.pulse"), f.p("partial.csv"), f.p("conv_partial.tsv")),
 			strict: append(slices.Clone(partialSchema), "--strict", "--keep-pulse", f.p("keep.pulse"), f.p("partial.csv"), f.p("conv_partial.tsv"))},

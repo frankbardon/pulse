@@ -100,6 +100,7 @@ func InspectWith(fileData io.ReadSeeker, opts *descriptor.InspectOptions, meta I
 		result.Fields[i] = renderInspectField(schema, i, f, limit)
 	}
 	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
+	result.ZoneField = schema.ZoneField
 
 	// Record count for a single-file cohort is derivable from the bytes
 	// remaining after the header + schema — no record is read. The
@@ -228,6 +229,7 @@ func inspectArchive(src archiveSource, opts *descriptor.InspectOptions, meta Ins
 		result.Fields[i] = renderInspectField(schema, i, f, limit)
 	}
 	result.SuggestedWeight = SuggestWeight(schema, meta.WeightVariable, meta.Instance)
+	result.ZoneField = schema.ZoneField
 
 	// Enumerate shard entries (excluding the reserved schema) and peek
 	// each one for the authoritative per-shard record count.

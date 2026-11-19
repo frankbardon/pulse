@@ -290,7 +290,7 @@ func cloneSchema(s *encoding.Schema) *encoding.Schema {
 			fields[i].Dictionary = cloneDict
 		}
 	}
-	return &encoding.Schema{Fields: fields}
+	return &encoding.Schema{Fields: fields, ZoneField: s.ZoneField}
 }
 
 func extendDict(s *encoding.Schema, extras []string) {

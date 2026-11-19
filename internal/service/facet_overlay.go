@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/overlayhost"
@@ -95,7 +96,7 @@ import (
 // right after dispatch: a facet overlay offers only the per-layer
 // families (`layer`, and `row` / `column` on a MATRIX kind), so no
 // family ever spans two specs.
-func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, result *types.FacetResult, resolver *processing.LabelResolver, mult []descx.ResolvedMultiplicity) error {
+func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetRequest, schema *encoding.Schema, result *types.FacetResult, resolver *processing.LabelResolver, mult []descx.ResolvedMultiplicity) error {
 	if req == nil || len(req.Overlays) == 0 {
 		return nil
 	}
@@ -136,7 +137,15 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 					"field": hostFieldName,
 				})
 		}
-		popResult, err := cache.populationResult(ctx, s, spec.Ref.Population.Cohort, hostFieldName, req, resolver)
+		// The per-kind host-arm gate predict raises at the same point
+		// (overlayhost.FacetHostArmRefusal), on the shape the host
+		// entry was tallied in — a labelled integer-coded field is
+		// discrete — before any population work.
+		coded := descx.FacetCodedField(req, schema.Field(hostFieldName))
+		if cerr := overlayhost.FacetHostArmRefusal(spec.Kind, hostFieldName, hostField.TypeName, hostField.Kind == "discrete", coded, i); cerr != nil {
+			return cerr
+		}
+		popResult, err := cache.populationResult(ctx, s, spec.Ref.Population.Cohort, hostFieldName, req, resolver, coded)
 		if err != nil {
 			return err
 		}
@@ -266,7 +275,7 @@ func newPopulationCache() *populationCache {
 // are. The cycle guard documented at
 // the top of this file relies on this — the same-cohort recursion path
 // produces the unfiltered baseline by construction.
-func (c *populationCache) populationResult(ctx context.Context, s *Service, cohortName, field string, hostReq *types.FacetRequest, resolver *processing.LabelResolver) (*types.FacetResult, error) {
+func (c *populationCache) populationResult(ctx context.Context, s *Service, cohortName, field string, hostReq *types.FacetRequest, resolver *processing.LabelResolver, coded bool) (*types.FacetResult, error) {
 	key := cohortName + "\x00" + field
 	if cached, ok := c.byKey[key]; ok {
 		return cached, nil
@@ -285,13 +294,32 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 		HistogramBins:      hostReq.HistogramBins,
 		HistogramRange:     hostReq.HistogramRange,
 	}
-	popResult, err := s.FacetSchema(withPopulationFacet(ctx), popReq)
+	// A host field tallied as discrete codes (a labelled integer-coded
+	// field) is tallied the same way on the population, which carries no
+	// labels of its own, so both sides key the overlay by the same raw
+	// codes.
+	popCtx := withPopulationFacet(ctx)
+	if coded {
+		popCtx = context.WithValue(popCtx, populationCodedKey{}, field)
+	}
+	popResult, err := s.FacetSchema(popCtx, popReq)
 	if err != nil {
 		return nil, err
 	}
 	popResult = relabelPopulationField(popResult, field, resolver)
 	c.byKey[key] = popResult
 	return popResult, nil
+}
+
+// populationCodedKey carries the host field a *_VS_POP population facet
+// tallies as discrete codes (the host's label binding made it so).
+type populationCodedKey struct{}
+
+// populationCodedField is the field name populationCodedKey carries, or
+// "" when ctx runs no such population facet.
+func populationCodedField(ctx context.Context) string {
+	v, _ := ctx.Value(populationCodedKey{}).(string)
+	return v
 }
 
 // populationFacetKey marks a context as a *_VS_POP population facet.

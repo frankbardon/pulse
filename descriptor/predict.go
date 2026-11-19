@@ -185,9 +185,9 @@ type PredictResult struct {
 	// FEAT_DATE_FEATURES — crosstab axes included) in request order:
 	// filterers, features, attributes, groups, crosstab rows, crosstab
 	// columns. Resolution is slot `tz` → slot `tz_field` →
-	// Request.TimeZoneField → Request.TimeZone →
-	// Options.DefaultTimeZone → UTC, computed by the same function the
-	// runtime validates with. Empty when no zone-capable slot is present;
+	// Request.TimeZoneField → Request.TimeZone → the cohort's default
+	// zone field → Options.DefaultTimeZone → UTC, computed by the same
+	// function the runtime validates with. Empty when no zone-capable slot is present;
 	// never nil in JSON output.
 	TimeZones []ResolvedZone `json:"time_zones"`
 
@@ -554,6 +554,11 @@ const (
 	// the slot's own `tz_field`, else the request root's
 	// `time_zone_field` (ResolvedZone.TZField names it).
 	ZoneSourceField = "field"
+	// ZoneSourceCohort: a per-row zone read from the cohort's declared
+	// default zone field (encoding.Schema.ZoneField; ResolvedZone.TZField
+	// names it). It ranks below the request's `time_zone` and above
+	// pulse.Options.DefaultTimeZone.
+	ZoneSourceCohort = "cohort"
 )
 
 // ResolvedZone is the resolved time zone of one zone-capable request
@@ -580,16 +585,16 @@ type ResolvedZone struct {
 	TZ *string `json:"tz"`
 
 	// TZField names the categorical field the slot's per-row zone is
-	// read from when Source is "field" (TZ is then null: the zone varies
-	// per row). Omitted for every other source. On a non-`datetime`
+	// read from when Source is "field" or "cohort" (TZ is then null: the
+	// zone varies per row). Omitted for every other source. On a non-`datetime`
 	// field an inherited zone field is not applied — FieldType tells the
 	// two apart, exactly as for an inherited zone name.
 	TZField string `json:"tz_field,omitempty"`
 
 	// Source names where TZ came from: "slot", "field", "request",
-	// "options" or "default". On a null TZ it names the level the
-	// skipped zone was inherited from ("field" also when the per-row
-	// zone applies).
+	// "cohort", "options" or "default". On a null TZ it names the level
+	// the skipped zone was inherited from ("field" / "cohort" also when
+	// the per-row zone applies).
 	Source string `json:"source"`
 }
 

@@ -269,6 +269,24 @@
         }
       },
       {
+        "name": "cohort zone set",
+        "description": "Declare a categorical field of IANA zone names as an existing cohort's default per-row zone field (the ZONE schema section), rewriting the schema in place (non-interactive, atomic; a shard archive is rewritten whole, with a warning)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
+        "name": "cohort zone clear",
+        "description": "Remove an existing cohort's default per-row zone field, rewriting the schema in place (non-interactive, atomic; set then clear is byte-identical)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": true
+        }
+      },
+      {
         "name": "dedup",
         "description": "Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format 0x02), in place or to a new path (destructive in place, non-interactive, atomic)",
         "annotations": {
@@ -12442,7 +12460,7 @@
         ]
       }
     ],
-    "error_codes_count": 479,
+    "error_codes_count": 483,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12488,6 +12506,7 @@
       "PULSE_ADVISORY_CONSTRAINT_ACTIVE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
+      "PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND",
       "PULSE_ADVISORY_FORMULA_NULLABLE_RESULT",
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
@@ -12505,6 +12524,7 @@
       "PULSE_ATTRIBUTE_WINDOW_ORDER",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_ATTR_SCALE_OUT_OF_RANGE",
+      "PULSE_ATTR_ZERO_SPREAD",
       "PULSE_AUC_DELONG_WEIGHTED",
       "PULSE_BANNER_INVALID",
       "PULSE_CHAIN_EMPTY",
@@ -12633,6 +12653,7 @@
       "PULSE_LABEL_KEY_INVALID",
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_NOT_APPLIED",
+      "PULSE_LABEL_REPLACE_NUMERIC",
       "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
       "PULSE_LABEL_TABLE_UNKNOWN",
       "PULSE_LIMIT_EXCEEDED",
@@ -12794,6 +12815,7 @@
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SHARD_SET_WIDENED",
+      "PULSE_SHARD_ZONE_REWRITTEN",
       "PULSE_SLOT_FAILED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
@@ -14514,7 +14536,7 @@
       },
       {
         "name": "label-display",
-        "description": "Translate categorical IDs to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob. Display-only — filters / formulas / sort keys still see raw values."
+        "description": "Translate categorical IDs and integer codes to display labels at output time without rewriting the cohort. LabelBinding entries on Request / SampleRequest / FacetRequest / ExportJob / ConvertJob. Display-only — filters / formulas / sort keys still see raw values."
       },
       {
         "name": "lookup-formulas",
@@ -21970,4 +21992,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b02c03e347b03b3e5f68231885b66fcf2355d284fe44999bd8dbf19f714bc262
+// golden-hash: dd5db0b45a47f20bca12360d7bec60ab47dc30985d09c09e86b2b294a3e2a5a3

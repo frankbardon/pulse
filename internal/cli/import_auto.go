@@ -145,7 +145,7 @@ func importAutoCmd() *cli.Command {
 // the same way (io.LoadSchemaFile over the OS filesystem, the source path's
 // own resolution) and handed to the spec's Schema / IgnoreExtra / FloatWidth.
 //
-// --source-tz / --source-tz-field / --dst-policy parse with the per-format leaves' own
+// --source-tz / --source-tz-field / --dst-policy / --zone-field parse with the per-format leaves' own
 // parseSourceZoneFlags; the spec persists them onto the sidecar.
 // --vector / --vector-kind parse with the leaves' parseVectorFlags.
 func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.ImportSpec, error) {
@@ -185,6 +185,7 @@ func importAutoSpec(cmd *cli.Command, source string, ttl time.Duration) (pulse.I
 		return pulse.ImportSpec{}, err
 	}
 	spec.SourceTZ, spec.ColumnSourceTZ, spec.SourceTZField, spec.DSTPolicy = zf.tz, zf.cols, zf.field, zf.policy
+	spec.ZoneField = zf.zoneField
 	return spec, nil
 }
 

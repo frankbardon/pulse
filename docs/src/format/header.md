@@ -19,7 +19,7 @@ These live in [`encoding/header.go`](https://github.com/frankbardon/pulse/blob/m
 |---|---|---|
 | `MagicBytes`     | `[]byte{'P','U','L','S','E', 0x00, 0x00, 0x00}` | 8-byte identifier; rejects non-Pulse files |
 | `FormatVersionV1` | `0x01` | Original layout — every file written before `0x02` existed |
-| `FormatVersionV2` | `0x02` | Adds a length-prefixed schema extension block carrying [parent groups](parent-groups.md) and [vector dims](field-types.md#vector-fields) (see [Schema Block](schema-block.md)) |
+| `FormatVersionV2` | `0x02` | Adds a length-prefixed schema extension block carrying [parent groups](parent-groups.md), [vector dims](field-types.md#vector-fields) and the [cohort default zone](schema-block.md#cohort-default-zone-zone-tag-3) (see [Schema Block](schema-block.md)) |
 | `FormatVersion`  | `0x01` | Baseline: what writers emit for a schema that uses no `0x02` feature |
 | `MaxFormatVersion` | `0x02` | Newest version this binary reads and writes |
 | `HeaderSize`     | `9` | Total header byte count |

@@ -335,7 +335,10 @@ func buildOutputSchema(src, gen *encoding.Schema, tagged bool) (*encoding.Schema
 	// The source's VECTORS entries carry over unchanged: field indices
 	// line up (the tag is appended LAST) and the source's kind, scale
 	// range and labels are the cohort's own, so they win.
-	merged := &encoding.Schema{Fields: fields, Vectors: encx.CloneVectors(src.Vectors)}
+	// The source's default zone field (ZONE section) carries too: the
+	// field keeps its name and categorical type, and every zone a
+	// generated row draws is re-judged when the cohort is written.
+	merged := &encoding.Schema{Fields: fields, Vectors: encx.CloneVectors(src.Vectors), ZoneField: src.ZoneField}
 	encx.LayoutFields(merged)
 	return merged, nil
 }

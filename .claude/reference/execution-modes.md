@@ -55,6 +55,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 | Overlays — paired-flow kinds: `OVERLAY_MARKOV`, `OVERLAY_SYMMETRY` (incl. the exact McNemar / exact Bowker arms), `OVERLAY_RETENTION` | `execution-modes/overlays-flow-kinds.md` |
 | Multiplicity; Grouped tier-1 tests | `execution-modes/inference.md` |
 | Time zones; Date-family field types; Labeled date ranges; Smart defaults | `execution-modes/time-and-defaults.md` |
+| Per-row zones (`tz_field`, `time_zone_field`); Cohort default zone field; through a join; chain stage ≥ 1 refusal (permanent) | `execution-modes/per-row-zones.md` |
 | The CLAUDE.md bullets, pre-compression (relocated verbatim at E1-S3) | `execution-modes/history.md` (not loaded by default) |
 
 Point lookup has no section here: its contract is `skills/tool-lookup.md` plus `.claude/reference/byte-layout.md`.

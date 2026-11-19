@@ -42,8 +42,7 @@ func newSetPopcountAttribute(attr *types.Attribute, schema *encoding.Schema) (At
 				"ATTR_SET_POPCOUNT: unknown field "+attr.Field)
 		}
 		if !f.Type.IsSet() {
-			return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-				"ATTR_SET_POPCOUNT: field "+attr.Field+" is not a set type")
+			return nil, setFieldRefusal(string(attr.Type), attr.Field, f.Type)
 		}
 	}
 	return &setPopcountAttribute{}, nil
@@ -118,8 +117,7 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 			"ATTR_SET_HAS: unknown field "+attr.Field)
 	}
 	if !f.Type.IsSet() {
-		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-			"ATTR_SET_HAS: field "+attr.Field+" is not a set type")
+		return nil, setFieldRefusal(string(attr.Type), attr.Field, f.Type)
 	}
 	if f.Dictionary == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,

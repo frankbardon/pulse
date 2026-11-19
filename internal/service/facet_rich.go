@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -134,15 +135,27 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		return nil, err
 	}
 
+	// A labelled integer-coded field is tallied as discrete codes
+	// (descx.FacetCodedField); a population facet inherits the host's
+	// choice for its one field (withPopulationFacet).
+	popCoded := populationCodedField(ctx)
+	coded := func(f *encoding.Field) bool {
+		if descx.FacetCodedField(req, f) {
+			return true
+		}
+		_, ok := labelcodes.CodeMax(f.Type)
+		return ok && popCoded != "" && f.Name == popCoded
+	}
+
 	// Build accumulators per requested field.
-	fields, err := buildFieldAccumulators(req.Fields, schema, req, bins, s.Limits())
+	fields, err := buildFieldAccumulators(req.Fields, schema, req, bins, s.Limits(), coded)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build additive accumulators with the field's own clauses stripped.
 	models := model.SetFrom(ctx)
-	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions, models, s.Limits())
+	additive, additiveFilters, err := buildAdditiveAccumulators(req, schema, s.extensions, models, s.Limits(), coded)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +267,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	// resulting layers in spec order. The hook is a no-op when
 	// req.Overlays is empty so the overlay-free shape stays byte-
 	// identical (additive byte-identity contract).
-	if err := s.applyFacetOverlays(ctx, req, result, resolver, mult); err != nil {
+	if err := s.applyFacetOverlays(ctx, req, schema, result, resolver, mult); err != nil {
 		return nil, err
 	}
 
@@ -364,11 +377,11 @@ type additiveEntry struct {
 
 // buildFieldAccumulators chooses discrete vs numeric per-field based on
 // the schema type and instantiates the appropriate accumulator.
-func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types.FacetRequest, bins int, l limits.Limits) ([]*fieldAcc, error) {
+func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types.FacetRequest, bins int, l limits.Limits, coded func(*encoding.Field) bool) ([]*fieldAcc, error) {
 	out := make([]*fieldAcc, 0, len(fields))
 	for _, name := range fields {
 		f := schema.Field(name)
-		acc, err := newKindAccumulator(f, req, bins, l)
+		acc, err := newKindAccumulator(f, req, bins, l, coded != nil && coded(f))
 		if err != nil {
 			return nil, err
 		}
@@ -382,7 +395,7 @@ func buildFieldAccumulators(fields []string, schema *encoding.Schema, req *types
 // resolve through exts — the same instance registry the base filters
 // use — so an extension filterer works and a hidden one is refused
 // here exactly as an unregistered one is.
-func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, l limits.Limits) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
+func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, l limits.Limits, coded func(*encoding.Field) bool) ([]*additiveEntry, map[string][]processing.FilterFunc, error) {
 	if len(req.AdditiveFields) == 0 {
 		return nil, nil, nil
 	}
@@ -390,7 +403,7 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema,
 	scopes := make(map[string][]processing.FilterFunc, len(req.AdditiveFields))
 	for _, name := range req.AdditiveFields {
 		f := schema.Field(name)
-		acc, err := newKindAccumulator(f, req, 0, l)
+		acc, err := newKindAccumulator(f, req, 0, l, coded != nil && coded(f))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -409,9 +422,16 @@ func buildAdditiveAccumulators(req *types.FacetRequest, schema *encoding.Schema,
 // schema type. Numeric types (u*, f*, decimal*, date) are summarised
 // numerically; categorical / boolean types are summarised discretely,
 // each faceted field's distinct-value count bounded by l.MaxGroups.
-func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int, l limits.Limits) (kindAccumulator, error) {
+// coded routes an integer-coded field a label binding names
+// (descx.FacetCodedField) through the categorical accumulator: one
+// discrete value per stored code, the same order, discrete_top_k cut and
+// MaxGroups bound a categorical field gets.
+func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int, l limits.Limits, coded bool) (kindAccumulator, error) {
 	switch {
 	case f.Type.IsCategorical():
+		return newCategoricalAccumulator(f, l), nil
+	case coded:
+		// No dictionary: each code is its decimal spelling (finalize).
 		return newCategoricalAccumulator(f, l), nil
 	case f.Type == encoding.FieldTypePackedBool:
 		return newBoolAccumulator(f, l), nil
@@ -476,7 +496,8 @@ func (a *categoricalAccumulator) update(r *processing.Record, field string) erro
 		return nil
 	}
 	// An index outside the dictionary is corrupt record data: refused,
-	// never counted as a numeric-string value (U51 E5-S8).
+	// never counted as a numeric-string value (U51 E5-S8). An
+	// integer-coded field (codes) is not categorical: no fault.
 	if err := encx.CategoricalIndexFault(a.field, v); err != nil {
 		return err
 	}

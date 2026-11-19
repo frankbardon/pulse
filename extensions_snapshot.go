@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/types"
 )
 
 // inheritsDictionaryName is the manifest spelling of an
@@ -34,6 +35,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 	// The InheritsDictionary declarations — the projection the runtime
 	// registry holds (attributeDictionaries).
 	snap.AttributeDictionaries = attributeDictionaries(ext.Attributes)
+	// The extend.NullableAttribute hook, asked of the instance the run
+	// would build (predict's nullable-operand advisory).
+	snap.AttributeEmitsNull = attributeEmitsNullHooks(ext.Attributes)
 	// FieldInputs: the same hooks extensions_runtime.go hands the
 	// projection extractor, keyed identically, so the shared
 	// field-reference rule judges what each extension declares it reads.
@@ -244,6 +248,12 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Description: t.Description,
 			HasRowsData: t.Rows != nil,
 		})
+		if entries, ok := labelTableEntries(t); ok {
+			if snap.LabelTableEntries == nil {
+				snap.LabelTableEntries = make(map[string][]string, len(ext.LabelTables))
+			}
+			snap.LabelTableEntries[name] = entries
+		}
 	}
 	for name, t := range ext.RangeTables {
 		labels := make([]string, 0, len(t.Ranges)+len(t.NumericRanges))
@@ -369,4 +379,57 @@ func putValidator[K comparable, S any](m map[K]func(*S) error, name K, fn extend
 	}
 	m[name] = fn
 	return m
+}
+
+// attributeEmitsNullHooks returns, per attribute registration, the hook
+// predict asks whether a slot's output can be null: the registration's
+// Factory builds the instance for the slot's spec over the schema, and
+// its extend.NullableAttribute answers (attrCore.EmitsNull — the
+// runtime's rule). A factory error, a nil instance or a panic answers
+// false: that slot never runs. Nil when nothing registers.
+func attributeEmitsNullHooks(regs []AttributeRegistration) map[types.AttributeType]func(*types.Attribute, *encoding.Schema) bool {
+	if len(regs) == 0 {
+		return nil
+	}
+	out := make(map[types.AttributeType]func(*types.Attribute, *encoding.Schema) bool, len(regs))
+	for _, r := range regs {
+		factory := r.Factory
+		if factory == nil {
+			continue
+		}
+		out[r.Name] = func(spec *types.Attribute, schema *encoding.Schema) (emits bool) {
+			defer func() {
+				if recover() != nil {
+					emits = false
+				}
+			}()
+			instance, err := factory(spec, schema)
+			if err != nil || instance == nil {
+				return false
+			}
+			return attrCore{inner: instance}.EmitsNull()
+		}
+	}
+	return out
+}
+
+// labelTableEntries lists a label table's own entries the way the
+// runtime resolver's Entries does (processing.LabelResolver.Entries): a
+// Rows table's keys in byte-wise sorted order, else a Lookup table's
+// Order; ok is false when the table can list neither. Predict's binding
+// validator reads the result (ExtensionsSnapshot.LabelTableEntries) to
+// check an integer-coded field's keys.
+func labelTableEntries(t LabelTable) ([]string, bool) {
+	if t.Rows != nil {
+		keys := make([]string, 0, len(t.Rows))
+		for k := range t.Rows {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys, true
+	}
+	if len(t.Order) > 0 {
+		return append([]string(nil), t.Order...), true
+	}
+	return nil, false
 }

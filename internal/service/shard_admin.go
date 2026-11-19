@@ -651,7 +651,7 @@ func cloneSchemaForArchive(s *encoding.Schema) *encoding.Schema {
 	if s == nil {
 		return nil
 	}
-	out := &encoding.Schema{Fields: make([]encoding.Field, len(s.Fields))}
+	out := &encoding.Schema{Fields: make([]encoding.Field, len(s.Fields)), ZoneField: s.ZoneField}
 	for i, f := range s.Fields {
 		out.Fields[i] = f
 		if f.Dictionary != nil {

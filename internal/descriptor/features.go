@@ -324,7 +324,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("index"),              // BuildIndex, VerifyIndex, ListIndexes, DropIndex
 	capability("shard"),              // every shard-archive method
 	capability("import"),             // managed import pool
-	capability("export"),             // Export, Convert, ImportTransfer, ExportTransfer
+	capability("export"),             // Export, Convert, PredictExport, PredictConvert, ImportTransfer, ExportTransfer
 	capability("filter_to_file"),     // FilterToFile*
 	capability("dedup"),              // Dedup
 	capability("materialize"),        // pulse_materialize, pulse api materialize (the facade stays ungated)
@@ -1288,6 +1288,10 @@ var commandBindings = []CommandBinding{
 	{Command: "index drop", Feature: featIndex},
 	{Command: "widen", Feature: featWiden},
 	{Command: "dedup", Feature: featDedup},
+	// The cohort default zone rides capability:import, as --zone-field
+	// does at import (no feature row of its own).
+	{Command: "cohort zone set", Feature: featImport},
+	{Command: "cohort zone clear", Feature: featImport},
 	{Command: "materialize", Feature: featMaterialize},
 	{Command: "rake", Feature: featRake},
 	{Command: "recommend", Feature: featRecommend},

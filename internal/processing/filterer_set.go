@@ -54,8 +54,7 @@ func buildSetQueryMask(filter *types.Filterer, schema *encoding.Schema) (encodin
 			string(filter.Type)+": unknown field "+filter.Field)
 	}
 	if !f.Type.IsSet() {
-		return zero, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-			string(filter.Type)+": field "+filter.Field+" is not a set type")
+		return zero, setFieldRefusal(string(filter.Type), filter.Field, f.Type)
 	}
 	if f.Dictionary == nil {
 		return zero, errors.NewCodedError(errors.PROCESSING_CONFIG,
