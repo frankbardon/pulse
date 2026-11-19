@@ -5177,13 +5177,16 @@ pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
 pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
 pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
 pulse/synth: type UtilityCoefficient underlying struct
+pulse/synth: type UtilityCoefficient field Difference *float64 "json:\"difference,omitempty\""
 pulse/synth: type UtilityCoefficient field Missing string "json:\"missing,omitempty\""
 pulse/synth: type UtilityCoefficient field Ratio float64 "json:\"ratio,omitempty\""
+pulse/synth: type UtilityCoefficient field RatioReliable *bool "json:\"ratio_reliable,omitempty\""
 pulse/synth: type UtilityCoefficient field Source float64 "json:\"source\""
 pulse/synth: type UtilityCoefficient field SourceStdError float64 "json:\"source_std_error,omitempty\""
 pulse/synth: type UtilityCoefficient field Synthetic float64 "json:\"synthetic\""
 pulse/synth: type UtilityCoefficient field SyntheticStdError float64 "json:\"synthetic_std_error,omitempty\""
 pulse/synth: type UtilityCoefficient field Term string "json:\"term\""
+pulse/synth: type UtilityCoefficient field Z *float64 "json:\"z,omitempty\""
 pulse/synth: type UtilityFidelity = pulse/internal/synth.UtilityFidelity
 pulse/synth: type UtilityFidelity underlying struct
 pulse/synth: type UtilityFidelity field ModelFits []*pulse/internal/synth.UtilityModelFit "json:\"model_fits,omitempty\""
@@ -7095,4 +7098,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8f99d964be07c31ad5ab343be9b419589ceb7619a1e4573c5be39e457b7faa03
+// golden-hash: 93fad56547cf9892d7e2d508e3597690ecaf240a4212f7dce57a1745ccdc6f05

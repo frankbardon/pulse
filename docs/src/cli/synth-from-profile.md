@@ -837,21 +837,34 @@ rows after it:
     "statistic": "pseudo_r2", "source_fit": 0.2086, "synthetic_fit": 0.2206,
     "fit_ratio": 1.057, "source_n_obs": 20000, "synthetic_n_obs": 20000,
     "coefficients": [{"term": "autopay", "source": -0.527, "synthetic": -0.500,
-                      "source_std_error": 0.034, "synthetic_std_error": 0.035, "ratio": 0.950}]}]
+                      "source_std_error": 0.034, "synthetic_std_error": 0.035, "ratio": 0.950,
+                      "difference": 0.027, "z": 0.545, "ratio_reliable": true},
+                     {"term": "age", "source": 0.00017, "synthetic": 0.00285,
+                      "source_std_error": 0.00088, "synthetic_std_error": 0.00092, "ratio": 16.6,
+                      "difference": 0.00268, "z": 2.100, "ratio_reliable": false}]}]
 }
 ```
 
 (Figures from the 20,000-row churn fixture of
 `TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport`, one level
-and one coefficient shown.)
+and two coefficients shown.)
 
 `statistic` is `pseudo_r2` (McFadden) for a `REG_GLM` and `r2`
 otherwise; `fit_ratio` is the twin's share of the source's explanatory
 power — the figure a "≥ 0.85× the source" bar reads. Coefficients are
-sorted by term; `missing` names a side that did not estimate one. A
-coefficient `ratio` is unstable where the source coefficient is near
-zero (the fixture's `age`, which carries no true effect, reads 16.6) —
-read it beside the two standard errors. A
+sorted by term; `missing` names a side that did not estimate one.
+Beside `ratio` (synthetic ÷ source, still emitted) every term both
+sides estimated carries `difference` (synthetic − source, on the
+coefficient's scale), `z` (that difference ÷ √(source SE² + synthetic
+SE²) — the gap in standard errors, comparable across terms; absent,
+never 0, when both standard errors are 0) and `ratio_reliable`
+(`false` when |source| ≤ the source SE: the source estimate is
+indistinguishable from zero, so the ratio divides by noise). The
+fixture's `age` carries no true effect: its ratio reads 16.6, flagged
+`ratio_reliable: false`, while `z` reads the gap as 2.1 standard
+errors — the size an occasional term among seven reaches by chance;
+the fixture's one gap past three is `contract_Two-Year` (z −3.4). Read
+`z` as a gap, not a test. A
 regression that fails on one side carries `source_error` /
 `synthetic_error` and the other side still reports. A request the
 engine refuses on the source fails the call under the engine's own
@@ -861,6 +874,7 @@ given without `--fidelity-report`, is `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
 ```bash
 jq '.utility.model_fits[] | {name, statistic, source_fit, synthetic_fit, fit_ratio}' out.fidelity.json
 jq '.utility.target_rates[] | select(.verdict != "preserved")' out.fidelity.json
+jq '.utility.model_fits[].coefficients[] | {term, ratio, ratio_reliable, difference, z}' out.fidelity.json
 ```
 
 `utility` is absent for a spec with no applied model and no

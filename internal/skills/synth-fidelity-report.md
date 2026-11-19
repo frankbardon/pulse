@@ -12,13 +12,13 @@ requires: [capability:synth]
 
 ## Tagged top-up contract
 
-`synth from-profile` (`SynthOptions.SourceCohort` / `--source`): (1) appends one `_synthetic` `packed_bool` field, `false` on copied rows, `true` on generated ones (`--synthetic-only`: generated rows alone, no tag; the report still reads it); (2) writes a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). Source records are re-encoded straight through, so structural rules reach GENERATED rows only. `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
+`synth from-profile` (`SynthOptions.SourceCohort` / `--source`): (1) appends one `_synthetic` `packed_bool` field, `false` on copied rows, `true` on generated ones (`--synthetic-only`: generated rows alone, no tag; the report still reads it); (2) writes a **new** output path, distinct from `--source`, which is opened read-only and never mutated; (3) treats `--rows` as a count of NEW rows, never "top up to N total" (`--rows 500` against 200 source rows → 700 rows). Source records are re-encoded straight through. `SourceCohort` empty (`synth from-schema`) is the plain path — no tag column. Refusals: `PULSE_SYNTH_SOURCE_REQUIRED`, `PULSE_SYNTH_OUTPUT_REQUIRED`, `PULSE_SYNTH_OUTPUT_COLLISION`, `PULSE_SYNTH_ALREADY_TAGGED`, `PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH`.
 
 ## Fidelity report
 
-`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. `fields[]` scores every scalar type: integers (incl. `u4`), floats and `date` (epoch days) by KS (`split_by: _synthetic`); `datetime` by KS over epoch seconds plus `shape` (UTC hour-of-day and weekday TVD — KS passes a twin with the right days at the wrong hours); categoricals and `packed_bool` by the χ² test. A failed test reports `error` and aborts nothing. Sections are `omitempty`: one whose capture flag was absent leaves the report byte-identical. `disclosure` (default on): `synth-disclosure-report`.
+`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. `fields[]` scores every scalar type: integers (incl. `u4`), floats and `date` (epoch days) by KS (`split_by: _synthetic`); `datetime` by KS over epoch seconds plus `shape` (UTC hour-of-day and weekday TVD — KS passes a twin with the right days at the wrong hours); categoricals and `packed_bool` by the χ² test. A failed test reports `error`, aborting nothing. Sections are `omitempty`: one whose capture flag was absent leaves the report byte-identical. `disclosure` (default on): `synth-disclosure-report`.
 
-**Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — a number that LOOKS like evidence. `internal/synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence (`synth-conflicts`).
+**Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair computes a delta against a relationship the generator never modelled — it LOOKS like evidence. `internal/synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence (`synth-conflicts`).
 
 `pairwise` is one `{a, b, source_rho, synthetic_rho, delta, n}` per surviving numeric-numeric pair (capture's `pearson`), VALUE-scale `Spec.Correlations` only.
 
@@ -35,15 +35,15 @@ requires: [capability:synth]
 Recovery sections compare the twin with the CAPTURED model; `utility` compares it with the SOURCE rows. A coefficient is a partial effect, a level table a marginal contrast carrying uncaptured confounders — `models` can call an effect recovered while churn-by-contract is compressed.
 
 - `utility.target_rates` (automatic: applied model × categorical predictor): the target's mean per level on each side (a rate for `packed_bool`), `source_spread` / `synthetic_spread` (max − min, levels ≥ 30 rows on both), `spread_ratio`, ε² and `verdict` — `compressed` / `inflated` past 20% AND 2 SE, else `preserved`.
-- `utility.model_fits` (opt-in `--fidelity-model <request.json>`, `SynthOptions.FidelityModel`): a `pulse process` request's regressions refit on source and generated rows — `statistic` (`r2`<!-- feature: REG_GLM -->; `pseudo_r2` for `REG_GLM`<!-- /feature -->), `source_fit`, `synthetic_fit`, `fit_ratio` and coefficients side by side. The source fit runs first; a refusal fails the call. No regressions or no `--fidelity-report`: `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
+- `utility.model_fits` (opt-in `--fidelity-model <request.json>`, `SynthOptions.FidelityModel`): a `pulse process` request's regressions refit on source and generated rows — `statistic` (`r2`<!-- feature: REG_GLM -->; `pseudo_r2` for `REG_GLM`<!-- /feature -->), `source_fit`, `synthetic_fit`, `fit_ratio` and coefficients, each with `ratio`, `difference`, `z` (gap in SEs; absent, not 0, if both SEs are 0) and `ratio_reliable` (`false` when |source| ≤ its SE). The source fit runs first; a refusal fails the call. No regressions or no `--fidelity-report`: `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
 
 The two structure-recovery sections — `models` and `model_residual_correlations`, asking whether the captured CONDITIONING survived rather than whether the rows look alike — are in `synth-models`.
 
 ## Warnings in the report
 
-The report's `warnings` carry capture, translation and generation warnings, deduplicated — including which relationship a `--rules` run retired and which rule never fired. The CLI prints a counted summary to stderr (attention kinds first, expected outcomes counted separately) and, with `--fidelity-report`, the recovery headline `N model(s) checked, M flagged`.
+The report's `warnings` carry capture, translation and generation warnings, deduplicated — including which relationship a `--rules` run retired and which rule never fired. The CLI prints a counted summary to stderr and, with `--fidelity-report`, the recovery headline `N model(s) checked, M flagged`.
 
 ## See
 
 - `synthetic-data` · `synth-conflicts` · `synth-models` · `synth-set-fields` · `synth-disclosure-report`.
-- `docs/src/cli/synth-from-profile.md` — flags and a worked report.
+- `docs/src/cli/synth-from-profile.md` — a worked report.
