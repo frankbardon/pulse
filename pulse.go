@@ -1045,8 +1045,8 @@ func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
 		return nil, argumentError("pulse: process requires a request")
 	}
 	resp, err := p.svc.Process(ctx, req)
-	if err == nil && req != nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil && req != nil {
+		p.touchRequestCohorts(ctx, req)
 	}
 	if err == nil && req != nil {
 		// The effective block: the request's own, else the instance

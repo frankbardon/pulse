@@ -3,7 +3,9 @@ package pulse
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	stderrors "errors"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -88,10 +90,14 @@ func TestPredict_UnionReadsEveryMember(t *testing.T) {
 	}
 }
 
-// Every union refusal is one rule: predict reports exactly the code the
-// runtime refuses with, for Process and Materialize alike. Until union
-// execution is wired a valid union is refused PULSE_UNION_UNSUPPORTED by
-// the runtime — never read as one cohort.
+// Every union refusal is one rule: for every refusal a union can draw —
+// the schema-free shape rules, the merged-schema rules (a member the
+// shard-archive merge refuses, a source field that collides, the
+// flattened member limit) and a union on a join's left side, which no
+// operation reads yet — Predict, Process, ProcessStream, a Compose
+// slot and Compose predict all report the same code with the same
+// details. Materialize does not read a union yet: it and its predict
+// refuse PULSE_UNION_UNSUPPORTED alike.
 func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 	t.Parallel()
 	p := unionFixture(t)
@@ -101,45 +107,91 @@ func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 	stray := unionRequest()
 	stray.Cohort = &types.Cohort{Filename: "a.pulse"}
 	stray.UnionSourceField = "wave"
+	collision := unionRequest("a.pulse", "x", "b.pulse", "y")
+	collision.UnionSourceField = "amount"
+	joined := unionRequest("a.pulse", "x", "b.pulse", "y")
+	joined.Joins = []*types.JoinSpec{{Right: "b.pulse", On: []types.OnPair{{LeftField: "region", RightField: "region"}}}}
+	tooMany := unionRequest()
+	for i := 0; i <= 65535; i++ {
+		tooMany.Union = append(tooMany.Union, types.UnionMember{Cohort: &types.Cohort{Filename: "a.pulse"}, Label: strconv.Itoa(i)})
+	}
 	cases := []struct {
-		name string
-		req  *types.Request
-		code errors.Code
+		name    string
+		req     *types.Request
+		code    errors.Code
+		details map[string]any
 	}{
-		{"cohort and union", conflict, errors.PULSE_UNION_COHORT_CONFLICT},
-		{"duplicate label", unionRequest("a.pulse", "x", "b.pulse", "x"), errors.PULSE_UNION_LABEL_INVALID},
-		{"empty label", unionRequest("a.pulse", ""), errors.PULSE_UNION_LABEL_INVALID},
-		{"member without cohort", &types.Request{Union: []types.UnionMember{{Label: "x"}}}, errors.PULSE_UNION_MEMBER_INVALID},
-		{"source field without union", stray, errors.PULSE_UNION_SOURCE_FIELD_INVALID},
+		{"cohort and union", conflict, errors.PULSE_UNION_COHORT_CONFLICT, nil},
+		{"duplicate label", unionRequest("a.pulse", "x", "b.pulse", "x"), errors.PULSE_UNION_LABEL_INVALID, map[string]any{"reason": "duplicate"}},
+		{"empty label", unionRequest("a.pulse", ""), errors.PULSE_UNION_LABEL_INVALID, map[string]any{"reason": "empty"}},
+		{"member without cohort", &types.Request{Union: []types.UnionMember{{Label: "x"}}}, errors.PULSE_UNION_MEMBER_INVALID, nil},
+		{"source field without union", stray, errors.PULSE_UNION_SOURCE_FIELD_INVALID, map[string]any{"reason": "without_union"}},
+		{"member limit", tooMany, errors.PULSE_UNION_MEMBER_LIMIT, map[string]any{"member_count": 65536}},
+		{"source field collision", collision, errors.PULSE_UNION_SOURCE_FIELD_INVALID, map[string]any{"reason": "collision"}},
+		{"schema mismatch", unionRequest("a.pulse", "source", "nullable.pulse", "twin"), errors.PULSE_UNION_SCHEMA_MISMATCH,
+			map[string]any{"dimension": "nullable", "member": 1, "label": "twin", "archive_code": string(errors.PULSE_SHARD_SCHEMA_MISMATCH)}},
+		{"union joined", joined, errors.PULSE_UNION_UNSUPPORTED, map[string]any{"operation": "join"}},
+	}
+	// sameDetails reports whether every wanted detail is present with
+	// the wanted value (JSON-normalised, so ints compare with floats).
+	sameDetails := func(got map[string]any, want map[string]any) bool {
+		for k, v := range want {
+			a, _ := json.Marshal(got[k])
+			b, _ := json.Marshal(v)
+			if string(a) != string(b) {
+				return false
+			}
+		}
+		return true
+	}
+	coded := func(err error) *errors.CodedError {
+		var ce *errors.CodedError
+		if stderrors.As(err, &ce) {
+			return ce
+		}
+		return nil
 	}
 	for _, tc := range cases {
 		res, err := p.Predict(ctx, tc.req)
 		if err != nil {
 			t.Fatalf("%s: Predict: %v", tc.name, err)
 		}
-		if res.Valid || len(res.Errors) == 0 || res.Errors[0].Code != string(tc.code) {
-			t.Errorf("%s: predict = %+v, want %s", tc.name, res.Errors, tc.code)
+		if res.Valid || len(res.Errors) == 0 || res.Errors[0].Code != string(tc.code) || !sameDetails(res.Errors[0].Details, tc.details) {
+			t.Errorf("%s: predict = %+v, want %s %v", tc.name, res.Errors, tc.code, tc.details)
 		}
-		if _, err := p.Process(ctx, tc.req); !errors.HasCode(err, tc.code) {
-			t.Errorf("%s: Process = %v, want %s", tc.name, err, tc.code)
+		_, perr := p.Process(ctx, tc.req)
+		if ce := coded(perr); ce == nil || ce.Code != tc.code || !sameDetails(ce.Details, tc.details) {
+			t.Errorf("%s: Process = %v, want %s %v", tc.name, perr, tc.code, tc.details)
+		}
+		if _, serr := p.ProcessStream(ctx, tc.req); !errors.HasCode(serr, tc.code) {
+			t.Errorf("%s: ProcessStream = %v, want %s", tc.name, serr, tc.code)
+		}
+		// A Compose slot: the runtime's slot fault and Compose predict's
+		// carry the code, the details and the slot index alike.
+		slot := *tc.req
+		slot.Label = "slot"
+		composed := &ComposedRequest{Requests: []*Request{&slot}}
+		slotDetails := map[string]any{"request": 0}
+		for k, v := range tc.details {
+			slotDetails[k] = v
+		}
+		_, cerr := p.Compose(ctx, composed)
+		if ce := coded(cerr); ce == nil || ce.Code != tc.code || !sameDetails(ce.Details, slotDetails) {
+			t.Errorf("%s: Compose = %v, want %s %v", tc.name, cerr, tc.code, slotDetails)
+		}
+		env, err := p.PredictCompose(ctx, composed)
+		if err != nil {
+			t.Fatalf("%s: PredictCompose: %v", tc.name, err)
+		}
+		if len(env.Errors) == 0 || env.Errors[0].Code != string(tc.code) || !sameDetails(env.Errors[0].Details, slotDetails) {
+			t.Errorf("%s: PredictCompose = %+v, want %s %v", tc.name, env.Errors, tc.code, slotDetails)
 		}
 	}
 
-	// Schema mismatch: predict refuses it with the archive's dimension.
-	res, err := p.Predict(ctx, unionRequest("a.pulse", "source", "nullable.pulse", "twin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Errors) == 0 || res.Errors[0].Code != string(errors.PULSE_UNION_SCHEMA_MISMATCH) || res.Errors[0].Details["dimension"] != "nullable" {
-		t.Errorf("mismatch = %+v, want PULSE_UNION_SCHEMA_MISMATCH dimension nullable", res.Errors)
-	}
-
+	// A valid union is read, never refused, by Process and ProcessStream.
 	valid := unionRequest("a.pulse", "source", "b.pulse", "twin")
-	if _, err := p.Process(ctx, valid); !errors.HasCode(err, errors.PULSE_UNION_UNSUPPORTED) {
-		t.Errorf("Process(valid union) = %v, want PULSE_UNION_UNSUPPORTED", err)
-	}
-	if _, err := p.ProcessStream(ctx, valid); !errors.HasCode(err, errors.PULSE_UNION_UNSUPPORTED) {
-		t.Errorf("ProcessStream(valid union) = %v, want PULSE_UNION_UNSUPPORTED", err)
+	if _, err := p.Process(ctx, valid); err != nil {
+		t.Errorf("Process(valid union) = %v", err)
 	}
 	mat := &types.Request{Union: valid.Union}
 	env, err := p.PredictMaterialize(ctx, mat)
@@ -147,8 +199,7 @@ func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 		t.Errorf("PredictMaterialize(union) = %+v, %v", env, err)
 	}
 	_, err = p.Materialize(ctx, mat, "out.pulse", MaterializeOptions{})
-	var ce *errors.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_UNION_UNSUPPORTED {
+	if ce := coded(err); ce == nil || ce.Code != errors.PULSE_UNION_UNSUPPORTED {
 		t.Errorf("Materialize(union) = %v, want PULSE_UNION_UNSUPPORTED", err)
 	}
 }

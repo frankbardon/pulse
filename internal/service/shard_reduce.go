@@ -125,7 +125,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	if fsys == nil {
 		fsys = s.fs.Fs()
 	}
-	arch, err := openArchiveFile(fsys, path)
+	arch, err := openCohortShards(cohort, fsys)
 	if err != nil {
 		return nil, err
 	}
@@ -501,18 +501,9 @@ type shardRows struct {
 // as shardIter.openShard reads it: the canonical schema decodes the
 // rows, so the shard's dictionaries are read past, never allocated.
 func (d *shardDecode) openRows(arch *archiveFile, name string, schema *encoding.Schema) (*shardRows, error) {
-	r, err := arch.shardReader(name)
+	r, err := arch.shardRows(name)
 	if err != nil {
 		return nil, err
-	}
-	pulseVersion, err := encoding.ReadHeader(r)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q header", name))
-	}
-	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q schema", name))
 	}
 	rows := &shardRows{rr: encx.NewRecordReader(r, schema), dec: d, schema: schema}
 	// The projection-without-plan map decode loses a u64 word above 2^53

@@ -44,13 +44,23 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 		return s.processCrosstabWithJoin(ctx, req)
 	}
 
-	path := resolveCohortPath(req.Cohort)
-	cohort, err := s.Open(ctx, path)
+	cohort, path, err := s.openRequestCohort(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+	execInfoFrom(ctx).Lap(observe.PhaseOpen)
+	resp, err := s.processCrosstabCohort(ctx, req, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	unionWarnings(resp, cohort)
+	return resp, nil
+}
+
+// processCrosstabCohort is processCrosstab's unjoined arm over the
+// opened cohort (path names it on the response; "" for a union).
+func (s *Service) processCrosstabCohort(ctx context.Context, req *types.Request, cohort *Cohort, path string) (*types.Response, error) {
 	ei := execInfoFrom(ctx)
-	ei.Lap(observe.PhaseOpen)
 	countReads(ctx, cohort)
 
 	s.applyDefaults(req, cohort.Schema())

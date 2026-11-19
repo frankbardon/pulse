@@ -310,6 +310,12 @@ func countReads(ctx context.Context, cohort *Cohort) {
 	if ei == nil || cohort == nil || cohort.fs == nil {
 		return
 	}
+	// A union reads its members' files: each member's fs counts.
+	if cohort.union != nil {
+		for i := range cohort.union.members {
+			countReads(ctx, cohort.union.members[i].cohort)
+		}
+	}
 	if _, ok := cohort.fs.(*execCountingFs); ok {
 		return
 	}

@@ -751,10 +751,10 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 		return nil, markLocated(err)
 	}
 	// The union rules, as predict runs them right after the slot gate
-	// (descx.UnionShapeRefusal). Execution over a union is not wired
-	// yet: a valid union is refused PULSE_UNION_UNSUPPORTED, never read
-	// as one cohort.
-	if err := descx.UnionRunRefusal(req, "process"); err != nil {
+	// (descx.UnionExecRefusal): a valid union is read as one cohort by
+	// the dispatch below (openRequestCohort); a union on a join's left
+	// side is refused PULSE_UNION_UNSUPPORTED.
+	if err := descx.UnionExecRefusal(req); err != nil {
 		return nil, err
 	}
 	// Every item for_each expands next, before any other check reads
@@ -908,13 +908,26 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 		return s.processWithJoin(ctx, req)
 	}
 
-	path := resolveCohortPath(req.Cohort)
-
-	cohort, err := s.Open(ctx, path)
+	// The request's cohort — or, for a union, its members merged into
+	// one archive-shaped cohort (openRequestCohort): every arm below
+	// reads either the same way.
+	cohort, path, err := s.openRequestCohort(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	ei.Lap(observe.PhaseOpen)
+	resp, err := s.processCohort(ctx, req, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	unionWarnings(resp, cohort)
+	return resp, nil
+}
+
+// processCohort is processDispatch's non-crosstab, non-join arm over
+// the opened cohort (path names it on the response; "" for a union).
+func (s *Service) processCohort(ctx context.Context, req *types.Request, cohort *Cohort, path string) (*types.Response, error) {
+	ei := execInfoFrom(ctx)
 	countReads(ctx, cohort)
 
 	// Smart-defaults resolution: fill in operator types that the caller
@@ -1249,6 +1262,9 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 	fsys := cohort.fs
 	if fsys == nil {
 		fsys = s.fs.Fs()
+	}
+	if cohort.union != nil {
+		return newUnionShardIter(cohort)
 	}
 	if shards := cohort.Shards(); len(shards) > 0 {
 		return newShardIter(fsys, path, cohort.Schema(), shards)

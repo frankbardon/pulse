@@ -24,7 +24,7 @@ func (p *Pulse) predictUnionEnvelope(ctx context.Context, req *Request, strictEc
 		opts.Strict = p.svc.Strict()
 		opts.EchoRequest = p.svc.EchoRequest()
 	}
-	if descx.UnionShapeRefusal(req) != nil {
+	if descx.UnionExecRefusal(req) != nil {
 		return descx.PredictUnion(nil, req, &opts), nil
 	}
 	members := make([]descx.UnionSource, 0, len(req.Union))
@@ -71,4 +71,45 @@ func predictResultOf(env *descriptor.Envelope) (*descriptor.PredictResult, error
 	}
 	result.Errors, result.Warnings = env.Errors, env.Warnings
 	return result, nil
+}
+
+// touchRequestCohorts slides the managed-import expiry of every cohort
+// a successful run read: the request cohort, or each union member.
+func (p *Pulse) touchRequestCohorts(ctx context.Context, req *Request) {
+	if req.Cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	}
+	for _, m := range req.Union {
+		if m.Cohort != nil {
+			p.touchManaged(ctx, resolveCohortPath(m.Cohort))
+		}
+	}
+}
+
+// estimatedRecords is a stream's header-fast record estimate: the
+// request cohort's count, or the sum of every union member's; -1 when
+// any count cannot be read.
+func (p *Pulse) estimatedRecords(ctx context.Context, req *Request) int64 {
+	var names []string
+	if req.Cohort != nil && req.Cohort.Filename != "" {
+		names = append(names, req.Cohort.Filename)
+	}
+	for _, m := range req.Union {
+		if m.Cohort == nil || m.Cohort.Filename == "" {
+			return -1
+		}
+		names = append(names, m.Cohort.Filename)
+	}
+	if len(names) == 0 {
+		return -1
+	}
+	var total uint64
+	for _, name := range names {
+		n, err := p.countRecords(ctx, name)
+		if err != nil || n > uint64(1<<62)-total {
+			return -1
+		}
+		total += n
+	}
+	return int64(total)
 }

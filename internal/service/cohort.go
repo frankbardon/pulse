@@ -55,6 +55,11 @@ type Cohort struct {
 	// Open read it (where the records start); 0 for an archive, an
 	// anchor-opened shard, or a cohort not built by Open.
 	payloadOffset int64
+
+	// union is set on a union cohort (Request.Union, openUnion): path
+	// is empty, shards are the members' flattened shards and schema
+	// the merged one.
+	union *unionView
 }
 
 // Shards returns the shard manifest for an archive-backed cohort. Returns

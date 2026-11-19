@@ -109,6 +109,24 @@ func UnionRunRefusal(req *types.Request, operation string) error {
 	return nil
 }
 
+// UnionExecRefusal is the union gate of an operation that reads a
+// union as one record stream (process, process stream, a Compose
+// slot): req's UnionShapeRefusal, else — while a union is read on the
+// left side of a join by no operation yet — PULSE_UNION_UNSUPPORTED
+// naming "join" for a union request carrying joins, else nil. The
+// runtime (Service.process) and predict (PredictUnion, a Compose
+// slot's validation) both call it at the same point, right after the
+// slot gate, so the two refuse alike.
+func UnionExecRefusal(req *types.Request) error {
+	if err := UnionShapeRefusal(req); err != nil {
+		return err
+	}
+	if req != nil && len(req.Union) > 0 && len(req.Joins) > 0 {
+		return UnionUnsupported("join")
+	}
+	return nil
+}
+
 // UnionMemberSchema is one opened union member: its label, its schema
 // (a shard archive's canonical schema) and how many shards it
 // contributes once flattened (1 for a single file or an anchor).
@@ -320,7 +338,7 @@ func PredictUnion(members []UnionSource, req *types.Request, opts *PredictOption
 	if serr := SlotRefusal(req, opts.instance()); serr != nil {
 		return unionRefused(req, opts, serr)
 	}
-	if uerr := UnionShapeRefusal(req); uerr != nil {
+	if uerr := UnionExecRefusal(req); uerr != nil {
 		return unionRefused(req, opts, uerr)
 	}
 	written := req
@@ -369,7 +387,7 @@ func predictUnionMembers(members []UnionSource, req *types.Request, opts *Predic
 	for i, m := range members {
 		read, err := readUnionMember(m.R)
 		if err != nil {
-			addCodedError(env, locateUnionMember(err, i, m.Label))
+			addCodedError(env, LocateUnionMember(err, i, m.Label))
 			result.Valid = false
 			return env
 		}
@@ -409,9 +427,11 @@ func predictUnionMembers(members []UnionSource, req *types.Request, opts *Predic
 	return env
 }
 
-// locateUnionMember adds the member index and label to a member read
-// fault's details.
-func locateUnionMember(err error, i int, label string) error {
+// LocateUnionMember adds the member index and label to a member read
+// fault's details (a fault that is not a *errors.CodedError is
+// returned unchanged). Predict and the runtime locate a member they
+// cannot read the same way.
+func LocateUnionMember(err error, i int, label string) error {
 	ce, ok := err.(*errors.CodedError)
 	if !ok {
 		return err
@@ -422,4 +442,96 @@ func locateUnionMember(err error, i int, label string) error {
 	}
 	details["member"], details["label"] = i, label
 	return errors.NewCodedErrorWithDetails(ce.Code, ce.Message, details)
+}
+
+// unionCounts sums the members' header counts into the union's: the
+// flattened per-shard counts (a single file contributes its one count)
+// and their total, with no archive terms (the union holds no central
+// directory and no recorded distinct counts) — the figures the
+// runtime's union cohort reports to its limit pre-flight. Any member's
+// unknown count makes the union's unknown.
+func unionCounts(members []CohortCounts) CohortCounts {
+	out := CohortCounts{}
+	for _, c := range members {
+		if c.Records < 0 {
+			return unknownCounts
+		}
+		if len(c.ShardRecords) == 0 {
+			out.ShardRecords = append(out.ShardRecords, c.Records)
+		} else {
+			out.ShardRecords = append(out.ShardRecords, c.ShardRecords...)
+		}
+		out.Records += c.Records
+	}
+	return out
+}
+
+// unionRequestSchema reads a union request's members through
+// opts.SchemaLoader (each member's counts through opts.cohortCounts)
+// and merges them (MergeUnion) — the schema a Compose slot carrying a
+// union executes over, with its counts. ok is false when a member's
+// schema cannot be read (no judgement, as for an unreadable single
+// cohort); err is the merge's refusal.
+func unionRequestSchema(req *types.Request, opts *PredictOptions) (schema *encoding.Schema, counts CohortCounts, ok bool, err error) {
+	if req == nil || len(req.Union) == 0 || opts == nil || opts.SchemaLoader == nil {
+		return nil, unknownCounts, false, nil
+	}
+	schemas := make([]UnionMemberSchema, 0, len(req.Union))
+	memberCounts := make([]CohortCounts, 0, len(req.Union))
+	for _, m := range req.Union {
+		if m.Cohort == nil {
+			return nil, unknownCounts, false, nil
+		}
+		s, lerr := opts.SchemaLoader(cohortPathFor(m.Cohort))
+		if lerr != nil || s == nil {
+			return nil, unknownCounts, false, nil
+		}
+		c := opts.cohortCounts(m.Cohort)
+		memberCounts = append(memberCounts, c)
+		schemas = append(schemas, UnionMemberSchema{Label: m.Label, Schema: s, Shards: max(len(c.ShardRecords), 1)})
+	}
+	merged, _, merr := MergeUnion(schemas, UnionSourceFieldName(req))
+	if merr != nil {
+		return nil, unknownCounts, false, merr
+	}
+	return merged, unionCounts(memberCounts), true, nil
+}
+
+// requestSchemaFor is the schema a Compose slot (or fit request) reads:
+// its cohort's (cohortSchemaFor) or, for a union, the merged one; nil
+// when it cannot be read or the union does not merge.
+func requestSchemaFor(req *types.Request, opts *PredictOptions) *encoding.Schema {
+	if req == nil {
+		return nil
+	}
+	if len(req.Union) == 0 {
+		return cohortSchemaFor(req.Cohort, opts)
+	}
+	if UnionShapeRefusal(req) != nil {
+		return nil
+	}
+	schema, _, ok, _ := unionRequestSchema(req, opts)
+	if !ok {
+		return nil
+	}
+	return schema
+}
+
+// requestCounts is the counts a Compose slot's (or fit request's)
+// limit pre-flight reads: its cohort's, or the union's summed ones.
+func requestCounts(req *types.Request, opts *PredictOptions) CohortCounts {
+	if req == nil {
+		return unknownCounts
+	}
+	if len(req.Union) == 0 {
+		return opts.cohortCounts(req.Cohort)
+	}
+	if UnionShapeRefusal(req) != nil {
+		return unknownCounts
+	}
+	_, counts, ok, _ := unionRequestSchema(req, opts)
+	if !ok {
+		return unknownCounts
+	}
+	return counts
 }
