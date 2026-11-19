@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -38,31 +39,55 @@ func (s *Service) sampleWithRequest(ctx context.Context, req *types.SampleReques
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "sample request is required")
 	}
+	// The union shape rules, before anything is opened.
+	if err := descx.UnionShapeRefusalOf(req.Cohort, req.Union, req.UnionSourceField); err != nil {
+		return nil, nil, err
+	}
 	if req.N <= 0 {
 		return nil, nil, nil
 	}
 
-	// Inject configured default label bindings (schema-filtered) so
-	// registered tables render in sampled rows without per-call bindings.
-	// A failed open here is non-fatal — the real error surfaces in
-	// validateSampleLabels / sampleOffsetLimit below.
-	if len(s.autoLabels) > 0 {
-		if cohort, err := s.Open(ctx, path); err == nil {
+	var rows []map[string]any
+	if len(req.Union) > 0 {
+		// A union: its members merged into one archive-shaped cohort,
+		// sampled in union order (members in declared order) — the
+		// source field a column like any other. path is unused.
+		cohort, err := s.openUnion(ctx, req.Union, req.UnionSourceField)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(s.autoLabels) > 0 {
 			s.applyAutoLabels(&req.Labels, cohort.Schema(), nil, nil, nil)
 		}
-	}
+		if err := s.validateSampleLabelsSchema(cohort.Schema(), req); err != nil {
+			return nil, nil, err
+		}
+		if rows, err = s.sampleCohort(ctx, cohort, "", 0, req.N); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		// Inject configured default label bindings (schema-filtered) so
+		// registered tables render in sampled rows without per-call bindings.
+		// A failed open here is non-fatal — the real error surfaces in
+		// validateSampleLabels / sampleOffsetLimit below.
+		if len(s.autoLabels) > 0 {
+			if cohort, err := s.Open(ctx, path); err == nil {
+				s.applyAutoLabels(&req.Labels, cohort.Schema(), nil, nil, nil)
+			}
+		}
 
-	// Header-only predict-time validation. Reads the schema once, lets
-	// descriptor.ValidateLabels surface every binding-shape failure
-	// (unknown field, non-categorical, unknown table, augment
-	// collision) before any record bytes are touched.
-	if err := s.validateSampleLabels(ctx, path, req); err != nil {
-		return nil, nil, err
-	}
+		// Header-only predict-time validation. Reads the schema once, lets
+		// descriptor.ValidateLabels surface every binding-shape failure
+		// (unknown field, non-categorical, unknown table, augment
+		// collision) before any record bytes are touched.
+		if err := s.validateSampleLabels(ctx, path, req); err != nil {
+			return nil, nil, err
+		}
 
-	rows, err := s.sampleOffsetLimit(ctx, path, 0, req.N)
-	if err != nil {
-		return nil, nil, err
+		var err error
+		if rows, err = s.sampleOffsetLimit(ctx, path, 0, req.N); err != nil {
+			return nil, nil, err
+		}
 	}
 	if len(req.Labels) == 0 || len(rows) == 0 {
 		return rows, nil, nil
@@ -92,7 +117,15 @@ func (s *Service) validateSampleLabels(ctx context.Context, path string, req *ty
 	if err != nil {
 		return err
 	}
-	schema := cohort.Schema()
+	return s.validateSampleLabelsSchema(cohort.Schema(), req)
+}
+
+// validateSampleLabelsSchema is validateSampleLabels over an opened
+// cohort's schema.
+func (s *Service) validateSampleLabelsSchema(schema *encoding.Schema, req *types.SampleRequest) error {
+	if len(req.Labels) == 0 {
+		return nil
+	}
 	// Reuse the descriptor validator. Build a minimal envelope and
 	// promote the first error to a SERVICE_VALIDATION CodedError so
 	// the facade returns a single typed error rather than a slice.
@@ -215,7 +248,12 @@ func (s *Service) sampleOffsetLimit(ctx context.Context, path string, offset, li
 	if err != nil {
 		return nil, err
 	}
+	return s.sampleCohort(ctx, cohort, path, offset, limit)
+}
 
+// sampleCohort is sampleOffsetLimit over an opened cohort (path names
+// it; "" for a union).
+func (s *Service) sampleCohort(ctx context.Context, cohort *Cohort, path string, offset, limit int) ([]map[string]any, error) {
 	iter := s.newScanIter(cohort, path)
 	defer iter.Close()
 

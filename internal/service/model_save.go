@@ -245,20 +245,34 @@ func (s *Service) modelProvenance(req *types.Request) model.Provenance {
 		return p
 	}
 	p.RequestDigest = req.Hash()
+	// A union: each member's path and fingerprint, in declared order.
+	for _, m := range req.Union {
+		if m.Cohort == nil {
+			continue
+		}
+		path := resolveCohortPath(m.Cohort)
+		p.Union = append(p.Union, model.ProvenanceMember{Label: m.Label, Cohort: path, Fingerprint: s.provenanceFingerprint(path)})
+	}
 	if req.Cohort == nil {
 		return p
 	}
 	path := resolveCohortPath(req.Cohort)
 	p.Cohort = path
+	p.Fingerprint = s.provenanceFingerprint(path)
+	return p
+}
+
+// provenanceFingerprint is "sha256:<hex>" of the cohort at path's
+// bytes, or "" when it cannot be computed.
+func (s *Service) provenanceFingerprint(path string) string {
 	fsys := s.fs.Fs()
 	size, mod, err := statCohortFile(fsys, path)
 	if err != nil {
-		return p
+		return ""
 	}
 	fp, err := s.cohortFingerprint(fsys, path, size, mod, true)
 	if err != nil {
-		return p
+		return ""
 	}
-	p.Fingerprint = "sha256:" + hex.EncodeToString(fp[:])
-	return p
+	return "sha256:" + hex.EncodeToString(fp[:])
 }

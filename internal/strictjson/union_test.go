@@ -53,3 +53,50 @@ func TestDecode_MisplacedUnionIsCoded(t *testing.T) {
 		t.Fatalf("decode = %+v, %v", req, err)
 	}
 }
+
+// Every root that reads a union (a chain's stage 0, a facet, a sample,
+// a lookup) refuses a nested union PULSE_UNION_NESTED, and a chain
+// stage's join with a union on its right PULSE_UNION_JOIN_RIGHT —
+// located like any unknown key — while its well-placed union decodes.
+func TestDecode_MisplacedUnionIsCodedOnEveryRoot(t *testing.T) {
+	t.Parallel()
+	member := `{"cohort":{"filename":"a.pulse"},"label":"a"}`
+	nested := `{"cohort":{"filename":"a.pulse"},"label":"a","union":[` + member + `]}`
+	nestedCohort := `{"cohort":{"filename":"a.pulse","union":[` + member + `]},"label":"a"}`
+	decoders := map[string]func(string) error{
+		"chain": func(b string) error {
+			_, err := Decode[types.ChainRequest]([]byte(b), Options{})
+			return err
+		},
+		"facet": func(b string) error {
+			_, err := Decode[types.FacetRequest]([]byte(b), Options{})
+			return err
+		},
+		"sample": func(b string) error {
+			_, err := Decode[types.SampleRequest]([]byte(b), Options{})
+			return err
+		},
+		"lookup": func(b string) error {
+			_, err := Decode[types.LookupRequest]([]byte(b), Options{})
+			return err
+		},
+	}
+	for root, decode := range decoders {
+		for _, tc := range []struct{ name, body, path string }{
+			{"member", `{"union":[` + nested + `]}`, "union[0].union"},
+			{"member cohort", `{"union":[` + nestedCohort + `]}`, "union[0].cohort.union"},
+		} {
+			ce := codedOf(t, decode(tc.body))
+			if ce.Code != perr.PULSE_UNION_NESTED || ce.Details["path"] != tc.path {
+				t.Errorf("%s %s: %s at %v, want PULSE_UNION_NESTED at %s", root, tc.name, ce.Code, ce.Details["path"], tc.path)
+			}
+		}
+		if err := decode(`{"union":[` + member + `],"union_source_field":"wave"}`); err != nil {
+			t.Errorf("%s: a well-placed union: %v", root, err)
+		}
+	}
+	ce := codedOf(t, decoders["chain"](`{"union":[`+member+`],"stages":[{"request":{"joins":[{"union":[`+member+`],"on":[{"left_field":"k","right_field":"k"}]}]}}]}`))
+	if ce.Code != perr.PULSE_UNION_JOIN_RIGHT || ce.Details["path"] != "joins[0].union" {
+		t.Errorf("chain stage join: %s at %v, want PULSE_UNION_JOIN_RIGHT", ce.Code, ce.Details["path"])
+	}
+}

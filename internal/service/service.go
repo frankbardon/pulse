@@ -752,8 +752,8 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	}
 	// The union rules, as predict runs them right after the slot gate
 	// (descx.UnionExecRefusal): a valid union is read as one cohort by
-	// the dispatch below (openRequestCohort); a union on a join's left
-	// side is refused PULSE_UNION_UNSUPPORTED.
+	// the dispatch below (openRequestCohort) — a join's left side
+	// included.
 	if err := descx.UnionExecRefusal(req); err != nil {
 		return nil, err
 	}

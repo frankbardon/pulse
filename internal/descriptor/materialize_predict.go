@@ -199,6 +199,59 @@ func MaterializeRisks(req *types.Request, schema *encoding.Schema, layout []Mate
 // promotes every warning into an error; opts.EchoRequest echoes the
 // item-expanded request on env.Request.
 func ValidateMaterializeWithOptions(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
+	src := materializeSource{
+		rewind: func() error {
+			_, err := fileData.Seek(0, io.SeekStart)
+			return err
+		},
+		body: func(body *types.Request, o *PredictOptions) *descriptor.Envelope {
+			return Predict(fileData, body, o)
+		},
+	}
+	if req != nil {
+		src.head = readerHead(fileData, req.Cohort, req.Union, req.UnionSourceField, "materialize")
+	}
+	return validateMaterializeRoot(src, req, opts)
+}
+
+// ValidateMaterializeUnion is ValidateMaterializeWithOptions for a
+// request whose Union names the members: the plan judged over the
+// members' merged schema (unionHead) — the virtual source field a
+// written column like any other — and the request body predicted as
+// Predict judges a union (PredictUnion, whose envelope carries the
+// merge's divergences). members must align with req.Union (nil when
+// the shape is refused: none is opened).
+func ValidateMaterializeUnion(members []UnionSource, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
+	src := materializeSource{
+		rewind: func() error {
+			for _, m := range members {
+				if _, err := m.R.Seek(0, io.SeekStart); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		body: func(body *types.Request, o *PredictOptions) *descriptor.Envelope {
+			return PredictUnion(members, body, o)
+		},
+	}
+	if req != nil {
+		src.head = unionHead(members, req.Cohort, req.Union, req.UnionSourceField, nil)
+	}
+	return validateMaterializeRoot(src, req, opts)
+}
+
+// materializeSource is the cohort a materialize predict judges: how to
+// rewind its bytes, read its head, and predict the request body over
+// it.
+type materializeSource struct {
+	rewind func() error
+	head   cohortHead
+	body   func(body *types.Request, opts *PredictOptions) *descriptor.Envelope
+}
+
+// validateMaterializeRoot is ValidateMaterializeWithOptions over src.
+func validateMaterializeRoot(src materializeSource, req *types.Request, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -209,7 +262,7 @@ func ValidateMaterializeWithOptions(fileData io.ReadSeeker, req *types.Request, 
 		Risks:          []descriptor.MaterializeRisk{},
 	}
 	env := descriptor.NewEnvelope(result)
-	echo := validateMaterialize(env, result, fileData, req, opts)
+	echo := validateMaterialize(env, result, src, req, opts)
 	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
 		if echo == nil {
 			return nil
@@ -222,7 +275,7 @@ func ValidateMaterializeWithOptions(fileData io.ReadSeeker, req *types.Request, 
 // validateMaterialize is ValidateMaterializeWithOptions before the
 // Strict and echo pass; it returns the request to echo (nil before
 // item expansion succeeds).
-func validateMaterialize(env *descriptor.Envelope, result *descriptor.MaterializePredictResult, fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *types.Request {
+func validateMaterialize(env *descriptor.Envelope, result *descriptor.MaterializePredictResult, src materializeSource, req *types.Request, opts *PredictOptions) *types.Request {
 	fail := func(err error) {
 		addCodedError(env, err)
 		result.Valid = false
@@ -236,7 +289,9 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 		fail(err)
 		return nil
 	}
-	if err := UnionRunRefusal(req, "materialize"); err != nil {
+	// The union shape rules (UnionShapeRefusal), at the runtime's
+	// point: a valid union is materialized over its merged schema.
+	if err := UnionShapeRefusal(req); err != nil {
 		fail(err)
 		return nil
 	}
@@ -256,7 +311,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	}
 
 	rewind := func() bool {
-		if _, err := fileData.Seek(0, io.SeekStart); err != nil {
+		if err := src.rewind(); err != nil {
 			fail(errors.WrapCodedError(err, errors.DATA_FILE, "predict materialize: rewinding the cohort"))
 			return false
 		}
@@ -265,7 +320,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	if !rewind() {
 		return expanded
 	}
-	schema, counts, fault := readCohortHead(fileData, false)
+	schema, counts, fault := src.head(false)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
@@ -276,7 +331,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	// leads the errors: a request Process's operator construction would
 	// also refuse (FEAT_POLY degree 1) is refused by the run's pre-flight
 	// first, before any operator is built.
-	cols, layout, groups, planErr := MaterializePlan(expanded, schema, inst, cohortPathFor(expanded.Cohort), opts.DefaultTimeZone)
+	cols, layout, groups, planErr := MaterializePlan(expanded, schema, inst, MaterializeSourceName(expanded), opts.DefaultTimeZone)
 	if planErr != nil {
 		addCodedError(env, planErr)
 	}
@@ -292,7 +347,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 	if !rewind() {
 		return expanded
 	}
-	penv := Predict(fileData, &body, &bodyOpts)
+	penv := src.body(&body, &bodyOpts)
 	env.Errors = append(env.Errors, penv.Errors...)
 	for _, w := range penv.Warnings {
 		if w.Code != string(errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY) {

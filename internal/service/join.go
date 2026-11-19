@@ -39,7 +39,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	clone.Joins = nil
 	clone.Cohort = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
+	join, joinedSchema, left, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
@@ -72,8 +72,9 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 		return nil, err
 	}
 	if resp.Metadata != nil {
-		resp.Metadata.CohortFile = leftPath
+		resp.Metadata.CohortFile = left.path
 	}
+	unionWarnings(resp, left.cohort)
 	// Inject configured default label bindings against the joined output
 	// schema before rendering. Defaults whose field was renamed by a
 	// JoinSpec.As prefix simply do not match and are skipped.
@@ -108,19 +109,22 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 // left row.
 //
 // Process applied descx.JoinCountRefusal before either caller runs.
-func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error)) (*processing.HashJoinIterator, *encoding.Schema, string, scanIterator, error) {
+func (s *Service) openJoinStream(ctx context.Context, req *types.Request, preflight func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error)) (*processing.HashJoinIterator, *encoding.Schema, joinLeft, scanIterator, error) {
 	spec := req.Joins[0]
 	if spec == nil {
-		return nil, nil, "", nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
+		return nil, nil, joinLeft{}, nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "JoinSpec is required")
 	}
-	leftPath := resolveCohortPath(req.Cohort)
-	leftCohort, err := s.Open(ctx, leftPath)
+	// The left side is the request's cohort — or its union, merged
+	// into one archive-shaped cohort (openRequestCohort; leftPath ""),
+	// which every left-side read below takes unchanged. A union is never
+	// the right side: JoinSpec.Right names one cohort path.
+	leftCohort, leftPath, err := s.openRequestCohort(ctx, req)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 	rightCohort, err := s.Open(ctx, spec.Right)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 	countReads(ctx, leftCohort)
 	countReads(ctx, rightCohort)
@@ -130,7 +134,7 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	// join-count rule: Compose adds details.request, a chain
 	// details.stage.
 	if err := encx.JoinKeysRefusal(leftCohort.Schema(), rightCohort.Schema(), spec); err != nil {
-		return nil, nil, "", nil, markLocated(err)
+		return nil, nil, joinLeft{}, nil, markLocated(err)
 	}
 
 	// MaxJoinBuildRows, before the build decodes a record: the right
@@ -144,13 +148,13 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	if buildBounded || s.memoryBounded() {
 		n, err := joinBuildCount(ctx, s, spec.Right)
 		if err != nil {
-			return nil, nil, "", nil, err
+			return nil, nil, joinLeft{}, nil, err
 		}
 		rightRows = int64(n)
 	}
 	if buildBounded {
 		if lerr := limits.CheckJoinBuildRows(l, rightRows); lerr != nil {
-			return nil, nil, "", nil, markLocated(lerr)
+			return nil, nil, joinLeft{}, nil, markLocated(lerr)
 		}
 	}
 
@@ -160,16 +164,16 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 	// build decodes a record.
 	joined, err := processing.JoinedSchema(leftCohort.Schema(), rightCohort.Schema(), spec)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 	lin, err := s.limitInputs(ctx, leftCohort, leftPath)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 	lin.Join, lin.JoinRightRows, lin.JoinSpec = true, rightRows, spec
 	judged, err := preflight(joined, lin)
 	if err != nil {
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 
 	// Materialise the right side as a slice. v1 does not spill; the
@@ -183,13 +187,13 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 		// The caller's ctx error, unchanged, every
 		// processing.CtxPollInterval build rows.
 		if err := poll.Poll(); err != nil {
-			return nil, nil, "", nil, err
+			return nil, nil, joinLeft{}, nil, err
 		}
 		// Backstop for a header miscount: refuse as soon as the decode
 		// passes the limit, before the slice grows further.
 		if buildBounded {
 			if lerr := limits.CheckJoinBuildRows(l, int64(len(rightRecords))+1); lerr != nil {
-				return nil, nil, "", nil, markLocated(lerr)
+				return nil, nil, joinLeft{}, nil, markLocated(lerr)
 			}
 		}
 		// Copy values so the slice survives iterator reuse.
@@ -219,22 +223,30 @@ func (s *Service) openJoinStream(ctx context.Context, req *types.Request, prefli
 		rightRecords = append(rightRecords, rec)
 	}
 	if rightIter.Err() != nil {
-		return nil, nil, "", nil, rightIter.Err()
+		return nil, nil, joinLeft{}, nil, rightIter.Err()
 	}
 
 	leftIter := s.newScanIter(leftCohort, leftPath)
 	join, joinedSchema, err := processing.NewHashJoinIterator(leftIter, rightRecords, leftCohort.Schema(), rightCohort.Schema(), spec)
 	if err != nil {
 		_ = leftIter.Close()
-		return nil, nil, "", nil, err
+		return nil, nil, joinLeft{}, nil, err
 	}
 	// The build-side memory backstop: the hash is built, no left row is
 	// probed yet. Unlimited (the default) skips it — byte-identical.
 	if cerr := descx.JoinFanOutRefusal(judged, joined, s.instance, l, lin, int64(join.MaxMatches())); cerr != nil {
 		_ = leftIter.Close()
-		return nil, nil, "", nil, markLocated(cerr)
+		return nil, nil, joinLeft{}, nil, markLocated(cerr)
 	}
-	return join, joinedSchema, leftPath, leftIter, nil
+	return join, joinedSchema, joinLeft{path: leftPath, cohort: leftCohort}, leftIter, nil
+}
+
+// joinLeft is a join's opened left side: the path its response names
+// ("" for a union) and the cohort (a union's carries the merge's
+// divergences, lifted onto the response by unionWarnings).
+type joinLeft struct {
+	path   string
+	cohort *Cohort
 }
 
 // joinBuildCount is the header-only right-side record count the join

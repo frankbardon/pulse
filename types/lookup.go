@@ -91,6 +91,17 @@ type LookupRequest struct {
 	// slot 1, matching every other request type's convention.
 	Cohort *Cohort `json:"cohort,omitempty"`
 
+	// Union looks the key up in several labelled cohorts read as one
+	// record stream, in place of Cohort (same rules as Request.Union).
+	// A union never reads a sidecar index: it SCANS every member, so
+	// it needs none, and its row order (multiplicity first / all) is
+	// the union's record order — members in declared order.
+	Union []UnionMember `json:"union,omitempty"`
+
+	// UnionSourceField names Union's virtual source field. Same rules
+	// as Request.UnionSourceField.
+	UnionSourceField string `json:"union_source_field,omitempty"`
+
 	// Field is the schema field name the sidecar index was built
 	// against — the single-key convenience path. Ignored when Keys is
 	// non-empty. Required when Keys is empty.

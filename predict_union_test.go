@@ -93,11 +93,11 @@ func TestPredict_UnionReadsEveryMember(t *testing.T) {
 // Every union refusal is one rule: for every refusal a union can draw —
 // the schema-free shape rules, the merged-schema rules (a member the
 // shard-archive merge refuses, a source field that collides, the
-// flattened member limit) and a union on a join's left side, which no
-// operation reads yet — Predict, Process, ProcessStream, a Compose
+// flattened member limit, a join key the merged left side lacks) —
+// Predict, Process, ProcessStream, a Compose
 // slot and Compose predict all report the same code with the same
-// details. Materialize does not read a union yet: it and its predict
-// refuse PULSE_UNION_UNSUPPORTED alike.
+// details. A union on a join's left side is read: the join-key rule
+// judges the merged schema alike on every surface.
 func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 	t.Parallel()
 	p := unionFixture(t)
@@ -110,7 +110,7 @@ func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 	collision := unionRequest("a.pulse", "x", "b.pulse", "y")
 	collision.UnionSourceField = "amount"
 	joined := unionRequest("a.pulse", "x", "b.pulse", "y")
-	joined.Joins = []*types.JoinSpec{{Right: "b.pulse", On: []types.OnPair{{LeftField: "region", RightField: "region"}}}}
+	joined.Joins = []*types.JoinSpec{{Right: "b.pulse", On: []types.OnPair{{LeftField: "nope", RightField: "region"}}}}
 	tooMany := unionRequest()
 	for i := 0; i <= 65535; i++ {
 		tooMany.Union = append(tooMany.Union, types.UnionMember{Cohort: &types.Cohort{Filename: "a.pulse"}, Label: strconv.Itoa(i)})
@@ -130,7 +130,7 @@ func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 		{"source field collision", collision, errors.PULSE_UNION_SOURCE_FIELD_INVALID, map[string]any{"reason": "collision"}},
 		{"schema mismatch", unionRequest("a.pulse", "source", "nullable.pulse", "twin"), errors.PULSE_UNION_SCHEMA_MISMATCH,
 			map[string]any{"dimension": "nullable", "member": 1, "label": "twin", "archive_code": string(errors.PULSE_SHARD_SCHEMA_MISMATCH)}},
-		{"union joined", joined, errors.PULSE_UNION_UNSUPPORTED, map[string]any{"operation": "join"}},
+		{"union joined", joined, errors.PULSE_JOIN_FIELD_UNKNOWN, map[string]any{"field": "nope", "index": 0}},
 	}
 	// sameDetails reports whether every wanted detail is present with
 	// the wanted value (JSON-normalised, so ints compare with floats).
@@ -193,13 +193,31 @@ func TestUnion_RefusalsMatchRuntime(t *testing.T) {
 	if _, err := p.Process(ctx, valid); err != nil {
 		t.Errorf("Process(valid union) = %v", err)
 	}
-	mat := &types.Request{Union: valid.Union}
+	// Materialize reads it too: the predicted output columns are the
+	// columns the run writes, the source field among them.
+	mat := &types.Request{Union: valid.Union, Features: []*types.Feature{{Type: types.FEAT_LOG, Field: "amount"}}}
 	env, err := p.PredictMaterialize(ctx, mat)
-	if err != nil || len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_UNION_UNSUPPORTED) {
-		t.Errorf("PredictMaterialize(union) = %+v, %v", env, err)
+	if err != nil || len(env.Errors) > 0 {
+		t.Fatalf("PredictMaterialize(union) = %+v, %v", env, err)
 	}
-	_, err = p.Materialize(ctx, mat, "out.pulse", MaterializeOptions{})
-	if ce := coded(err); ce == nil || ce.Code != errors.PULSE_UNION_UNSUPPORTED {
-		t.Errorf("Materialize(union) = %v, want PULSE_UNION_UNSUPPORTED", err)
+	res, err := p.Materialize(ctx, mat, "out.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatalf("Materialize(union) = %v", err)
+	}
+	info, err := p.Inspect(ctx, res.Target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols := env.Data.(*descriptor.MaterializePredictResult).Columns
+	if len(cols) != len(info.Fields) || res.Records != 8 {
+		t.Fatalf("predicted %d columns, wrote %d (%d records)", len(cols), len(info.Fields), res.Records)
+	}
+	for i, c := range cols {
+		if f := info.Fields[i]; c.Name != f.Name || c.Type != f.Type {
+			t.Errorf("column %d: predicted %s %s, wrote %s %s", i, c.Name, c.Type, f.Name, f.Type)
+		}
+	}
+	if cols[2].Name != types.DefaultUnionSourceField {
+		t.Errorf("columns %+v: no source field after the members' fields", cols)
 	}
 }

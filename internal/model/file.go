@@ -384,6 +384,20 @@ type Provenance struct {
 	// RequestDigest is the training request's canonical hash
 	// (types.Request.Hash).
 	RequestDigest string `json:"request_digest,omitempty"`
+	// Union lists a union training request's members (types.Request.
+	// Union) in declared order, each with its own cohort path and
+	// fingerprint; Cohort and Fingerprint stay empty then. Absent for a
+	// single-cohort request.
+	Union []ProvenanceMember `json:"union,omitempty"`
+}
+
+// ProvenanceMember is one member of a union training request's
+// provenance: its label, its cohort path and "sha256:<hex>" of its
+// bytes (absent when it could not be computed).
+type ProvenanceMember struct {
+	Label       string `json:"label"`
+	Cohort      string `json:"cohort"`
+	Fingerprint string `json:"fingerprint,omitempty"`
 }
 
 // FileMatrix is a model file's matrix (the vcov): MatrixValues with

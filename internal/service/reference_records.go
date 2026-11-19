@@ -34,8 +34,9 @@ import (
 // is the cohort an omitted record.cohort reads (the request's own —
 // every caller has one: a comparison slot never rides a chain stage
 // after stage 0, whose rows are not a cohort's, because the chain gate
-// refuses it). A request with no {record} reference returns ctx
-// unchanged.
+// refuses it); nil for a union request, whose omitted record.cohort
+// reads the union (a scan: a union reads no sidecar index). A request
+// with no {record} reference returns ctx unchanged.
 func (s *Service) bindReferenceRecords(ctx context.Context, req *types.Request, cohort *types.Cohort) (context.Context, error) {
 	if req == nil {
 		return ctx, nil
@@ -56,12 +57,17 @@ func (s *Service) bindReferenceRecords(ctx context.Context, req *types.Request, 
 		if recs == nil {
 			recs = map[string]model.RecordBinding{}
 		}
-		src := ref.Cohort
-		if src == nil {
-			src = cohort
+		lreq := &types.LookupRequest{Cohort: ref.Cohort, Keys: ref.Keys,
+			Multiplicity: types.LookupMultiplicityAssertUnique}
+		if ref.Cohort == nil {
+			// An omitted record.cohort reads the request's own: its
+			// cohort, or its union — scanned, a union reads no index.
+			lreq.Cohort = cohort
+			if cohort == nil {
+				lreq.Union, lreq.UnionSourceField = req.Union, req.UnionSourceField
+			}
 		}
-		matches, _, err := s.lookupRecords(ctx, &types.LookupRequest{Cohort: src, Keys: ref.Keys,
-			Multiplicity: types.LookupMultiplicityAssertUnique})
+		matches, _, err := s.lookupRecords(ctx, lreq)
 		if cerr := ctx.Err(); cerr != nil {
 			return ctx, cerr
 		}

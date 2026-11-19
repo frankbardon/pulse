@@ -203,7 +203,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	clone := *req
 	clone.Joins = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
+	join, joinedSchema, left, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
@@ -251,8 +251,9 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	}
 	ei.Lap(observe.PhaseScan)
 	if resp.Metadata != nil {
-		resp.Metadata.CohortFile = leftPath
+		resp.Metadata.CohortFile = left.path
 	}
+	unionWarnings(resp, left.cohort)
 	if err := s.buildAndApplyLabels(&clone, resp); err != nil {
 		return nil, err
 	}

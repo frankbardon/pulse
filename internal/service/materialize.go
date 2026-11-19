@@ -76,8 +76,10 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if err := descx.MaterializeSlotGate(req, s.instance); err != nil {
 		return markLocated(err)
 	}
-	// Materializing a union is not wired yet (predict refuses alike).
-	if err := descx.UnionRunRefusal(req, "materialize"); err != nil {
+	// The union shape rules (predict judges them at the same point); a
+	// valid union is materialized over its merged schema — the virtual
+	// source field a written column like any other.
+	if err := descx.UnionShapeRefusal(req); err != nil {
 		return err
 	}
 	// Every item for_each expands before the materialize gates read
@@ -108,8 +110,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 
 	ei := execInfoFrom(ctx)
 	ei.Lap(observe.PhasePlan)
-	path := resolveCohortPath(req.Cohort)
-	cohort, err := s.Open(ctx, path)
+	cohort, path, err := s.openRequestCohort(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -139,7 +140,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	// the sink writes that plan, never resolving it again. Resolved last: every slot above
 	// has already read the full schema, so a column the output drops
 	// stays readable to them.
-	cols, layout, groups, perr := descx.MaterializePlan(req, schema, s.instance, path, s.defaultZone)
+	cols, layout, groups, perr := descx.MaterializePlan(req, schema, s.instance, descx.MaterializeSourceName(req), s.defaultZone)
 	if perr != nil {
 		return perr
 	}
@@ -165,7 +166,15 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 		return err
 	}
 	if w, ok := sink.(MaterializeWarner); ok {
-		w.Warn(proc.DeriveWarnings())
+		// A union's merge divergences lead, as its predict warns them
+		// (PredictUnion over the request body).
+		var warns []*types.ResponseWarning
+		if cohort.union != nil {
+			for _, cw := range cohort.union.warnings {
+				warns = append(warns, &types.ResponseWarning{Code: string(cw.Code), Message: cw.Message, Details: cw.Details})
+			}
+		}
+		w.Warn(append(warns, proc.DeriveWarnings()...))
 	}
 	ei.setPlan(observe.ArmBuffered, 1, len(cohort.Shards()), 0)
 	return iter.Err()

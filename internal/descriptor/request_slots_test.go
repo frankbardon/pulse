@@ -258,7 +258,8 @@ func TestSlotRefusal_NestedRootsAreLocated(t *testing.T) {
 	if _, located := ce.Details["stage"]; located || !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"overlays"}) {
 		t.Errorf("chain root: %v", ce.Details)
 	}
-	if valid, _ := ce.Details["valid_keys"].([]string); !reflect.DeepEqual(valid, []string{"cohort", "stages"}) {
+	// (union / union_source_field ride no feature gate yet.)
+	if valid, _ := ce.Details["valid_keys"].([]string); !reflect.DeepEqual(valid, []string{"cohort", "stages", "union", "union_source_field"}) {
 		t.Errorf("chain root valid_keys = %v", valid)
 	}
 

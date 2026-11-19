@@ -98,6 +98,13 @@ func (b *LabelBinding) AugmentFieldName() string {
 type SampleRequest struct {
 	// Cohort selects the .pulse file. Same shape as Request.Cohort.
 	Cohort *Cohort `json:"cohort,omitempty"`
+	// Union samples several labelled cohorts read as one record stream
+	// (members in declared order), in place of Cohort. Same rules as
+	// Request.Union.
+	Union []UnionMember `json:"union,omitempty"`
+	// UnionSourceField names Union's virtual source field. Same rules
+	// as Request.UnionSourceField.
+	UnionSourceField string `json:"union_source_field,omitempty"`
 	// N is the maximum row count returned. Zero or negative returns
 	// no rows.
 	N int `json:"n"`

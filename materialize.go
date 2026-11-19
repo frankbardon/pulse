@@ -244,11 +244,12 @@ func (p *Pulse) PredictMaterialize(ctx context.Context, req *Request) (*descript
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: materialize request is required")
 		}
 		if len(req.Union) > 0 {
-			// Refused by the union gate before any member is read (the
-			// runtime's own gate), so no cohort is opened.
-			opts := p.predictOptions(ctx, sidecarFacts{})
-			p.predictRootOptions(&opts)
-			return descx.ValidateMaterializeWithOptions(nil, req, &opts), nil
+			// A union: judged over its members' merged schema (a refused
+			// shape opens no member).
+			return p.predictUnionRoot(ctx, req.Cohort, req.Union, req.UnionSourceField, true, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+				p.predictRootOptions(opts)
+				return descx.ValidateMaterializeUnion(members, req, opts)
+			})
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 			p.predictRootOptions(opts)
@@ -296,8 +297,9 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	} else {
 		carried = p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
 	}
-	// A read of a managed import slides its expiry, as Process does.
-	p.touchManaged(ctx, source)
+	// A read of a managed import slides its expiry, as Process does
+	// (every member of a union).
+	p.touchRequestCohorts(ctx, req)
 	res := &MaterializeResult{
 		Target:              built.Target,
 		Records:             built.Records,

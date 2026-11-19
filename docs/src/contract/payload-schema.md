@@ -338,9 +338,11 @@ root) carries a `params` of its own with the same rules.
 
 ## Union slots
 
-`union` on `Request` (`#/$defs/UnionMember` `{cohort, label}`, both
-required) reads several labelled cohorts as ONE record stream in place
-of `cohort`; `union_source_field` (a string, default `_source`) names
+`union` on `Request` — and, with the same rules, on `ChainRequest`
+(stage 0's source), `FacetRequest`, `SampleRequest` and `LookupRequest`
+(a lookup over a union scans: it reads no sidecar index) —
+(`#/$defs/UnionMember` `{cohort, label}`, both required) reads several
+labelled cohorts as ONE record stream in place of `cohort`; `union_source_field` (a string, default `_source`) names
 the virtual categorical source field the union adds — one dictionary
 entry per label, in declared order, so `groups: [{field: "_source"}]`
 splits by member. Both are additive: `format_version` stays `"1.1"` and

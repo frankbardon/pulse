@@ -509,8 +509,8 @@ func loadFacetRequest(path, input string, fields []string, topK int, pcts []floa
 	if len(additive) > 0 {
 		req.AdditiveFields = additive
 	}
-	if req.Cohort == nil {
-		return nil, fmt.Errorf("facet request requires a cohort (--input or request.cohort)")
+	if req.Cohort == nil && len(req.Union) == 0 {
+		return nil, fmt.Errorf("facet request requires a cohort (--input, request.cohort or request.union)")
 	}
 	return req, nil
 }
@@ -848,8 +848,8 @@ func loadLookupRequest(path, input string, keyArgs []string, returnCols, mode st
 		}
 		req.Multiplicity = multiplicity
 	}
-	if req.Cohort == nil {
-		return nil, fmt.Errorf("lookup request requires a cohort (--input or request.cohort)")
+	if req.Cohort == nil && len(req.Union) == 0 {
+		return nil, fmt.Errorf("lookup request requires a cohort (--input, request.cohort or request.union)")
 	}
 	if len(req.KeyComponents()) == 0 {
 		return nil, fmt.Errorf("lookup request requires at least one --key field=value (or request.keys / request.field+value)")

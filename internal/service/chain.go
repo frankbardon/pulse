@@ -59,7 +59,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran
 	if err := limits.CheckChainStages(s.Limits(), len(req.Stages)); err != nil {
 		return nil, err
 	}
-	if req.Cohort == nil {
+	if req.Cohort == nil && len(req.Union) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "chain request requires Cohort for stage 0")
 	}
 	for i, st := range req.Stages {
@@ -145,17 +145,21 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran
 		rets[i] = ret
 	}
 
-	// Stage 0 runs against the on-disk cohort.
+	// Stage 0 runs against the on-disk cohort — or the chain's union,
+	// which replaces stage 0's own union slots as the cohort replaces
+	// its cohort.
 	stage0 := req.Stages[0].Request
 	stage0.Cohort = req.Cohort
+	stage0.Union, stage0.UnionSourceField = req.Union, req.UnionSourceField
 
 	// Observability (no-ops off): the chain's own planning and cohort
 	// open are its plan and open phases; each stage is a child operation
 	// timed under its own carrier, so the parent's clock skips them.
 	ei := execInfoFrom(ctx)
 	ei.Lap(observe.PhasePlan)
-	path := resolveCohortPath(req.Cohort)
-	cohort, err := s.Open(ctx, path)
+	// The union shape rules first (where predict reads the chain's
+	// head), then the cohort or the union's members merged.
+	cohort, _, err := s.openRootCohort(ctx, req.Cohort, req.Union, req.UnionSourceField, "chain request")
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +228,8 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran
 	priorIn := gateSchema
 	for i := 1; i < len(req.Stages); i++ {
 		stage := req.Stages[i].Request
-		stage.Cohort = nil // chain stages >= 1 do not name a cohort
+		// chain stages >= 1 do not name a cohort or a union
+		stage.Cohort, stage.Union, stage.UnionSourceField = nil, nil, ""
 		resp, in, err := s.runChainStageChild(withModelsBound(ctx, stageSets[i]), req, i, stage, priorReq, priorIn, priorResp, gateSchema, plans[i], rets[i], &normStages)
 		if err != nil {
 			return nil, err
@@ -241,10 +246,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran
 	}
 	if s.echoRequest {
 		out.NormalizedRequest = &types.ChainRequest{
-			Cohort:   req.Cohort,
-			Stages:   normStages,
-			Overlays: req.Overlays,
-			Params:   req.Params,
+			Cohort:           req.Cohort,
+			Union:            req.Union,
+			UnionSourceField: req.UnionSourceField,
+			Stages:           normStages,
+			Overlays:         req.Overlays,
+			Params:           req.Params,
 		}
 	}
 	// Whole-chain overlay barrier. Runs AFTER every stage has finalised

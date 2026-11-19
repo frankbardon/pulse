@@ -48,7 +48,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a request")
 	}
-	if req.Cohort == nil {
+	if req.Cohort == nil && len(req.Union) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "facet schema requires a cohort")
 	}
 	if len(req.Fields) == 0 {
@@ -85,8 +85,10 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		return nil, err
 	}
 
-	path := resolveCohortPath(req.Cohort)
-	cohort, err := s.Open(ctx, path)
+	// The facet's cohort — or its union, merged into one archive-shaped
+	// cohort every read below takes unchanged (path ""); the union shape
+	// rules first, where predict judges them (its cohort head).
+	cohort, path, err := s.openRootCohort(ctx, req.Cohort, req.Union, req.UnionSourceField, "facet schema")
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +222,13 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		Fields:          make(map[string]*types.FacetField, len(fields)),
 		TotalRecords:    totalRows,
 		FilteredRecords: filteredRows,
+	}
+	// A union's merge divergences lead, as predict warns them right
+	// after it reads the merged head.
+	if cohort.union != nil {
+		for _, w := range cohort.union.warnings {
+			result.Warnings = append(result.Warnings, &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details})
+		}
 	}
 	// numeric_percentiles / include_histogram on a non-numeric field
 	// compute nothing for it: the warning predict raises, same count

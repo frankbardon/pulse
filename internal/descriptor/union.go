@@ -34,19 +34,28 @@ func UnionSourceFieldName(req *types.Request) string {
 }
 
 // UnionShapeRefusal reports the first schema-free union rule req
-// breaks, or nil. In order: a source field named without a union
-// (PULSE_UNION_SOURCE_FIELD_INVALID, reason without_union); then, for a
-// request with a union, both cohort and union set
-// (PULSE_UNION_COHORT_CONFLICT), more members than an archive holds
-// shards (PULSE_UNION_MEMBER_LIMIT), and per member in order a missing
-// cohort (PULSE_UNION_MEMBER_INVALID) or an empty / repeated label
-// (PULSE_UNION_LABEL_INVALID). A request without union and
-// union_source_field is nil — byte-identical to before the slot
-// existed.
+// breaks, or nil (UnionShapeRefusalOf over req's cohort and union
+// slots).
 func UnionShapeRefusal(req *types.Request) error {
 	if req == nil {
 		return nil
 	}
+	return UnionShapeRefusalOf(req.Cohort, req.Union, req.UnionSourceField)
+}
+
+// UnionShapeRefusalOf reports the first schema-free union rule a root's
+// cohort / union / union_source_field slots break, or nil — the one
+// rule every root carrying them (Request, ChainRequest, FacetRequest,
+// SampleRequest, LookupRequest) shares. In order: a source field named
+// without a union (PULSE_UNION_SOURCE_FIELD_INVALID, reason
+// without_union); then, with a union, both cohort and union set
+// (PULSE_UNION_COHORT_CONFLICT), more members than an archive holds
+// shards (PULSE_UNION_MEMBER_LIMIT), and per member in order a missing
+// cohort (PULSE_UNION_MEMBER_INVALID) or an empty / repeated label
+// (PULSE_UNION_LABEL_INVALID). No union and no source field is nil —
+// byte-identical to before the slots existed.
+func UnionShapeRefusalOf(cohort *types.Cohort, union []types.UnionMember, sourceField string) error {
+	req := &types.Request{Cohort: cohort, Union: union, UnionSourceField: sourceField}
 	if len(req.Union) == 0 {
 		if req.UnionSourceField != "" {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_UNION_SOURCE_FIELD_INVALID,
@@ -110,21 +119,24 @@ func UnionRunRefusal(req *types.Request, operation string) error {
 }
 
 // UnionExecRefusal is the union gate of an operation that reads a
-// union as one record stream (process, process stream, a Compose
-// slot): req's UnionShapeRefusal, else — while a union is read on the
-// left side of a join by no operation yet — PULSE_UNION_UNSUPPORTED
-// naming "join" for a union request carrying joins, else nil. The
-// runtime (Service.process) and predict (PredictUnion, a Compose
-// slot's validation) both call it at the same point, right after the
-// slot gate, so the two refuse alike.
+// union as one record stream (process, process stream, a Compose slot,
+// a join's LEFT side — a union is never a join's right side, which
+// names one cohort path: a `union` key there is the strict decoder's
+// PULSE_UNION_JOIN_RIGHT): req's UnionShapeRefusal. The runtime
+// (Service.process) and predict (PredictUnion, a Compose slot's
+// validation) both call it at the same point, right after the slot
+// gate, so the two refuse alike.
 func UnionExecRefusal(req *types.Request) error {
-	if err := UnionShapeRefusal(req); err != nil {
-		return err
+	return UnionShapeRefusal(req)
+}
+
+// UnionSourceFieldNameOf is UnionSourceFieldName over a root's
+// union_source_field slot.
+func UnionSourceFieldNameOf(sourceField string) string {
+	if sourceField != "" {
+		return sourceField
 	}
-	if req != nil && len(req.Union) > 0 && len(req.Joins) > 0 {
-		return UnionUnsupported("join")
-	}
-	return nil
+	return types.DefaultUnionSourceField
 }
 
 // UnionMemberSchema is one opened union member: its label, its schema
@@ -534,4 +546,110 @@ func requestCounts(req *types.Request, opts *PredictOptions) CohortCounts {
 		return unknownCounts
 	}
 	return counts
+}
+
+// cohortHead is how a non-Request predict root (facet, chain stage 0,
+// materialize) reads the cohort it judges: its schema and header
+// counts, or the fault it reports. readerHead reads one cohort's bytes;
+// unionHead a union's members.
+type cohortHead func(distinct bool) (*encoding.Schema, CohortCounts, *cohortHeadFault)
+
+// readerHead is the cohortHead of one cohort's bytes (readCohortHead).
+// A root carrying a union is never judged over one source: the shape
+// rules, then PULSE_UNION_UNSUPPORTED naming operation (the facade
+// routes a union root to its union twin instead); a source field set
+// without a union is the shape rule's refusal too, as the runtime
+// raises it when it opens the cohort.
+func readerHead(fileData io.ReadSeeker, cohort *types.Cohort, union []types.UnionMember, sourceField, operation string) cohortHead {
+	return func(distinct bool) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
+		if err := UnionShapeRefusalOf(cohort, union, sourceField); err != nil {
+			return nil, CohortCounts{}, codedHeadFault(err)
+		}
+		if len(union) > 0 {
+			return nil, CohortCounts{}, codedHeadFault(UnionUnsupported(operation + " over a single cohort source"))
+		}
+		return readCohortHead(fileData, distinct)
+	}
+}
+
+// unionHead is the cohortHead of a union root: the shape rules
+// (UnionShapeRefusalOf), then every member read header-only in
+// declared order (readUnionMember; a fault located by member) and
+// merged (MergeUnion — the runtime's rule). The counts are the union's:
+// each flattened shard's header count and their sum, no archive terms
+// (the union holds no central directory and no recorded distinct
+// counts), unknown when any member's is — the figures the runtime's
+// union cohort reports to its pre-flight. members must align with
+// union (nil when the shape is refused: none is opened). The merge's
+// description-class divergences are returned beside the head; the
+// caller warns them on its envelope.
+func unionHead(members []UnionSource, cohort *types.Cohort, union []types.UnionMember, sourceField string, warnings *[]encx.CohesionWarning) cohortHead {
+	return func(bool) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
+		if err := UnionShapeRefusalOf(cohort, union, sourceField); err != nil {
+			return nil, CohortCounts{}, codedHeadFault(err)
+		}
+		schemas := make([]UnionMemberSchema, 0, len(members))
+		counts := CohortCounts{}
+		known := true
+		for i, m := range members {
+			if _, err := m.R.Seek(0, io.SeekStart); err != nil {
+				return nil, CohortCounts{}, codedHeadFault(LocateUnionMember(
+					errors.WrapCodedError(err, errors.DATA_FILE, "rewinding union member"), i, m.Label))
+			}
+			read, err := readUnionMember(m.R)
+			if err != nil {
+				return nil, CohortCounts{}, codedHeadFault(LocateUnionMember(err, i, m.Label))
+			}
+			if read.records == nil {
+				known = false
+			}
+			for _, n := range read.records {
+				counts.Records += n
+			}
+			counts.ShardRecords = append(counts.ShardRecords, read.records...)
+			schemas = append(schemas, UnionMemberSchema{Label: m.Label, Schema: read.schema, Shards: max(len(read.records), 1)})
+		}
+		merged, warns, err := MergeUnion(schemas, UnionSourceFieldNameOf(sourceField))
+		if warnings != nil {
+			*warnings = warns
+		}
+		if err != nil {
+			return nil, CohortCounts{}, codedHeadFault(err)
+		}
+		if !known {
+			counts = unknownCounts
+		}
+		return merged, counts, nil
+	}
+}
+
+// codedHeadFault is err as a validator's head fault: a coded error's
+// code, message and details; any other error PROCESSING_INTERNAL.
+func codedHeadFault(err error) *cohortHeadFault {
+	if ce, ok := err.(*errors.CodedError); ok {
+		return &cohortHeadFault{code: ce.Code, message: ce.Message, details: ce.Details}
+	}
+	return &cohortHeadFault{code: errors.PROCESSING_INTERNAL, message: err.Error()}
+}
+
+// addUnionWarnings warns each merge divergence on env, as predict over
+// a union request and the runtime's union cohort raise them.
+func addUnionWarnings(env *descriptor.Envelope, warnings []encx.CohesionWarning) {
+	for _, w := range warnings {
+		env.AddWarning(string(w.Code), w.Message, w.Details)
+	}
+}
+
+// MaterializeSourceName is the source a materialize run names in its
+// derived columns' descriptions ("derived from <base>"): the request
+// cohort's path, or "union" for a union request — one spelling the
+// run and its predict share.
+func MaterializeSourceName(req *types.Request) string {
+	if req != nil && len(req.Union) > 0 {
+		return "union"
+	}
+	if req == nil || req.Cohort == nil {
+		return ""
+	}
+	return cohortPathFor(req.Cohort)
 }

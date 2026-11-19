@@ -40,7 +40,7 @@ func unionOracleSchema(tagsType encoding.FieldType, labelled bool) encoding.Sche
 			}
 		}
 		s.Fields = append(s.Fields, encoding.Field{Name: types.DefaultUnionSourceField, Type: encoding.FieldTypeCategoricalU8,
-			Description: "Union source label of the member cohort", Dictionary: d})
+			Description: "Union source: the label of the member cohort the record was read from.", Dictionary: d})
 	}
 	return s
 }

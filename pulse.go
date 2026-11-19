@@ -1275,8 +1275,8 @@ func (p *Pulse) processChain(ctx context.Context, req *ChainRequest) (*ChainResp
 	if err != nil {
 		return resp, err
 	}
-	if req != nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if req != nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	// The stage requests the service ran, defaults resolved (the
 	// caller's own, or their params-inheriting copies), which is what
@@ -2093,15 +2093,24 @@ func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request is required")
 	}
-	if req.Cohort == nil || req.Cohort.Filename == "" {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+	var path string
+	if len(req.Union) == 0 && req.UnionSourceField == "" {
+		if req.Cohort == nil || req.Cohort.Filename == "" {
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+		}
+		path = req.Cohort.Filename
 	}
-	path := req.Cohort.Filename
 	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
 	if err != nil {
 		return nil, err
 	}
-	p.touchManaged(ctx, path)
+	if len(req.Union) > 0 {
+		for _, m := range req.Union {
+			p.touchManaged(ctx, resolveCohortPath(m.Cohort))
+		}
+	} else {
+		p.touchManaged(ctx, path)
+	}
 	out := &SampleResult{Rows: rows}
 	if len(warns) > 0 {
 		out.Warnings = make([]SampleWarning, len(warns))
@@ -2417,8 +2426,8 @@ func (p *Pulse) facetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: facet schema requires a request")
 	}
 	resp, err := p.svc.FacetSchema(ctx, req)
-	if err == nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	return resp, err
 }
@@ -2473,8 +2482,8 @@ func (p *Pulse) lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: lookup requires a request")
 	}
 	resp, err := p.svc.Lookup(ctx, req)
-	if err == nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	return resp, err
 }

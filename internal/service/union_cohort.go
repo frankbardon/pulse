@@ -67,7 +67,7 @@ func unionShardName(i int, entry string) string {
 // member, merged (openUnion; path "").
 func (s *Service) openRequestCohort(ctx context.Context, req *types.Request) (*Cohort, string, error) {
 	if len(req.Union) > 0 {
-		c, err := s.openUnion(ctx, req)
+		c, err := s.openUnion(ctx, req.Union, req.UnionSourceField)
 		return c, "", err
 	}
 	path := resolveCohortPath(req.Cohort)
@@ -75,17 +75,40 @@ func (s *Service) openRequestCohort(ctx context.Context, req *types.Request) (*C
 	return c, path, err
 }
 
-// openUnion opens every member of req.Union in declared order — each
+// openRootCohort is openRequestCohort for a root that is not a Request
+// (a chain's stage 0, a facet, a sample, a lookup): the union shape
+// rules first (descx.UnionShapeRefusalOf — the rule the root's predict
+// judges where it reads the cohort), then the cohort or the union.
+// required names the root in the SERVICE_VALIDATION refusal of a root
+// naming neither.
+func (s *Service) openRootCohort(ctx context.Context, cohort *types.Cohort, union []types.UnionMember, sourceField, required string) (*Cohort, string, error) {
+	if err := descx.UnionShapeRefusalOf(cohort, union, sourceField); err != nil {
+		return nil, "", err
+	}
+	if len(union) > 0 {
+		c, err := s.openUnion(ctx, union, sourceField)
+		return c, "", err
+	}
+	if cohort == nil {
+		return nil, "", errors.NewCodedError(errors.SERVICE_VALIDATION, required+" requires a cohort")
+	}
+	path := resolveCohortPath(cohort)
+	c, err := s.Open(ctx, path)
+	return c, path, err
+}
+
+// openUnion opens every member of union in declared order — each
 // exactly as a single request cohort is opened (a single file, a shard
 // archive, an anchored shard) — merges their schemas through
 // descx.MergeUnion (predict's rule, so a refusal here is predict's)
-// and returns the union cohort. A member that cannot be opened is its
-// own fault, located with the member index and label. No record is
-// read: a member file's record count comes from its header and length.
-func (s *Service) openUnion(ctx context.Context, req *types.Request) (*Cohort, error) {
-	members := make([]unionMember, 0, len(req.Union))
-	schemas := make([]descx.UnionMemberSchema, 0, len(req.Union))
-	for i, m := range req.Union {
+// and returns the union cohort, its source field named sourceField
+// (empty: the default). A member that cannot be opened is its own
+// fault, located with the member index and label. No record is read: a
+// member file's record count comes from its header and length.
+func (s *Service) openUnion(ctx context.Context, union []types.UnionMember, sourceField string) (*Cohort, error) {
+	members := make([]unionMember, 0, len(union))
+	schemas := make([]descx.UnionMemberSchema, 0, len(union))
+	for i, m := range union {
 		c, err := s.Open(ctx, resolveCohortPath(m.Cohort))
 		if err != nil {
 			return nil, descx.LocateUnionMember(err, i, m.Label)
@@ -93,7 +116,7 @@ func (s *Service) openUnion(ctx context.Context, req *types.Request) (*Cohort, e
 		members = append(members, unionMember{label: m.Label, cohort: c})
 		schemas = append(schemas, descx.UnionMemberSchema{Label: m.Label, Schema: c.Schema(), Shards: max(len(c.shards), 1)})
 	}
-	merged, warnings, err := descx.MergeUnion(schemas, descx.UnionSourceFieldName(req))
+	merged, warnings, err := descx.MergeUnion(schemas, descx.UnionSourceFieldNameOf(sourceField))
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/types"
 )
 
 // predictUnionEnvelope is Predict for a request carrying a Union: the
@@ -27,30 +28,81 @@ func (p *Pulse) predictUnionEnvelope(ctx context.Context, req *Request, strictEc
 	if descx.UnionExecRefusal(req) != nil {
 		return descx.PredictUnion(nil, req, &opts), nil
 	}
-	members := make([]descx.UnionSource, 0, len(req.Union))
-	paths := make([]string, 0, len(req.Union))
+	members, paths, closeAll, err := p.openUnionSources(req.Union, "predict")
+	if err != nil {
+		return nil, err
+	}
+	defer closeAll()
+	env := descx.PredictUnion(members, req, &opts)
+	if _, ok := env.Data.(*descriptor.PredictResult); ok {
+		for _, path := range paths {
+			p.touchManaged(ctx, path)
+		}
+	}
+	return env, nil
+}
+
+// openUnionSources opens every member of union header-only, in
+// declared order, exactly as a single cohort is (a single file, a
+// shard archive, an anchor): the members PredictUnion and the union
+// validators read, their paths (to slide each managed import's TTL)
+// and the closer of every opened source. A member that cannot be
+// opened is an error naming the member (op prefixes it), as an
+// unreadable single cohort is; every source opened before it is
+// closed.
+func (p *Pulse) openUnionSources(union []types.UnionMember, op string) ([]descx.UnionSource, []string, func(), error) {
+	members := make([]descx.UnionSource, 0, len(union))
+	paths := make([]string, 0, len(union))
 	var closers []func()
-	defer func() {
+	closeAll := func() {
 		for _, c := range closers {
 			c()
 		}
-	}()
-	for i, m := range req.Union {
+	}
+	for i, m := range union {
 		path := resolveCohortPath(m.Cohort)
 		src, err := p.openCohortSource(path)
 		if err != nil {
-			where := "pulse: predict union member " + strconv.Itoa(i) + " (" + strconv.Quote(m.Label) + ")"
+			closeAll()
+			where := "pulse: " + op + " union member " + strconv.Itoa(i) + " (" + strconv.Quote(m.Label) + ")"
 			if af, ok := asAnchorFault(err); ok {
-				return nil, fmt.Errorf("%s anchor: %w", where, af.err)
+				return nil, nil, nil, fmt.Errorf("%s anchor: %w", where, af.err)
 			}
-			return nil, cohortOpenError(where, path, err)
+			return nil, nil, nil, cohortOpenError(where, path, err)
 		}
 		closers = append(closers, src.close)
 		members = append(members, descx.UnionSource{Label: m.Label, Cohort: m.Cohort, R: src.rs})
 		paths = append(paths, path)
 	}
-	env := descx.PredictUnion(members, req, &opts)
-	if _, ok := env.Data.(*descriptor.PredictResult); ok {
+	return members, paths, closeAll, nil
+}
+
+// predictUnionRoot runs a non-Request predict root over a union: the
+// shape rules first (a refused shape opens no member — check gets nil
+// members and refuses it from its cohort head), then every member
+// opened (openUnionSources) and check run over them with the
+// instance's predict options (a union has no SPSS sidecar facts: they
+// are per-cohort); touch slides each member's managed-import TTL after
+// (Explain's checks do not).
+func (p *Pulse) predictUnionRoot(ctx context.Context, cohort *types.Cohort, union []types.UnionMember, sourceField string, touch bool, check func([]descx.UnionSource, *descx.PredictOptions) *descriptor.Envelope) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	opts := p.predictOptions(ctx, sidecarFacts{})
+	if descx.UnionShapeRefusalOf(cohort, union, sourceField) != nil {
+		return check(nil, &opts), nil
+	}
+	op := "predict"
+	if !touch {
+		op = "explain"
+	}
+	members, paths, closeAll, err := p.openUnionSources(union, op)
+	if err != nil {
+		return nil, err
+	}
+	defer closeAll()
+	env := check(members, &opts)
+	if touch {
 		for _, path := range paths {
 			p.touchManaged(ctx, path)
 		}
@@ -76,10 +128,16 @@ func predictResultOf(env *descriptor.Envelope) (*descriptor.PredictResult, error
 // touchRequestCohorts slides the managed-import expiry of every cohort
 // a successful run read: the request cohort, or each union member.
 func (p *Pulse) touchRequestCohorts(ctx context.Context, req *Request) {
-	if req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	p.touchRootCohorts(ctx, req.Cohort, req.Union)
+}
+
+// touchRootCohorts is touchRequestCohorts over any root's cohort and
+// union slots.
+func (p *Pulse) touchRootCohorts(ctx context.Context, cohort *types.Cohort, union []types.UnionMember) {
+	if cohort != nil {
+		p.touchManaged(ctx, resolveCohortPath(cohort))
 	}
-	for _, m := range req.Union {
+	for _, m := range union {
 		if m.Cohort != nil {
 			p.touchManaged(ctx, resolveCohortPath(m.Cohort))
 		}

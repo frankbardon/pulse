@@ -818,6 +818,18 @@
         },
         "time_zone_field": {
           "type": "string"
+        },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
         }
       },
       "required": [
@@ -3449,4 +3461,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ca34f4c2531cc8369d99d3fffe4498a2b5354fdeb1c428501a18c078e86460cf
+// golden-hash: 6cb3a2ca8119c89f5561d61e52e59e509fb3390e5f007b6b73a04dc4ae8d5468
