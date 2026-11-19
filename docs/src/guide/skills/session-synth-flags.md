@@ -24,6 +24,8 @@ Five independent, additive `pulse profile create` knobs; each adds an `omitempty
 | `--residual-correlations` (needs `--fit-models`) | full correlation submatrix among fitted residuals, so a numeric can be both conditioned and correlated with a sibling |
 | `--run-continuation` | `run_continuation`: per-field fraction of adjacent row pairs whose bytes + null bit repeat — exactly the run-skip decode's hit rate — plus `overall`, `high_fields` (≥0.75) and `advice`. Low overall (<0.5) ⇒ sort the source by its parent key upstream. Pairs never span a shard. Not read by synth |
 
+`--time-zone <IANA>` / `--time-zone-field <field>` (exclusive) set the clock datetime fields are captured on; with neither, a cohort's declared default zone field is used, else UTC ([`synth-datetime`](synth-datetime.md)).
+
 ## Synth-generation CLI flags
 
 Five `pulse synth from-profile` knobs (absent, the first four reproduce pre-flag output byte-for-byte) plus one on `pulse profile create`. Detail: [`synth-structural-rules`](synth-structural-rules.md), `docs/src/cli/synth-from-profile.md`, `docs/src/cli/profile-create.md`.

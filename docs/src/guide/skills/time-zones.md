@@ -21,9 +21,9 @@ UTC, `Etc/UTC` and absent are byte-identical to the pre-zone output.
 
 When each record has its own zone, name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
 
-A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked when the cohort is written and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). A cohort declaring one is format `0x02`; a Pulse build older than the section refuses to open it. `inspect` shows it as `zone_field`.
+A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked on write and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). Such a cohort is format `0x02` (older builds refuse it). `inspect` shows it as `zone_field`.
 
-It is inherited like `time_zone_field`, below any request zone (echo `source: "cohort"`, `tz_field`, `tz: null`): skipped on a `date` field, refused on a derived field (override: request `time_zone`, e.g. `"UTC"`). A join takes the LEFT cohort's default, never the right's. A chain stage 1+ takes NO per-row zone, permanently: no datetime survives a stage, so its `time_zone_field` / `tz_field` is `SERVICE_VALIDATION`.
+It is inherited like `time_zone_field`, below any request zone (echo `source: "cohort"`, `tz_field`, `tz: null`): skipped on a `date` field, refused on a derived field (override: request `time_zone`, e.g. `UTC`). A join takes the LEFT cohort's default, never the right's. A chain stage 1+ takes NO per-row zone, permanently: no datetime survives a stage, so its `time_zone_field` / `tz_field` is `SERVICE_VALIDATION`.
 
 A NULL zone cell (or an out-of-dictionary code) gives the row NO local value, never a UTC fallback: groupers count it in `n_null` (no bucket).
 `ATTR_DATE_PART` / `FEAT_DATE_FEATURES` output null for it.
@@ -33,7 +33,7 @@ Expressions (`to_day`, `weekday`) stay request-zone only (`time_zone`), never pe
 
 ## Stored instants
 
-A `datetime` stores whole seconds since the epoch, naive UTC. Synthetic ones: [`op-synth-uniform-datetime`](op-synth-uniform-datetime.md) (local time, fixed or per-row zone, DST per `dst_policy`). A fraction floors toward the past (native Arrow / Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in a `u64`. An offset-bearing literal is normalised to the same instant and the offset discarded (`…T10:11:12+02:00` → `…T08:11:12Z`); export `--tz` renders it back with a local offset. Truncating to a day floors toward the past (`1969-12-31T23:59:59Z` is day −1 in UTC).
+A `datetime` stores whole seconds since the epoch, naive UTC. Synthetic ones: [`op-synth-uniform-datetime`](op-synth-uniform-datetime.md) (local time, fixed or per-row zone, DST per `dst_policy`); `profile create` reads them on `zone_field` ([`synth-datetime`](synth-datetime.md)). A fraction floors toward the past (native Arrow / Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in a `u64`. An offset-bearing literal is normalised to the same instant and the offset discarded (`…T10:11:12+02:00` → `…T08:11:12Z`); export `--tz` renders it back with a local offset. Truncating to a day floors toward the past (`1969-12-31T23:59:59Z` is day −1 in UTC).
 
 ## Local-day semantics
 

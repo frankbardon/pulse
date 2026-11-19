@@ -272,8 +272,9 @@ type CorrelationStat = isynth.CorrelationStat
 // histogram for Mode-A reconstruction.
 type DateProfile = isynth.DateProfile
 
-// DatetimeProfile is a datetime column's capture: its UTC day range and
-// UTC weekday (Monday first) and hour histograms.
+// DatetimeProfile is a datetime column's capture: its day range,
+// weekday (Monday first), hour and month histograms on the capture
+// clock — UTC, or the TimeZone / TimeZoneField it records.
 type DatetimeProfile = isynth.DatetimeProfile
 
 // DiscreteLevel is one observed integer level and its support.

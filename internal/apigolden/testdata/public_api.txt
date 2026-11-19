@@ -883,6 +883,8 @@ pulse: type ProfileOptions field RunContinuation bool
 pulse: type ProfileOptions field SampleLimit int
 pulse: type ProfileOptions field Seed int64
 pulse: type ProfileOptions field SuggestRules bool
+pulse: type ProfileOptions field TimeZone string
+pulse: type ProfileOptions field TimeZoneField string
 pulse: type ProfileOptions field TopK int
 pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
@@ -4668,6 +4670,8 @@ pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
 pulse/synth: type DatetimeProfile field MonthStart string "json:\"month_start,omitempty\""
 pulse/synth: type DatetimeProfile field Months []int "json:\"months,omitempty\""
 pulse/synth: type DatetimeProfile field Start string "json:\"start\""
+pulse/synth: type DatetimeProfile field TimeZone string "json:\"time_zone,omitempty\""
+pulse/synth: type DatetimeProfile field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: const DefaultDisclosureSample untyped int = 10000
 pulse/synth: const DefaultPairStrengthFloor untyped float = 1/50
@@ -4944,6 +4948,8 @@ pulse/synth: type ProfileOptions field RunContinuation bool
 pulse/synth: type ProfileOptions field SampleLimit int
 pulse/synth: type ProfileOptions field Seed int64
 pulse/synth: type ProfileOptions field SuggestRules bool
+pulse/synth: type ProfileOptions field TimeZone string
+pulse/synth: type ProfileOptions field TimeZoneField string
 pulse/synth: type ProfileOptions field TopK int
 pulse/synth: const RecoveryScaleProbitScore untyped string = "probit_score"
 pulse/synth: type ResidualCorrelation = pulse/internal/synth.ResidualCorrelation
@@ -7109,4 +7115,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 667b6d959e83211e62f0da093003b2c76ec8bd23e4defbb0b0aad49397bef3a8
+// golden-hash: d25fe17fc88004b0c8c5b76b02d4d549a5d0dc773060a6da24c4cb3255b87ff1

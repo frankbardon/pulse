@@ -57,7 +57,9 @@ Recover them with `GROUP_DATE` `day` / `day_of_week` / `hour_of_day` and `tz_fie
 
 ## Profile capture
 
-`profile create` records a datetime as `datetime` — UTC day range plus UTC weekday (Monday first) and hour counts — plus the per-month count series (`month_start`, `months`), and `SpecFromProfile` rebuilds an UNZONED `uniform_datetime` (weekday count ÷ its days in range, hour counts as weights, `month_weights` = month count ÷ its in-range days' weekday weights), so the UTC weekday, hour and month-volume marginals hold; the fidelity `shape.month_tvd` measures the last. A one-month or pre-series document emits no `month_weights`; a series that does not fit its range emits none and warns. A datetime joins no correlation, pair or model.
+`profile create` records a datetime as `datetime` — day range, weekday (Monday first) and hour counts, plus the per-month count series (`month_start`, `months`) — and `SpecFromProfile` rebuilds a `uniform_datetime` (weekday count ÷ its days in range, hour counts as weights, `month_weights` = month count ÷ its in-range days' weekday weights); the fidelity `shape.month_tvd` measures the volume. A one-month or pre-series document emits no `month_weights`; a series that does not fit its range emits none and warns. A datetime joins no correlation, pair or model.
+
+The clock is UTC unless `--time-zone <IANA>` or `--time-zone-field <field>` (exclusive) names one; with neither, a cohort declaring a default zone field is read per row on it. A zoned capture counts LOCAL days / weekdays / hours / months, records `time_zone` / `time_zone_field`, and rebuilds with that zone plus `dst_policy: "earlier"` — a refilled reading in a DST gap resolves and warns instead of aborting. A reading whose zone cell is null is left out of the counts (warned), and the datetime is rebuilt nullable.
 
 ## See
 

@@ -323,6 +323,20 @@ high-continuation fields and a one-line advice; pairs never span a shard
 boundary. Absent the flag the document is byte-identical. See
 [profile create](profile-create.md).
 
+### `--time-zone` / `--time-zone-field` (profile create)
+
+Available on: `profile create`.
+
+`--time-zone Zone` captures every `datetime` field on `Zone`'s local
+clock (day range, weekday, hour and month counts); `--time-zone-field
+Field` reads each row in the zone its `categorical_*` field `Field`
+names. Exclusive (`SERVICE_VALIDATION`); an unknown zone is
+`PULSE_TIMEZONE_UNKNOWN`. With neither, a cohort declaring a default
+zone field is captured per row on it, else on UTC (byte-identical to
+before the flags). The profile records the clock, and
+`synth from-profile` rebuilds the field in that zone with
+`dst_policy: "earlier"`. See [profile create](profile-create.md).
+
 ### `--schema` / `--ignore-extra`
 
 Available on: `import csv`, `import tsv`, `import ndjson`,
@@ -986,7 +1000,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
 | `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
 | `pulse mcp` | Run the MCP server over stdio; `--metrics-addr HOST:PORT` serves Prometheus metrics on `GET /metrics` (unset opens no port); `--return PRESET` sets the response preset for a tool request without its own `return` (default `standard`); the global `--limit NAME=VALUE` sets an instance resource limit over the feature profile's `limits` (`unlimited` / Go duration for `request_timeout`; a bad key or value is a `CLI_INPUT` usage error) | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals, set options and earlier-declared numerics can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast. Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
+| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals, set options and earlier-declared numerics can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast, and `--time-zone` / `--time-zone-field`, which capture `datetime` fields on a local clock (default: the cohort's declared zone field, else UTC). Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
 | `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
 | `pulse shard add` | Append a shard to an existing archive — in place at the archive's tail; an add whose append would leave more than half the file dead bytes (superseded `_schema.pulse` copies and old directories) rewrites the whole archive instead with a `PULSE_SHARD_DEAD_BYTES_RECLAIMED` warning. `--rewrite` forces that staged rewrite + rename (never opens the archive for writing: the `PULSE_SHARD_APPEND_REFUSED` fixup) | `--help` |
 | `pulse shard compact` | Rewrite an archive to reclaim the dead bytes in-place adds leave | `--help` |

@@ -414,8 +414,10 @@ the total variation distance (0 = the same cycle, 1 = no shared bin)
 between the partitions' hour-of-day, ISO-weekday and calendar-month
 histograms (`month_tvd` reads the volume trend and season the profile's
 `months` series rebuilds as `month_weights`), read
-on the UTC clock — the schema stores instants and no zone, and both
-partitions are read on the same clock. Measured: the same days drawn at
+on the UTC clock, even when the profile was captured on a local one
+(`profile create --time-zone`, or the cohort's default zone field): both
+partitions are read on the same clock, so a twin faithful to a local
+schedule is faithful on UTC too. Measured: the same days drawn at
 evening instead of morning hours read d = −0.06 (`very small`) and KS
 p = 0.07, with `hour_tvd` 1.0.
 

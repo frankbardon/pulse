@@ -40,9 +40,9 @@ import (
 //
 // # The clock Shape reads
 //
-// UTC, always. The schema stores instants and carries no zone (a
-// synth datetime's zone lives in its distribution params), so the
-// report has no local clock to read. Both partitions are read through
+// UTC, always — even when the profile was captured on a local clock
+// (ProfileOptions.TimeZone / TimeZoneField, or the cohort's default
+// zone field). Both partitions are read through
 // the same clock, so a twin faithful to a local schedule is faithful
 // on UTC too; for one fixed zone the UTC histogram is the local one
 // shifted by the offset, and only a DST change moves an hour's bin.

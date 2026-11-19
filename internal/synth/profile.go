@@ -229,6 +229,19 @@ type ProfileOptions struct {
 	// bytes pulled). SampleLimit bounds it like every other section.
 	RunContinuation bool
 
+	// TimeZone and TimeZoneField set the clock a `datetime` column is
+	// captured on (`profile create --time-zone` / `--time-zone-field`):
+	// a fixed IANA zone, or a categorical field of IANA zone names read
+	// per row. The day range and the weekday, hour and month counts are
+	// then LOCAL, the DatetimeProfile records the zone it was read in,
+	// and SpecFromProfile rebuilds a zoned uniform_datetime. Exclusive.
+	// With neither, a cohort declaring a default zone field
+	// (encoding.Schema.ZoneField) is captured per row on that field;
+	// otherwise the capture is UTC, byte-identical to before the
+	// options existed. Zone math is internal/temporal only.
+	TimeZone      string
+	TimeZoneField string
+
 	// Seed drives the reservoir-sampling RNG used by
 	// IncludeConditional's categorical-categorical contingency capture
 	// (E7-S2) once the source cohort exceeds conditionalJointCap rows.
@@ -721,13 +734,14 @@ type DateProfile struct {
 	Months     []int  `json:"months,omitempty"`
 }
 
-// DatetimeProfile is a `datetime` column's marginal on the UTC clock the
-// file stores: the first and last UTC calendar day observed, how many
-// non-null instants fall on each ISO weekday (Monday first — the
-// uniform_datetime `weekday_weights` order) and in each UTC hour.
-// Capture reads instants and the schema carries no zone, so the
-// histograms are UTC; a reconstruction drawn on the UTC clock with these
-// weights reproduces the instants' weekday and hour marginals.
+// DatetimeProfile is a `datetime` column's marginal on its capture
+// clock: the first and last calendar day observed, how many non-null
+// instants fall on each ISO weekday (Monday first — the
+// uniform_datetime `weekday_weights` order) and in each hour. The clock
+// is UTC unless TimeZone (a fixed zone) or TimeZoneField (a per-row
+// zone field — an explicit ProfileOptions.TimeZoneField or the cohort's
+// default zone field) is set, in which case every figure is local and a
+// reconstruction drawn in that zone reproduces the local marginals.
 type DatetimeProfile struct {
 	Start    string  `json:"start"`
 	End      string  `json:"end"`
@@ -741,6 +755,11 @@ type DatetimeProfile struct {
 	// before.
 	MonthStart string `json:"month_start,omitempty"`
 	Months     []int  `json:"months,omitempty"`
+	// TimeZone / TimeZoneField: the clock the figures above were read
+	// on — at most one set; both absent is UTC (every document from
+	// before the zone options).
+	TimeZone      string `json:"time_zone,omitempty"`
+	TimeZoneField string `json:"time_zone_field,omitempty"`
 }
 
 // CorrelationStat is a captured pairwise correlation entry.
@@ -826,20 +845,23 @@ type dateAcc struct {
 	months   map[int64]int // running month index → count
 }
 
-// datetimeAcc accumulates a datetime column on the UTC clock.
+// datetimeAcc accumulates a datetime column on its capture clock
+// (captureClock, profile_zone.go): every day, weekday, hour and month
+// is read in the zone the row is observed in.
 type datetimeAcc struct {
 	count, nulls     int
+	unzoned          int // non-null readings whose per-row zone cell was null
 	minDays, maxDays int64
 	weekdays         [7]int // ISO, Monday first
 	hours            [24]int
 	months           map[int64]int // running month index (year*12 + month-1) → count
 }
 
-func (a *datetimeAcc) observe(v float64) {
+func (a *datetimeAcc) observe(v float64, z *temporal.Zone) {
 	a.count++
 	sec := int64(math.Floor(v + 0.5))
-	p := temporal.LocalParts(sec, temporal.UTC)
-	day := temporal.DateTimeToDay(sec)
+	p := temporal.LocalParts(sec, z)
+	day := temporal.LocalDay(sec, z)
 	a.minDays = min(a.minDays, day)
 	a.maxDays = max(a.maxDays, day)
 	a.weekdays[temporal.ISOWeekdayOf(p.Weekday)-1]++
@@ -1009,6 +1031,13 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 	}
 	// Default IncludeStats to true if the caller didn't set it explicitly.
 	includeStats := opts.IncludeStats || (!opts.IncludeStats && !opts.IncludeCorrelations)
+
+	// clock is the zone every datetime column is read in (profile_zone.go):
+	// UTC unless an option or the cohort's default zone field names one.
+	clock, err := resolveCaptureClock(schema, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	// src / cont back ProfileOptions.RunContinuation only: src reads
 	// each row's whole stride from the segment and the decode then reads
@@ -1392,7 +1421,12 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 					datetimeAccs[f.Name].nulls++
 					continue
 				}
-				datetimeAccs[f.Name].observe(values[f.Name])
+				z, ok := clock.zoneOf(values, nulls)
+				if !ok {
+					datetimeAccs[f.Name].unzoned++
+					continue
+				}
+				datetimeAccs[f.Name].observe(values[f.Name], z)
 			case f.Type == encoding.FieldTypeDate:
 				da := dateAccs[f.Name]
 				if isNull {
@@ -1716,15 +1750,20 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 			fp.Vector, fp.NullRate = vecAccs[f.Name].finish(f.Name, includeStats, opts.FitShape, &warnings)
 		case f.Type == encoding.FieldTypeDateTime:
 			da := datetimeAccs[f.Name]
-			if total := da.count + da.nulls; total > 0 {
+			if total := da.count + da.unzoned + da.nulls; total > 0 {
 				fp.NullRate = float64(da.nulls) / float64(total)
+			}
+			if da.unzoned > 0 {
+				warnings = append(warnings, unzonedReadingsWarning(f.Name, clock.field, da.unzoned))
 			}
 			if da.count > 0 {
 				fp.Datetime = &DatetimeProfile{
-					Start:    daysToISO(da.minDays),
-					End:      daysToISO(da.maxDays),
-					Weekdays: da.weekdays,
-					Hours:    da.hours,
+					Start:         daysToISO(da.minDays),
+					End:           daysToISO(da.maxDays),
+					Weekdays:      da.weekdays,
+					Hours:         da.hours,
+					TimeZone:      clock.zoneName,
+					TimeZoneField: clock.field,
 				}
 				fp.Datetime.MonthStart, fp.Datetime.Months = monthSeries(da.months)
 			}
@@ -1915,7 +1954,8 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 }
 
 // datetimeParamsFromProfile rebuilds a captured datetime as
-// uniform_datetime params on the UTC clock. hour_weights are the hour
+// uniform_datetime params on its capture clock (UTC, or the captured
+// zone / zone field plus profileDSTPolicy). hour_weights are the hour
 // counts. weekday_weights are a per-DAY intensity (a weekday's share is
 // its weight times its days in range), so each weekday's count is
 // divided by how many such days [start, end] holds — a partial week at
@@ -1925,6 +1965,7 @@ func profileSegments(schema *encoding.Schema, segs []io.Reader, opts ProfileOpti
 // range.
 func datetimeParamsFromProfile(name string, dp *DatetimeProfile) (params map[string]any, warning string) {
 	params = map[string]any{"start": dp.Start, "end": dp.End}
+	zoneParamsFromProfile(params, dp)
 	if start, end, err := parseDayRange(FieldSpec{Params: params}, DistUniformDateTime); err == nil {
 		days := weekdayDayCounts(start, end)
 		weekdays := make([]any, 7)
@@ -2766,6 +2807,13 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			fs.Params, w = datetimeParamsFromProfile(fp.Name, fp.Datetime)
 			if w != "" {
 				monthWarnings = append(monthWarnings, w)
+			}
+			// A null zone cell makes the drawn datetime null, and the spec
+			// refuses a nullable zone field over a non-nullable datetime —
+			// so a zone field the source holds nulls in makes the rebuilt
+			// datetime nullable, rather than aborting the run.
+			if zf := fp.Datetime.TimeZoneField; zf != "" && profileNullRate(p, zf) > 0 {
+				fs.Nullable = true
 			}
 		case fp.Categorical != nil:
 			vals := make([]any, len(fp.Categorical.Top))

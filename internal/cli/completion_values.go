@@ -320,6 +320,8 @@ var flagValues = map[string]valueSource{
 	"by":            fieldValue,
 	"base-weight":   fieldValue,
 	"return":        fieldValue,
+	// profile create: a categorical field of the input of IANA zone names
+	"time-zone-field": fieldValue,
 
 	// free text and numbers
 	"sample-rows":        freeValue,
