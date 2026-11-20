@@ -25,10 +25,11 @@ type ComposeStreamOptions struct {
 // line per slot row in slot order (each row shaped by its slot's
 // `return`), then one line each, when present, for the run-time
 // warnings, a sampling sweep's sweep_seed, a ranked sweep's ranking
-// (+ ranking_profile), a banner, the optimize blocks and the
-// comparisons, then the opt-in terminal fits line. Overlays and the
-// post-fit results are buffered-only. Undefined figures are JSON null.
-// It reads resp only; nothing is executed.
+// (+ ranking_profile, and an adaptive sweep's sweep_trace), a banner,
+// the optimize blocks and the comparisons, then the opt-in terminal
+// fits line. Overlays and the post-fit results are buffered-only.
+// Undefined figures are JSON null. It reads resp only; nothing is
+// executed.
 func WriteComposeStream(w io.Writer, req *ComposedRequest, resp *ComposedResponse, opts ComposeStreamOptions) error {
 	return composestream.Write(w, req, resp, composestream.Options{TerminalFits: opts.TerminalFits})
 }

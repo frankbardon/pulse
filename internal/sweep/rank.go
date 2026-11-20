@@ -100,19 +100,8 @@ func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses 
 // spec is the sweep's declared axes; the profile is nil when r is nil
 // or r.Profile is false.
 func RankProfiled(r *types.SweepRank, spec []types.SweepAxis, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
-	full, err := rankAll(r, labels, axes, responses)
-	if err != nil || full == nil {
-		return full, nil, err
-	}
-	var profile map[string][]types.RankProfileEntry
-	if r.Profile {
-		bins := 0
-		if r.ProfileBins != nil {
-			bins = *r.ProfileBins
-		}
-		profile = Profile(spec, full, bins)
-	}
-	return trimTop(r, full), profile, nil
+	ranked, profile, _, err := RankTraced(r, spec, labels, axes, responses, nil)
+	return ranked, profile, err
 }
 
 // trimTop keeps the first r.Top entries of a full ranking.

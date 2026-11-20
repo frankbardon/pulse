@@ -30,6 +30,11 @@ type composeRank struct {
 	// profile (spec.Profile); profile is the one phase 0 computed.
 	axisSpec []types.SweepAxis
 	profile  map[string][]types.RankProfileEntry
+	// rounds are an adaptive sweep's round spans, appended by
+	// runAdaptiveSweep as each round finishes (nil under every other
+	// mode); trace is the round trace phase 0 computed over them.
+	rounds []sweep.RoundSpan
+	trace  []types.SweepTraceEntry
 }
 
 // composeExpansion is what the as-written request hands the finished
@@ -164,7 +169,7 @@ func applyComposeSweep(ext *composeExpansion, requests []*types.Request, out *ty
 }
 
 // applyComposeRank fills out.Ranking (and, with rank.profile,
-// out.RankingProfile) from the sweep slots (the slots
+// out.RankingProfile; under an adaptive mode, out.SweepTrace) from the sweep slots (the slots
 // from rank.explicit on, labelled by the resolved requests). It runs
 // after every fold, before the facade shapes anything, so each slot is
 // read unshaped. No rank leaves out untouched.
@@ -175,13 +180,13 @@ func applyComposeRank(rank *composeRank, requests []*types.Request, out *types.C
 	if rank.done {
 		// A sweep-bound batch ranked in phase 0, and bound its fits
 		// from that ranking: report it as computed.
-		out.Ranking, out.RankingProfile = rank.ranked, rank.profile
+		out.Ranking, out.RankingProfile, out.SweepTrace = rank.ranked, rank.profile, rank.trace
 		return nil
 	}
-	ranking, profile, err := rankComposeSweep(rank, requests, out.Responses)
+	ranking, profile, trace, err := rankComposeSweep(rank, requests, out.Responses)
 	if err != nil {
 		return err
 	}
-	out.Ranking, out.RankingProfile = ranking, profile
+	out.Ranking, out.RankingProfile, out.SweepTrace = ranking, profile, trace
 	return nil
 }

@@ -151,3 +151,92 @@ func TestComposeAdaptive_PenalisesFailedPoints(t *testing.T) {
 		}
 	}
 }
+
+// adaptiveTraceBatch is an adaptive test_fixed sweep of budget slots
+// over the fits cohort — OLS y ~ x over weeks [lo, 103] — whose one list
+// axis lo takes the given values: "0" ranks, "102" leaves two rows (the
+// residual_std_err is null: a null objective), "zz" fails the slot.
+func adaptiveTraceBatch(budget int, los ...any) *types.ComposedRequest {
+	return &types.ComposedRequest{Sweep: &types.SweepSpec{
+		Mode: sweeptest.Mode, Budget: budget,
+		Axes: []types.SweepAxis{{Name: "lo", Values: los}},
+		Request: json.RawMessage(`{"cohort":{"filename":"` + fitsCohort + `"},
+			"filterers":[{"type":"FILTER_RANGE","field":"week","values":["{{lo}}","103"]}],
+			"regressions":[{"type":"REG_OLS","name":"m","target":"y","predictors":["x"]}]}`),
+		Rank: &types.SweepRank{By: "regressions.m.residual_std_err"},
+	}}
+}
+
+// TestComposeAdaptive_TraceCountsPenalised: a failed slot (its stub)
+// and a null-objective slot both count as penalised in their round's
+// sweep_trace entry, and neither is the round's best; a run whose every
+// slot is penalised keeps `"best": null` and `"best_so_far": null` on
+// every round. Serial and parallel give identical rounds and traces.
+func TestComposeAdaptive_TraceCountsPenalised(t *testing.T) {
+	t.Parallel()
+	svc := fitsService(t)
+	var first []byte
+	for _, mode := range []string{"serial", "parallel"} {
+		out, err := runAdaptive(svc, mode, adaptiveTraceBatch(9, "0", "102", "zz"), false)
+		if err != nil {
+			t.Fatalf("%s: %v", mode, err)
+		}
+		if len(out.SweepTrace) != 3 {
+			t.Fatalf("%s: trace %+v", mode, out.SweepTrace)
+		}
+		failed, nulls := 0, 0
+		for k, tr := range out.SweepTrace {
+			lo, hi := k*sweeptest.Batch, k*sweeptest.Batch+sweeptest.Batch-1
+			want := 0
+			for i := lo; i <= hi; i++ {
+				switch l := out.Responses[i].Label; {
+				case strings.HasSuffix(l, "lo=zz"):
+					failed++
+					want++
+				case strings.HasSuffix(l, "lo=102"):
+					nulls++
+					want++
+				}
+			}
+			if tr.Round != k || tr.Slots != [2]int{lo, hi} || tr.Evaluated != sweeptest.Batch || tr.Penalised != want || tr.Best == nil {
+				t.Fatalf("%s: round %d %+v, want %d penalised", mode, k, tr, want)
+			}
+		}
+		if failed == 0 || nulls == 0 {
+			t.Fatalf("%s: %d failed, %d null — the fixture must hold both", mode, failed, nulls)
+		}
+		for _, e := range out.Ranking {
+			if e.Round == nil || *e.Round != e.Slot/sweeptest.Batch || !strings.HasSuffix(e.Label, "lo=0") {
+				t.Errorf("%s: entry %+v", mode, e)
+			}
+		}
+		raw, err := json.Marshal(struct {
+			R []types.RankEntry       `json:"r"`
+			T []types.SweepTraceEntry `json:"t"`
+		}{out.Ranking, out.SweepTrace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first == nil {
+			first = raw
+		} else if string(first) != string(raw) {
+			t.Errorf("serial and parallel differ:\n%s\n%s", first, raw)
+		}
+
+		none, err := runAdaptive(svc, mode, adaptiveTraceBatch(6, "102", "zz"), false)
+		if err != nil {
+			t.Fatalf("%s all penalised: %v", mode, err)
+		}
+		if len(none.Ranking) != 0 || len(none.SweepTrace) != 2 {
+			t.Fatalf("%s all penalised: ranking %+v trace %+v", mode, none.Ranking, none.SweepTrace)
+		}
+		w, err := json.Marshal(none.SweepTrace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := `[{"round":0,"slots":[0,2],"evaluated":3,"penalised":3,"best":null,"best_so_far":null},` +
+			`{"round":1,"slots":[3,5],"evaluated":3,"penalised":3,"best":null,"best_so_far":null}]`; string(w) != want {
+			t.Errorf("%s all penalised: trace %s, want %s", mode, w, want)
+		}
+	}
+}

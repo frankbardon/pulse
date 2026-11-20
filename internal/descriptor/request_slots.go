@@ -326,13 +326,19 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	// The sweep rank (and its profile) rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
-	// rides capability:compose_sweep_sampling.
+	// rides capability:compose_sweep_sampling, the round trace (and each
+	// ranking entry's round) only an adaptive one writes
+	// capability:compose_sweep_adaptive.
 	// The top-level overlay layers of each result root ride the gate
 	// of the request root's `overlays` slot that produces them.
+	reflect.TypeOf(types.RankEntry{}): {
+		{key: "round", visible: capabilityGate(featSweepAdaptive)},
+	},
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
 		{key: "ranking_profile", visible: capabilityGate(featComposeSweep)},
+		{key: "sweep_trace", visible: capabilityGate(featSweepAdaptive)},
 		{key: "sweep_seed", visible: sweepSamplingGate},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},

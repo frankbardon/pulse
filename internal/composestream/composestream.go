@@ -2,7 +2,8 @@
 // stream `pulse api compose --stream` prints and pulse.WriteComposeStream
 // hands an embedder: one {"index":N,"row":{...}} line per slot row (slot
 // order, each row shaped by its slot's `return`), then the trailing
-// records — warnings, sweep_seed, ranking (+ ranking_profile), banner,
+// records — warnings, sweep_seed, ranking (+ ranking_profile,
+// sweep_trace), banner,
 // optimizations, comparisons — and, opt-in (Options.TerminalFits), one
 // final {"fits":{...}} record. Overlays surface only in the buffered
 // response, never on the stream.
@@ -15,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/returnshape"
 	"github.com/frankbardon/pulse/internal/runwarn"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -84,6 +86,15 @@ func Write(w io.Writer, req *types.ComposedRequest, resp *types.ComposedResponse
 				profile = resp.RankingProfile
 			}
 			line["ranking_profile"] = profile
+		}
+		// An adaptive mode (de / bo) adds its round trace to the same
+		// record.
+		if sweep.IsAdaptive(req.Sweep.Mode) {
+			trace := []types.SweepTraceEntry{}
+			if resp != nil && resp.SweepTrace != nil {
+				trace = resp.SweepTrace
+			}
+			line["sweep_trace"] = trace
 		}
 		if err := encode(enc, line); err != nil {
 			return err

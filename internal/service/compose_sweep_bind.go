@@ -121,11 +121,11 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 	for i := bind.lo; i < bind.hi && i < len(ran); i++ {
 		ran[i] = true
 	}
-	ranking, profile, err := rankComposeSweep(ext.rank, requests, withoutFailed(responses, fails.indices))
+	ranking, profile, trace, err := rankComposeSweep(ext.rank, requests, withoutFailed(responses, fails.indices))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	ext.rank.ranked, ext.rank.profile, ext.rank.done = ranking, profile, true
+	ext.rank.ranked, ext.rank.profile, ext.rank.trace, ext.rank.done = ranking, profile, trace, true
 	if err := pass.bindWinner(bind, ranking, composed.Requests, ext.rank, s.strict); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -233,8 +233,9 @@ func (p *composeFitPass) resolved(bind *sweepBinding) []bool {
 // rankComposeSweep is the rank over the finished sweep slots (rank.explicit
 // on, labelled by the resolved requests) — sweep.Rank, which also warns
 // on each slot it leaves out — plus the per-axis profile when the rank
-// asks for one (sweep.RankProfiled; nil otherwise).
-func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, error) {
+// asks for one, and — under an adaptive mode (rank.rounds set) — each
+// entry's round and the round trace (sweep.RankTraced; nil otherwise).
+func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []*types.Response) ([]types.RankEntry, map[string][]types.RankProfileEntry, []types.SweepTraceEntry, error) {
 	n := rank.count
 	if rank.explicit+n > len(responses) {
 		n = max(len(responses)-rank.explicit, 0)
@@ -245,7 +246,7 @@ func rankComposeSweep(rank *composeRank, requests []*types.Request, responses []
 			labels[i] = r.Label
 		}
 	}
-	return sweep.RankProfiled(rank.spec, rank.axisSpec, labels, rank.axes, responses[rank.explicit:rank.explicit+n])
+	return sweep.RankTraced(rank.spec, rank.axisSpec, labels, rank.axes, responses[rank.explicit:rank.explicit+n], rank.rounds)
 }
 
 // foldSweepSlotMultiplicity corrects the slot-local multiplicity

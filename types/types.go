@@ -2375,6 +2375,14 @@ type ComposedResponse struct {
 	// capability:compose_sweep with the `sweep` slot.
 	RankingProfile map[string][]RankProfileEntry `json:"ranking_profile,omitempty"`
 
+	// SweepTrace is an adaptive sweep's (mode `de` / `bo`) round trace:
+	// one SweepTraceEntry per round, in round order, read over the full
+	// ranking (before SweepRank.Top). Always emitted under an adaptive
+	// mode, omitted under every other. Like `ranking` it sits outside
+	// the Compose-level `return`: always emitted, never rounded. Gated
+	// by capability:compose_sweep_adaptive with the `sweep` slot.
+	SweepTrace []SweepTraceEntry `json:"sweep_trace,omitempty"`
+
 	// SweepSeed is the effective seed a sampling sweep (mode random /
 	// lhs) drew its slots with — SweepSpec.RNGSeed when pinned, else the
 	// seed derived from the spec — so the run can be replayed by pinning
