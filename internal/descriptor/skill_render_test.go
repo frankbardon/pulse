@@ -445,6 +445,20 @@ func TestRenderSeeLine_AnnotationSpans(t *testing.T) {
 			"`kept` (the `_synthetic` output)"},
 		{"backtick descriptions per item", "- `gone` — the `vcov` Param; `kept` — the `fits` slot.",
 			"- `kept` — the `fits` slot."},
+		{"described items: prune the first", "- `gone` — modes, distributions; `kept` — the rest.",
+			"- `kept` — the rest."},
+		{"described items: prune the last", "- `kept` — modes, distributions; `gone` — the rest.",
+			"- `kept` — modes, distributions."},
+		{"described items: prune the middle", "- `kept` — `row()` / `lag()`; `gone` — slots; `also` — codes.",
+			"- `kept` — `row()` / `lag()`; `also` — codes."},
+		{"described item then bare items", "- `gone` — the claim order; `kept` · `also`.",
+			"- `kept` · `also`."},
+		{"bare items after a described one, last cut", "- `kept` — the claim order; `also` · `gone`.",
+			"- `kept` — the claim order; `also`."},
+		{"shared description survives a cut", "- `gone`, `kept` — shared.",
+			"- `kept` — shared."},
+		{"shared description, last pointer cut", "- `kept` / `gone` — shared; `also` — own.",
+			"- `kept` — shared; `also` — own."},
 		{"annotation-only item reads its spans", "- Skills: `kept`, more (`gone`)",
 			"- Skills: `kept`"},
 		{"annotation-only item kept", "- Error list in `pulse_manifest` (`error_codes` slice).",
@@ -458,6 +472,7 @@ func TestRenderSeeLine_AnnotationSpans(t *testing.T) {
 	for _, line := range []string{
 		"- `gone` (the `_synthetic` output)",
 		"- `gone` — the tables a `range_table` axis names.",
+		"- `gone` — modes, distributions; `gone` — the rest.",
 	} {
 		if r, ok := renderSeeLine(line, keep); ok {
 			t.Errorf("%q: a line whose only item points at a hidden skill survived as %q", line, r)
