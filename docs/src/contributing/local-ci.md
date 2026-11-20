@@ -111,7 +111,8 @@ make test-heavy
 ```
 
 Runs everything (both tiers). Slow but exhaustive. The recommended
-pre-push default.
+pre-push default. The flow `pre-push` gate runs the full scope uncached
+(`-count=1`); its changed scope relies on Go's test cache for speed.
 
 ## Coverage floors
 

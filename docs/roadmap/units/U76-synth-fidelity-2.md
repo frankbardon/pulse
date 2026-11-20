@@ -43,6 +43,7 @@ Shipped in six epics: coefficient comparison and the pair floor (E1), a bounded 
 - **E6-S4 (#736, owner-added).** A `date` field's fidelity `shape` reports `weekday_tvd` / `month_tvd` on the UTC clock; `TimeShapeFidelity.HourTVD` is now a `*float64` (`omitempty`, set on every datetime shape, so datetime reports are byte-identical).
 - **E6-S5 (#737, owner-added).** A feature-profiled skill's `## See` drops an item whose target is hidden even when its parenthetical annotation or ` — ` description carries a backtick span (it used to survive, pointing at a hidden skill: `cohort-union` under `read-only-analyst`, `tool-lookup-tables` without `capability:range_tables`, three SEM skills without `capability:sem_defined`). `cohort-union`'s See wording is restored.
 - **E6-S6 (#738, owner-added).** `pulse api sample --request FILE|-` (`-r`) takes a whole `SampleRequest` — a `union` and `union_source_field` included — through the strict request decoder; `--count` (when set) and `--labels` layer on top, a file without `n` takes 10, and `--input` beside `--request` (or neither) is a usage error (exit 2). The CLI's request form refuses a hidden union exactly as MCP `pulse_sample` does (`PULSE_REQUEST_UNKNOWN_FIELD`).
+- **E6-S7.** The flow `pre-push` gate's full scope (the pre-ready backstop) now runs `go test -count=1 -tags heavy`, so its verdict is never served from cache; changed scope stays cached.
 
 ## Outcome / decisions
 
