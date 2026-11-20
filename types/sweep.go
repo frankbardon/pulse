@@ -387,4 +387,47 @@ type RankEntry struct {
 	// boolean is preserved. Under JSON it reads back as float64 /
 	// string / bool.
 	Axes map[string]any `json:"axes"`
+
+	// Round is the 0-based adaptive round the slot ran in (a `de` / `bo`
+	// sweep), round 0 included; the same axis as SweepTraceEntry.Round.
+	// Nil (absent) under every other sweep mode.
+	Round *int `json:"round,omitempty"`
+}
+
+// SweepTraceEntry is one round of an adaptive sweep (`de` / `bo`) in
+// ComposedResponse.SweepTrace, which carries one per round in round
+// order. Slots is the round's inclusive span of 0-based sweep-slot
+// indices (the RankEntry.Slot axis); the spans are contiguous and cover
+// every slot the sweep ran. Evaluated counts the slots the round ran,
+// Penalised those of them not ranked — a failed slot (its stub
+// response) or one whose value at SweepRank.By is null or missing.
+// Best is the best ranked value among the round's own slots by
+// SweepRank.Order, null when every one was penalised; BestSoFar the
+// best over rounds 0..Round, null until some slot ranked, and BestLabel
+// that slot's label (ties follow rank order). Read over the full
+// ranking, before SweepRank.Top.
+type SweepTraceEntry struct {
+	// Round is the 0-based round index.
+	Round int `json:"round"`
+
+	// Slots is the round's inclusive [first, last] sweep-slot span.
+	Slots [2]int `json:"slots"`
+
+	// Evaluated is the number of slots the round ran, penalised ones
+	// included.
+	Evaluated int `json:"evaluated"`
+
+	// Penalised is the number of the round's slots left unranked.
+	Penalised int `json:"penalised"`
+
+	// Best is the round's best ranked value; null when none ranked.
+	Best *float64 `json:"best"`
+
+	// BestSoFar is the best ranked value over rounds 0..Round; null
+	// until some slot ranked.
+	BestSoFar *float64 `json:"best_so_far"`
+
+	// BestLabel is the final label of the slot behind BestSoFar; absent
+	// while BestSoFar is null.
+	BestLabel string `json:"best_label,omitempty"`
 }

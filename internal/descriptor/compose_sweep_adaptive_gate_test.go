@@ -85,7 +85,9 @@ func TestSweepAdaptive_HiddenRefusal(t *testing.T) {
 }
 
 // TestSweepAdaptive_HiddenSchema: `budget`, `de` (with its SweepDE def),
-// `bo` (with its SweepBO and SweepBOInit defs) and the modes de and bo
+// `bo` (with its SweepBO and SweepBOInit defs), the result's
+// `sweep_trace` (with its SweepTraceEntry def) and RankEntry `round`,
+// and the modes de and bo
 // are on the SweepSpec def of the full registry and of
 // an instance offering the adaptive modes, and absent from one hiding
 // them.
@@ -130,6 +132,18 @@ func TestSweepAdaptive_HiddenSchema(t *testing.T) {
 		}
 		if c.want && !reflect.DeepEqual(doc.Defs["SweepBOInit"].Enum, []string{"lhs", "random"}) {
 			t.Errorf("%s: SweepBOInit enum %v", c.name, doc.Defs["SweepBOInit"].Enum)
+		}
+		// The round trace an adaptive run writes rides the same gate:
+		// ComposedResponse.sweep_trace (with its SweepTraceEntry def)
+		// and each ranking entry's round.
+		_, trace := doc.Defs["ComposedResponse"].Properties["sweep_trace"]
+		_, traceDef := doc.Defs["SweepTraceEntry"]
+		_, round := doc.Defs["RankEntry"].Properties["round"]
+		if trace != c.want || traceDef != c.want || round != c.want {
+			t.Errorf("%s: sweep_trace key %v, SweepTraceEntry def %v, RankEntry round %v; want present %v", c.name, trace, traceDef, round, c.want)
+		}
+		if _, ranking := doc.Defs["ComposedResponse"].Properties["ranking"]; !ranking {
+			t.Errorf("%s: ranking key absent", c.name)
 		}
 	}
 }

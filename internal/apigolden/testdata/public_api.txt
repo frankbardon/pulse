@@ -224,6 +224,7 @@ pulse: type ComposedResponse field RankingProfile map[string][]pulse/types.RankP
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
+pulse: type ComposedResponse field SweepTrace []pulse/types.SweepTraceEntry "json:\"sweep_trace,omitempty\""
 pulse: type ComposedResponse field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse: type CreateShardArchiveResult = pulse/internal/service.CreateShardArchiveResult
@@ -5650,6 +5651,7 @@ pulse/types: type ComposedResponse field RankingProfile map[string][]pulse/types
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
 pulse/types: type ComposedResponse field Returned *pulse/types.ReturnedMarker "json:\"returned,omitempty\""
 pulse/types: type ComposedResponse field SweepSeed *int64 "json:\"sweep_seed,omitempty\""
+pulse/types: type ComposedResponse field SweepTrace []pulse/types.SweepTraceEntry "json:\"sweep_trace,omitempty\""
 pulse/types: type ComposedResponse field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse/types: const CovarianceClassical pulse/types.CovarianceType = "classical"
@@ -6605,6 +6607,7 @@ pulse/types: type RankEntry struct
 pulse/types: type RankEntry field Axes map[string]any "json:\"axes\""
 pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
+pulse/types: type RankEntry field Round *int "json:\"round,omitempty\""
 pulse/types: type RankEntry field Slot int "json:\"slot\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type RankProfileEntry struct
@@ -7024,6 +7027,14 @@ pulse/types: type SweepSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
 pulse/types: type SweepSpec field Rank *pulse/types.SweepRank "json:\"rank,omitempty\""
 pulse/types: type SweepSpec field Request encoding/json.RawMessage "json:\"request\""
 pulse/types: type SweepSpec field Samples int "json:\"samples,omitempty\""
+pulse/types: type SweepTraceEntry struct
+pulse/types: type SweepTraceEntry field Best *float64 "json:\"best\""
+pulse/types: type SweepTraceEntry field BestLabel string "json:\"best_label,omitempty\""
+pulse/types: type SweepTraceEntry field BestSoFar *float64 "json:\"best_so_far\""
+pulse/types: type SweepTraceEntry field Evaluated int "json:\"evaluated\""
+pulse/types: type SweepTraceEntry field Penalised int "json:\"penalised\""
+pulse/types: type SweepTraceEntry field Round int "json:\"round\""
+pulse/types: type SweepTraceEntry field Slots [2]int "json:\"slots\""
 pulse/types: const TEST_ANOVA_F pulse/types.TestType = "TEST_ANOVA_F"
 pulse/types: const TEST_ANOVA_RM pulse/types.TestType = "TEST_ANOVA_RM"
 pulse/types: const TEST_ANOVA_WELCH pulse/types.TestType = "TEST_ANOVA_WELCH"
@@ -7164,4 +7175,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 28fd5a9c78d897daa391054b558fdb85113e7486b0f116bb668a106dbd47bb23
+// golden-hash: ae874f376ece19528f26892a4e3c8783dcfb1aa5eceb066b4f39a30ecbe11a40

@@ -111,6 +111,9 @@ func (s *Service) runAdaptiveSweep(composed *types.ComposedRequest, ext *compose
 			}
 			outs[k] = sweep.Outcome{Value: v, Penalised: !ok}
 		}
+		// The round finished: its span joins the trace the rank reads
+		// (ComposedResponse.SweepTrace, RankEntry.Round).
+		ext.rank.rounds = append(ext.rank.rounds, sweep.RoundSpan{slots[0].Slot, slots[len(slots)-1].Slot})
 		return outs, nil
 	})
 	return fails, err

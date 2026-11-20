@@ -1178,6 +1178,15 @@
         "sweep_seed": {
           "type": "integer"
         },
+        "sweep_trace": {
+          "items": {
+            "$ref": "#/$defs/SweepTraceEntry"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "warnings": {
           "items": {
             "$ref": "#/$defs/ResponseWarning"
@@ -5336,6 +5345,9 @@
         "rank": {
           "type": "integer"
         },
+        "round": {
+          "type": "integer"
+        },
         "slot": {
           "type": "integer"
         },
@@ -7877,6 +7889,53 @@
       ],
       "type": "object"
     },
+    "SweepTraceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "best": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "best_label": {
+          "type": "string"
+        },
+        "best_so_far": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "evaluated": {
+          "type": "integer"
+        },
+        "penalised": {
+          "type": "integer"
+        },
+        "round": {
+          "type": "integer"
+        },
+        "slots": {
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "best",
+        "best_so_far",
+        "evaluated",
+        "penalised",
+        "round",
+        "slots"
+      ],
+      "type": "object"
+    },
     "Test": {
       "additionalProperties": false,
       "properties": {
@@ -8515,4 +8574,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: c63513f70bc9736cee581d81f34946db30fa6b38d2fe20e81b35e58900bb346c
+// golden-hash: bd110d184eb2b0eee800a69932608d9f46ae9459b8b03e5988849952aaa2abb5

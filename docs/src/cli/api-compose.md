@@ -25,7 +25,7 @@ pulse api compose --request FILE [--json] [--stream [--stream-fits]]
 |---|---|---|---|---|
 | `--request`       | `-r` | string | (required) | Composed-request JSON path |
 | `--json`          |      | bool   | false      | Wrap output in the standard envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a batch that warned adds one `{"warnings": [...]}` line after the rows; a sampling sweep (`random` / `lhs`) adds one `{"sweep_seed": N}` line; a ranked sweep ends with one `{"ranking": [...]}` line (`rank.profile` adds `"ranking_profile"` to it); a banner then ends with one `{"banner": {...}}` line |
+| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a batch that warned adds one `{"warnings": [...]}` line after the rows; a sampling sweep (`random` / `lhs`) adds one `{"sweep_seed": N}` line; a ranked sweep ends with one `{"ranking": [...]}` line (`rank.profile` adds `"ranking_profile"` to it; an adaptive `de` / `bo` sweep adds `"sweep_trace"`, `[]` when no response); a banner then ends with one `{"banner": {...}}` line |
 | `--stream-fits`   |      | bool   | false      | Under `--stream`, end with one `{"fits": {...}}` line — the buffered `fits` object — after every other line (the `ranking` line included); only when the request declares `fits`. Ignored without `--stream` |
 | `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
 | `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |

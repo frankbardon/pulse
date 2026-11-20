@@ -10,7 +10,7 @@ requires: [capability:compose_sweep, capability:compose_sweep_sampling, capabili
 
 # Compose sweep adaptive search
 
-A grid or an lhs sample fixes every point before any slot runs. An **adaptive** sweep spends a `budget` of slots in rounds and picks each round's points from the ranked values of the rounds before, so most of the budget lands near the best region. Use it to FIND an optimum of one ranked number; use lhs / random to MAP the whole space (a `ranking_profile` over even coverage), a grid for a few discrete values (`compose-sweep-sampling`, `compose-sweeps`).
+A grid or an lhs sample fixes every point before any slot runs. An **adaptive** sweep spends a `budget` of slots in rounds and picks each round's points from the ranked values of the rounds before, so most of the budget lands near the best region. Use it to FIND an optimum of one ranked number; lhs / random MAP the space (`ranking_profile`), a grid covers a few discrete values (`compose-sweep-sampling`, `compose-sweeps`).
 
 ```jsonc
 {
@@ -52,11 +52,15 @@ Round 0 is the initial design; each later round fits the surrogate to every poin
 ## Labels, failures, results
 
 - Every label is `sample=<slot>_<pattern>` (the authored `label` pattern or the default `axis=value` pairs); `slot` counts from 0 in run order, so labels stay unique even when a point repeats. Read a winner from `ranking[0].axes`.
-- A slot that fails, or whose value at `rank.by` is null, is penalised (scored as the worst value so far, left out of `ranking`) and the search goes on; failures warn `PULSE_SLOT_FAILED` once for the batch (`details.failed_indices`). Fail-fast `ComposeParallel` aborts at the failing round; `Strict` fails the batch.
+- A slot that fails, or whose value at `rank.by` is null, is penalised (scored as the worst value so far, left out of `ranking`) and the search goes on; failures warn `PULSE_SLOT_FAILED` once for the batch (`details.failed_indices`).
 <!-- feature: capability:compose_sweep_bind -->
 - `fits[].from_sweep` binds the winner (`compose-sweep-bind`).
 <!-- /feature -->
 - `result()` may read an explicit slot or a round-0 slot by label; a later round's label is unknown until it runs, so reading it is `PULSE_RESULT_INVALID` `slot_unknown`, in predict and at run time.
+
+## Round trace
+
+Each `ranking[]` entry carries `round` (0-based, round 0 present). `sweep_trace` is one entry per round: `{round, slots: [first, last], evaluated, penalised, best, best_so_far, best_label}`. `penalised` = the round's unranked slots (failed stubs, a null value at `rank.by`); `best` the round's best ranked value, `best_so_far` the best over rounds 0..round, both `null` (never 0) while nothing ranked, and `best_label` is then absent. Read over the full ranking, before `rank.top`. It sits outside the compose `return` (full precision); `--stream` adds it to the final `{"ranking"}` line (`[]` when empty). Absent under non-adaptive modes.
 
 ## Predict
 

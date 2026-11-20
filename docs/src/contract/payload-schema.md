@@ -1625,6 +1625,8 @@ under `scale: log` — one entry per non-empty bin, adding the optional
 numbers `lo` / `hi` (the bin edges; absent on a list axis), `value`
 then the best slot's draw.
 
+An adaptive sweep (`mode` `de` / `bo`) also carries `RankEntry.round` (`omitempty` `*int`: the 0-based round the slot ran in, `0` present, absent under every other mode) and `ComposedResponse.sweep_trace`, an array of `SweepTraceEntry {round, slots, evaluated, penalised, best, best_so_far, best_label}` in round order: `slots` the round's inclusive `[first, last]` sweep-slot span (the `RankEntry.slot` axis), `evaluated` the slots it ran, `penalised` those left unranked (a failed slot's stub, or a null / missing value at `rank.by`), `best` the best ranked value among the round's own slots by `rank.order`, `best_so_far` the best over rounds `0..round` and `best_label` that slot's label (ties follow rank order). `best` and `best_so_far` are `null` (key kept, never 0) while nothing ranked, and `best_label` is then absent. The trace reads the full ranking before `top`, is pinned outside the Compose-level `return` like `ranking` (full precision), and rides the final `--stream` `{"ranking": ...}` record (`[]` when no response). Both are hidden from an instance's payload schema unless `capability:compose_sweep_adaptive` is enabled; non-adaptive responses are byte-identical.
+
 ### Compose banner
 
 `ComposedRequest.banner` (`BannerSpec`) is
