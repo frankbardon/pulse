@@ -37,7 +37,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
 <!-- /feature -->
 <!-- feature: capability:sample -->
-| sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+| sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 <!-- /feature -->
 
 Each operation's MCP tool: manifest `mcp_tools`.

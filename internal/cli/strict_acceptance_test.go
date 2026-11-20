@@ -55,6 +55,7 @@ func strictAcceptanceRoots() map[string]strictRoot {
 		"chain":    {leaves: [][]string{{"predict-chain"}, {"process-chain"}}},
 		"facet":    {leaves: [][]string{{"predict-facet"}, {"facet", "--top-k", "3"}}},
 		"lookup":   {leaves: [][]string{{"lookup"}}}, // no predict leaf
+		"sample":   {leaves: [][]string{{"sample"}}}, // no predict leaf
 	}
 }
 
@@ -204,6 +205,12 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "lookup.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"keys":[{"field":"cat","value":"a"}]}`, path: "cohort.data_dri", unknown: "data_dri"},
 		{family: "lookup.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"keys":[{"field":"cat","value":"a"}]}`, path: "union[0].lable", unknown: "lable"},
 		{family: "lookup.keys", body: `{"cohort":` + c + `,"keys":[{"field":"cat","valu":"a"}]}`, path: "keys[0].valu", unknown: "valu"},
+
+		// --- Sample root (api sample --request) ---
+		{family: "sample", body: `{"cohort":` + c + `,"n":3,"lables":[]}`, unknown: "lables"},
+		{family: "sample.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"n":3}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "sample.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"n":3}`, path: "union[0].lable", unknown: "lable"},
+		{family: "sample.labels", body: `{"cohort":` + c + `,"n":3,"labels":[{"field":"cat","tabel":"t"}]}`, path: "labels[0].tabel", unknown: "tabel"},
 	}
 }
 
@@ -223,6 +230,7 @@ func strictAcceptanceRootTypes() map[string]reflect.Type {
 		"chain":    reflect.TypeFor[types.ChainRequest](),
 		"facet":    reflect.TypeFor[types.FacetRequest](),
 		"lookup":   reflect.TypeFor[types.LookupRequest](),
+		"sample":   reflect.TypeFor[types.SampleRequest](),
 		"synth":    reflect.TypeFor[synth.Spec](),
 	}
 }

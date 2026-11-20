@@ -74,7 +74,7 @@ request.
 | `Compose`, `ComposeParallel` | any slot may read a union |
 | `ProcessChain` | the chain root's `union` is stage 0's source |
 | `FacetSchema` | facet the source field to count records per member |
-| `SampleWithRequest` | rows in member order; MCP `pulse_sample` takes `union` in place of `path` |
+| `SampleWithRequest` | rows in member order; MCP `pulse_sample` takes `union` in place of `path`; the CLI `pulse api sample --request FILE` takes a whole `SampleRequest` |
 | `Materialize` | the source field is written as an ordinary column |
 | `Lookup` | always scans the members in order — a union never reads or writes a sidecar index |
 | a join | the union is the LEFT side (the request's own cohort) |

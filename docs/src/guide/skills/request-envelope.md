@@ -30,7 +30,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
 | process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
 | facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
-| sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+| sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 
 Each operation's MCP tool: manifest `mcp_tools`.
 

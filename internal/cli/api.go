@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -283,18 +284,31 @@ func apiSampleCmd() *cli.Command {
 		Name:  "sample",
 		Usage: "Return sample rows from a cohort",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample"},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path (required unless --request)"},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full SampleRequest JSON file, or - for stdin (cohort or union, union_source_field, n, labels); in place of --input. --count and --labels layer on top of the file"},
+			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample (with --request: overrides the file's n, the default when it has none)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
+			reqPath := cmd.String("request")
 			count := int(cmd.Int("count"))
 			jsonOut := cmd.Bool("json")
 			labelArgs := cmd.StringSlice("labels")
 			echoRequest := cmd.Bool("echo-request")
+
+			// The parser's own refusals (exit 2, no envelope): --input
+			// and --request name the cohort two ways, and one is needed.
+			switch {
+			case input != "" && reqPath != "":
+				return usageExit(perr.NewCodedError(perr.CLI_INPUT,
+					"--input and --request are mutually exclusive (name the cohort in the request file, or pass --input alone)"))
+			case input == "" && reqPath == "":
+				return usageExit(perr.NewCodedError(perr.CLI_INPUT,
+					`Required flag "input" not set (or pass --request with a SampleRequest JSON file)`))
+			}
 
 			p, err := newPulse(ctx)
 			if err != nil {
@@ -302,6 +316,10 @@ func apiSampleCmd() *cli.Command {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
+			}
+
+			if reqPath != "" {
+				return runSampleRequest(ctx, cmd, p, reqPath, labelArgs, jsonOut, echoRequest)
 			}
 
 			if len(labelArgs) == 0 {
@@ -355,6 +373,96 @@ func apiSampleCmd() *cli.Command {
 			return writeJSON(cmd.Writer, result.Rows)
 		},
 	}
+}
+
+// runSampleRequest is `api sample --request`: the SampleRequest the
+// file (or stdin, for "-") holds, through the strict request decoder,
+// with --count / --labels layered on top, handed to SampleWithRequest
+// as MCP pulse_sample hands its union form. A union slot the instance
+// hides is refused there, by the library's slot gate.
+func runSampleRequest(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, path string, labelArgs []string, jsonOut, echoRequest bool) error {
+	var count *int
+	if cmd.IsSet("count") {
+		n := int(cmd.Int("count"))
+		count = &n
+	}
+	req, err := loadSampleRequest(path, cmdReader(cmd), count)
+	if err != nil {
+		if jsonOut {
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
+		}
+		return err
+	}
+	if len(labelArgs) > 0 {
+		bindings, lerr := parseLabelBindings(labelArgs)
+		if lerr != nil {
+			if jsonOut {
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", lerr)
+			}
+			return lerr
+		}
+		req.Labels = bindings
+	}
+	result, err := p.SampleWithRequest(ctx, req)
+	if err != nil {
+		if jsonOut {
+			return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+		}
+		return err
+	}
+	if !jsonOut {
+		return writeJSON(cmd.Writer, result.Rows)
+	}
+	env := descriptor.NewEnvelope(result.Rows)
+	if echoRequest {
+		env.WithRequest(req)
+	}
+	for _, w := range result.Warnings {
+		env.AddWarning(w.Code, w.Message, w.Details)
+	}
+	return writeJSON(cmd.Writer, env)
+}
+
+// sampleDefaultCount is the row count a sample request gets when
+// neither its file (`n`) nor --count names one — --count's default, and
+// MCP pulse_sample's.
+const sampleDefaultCount = 10
+
+// loadSampleRequest decodes the SampleRequest at path ("-" reads stdin)
+// through the shared strict request decoder. A file without `n` takes
+// sampleDefaultCount; count (an explicitly set --count) overrides
+// either. The cohort / union rules are the library's.
+func loadSampleRequest(path string, stdin io.Reader, count *int) (*pulse.SampleRequest, error) {
+	var data []byte
+	var err error
+	if path == "-" {
+		if stdin == nil {
+			stdin = os.Stdin
+		}
+		data, err = io.ReadAll(stdin)
+	} else {
+		data, err = os.ReadFile(path)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading sample request file: %w", err)
+	}
+	req := &pulse.SampleRequest{N: sampleDefaultCount}
+	if err := decodeRequestJSON(data, req, "sample request"); err != nil {
+		return nil, err
+	}
+	if count != nil {
+		req.N = *count
+	}
+	return req, nil
+}
+
+// cmdReader is the stdin a leaf reads: the root command's Reader (a
+// test's buffer), else the process's.
+func cmdReader(cmd *cli.Command) io.Reader {
+	if r := cmd.Root().Reader; r != nil {
+		return r
+	}
+	return os.Stdin
 }
 
 func apiFacetCmd() *cli.Command {
