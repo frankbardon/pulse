@@ -209,4 +209,4 @@ Filed from [U79](U79-library-gaps.md#handed-on); tick in [`TODO.md`](../TODO.md)
 
 Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#737** The skill `## See` parser (`seeTags` / `renderSeeSection` in `internal/descriptor`) does not prune a list item whose parenthetical annotation contains a backtick span when the skill it points to is pruned by a feature profile; fix it, or reword the annotations so none carries a backtick span.
+- [x] **#737** The skill `## See` parser (`seeTags` / `renderSeeSection` in `internal/descriptor`) does not prune a list item whose parenthetical annotation contains a backtick span when the skill it points to is pruned by a feature profile; fix it, or reword the annotations so none carries a backtick span. *Done in U76 (E6-S5): a `## See` item whose parenthetical annotation or ` — ` description carries a backtick span is now pruned with its hidden target (only the spans outside both point); `cohort-union`'s natural wording is restored and a heavy rendered-See sweep (`TestProfileRenderedSeeNoHiddenSkill`) proves no profile serves a dangling pointer.*

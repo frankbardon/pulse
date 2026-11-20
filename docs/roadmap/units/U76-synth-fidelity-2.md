@@ -41,6 +41,7 @@ Shipped in six epics: coefficient comparison and the pair floor (E1), a bounded 
 - **E4 (#525).** `internal/examples/fixtures` is a compiled, pinned generator (math/rand/v2 PCG, `detmath`); `TestFixtures_RegenerateByteIdentical` byte-compares every CSV. Nine CSVs were redrawn, so 11 story goldens and the Analysis Guide figures moved (clustered covariance `session_minutes` is now significant; the crosstab row-normalised prose now has west lowest).
 - **E5 (#433).** Cohort union: `union` / `union_source_field` on Request, ChainRequest, FacetRequest, SampleRequest and LookupRequest; `PULSE_UNION_*` codes; `capability:union`; manifest `union` block; model provenance `union`; `pulse_sample` takes a union; observability `Cohort` joins member paths with `+`. Non-union fix: Compose and chain predict now refuse a colliding join (`PULSE_JOIN_FIELD_COLLISION`) like the runtime.
 - **E6-S4 (#736, owner-added).** A `date` field's fidelity `shape` reports `weekday_tvd` / `month_tvd` on the UTC clock; `TimeShapeFidelity.HourTVD` is now a `*float64` (`omitempty`, set on every datetime shape, so datetime reports are byte-identical).
+- **E6-S5 (#737, owner-added).** A feature-profiled skill's `## See` drops an item whose target is hidden even when its parenthetical annotation or ` — ` description carries a backtick span (it used to survive, pointing at a hidden skill: `cohort-union` under `read-only-analyst`, `tool-lookup-tables` without `capability:range_tables`, three SEM skills without `capability:sem_defined`). `cohort-union`'s See wording is restored.
 
 ## Outcome / decisions
 
@@ -50,5 +51,4 @@ The default pair floor moves the churn fixture's seed-1 `contract` winner (plan 
 
 | Item | To | Why |
 |---|---|---|
-| #737 `## See` annotation pruning | [U32](U32-docs-audit.md) | `seeTags` / `renderSeeSection` do not prune an item whose annotation holds a backtick span when its skill is pruned |
 | #738 request form for `pulse sample` | [U33](U33-v1-release.md) | the CLI has only `--input`, so sampling a union is library / MCP only |

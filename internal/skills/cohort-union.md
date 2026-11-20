@@ -72,4 +72,4 @@ Two files, one slot: union the source and the twin, group by the source field, a
 
 ## See
 
-`cohort-sharding` (the archive merge rules a union reuses) · `join-design` · `compose-requests` · `facet-design` · `synth-fidelity-report` (the tagged output) · `tool-sample` · `tool-lookup`
+`cohort-sharding` (the archive merge rules a union reuses) · `join-design` · `compose-requests` · `facet-design` · `synth-fidelity-report` (the `_synthetic` tagged output) · `tool-sample` · `tool-lookup`

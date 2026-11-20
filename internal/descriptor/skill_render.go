@@ -151,8 +151,9 @@ func renderSeeSection(body string, dropEmpty bool, keepSpan func(span string) bo
 // parentheses); " · " is the topical skills' inline-list separator.
 var seeSeparators = []string{", ", "; ", " / ", " · "}
 
-// renderSeeLine cuts the ITEMS of one See line whose every backticked
-// span keepSpan rejects. A line is `<prefix><item><sep><item>…<tail>`:
+// renderSeeLine cuts the ITEMS of one See line whose every pointer span
+// (itemSpans: annotations and descriptions are not pointers) keepSpan
+// rejects. A line is `<prefix><item><sep><item>…<tail>`:
 // the prefix runs to the first backtick ("- Skills: "), items split at
 // ", " / "; " / " / " / " · " outside backticks and parentheses (so an
 // item keeps its annotation — "`request-envelope` (Time zones)"), and
@@ -175,7 +176,7 @@ func renderSeeLine(line string, keepSpan func(string) bool) (string, bool) {
 	cut := make([]bool, len(items))
 	anyCut, anyKept := false, false
 	for i, it := range items {
-		spans := backtickSpans(it)
+		spans := itemSpans(it)
 		if len(spans) == 0 {
 			continue
 		}
@@ -214,6 +215,46 @@ func renderSeeLine(line string, keepSpan func(string) bool) (string, bool) {
 		r += "."
 	}
 	return r + tail, true
+}
+
+// itemSpans returns the backticked spans that make an item's pointer:
+// those before its own " — " description and outside its parenthetical
+// annotations (parentheses outside backticks, nested or not). Both are
+// prose about the item — "`synth-fidelity-report` (the `_synthetic`
+// tagged output)" and "`tool-range-tables` — the tables a `range_table`
+// axis names" point at the skill alone — so a span inside them never
+// keeps an item whose pointer is hidden (#737). An item with no span
+// outside them ("Error list in (`error_codes`)") reads every span, as
+// before.
+func itemSpans(item string) []string {
+	var head strings.Builder
+	depth, inTick := 0, false
+scan:
+	for i := 0; i < len(item); i++ {
+		c := item[i]
+		switch {
+		case c == '`':
+			inTick = !inTick
+		case inTick:
+		case depth == 0 && strings.HasPrefix(item[i:], " — "):
+			break scan
+		case c == '(':
+			depth++
+			continue
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth == 0 {
+			head.WriteByte(c)
+		}
+	}
+	if spans := backtickSpans(head.String()); len(spans) > 0 {
+		return spans
+	}
+	return backtickSpans(item)
 }
 
 // splitSeeItems splits s at the seeSeparators that sit outside
