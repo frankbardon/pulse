@@ -26,7 +26,7 @@ func TestMMMFixture_RowsShape(t *testing.T) {
 
 // TestMMMFixture_RowsMatchExamplesCSV: Rows() is bit-identical to the
 // checked-in examples cohort mmm_weekly.csv (written from it by
-// internal/examples/fixtures/gen.go at full precision, which
+// internal/examples/fixtures (gen.go) at full precision, which
 // round-trips every float64). The generator is FMA-free and
 // detmath-only, so this holds on every architecture — on amd64 CI it
 // proves the arm64-written CSV is what Rows() computes there too.
@@ -53,7 +53,7 @@ func TestMMMFixture_RowsMatchExamplesCSV(t *testing.T) {
 		}
 		for j, v := range r[2:] {
 			if got := strconv.FormatFloat(v.(float64), 'g', -1, 64); got != rec[j+2] {
-				t.Errorf("row %d %s = %s, csv %s: regenerate with go run internal/examples/fixtures/gen.go",
+				t.Errorf("row %d %s = %s, csv %s: regenerate with go run ./internal/examples/fixtures/cmd/genfixtures",
 					i, recs[0][j+2], got, rec[j+2])
 			}
 		}

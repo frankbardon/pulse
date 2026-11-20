@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738]
 branch: v1-release
 ---
 
@@ -199,3 +199,10 @@ Filed from [U75 handed on](U75-zones-labels-2.md#handed-on); tick in [`TODO.md`]
 Filed from [U74 handed-on](U74-memory-bounds.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it.
+
+## Handed on from U76
+
+Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [x] **#736** — **A fidelity `shape` for a `date` field.** A date twin's month volume is regenerated from `month_weights` but the report does not measure it; make `synth.TimeShapeFidelity.HourTVD` optional (`omitempty` pointer) so a date field can report `weekday_tvd` / `month_tvd` alone. Public-API golden moves; do it before the v1 freeze. *Done in U76 (E6-S4): `HourTVD` is a `*float64` (`omitempty`); a `date` entry carries `weekday_tvd` / `month_tvd` on the UTC clock, datetime reports byte-identical.*
+- [x] **#738** — **A request form for `pulse sample`.** The CLI takes only `--input`, so sampling a cohort union is library / MCP only; add a `--request` JSON form (as `facet` / `lookup` accept `request.union`) or record the limit as permanent in `docs/src/cli/flags.md`. *Done in U76 (E6-S6): `pulse api sample --request FILE|-` takes a whole `SampleRequest` (a `union` included) through the strict decoder; `--count` / `--labels` layer on top, `--input` beside it is a usage error (exit 2).*

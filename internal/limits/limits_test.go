@@ -23,6 +23,8 @@ func wantDefaults() Limits {
 		MaxExpandedItems:   1_000,
 		MaxMMMGeos:         50,
 		MaxMMMDrawValues:   10_000_000,
+
+		MaxDisclosureComparisons: 50_000_000_000,
 	}
 }
 
@@ -53,6 +55,8 @@ func TestNamesAndOptions(t *testing.T) {
 		MaxExpandedItems:   "Options.Limits.MaxExpandedItems",
 		MaxMMMGeos:         "Options.Limits.MaxMMMGeos",
 		MaxMMMDrawValues:   "Options.Limits.MaxMMMDrawValues",
+
+		MaxDisclosureComparisons: "Options.Limits.MaxDisclosureComparisons",
 	}
 	names := Names()
 	if len(names) != len(want) {

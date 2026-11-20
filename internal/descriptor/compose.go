@@ -1328,10 +1328,10 @@ func requestLabelsDeferred(req *types.Request) bool {
 // Service.requestInputSchema.
 func composeSlotInputSchema(requests []*types.Request, opts *PredictOptions) func(j int) *encoding.Schema {
 	return func(j int) *encoding.Schema {
-		if j < 0 || j >= len(requests) || requests[j] == nil || requests[j].Cohort == nil {
+		if j < 0 || j >= len(requests) || requests[j] == nil || (requests[j].Cohort == nil && len(requests[j].Union) == 0) {
 			return nil
 		}
-		return joinedDefaultsSchema(requests[j], cohortSchemaFor(requests[j].Cohort, opts), opts)
+		return joinedDefaultsSchema(requests[j], requestSchemaFor(requests[j], opts), opts)
 	}
 }
 
@@ -1354,7 +1354,7 @@ func composeSlotTypedAsExecuted(req *types.Request, opts *PredictOptions) *types
 	if !untyped {
 		return req
 	}
-	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	schema := joinedDefaultsSchema(req, requestSchemaFor(req, opts), opts)
 	if schema == nil {
 		return req
 	}
@@ -1371,7 +1371,7 @@ func composeSlotAsExecuted(req *types.Request, opts *PredictOptions) *types.Requ
 	if !requestLabelsDeferred(req) || opts == nil || opts.DisableDefaults {
 		return req
 	}
-	schema := joinedDefaultsSchema(req, cohortSchemaFor(req.Cohort, opts), opts)
+	schema := joinedDefaultsSchema(req, requestSchemaFor(req, opts), opts)
 	if schema == nil {
 		return req
 	}
@@ -1570,8 +1570,14 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 			*postWindow = classifyPostWindow(r, s, opts.instance(), models)
 		}
 	}
-	// The request's Process expands its item for_each first (right
-	// after the slot gate the whole batch already passed).
+	// The request's Process judges its union first (UnionExecRefusal,
+	// right after the slot gate the whole batch already passed), then
+	// expands its item for_each.
+	if uerr := UnionExecRefusal(slot); uerr != nil {
+		early(slot, nil)
+		addCodedError(env, RefusalAt(uerr, key, idx))
+		return nil, false
+	}
 	expanded, fan, _, xerr := ExpandRequestItems(slot, l, opts.instance().SweepOptions())
 	if xerr != nil {
 		early(slot, nil) // not expanded: indexes the slot as written
@@ -1615,7 +1621,20 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		addCodedError(env, RefusalAt(rerr, key, idx))
 		return nil, false
 	}
-	schema, keyRefusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	// A union slot's members merge where its Process opens them (the
+	// runtime's openRequestCohort, after the entry passes above):
+	// a merge refusal is the slot's, located like any other.
+	slotSchema := cohortSchemaFor(slot.Cohort, opts)
+	if len(slot.Union) > 0 {
+		merged, _, _, uerr := unionRequestSchema(slot, opts)
+		if uerr != nil {
+			early(slot, nil)
+			addCodedError(env, RefusalAt(uerr, key, idx))
+			return nil, false
+		}
+		slotSchema = merged
+	}
+	schema, keyRefusals := validatorRequestSchema(slot, slotSchema, opts)
 	// An explicit metric that fits its vector's kind poorly: a warning
 	// located under key = idx (the runtime's Process warns, and under
 	// Strict refuses here — before any record is read and before its
@@ -1670,7 +1689,7 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	// certain one refuses the request there. Schema-less, nothing is
 	// judged.
 	if schema != nil {
-		located, ok := locatedFindingsAt(env, requestFindings(defaulted, schema, opts, opts.cohortCounts(slot.Cohort)), key, idx)
+		located, ok := locatedFindingsAt(env, requestFindings(defaulted, schema, opts, requestCounts(slot, opts)), key, idx)
 		if findings != nil {
 			*findings = append(*findings, located...)
 		}

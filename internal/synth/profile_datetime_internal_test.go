@@ -146,7 +146,7 @@ func TestProfileDatetime_WeekdayWeightsArePerDay(t *testing.T) {
 	t.Parallel()
 
 	// 2026-01-05 (Mon) .. 2026-01-14 (Wed): Mon-Wed twice, Thu-Sun once.
-	p := datetimeParamsFromProfile(&DatetimeProfile{
+	p, _ := datetimeParamsFromProfile("ts", &DatetimeProfile{
 		Start: "2026-01-05", End: "2026-01-14",
 		Weekdays: [7]int{200, 200, 200, 100, 100, 100, 100},
 	})

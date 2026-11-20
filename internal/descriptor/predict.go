@@ -306,6 +306,12 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 		addCodedError(env, serr)
 		return env
 	}
+	// The union rules next, as the runtime runs them. A request with a
+	// valid union is predicted by PredictUnion over its members, never
+	// over the one source handed here.
+	if uerr := UnionRunRefusal(req, "predict over a single cohort source"); uerr != nil {
+		return unionRefused(req, opts, uerr)
+	}
 	// Then every item for_each expands (ExpandRequestItems — the
 	// runtime's expansion, with the MaxDerivedColumns preflight before
 	// any item renders); everything below judges the expanded request,
@@ -378,11 +384,21 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 
 	// The record count bounds the return size estimates; derived from
 	// the file length (never a record), as Inspect derives it.
+	if records == nil {
+		if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
+			records = &n
+		}
+	}
+	return predictOverSchema(env, result, schema, req, opts, records, shardRecords, directoryBytes, dist)
+}
+
+// predictOverSchema is predictSingle's schema half: every judgement
+// over a read (or, for a union, merged) schema. records nil means the
+// record count is unknown.
+func predictOverSchema(env *descriptor.Envelope, result *descriptor.PredictResult, schema *encoding.Schema, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, directoryBytes int64, dist *encx.ArchiveDistinct) *descriptor.Envelope {
 	sizeIn := returnSizeInputs{components: !opts.componentsDisabled(req)}
 	if records != nil {
 		sizeIn.records, sizeIn.recordsKnown = *records, true
-	} else if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
-		sizeIn.records, sizeIn.recordsKnown = n, true
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{
@@ -1862,7 +1878,8 @@ func predictJoinedSchema(env *descriptor.Envelope, req *types.Request, schema *e
 	return joined
 }
 
-// validateOperatorTypes reports every top-level slot whose operator
+// validateOperatorTypes reports every top-level slot (and crosstab axis
+// grouper) whose operator
 // Type is still empty once defaults have (or, under DisableDefaults,
 // have not) run. The runtime refuses each one at operator construction
 // with PROCESSING_CONFIG "unknown <family> type: "; predict mirrors
@@ -1904,6 +1921,21 @@ func validateOperatorTypes(env *descriptor.Envelope, req *types.Request, schema 
 	for i, g := range req.Groups {
 		if g != nil && g.Type == "" && !isVec(g.Field) {
 			report("group", "groups["+strconv.Itoa(i)+"]")
+		}
+	}
+	// A crosstab axis grouper defaults like a top-level group, so one
+	// still typeless here (DisableDefaults, a field with no grouper rule)
+	// is the same runtime refusal.
+	if ct := req.Crosstab; ct != nil {
+		for i, g := range ct.Rows {
+			if g != nil && g.Type == "" && !isVec(g.Field) {
+				report("group", "crosstab.rows["+strconv.Itoa(i)+"]")
+			}
+		}
+		for i, g := range ct.Columns {
+			if g != nil && g.Type == "" && !isVec(g.Field) {
+				report("group", "crosstab.columns["+strconv.Itoa(i)+"]")
+			}
 		}
 	}
 }

@@ -14,21 +14,21 @@
       "label": "revenue_pre_post_pearson",
       "type": "TEST_PEARSON_R",
       "variant": "pearson",
-      "statistic": 0.9777,
+      "statistic": 0.967,
       "df": 398,
-      "p_value": 6.718e-272,
+      "p_value": 1.815e-238,
       "alpha": 0.05,
       "reject_null": true,
       "details": {
-        "ci_high": 0.9817,
-        "ci_low": 0.9729,
-        "covariance": 6909,
-        "mean_x": 154.3,
-        "mean_y": 123.4,
+        "ci_high": 0.9728,
+        "ci_low": 0.96,
+        "covariance": 5535,
+        "mean_x": 151.7,
+        "mean_y": 120.6,
         "n": 400,
-        "t": 92.9,
-        "variance_x": 8825,
-        "variance_y": 5658
+        "t": 75.72,
+        "variance_x": 7186,
+        "variance_y": 4559
       }
     }
   ],

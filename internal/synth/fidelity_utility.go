@@ -152,8 +152,23 @@ type UtilityCoefficient struct {
 	SourceStdError    float64 `json:"source_std_error,omitempty"`
 	SyntheticStdError float64 `json:"synthetic_std_error,omitempty"`
 	// Ratio is synthetic ÷ source: the share of the source's effect the
-	// twin keeps. Absent when the source coefficient is zero.
+	// twin keeps. Absent when the source coefficient is zero. It explodes
+	// as the source coefficient nears zero — read RatioReliable and Z.
 	Ratio float64 `json:"ratio,omitempty"`
+	// Difference is synthetic − source, on the coefficient's own scale.
+	// Present whenever both sides estimated the term (a true 0 included).
+	Difference *float64 `json:"difference,omitempty"`
+	// Z is Difference ÷ √(SourceStdError² + SyntheticStdError²): the gap
+	// in standard errors of the two estimates, comparable across terms.
+	// Read it as a gap, not a test: across many terms an occasional |z|
+	// near 2 is chance, a |z| past 3 rarely is. Absent (never 0) when
+	// both standard errors are 0, where it is undefined.
+	Z *float64 `json:"z,omitempty"`
+	// RatioReliable is false when |Source| ≤ SourceStdError: the source
+	// estimate is indistinguishable from zero, so Ratio divides by noise
+	// and only Difference and Z carry evidence. Present whenever both
+	// sides estimated the term.
+	RatioReliable *bool `json:"ratio_reliable,omitempty"`
 	// Missing names the partition ("source" / "synthetic") whose fit did
 	// not estimate this term; its figures are then zero.
 	Missing string `json:"missing,omitempty"`
@@ -512,10 +527,28 @@ func compareCoefficients(s, y *types.RegressionResult, okS, okY bool) []*Utility
 			c.Missing = "source"
 		case !inY:
 			c.Missing = "synthetic"
-		case c.Source != 0:
-			c.Ratio = finiteOrZero(c.Synthetic / c.Source)
+		default:
+			if c.Source != 0 {
+				c.Ratio = finiteOrZero(c.Synthetic / c.Source)
+			}
+			compareCoefficientGap(c)
 		}
 		out = append(out, c)
 	}
 	return out
+}
+
+// compareCoefficientGap sets a both-sides term's Difference, Z and
+// RatioReliable. The squares are barriered so no fused multiply-add
+// moves a bit between architectures.
+func compareCoefficientGap(c *UtilityCoefficient) {
+	diff := finiteOrZero(c.Synthetic - c.Source)
+	c.Difference = &diff
+	if v := float64(c.SourceStdError*c.SourceStdError) + float64(c.SyntheticStdError*c.SyntheticStdError); v > 0 {
+		if z := diff / math.Sqrt(v); !math.IsNaN(z) && !math.IsInf(z, 0) {
+			c.Z = &z
+		}
+	}
+	reliable := math.Abs(c.Source) > c.SourceStdError
+	c.RatioReliable = &reliable
 }

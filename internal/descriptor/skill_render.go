@@ -151,31 +151,62 @@ func renderSeeSection(body string, dropEmpty bool, keepSpan func(span string) bo
 // parentheses); " · " is the topical skills' inline-list separator.
 var seeSeparators = []string{", ", "; ", " / ", " · "}
 
-// renderSeeLine cuts the ITEMS of one See line whose every backticked
-// span keepSpan rejects. A line is `<prefix><item><sep><item>…<tail>`:
-// the prefix runs to the first backtick ("- Skills: "), items split at
-// ", " / "; " / " / " / " · " outside backticks and parentheses (so an
-// item keeps its annotation — "`request-envelope` (Time zones)"), and
-// the tail is a
-// " — description" after the last span, shared by every item. A cut item
-// takes its separator with it (a trailing "." survives on the new last
-// item); a line whose every span-bearing item is cut reports keep=false.
-// A line with nothing to cut is returned unchanged.
+// renderSeeLine cuts the ITEMS of one See line whose every pointer span
+// (itemSpans: annotations are not pointers) keepSpan rejects. A line is
+// `<prefix><segment><sep><segment>…`: the prefix runs to the first
+// backtick ("- Skills: "), and a segment ends at a "; " / " · " outside
+// backticks and parentheses that follows the segment's own " — "
+// description (splitSeeSegments) — so "`a` — x; `b` — y" is two
+// segments, each keeping its description. A segment is
+// `<item><sep><item>…<tail>`: items split at ", " / "; " / " / " / " · "
+// outside backticks and parentheses (so an item keeps its annotation —
+// "`request-envelope` (Time zones)"), and the tail is the segment's
+// " — " description, shared by every item of the segment ("`a`, `b` —
+// shared"). A cut item takes its separator with it; a segment whose
+// every span-bearing item is cut goes whole, description included, with
+// its separator; a trailing "." survives on the new last part. A line
+// whose every segment is cut reports keep=false. A line with nothing to
+// cut is returned unchanged.
 func renderSeeLine(line string, keepSpan func(string) bool) (string, bool) {
 	first := strings.IndexByte(line, '`')
-	last := strings.LastIndexByte(line, '`')
-	if first < 0 || last == first {
+	if first < 0 || strings.LastIndexByte(line, '`') == first {
 		return line, true
 	}
-	prefix, body, tail := line[:first], line[first:], ""
-	if k := strings.Index(line[last:], " — "); k >= 0 {
-		body, tail = line[first:last+k], line[last+k:]
+	segs, segSeps := splitSeeSegments(line[first:])
+	out := make([]string, len(segs))
+	anyCut, anyKept := false, false
+	for i, sg := range segs {
+		r, keep := renderSeeSegment(sg, keepSpan)
+		if !keep {
+			anyCut = true
+			continue
+		}
+		anyCut = anyCut || r != sg
+		anyKept = true
+		out[i] = r
+	}
+	if !anyCut {
+		return line, true
+	}
+	if !anyKept {
+		return "", false
+	}
+	return line[:first] + joinKept(segs, segSeps, out), true
+}
+
+// renderSeeSegment cuts one segment's items (see renderSeeLine); keep is
+// false when every span-bearing item is cut.
+func renderSeeSegment(seg string, keepSpan func(string) bool) (string, bool) {
+	body, tail := seg, ""
+	if k := topLevelIndex(seg, " — "); k >= 0 {
+		body, tail = seg[:k], seg[k:]
 	}
 	items, seps := splitSeeItems(body)
-	cut := make([]bool, len(items))
+	out := make([]string, len(items))
 	anyCut, anyKept := false, false
 	for i, it := range items {
-		spans := backtickSpans(it)
+		out[i] = it
+		spans := itemSpans(it)
 		if len(spans) == 0 {
 			continue
 		}
@@ -186,34 +217,149 @@ func renderSeeLine(line string, keepSpan func(string) bool) (string, bool) {
 				break
 			}
 		}
-		cut[i] = all
+		if all {
+			out[i] = ""
+		}
 		anyCut = anyCut || all
 		anyKept = anyKept || !all
 	}
 	if !anyCut {
-		return line, true
+		return seg, true
 	}
 	if !anyKept {
 		return "", false
 	}
+	return joinKept(items, seps, out) + tail, true
+}
+
+// joinKept joins the parts whose out entry is non-empty with the
+// separator that preceded each; when the original last part ended in
+// "." and was cut, the new last part takes the ".".
+func joinKept(parts, seps, out []string) string {
 	var b strings.Builder
-	b.WriteString(prefix)
 	lastKept := -1
-	for i, it := range items {
-		if cut[i] {
+	for i := range parts {
+		if out[i] == "" {
 			continue
 		}
 		if lastKept >= 0 {
 			b.WriteString(seps[i-1])
 		}
-		b.WriteString(it)
+		b.WriteString(out[i])
 		lastKept = i
 	}
 	r := b.String()
-	if lastKept < len(items)-1 && strings.HasSuffix(items[len(items)-1], ".") && !strings.HasSuffix(r, ".") {
+	if lastKept < len(parts)-1 && strings.HasSuffix(parts[len(parts)-1], ".") && !strings.HasSuffix(r, ".") {
 		r += "."
 	}
-	return r + tail, true
+	return r
+}
+
+// segmentSeparators end a described See segment (splitSeeSegments).
+var segmentSeparators = []string{"; ", " · "}
+
+// splitSeeSegments splits s at each "; " / " · " outside backticks and
+// parentheses that follows a " — " (also outside them) since the last
+// split; segSeps[i] joins segs[i] and segs[i+1]. A line with no
+// per-item description is one segment.
+func splitSeeSegments(s string) (segs, segSeps []string) {
+	start, depth, inTick, described := 0, 0, false, false
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '`':
+			inTick = !inTick
+			continue
+		case inTick:
+			continue
+		case c == '(':
+			depth++
+			continue
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		case depth > 0:
+			continue
+		}
+		if strings.HasPrefix(s[i:], " — ") {
+			described = true
+			continue
+		}
+		if !described {
+			continue
+		}
+		for _, sep := range segmentSeparators {
+			if strings.HasPrefix(s[i:], sep) {
+				segs = append(segs, s[start:i])
+				segSeps = append(segSeps, sep)
+				i += len(sep) - 1
+				start = i + 1
+				described = false
+				break
+			}
+		}
+	}
+	return append(segs, s[start:]), segSeps
+}
+
+// topLevelIndex is the index of the first sub outside backticks and
+// parentheses in s, or -1.
+func topLevelIndex(s, sub string) int {
+	depth, inTick := 0, false
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '`':
+			inTick = !inTick
+		case inTick:
+		case c == '(':
+			depth++
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0 && strings.HasPrefix(s[i:], sub):
+			return i
+		}
+	}
+	return -1
+}
+
+// itemSpans returns the backticked spans that make an item's pointer:
+// those outside its parenthetical annotations (parentheses outside
+// backticks, nested or not). An annotation is prose about the item —
+// "`synth-fidelity-report` (the `_synthetic` tagged output)" points at
+// the skill alone — so a span inside it never keeps an item whose
+// pointer is hidden (#737); a " — " description is split off as the
+// segment's tail before items are read (renderSeeSegment). An item with
+// no span outside its annotations ("Error list in (`error_codes`)")
+// reads every span, as before.
+func itemSpans(item string) []string {
+	var head strings.Builder
+	depth, inTick := 0, false
+	for i := 0; i < len(item); i++ {
+		c := item[i]
+		switch {
+		case c == '`':
+			inTick = !inTick
+		case inTick:
+		case c == '(':
+			depth++
+			continue
+		case c == ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth == 0 {
+			head.WriteByte(c)
+		}
+	}
+	if spans := backtickSpans(head.String()); len(spans) > 0 {
+		return spans
+	}
+	return backtickSpans(item)
 }
 
 // splitSeeItems splits s at the seeSeparators that sit outside

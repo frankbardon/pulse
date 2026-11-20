@@ -159,48 +159,48 @@ The result:
       "cells": [
         [
           {
-            "value": 0.6458,
+            "value": 0.6,
             "present": true
           },
           {
-            "value": 0.3542,
+            "value": 0.4,
             "present": true
           }
         ],
         [
           {
-            "value": 0.5556,
+            "value": 0.5657,
             "present": true
           },
           {
-            "value": 0.4444,
+            "value": 0.4343,
             "present": true
           }
         ],
         [
           {
-            "value": 0.6146,
+            "value": 0.6176,
             "present": true
           },
           {
-            "value": 0.3854,
+            "value": 0.3824,
             "present": true
           }
         ],
         [
           {
-            "value": 0.6514,
+            "value": 0.6869,
             "present": true
           },
           {
-            "value": 0.3486,
+            "value": 0.3131,
             "present": true
           }
         ]
       ],
       "row_margins": [
         {
-          "value": 96,
+          "value": 100,
           "present": true
         },
         {
@@ -208,11 +208,11 @@ The result:
           "present": true
         },
         {
-          "value": 96,
+          "value": 102,
           "present": true
         },
         {
-          "value": 109,
+          "value": 99,
           "present": true
         }
       ],
@@ -227,73 +227,73 @@ The result:
     "crosstab": {
       "cell_counts": [
         [
-          62,
-          34
+          60,
+          40
         ],
         [
-          55,
-          44
+          56,
+          43
         ],
         [
-          59,
-          37
+          63,
+          39
         ],
         [
-          71,
-          38
+          68,
+          31
         ]
       ],
       "cell_components": [
         [
           {
-            "n": 62,
+            "n": 60,
             "n_null": 0
           },
           {
-            "n": 34,
+            "n": 40,
             "n_null": 0
           }
         ],
         [
           {
-            "n": 55,
+            "n": 56,
             "n_null": 0
           },
           {
-            "n": 44,
+            "n": 43,
             "n_null": 0
           }
         ],
         [
           {
-            "n": 59,
+            "n": 63,
             "n_null": 0
           },
           {
-            "n": 37,
+            "n": 39,
             "n_null": 0
           }
         ],
         [
           {
-            "n": 71,
+            "n": 68,
             "n_null": 0
           },
           {
-            "n": 38,
+            "n": 31,
             "n_null": 0
           }
         ]
       ],
       "row_margin_counts": [
-        96,
+        100,
         99,
-        96,
-        109
+        102,
+        99
       ],
       "row_margin_components": [
         {
-          "n": 96,
+          "n": 100,
           "n_null": 0
         },
         {
@@ -301,17 +301,17 @@ The result:
           "n_null": 0
         },
         {
-          "n": 96,
+          "n": 102,
           "n_null": 0
         },
         {
-          "n": 109,
+          "n": 99,
           "n_null": 0
         }
       ],
       "row_key_components": [
         {
-          "count": 96,
+          "count": 100,
           "key": "east",
           "label": "east"
         },
@@ -321,12 +321,12 @@ The result:
           "label": "north"
         },
         {
-          "count": 96,
+          "count": 102,
           "key": "south",
           "label": "south"
         },
         {
-          "count": 109,
+          "count": 99,
           "key": "west",
           "label": "west"
         }
@@ -354,7 +354,7 @@ The result:
 }
 ```
 
-Each row splits one region's customers into those who converted and those who did not, so the two cells of a row sum to one and the yes cell is that region's conversion rate. Most regions convert a little over a third of their customers; north converts noticeably more. With around a hundred customers per region a gap that size can easily arise by chance: shares describe the mix, they do not test it, so run a chi-square test across the regions before calling north different. The row margin keeps each region's raw count beside its shares.
+Each row splits one region's customers into those who converted and those who did not, so the two cells of a row sum to one and the yes cell is that region's conversion rate. Conversion runs from under a third of customers in west to over two in five in north, with east and south in between. With around a hundred customers per region a gap that size can easily arise by chance: shares describe the mix, they do not test it, so run a chi-square test across the regions before calling north and west different. The row margin keeps each region's raw count beside its shares.
 
 ## How to read the result
 

@@ -83,7 +83,9 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 // executing it — the cohort's header and schema only, never a record (a
 // shard archive is judged on its canonical schema and per-shard header
 // counts, read by random access; an anchored shard on its own entry,
-// as Predict reads them). The envelope's Data is a *FacetPredictResult.
+// as Predict reads them; a union on its members' merged schema and
+// summed counts, each member read as Predict reads a union's). The
+// envelope's Data is a *FacetPredictResult.
 //
 // A returned error is a cancelled ctx, a nil request or cohort
 // (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
@@ -93,6 +95,12 @@ func (p *Pulse) PredictFacet(ctx context.Context, req *FacetRequest) (*descripto
 	return observed(p, ctx, facetOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
 		if req == nil {
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: facet request is required")
+		}
+		if len(req.Union) > 0 {
+			return p.predictUnionRoot(ctx, req.Cohort, req.Union, req.UnionSourceField, true, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+				p.predictRootOptions(opts)
+				return descx.ValidateFacetUnion(members, req, opts)
+			})
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 			p.predictRootOptions(opts)
@@ -110,6 +118,12 @@ func (p *Pulse) PredictChain(ctx context.Context, req *ChainRequest) (*descripto
 	return observed(p, ctx, chainOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
 		if req == nil {
 			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "predict: chain request is required")
+		}
+		if len(req.Union) > 0 {
+			return p.predictUnionRoot(ctx, req.Cohort, req.Union, req.UnionSourceField, true, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+				p.predictRootOptions(opts)
+				return descx.ValidateChainUnion(members, req, opts)
+			})
 		}
 		return p.predictCohortRoot(ctx, req.Cohort, "predict", true, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 			p.predictRootOptions(opts)

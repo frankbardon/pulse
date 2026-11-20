@@ -3,6 +3,7 @@ package synth_test
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
@@ -271,5 +272,94 @@ func TestCompareModelFits_FoldsBothSides(t *testing.T) {
 	}
 	if spend.SyntheticError != "singular design" || spend.FitRatio != 0 {
 		t.Errorf("spend synthetic side = %+v, want the slot error and no ratio", spend)
+	}
+}
+
+// TestCompareModelFits_CoefficientDifferenceZAndRatioReliability pins
+// the additive gap figures: difference is synthetic − source, z scales
+// it by the two standard errors combined, ratio_reliable is false when
+// the source estimate sits within one SE of zero, and z is ABSENT —
+// never 0 — when neither side carries a standard error. ratio is still
+// emitted beside them.
+func TestCompareModelFits_CoefficientDifferenceZAndRatioReliability(t *testing.T) {
+	t.Parallel()
+
+	req := &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Name: "m", Target: "y"}}}
+	src := &types.Response{Regressions: []*types.RegressionResult{{Type: types.REG_OLS, Name: "m", R2: 0.4, NObs: 100,
+		Coefficients: map[string]float64{"noise": 0.003, "strong": 2, "nose": 1, "same": 0.5},
+		StdErrors:    map[string]float64{"noise": 0.01, "strong": 0.3, "same": 0.1}}}}
+	syn := &types.Response{Regressions: []*types.RegressionResult{{Type: types.REG_OLS, Name: "m", R2: 0.4, NObs: 100,
+		Coefficients: map[string]float64{"noise": 0.05, "strong": 1.6, "nose": 1.5, "same": 0.5},
+		StdErrors:    map[string]float64{"noise": 0.02, "strong": 0.4, "same": 0.1}}}}
+	report := &synth.FidelityReport{}
+	synth.CompareModelFits(report, req, src, syn, nil, nil)
+	byTerm := map[string]*synth.UtilityCoefficient{}
+	for _, c := range report.Utility.ModelFits[0].Coefficients {
+		byTerm[c.Term] = c
+	}
+
+	noise := byTerm["noise"]
+	if noise.Difference == nil || math.Abs(*noise.Difference-0.047) > 1e-15 {
+		t.Errorf("noise difference = %v, want 0.047", noise.Difference)
+	}
+	if noise.RatioReliable == nil || *noise.RatioReliable {
+		t.Errorf("noise ratio_reliable = %v, want false (|0.003| ≤ SE 0.01)", noise.RatioReliable)
+	}
+	if want := (0.05 - 0.003) / math.Sqrt(0.01*0.01+0.02*0.02); noise.Z == nil || math.Abs(*noise.Z-want) > 1e-12 {
+		t.Errorf("noise z = %v, want %v", noise.Z, want)
+	}
+	if noise.Ratio == 0 {
+		t.Errorf("noise ratio dropped; it must still be emitted")
+	}
+
+	strong := byTerm["strong"]
+	if strong.RatioReliable == nil || !*strong.RatioReliable {
+		t.Errorf("strong ratio_reliable = %v, want true", strong.RatioReliable)
+	}
+	if want := -0.4 / 0.5; strong.Z == nil || math.Abs(*strong.Z-want) > 1e-12 {
+		t.Errorf("strong z = %v, want %v", strong.Z, want)
+	}
+
+	// A zero gap is a figure, not an absence.
+	same := byTerm["same"]
+	if same.Difference == nil || *same.Difference != 0 || same.Z == nil || *same.Z != 0 {
+		t.Errorf("same = difference %v z %v, want both present and 0", same.Difference, same.Z)
+	}
+
+	nose := byTerm["nose"]
+	if nose.Z != nil {
+		t.Errorf("both-SE-zero z = %v, want absent", *nose.Z)
+	}
+	if nose.Difference == nil || *nose.Difference != 0.5 {
+		t.Errorf("both-SE-zero difference = %v, want 0.5", nose.Difference)
+	}
+	raw, err := json.Marshal(nose)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"z"`) {
+		t.Errorf("both-SE-zero coefficient JSON carries z: %s", raw)
+	}
+}
+
+// TestCompareModelFits_MissingTermCarriesNoGap: a term one side did not
+// estimate has no difference, z or ratio_reliable — its JSON is the
+// pre-change shape.
+func TestCompareModelFits_MissingTermCarriesNoGap(t *testing.T) {
+	t.Parallel()
+
+	req := &types.Request{Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Name: "m", Target: "y"}}}
+	src := &types.Response{Regressions: []*types.RegressionResult{{Type: types.REG_OLS, Name: "m", R2: 0.4,
+		Coefficients: map[string]float64{"a": 1}, StdErrors: map[string]float64{"a": 0.1}}}}
+	syn := &types.Response{Regressions: []*types.RegressionResult{{Type: types.REG_OLS, Name: "m", R2: 0.4,
+		Coefficients: map[string]float64{}}}}
+	report := &synth.FidelityReport{}
+	synth.CompareModelFits(report, req, src, syn, nil, nil)
+	raw, err := json.Marshal(report.Utility.ModelFits[0].Coefficients[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"term":"a","source":1,"synthetic":0,"source_std_error":0.1,"missing":"synthetic"}`; string(raw) != want {
+		t.Errorf("missing-term JSON = %s, want %s", raw, want)
 	}
 }

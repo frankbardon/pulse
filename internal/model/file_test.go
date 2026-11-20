@@ -161,7 +161,8 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 	t.Parallel()
 
 	spec, res := fullFit()
-	prov := Provenance{Cohort: "c.pulse", Fingerprint: "sha256:00", RequestDigest: "abc"}
+	prov := Provenance{Cohort: "c.pulse", Fingerprint: "sha256:00", RequestDigest: "abc",
+		Union: []ProvenanceMember{{Label: "a", Cohort: "a.pulse", Fingerprint: "sha256:01"}, {Label: "b", Cohort: "b.pulse"}}}
 	f, err := NewFile("m", spec, res, prov)
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +174,7 @@ func TestModelFile_RoundTripBitExact(t *testing.T) {
 	sameFloatMap(t, "ci_lower", r.CILower, res.CILower)
 	sameFloatMap(t, "ci_upper", r.CIUpper, res.CIUpper)
 	sameFloats(t, "scalars", []float64{r.DF, r.ConfLevel, r.SumWeights, r.NEff}, []float64{res.DF, res.ConfLevel, res.SumWeights, res.NEff})
-	if r.NObs != res.NObs || got.Provenance != prov || r.Covariance != nil {
+	if r.NObs != res.NObs || !reflect.DeepEqual(got.Provenance, prov) || r.Covariance != nil {
 		t.Errorf("n_obs / provenance: %d %+v", r.NObs, got.Provenance)
 	}
 	wantFeatures(t, got, data)

@@ -5,8 +5,10 @@
 # only the packages the effort touched; the full suite runs at pre-pr-ready.
 # Tests run with -tags heavy, which compiles both tiers (the fast tier plus
 # the `//go:build heavy` files), so one run covers fast + heavy. No
-# -count=1: Go's test cache re-runs only packages whose code, inputs
-# or env changed, so a push after a small change takes minutes, not 20.
+# No -count=1 in the changed scope: Go's test cache re-runs only packages whose
+# code, inputs or env changed, so a checkpoint push takes minutes, not 20.
+# The full scope is the pre-ready backstop (effort-verify-full), so it runs
+# uncached (-count=1): a verdict served from cache would not be truthful.
 set -euo pipefail
 
 GOTOOLCHAIN=go1.26.1 make lint
@@ -14,7 +16,7 @@ if [ "${FLOW_GATE_SCOPE:-full}" = changed ]; then
   pkgs="$(~/.claude/skills/flow-shared/scripts/go-affected-pkgs.sh 2>/dev/null || echo ./...)"
   [ -z "$pkgs" ] || go test -tags heavy -timeout=30m $pkgs
 else
-  go test -tags heavy -timeout=30m ./...
+  go test -count=1 -tags heavy -timeout=30m ./...
 fi
 
 # Go's test cache cannot see what a test reads through a `go` subprocess

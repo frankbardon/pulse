@@ -405,17 +405,36 @@ that fits it:
 | Field type | Test | Effect size | Why |
 |---|---|---|---|
 | `u4` … `u64`, `f32`, `f64`, `decimal128` | `TEST_KS` (`split_by: _synthetic`) | Cohen's d (none for `decimal128`) | a `u4` reconstructs from the same per-level histogram a `u8` does, so it reads on the same scale |
-| `date` | `TEST_KS` over epoch days | Cohen's d | |
+| `date` | `TEST_KS` over epoch days, plus `shape` (no `hour_tvd`) | Cohen's d | a trend or season lives in the month volume a line cannot see |
 | `datetime` | `TEST_KS` over epoch seconds, plus `shape` | Cohen's d | KS and d read instants as one line; a planted schedule lives in the daily and weekly cycle |
 | `categorical_*`, `packed_bool` | `TEST_CHISQ` (contingency against `_synthetic`) | Cramér's V | for a `packed_bool` the 2x2 χ² is the two-sample proportion test, and V = \|phi\| |
 
-A `datetime` entry's `shape` is `{"clock": "utc", "hour_tvd", "weekday_tvd"}`:
+A `datetime` entry's `shape` is `{"clock", "hour_tvd", "weekday_tvd", "month_tvd"}`:
 the total variation distance (0 = the same cycle, 1 = no shared bin)
-between the partitions' hour-of-day and ISO-weekday histograms, read
-on the UTC clock — the schema stores instants and no zone, and both
-partitions are read on the same clock. Measured: the same days drawn at
+between the partitions' hour-of-day, ISO-weekday and calendar-month
+histograms (`month_tvd` reads the volume trend and season the profile's
+`months` series rebuilds as `month_weights`), read on the clock the
+datetime was generated on — the clock its profile was captured on.
+`"clock": "utc"` when the spec field names no zone (or a UTC-equivalent
+one); `"clock": "local"` with `"time_zone"` (one fixed zone, from
+`profile create --time-zone`) or `"time_zone_field"` (each row read in
+its own zone, from `--time-zone-field` or the cohort's default zone
+field) beside it. Both partitions are read on that one clock. A reading
+whose zone cell is null has no local clock: it is left out of every bin,
+never read on UTC, and the report's `warnings` gives the source and
+synthetic counts (capture leaves the same readings out). A zone field the
+compared cohort does not carry (an `"output": false` helper) falls back
+to `utc` with a warning. Measured: the same days drawn at
 evening instead of morning hours read d = −0.06 (`very small`) and KS
 p = 0.07, with `hour_tvd` 1.0.
+
+A `date` entry's `shape` is `{"clock", "weekday_tvd", "month_tvd"}`: a
+date names a day, not an instant, so it has no hour bin (`hour_tvd` is
+absent) and no zone (`"clock"` is always `"utc"`); its weekday and month
+are read off the epoch day, on the same month bins a `datetime` uses.
+Measured on a two-year trend with a summer peak (5,000 rows): the twin
+rebuilt from the profile reads `month_tvd` 0.028, the same twin with its
+`month_weights` stripped 0.19.
 
 `set_*` fields have their own `set_fields` section (skill `synth-set-fields`): per option
 the selection rate on each side, plus an `effect_size` — V of the
@@ -837,21 +856,34 @@ rows after it:
     "statistic": "pseudo_r2", "source_fit": 0.2086, "synthetic_fit": 0.2206,
     "fit_ratio": 1.057, "source_n_obs": 20000, "synthetic_n_obs": 20000,
     "coefficients": [{"term": "autopay", "source": -0.527, "synthetic": -0.500,
-                      "source_std_error": 0.034, "synthetic_std_error": 0.035, "ratio": 0.950}]}]
+                      "source_std_error": 0.034, "synthetic_std_error": 0.035, "ratio": 0.950,
+                      "difference": 0.027, "z": 0.545, "ratio_reliable": true},
+                     {"term": "age", "source": 0.00017, "synthetic": 0.00285,
+                      "source_std_error": 0.00088, "synthetic_std_error": 0.00092, "ratio": 16.6,
+                      "difference": 0.00268, "z": 2.100, "ratio_reliable": false}]}]
 }
 ```
 
 (Figures from the 20,000-row churn fixture of
 `TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport`, one level
-and one coefficient shown.)
+and two coefficients shown.)
 
 `statistic` is `pseudo_r2` (McFadden) for a `REG_GLM` and `r2`
 otherwise; `fit_ratio` is the twin's share of the source's explanatory
 power — the figure a "≥ 0.85× the source" bar reads. Coefficients are
-sorted by term; `missing` names a side that did not estimate one. A
-coefficient `ratio` is unstable where the source coefficient is near
-zero (the fixture's `age`, which carries no true effect, reads 16.6) —
-read it beside the two standard errors. A
+sorted by term; `missing` names a side that did not estimate one.
+Beside `ratio` (synthetic ÷ source, still emitted) every term both
+sides estimated carries `difference` (synthetic − source, on the
+coefficient's scale), `z` (that difference ÷ √(source SE² + synthetic
+SE²) — the gap in standard errors, comparable across terms; absent,
+never 0, when both standard errors are 0) and `ratio_reliable`
+(`false` when |source| ≤ the source SE: the source estimate is
+indistinguishable from zero, so the ratio divides by noise). The
+fixture's `age` carries no true effect: its ratio reads 16.6, flagged
+`ratio_reliable: false`, while `z` reads the gap as 2.1 standard
+errors — the size an occasional term among seven reaches by chance;
+the fixture's one gap past three is `contract_Two-Year` (z −3.4). Read
+`z` as a gap, not a test. A
 regression that fails on one side carries `source_error` /
 `synthetic_error` and the other side still reports. A request the
 engine refuses on the source fails the call under the engine's own
@@ -861,6 +893,7 @@ given without `--fidelity-report`, is `PULSE_SYNTH_FIDELITY_MODEL_INVALID`.
 ```bash
 jq '.utility.model_fits[] | {name, statistic, source_fit, synthetic_fit, fit_ratio}' out.fidelity.json
 jq '.utility.target_rates[] | select(.verdict != "preserved")' out.fidelity.json
+jq '.utility.model_fits[].coefficients[] | {term, ratio, ratio_reliable, difference, z}' out.fidelity.json
 ```
 
 `utility` is absent for a spec with no applied model and no
@@ -911,13 +944,18 @@ The distance reads at most `--disclosure-sample` generated rows (default
 are drawn from the section's own stream, seeded by `--seed` and
 independent of generation, so the output cohort is byte-identical with
 the section on or off and the section is byte-identical for a fixed
-seed on every architecture. The cost is sample × source row comparisons;
-the working set — every source row decoded plus its exact-match key —
-is charged against the instance's `max_estimated_memory` limit
-([Tuning Limits](../library/tuning-limits.md)) **before** generation. Past
-it the call is refused `PULSE_LIMIT_EXCEEDED` and writes nothing; lower
-`--disclosure-sample`, pass `--no-disclosure`, or raise the limit
-(`--limit max_estimated_memory=…`).
+seed on every architecture. The cost is min(sample, generated rows) ×
+source row comparisons, charged against the instance's
+`max_disclosure_comparisons` limit (default 50,000,000,000, a few
+minutes of work); the working set — every source row decoded plus its
+exact-match key — is charged against `max_estimated_memory`
+([Tuning Limits](../library/tuning-limits.md)). Both are checked
+**before** generation. Past either the call is refused
+`PULSE_LIMIT_EXCEEDED` (its `limit` detail names which) and writes
+nothing; lower `--disclosure-sample`, pass `--no-disclosure`, or raise
+the limit (`--limit max_disclosure_comparisons=…`,
+`--limit max_estimated_memory=…`). Cancelling the call stops the
+distance pass between worker chunks.
 
 ```bash
 jq '.disclosure | {exact_match_rate, dcr_median, dcr_p5}' out.fidelity.json

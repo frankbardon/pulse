@@ -1,22 +1,22 @@
 {
   "data": [
     {
-      "age_null": 3,
+      "age_null": 5,
       "channel": "paper",
-      "income_null": 52,
-      "income_present": 48
+      "income_null": 42,
+      "income_present": 58
     },
     {
-      "age_null": 7,
+      "age_null": 5,
       "channel": "phone",
-      "income_null": 16,
-      "income_present": 84
+      "income_null": 13,
+      "income_present": 87
     },
     {
-      "age_null": 4,
+      "age_null": 5,
       "channel": "web",
-      "income_null": 7,
-      "income_present": 93
+      "income_null": 4,
+      "income_present": 96
     }
   ],
   "metadata": {

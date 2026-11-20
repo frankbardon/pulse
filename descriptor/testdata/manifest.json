@@ -4,8 +4,8 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:0139f0e6d494bc8b0b2bac621377c89751780645c8971c7e6dde5ff6099dd44c",
-    "limits_digest": "lim1:084354e7204a6af0a7eae07d99362eed4923b8af4b05ecea9d913409229ba823",
+    "feature_set_digest": "fs1:ffcf4ed11c937bfade2a33a0720e9f2923cf5a52fc675f001d3fba02d40d8377",
+    "limits_digest": "lim1:18bee67244ef377da11de93fa8f92ebee778ebe12f345e8d3862a9c40d3bd5d7",
     "commands": [
       {
         "name": "process",
@@ -12374,6 +12374,12 @@
             "type": "string",
             "required": true,
             "description": "ISO-8601 calendar date (YYYY-MM-DD); inclusive, may equal start but not precede it."
+          },
+          {
+            "name": "month_weights",
+            "type": "list",
+            "required": false,
+            "description": "One non-negative per-day weight per calendar month the range touches, start's month first: a month's share is its weight times its days in range (trend + season). Uniform when absent."
           }
         ],
         "intents": [
@@ -12429,6 +12435,12 @@
             "type": "list",
             "required": false,
             "description": "7 non-negative per-day weights, Monday first (ISO order); a weekday's share is its weight times its days in range. Uniform when absent."
+          },
+          {
+            "name": "month_weights",
+            "type": "list",
+            "required": false,
+            "description": "One non-negative per-day weight per calendar month the range touches, start's month first; a day's weight is weekday weight × month weight (trend + season). Uniform when absent."
           }
         ],
         "intents": [
@@ -12460,7 +12472,7 @@
         ]
       }
     ],
-    "error_codes_count": 483,
+    "error_codes_count": 492,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12929,6 +12941,15 @@
       "PULSE_TEST_VARIANCE_ZERO",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_TRANSFER_INVALID",
+      "PULSE_UNION_COHORT_CONFLICT",
+      "PULSE_UNION_JOIN_RIGHT",
+      "PULSE_UNION_LABEL_INVALID",
+      "PULSE_UNION_MEMBER_INVALID",
+      "PULSE_UNION_MEMBER_LIMIT",
+      "PULSE_UNION_NESTED",
+      "PULSE_UNION_SCHEMA_MISMATCH",
+      "PULSE_UNION_SOURCE_FIELD_INVALID",
+      "PULSE_UNION_UNSUPPORTED",
       "PULSE_VECTOR_DUPLICATE",
       "PULSE_VECTOR_EMPTY",
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
@@ -12957,7 +12978,7 @@
     "mcp_tools": [
       {
         "name": "pulse_compose",
-        "description": "CALL TO RUN SEVERAL REQUESTS IN ONE ROUND-TRIP. Each slot is a distinct types.Request against the same or a different cohort — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes. Each slot's `matrices` (MAT_COVARIANCE / MAT_CORRELATION, with its `vectors`) runs per slot and lands on that slot's response; a slot combining `matrices` with `joins` or `crosstab` is refused (PULSE_MATRIX_UNSUPPORTED_SOURCE / PULSE_MATRIX_HOST_CONFLICT) like a standalone request. A slot's `return` shapes that slot's response; a top-level `return` (`overlays…` paths only) shapes `overlays` after the fold and adds `returned`."
+        "description": "CALL TO RUN SEVERAL REQUESTS IN ONE ROUND-TRIP. Each slot is a distinct types.Request against the same or a different cohort — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns a structured `ComposedResponse{responses, overlays}`: `responses` is the per-slot array of `Response` objects (one entry per `request.requests[i]` in matching order); `overlays` carries the executed Compose-level overlay layers (one `OverlayLayer` per `request.overlays[i]` in matching order). The `overlays` key is omitted entirely when the request carried no Compose overlays — byte-identical to the legacy raw-array shape for overlay-free composes. Each slot's `matrices` (MAT_COVARIANCE / MAT_CORRELATION, with its `vectors`) runs per slot and lands on that slot's response; a slot combining `matrices` with `joins` or `crosstab` is refused (PULSE_MATRIX_UNSUPPORTED_SOURCE / PULSE_MATRIX_HOST_CONFLICT) like a standalone request. A slot's `return` shapes that slot's response; a top-level `return` (`overlays…` paths only) shapes `overlays` after the fold and adds `returned`. Any slot may read a `union` in place of its `cohort`; the member label rides the virtual union_source_field (default _source), so one slot grouped by it replaces one slot per cohort."
       },
       {
         "name": "pulse_dedup",
@@ -12989,7 +13010,7 @@
       },
       {
         "name": "pulse_facet_schema",
-        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
+        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI. A `union` in place of `cohort` summarises several cohorts read as one; facet union_source_field (default _source) to count records per member."
       },
       {
         "name": "pulse_import",
@@ -13013,7 +13034,7 @@
       },
       {
         "name": "pulse_lookup",
-        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built (on a shard archive, also when a shard is not covered by the index — details.shards_uncovered), and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
+        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built (on a shard archive, also when a shard is not covered by the index — details.shards_uncovered), and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key. A `union` in place of `cohort` scans every member in declared order (no index is read), each row carrying its member label in union_source_field (default _source)."
       },
       {
         "name": "pulse_lookup_tables",
@@ -13033,11 +13054,11 @@
       },
       {
         "name": "pulse_process",
-        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), tier-1 / tier-2 statistical tests, and matrices (`vectors` names a reusable list of numeric fields; `matrices` runs MAT_COVARIANCE or MAT_CORRELATION (Pearson) over a vector or inline `fields`, results under `matrices` in the response). A `matrices` slot (MAT_COVARIANCE / MAT_CORRELATION) is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE on a request that also carries `joins`, and with PULSE_MATRIX_HOST_CONFLICT on a `crosstab` request — run the matrices as their own request.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. An unknown key at any depth is refused, never dropped: PULSE_REQUEST_UNKNOWN_FIELD names it, its location (details.path, e.g. sort[0].direction) and a 'did you mean' suggestion."
+        "description": "CALL TO RUN ONE VALIDATED REQUEST AGAINST A COHORT. Execute a pre-built processing request against an existing cohort. Supports the full operator catalog — aggregations, attributes, filterers, groupers, windows, features, regressions (REG_OLS, REG_GLM, REG_BAYES_LINEAR with optional Resample / Selection modifiers), tier-1 / tier-2 statistical tests, and matrices (`vectors` names a reusable list of numeric fields; `matrices` runs MAT_COVARIANCE or MAT_CORRELATION (Pearson) over a vector or inline `fields`, results under `matrices` in the response). A `matrices` slot (MAT_COVARIANCE / MAT_CORRELATION) is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE on a request that also carries `joins`, and with PULSE_MATRIX_HOST_CONFLICT on a `crosstab` request — run the matrices as their own request.\n\nDO NOT author request bodies from memory, external documentation, or by reading source code — those may be out of date for this deployment. Before calling pulse_process, call pulse_examples_search to find a similar runnable example and pulse_examples_get to clone its body, OR call pulse_manifest for the operator catalog. The manifest + example library are the authoritative request-shape reference.\n\nNOTE: request slot keys differ from the manifest's operator-catalog field names. Grouping operations go under the \"groups\" key (NOT \"groupers\") and aggregations under \"aggregations\" (NOT \"aggregators\"); the catalog names \"groupers\"/\"aggregators\" only list the available GROUP_*/AGG_* operators. An unknown key at any depth is refused, never dropped: PULSE_REQUEST_UNKNOWN_FIELD names it, its location (details.path, e.g. sort[0].direction) and a 'did you mean' suggestion. A `union` ([{cohort, label}]) in place of `cohort` reads several cohorts as one record stream, each record tagged with its member label in the virtual categorical union_source_field (default _source) — group, filter, test or regress on it like any field (skill cohort-union)."
       },
       {
         "name": "pulse_process_chain",
-        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY, GROUP_RANGE, GROUP_ROUNDED, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES, GROUP_SET_VALUE and GROUP_SET_PER_ELEMENT. The row-local attributes are ATTR_FORMULA (total(expr) included: a stage runs its cohort-total pre-pass two-phase) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
+        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY, GROUP_RANGE, GROUP_ROUNDED, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES, GROUP_SET_VALUE and GROUP_SET_PER_ELEMENT. The row-local attributes are ATTR_FORMULA (total(expr) included: a stage runs its cohort-total pre-pass two-phase) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's. A root `union` in place of `cohort` is read as stage 0's source, each record tagged with its member label in union_source_field (default _source)."
       },
       {
         "name": "pulse_rake",
@@ -13053,7 +13074,7 @@
       },
       {
         "name": "pulse_sample",
-        "description": "CALL TO EYEBALL A FEW RAW ROWS OF A COHORT. Returns up to N rows — a diagnostic / preview tool, typically after running a request."
+        "description": "CALL TO EYEBALL A FEW RAW ROWS OF A COHORT. Returns up to N rows — a diagnostic / preview tool, typically after running a request. A `union` in place of `path` samples several cohorts read as one, rows in member order, each carrying its member label in union_source_field (default _source)."
       },
       {
         "name": "pulse_skills_get",
@@ -14427,6 +14448,10 @@
         "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types, shard-archive indexes and constraints."
       },
       {
+        "name": "cohort-union",
+        "description": "Reading several labelled cohorts as one record stream — the union and union_source_field request slots, the virtual source field, the merge rules and refusals, which surfaces read a union, and comparing a real cohort with its synthetic twin in one slot."
+      },
+      {
         "name": "cohort-width-overflow",
         "description": "What happens when a value outgrows its field width — inferred categorical and numeric rungs promote on the full row pass, declared widths refuse row by row, set cardinality and shard dictionary overflow, and how convert reports it."
       },
@@ -15660,7 +15685,7 @@
       },
       {
         "name": "synth-disclosure-report",
-        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance memory limit."
+        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance comparison and memory limits."
       },
       {
         "name": "synth-fidelity-report",
@@ -15975,7 +16000,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 280,
+    "examples_count": 281,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -16211,6 +16236,32 @@
         "vec_f32 / vec_f64 columns cannot be a join key — PULSE_JOIN_TYPE_MISMATCH with details.reason=\"vector_key\", even against an identical type and dim: a vector has no single equality value. Carrying a vector column THROUGH a join is unaffected.",
         "Joined records flow through the standard processor pipeline (filter / attribute / group / aggregator).",
         "A crosstab (Request.Crosstab) honours its one JoinSpec: rows, columns and cell resolve against the joined schema and every cell / margin / Components count is over joined rows. It always runs the buffered crosstab arm — the fused walk declines a joined request."
+      ]
+    },
+    "union": {
+      "name": "cohort_union",
+      "default_source_field": "_source",
+      "max_members": 65535,
+      "surfaces": [
+        "compose",
+        "facet_schema",
+        "join_left",
+        "lookup",
+        "materialize",
+        "predict",
+        "process",
+        "process_chain",
+        "process_stream",
+        "sample"
+      ],
+      "rules": [
+        "union replaces cohort on the root that carries it; both set is PULSE_UNION_COHORT_CONFLICT.",
+        "Every member needs a cohort and a non-empty label unique within the union (PULSE_UNION_MEMBER_INVALID / PULSE_UNION_LABEL_INVALID).",
+        "Member schemas merge by the shard-archive rules on the logical view: the first member is canonical, set dictionaries widen, nullability and the default zone field never; a mismatch is PULSE_UNION_SCHEMA_MISMATCH naming the member.",
+        "The virtual source field (union_source_field, default _source) is appended last: a non-nullable categorical whose dictionary is the labels in declared order; a member field of that name is PULSE_UNION_SOURCE_FIELD_INVALID.",
+        "Records stream member by member in declared order; a shard-archive member flattens into its shards, and more than max_members flattened members is PULSE_UNION_MEMBER_LIMIT.",
+        "A union is never a join's right side (PULSE_UNION_JOIN_RIGHT) and never nests (PULSE_UNION_NESTED); a process chain reads its root union as stage 0's source.",
+        "A point lookup over a union always scans its members: no index is read or written."
       ]
     },
     "crosstab": {
@@ -21986,10 +22037,16 @@
         "value": 10000000,
         "default": 10000000,
         "unit": "count"
+      },
+      {
+        "name": "max_disclosure_comparisons",
+        "value": 50000000000,
+        "default": 50000000000,
+        "unit": "count"
       }
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd5db0b45a47f20bca12360d7bec60ab47dc30985d09c09e86b2b294a3e2a5a3
+// golden-hash: de753b422db40d83695f0d45141eccf2c167f48a8361c62eccf126734750f3b4

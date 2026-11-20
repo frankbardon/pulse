@@ -23,6 +23,7 @@ pulse profile create --input PATH --output PATH
                      [--conditional] [--fit-shape] [--fit-models]
                      [--residual-correlations] [--suggest-rules PATH]
                      [--run-continuation]
+                     [--time-zone ZONE | --time-zone-field FIELD]
                      [--sample-limit N] [--seed N] [--json]
 ```
 
@@ -42,6 +43,8 @@ pulse profile create --input PATH --output PATH
 | `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
 | `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
 | `--run-continuation`     |      | bool   | false      | Measure per-field run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, i.e. the run-skip decode's hit rate — into the additive `run_continuation` section, with the high-continuation fields and advice on sorting the source upstream (see below) |
+| `--time-zone`            |      | string | (none)     | Capture every `datetime` field on this IANA zone's LOCAL clock and rebuild it zoned (see below). Exclusive with `--time-zone-field` |
+| `--time-zone-field`      |      | string | (none)     | Capture every `datetime` field on each row's LOCAL clock, read from this `categorical_*` field of IANA zone names; overrides the cohort's declared default zone field (see below) |
 | `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
 | `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
 | `--json`                 |      | bool   | false      | Also print the envelope to stdout |
@@ -55,7 +58,7 @@ pulse profile create --input PATH --output PATH
 | `packed_bool` | The same numeric summary (a boolean falls to the numeric accumulator), but **reconstructed as `bernoulli`, not as a clamped normal** — see "Boolean fields" below |
 | Categorical | Cardinality, plus the top-K most-frequent values with their observed weights. The tail below the cut is **not** retained as an `"other"` bucket — `synth from-profile` renormalises the retained weights, so a 1,900-level field regenerates as `--top-k` levels and the tail's share is redistributed across them. (The `"other"` spelling that *does* appear in `conditional.*` tables and in `--fit-models` designs is a different, per-section collapse.) |
 | `date` | Min, max, count |
-| `datetime` | A `datetime` section: the first and last UTC day, and how many instants fall on each UTC weekday (`weekdays`, Monday first) and in each UTC hour (`hours`). No `numeric` section, so it joins no correlation, conditional pair or `--fit-models` model. `synth from-profile` rebuilds it as an unzoned `uniform_datetime` that keeps those weekday and hour marginals; a volume trend across days is not captured |
+| `datetime` | A `datetime` section: the first and last day, how many instants fall on each weekday (`weekdays`, Monday first) and in each hour (`hours`), and the per-calendar-month count series (`month_start`, `months`) — on the UTC clock, or on a local one (recorded as `time_zone` / `time_zone_field`) under `--time-zone`, `--time-zone-field` or the cohort's default zone field. No `numeric` section, so it joins no correlation, conditional pair or `--fit-models` model. `synth from-profile` rebuilds it as a `uniform_datetime` in the same zone that keeps those weekday, hour and month-volume marginals |
 | Vector (`vec_f32`, `vec_f64`) | A `vector` section: dim, kind, scale range and labels from the schema; `n` non-null vectors; per element its NaN rate and the numeric summary above (with the `discrete` histogram when every value is an integer); and `correlations`, the Pearson correlation of every measurable element pair over the rows where both are present. Above 64 elements the correlation is not captured (a warning says so) and generation draws the elements independent. See "Vector fields" below |
 | Any **nullable** field (`Field.Nullable`, any type) | Null count alongside the above. Nullability is a per-field flag, not a type — there are no `nullable_*` types |
 
@@ -1624,6 +1627,42 @@ and a shard appended in a different order shows up as a lower overall.
 the flag the document is byte-identical and the scan pays nothing.
 `synth from-profile` ignores the section — it describes the source's row
 ORDER, which generation does not reproduce.
+
+## `--time-zone` / `--time-zone-field`: capturing local time
+
+A `datetime` column stores instants. Read on the UTC clock, a depot open
+20:00–23:59 in New York shows up as 01:00–04:59 on the NEXT day, so a
+twin rebuilt from a UTC capture is faithful on a clock nobody reads.
+These flags pick the clock every `datetime` field is captured on:
+
+- `--time-zone ZONE` — one fixed IANA zone (or `UTC`) for every row;
+- `--time-zone-field FIELD` — a `categorical_*` field of IANA names,
+  each row read in its own zone;
+- neither, and the cohort declares a default zone field (the `.pulse`
+  ZONE section, `zone_field` in `pulse inspect`) — that field, per row;
+- none of these, or `--time-zone UTC` — UTC, byte-identical to a capture
+  before the flags (no zone is recorded).
+
+The day range and the weekday, hour and month counts are then LOCAL, the
+`datetime` section records `time_zone` or `time_zone_field`, and
+`synth from-profile` rebuilds a `uniform_datetime` drawn in that zone
+with `dst_policy: "earlier"`. A captured reading always exists, but a
+regenerated one can land in a spring-forward gap; `earlier` moves it
+past the gap (02:30 becomes 03:30) and the run warns with the count,
+where the distribution's default `error` would abort the run. A
+non-null reading whose zone cell is null has no local clock: it is left
+out of the counts with a warning, and the rebuilt field is nullable.
+
+The flags are exclusive (`SERVICE_VALIDATION`); an unknown zone, or a
+zone-field dictionary entry that is not a zone, is
+`PULSE_TIMEZONE_UNKNOWN`; a zone field that is not a categorical field
+of the cohort is `SERVICE_VALIDATION`. Read the twin back on the same
+clock with `GROUP_DATE` and `tz_field`.
+
+```bash
+pulse profile create -i deliveries.pulse -o deliveries.profile.json \
+  --time-zone-field depot_zone
+```
 
 ## Output
 

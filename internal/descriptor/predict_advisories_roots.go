@@ -140,7 +140,7 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		if slot == nil {
 			continue
 		}
-		cohort := cohortSchemaFor(slot.Cohort, opts)
+		cohort := requestSchemaFor(slot, opts)
 		schema, refusals := validatorRequestSchema(slot, cohort, opts)
 		if schema == nil || len(refusals) > 0 {
 			schema = cohort
@@ -190,7 +190,7 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		// runtime pre-flight's header-only reader; floors a truncated
 		// tail silently) — the figure Process predict reads from the file
 		// length, so the record-count rules fire identically.
-		counts := opts.cohortCounts(slot.Cohort)
+		counts := requestCounts(slot, opts)
 		out = append(out, computeAdvisories(advisoryInput{
 			req:             defaulted,
 			schema:          schema,
@@ -284,7 +284,7 @@ func fitJackknifeCostAdvisories(req *types.ComposedRequest, opts *PredictOptions
 		}
 		prefix := "fits[" + strconv.Itoa(i) + "].request."
 		var fired []descriptor.Advisory
-		if counts := opts.cohortCounts(f.Request.Cohort); counts.Records >= 0 {
+		if counts := requestCounts(f.Request, opts); counts.Records >= 0 {
 			fired = jackknifeCostAdvisories(f.Request, counts.Records, prefix, inst)
 		}
 		// The fit's null standard errors read off the spec alone: no

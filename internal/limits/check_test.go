@@ -36,7 +36,7 @@ func TestChecks(t *testing.T) {
 	t.Parallel()
 
 	l := Defaults()
-	l.MaxMatrixDim, l.MaxComposeSlots, l.MaxChainStages, l.MaxJoinBuildRows, l.MaxDerivedColumns, l.MaxExpandedItems, l.MaxMMMGeos, l.MaxMMMDrawValues = 2, 3, 4, 999, 6, 8, 5, 100
+	l.MaxMatrixDim, l.MaxComposeSlots, l.MaxChainStages, l.MaxJoinBuildRows, l.MaxDerivedColumns, l.MaxExpandedItems, l.MaxMMMGeos, l.MaxMMMDrawValues, l.MaxDisclosureComparisons = 2, 3, 4, 999, 6, 8, 5, 100, 7_000
 	for _, c := range []struct {
 		name       Name
 		over, at   *errors.CodedError
@@ -51,6 +51,7 @@ func TestChecks(t *testing.T) {
 		{MaxExpandedItems, CheckExpandedItems(l, 9), CheckExpandedItems(l, 8), 8, 9},
 		{MaxMMMGeos, CheckMMMGeos(l, 6), CheckMMMGeos(l, 5), 5, 6},
 		{MaxMMMDrawValues, CheckMMMDrawValues(l, 101), CheckMMMDrawValues(l, 100), 100, 101},
+		{MaxDisclosureComparisons, CheckDisclosureComparisons(l, 7_001), CheckDisclosureComparisons(l, 7_000), 7_000, 7_001},
 	} {
 		if c.at != nil {
 			t.Errorf("%s: at the limit refused: %v", c.name, c.at)

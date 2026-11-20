@@ -15,7 +15,7 @@ func TestFeatureProfile_LimitsResolve(t *testing.T) {
 	t.Parallel()
 
 	body := `{"features": [], "limits": {"max_groups": 5, "max_crosstab_cells": 0,
-		"max_matrix_dim": -1, "request_timeout": "30s"}}`
+		"max_matrix_dim": -1, "request_timeout": "30s", "max_disclosure_comparisons": 1000}}`
 
 	p, err := New(Options{FS: memFsWith(t, map[string]string{"p.json": body}), FeatureProfileFile: "p.json"})
 	if err != nil {
@@ -35,6 +35,8 @@ func TestFeatureProfile_LimitsResolve(t *testing.T) {
 		MaxExpandedItems:   DefaultMaxExpandedItems,
 		MaxMMMGeos:         DefaultMaxMMMGeos,
 		MaxMMMDrawValues:   DefaultMaxMMMDrawValues,
+
+		MaxDisclosureComparisons: 1_000,
 	}
 	if got != want {
 		t.Fatalf("Limits() = %+v; want %+v", got, want)
@@ -100,6 +102,7 @@ func TestFeatureProfile_LimitsRefused(t *testing.T) {
 		{"max_expanded_items -4", FeatureProfileLimits{MaxExpandedItems: -4}, "max_expanded_items", int64(-4)},
 		{"max_mmm_geos -5", FeatureProfileLimits{MaxMMMGeos: -5}, "max_mmm_geos", int64(-5)},
 		{"max_mmm_draw_values -6", FeatureProfileLimits{MaxMMMDrawValues: -6}, "max_mmm_draw_values", int64(-6)},
+		{"max_disclosure_comparisons -7", FeatureProfileLimits{MaxDisclosureComparisons: -7}, "max_disclosure_comparisons", int64(-7)},
 		{"request_timeout unparseable", FeatureProfileLimits{RequestTimeout: "soon"}, "request_timeout", "soon"},
 		{"request_timeout negative", FeatureProfileLimits{RequestTimeout: "-2s"}, "request_timeout", "-2s"},
 	}

@@ -62,7 +62,7 @@ import (
 // data is the TAGGED cohort (synth.SynthWithFidelityCohort): the written
 // output on the tagged path, an in-memory twin of it under SyntheticOnly,
 // whose output carries neither the source rows nor the tag column.
-func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
+func writeSynthFidelityReport(ctx context.Context, fs afero.Fs, data []byte, opts synth.Options, spec *synth.Spec, fidelityWarnings []string, foldModels func(*synth.FidelityReport)) error {
 	reportPath := opts.FidelityReportPath
 	if data == nil {
 		return errors.NewCodedError(errors.PULSE_SYNTH_SOURCE_REQUIRED,
@@ -80,7 +80,7 @@ func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec
 	records := data[len(data)-r.Len():]
 
 	sourceRows, syntheticRows := countSyntheticPartitions(schema, records)
-	report := synth.BuildFidelityReport(schema, records, sourceRows, syntheticRows, runFidelityTest)
+	report := synth.BuildFidelityReportForSpec(schema, records, sourceRows, syntheticRows, runFidelityTest, spec)
 	// A flagged marginal on a field a structural rule writes names the
 	// rules: the rule pass reaches generated rows only, so the difference
 	// may be the rule's own effect. A rules-free spec adds nothing.
@@ -144,7 +144,7 @@ func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec
 	// The disclosure section: exact matches and the Gower distance to
 	// closest record, from the same tagged cohort (both layouts), on a
 	// sample drawn from its own seeded stream. Off with DisableDisclosure.
-	if err := synth.BuildDisclosure(report, schema, records, opts); err != nil {
+	if err := synth.BuildDisclosure(ctx, report, schema, records, opts); err != nil {
 		return err
 	}
 
@@ -160,7 +160,8 @@ func writeSynthFidelityReport(fs afero.Fs, data []byte, opts synth.Options, spec
 
 // checkDisclosureBudget is the disclosure section's pre-flight
 // (synth.CheckDisclosureBudget): its working set against the instance's
-// MaxEstimatedMemory, before generation. It lives here for the same
+// MaxEstimatedMemory and its comparisons against
+// MaxDisclosureComparisons, before generation. It lives here for the same
 // reason as synthWithFidelityCohort.
 func checkDisclosureBudget(fs afero.Fs, spec *synth.Spec, opts synth.Options, l Limits) error {
 	return synth.CheckDisclosureBudget(fs, spec, opts, l)

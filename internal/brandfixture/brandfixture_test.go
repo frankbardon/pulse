@@ -8,7 +8,7 @@ import (
 )
 
 // TestBrandFixture_ExamplesCohortIsTheOracleRows holds the examples'
-// brand_survey.csv (internal/examples/fixtures/gen.go) to the spec's
+// brand_survey.csv (internal/examples/fixtures, gen.go) to the spec's
 // rows: an id, the wave spelled wave1 / wave2, then the very values the
 // lavaan oracles' brand_data.csv carries — so the SEM examples read the
 // data the oracles fit, planted wave-2 shift included.
@@ -49,7 +49,7 @@ func TestBrandFixture_ExamplesCohortIsTheOracleRows(t *testing.T) {
 		}
 		for j, v := range r.Values {
 			if rec[j+2] != strconv.FormatFloat(v, 'f', -1, 64) {
-				t.Fatalf("row %d %s: %s, the spec draws %v (regenerate: go run internal/examples/fixtures/gen.go)", i, cols[j], rec[j+2], v)
+				t.Fatalf("row %d %s: %s, the spec draws %v (regenerate: go run ./internal/examples/fixtures/cmd/genfixtures)", i, cols[j], rec[j+2], v)
 			}
 		}
 	}

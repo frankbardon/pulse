@@ -116,6 +116,29 @@ type ChainOverlaySchemaDivergence struct {
 // envelope (finishPredictRoot); opts.EchoRequest echoes the normalized
 // chain on env.Request (chainEcho).
 func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
+	var head cohortHead
+	if req != nil {
+		head = readerHead(fileData, req.Cohort, req.Union, req.UnionSourceField, "chain")
+	}
+	return validateChainRoot(head, nil, req, opts)
+}
+
+// ValidateChainUnion is ValidateChainWithOptions for a chain whose
+// Union names stage 0's members: stage 0 judged over the members'
+// merged schema (unionHead) with the union's summed counts, the
+// merge's divergences warned. members must align with req.Union (nil
+// when the shape is refused: none is opened).
+func ValidateChainUnion(members []UnionSource, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
+	if req == nil {
+		return validateChainRoot(nil, nil, nil, opts)
+	}
+	var warns []encx.CohesionWarning
+	return validateChainRoot(unionHead(members, req.Cohort, req.Union, req.UnionSourceField, &warns), &warns, req, opts)
+}
+
+// validateChainRoot is ValidateChainWithOptions over head; warns
+// receives a union head's merge divergences (nil for one cohort).
+func validateChainRoot(head cohortHead, warns *[]encx.CohesionWarning, req *types.ChainRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -123,7 +146,7 @@ func ValidateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		expanded *types.ChainRequest
 		staged   []*types.Request
 	)
-	env := validateChainWithOptions(fileData, req, opts, &expanded, &staged)
+	env := validateChainWithOptions(head, warns, req, opts, &expanded, &staged)
 	result := env.Data.(*ChainValidationResult)
 	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
 		if e := chainEcho(req, expanded, staged); e != nil {
@@ -148,7 +171,7 @@ func chainEcho(req, expanded *types.ChainRequest, staged []*types.Request) *type
 	if expanded != nil {
 		src = expanded
 	}
-	out := &types.ChainRequest{Cohort: req.Cohort, Overlays: req.Overlays, Params: req.Params}
+	out := &types.ChainRequest{Cohort: req.Cohort, Union: req.Union, UnionSourceField: req.UnionSourceField, Overlays: req.Overlays, Params: req.Params}
 	if len(src.Stages) > 0 {
 		out.Stages = make([]*types.ChainStage, len(src.Stages))
 	}
@@ -169,7 +192,7 @@ func chainEcho(req, expanded *types.ChainRequest, staged []*types.Request) *type
 // Strict and echo pass; expandedOut receives the for_each-expanded
 // chain and stagedOut each stage's defaults-resolved request
 // (index-aligned).
-func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, opts *PredictOptions, expandedOut **types.ChainRequest, stagedOut *[]*types.Request) *descriptor.Envelope {
+func validateChainWithOptions(head cohortHead, warns *[]encx.CohesionWarning, req *types.ChainRequest, opts *PredictOptions, expandedOut **types.ChainRequest, stagedOut *[]*types.Request) *descriptor.Envelope {
 	snap := opts.Extensions
 	result := &ChainValidationResult{Valid: true, Request: req}
 	env := descriptor.NewEnvelope(result)
@@ -260,7 +283,7 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			result.Valid = false
 		}
 	}
-	if req.Cohort == nil {
+	if req.Cohort == nil && len(req.Union) == 0 {
 		env.AddError(string(errors.SERVICE_VALIDATION), "chain request requires Cohort for stage 0", nil)
 	}
 
@@ -269,11 +292,14 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// whose pre-flight reads the same counts: a single file's
 	// length-derived count (an anchor-opened shard is one), or a shard
 	// archive's per-shard header counts and directory bytes.
-	schema, stage0Counts, fault := readCohortHead(fileData, opts.memoryBounded())
+	schema, stage0Counts, fault := head(opts.memoryBounded())
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
 		return env
+	}
+	if warns != nil {
+		addUnionWarnings(env, *warns)
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}

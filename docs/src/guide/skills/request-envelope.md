@@ -30,7 +30,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
 | process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
 | facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
-| sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+| sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 
 Each operation's MCP tool: manifest `mcp_tools`.
 
@@ -79,7 +79,7 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | `categorical_*`, `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
 | `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
 
-Never override explicit `type` or cross categories; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); never overridden, never across categories. Disable: `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 

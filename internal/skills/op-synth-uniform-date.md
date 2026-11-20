@@ -19,6 +19,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 |---|---|---|---|
 | `start` | string | (required) | ISO-8601 `YYYY-MM-DD`. |
 | `end` | string | (required) | ISO-8601 `YYYY-MM-DD`; must not precede `start` (equal is legal). |
+| `month_weights` | list | — | One per-day weight per calendar month spanned, `start`'s first; uniform when absent. |
 
 Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
 
@@ -28,7 +29,7 @@ Field `type:` — `date` (32-bit days-since-epoch).
 
 ## Output
 
-Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable.
+Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable. With `month_weights` it is one `Float64` weighted by month.
 
 <!-- generated: contract -->
 
@@ -36,6 +37,7 @@ Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `d
 
 - Both bounds inclusive — `uniform_date(2024-01-01, 2024-12-31)` can emit either.
 - Unparseable dates → `SERVICE_VALIDATION` ("invalid start date" / "invalid end date"). `end == start` is legal (every draw on that day); only `end < start` → `SERVICE_VALIDATION` ("end must not be before start").
+- `month_weights` needs one weight per month spanned (`SERVICE_VALIDATION`); a partial month draws only its in-range days.
 - Epoch is 1970-01-01; pre-epoch dates are legal — `date` stores signed `int32` days, so they are negative.
 - For a timestamp use a `datetime` field with `uniform_datetime` (zone-aware, hour / weekday weights); `uniform_date` is refused on `datetime`.
 

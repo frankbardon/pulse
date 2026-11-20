@@ -3,6 +3,7 @@ package synth
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -94,6 +95,17 @@ type Spec struct {
 	// hand-authored numeric pair without per-category `n`) is arbitrated
 	// first-declared under either mode. See resolveConflicts.
 	PairArbitration string `json:"pair_arbitration,omitempty"`
+
+	// PairStrengthFloor is strength arbitration's noise floor, on the
+	// Cramér's V scale (a numeric target's ε² is compared against its
+	// square). A contested target whose strongest bidder is below it
+	// goes to the first-declared bidder, and every loser's conflict
+	// warning names the floor; an above-floor bidder always beats a
+	// sub-floor one. nil means DefaultPairStrengthFloor; 0 restores the
+	// floorless arbitration exactly; a negative or non-finite value is
+	// refused SERVICE_VALIDATION. Read under "strength" arbitration
+	// only — "declared" is already first-declared for every target.
+	PairStrengthFloor *float64 `json:"pair_strength_floor,omitempty"`
 
 	// Models lists optional per-numeric ADDITIVE linear predictors to
 	// drive generation with, the Spec-facing counterpart of the profile
@@ -709,6 +721,11 @@ func validateSpec(s *Spec) error {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"pair_arbitration must be \"strength\" or \"declared\"",
 			map[string]any{"pair_arbitration": s.PairArbitration})
+	}
+	if f := s.PairStrengthFloor; f != nil && (math.IsNaN(*f) || math.IsInf(*f, 0) || *f < 0) {
+		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"pair_strength_floor must be a finite number >= 0",
+			map[string]any{"pair_strength_floor": fmt.Sprint(*f)})
 	}
 	for _, ssp := range s.SetSetPairs {
 		// One set field on both sides is a within-set dependency and is

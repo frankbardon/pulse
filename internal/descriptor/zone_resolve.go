@@ -480,8 +480,10 @@ func addCodedError(env *descriptor.Envelope, err error) {
 // ResolveZones applies only the field-independent refusals and
 // FieldRefRefusals none, so a validator never refuses what the runtime
 // accepts. A readable join also returns the join-key rule's refusals
-// (internal/encoding.JoinKeysRefusals) — the runtime meets them before
-// zones or field references, so a caller reports them and stops there.
+// (internal/encoding.JoinKeysRefusals) or, past them, the joined
+// schema's field collision (PULSE_JOIN_FIELD_COLLISION) — the runtime
+// meets both before zones or field references, so a caller reports
+// them and stops there.
 func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *PredictOptions) (*encoding.Schema, []*errors.CodedError) {
 	if base == nil || req == nil || len(req.Joins) == 0 {
 		return base, nil
@@ -498,7 +500,13 @@ func validatorRequestSchema(req *types.Request, base *encoding.Schema, opts *Pre
 	}
 	joined, err := encx.JoinedSchema(base, right, req.Joins[0].As)
 	if err != nil {
-		return nil, nil
+		// A joined-field collision (PULSE_JOIN_FIELD_COLLISION) is the
+		// runtime's refusal too: report it, never judge schema-less.
+		ce, ok := err.(*errors.CodedError)
+		if !ok {
+			ce = errors.WrapCodedError(err, errors.PROCESSING_CONFIG, err.Error())
+		}
+		return nil, []*errors.CodedError{ce}
 	}
 	return joined, nil
 }

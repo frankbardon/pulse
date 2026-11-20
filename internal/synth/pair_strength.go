@@ -18,6 +18,29 @@ const (
 	PairArbitrationDeclared = "declared"
 )
 
+// DefaultPairStrengthFloor is the noise floor of strength arbitration
+// (Spec.PairStrengthFloor when the spec leaves it unset). A contested
+// target whose strongest bidder measures BELOW it carries no
+// association worth arbitrating: which noise pair measured larger is a
+// coin flip of the sample, so the target goes to the first-declared
+// bidder instead — the same rule as "pair_arbitration": "declared",
+// applied to that target only. An above-floor bidder always beats every
+// sub-floor one.
+//
+// The floor is on the Cramér's V scale. A numeric target's strength is
+// adjusted η² (ε², a variance share), so it is compared against the
+// floor SQUARED — √ε² is the adjusted correlation ratio, the V analogue.
+//
+// The value is measured, not chosen: on the customer-retention showcase
+// source and the churn fixture (three seeds, 40,000 rows each), every
+// bidder with no planted path to its target measured V ≤ 0.015 and
+// √ε² ≤ 0.012, while the weakest real association that won a contested
+// target measured V 0.036 (plan → mobile option) and √ε² 0.044 (plan →
+// support_contacts). 0.02 sits above all observed noise, under every
+// winning real driver, and well under the 0.1 V floor within-set
+// capture keeps (.claude/reference/synthetic-data/cross-row-time-and-draws.md).
+const DefaultPairStrengthFloor = 0.02
+
 // contingencyStrength is the bias-corrected Cramér's V (Bergsma 2013)
 // of a contingency table given as cells. It is the strength a
 // categorical-categorical, set-categorical or set-set pair carries into

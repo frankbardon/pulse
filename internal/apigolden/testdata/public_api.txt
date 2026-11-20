@@ -93,6 +93,8 @@ pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
+pulse: type ChainRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type ChainRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type ChainRequest method (*ChainRequest) Hash() string
 pulse: type ChainResponse = pulse/types.ChainResponse
 pulse: type ChainResponse underlying struct
@@ -266,6 +268,7 @@ pulse: const DefaultMaxChainStages int64 = 1000
 pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
 pulse: const DefaultMaxDerivedColumns int64 = 1000
+pulse: const DefaultMaxDisclosureComparisons int64 = 50000000000
 pulse: const DefaultMaxEstimatedMemory int64 = -1
 pulse: const DefaultMaxExpandedItems int64 = 1000
 pulse: const DefaultMaxGroups int64 = 10000000
@@ -405,6 +408,8 @@ pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overla
 pulse: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse: type FacetRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type FacetRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
 pulse: type FacetResult = pulse/types.FacetResult
 pulse: type FacetResult underlying struct
@@ -466,6 +471,7 @@ pulse: type FeatureProfileLimits field MaxChainStages int64 "json:\"max_chain_st
 pulse: type FeatureProfileLimits field MaxComposeSlots int64 "json:\"max_compose_slots,omitempty\""
 pulse: type FeatureProfileLimits field MaxCrosstabCells int64 "json:\"max_crosstab_cells,omitempty\""
 pulse: type FeatureProfileLimits field MaxDerivedColumns int64 "json:\"max_derived_columns,omitempty\""
+pulse: type FeatureProfileLimits field MaxDisclosureComparisons int64 "json:\"max_disclosure_comparisons,omitempty\""
 pulse: type FeatureProfileLimits field MaxEstimatedMemory int64 "json:\"max_estimated_memory,omitempty\""
 pulse: type FeatureProfileLimits field MaxExpandedItems int64 "json:\"max_expanded_items,omitempty\""
 pulse: type FeatureProfileLimits field MaxGroups int64 "json:\"max_groups,omitempty\""
@@ -686,6 +692,7 @@ pulse: type Limits field MaxChainStages int64
 pulse: type Limits field MaxComposeSlots int64
 pulse: type Limits field MaxCrosstabCells int64
 pulse: type Limits field MaxDerivedColumns int64
+pulse: type Limits field MaxDisclosureComparisons int64
 pulse: type Limits field MaxEstimatedMemory int64
 pulse: type Limits field MaxExpandedItems int64
 pulse: type Limits field MaxGroups int64
@@ -720,6 +727,8 @@ pulse: type LookupRequest field Field string "json:\"field,omitempty\""
 pulse: type LookupRequest field Keys []pulse/types.LookupKey "json:\"keys,omitempty\""
 pulse: type LookupRequest field Multiplicity pulse/types.LookupMultiplicity "json:\"multiplicity,omitempty\""
 pulse: type LookupRequest field ReturnColumns []string "json:\"return_columns,omitempty\""
+pulse: type LookupRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type LookupRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type LookupRequest field Value string "json:\"value,omitempty\""
 pulse: type LookupRequest method (*LookupRequest) Hash() string
 pulse: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/types.LookupKey
@@ -880,6 +889,8 @@ pulse: type ProfileOptions field RunContinuation bool
 pulse: type ProfileOptions field SampleLimit int
 pulse: type ProfileOptions field Seed int64
 pulse: type ProfileOptions field SuggestRules bool
+pulse: type ProfileOptions field TimeZone string
+pulse: type ProfileOptions field TimeZoneField string
 pulse: type ProfileOptions field TopK int
 pulse: type Pulse struct
 pulse: type Pulse method (*Pulse) AddShard(ctx context.Context, archivePath string, shardPath string) (*pulse.AddShardResult, error)
@@ -1149,6 +1160,8 @@ pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse: type Request field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type Request field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -1180,6 +1193,8 @@ pulse: type SampleRequest underlying struct
 pulse: type SampleRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
 pulse: type SampleRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse: type SampleRequest field N int "json:\"n\""
+pulse: type SampleRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse: type SampleRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse: type SampleResult struct
 pulse: type SampleResult field Rows []pulse.Record
 pulse: type SampleResult field Warnings []pulse.SampleWarning
@@ -1324,6 +1339,7 @@ pulse: type SynthSpec field Fields []pulse/internal/synth.FieldSpec "json:\"fiel
 pulse: type SynthSpec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse: type SynthSpec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
 pulse: type SynthSpec field PairArbitration string "json:\"pair_arbitration,omitempty\""
+pulse: type SynthSpec field PairStrengthFloor *float64 "json:\"pair_strength_floor,omitempty\""
 pulse: type SynthSpec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse: type SynthSpec field RowCount int "json:\"row_count\""
 pulse: type SynthSpec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -1895,6 +1911,7 @@ pulse/descriptor: type Manifest field Skills []pulse/descriptor.SkillMeta "json:
 pulse/descriptor: type Manifest field SynthDistributions []pulse/descriptor.DistributionMeta "json:\"synth_distributions\""
 pulse/descriptor: type Manifest field TZDataVersion string "json:\"tzdata_version\""
 pulse/descriptor: type Manifest field Tests []pulse/descriptor.TestMeta "json:\"tests\""
+pulse/descriptor: type Manifest field Union *pulse/descriptor.UnionCapability "json:\"union,omitempty\""
 pulse/descriptor: type Manifest method (Manifest) MarshalJSON() ([]byte, error)
 pulse/descriptor: type ManifestScope struct
 pulse/descriptor: type ManifestScope field Intent pulse/descriptor.Intent "json:\"intent\""
@@ -2209,6 +2226,7 @@ pulse/descriptor: type PredictResult field StreamableReasons []string "json:\"st
 pulse/descriptor: type PredictResult field SuggestedWeight *pulse/descriptor.SuggestedWeight "json:\"suggested_weight,omitempty\""
 pulse/descriptor: type PredictResult field Suggestions []pulse/descriptor.Suggestion "json:\"suggestions\""
 pulse/descriptor: type PredictResult field TimeZones []pulse/descriptor.ResolvedZone "json:\"time_zones\""
+pulse/descriptor: type PredictResult field Union []pulse/descriptor.UnionMemberPredict "json:\"union,omitempty\""
 pulse/descriptor: type PredictResult field UnresolvedScalars []pulse/descriptor.UnresolvedScalar "json:\"unresolved_scalars,omitempty\""
 pulse/descriptor: type PredictResult field Valid bool "json:\"valid\""
 pulse/descriptor: type PredictResult field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"-\""
@@ -2412,6 +2430,17 @@ pulse/descriptor: type TestMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type TestMeta field Tier int "json:\"tier\""
 pulse/descriptor: type TestMeta field Variant string "json:\"variant,omitempty\""
 pulse/descriptor: type TestMeta field WeightKinds []pulse/types.WeightKind "json:\"weight_kinds,omitempty\""
+pulse/descriptor: type UnionCapability struct
+pulse/descriptor: type UnionCapability field DefaultSourceField string "json:\"default_source_field\""
+pulse/descriptor: type UnionCapability field MaxMembers int "json:\"max_members\""
+pulse/descriptor: type UnionCapability field Name string "json:\"name\""
+pulse/descriptor: type UnionCapability field Rules []string "json:\"rules\""
+pulse/descriptor: type UnionCapability field Surfaces []string "json:\"surfaces\""
+pulse/descriptor: type UnionMemberPredict struct
+pulse/descriptor: type UnionMemberPredict field Cohort string "json:\"cohort\""
+pulse/descriptor: type UnionMemberPredict field Label string "json:\"label\""
+pulse/descriptor: type UnionMemberPredict field RecordCount int64 "json:\"record_count\""
+pulse/descriptor: type UnionMemberPredict field Shards int "json:\"shards\""
 pulse/descriptor: type UnresolvedScalar struct
 pulse/descriptor: type UnresolvedScalar field Expression string "json:\"expression\""
 pulse/descriptor: type UnresolvedScalar field Path string "json:\"path\""
@@ -3238,6 +3267,15 @@ pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKN
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
 pulse/errors: const PULSE_TRANSFER_INVALID pulse/errors.Code = "PULSE_TRANSFER_INVALID"
+pulse/errors: const PULSE_UNION_COHORT_CONFLICT pulse/errors.Code = "PULSE_UNION_COHORT_CONFLICT"
+pulse/errors: const PULSE_UNION_JOIN_RIGHT pulse/errors.Code = "PULSE_UNION_JOIN_RIGHT"
+pulse/errors: const PULSE_UNION_LABEL_INVALID pulse/errors.Code = "PULSE_UNION_LABEL_INVALID"
+pulse/errors: const PULSE_UNION_MEMBER_INVALID pulse/errors.Code = "PULSE_UNION_MEMBER_INVALID"
+pulse/errors: const PULSE_UNION_MEMBER_LIMIT pulse/errors.Code = "PULSE_UNION_MEMBER_LIMIT"
+pulse/errors: const PULSE_UNION_NESTED pulse/errors.Code = "PULSE_UNION_NESTED"
+pulse/errors: const PULSE_UNION_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_UNION_SCHEMA_MISMATCH"
+pulse/errors: const PULSE_UNION_SOURCE_FIELD_INVALID pulse/errors.Code = "PULSE_UNION_SOURCE_FIELD_INVALID"
+pulse/errors: const PULSE_UNION_UNSUPPORTED pulse/errors.Code = "PULSE_UNION_UNSUPPORTED"
 pulse/errors: const PULSE_VECTOR_DUPLICATE pulse/errors.Code = "PULSE_VECTOR_DUPLICATE"
 pulse/errors: const PULSE_VECTOR_EMPTY pulse/errors.Code = "PULSE_VECTOR_EMPTY"
 pulse/errors: const PULSE_VECTOR_FIELD_NOT_SCALAR pulse/errors.Code = "PULSE_VECTOR_FIELD_NOT_SCALAR"
@@ -4653,15 +4691,22 @@ pulse/synth: type CorrelationStat field Rho float64 "json:\"rho\""
 pulse/synth: type DateProfile = pulse/internal/synth.DateProfile
 pulse/synth: type DateProfile underlying struct
 pulse/synth: type DateProfile field End string "json:\"end\""
+pulse/synth: type DateProfile field MonthStart string "json:\"month_start,omitempty\""
+pulse/synth: type DateProfile field Months []int "json:\"months,omitempty\""
 pulse/synth: type DateProfile field Start string "json:\"start\""
 pulse/synth: type DateProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: type DatetimeProfile = pulse/internal/synth.DatetimeProfile
 pulse/synth: type DatetimeProfile underlying struct
 pulse/synth: type DatetimeProfile field End string "json:\"end\""
 pulse/synth: type DatetimeProfile field Hours [24]int "json:\"hours\""
+pulse/synth: type DatetimeProfile field MonthStart string "json:\"month_start,omitempty\""
+pulse/synth: type DatetimeProfile field Months []int "json:\"months,omitempty\""
 pulse/synth: type DatetimeProfile field Start string "json:\"start\""
+pulse/synth: type DatetimeProfile field TimeZone string "json:\"time_zone,omitempty\""
+pulse/synth: type DatetimeProfile field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/synth: type DatetimeProfile field Weekdays [7]int "json:\"weekdays\""
 pulse/synth: const DefaultDisclosureSample untyped int = 10000
+pulse/synth: const DefaultPairStrengthFloor untyped float = 1/50
 pulse/synth: const DisclosureDistanceGower untyped string = "gower"
 pulse/synth: type DisclosureFidelity = pulse/internal/synth.DisclosureFidelity
 pulse/synth: type DisclosureFidelity underlying struct
@@ -4935,6 +4980,8 @@ pulse/synth: type ProfileOptions field RunContinuation bool
 pulse/synth: type ProfileOptions field SampleLimit int
 pulse/synth: type ProfileOptions field Seed int64
 pulse/synth: type ProfileOptions field SuggestRules bool
+pulse/synth: type ProfileOptions field TimeZone string
+pulse/synth: type ProfileOptions field TimeZoneField string
 pulse/synth: type ProfileOptions field TopK int
 pulse/synth: const RecoveryScaleProbitScore untyped string = "probit_score"
 pulse/synth: type ResidualCorrelation = pulse/internal/synth.ResidualCorrelation
@@ -5138,6 +5185,7 @@ pulse/synth: type Spec field Fields []pulse/internal/synth.FieldSpec "json:\"fie
 pulse/synth: type Spec field MaxRejectionRate float64 "json:\"max_rejection_rate,omitempty\""
 pulse/synth: type Spec field Models []pulse/internal/synth.FieldModelSpec "json:\"models,omitempty\""
 pulse/synth: type Spec field PairArbitration string "json:\"pair_arbitration,omitempty\""
+pulse/synth: type Spec field PairStrengthFloor *float64 "json:\"pair_strength_floor,omitempty\""
 pulse/synth: type Spec field ResidualCorrelations []pulse/internal/synth.CorrelationSpec "json:\"residual_correlations,omitempty\""
 pulse/synth: type Spec field RowCount int "json:\"row_count\""
 pulse/synth: type Spec field Rules []pulse/internal/synth.RuleSpec "json:\"rules,omitempty\""
@@ -5169,21 +5217,28 @@ pulse/synth: type TargetRateLevel field SourceMean float64 "json:\"source_mean,o
 pulse/synth: type TargetRateLevel field SourceN int "json:\"source_n\""
 pulse/synth: type TargetRateLevel field SyntheticMean float64 "json:\"synthetic_mean,omitempty\""
 pulse/synth: type TargetRateLevel field SyntheticN int "json:\"synthetic_n\""
+pulse/synth: const TimeShapeClockLocal untyped string = "local"
 pulse/synth: const TimeShapeClockUTC untyped string = "utc"
 pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
 pulse/synth: type TimeShapeFidelity underlying struct
 pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
-pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
+pulse/synth: type TimeShapeFidelity field HourTVD *float64 "json:\"hour_tvd,omitempty\""
+pulse/synth: type TimeShapeFidelity field MonthTVD float64 "json:\"month_tvd\""
+pulse/synth: type TimeShapeFidelity field TimeZone string "json:\"time_zone,omitempty\""
+pulse/synth: type TimeShapeFidelity field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/synth: type TimeShapeFidelity field WeekdayTVD float64 "json:\"weekday_tvd\""
 pulse/synth: type UtilityCoefficient = pulse/internal/synth.UtilityCoefficient
 pulse/synth: type UtilityCoefficient underlying struct
+pulse/synth: type UtilityCoefficient field Difference *float64 "json:\"difference,omitempty\""
 pulse/synth: type UtilityCoefficient field Missing string "json:\"missing,omitempty\""
 pulse/synth: type UtilityCoefficient field Ratio float64 "json:\"ratio,omitempty\""
+pulse/synth: type UtilityCoefficient field RatioReliable *bool "json:\"ratio_reliable,omitempty\""
 pulse/synth: type UtilityCoefficient field Source float64 "json:\"source\""
 pulse/synth: type UtilityCoefficient field SourceStdError float64 "json:\"source_std_error,omitempty\""
 pulse/synth: type UtilityCoefficient field Synthetic float64 "json:\"synthetic\""
 pulse/synth: type UtilityCoefficient field SyntheticStdError float64 "json:\"synthetic_std_error,omitempty\""
 pulse/synth: type UtilityCoefficient field Term string "json:\"term\""
+pulse/synth: type UtilityCoefficient field Z *float64 "json:\"z,omitempty\""
 pulse/synth: type UtilityFidelity = pulse/internal/synth.UtilityFidelity
 pulse/synth: type UtilityFidelity underlying struct
 pulse/synth: type UtilityFidelity field ModelFits []*pulse/internal/synth.UtilityModelFit "json:\"model_fits,omitempty\""
@@ -5525,6 +5580,8 @@ pulse/types: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\"
 pulse/types: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
+pulse/types: type ChainRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type ChainRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type ChainRequest method (*ChainRequest) Hash() string
 pulse/types: type ChainResponse struct
 pulse/types: type ChainResponse field Final *pulse/types.Response "json:\"final\""
@@ -5701,6 +5758,7 @@ pulse/types: func DecodePanelParams(raw encoding/json.RawMessage) (pulse/types.P
 pulse/types: func DecodePanelParamsMap(params map[string]any) (pulse/types.PanelOverlayParams, error)
 pulse/types: const DefaultMultiplicityAlpha untyped float = 1/20
 pulse/types: const DefaultProfileBins untyped int = 10
+pulse/types: const DefaultUnionSourceField untyped string = "_source"
 pulse/types: type ExtensionGroupFanOutFunc func(pulse/types.GroupType) (fansOut bool, known bool)
 pulse/types: const FEAT_BUCKETIZE pulse/types.FeatureType = "FEAT_BUCKETIZE"
 pulse/types: const FEAT_DATE_FEATURES pulse/types.FeatureType = "FEAT_DATE_FEATURES"
@@ -5764,6 +5822,8 @@ pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"
 pulse/types: type FacetRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse/types: type FacetRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type FacetRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
 pulse/types: type FacetResult struct
 pulse/types: type FacetResult field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
@@ -5993,6 +6053,8 @@ pulse/types: type LookupRequest field Field string "json:\"field,omitempty\""
 pulse/types: type LookupRequest field Keys []pulse/types.LookupKey "json:\"keys,omitempty\""
 pulse/types: type LookupRequest field Multiplicity pulse/types.LookupMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type LookupRequest field ReturnColumns []string "json:\"return_columns,omitempty\""
+pulse/types: type LookupRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type LookupRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type LookupRequest field Value string "json:\"value,omitempty\""
 pulse/types: type LookupRequest method (*LookupRequest) Hash() string
 pulse/types: type LookupRequest method (*LookupRequest) KeyComponents() []pulse/types.LookupKey
@@ -6777,6 +6839,8 @@ pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitemp
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
 pulse/types: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
+pulse/types: type Request field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type Request field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse/types: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -6884,6 +6948,8 @@ pulse/types: type SampleRequest struct
 pulse/types: type SampleRequest field Cohort *pulse/types.Cohort "json:\"cohort,omitempty\""
 pulse/types: type SampleRequest field Labels []*pulse/types.LabelBinding "json:\"labels,omitempty\""
 pulse/types: type SampleRequest field N int "json:\"n\""
+pulse/types: type SampleRequest field Union []pulse/types.UnionMember "json:\"union,omitempty\""
+pulse/types: type SampleRequest field UnionSourceField string "json:\"union_source_field,omitempty\""
 pulse/types: type SeriesEntry struct
 pulse/types: type SeriesEntry field Key pulse/types.AxisKey "json:\"key\""
 pulse/types: type SeriesEntry field Summary pulse/types.OverlaySummary "json:\"summary\""
@@ -7021,6 +7087,9 @@ pulse/types: type TestResult field Warnings []string "json:\"warnings,omitempty\
 pulse/types: type TestResult method (TestResult) MarshalJSON() ([]byte, error)
 pulse/types: type TestType string
 pulse/types: type TestType method (TestType) Streamable() bool
+pulse/types: type UnionMember struct
+pulse/types: type UnionMember field Cohort *pulse/types.Cohort "json:\"cohort\""
+pulse/types: type UnionMember field Label string "json:\"label\""
 pulse/types: func ValidPairwiseNBasis(s string) bool
 pulse/types: func ValidPairwiseNSource(s string) bool
 pulse/types: func ValidPairwisePSource(s string) bool
@@ -7095,4 +7164,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8f99d964be07c31ad5ab343be9b419589ceb7619a1e4573c5be39e457b7faa03
+// golden-hash: 28fd5a9c78d897daa391054b558fdb85113e7486b0f116bb668a106dbd47bb23

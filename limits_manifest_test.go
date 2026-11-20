@@ -29,7 +29,8 @@ func TestManifest_LimitsBlock(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	vals, plainDigest, plainFS := manifestLimitValues(t, plain)
-	if vals["max_groups"] != DefaultMaxGroups || vals["request_timeout"] != int64(DefaultRequestTimeout) || len(vals) != 12 {
+	if vals["max_groups"] != DefaultMaxGroups || vals["request_timeout"] != int64(DefaultRequestTimeout) ||
+		vals["max_disclosure_comparisons"] != DefaultMaxDisclosureComparisons || len(vals) != 13 {
 		t.Fatalf("default manifest limits = %v", vals)
 	}
 

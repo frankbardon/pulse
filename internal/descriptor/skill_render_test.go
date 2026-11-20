@@ -417,3 +417,93 @@ func TestDiscovery_RendersFrontmatterCovers(t *testing.T) {
 		t.Error("a body whose covers name nothing hidden was rewritten")
 	}
 }
+
+// TestRenderSeeLine_AnnotationSpans (U76 E6-S5, #737): an item's
+// parenthetical annotation is prose about the item, never a pointer of
+// its own — a backtick span inside it (however nested, however many)
+// cannot keep an item whose pointer is hidden; nor can one in the
+// item's " — " description. An item made only of an annotation still
+// reads its spans.
+func TestRenderSeeLine_AnnotationSpans(t *testing.T) {
+	t.Parallel()
+
+	keep := func(span string) bool { return span != "gone" }
+	for _, tc := range []struct {
+		name, line, want string
+	}{
+		{"plain annotation", "`kept` · `gone` (the tagged output) · `also`",
+			"`kept` · `also`"},
+		{"backtick annotation", "`kept` · `gone` (the `_synthetic` tagged output) · `also`",
+			"`kept` · `also`"},
+		{"nested parens", "`kept` · `gone` (rows (`_synthetic` = true) only) · `also`",
+			"`kept` · `also`"},
+		{"multiple backtick spans", "`kept`, `gone` (`_synthetic`, `--rows` and `--synthetic-only`), `also`",
+			"`kept`, `also`"},
+		{"no annotation", "`kept` · `gone` · `also`",
+			"`kept` · `also`"},
+		{"visible target keeps its annotation", "`kept` (the `_synthetic` output) · `gone` (`x`)",
+			"`kept` (the `_synthetic` output)"},
+		{"backtick descriptions per item", "- `gone` — the `vcov` Param; `kept` — the `fits` slot.",
+			"- `kept` — the `fits` slot."},
+		{"described items: prune the first", "- `gone` — modes, distributions; `kept` — the rest.",
+			"- `kept` — the rest."},
+		{"described items: prune the last", "- `kept` — modes, distributions; `gone` — the rest.",
+			"- `kept` — modes, distributions."},
+		{"described items: prune the middle", "- `kept` — `row()` / `lag()`; `gone` — slots; `also` — codes.",
+			"- `kept` — `row()` / `lag()`; `also` — codes."},
+		{"described item then bare items", "- `gone` — the claim order; `kept` · `also`.",
+			"- `kept` · `also`."},
+		{"bare items after a described one, last cut", "- `kept` — the claim order; `also` · `gone`.",
+			"- `kept` — the claim order; `also`."},
+		{"shared description survives a cut", "- `gone`, `kept` — shared.",
+			"- `kept` — shared."},
+		{"shared description, last pointer cut", "- `kept` / `gone` — shared; `also` — own.",
+			"- `kept` — shared; `also` — own."},
+		{"annotation-only item reads its spans", "- Skills: `kept`, more (`gone`)",
+			"- Skills: `kept`"},
+		{"annotation-only item kept", "- Error list in `pulse_manifest` (`error_codes` slice).",
+			"- Error list in `pulse_manifest` (`error_codes` slice)."},
+	} {
+		got, ok := renderSeeLine(tc.line, keep)
+		if !ok || got != tc.want {
+			t.Errorf("%s:\n got %q (keep=%v)\nwant %q", tc.name, got, ok, tc.want)
+		}
+	}
+	for _, line := range []string{
+		"- `gone` (the `_synthetic` output)",
+		"- `gone` — the tables a `range_table` axis names.",
+		"- `gone` — modes, distributions; `gone` — the rest.",
+	} {
+		if r, ok := renderSeeLine(line, keep); ok {
+			t.Errorf("%q: a line whose only item points at a hidden skill survived as %q", line, r)
+		}
+	}
+}
+
+// TestDiscovery_PrunesAnnotatedSeeItem (U76 E6-S5, #737): with
+// capability:synth hidden, cohort-union's `## See` drops
+// synth-fidelity-report although its annotation carries a backtick
+// span, and keeps every visible sibling.
+func TestDiscovery_PrunesAnnotatedSeeItem(t *testing.T) {
+	t.Parallel()
+
+	full, _ := skills.Get("cohort-union")
+	if !strings.Contains(seeSection(full), "`synth-fidelity-report` (the `_synthetic`") {
+		t.Fatal("premise: cohort-union's See annotates synth-fidelity-report with a backtick span")
+	}
+	d := hidingSnapshot("capability:synth").Discovery()
+	if _, ok := d.Skill("synth-fidelity-report"); ok {
+		t.Fatal("premise: hiding capability:synth prunes synth-fidelity-report")
+	}
+	got, ok := d.Skill("cohort-union")
+	if !ok {
+		t.Fatal("cohort-union pruned")
+	}
+	see := seeSection(got)
+	if strings.Contains(see, "synth-fidelity-report") || strings.Contains(see, "_synthetic") {
+		t.Errorf("See still names the pruned skill or its annotation:\n%s", see)
+	}
+	if !strings.Contains(see, "`facet-design` · `tool-sample` · `tool-lookup`") {
+		t.Errorf("See lost a visible sibling:\n%s", see)
+	}
+}

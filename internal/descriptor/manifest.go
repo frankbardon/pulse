@@ -435,6 +435,10 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		c := joinCapability()
 		m.Join = &c
 	}
+	if on(featUnion) {
+		c := unionCapability(on)
+		m.Union = &c
+	}
 	if on(featCrosstab) {
 		c := crosstabCapability()
 		c.SummableAggregators = filterNames(c.SummableAggregators, on)

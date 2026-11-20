@@ -38,6 +38,8 @@ func TestLimits_DefaultsResolve(t *testing.T) {
 		MaxExpandedItems:   1_000,
 		MaxMMMGeos:         50,
 		MaxMMMDrawValues:   10_000_000,
+
+		MaxDisclosureComparisons: 50_000_000_000,
 	}
 	if got := p.Limits(); got != want {
 		t.Fatalf("Limits() = %+v, want %+v", got, want)
@@ -55,6 +57,8 @@ func TestLimits_DefaultsResolve(t *testing.T) {
 		MaxExpandedItems:   DefaultMaxExpandedItems,
 		MaxMMMGeos:         DefaultMaxMMMGeos,
 		MaxMMMDrawValues:   DefaultMaxMMMDrawValues,
+
+		MaxDisclosureComparisons: DefaultMaxDisclosureComparisons,
 	}
 	if exported != want {
 		t.Fatalf("exported default constants = %+v, want %+v", exported, want)
@@ -82,6 +86,8 @@ func TestLimits_OptionsInstalled(t *testing.T) {
 		MaxExpandedItems:   Unlimited,
 		MaxMMMGeos:         7,
 		MaxMMMDrawValues:   9,
+
+		MaxDisclosureComparisons: Unlimited,
 	}
 	p, err := newLimitsInstance(t, in)
 	if err != nil {
@@ -133,6 +139,8 @@ func TestLimits_InvalidRefused(t *testing.T) {
 		"MaxExpandedItems":   "max_expanded_items",
 		"MaxMMMGeos":         "max_mmm_geos",
 		"MaxMMMDrawValues":   "max_mmm_draw_values",
+
+		"MaxDisclosureComparisons": "max_disclosure_comparisons",
 	}
 	if v.NumField() != len(snake) {
 		t.Fatalf("Limits has %d fields, test covers %d", v.NumField(), len(snake))

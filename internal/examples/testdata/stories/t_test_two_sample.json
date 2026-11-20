@@ -1,7 +1,7 @@
 {
   "data": [
     {
-      "avg_revenue": 154.3
+      "avg_revenue": 151.7
     }
   ],
   "metadata": {
@@ -14,33 +14,33 @@
       "label": "revenue_treatment_ttest",
       "type": "TEST_T",
       "variant": "welch_two_sample",
-      "statistic": -2.72,
-      "df": 361.3,
-      "p_value": 0.006843,
+      "statistic": -3.158,
+      "df": 397.6,
+      "p_value": 0.001711,
       "alpha": 0.05,
       "reject_null": true,
       "details": {
-        "ci_high": -7.114,
-        "ci_low": -44.25,
-        "diff": -25.68,
+        "ci_high": -9.963,
+        "ci_low": -42.83,
+        "diff": -26.4,
         "effect_size": {
-          "cohens_d": -0.2756
+          "cohens_d": -0.3148
         },
         "groups": [
           "control",
           "variant"
         ],
         "mean": [
-          142.2,
-          167.8
+          138.1,
+          164.5
         ],
         "n": [
-          211,
-          189
+          193,
+          207
         ],
         "variance": [
-          6933,
-          1.064e+04
+          6298,
+          7711
         ]
       }
     }
@@ -52,7 +52,7 @@
         "n": 400,
         "n_null": 0,
         "operator": {
-          "sum": 6.172e+04
+          "sum": 6.069e+04
         }
       }
     ],

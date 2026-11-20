@@ -44,13 +44,23 @@ func (s *Service) processCrosstab(ctx context.Context, req *types.Request) (*typ
 		return s.processCrosstabWithJoin(ctx, req)
 	}
 
-	path := resolveCohortPath(req.Cohort)
-	cohort, err := s.Open(ctx, path)
+	cohort, path, err := s.openRequestCohort(ctx, req)
 	if err != nil {
 		return nil, err
 	}
+	execInfoFrom(ctx).Lap(observe.PhaseOpen)
+	resp, err := s.processCrosstabCohort(ctx, req, cohort, path)
+	if err != nil {
+		return nil, err
+	}
+	unionWarnings(resp, cohort)
+	return resp, nil
+}
+
+// processCrosstabCohort is processCrosstab's unjoined arm over the
+// opened cohort (path names it on the response; "" for a union).
+func (s *Service) processCrosstabCohort(ctx context.Context, req *types.Request, cohort *Cohort, path string) (*types.Response, error) {
 	ei := execInfoFrom(ctx)
-	ei.Lap(observe.PhaseOpen)
 	countReads(ctx, cohort)
 
 	s.applyDefaults(req, cohort.Schema())
@@ -193,7 +203,7 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	clone := *req
 	clone.Joins = nil
 	var zones []descriptor.ResolvedZone
-	join, joinedSchema, leftPath, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
+	join, joinedSchema, left, leftIter, err := s.openJoinStream(ctx, req, func(joined *encoding.Schema, lin descx.LimitInputs) (*types.Request, error) {
 		s.applyDefaults(&clone, joined)
 		z, err := s.resolveZones(&clone, joined)
 		if err != nil {
@@ -241,8 +251,9 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	}
 	ei.Lap(observe.PhaseScan)
 	if resp.Metadata != nil {
-		resp.Metadata.CohortFile = leftPath
+		resp.Metadata.CohortFile = left.path
 	}
+	unionWarnings(resp, left.cohort)
 	if err := s.buildAndApplyLabels(&clone, resp); err != nil {
 		return nil, err
 	}

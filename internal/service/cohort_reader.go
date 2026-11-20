@@ -41,6 +41,24 @@ type CohortRecordReader struct {
 	mu     sync.RWMutex
 	closed bool
 	file   afero.File
+
+	// union, when set, makes this a union cohort's reader: segment k is
+	// member k's own reader, whose rows map onto the merged schema.
+	union *unionRecords
+}
+
+// unionRecords reads a union cohort's records through each member's
+// own reader: member k's row field j lands in merged slot fields[k][j],
+// and the virtual source field (slot source) holds the member's label.
+// Values move by meaning, never by stored code — a categorical or set
+// cell is its label(s), which the merged dictionaries carry — so a
+// union row equals the row an archive of the same shards, each with a
+// real source column, returns.
+type unionRecords struct {
+	members []*CohortRecordReader
+	fields  [][]int
+	labels  []string
+	source  int
 }
 
 // recordSegment is one independently addressable record region: the
@@ -56,6 +74,8 @@ type recordSegment struct {
 // whole shard archive, or one anchored shard.
 func (c *Cohort) OpenRecordReader() (*CohortRecordReader, error) {
 	switch {
+	case c.union != nil:
+		return openUnionRecordReader(c)
 	case len(c.shards) > 0:
 		return openArchiveRecordReader(c.fs, c.path, c.schema, c.shards, "")
 	case c.anchorArchive != "":
@@ -234,6 +254,33 @@ func (r *CohortRecordReader) RecordAt(i int64) ([]any, error) {
 			"record index out of range",
 			map[string]any{"index": i, "len": r.Len()})
 	}
+	if u := r.union; u != nil {
+		k := sort.Search(len(u.members), func(k int) bool { return r.starts[k+1] > i })
+		own, err := u.members[k].RecordAt(i - r.starts[k])
+		if err != nil {
+			return nil, err
+		}
+		row := make([]any, len(r.schema.Fields))
+		for j, slot := range u.fields[k] {
+			row[slot] = own[j]
+			// A set cell lists its labels in the MERGED dictionary's
+			// order (the order an archive row lists them in), not the
+			// member's.
+			if labels, ok := own[j].([]string); ok && len(labels) > 1 {
+				if d := r.schema.Fields[slot].Dictionary; d != nil {
+					sorted := append([]string(nil), labels...)
+					sort.SliceStable(sorted, func(a, b int) bool {
+						ia, _ := d.IDFor(sorted[a])
+						ib, _ := d.IDFor(sorted[b])
+						return ia < ib
+					})
+					row[slot] = sorted
+				}
+			}
+		}
+		row[u.source] = u.labels[k]
+		return row, nil
+	}
 	// The segment holding i: the last k with starts[k] <= i.
 	k := sort.Search(len(r.segs), func(k int) bool { return r.starts[k+1] > i })
 	seg := &r.segs[k]
@@ -274,6 +321,15 @@ func (r *CohortRecordReader) Close() error {
 		return nil
 	}
 	r.closed = true
+	if u := r.union; u != nil {
+		var first error
+		for _, m := range u.members {
+			if err := m.Close(); err != nil && first == nil {
+				first = err
+			}
+		}
+		return first
+	}
 	if err := r.file.Close(); err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			"closing cohort reader")
@@ -431,4 +487,45 @@ func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	n, err := c.ra.ReadAt(p, off)
 	c.ei.addBytes(int64(n))
 	return n, err
+}
+
+// openUnionRecordReader opens a union cohort's record reader: each
+// member's own reader (a single file, a shard archive, an anchored
+// shard), addressed in declared member order through one global index.
+func openUnionRecordReader(c *Cohort) (*CohortRecordReader, error) {
+	u := &unionRecords{source: len(c.schema.Fields) - 1}
+	index := make(map[string]int, len(c.schema.Fields))
+	for i, f := range c.schema.Fields {
+		index[f.Name] = i
+	}
+	r := &CohortRecordReader{schema: c.schema, starts: []int64{0}, union: u}
+	fail := func(err error) (*CohortRecordReader, error) {
+		for _, m := range u.members {
+			_ = m.Close()
+		}
+		return nil, err
+	}
+	for k := range c.union.members {
+		m := &c.union.members[k]
+		mr, err := m.cohort.OpenRecordReader()
+		if err != nil {
+			return fail(err)
+		}
+		u.members = append(u.members, mr)
+		own := mr.Schema().Fields
+		slots := make([]int, len(own))
+		for j := range own {
+			slot, ok := index[own[j].Name]
+			slots[j] = slot
+			if !ok || slot == u.source {
+				return fail(errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+					"union member field missing from the merged schema",
+					map[string]any{"member": k, "field": own[j].Name}))
+			}
+		}
+		u.fields = append(u.fields, slots)
+		u.labels = append(u.labels, m.label)
+		r.starts = append(r.starts, r.starts[len(r.starts)-1]+mr.Len())
+	}
+	return r, nil
 }

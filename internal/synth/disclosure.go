@@ -2,6 +2,7 @@ package synth
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"io"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -120,9 +122,11 @@ func DisclosureEnabled(opts Options) bool {
 // CheckDisclosureBudget is the disclosure pass's pre-flight, run before
 // generation so an over-budget run writes nothing: it charges the pass's
 // working set (DisclosureMemoryEstimate) against l's MaxEstimatedMemory
-// and refuses with PULSE_LIMIT_EXCEEDED when it does not fit. It reads
-// the source's header and schema only. A negative opts.DisclosureSample
-// is refused SERVICE_VALIDATION. A source that cannot be read is left to
+// and its work (DisclosureComparisons) against l's
+// MaxDisclosureComparisons, refusing with PULSE_LIMIT_EXCEEDED on the
+// first that does not fit (memory first). It reads the source's header
+// and schema only. A negative opts.DisclosureSample is refused
+// SERVICE_VALIDATION. A source that cannot be read is left to
 // generation, which refuses it with its own code.
 func CheckDisclosureBudget(fs afero.Fs, spec *Spec, opts Options, l limits.Limits) error {
 	sample, err := disclosureSampleCap(opts)
@@ -161,7 +165,28 @@ func CheckDisclosureBudget(fs afero.Fs, spec *Spec, opts Options, l limits.Limit
 	if ce := limits.Check(l, limits.MaxEstimatedMemory, est); ce != nil {
 		return ce
 	}
+	if ce := limits.CheckDisclosureComparisons(l, DisclosureComparisons(sourceRows, int64(spec.RowCount), sample)); ce != nil {
+		return ce
+	}
 	return nil
+}
+
+// DisclosureComparisons is the disclosure pass's distance-to-closest-
+// record work: min(sample, syntheticRows) sampled rows, each compared
+// with every source row. Saturates at math.MaxInt64.
+func DisclosureComparisons(sourceRows, syntheticRows int64, sample int) int64 {
+	sampled := syntheticRows
+	if int64(sample) < sampled {
+		sampled = int64(sample)
+	}
+	if sampled <= 0 || sourceRows <= 0 {
+		return 0
+	}
+	hi, lo := bits.Mul64(uint64(sampled), uint64(sourceRows))
+	if hi != 0 || lo > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(lo)
 }
 
 // DisclosureMemoryEstimate is the disclosure pass's working set in bytes,
@@ -385,8 +410,10 @@ func (d *disclosureDecoder) appendRow(rows *disclosureRows) {
 // and the Gower distance to closest record over a seeded sample of at
 // most opts.DisclosureSample generated rows (DefaultDisclosureSample when
 // 0). Nothing is added when DisclosureEnabled(opts) is false. Every
-// figure is deterministic in (records, opts.Seed, the sample cap).
-func BuildDisclosure(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, opts Options) error {
+// figure is deterministic in (records, opts.Seed, the sample cap). A
+// cancelled ctx stops the distance pass between worker chunks and
+// returns ctx.Err(), leaving report untouched.
+func BuildDisclosure(ctx context.Context, report *FidelityReport, mergedSchema *encoding.Schema, records []byte, opts Options) error {
 	if !DisclosureEnabled(opts) {
 		return nil
 	}
@@ -394,13 +421,17 @@ func BuildDisclosure(report *FidelityReport, mergedSchema *encoding.Schema, reco
 	if err != nil {
 		return err
 	}
-	report.Disclosure = computeDisclosure(mergedSchema, records, opts.Seed, sample, runtime.GOMAXPROCS(0))
+	d, err := computeDisclosure(ctx, mergedSchema, records, opts.Seed, sample, runtime.GOMAXPROCS(0))
+	if err != nil {
+		return err
+	}
+	report.Disclosure = d
 	return nil
 }
 
 // computeDisclosure is BuildDisclosure's body, its worker count explicit
 // so a test can prove it moves no bit.
-func computeDisclosure(schema *encoding.Schema, records []byte, seed int64, sample, workers int) *DisclosureFidelity {
+func computeDisclosure(ctx context.Context, schema *encoding.Schema, records []byte, seed int64, sample, workers int) (*DisclosureFidelity, error) {
 	plan := newDisclosurePlan(schema)
 	out := &DisclosureFidelity{Distance: DisclosureDistanceGower, Columns: len(plan.cols)}
 
@@ -452,18 +483,21 @@ func computeDisclosure(schema *encoding.Schema, records []byte, seed int64, samp
 	out.SampleRows = syn.n
 	if src.n == 0 {
 		out.Error = "the source cohort has no rows to measure a distance to"
-		return out
+		return out, nil
 	}
 	if syn.n == 0 {
 		out.Error = "no generated row to measure a distance from"
-		return out
+		return out, nil
 	}
 
-	dcr := closestDistances(plan, src, syn, workers)
+	dcr, err := closestDistances(ctx, plan, src, syn, workers)
+	if err != nil {
+		return nil, err
+	}
 	sort.Float64s(dcr)
 	out.DCRMedian = disclosureQuantile(dcr, 0.5)
 	out.DCRP5 = disclosureQuantile(dcr, 0.05)
-	return out
+	return out, nil
 }
 
 // sourceRanges is every float slot's max - min over the source rows'
@@ -532,38 +566,58 @@ func jaccardDistance(a, b encoding.SetMask) float64 {
 	return float64(union-a.Intersect(b).PopCount()) / float64(union)
 }
 
+// disclosureChunkRows is how many sampled rows a worker claims at a
+// time; ctx is read before every claim, so a cancel stops the pass
+// within one chunk's work per worker.
+const disclosureChunkRows = 8
+
 // closestDistances returns each sampled row's Gower distance to its
-// closest source row, in sample order. Rows are split across workers;
-// each row's minimum depends on that row alone, so the split moves no
-// bit.
-func closestDistances(plan *disclosurePlan, src, syn *disclosureRows, workers int) []float64 {
+// closest source row, in sample order. Workers claim chunks of
+// disclosureChunkRows rows in turn; each row's minimum depends on that
+// row alone and lands at its own index, so neither the worker count nor
+// the claim order moves a bit. A cancelled ctx stops every worker before
+// its next chunk and returns ctx.Err().
+func closestDistances(ctx context.Context, plan *disclosurePlan, src, syn *disclosureRows, workers int) ([]float64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	out := make([]float64, syn.n)
+	chunks := (syn.n + disclosureChunkRows - 1) / disclosureChunkRows
 	if workers < 1 {
 		workers = 1
 	}
-	if workers > syn.n {
-		workers = syn.n
+	if workers > chunks {
+		workers = chunks
 	}
+	var next atomic.Int64
 	var wg sync.WaitGroup
-	chunk := (syn.n + workers - 1) / workers
 	for w := 0; w < workers; w++ {
-		lo, hi := w*chunk, (w+1)*chunk
-		if hi > syn.n {
-			hi = syn.n
-		}
-		if lo >= hi {
-			break
-		}
 		wg.Add(1)
-		go func(lo, hi int) {
+		go func() {
 			defer wg.Done()
-			for r := lo; r < hi; r++ {
-				out[r] = closestDistance(plan, src, syn, r)
+			for ctx.Err() == nil {
+				c := int(next.Add(1) - 1)
+				if c >= chunks {
+					return
+				}
+				hi := (c + 1) * disclosureChunkRows
+				if hi > syn.n {
+					hi = syn.n
+				}
+				for r := c * disclosureChunkRows; r < hi; r++ {
+					out[r] = closestDistance(plan, src, syn, r)
+				}
 			}
-		}(lo, hi)
+		}()
 	}
 	wg.Wait()
-	return out
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // closestDistance is sampled row r's distance to its closest source row.

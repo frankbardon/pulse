@@ -506,3 +506,56 @@ func TestDefaults_NeverInferARefusedOperator(t *testing.T) {
 		t.Fatal("no aggregation default judged")
 	}
 }
+
+// TestDefaults_CrosstabAxes: a crosstab row or column grouper naming a
+// field but no Type defaults exactly as a top-level group does — rule
+// type, rule params, the slot's path — while an explicit axis Type and
+// a hidden target are left alone, and predict's clone keeps the
+// caller's axes untouched.
+func TestDefaults_CrosstabAxes(t *testing.T) {
+	t.Parallel()
+
+	schema := &encoding.Schema{Fields: append(schemaForType("c", encoding.FieldTypeCategoricalU8).Fields,
+		schemaForType("x", encoding.FieldTypeF64).Fields...)}
+	req := &types.Request{Crosstab: &types.CrosstabSpec{
+		Rows:    []*types.Group{{Field: "x"}, {Type: types.GROUP_QUANTILE, Field: "x"}},
+		Columns: []*types.Group{{Field: "c"}},
+		Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "x"},
+	}}
+	clone := cloneRequestForDefaults(req)
+	applied := ResolveDefaults(clone, schema, nil)
+	if req.Crosstab.Rows[0].Type != "" || req.Crosstab.Columns[0].Type != "" {
+		t.Fatalf("the clone shares the caller's axes: rows %q columns %q", req.Crosstab.Rows[0].Type, req.Crosstab.Columns[0].Type)
+	}
+	ct := clone.Crosstab
+	if ct.Rows[0].Type != types.GROUP_RANGE || ct.Rows[0].Interval != defaultRangeInterval {
+		t.Errorf("row 0 = %q interval %v, want GROUP_RANGE interval %v", ct.Rows[0].Type, ct.Rows[0].Interval, defaultRangeInterval)
+	}
+	if ct.Rows[1].Type != types.GROUP_QUANTILE {
+		t.Errorf("explicit row 1 overridden to %q", ct.Rows[1].Type)
+	}
+	if ct.Columns[0].Type != types.GROUP_CATEGORY {
+		t.Errorf("column 0 = %q, want GROUP_CATEGORY", ct.Columns[0].Type)
+	}
+	want := [][]string{{"Crosstab", "Rows", "0", "Type"}, {"Crosstab", "Columns", "0", "Type"}}
+	if len(applied) != len(want) {
+		t.Fatalf("applied = %+v, want %d entries", applied, len(want))
+	}
+	for i, w := range want {
+		got, _ := json.Marshal(applied[i].Path)
+		exp, _ := json.Marshal(w)
+		if !bytes.Equal(got, exp) || applied[i].Category != "grouper" {
+			t.Errorf("applied[%d] = %s %q, want %s grouper", i, got, applied[i].Category, exp)
+		}
+	}
+
+	// A hidden target defaults no axis, like a hidden top-level group.
+	inst := NewInstanceSnapshot(nil, FeatureSet{
+		Enabled: []string{"capability:process", "capability:crosstab", "GROUP_CATEGORY", "AGG_COUNT"},
+		Hidden:  []string{"GROUP_RANGE"},
+	})
+	hidden := &types.Request{Crosstab: &types.CrosstabSpec{Rows: []*types.Group{{Field: "x"}}}}
+	if applied := ResolveDefaults(hidden, schema, inst); len(applied) != 0 || hidden.Crosstab.Rows[0].Type != "" {
+		t.Errorf("hidden target defaulted: %+v, %q", applied, hidden.Crosstab.Rows[0].Type)
+	}
+}

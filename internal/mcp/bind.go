@@ -248,7 +248,7 @@ func BindForInstanceWithJoins(schema *encoding.Schema, joins []JoinTarget, inst 
 	}
 	out[toolmeta.ToolCompose] = composeBody
 
-	sampleBody, err := buildSampleSchema(left)
+	sampleBody, err := buildSampleSchema(left, inst)
 	if err != nil {
 		return nil, err
 	}
@@ -369,6 +369,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.In
 		"required":             []string{"stages"},
 		"additionalProperties": true,
 	}
+	addUnionSlots(requestObject["properties"].(map[string]any))
 	dropHiddenSlots(requestObject, &types.ChainRequest{}, inst)
 
 	return json.Marshal(requestObject)
@@ -447,6 +448,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 	facetParams := paramsSchema()
 	facetParams["description"] = "Named constants the filterer expressions read, read-only, as params.<name> — the Request params rules: a number (integers kept exact), a string, a bool or a list of ONE of those kinds; never null. Reading an undeclared name is PULSE_PARAMS_UNDECLARED."
 	requestObject["properties"].(map[string]any)["params"] = facetParams
+	addUnionSlots(requestObject["properties"].(map[string]any))
 	dropHiddenSlots(requestObject, &types.FacetRequest{}, inst)
 	dropHiddenMultiplicity(requestObject, inst)
 	return json.Marshal(requestObject)
@@ -875,6 +877,36 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 	return out, mirror
 }
 
+// addUnionSlots declares a root's `union` / `union_source_field`
+// slots (types.Request, types.ChainRequest, types.FacetRequest, and
+// pulse_sample's arguments) on its properties: the payload schema's
+// parity holds them in step. Each caller drops them with the root's
+// other hidden slots (dropHiddenSlots) when capability:union is hidden.
+func addUnionSlots(props map[string]any) {
+	props["union"] = map[string]any{
+		"type":        "array",
+		"description": "Several labelled cohorts read as one record stream, in place of cohort (never both). Member schemas merge by the shard-archive rules; a virtual categorical source field (union_source_field, default _source) carries each record's member label.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"cohort": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"filename": map[string]any{"type": "string"},
+						"data_dir": map[string]any{"type": "string"},
+					},
+					"required":             []string{"filename"},
+					"additionalProperties": true,
+				},
+				"label": map[string]any{"type": "string", "description": "The member's value in the source field: non-empty, unique within the union."},
+			},
+			"required":             []string{"cohort", "label"},
+			"additionalProperties": true,
+		},
+	}
+	props["union_source_field"] = map[string]any{"type": "string", "description": "Name of the union's virtual source field (default _source); only with union, and never a member's own field name."}
+}
+
 // addRequestSlotDetail completes a bound Request schema with the slots
 // and per-slot keys the payload schema's Request def declares beyond the
 // core operator arrays: the slot label, zones, response shaping, the
@@ -884,6 +916,7 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 // holds the two in step.
 func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *descx.InstanceSnapshot) {
 	props["label"] = map[string]any{"type": "string", "description": "Slot label. In a pulse_compose batch it names this slot for Compose overlay reference / targets (empty auto-defaults to request_<i+1>); standalone it has no effect."}
+	addUnionSlots(props)
 	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
 	props["time_zone_field"] = zoneFieldSchema("Request-level per-row zone: a categorical field of IANA zone names inherited by every zone-capable slot that sets neither `tz` nor `tz_field`; outranks time_zone (expressions' to_day() still read time_zone).")
 	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses Response.Components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
@@ -2424,16 +2457,19 @@ func enumerationSweepSchema() map[string]any {
 }
 
 // buildSampleSchema describes the pulse_sample tool params.
-func buildSampleSchema(c fieldClassification) (json.RawMessage, error) {
+func buildSampleSchema(c fieldClassification, inst *descx.InstanceSnapshot) (json.RawMessage, error) {
+	props := map[string]any{
+		"path":  map[string]any{"type": "string", "description": "Filesystem path to the .pulse file. Required unless union is set; never both."},
+		"count": map[string]any{"type": "number", "description": "Maximum rows to return (default 10)"},
+	}
+	addUnionSlots(props)
 	outer := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"path":  map[string]any{"type": "string", "description": "Filesystem path to the .pulse file"},
-			"count": map[string]any{"type": "number", "description": "Maximum rows to return (default 10)"},
-		},
-		"required":             []string{"path"},
+		"type":                 "object",
+		"properties":           props,
 		"additionalProperties": true,
 	}
+	// SampleIn spreads types.SampleRequest's union slots at its root.
+	dropHiddenSlots(outer, &types.SampleRequest{}, inst)
 	_ = c
 	return json.Marshal(outer)
 }

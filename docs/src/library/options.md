@@ -254,7 +254,7 @@ The instance resource limits: `RequestTimeout`, `MaxGroups`,
 `MaxCrosstabCells`, `MaxEstimatedMemory`, `MaxMatrixDim`,
 `MaxComposeSlots`, `MaxChainStages`, `MaxJoinBuildRows`,
 `MaxDerivedColumns`, `MaxExpandedItems`, `MaxMMMGeos`,
-`MaxMMMDrawValues`. Per field, `0`
+`MaxMMMDrawValues`, `MaxDisclosureComparisons`. Per field, `0`
 means the default (`pulse.DefaultMaxGroups`, …), `pulse.Unlimited` (`-1`)
 means no limit, any other negative fails `pulse.New` with
 `PULSE_LIMIT_INVALID`. Precedence per field: a non-zero `Options.Limits`

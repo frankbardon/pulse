@@ -78,6 +78,11 @@ func (p *Pulse) Explain(ctx context.Context, req descriptor.ExplainRequest) (*de
 	}
 	return guide.Explain(p.svc.InstanceSnapshot(), req, guide.Checks{
 		Request: func(r *types.Request) (*descriptor.Envelope, error) {
+			if len(r.Union) > 0 {
+				return p.predictUnionRoot(ctx, r.Cohort, r.Union, r.UnionSourceField, false, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+					return descx.PredictUnion(members, r, opts)
+				})
+			}
 			return p.predictCohortRoot(ctx, r.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.Predict(src.rs, r, opts)
 			})
@@ -87,11 +92,21 @@ func (p *Pulse) Explain(ctx context.Context, req descriptor.ExplainRequest) (*de
 			return descx.ValidateComposeWithOptions(c, &opts), nil
 		},
 		Chain: func(c *types.ChainRequest) (*descriptor.Envelope, error) {
+			if len(c.Union) > 0 {
+				return p.predictUnionRoot(ctx, c.Cohort, c.Union, c.UnionSourceField, false, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+					return descx.ValidateChainUnion(members, c, opts)
+				})
+			}
 			return p.predictCohortRoot(ctx, c.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.ValidateChainWithOptions(src.rs, c, opts)
 			})
 		},
 		Facet: func(f *types.FacetRequest) (*descriptor.Envelope, error) {
+			if len(f.Union) > 0 {
+				return p.predictUnionRoot(ctx, f.Cohort, f.Union, f.UnionSourceField, false, func(members []descx.UnionSource, opts *descx.PredictOptions) *descriptor.Envelope {
+					return descx.ValidateFacetUnion(members, f, opts)
+				})
+			}
 			return p.predictCohortRoot(ctx, f.Cohort, "explain", false, func(src *guideCohort, opts *descx.PredictOptions) *descriptor.Envelope {
 				return descx.ValidateFacetWithOptions(src.rs, f, opts)
 			})

@@ -45,7 +45,7 @@ type RowIter interface {
 // driven by the streaming Processor; consumers that adopt it now will
 // pick up that change without a code change on their side.
 func (s *Service) ProcessStream(ctx context.Context, req *types.Request) (RowIter, error) {
-	if req == nil || req.Cohort == nil {
+	if req == nil || (req.Cohort == nil && len(req.Union) == 0) {
 		return nil, pulseerrors.NewCodedError(pulseerrors.SERVICE_VALIDATION,
 			"process_stream request requires a cohort")
 	}

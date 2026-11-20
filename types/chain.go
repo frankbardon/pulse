@@ -15,6 +15,16 @@ type ChainRequest struct {
 	// archive) for stage 0.
 	Cohort *Cohort `json:"cohort"`
 
+	// Union names several labelled cohorts stage 0 reads as one record
+	// stream, in place of Cohort (same rules as Request.Union). Like
+	// Cohort it replaces stage 0's own Request.Union /
+	// Request.UnionSourceField; stages after the first ignore theirs.
+	Union []UnionMember `json:"union,omitempty"`
+
+	// UnionSourceField names Union's virtual source field. Same rules
+	// as Request.UnionSourceField.
+	UnionSourceField string `json:"union_source_field,omitempty"`
+
 	// Stages is the ordered list of pipeline stages. Length must be
 	// >= 1. Each stage's Request is run as a normal Process call
 	// against the synthesized iterator from the prior stage (or

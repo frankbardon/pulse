@@ -3,6 +3,7 @@ package synth_test
 import (
 	stderrors "errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"testing"
@@ -222,8 +223,9 @@ func TestPairArbitration_SetOptionTargetAcrossKinds(t *testing.T) {
 	}
 }
 
-// TestPairArbitration_Validation pins the two new spec refusals and the
-// one new acceptance.
+// TestPairArbitration_Validation pins the spec refusals (an unknown
+// arbitration mode, a negative or non-finite strength floor, a set-set
+// pair with itself) and the within-set acceptance.
 func TestPairArbitration_Validation(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +240,21 @@ func TestPairArbitration_Validation(t *testing.T) {
 	bogus := numericArbitrationSpec(true)
 	bogus.PairArbitration = "loudest"
 	refused(t, bogus, "pair_arbitration")
+
+	for _, f := range []float64{-0.01, math.NaN(), math.Inf(1)} {
+		badFloor := numericArbitrationSpec(true)
+		badFloor.PairStrengthFloor = &f
+		refused(t, badFloor, "pair_strength_floor")
+	}
+	// The key decodes from spec JSON; 0 is a value (the floorless rule),
+	// never "unset", and a negative is refused at parse.
+	zero, err := synth.ParseSpec([]byte(`{"row_count": 1, "fields": [{"name": "x", "type": "f64", "distribution": "constant", "params": {"value": 1}}], "pair_strength_floor": 0}`))
+	if err != nil || zero.PairStrengthFloor == nil || *zero.PairStrengthFloor != 0 {
+		t.Errorf("pair_strength_floor 0 parsed to %v (err %v), want an explicit 0", zero, err)
+	}
+	if _, err := synth.ParseSpec([]byte(`{"row_count": 1, "fields": [{"name": "x", "type": "f64", "distribution": "constant", "params": {"value": 1}}], "pair_strength_floor": -1}`)); err == nil {
+		t.Error("a negative pair_strength_floor must be refused at parse")
+	}
 
 	set := synth.FieldSpec{
 		Name: "s", Type: "set_u8", Distribution: synth.DistSetBernoulli,

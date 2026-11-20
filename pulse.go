@@ -1045,8 +1045,8 @@ func (p *Pulse) process(ctx context.Context, req *Request) (*Response, error) {
 		return nil, argumentError("pulse: process requires a request")
 	}
 	resp, err := p.svc.Process(ctx, req)
-	if err == nil && req != nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil && req != nil {
+		p.touchRequestCohorts(ctx, req)
 	}
 	if err == nil && req != nil {
 		// The effective block: the request's own, else the instance
@@ -1275,8 +1275,8 @@ func (p *Pulse) processChain(ctx context.Context, req *ChainRequest) (*ChainResp
 	if err != nil {
 		return resp, err
 	}
-	if req != nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if req != nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	// The stage requests the service ran, defaults resolved (the
 	// caller's own, or their params-inheriting copies), which is what
@@ -1757,6 +1757,13 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
 	}
+	if len(req.Union) > 0 {
+		env, err := p.predictUnionEnvelope(ctx, req, false)
+		if err != nil {
+			return nil, err
+		}
+		return predictResultOf(env)
+	}
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
 	}
@@ -1834,6 +1841,9 @@ func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.
 	}
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a request")
+	}
+	if len(req.Union) > 0 {
+		return p.predictUnionEnvelope(ctx, req, true)
 	}
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: predict requires a cohort")
@@ -2074,7 +2084,7 @@ type SampleWarning struct {
 // Sample, returning a SampleResult with no Warnings and no
 // transformation applied to the rows.
 func (p *Pulse) SampleWithRequest(ctx context.Context, req *SampleRequest) (*SampleResult, error) {
-	return observed(p, ctx, opSpec{kind: observe.OpSample, cohort: sampleCohort(req)}, func(ctx context.Context) (*SampleResult, error) {
+	return observed(p, ctx, sampleOp(req), func(ctx context.Context) (*SampleResult, error) {
 		return p.sampleWithRequest(ctx, req)
 	})
 }
@@ -2083,15 +2093,24 @@ func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 	if req == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request is required")
 	}
-	if req.Cohort == nil || req.Cohort.Filename == "" {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+	var path string
+	if len(req.Union) == 0 && req.UnionSourceField == "" {
+		if req.Cohort == nil || req.Cohort.Filename == "" {
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+		}
+		path = req.Cohort.Filename
 	}
-	path := req.Cohort.Filename
 	rows, warns, err := p.svc.SampleWithRequest(ctx, req, path)
 	if err != nil {
 		return nil, err
 	}
-	p.touchManaged(ctx, path)
+	if len(req.Union) > 0 {
+		for _, m := range req.Union {
+			p.touchManaged(ctx, resolveCohortPath(m.Cohort))
+		}
+	} else {
+		p.touchManaged(ctx, path)
+	}
 	out := &SampleResult{Rows: rows}
 	if len(warns) > 0 {
 		out.Warnings = make([]SampleWarning, len(warns))
@@ -2323,8 +2342,9 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 	// a request the engine refuses fails the call with its own code and
 	// nothing is written. See fidelityModelRefit.
 	// The disclosure section's working set is charged to the instance's
-	// MaxEstimatedMemory before anything runs, so an over-budget report
-	// refuses the call and writes nothing (internal/synth/disclosure.go).
+	// MaxEstimatedMemory, and its comparisons to MaxDisclosureComparisons,
+	// before anything runs, so an over-budget report refuses the call and
+	// writes nothing (internal/synth/disclosure.go).
 	if err := checkDisclosureBudget(p.fsys, spec, opts, p.Limits()); err != nil {
 		return nil, err
 	}
@@ -2344,7 +2364,7 @@ func (p *Pulse) synthFile(ctx context.Context, spec *SynthSpec, output string, o
 		// the caller supplied (capture-time, translation-time) and the
 		// ones generation itself raised. See mergeFidelityWarnings for
 		// why the fold lives here rather than at the CLI leaf.
-		if err := writeSynthFidelityReport(p.fsys, tagged, opts, spec,
+		if err := writeSynthFidelityReport(ctx, p.fsys, tagged, opts, spec,
 			mergeFidelityWarnings(opts.FidelityWarnings, res.Warnings), refit.fold(ctx, output, opts.SyntheticOnly)); err != nil {
 			return nil, err
 		}
@@ -2406,8 +2426,8 @@ func (p *Pulse) facetSchema(ctx context.Context, req *FacetRequest) (*FacetResul
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: facet schema requires a request")
 	}
 	resp, err := p.svc.FacetSchema(ctx, req)
-	if err == nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	return resp, err
 }
@@ -2462,8 +2482,8 @@ func (p *Pulse) lookup(ctx context.Context, req *LookupRequest) (*LookupResult, 
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: lookup requires a request")
 	}
 	resp, err := p.svc.Lookup(ctx, req)
-	if err == nil && req.Cohort != nil {
-		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
+	if err == nil {
+		p.touchRootCohorts(ctx, req.Cohort, req.Union)
 	}
 	return resp, err
 }

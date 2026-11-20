@@ -179,14 +179,7 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 		return StreamResult[Row]{}, argumentError("pulse: nil request")
 	}
 	ctx, release := p.svc.BoundRequest(ctx)
-	estimated := int64(-1)
-	if req.Cohort != nil && req.Cohort.Filename != "" {
-		if n, err := p.countRecords(ctx, req.Cohort.Filename); err == nil {
-			if n <= uint64(1<<62) {
-				estimated = int64(n)
-			}
-		}
-	}
+	estimated := p.estimatedRecords(ctx, req)
 	// Through the facade, so a `return` block shapes every chunk.
 	iter, err := p.processStream(ctx, req)
 	if err != nil {

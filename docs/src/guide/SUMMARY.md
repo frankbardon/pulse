@@ -44,6 +44,7 @@
     - [cohort-schema-design](skills/cohort-schema-design.md)
     - [cohort-sharding](skills/cohort-sharding.md)
     - [cohort-sidecar-index](skills/cohort-sidecar-index.md)
+    - [cohort-union](skills/cohort-union.md)
     - [cohort-width-overflow](skills/cohort-width-overflow.md)
     - [compose-banner](skills/compose-banner.md)
     - [compose-fits](skills/compose-fits.md)

@@ -37,7 +37,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
 <!-- /feature -->
 <!-- feature: capability:sample -->
-| sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
+| sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 <!-- /feature -->
 
 Each operation's MCP tool: manifest `mcp_tools`.
@@ -97,7 +97,7 @@ When a slot names `field` but omits `type`, the engine infers from schema type. 
 | `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
 <!-- /feature -->
 
-Never override explicit `type` or cross categories; tests / filterers / attrs / features / windows never defaulted. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); never overridden, never across categories. Disable: `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 

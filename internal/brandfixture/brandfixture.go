@@ -5,7 +5,7 @@
 // wave2_shift. The spec (internal/sem/testdata/brand_spec.json) and its
 // seed fix every row: the lavaan oracles' data (OracleCSV,
 // internal/sem/testdata/brand_data.csv) and the examples' brand_survey
-// cohort (internal/examples/fixtures/gen.go) are the same draws.
+// cohort (internal/examples/fixtures, gen.go) are the same draws.
 //
 // Every product is written float64(a*b) so no architecture fuses it
 // into an FMA: the draws and the rounded ratings are the same bits

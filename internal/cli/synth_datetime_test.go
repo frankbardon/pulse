@@ -121,3 +121,57 @@ func TestSynthCLI_DatetimeProfileRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestProfileCreateCLI_TimeZoneFlags: --time-zone reaches
+// ProfileOptions.TimeZone (the datetime section records it and
+// from-profile's emitted spec draws in it with dst_policy earlier), and
+// naming both zone flags is refused.
+func TestProfileCreateCLI_TimeZoneFlags(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	spec := filepath.Join(dir, "spec.json")
+	if err := os.WriteFile(spec, []byte(`{"row_count": 200, "fields": [
+		{"name": "site", "type": "categorical_u8", "distribution": "weighted_categorical", "params": {"values": ["Asia/Tokyo"]}},
+		{"name": "ts", "type": "datetime", "distribution": "uniform_datetime", "params": {
+			"start": "2026-01-05", "end": "2026-02-01", "time_zone": "America/New_York"}}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(dir, "src.pulse")
+	var buf bytes.Buffer
+	if err := runSynthCLI(t, &buf, "from-schema", "--spec", spec, "--output", src, "--seed", "4"); err != nil {
+		t.Fatalf("from-schema: %v (%s)", err, buf.String())
+	}
+	profile := filepath.Join(dir, "profile.json")
+	if err := runProfileCLI(t, &buf, "create", "--input", src, "--output", profile, "--time-zone", "America/New_York"); err != nil {
+		t.Fatalf("profile create --time-zone: %v (%s)", err, buf.String())
+	}
+	if got := readProfileJSON(t, profile).Fields[1].Datetime; got == nil || got.TimeZone != "America/New_York" {
+		t.Fatalf("datetime section %+v, want time_zone America/New_York", got)
+	}
+	emitted := filepath.Join(dir, "emitted.json")
+	if err := runSynthCLI(t, &buf, "from-profile", "--profile", profile, "--source", src, "--output", filepath.Join(dir, "out.pulse"),
+		"--rows", "200", "--seed", "5", "--emit-spec", emitted); err != nil {
+		t.Fatalf("from-profile: %v (%s)", err, buf.String())
+	}
+	raw, err := os.ReadFile(emitted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var es struct {
+		Fields []struct {
+			Params map[string]any `json:"params"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(raw, &es); err != nil {
+		t.Fatal(err)
+	}
+	if p := es.Fields[1].Params; p["time_zone"] != "America/New_York" || p["dst_policy"] != "earlier" {
+		t.Errorf("emitted ts params %v, want time_zone America/New_York + dst_policy earlier", p)
+	}
+
+	if err := runProfileCLI(t, &buf, "create", "--input", src, "--output", filepath.Join(dir, "both.json"),
+		"--time-zone", "UTC", "--time-zone-field", "site"); err == nil {
+		t.Fatal("--time-zone with --time-zone-field accepted, want a refusal")
+	}
+}

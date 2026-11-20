@@ -29,9 +29,21 @@ coded error, `PULSE_LIMIT_EXCEEDED`, with no partial result.
 | `MaxExpandedItems` | `max_expanded_items` | `1,000` | aggregation + matrix items a `for_each` adds; optimize blocks a Compose call's block `for_each` adds | fan-out through an aggregation or matrix `for_each`, or a Compose `optimize` block's; counts only the items a fan-out ADDS (every combination of every fanned-out aggregation and matrix of a request; separately, every fanned-out optimize block of a Compose call; plain items never count, so a request without one never trips it). Windows, features and attributes count toward `MaxDerivedColumns` instead | predict (`certain`) + before any `for_each` item renders, right after the `MaxDerivedColumns` check, on the same request hosts; for optimize blocks, at the top of the Compose expansion (right after the `base` merge, before `MaxComposeSlots`) |
 | `MaxMMMGeos` | `max_mmm_geos` | `50` | distinct geos | a `REG_MMM_BAYES` geo panel (`params.geo`) whose hierarchy grows with every geo (each adds an intercept and a value per pooled term, and its rows to every gradient) | predict (`possible`, from a categorical geo field's dictionary, clamped by the record count; an unsigned-code field has no static bound) + the fit, once it has read its rows and before any sampling |
 | `MaxMMMDrawValues` | `max_mmm_draw_values` | `10,000,000` | draw values | the raw posterior draws a `REG_MMM_BAYES` fit returns (`params.return_draws`): chains x kept draws per chain (`draws` / `draws_thin`, rounded up) x (coefficients + `roi` entries). Over it the fit is refused, never truncated | predict (`certain` on one market, whose count is the spec's alone; `possible` on a geo panel, at the geo field's dictionary bound) + the fit, before any sampling (on a geo panel once it has read its geos) |
+| `MaxDisclosureComparisons` | `max_disclosure_comparisons` | `50,000,000,000` | comparisons | a synth fidelity report's `disclosure` pass running for hours: min(`DisclosureSample`, generated rows) x source rows distance-to-closest-record comparisons (see below) | the `Synth` pre-flight beside the `disclosure` memory charge, before the fidelity-model refit and generation, so nothing is written; the pass also stops between worker chunks when the call's context is cancelled |
 
 `RequestTimeout` and `MaxEstimatedMemory` are opt-in: their default is
-`Unlimited`. There is no output row cap; output volume is the embedder's
+`Unlimited`.
+
+`MaxDisclosureComparisons`' default is measured: 10,000 sampled rows (the
+default `DisclosureSample`) against 5,000,000 source rows, 5 x 10^10
+comparisons over a ten-column cohort (six `f64`, three `categorical_u8`,
+one `date`), took 173 s on a 10-core Apple M1 Max (about 2.9 x 10^8
+comparisons per second across the cores; 10^10 against 1,000,000 source
+rows took 42 s). The figure is a guide, not a promise: more columns cost
+more per comparison, and a sparser source abandons fewer partial sums.
+At the default sample the limit admits a source of up to 5,000,000 rows;
+lower `DisclosureSample` (or the limit) on a slower or shared host, and
+`-1` lifts it. There is no output row cap; output volume is the embedder's
 to manage (see [Response Shaping](response-shaping.md) for what is
 returned).
 

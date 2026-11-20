@@ -327,4 +327,26 @@ func TestFidelityUtility_ChurnTwinPseudoR2RatioIsInTheReport(t *testing.T) {
 	for _, e := range report.Utility.TargetRates {
 		t.Logf("%s by %s: spread %.3f → %.3f (ratio %.2f) %s", e.Target, e.By, e.SourceSpread, e.SyntheticSpread, e.SpreadRatio, e.Verdict)
 	}
+	// age carries no true effect: its ratio divides by noise, so the
+	// report flags it unreliable and z reads the gap as noise.
+	var age *synth.UtilityCoefficient
+	for _, c := range fit.Coefficients {
+		if c.Term == "age" {
+			age = c
+		}
+	}
+	if age == nil {
+		t.Fatalf("no age coefficient in %+v", fit.Coefficients)
+	}
+	if age.Z == nil || age.Difference == nil || age.RatioReliable == nil {
+		t.Fatalf("age = %+v, want difference, z and ratio_reliable", age)
+	}
+	t.Logf("age source %.5f (se %.5f) twin %.5f (se %.5f) ratio %.2f difference %.5f z %.3f reliable %v",
+		age.Source, age.SourceStdError, age.Synthetic, age.SyntheticStdError, age.Ratio, *age.Difference, *age.Z, *age.RatioReliable)
+	if *age.RatioReliable {
+		t.Errorf("age ratio_reliable = true, want false (|%.5f| ≤ SE %.5f)", age.Source, age.SourceStdError)
+	}
+	if math.IsNaN(*age.Z) || math.Abs(*age.Z) >= 3 {
+		t.Errorf("age z = %v, want finite and small", *age.Z)
+	}
 }

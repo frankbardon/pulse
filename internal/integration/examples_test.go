@@ -17,6 +17,7 @@ import (
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/synth"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -69,11 +70,39 @@ func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string)
 		t.Fatalf("index experiment.pulse on id: %v", err)
 	}
 
+	// The synthetic twin of customers.pulse that the union example
+	// (tests/38_union_source_vs_twin.json) compares with its source —
+	// fixtures/build.sh writes the same one.
+	buildCustomersTwinFixture(t, p, tmp)
+
 	// The saved population compose/06_population_score.json loads:
 	// run compose/05_vector_fit_save.json with its cohorts and its
 	// `save` path redirected into tmp (p's filesystem root is the OS
 	// root, so a relative save would land in the working directory).
 	seedExamplePopulation(t, p, tmp)
+}
+
+// customersTwinSeed pins the twin fixture's generation; build.sh passes
+// the same --seed.
+const customersTwinSeed = 7
+
+// buildCustomersTwinFixture writes tmp/customers_twin.pulse: a profile
+// of customers.pulse, its default spec at the source's row count, and a
+// --synthetic-only generation (the source's schema, generated rows
+// only) — the shareable twin a union compares with its source.
+func buildCustomersTwinFixture(t *testing.T, p *pulse.Pulse, tmp string) {
+	t.Helper()
+	ctx := context.Background()
+	src := filepath.Join(tmp, "customers.pulse")
+	prof, err := p.Profile(ctx, src, pulse.ProfileOptions{})
+	if err != nil {
+		t.Fatalf("profile customers.pulse: %v", err)
+	}
+	spec, _ := synth.SpecFromProfile(prof, 200)
+	if _, err := p.Synth(ctx, spec, filepath.Join(tmp, "customers_twin.pulse"),
+		pulse.SynthOptions{Seed: customersTwinSeed, SourceCohort: src, SyntheticOnly: true}); err != nil {
+		t.Fatalf("synth customers_twin.pulse: %v", err)
+	}
 }
 
 // examplePopulationSave is compose/05's `save` path (relative to the
@@ -124,10 +153,16 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) *puls
 	if err := json.Unmarshal(body, &req); err != nil {
 		t.Fatalf("parse %s: %v", examplePath, err)
 	}
-	if req.Cohort == nil {
+	switch {
+	case req.Cohort != nil:
+		req.Cohort.DataDir = dataDir
+	case len(req.Union) > 0:
+		for _, m := range req.Union {
+			m.Cohort.DataDir = dataDir
+		}
+	default:
 		t.Fatalf("%s: missing cohort", examplePath)
 	}
-	req.Cohort.DataDir = dataDir
 
 	predictResult, err := p.Predict(context.Background(), &req)
 	if err != nil {

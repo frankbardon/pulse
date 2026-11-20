@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
@@ -32,6 +33,11 @@ type archiveFile struct {
 	size int64
 	ra   io.ReaderAt
 	arch *encx.Archive
+	// union, when set, makes this the scan handle of a union cohort
+	// (Request.Union): its "shards" are the members' flattened shards,
+	// served by shardRows in the merged layout; every other field is
+	// zero.
+	union *unionScan
 }
 
 // openArchiveFile opens path on fsys and parses its central directory.
@@ -77,7 +83,15 @@ func archiveFromFile(f afero.File, path string) (*archiveFile, error) {
 
 // Close releases the archive's file handle.
 func (a *archiveFile) Close() error {
-	if a == nil || a.f == nil {
+	if a == nil {
+		return nil
+	}
+	if a.union != nil {
+		err := a.union.Close()
+		a.union = nil
+		return err
+	}
+	if a.f == nil {
 		return nil
 	}
 	err := a.f.Close()
@@ -128,6 +142,39 @@ func (a *archiveFile) shardReader(name string) (io.Reader, error) {
 		return nil, err
 	}
 	return newSectionScanner(sect), nil
+}
+
+// shardRows returns a reader positioned at the first record of the
+// named shard, in the layout the scan's schema decodes: a stored
+// shard's header is read and its schema block read layout-only (the
+// canonical schema decodes the rows, so the shard's own dictionaries
+// are read past, never allocated); for a union scan handle, the named
+// member shard's records rewritten into the merged layout
+// (unionScan.rows).
+func (a *archiveFile) shardRows(name string) (io.Reader, error) {
+	if a.union != nil {
+		return a.union.rows(name)
+	}
+	r, err := a.shardReader(name)
+	if err != nil {
+		return nil, err
+	}
+	return r, skipShardPrelude(r, name)
+}
+
+// skipShardPrelude reads past a shard's header and schema block
+// (layout-only), leaving r at its first record.
+func skipShardPrelude(r io.Reader, name string) error {
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard %q header", name))
+	}
+	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard %q schema", name))
+	}
+	return nil
 }
 
 // sectionScanner is a bufio.Reader over a SectionReader that also

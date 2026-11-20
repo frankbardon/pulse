@@ -2,21 +2,21 @@
   "data": [
     {
       "GROUP_KMEANS_age": "cluster_1",
-      "customers": 97,
-      "mean_age": 35.18,
-      "mean_income": 3.819e+04
+      "customers": 86,
+      "mean_age": 33.29,
+      "mean_income": 3.304e+04
     },
     {
       "GROUP_KMEANS_age": "cluster_2",
-      "customers": 79,
-      "mean_age": 63.57,
-      "mean_income": 3.965e+04
+      "customers": 85,
+      "mean_age": 64.35,
+      "mean_income": 3.664e+04
     },
     {
       "GROUP_KMEANS_age": "cluster_3",
-      "customers": 24,
-      "mean_age": 57.88,
-      "mean_income": 1.155e+05
+      "customers": 29,
+      "mean_age": 48.52,
+      "mean_income": 9.655e+04
     }
   ],
   "metadata": {

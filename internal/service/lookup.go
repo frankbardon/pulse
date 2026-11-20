@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -98,7 +99,17 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	if req == nil {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a request")
 	}
-	if req.Cohort == nil {
+	// A union slot the instance hides (capability:union) is an unknown
+	// field, before any union rule judges it.
+	if err := s.slotRefusal(req); err != nil {
+		return nil, nil, err
+	}
+	// The union shape rules (a source field without a union, a cohort
+	// beside one, a bad member or label) before anything is opened.
+	if err := descx.UnionShapeRefusalOf(req.Cohort, req.Union, req.UnionSourceField); err != nil {
+		return nil, nil, err
+	}
+	if req.Cohort == nil && len(req.Union) == 0 {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a cohort")
 	}
 	components := req.KeyComponents()
@@ -112,6 +123,10 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 			return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "lookup requires a non-empty field")
 		}
 		keyFieldNames[i] = c.Field
+	}
+
+	if len(req.Union) > 0 {
+		return s.lookupUnion(ctx, req, keyFieldNames)
 	}
 
 	path := resolveCohortPath(req.Cohort)
@@ -465,4 +480,105 @@ func openRecordLocator(fsys afero.Fs, path string, schema *encoding.Schema, tota
 		TotalRecords:      totalRecords,
 	}
 	return f, loc, nil
+}
+
+// lookupUnion is lookupRecords' union arm. A union reads no sidecar
+// index (it has none: nothing is written for one, and a member's own
+// index addresses that member's rows alone), so it SCANS: every record
+// of the merged stream, in union order (members in declared order, each
+// in its own record order), is matched on its composite key bytes over
+// the merged schema — the bytes a single-file index would hold — and
+// the multiplicity rule applies to the matches in that order. The key
+// fields, the return columns and the key literals resolve over the
+// merged schema (a categorical literal against the merged dictionary;
+// the virtual source field is a key like any other), with the refusals
+// the single-file path raises; a key no record carries is
+// PULSE_LOOKUP_NOT_FOUND. Details name no cohort file ("").
+func (s *Service) lookupUnion(ctx context.Context, req *types.LookupRequest, keyFieldNames []string) ([]lookupMatch, []string, error) {
+	cohort, err := s.openUnion(ctx, req.Union, req.UnionSourceField)
+	if err != nil {
+		return nil, nil, err
+	}
+	schema := cohort.Schema()
+	keyFields := make([]*encoding.Field, len(keyFieldNames))
+	for i, name := range keyFieldNames {
+		f := schema.Field(name)
+		if f == nil {
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+				"lookup key field not found in schema",
+				map[string]any{"field": name})
+		}
+		keyFields[i] = f
+	}
+	returnCols, err := resolveLookupReturnColumns(schema, req.ReturnColumns)
+	if err != nil {
+		return nil, nil, err
+	}
+	components := req.KeyComponents()
+	literals := make([]string, len(components))
+	for i, c := range components {
+		literals[i] = c.Value
+	}
+	keyBytes, err := processing.ResolveCompositeLookupKeyBytes(keyFields, literals)
+	if err != nil {
+		return nil, nil, err
+	}
+	iter := s.newScanIter(cohort, "")
+	defer iter.Close()
+	var out []lookupMatch
+	poll := processing.NewCtxPoller(ctx)
+	for iter.Next() {
+		if err := poll.Poll(); err != nil {
+			return nil, nil, err
+		}
+		rec := iter.Record()
+		got, ok := processing.CompositeKeyFieldOnWireBytes(rec, keyFields)
+		if !ok || !bytes.Equal(got, keyBytes) {
+			continue
+		}
+		out = append(out, lookupMatch{rec: detachRecord(rec), schema: schema})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, nil, err
+	}
+	if len(out) == 0 {
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
+			"no record matches the requested key",
+			map[string]any{"cohort": "", "fields": keyFieldNames, "values": literals})
+	}
+	keepN, err := lookupMultiplicityKeep(req.Multiplicity, len(out), "", keyFieldNames, literals)
+	if err != nil {
+		return nil, nil, err
+	}
+	return out[:keepN], returnCols, nil
+}
+
+// detachRecord copies a scanned record so it outlives the iterator's
+// buffer reuse: every value, null, wide value and exact u64 word.
+func detachRecord(src *processing.Record) *processing.Record {
+	fields := src.Schema().Fields
+	values := make(map[string]float64, len(fields))
+	nulls := make(map[string]bool)
+	wide := make(map[string]any)
+	for _, f := range fields {
+		if src.IsNull(f.Name) {
+			nulls[f.Name] = true
+		}
+		if v, ok := src.NumericValue(f.Name); ok {
+			values[f.Name] = v
+		}
+		if w, ok := src.WideValue(f.Name); ok {
+			wide[f.Name] = w
+		}
+	}
+	rec := processing.NewRecordWithWide(src.Schema(), values, nulls, wide)
+	for _, f := range fields {
+		if f.Type != encoding.FieldTypeU64 {
+			continue
+		}
+		if u, ok := src.Uint64Value(f.Name); ok {
+			rec.SetExactU64(f.Name, u)
+		}
+	}
+	return rec
 }

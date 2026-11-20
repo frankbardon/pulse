@@ -518,13 +518,14 @@ func (e *explainer) explainRequest(r *types.Request) error {
 	e.absorb(env, "")
 	e.advisories(env)
 	e.requestSteps("", r, e.defaults(env, nil))
-	e.res.Summary = "This request " + readsCohort(r.Cohort) + e.runsPhrase() + "."
+	e.res.Summary = "This request " + readsSource(r.Cohort, r.Union) + e.runsPhrase() + "."
 	return nil
 }
 
-// checkRequest predicts r when it names a cohort and a check is wired.
+// checkRequest predicts r when it names a cohort (or a union) and a
+// check is wired.
 func (e *explainer) checkRequest(r *types.Request) (*descriptor.Envelope, error) {
-	if r.Cohort == nil || e.checks.Request == nil {
+	if !namesSource(r.Cohort, r.Union) || e.checks.Request == nil {
 		e.uncheckedN++
 		return nil, nil
 	}
@@ -536,6 +537,21 @@ func readsCohort(c *types.Cohort) string {
 		return ""
 	}
 	return "reads " + tick(c.Filename) + " and "
+}
+
+// readsSource is readsCohort, or for a union "reads a union of N
+// cohorts and ".
+func readsSource(c *types.Cohort, union []types.UnionMember) string {
+	if len(union) > 0 {
+		return "reads a union of " + count(len(union), "cohort", "cohorts") + " and "
+	}
+	return readsCohort(c)
+}
+
+// namesSource reports whether a root names what it reads: a cohort or
+// a union (each checked by its predict).
+func namesSource(c *types.Cohort, union []types.UnionMember) bool {
+	return c != nil || len(union) > 0
 }
 
 // runsPhrase counts the steps by role: "runs 1 filter and 2
@@ -906,7 +922,7 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 // explainChain is the chain root: stage 0 reads the cohort, each later
 // stage the rows the stage before it returns.
 func (e *explainer) explainChain(c *types.ChainRequest) error {
-	if c.Cohort != nil && e.checks.Chain != nil {
+	if namesSource(c.Cohort, c.Union) && e.checks.Chain != nil {
 		env, err := e.checks.Chain(c)
 		if err != nil {
 			return err
@@ -922,9 +938,10 @@ func (e *explainer) explainChain(c *types.ChainRequest) error {
 		}
 		prefix := "stages[" + strconv.Itoa(i) + "].request."
 		var inferred map[string]string
-		if i == 0 && c.Cohort != nil && e.checks.Request != nil {
+		if i == 0 && namesSource(c.Cohort, c.Union) && e.checks.Request != nil {
 			first := *st.Request
 			first.Cohort = c.Cohort
+			first.Union, first.UnionSourceField = c.Union, c.UnionSourceField
 			env, err := e.checks.Request(&first)
 			if err != nil {
 				return err
@@ -946,7 +963,7 @@ func (e *explainer) explainChain(c *types.ChainRequest) error {
 	if laterUntyped {
 		e.caveat("A stage after the first leaves an operator to smart defaults; it is inferred from the previous stage's output when the chain runs.")
 	}
-	e.res.Summary = "This chain " + readsCohort(c.Cohort) + "runs " + count(len(c.Stages), "stage", "stages") +
+	e.res.Summary = "This chain " + readsSource(c.Cohort, c.Union) + "runs " + count(len(c.Stages), "stage", "stages") +
 		", each on the rows the stage before it returns, and in all " + e.runsPhrase() + "."
 	return nil
 }
@@ -978,7 +995,7 @@ func stageName(s types.StageRef) string {
 // explainFacet is the facet root: per-field summaries, narrowed by
 // filters, decorated by overlays.
 func (e *explainer) explainFacet(f *types.FacetRequest) error {
-	if f.Cohort != nil && e.checks.Facet != nil {
+	if namesSource(f.Cohort, f.Union) && e.checks.Facet != nil {
 		env, err := e.checks.Facet(f)
 		if err != nil {
 			return err

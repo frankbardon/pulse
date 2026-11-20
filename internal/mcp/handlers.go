@@ -140,12 +140,28 @@ func HandleProcessChain(ctx context.Context, p *pulse.Pulse, in ProcessChainIn) 
 
 // HandleSample runs pulse_sample: returns up to Count rows (default 10).
 func HandleSample(ctx context.Context, p *pulse.Pulse, in SampleIn) (SampleOut, error) {
-	if in.Path == "" {
-		return SampleOut{}, errMissingArg("path")
-	}
 	count := 10
 	if in.Count > 0 {
 		count = in.Count
+	}
+	if len(in.Union) > 0 || in.UnionSourceField != "" {
+		// A union (or a stray source field): the request form, whose
+		// union rules refuse a path beside it as a cohort beside a
+		// union.
+		req := &pulse.SampleRequest{Union: in.Union, UnionSourceField: in.UnionSourceField, N: count}
+		if in.Path != "" {
+			req.Cohort = &types.Cohort{Filename: in.Path}
+		}
+		res, err := p.SampleWithRequest(ctx, req)
+		if err != nil {
+			return SampleOut{}, err
+		}
+		out := SampleOut{Rows: make([]map[string]any, len(res.Rows))}
+		copy(out.Rows, res.Rows)
+		return out, nil
+	}
+	if in.Path == "" {
+		return SampleOut{}, errMissingArg("path")
 	}
 	rows, err := p.Sample(ctx, in.Path, count)
 	if err != nil {

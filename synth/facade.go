@@ -58,15 +58,27 @@ const (
 	PairArbitrationDeclared = isynth.PairArbitrationDeclared
 )
 
+// DefaultPairStrengthFloor is strength arbitration's noise floor when
+// Spec.PairStrengthFloor is unset, on the Cramér's V scale (a numeric
+// target's ε² is compared against its square): a contested target whose
+// strongest bidder is below it goes to the first-declared bidder.
+const DefaultPairStrengthFloor = isynth.DefaultPairStrengthFloor
+
 // Effect-size measures, as they appear on FieldEffectSize.Measure.
 const (
 	EffectMeasureCohensD  = isynth.EffectMeasureCohensD
 	EffectMeasureCramersV = isynth.EffectMeasureCramersV
 )
 
-// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names: a
-// datetime field's hour-of-day and weekday bins are read in UTC.
+// TimeShapeClockUTC is the clock TimeShapeFidelity.Clock names when a
+// datetime field names no zone: its hour-of-day, weekday and month bins
+// are read in UTC.
 const TimeShapeClockUTC = isynth.TimeShapeClockUTC
+
+// TimeShapeClockLocal is the clock TimeShapeFidelity.Clock names when a
+// datetime field's spec names a zone: the bins are read in
+// TimeShapeFidelity.TimeZone, or per row in TimeShapeFidelity.TimeZoneField.
+const TimeShapeClockLocal = isynth.TimeShapeClockLocal
 
 // Utility verdicts, as they appear on TargetRateFidelity.Verdict, and
 // fit statistics, as they appear on UtilityModelFit.Statistic.
@@ -266,8 +278,9 @@ type CorrelationStat = isynth.CorrelationStat
 // histogram for Mode-A reconstruction.
 type DateProfile = isynth.DateProfile
 
-// DatetimeProfile is a datetime column's capture: its UTC day range and
-// UTC weekday (Monday first) and hour histograms.
+// DatetimeProfile is a datetime column's capture: its day range,
+// weekday (Monday first), hour and month histograms on the capture
+// clock — UTC, or the TimeZone / TimeZoneField it records.
 type DatetimeProfile = isynth.DatetimeProfile
 
 // DiscreteLevel is one observed integer level and its support.
@@ -313,9 +326,10 @@ type FidelityReport = isynth.FidelityReport
 // categorical one), with its Cohen (1988) magnitude label.
 type FieldEffectSize = isynth.FieldEffectSize
 
-// TimeShapeFidelity is a datetime field's cycle beside its KS entry:
-// the total variation distance between the source and synthetic
-// hour-of-day and weekday histograms (FieldFidelity.Shape).
+// TimeShapeFidelity is a datetime or date field's cycle beside its KS
+// entry: the total variation distance between the source and synthetic
+// hour-of-day, weekday and calendar-month histograms
+// (FieldFidelity.Shape). HourTVD is nil on a date, which has no hour.
 type TimeShapeFidelity = isynth.TimeShapeFidelity
 
 // FieldContinuation is one field's run-continuation rate.

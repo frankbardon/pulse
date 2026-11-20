@@ -36,6 +36,8 @@ const (
 	DefaultMaxExpandedItems   int64         = limits.DefaultMaxExpandedItems
 	DefaultMaxMMMGeos         int64         = limits.DefaultMaxMMMGeos
 	DefaultMaxMMMDrawValues   int64         = limits.DefaultMaxMMMDrawValues
+
+	DefaultMaxDisclosureComparisons int64 = limits.DefaultMaxDisclosureComparisons
 )
 
 // Limits returns a copy of the instance's effective resource limits:

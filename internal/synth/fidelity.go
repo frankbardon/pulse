@@ -429,6 +429,15 @@ type TestRunner func(physicalSchema, presentedSchema *encoding.Schema, records [
 // (attachMarginalEffectSizes, internal/synth/fidelity_effect.go): at most
 // one extra decode pass, for the numeric fields' moments.
 func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRows, syntheticRows int, run TestRunner) *FidelityReport {
+	return BuildFidelityReportForSpec(mergedSchema, records, sourceRows, syntheticRows, run, nil)
+}
+
+// BuildFidelityReportForSpec is BuildFidelityReport with the spec the
+// synthetic partition was generated from: each datetime's shape is read
+// on that spec field's clock (`time_zone` / `time_zone_field`; see
+// attachTimeShapes) rather than on UTC. A nil spec, or a spec whose
+// datetimes name no zone, is BuildFidelityReport byte for byte.
+func BuildFidelityReportForSpec(mergedSchema *encoding.Schema, records []byte, sourceRows, syntheticRows int, run TestRunner, spec *Spec) *FidelityReport {
 	presented := SyntheticAsCategoricalSchema(mergedSchema)
 
 	report := &FidelityReport{SourceRows: sourceRows, SyntheticRows: syntheticRows}
@@ -462,7 +471,7 @@ func BuildFidelityReport(mergedSchema *encoding.Schema, records []byte, sourceRo
 		report.Fields = append(report.Fields, entry)
 	}
 	attachMarginalEffectSizes(report, mergedSchema, records)
-	attachTimeShapes(report, mergedSchema, records)
+	attachTimeShapes(report, mergedSchema, records, spec)
 	return report
 }
 

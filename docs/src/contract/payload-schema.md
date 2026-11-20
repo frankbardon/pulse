@@ -336,6 +336,63 @@ same gate): each sweep slot's request then takes the axis value as
 value). `FilterToFileRequest` (a library-only Go root, not a payload
 root) carries a `params` of its own with the same rules.
 
+## Union slots
+
+`union` on `Request` — and, with the same rules, on `ChainRequest`
+(stage 0's source), `FacetRequest`, `SampleRequest` and `LookupRequest`
+(a lookup over a union scans: it reads no sidecar index) —
+(`#/$defs/UnionMember` `{cohort, label}`, both required) reads several
+labelled cohorts as ONE record stream in place of `cohort`; `union_source_field` (a string, default `_source`) names
+the virtual categorical source field the union adds — one dictionary
+entry per label, in declared order, so `groups: [{field: "_source"}]`
+splits by member. Both are additive: `format_version` stays `"1.1"` and
+a request without them is byte-identical. Rules the schema cannot say,
+judged by predict and the runtime alike before any member is read:
+`cohort` and `union` together is `PULSE_UNION_COHORT_CONFLICT`; a member
+without a cohort filename `PULSE_UNION_MEMBER_INVALID`; an empty or
+repeated label `PULSE_UNION_LABEL_INVALID` (`details.reason` `empty` /
+`duplicate`); `union_source_field` without a `union`, or naming a field
+a member carries, `PULSE_UNION_SOURCE_FIELD_INVALID` (`details.reason`
+`without_union` / `collision`); more than 65,535 members — or shards,
+once each shard-archive member is flattened —
+`PULSE_UNION_MEMBER_LIMIT`. Member schemas merge by the shard-archive
+rules (set fields widen; names, types, vector dims, categorical widths,
+nullability and the default zone field must agree; dictionaries union
+within their width): a pair an archive refuses is
+`PULSE_UNION_SCHEMA_MISMATCH`, carrying the archive refusal's details
+(`details.dimension` where it names one) plus `archive_code`, `member`
+and `label`. A `union` key on a join (its right side) is
+`PULSE_UNION_JOIN_RIGHT`; one inside a union member is
+`PULSE_UNION_NESTED`. Predict reads each member's header and schema
+only and reports `record_count` (the members' total) and `union`
+(`[{label, cohort, record_count, shards}]`).
+
+**Which surfaces execute a union.** Process and its stream
+(`--stream`, `ProcessStream`), every Compose slot (serial and
+parallel), a ProcessChain's stage 0 (the chain root's `union`; later
+stages read the stage before), FacetSchema, Sample (the request form —
+`SampleWithRequest`, MCP `pulse_sample`), Materialize (the source field
+is written as a column, derived columns are described "derived from
+union"), Lookup (always a scan of the members in declared order; no
+sidecar index is read or written) and a join's LEFT side (the union is
+the request's own cohort; the join's right names one cohort). Every
+predict root (Predict, PredictCompose, PredictChain, PredictFacet,
+PredictMaterialize) sizes a union the same way, header and schema only.
+
+**Refused.** A union on a join's RIGHT side
+(`PULSE_UNION_JOIN_RIGHT`) and a nested union — a member, or a member's
+cohort, carrying its own `union` (`PULSE_UNION_NESTED`) — are refused
+when the request is decoded, located by `details.path` like any
+unknown key. A single-source predict handed a union (the library
+`descriptor`-level predict over one reader) is `PULSE_UNION_UNSUPPORTED`.
+
+**Feature gate.** Both keys ride `capability:union` on every root: an
+instance whose feature profile omits it has no `union` /
+`union_source_field` property and no `UnionMember` def, refuses either
+key (`union_source_field` alone included) as `PULSE_REQUEST_UNKNOWN_FIELD`,
+lists no `PULSE_UNION_*` code, and reads a `union` key on a join as a
+plain unknown key.
+
 ## Materialize output slot
 
 `output` on `Request` (`#/$defs/MaterializeOutput`) lays out the cohort

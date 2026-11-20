@@ -1457,6 +1457,20 @@ type Cohort struct {
 	DataDir string `json:"data_dir,omitempty"`
 }
 
+// DefaultUnionSourceField is the virtual source field a Request.Union
+// adds when Request.UnionSourceField is empty.
+const DefaultUnionSourceField = "_source"
+
+// UnionMember is one labelled cohort of a Request.Union.
+type UnionMember struct {
+	// Cohort is the member cohort, resolved exactly as Request.Cohort.
+	Cohort *Cohort `json:"cohort"`
+
+	// Label is the member's value in the union's source field. Required,
+	// non-empty and unique within the union (PULSE_UNION_LABEL_INVALID).
+	Label string `json:"label"`
+}
+
 // Request is the primary processing request type.
 // It specifies a cohort, filters, aggregations, attributes, groups, and output config.
 type Request struct {
@@ -1482,6 +1496,27 @@ type Request struct {
 
 	// Cohort identifies the .pulse file to process.
 	Cohort *Cohort `json:"cohort,omitempty"`
+
+	// Union reads several labelled cohorts as ONE record stream, in
+	// declared order, in place of Cohort — the two are mutually
+	// exclusive (PULSE_UNION_COHORT_CONFLICT). Each member is a cohort
+	// path (a single file, a shard archive — flattened into its shards —
+	// or an `archive#shard.pulse` anchor) and a label. The members'
+	// schemas merge under the shard-archive rules (sets widen,
+	// nullability and the default zone field never; any other divergence
+	// is PULSE_UNION_SCHEMA_MISMATCH carrying the archive's
+	// details.dimension), and the merged schema gains a virtual
+	// categorical source field (UnionSourceField) whose dictionary is the
+	// labels in declared order, so any grouper, filterer, test or
+	// regression can split by member. Absent (nil or empty) leaves the
+	// request byte-identical, Request.Hash() included.
+	Union []UnionMember `json:"union,omitempty"`
+
+	// UnionSourceField names the virtual source field a Union adds.
+	// Empty means DefaultUnionSourceField (`_source`). Set without a
+	// Union, or naming a field a member already carries, it is refused
+	// (PULSE_UNION_SOURCE_FIELD_INVALID).
+	UnionSourceField string `json:"union_source_field,omitempty"`
 
 	// Filterers is the list of filters to apply before processing.
 	Filterers []*Filterer `json:"filterers,omitempty"`

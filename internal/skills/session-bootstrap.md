@@ -30,7 +30,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 
 | Question | Skill |
 |---|---|
-| Which skill to fetch for an operator prefix, manifest entry, request / response slot or CLI leaf; reading `data.components` on first sight | `session-skill-routing` |
+| Which skill fits an operator prefix, manifest entry, request / response slot or CLI leaf; first read of `data.components` | `session-skill-routing` |
 | Excel / SPSS read flags, parent groups on the managed import path, `.sav` write flags, `--float f32` | `session-format-flags` |
 <!-- feature: capability:synth -->
 | `pulse profile create` and `pulse synth from-profile` flags | `session-synth-flags` |
@@ -62,10 +62,10 @@ A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is be
 
 Managed imports (`PULSE_IMPORTS_DIR`) keep each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `zone_field`, `--vector` folds); a handle never changes zone — re-import with `overwrite: true`. See `time-zones`.
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips listing `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (`--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`, OTLP `OTEL_*`), worker caps (`--shard-workers`, `--decode-workers`) and `--memory-limit` never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips listing `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (`--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host flags (`--log-level`, `--metrics-addr`, OTLP `OTEL_*`, worker caps, `--memory-limit`) never reach tool responses.
 
 Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
 
 ## Cross-links
 
-`request-envelope` (envelope, slot keys, defaults, streamability)<!-- feature: capability:synth --> · `synthetic-data` (synth modes, multi-predictor models, correlations, determinism)<!-- /feature --><!-- feature: capability:synth --> · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields)<!-- /feature --> · `response-components` · `response-shaping` (`return`: trim a response, cap float digits) · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold start)<!-- feature: io_format:spss --> · `spss-cohorts`<!-- /feature -->.
+`request-envelope` (envelope, slot keys, defaults, streamability)<!-- feature: capability:union --> · `cohort-union` (several cohorts read as one)<!-- /feature --><!-- feature: capability:synth --> · `synthetic-data` (synth modes, multi-predictor models, correlations, determinism)<!-- /feature --><!-- feature: capability:synth --> · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields)<!-- /feature --> · `response-components` · `response-shaping` (`return`: trim a response, cap float digits) · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold start)<!-- feature: io_format:spss --> · `spss-cohorts`<!-- /feature -->.

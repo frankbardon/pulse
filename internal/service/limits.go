@@ -166,7 +166,8 @@ func (s *Service) composeSlotsPreflight(slots int) error {
 // as none: the bound is advisory, so the estimate falls back to the
 // value-width / record bound rather than failing the run.
 func (s *Service) archiveDistinct(cohort *Cohort) *encx.ArchiveDistinct {
-	if !s.memoryBounded() || cohort.fs == nil {
+	// A union records no distinct counts (predict reads none for one).
+	if !s.memoryBounded() || cohort.fs == nil || cohort.union != nil {
 		return nil
 	}
 	a, err := openArchiveFile(cohort.fs, cohort.path)

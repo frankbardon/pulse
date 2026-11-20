@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:0139f0e6d494bc8b0b2bac621377c89751780645c8971c7e6dde5ff6099dd44c",
+  "$comment": "feature_set_digest: fs1:ffcf4ed11c937bfade2a33a0720e9f2923cf5a52fc675f001d3fba02d40d8377",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -832,6 +832,18 @@
             "array",
             "null"
           ]
+        },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
         }
       },
       "required": [
@@ -2198,6 +2210,18 @@
         },
         "time_zone_field": {
           "type": "string"
+        },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
         }
       },
       "required": [
@@ -2911,6 +2935,18 @@
             "array",
             "null"
           ]
+        },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
         },
         "value": {
           "type": "string"
@@ -6788,6 +6824,18 @@
         "time_zone_field": {
           "type": "string"
         },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
+        },
         "vectors": {
           "items": {
             "$ref": "#/$defs/VectorSpec"
@@ -7514,6 +7562,18 @@
         },
         "n": {
           "type": "integer"
+        },
+        "union": {
+          "items": {
+            "$ref": "#/$defs/UnionMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "union_source_field": {
+          "type": "string"
         }
       },
       "required": [
@@ -8021,6 +8081,22 @@
       ],
       "type": "string"
     },
+    "UnionMember": {
+      "additionalProperties": false,
+      "properties": {
+        "cohort": {
+          "$ref": "#/$defs/Cohort"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cohort",
+        "label"
+      ],
+      "type": "object"
+    },
     "ValidationCertification": {
       "additionalProperties": false,
       "properties": {
@@ -8439,4 +8515,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 59a9a5698b62cb0baa40150abe5ebe53c7c410be5c71038d7330f815730e8083
+// golden-hash: c63513f70bc9736cee581d81f34946db30fa6b38d2fe20e81b35e58900bb346c

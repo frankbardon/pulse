@@ -454,7 +454,7 @@ func composeSlotSizes(slot *types.Request, label string, plan *MultiplicityPlan,
 	if rerr != nil {
 		return nil
 	}
-	schema, refusals := validatorRequestSchema(slot, cohortSchemaFor(slot.Cohort, opts), opts)
+	schema, refusals := validatorRequestSchema(slot, requestSchemaFor(slot, opts), opts)
 	if schema == nil || len(refusals) > 0 {
 		return nil
 	}
@@ -463,7 +463,7 @@ func composeSlotSizes(slot *types.Request, label string, plan *MultiplicityPlan,
 		return nil
 	}
 	in := returnSizeInputs{req: req, schema: schema, inst: inst, components: !opts.componentsDisabled(req)}
-	if counts := opts.cohortCounts(slot.Cohort); counts.Records >= 0 {
+	if counts := requestCounts(slot, opts); counts.Records >= 0 {
 		in.records, in.recordsKnown = counts.Records, true
 	}
 	if plan != nil {

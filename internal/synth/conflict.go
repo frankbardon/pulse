@@ -147,7 +147,10 @@ type conflictResolution struct {
 // later one — on a customer cohort, a noise `region` conditioned every
 // product option while `plan` and the other options that really drive
 // them were dropped. "declared" keeps the old rule for an author who
-// ordered the pairs on purpose. Capture order is still a topological
+// ordered the pairs on purpose. A target whose strongest bidder is below
+// the noise floor (Spec.PairStrengthFloor) goes to the first-declared,
+// since which noise pair measured larger is a coin flip of the sample;
+// see pairWinners. Capture order is still a topological
 // order for whichever pairs win: a pair's source is declared before its
 // target, so the winner for the source runs before any pair reading it.
 //
@@ -196,6 +199,18 @@ func resolveConflicts(s *Spec) conflictResolution {
 		res.warnings = append(res.warnings, fmt.Sprintf(
 			"conditional relationship conflict: %s is already claimed by %s; dropping %s",
 			t, owner, dropped))
+	}
+
+	// floorConflict is conflict for a pair that lost under the strength
+	// floor: no bidder for its target measured an association above
+	// floor, so the first-declared one kept it. The warning says so —
+	// otherwise a sub-floor drop reads like a strength loss.
+	floorConflict := func(t claimTarget, dropped string, floor float64) {
+		owner, _ := claimedBy(t)
+		res.warnings = append(res.warnings, fmt.Sprintf(
+			"conditional relationship conflict: %s is already claimed by %s; dropping %s "+
+				"(every bidder is below the pair strength floor %g, so the first-declared kept it)",
+			t, owner, dropped, floor))
 	}
 
 	// PRIORITY 0: structural rules (Spec.Rules). The rule pass is the
@@ -269,6 +284,7 @@ func resolveConflicts(s *Spec) conflictResolution {
 		cands = append(cands, pairCandidate{
 			target:   claimTarget{field: p.B},
 			desc:     fmt.Sprintf("categorical-numeric pair (%s -> %s)", p.A, p.B),
+			variance: true,
 			strength: func() (float64, bool) { return groupedStrength(p.Categories) },
 		})
 	}
@@ -294,17 +310,23 @@ func resolveConflicts(s *Spec) conflictResolution {
 		cands = append(cands, pairCandidate{
 			target:   claimTarget{field: p.Numeric},
 			desc:     fmt.Sprintf("set-numeric pair (%s.%s -> %s)", p.Set, p.Option, p.Numeric),
+			variance: true,
 			strength: func() (float64, bool) { return groupedStrength(p.Categories) },
 		})
 	}
-	won := pairWinners(cands, s.PairArbitration == PairArbitrationDeclared, claimedBy)
+	floor := pairStrengthFloor(s)
+	won, floored := pairWinners(cands, s.PairArbitration == PairArbitrationDeclared, floor, claimedBy)
 	for i, c := range cands {
 		if won[i] {
 			claim(c.target, c.desc)
 		}
 	}
 	keep := func(i int) bool {
-		if !won[i] {
+		switch {
+		case won[i]:
+		case floored[i]:
+			floorConflict(cands[i].target, cands[i].desc, floor)
+		default:
 			conflict(cands[i].target, cands[i].desc)
 		}
 		return won[i]
@@ -493,11 +515,23 @@ func ScoredRelationships(s *Spec) (
 // pairCandidate is one pair relationship bidding for its target in
 // resolveConflicts. strength is evaluated lazily, and only for a target
 // that more than one unclaimed candidate names, so a spec without
-// competing pairs computes nothing.
+// competing pairs computes nothing. variance marks a strength that is a
+// variance share (ε², a numeric target) rather than on the Cramér's V
+// scale, so the noise floor is compared squared.
 type pairCandidate struct {
 	target   claimTarget
 	desc     string
+	variance bool
 	strength func() (float64, bool)
+}
+
+// pairStrengthFloor is the spec's effective arbitration noise floor:
+// Spec.PairStrengthFloor, or DefaultPairStrengthFloor when unset.
+func pairStrengthFloor(s *Spec) float64 {
+	if s.PairStrengthFloor != nil {
+		return *s.PairStrengthFloor
+	}
+	return DefaultPairStrengthFloor
 }
 
 // pairWinners marks, per candidate, whether it keeps its target. A
@@ -508,11 +542,22 @@ type pairCandidate struct {
 // first-declared — or, when declared is set, always by the
 // first-declared.
 //
+// The noise floor: when the strongest bidder for a target measures
+// below floor (floor² for a variance-share strength), no bidder carries
+// an association worth arbitrating, and the first-declared one wins
+// instead — the declared rule, for that target only. Every loser of
+// such a target is marked in floored so its warning can name the floor.
+// An above-floor bidder therefore always beats every sub-floor one, and
+// a floor of 0 marks nothing sub-floor (no strength is negative), which
+// is the floorless arbitration exactly. The floor is read under
+// strength arbitration only.
+//
 // Under declared this reproduces the pre-strength arbitration exactly:
 // the first candidate in stage order then declaration order won, which
 // is the lowest index here.
-func pairWinners(cands []pairCandidate, declared bool, claimedBy func(claimTarget) (string, bool)) []bool {
-	won := make([]bool, len(cands))
+func pairWinners(cands []pairCandidate, declared bool, floor float64, claimedBy func(claimTarget) (string, bool)) (won, floored []bool) {
+	won = make([]bool, len(cands))
+	floored = make([]bool, len(cands))
 	byTarget := map[claimTarget][]int{}
 	var order []claimTarget
 	for i, c := range cands {
@@ -545,11 +590,25 @@ func pairWinners(cands []pairCandidate, declared bool, claimedBy func(claimTarge
 						best, bestV = idx[j], strengths[j]
 					}
 				}
+				// One target's candidates share a kind of strength (a
+				// numeric target is bid for only by grouped pairs, a
+				// categorical or set option only by contingency pairs),
+				// so the winner's scale is the target's scale.
+				f := floor
+				if cands[best].variance {
+					f = float64(floor * floor)
+				}
+				if bestV < f {
+					best = idx[0]
+					for _, ci := range idx[1:] {
+						floored[ci] = true
+					}
+				}
 			}
 		}
 		won[best] = true
 	}
-	return won
+	return won, floored
 }
 
 // filterRelationships keeps the entries keep accepts, in order.

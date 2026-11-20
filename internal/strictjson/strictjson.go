@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -100,6 +101,11 @@ type Unknown struct {
 	LocationIndex int
 	// Aliases are Options.Aliases for Type, carried to the refusal.
 	Aliases map[string]string
+	// unionHidden reports that the calling instance hides the request
+	// union (Options.Hidden names `union` on a types.Request): a
+	// misplaced `union` key is then a plain unknown key, as on a build
+	// that never had a union.
+	unionHidden bool
 }
 
 // KeyPath is the path of the first offending key: Path + "." + Keys[0]
@@ -116,7 +122,55 @@ func (u *Unknown) Error() *perr.CodedError {
 	if u.LocationKey != "" {
 		ce.Details[u.LocationKey] = u.LocationIndex
 	}
+	if code, msg, ok := u.misplacedUnion(); ok {
+		ce.Code, ce.Message = code, msg
+	}
 	return ce
+}
+
+// unionHidden reports whether the walk's instance hides the request
+// union: Options.Hidden names `union` on a types.Request.
+func (w *walker) unionHidden() bool {
+	if w.opts.Hidden == nil {
+		return false
+	}
+	return slices.Contains(w.opts.Hidden(requestType), "union")
+}
+
+var (
+	requestType     = reflect.TypeFor[types.Request]()
+	joinSpecType    = reflect.TypeFor[types.JoinSpec]()
+	unionMemberType = reflect.TypeFor[types.UnionMember]()
+	cohortType      = reflect.TypeFor[types.Cohort]()
+)
+
+// misplacedUnion names the coded refusal of a `union` key written where
+// a union cannot be read: on a join (its right side —
+// PULSE_UNION_JOIN_RIGHT) or inside a union member or a member's cohort
+// (PULSE_UNION_NESTED). The details stay the unknown-key refusal's, so
+// the key is still located. ok is false for any other unknown key.
+func (u *Unknown) misplacedUnion() (perr.Code, string, bool) {
+	if u.unionHidden {
+		return "", "", false
+	}
+	hasUnion := false
+	for _, k := range u.Keys {
+		hasUnion = hasUnion || k == "union"
+	}
+	if !hasUnion {
+		return "", "", false
+	}
+	where := u.FullKeyPath()
+	switch {
+	case u.Type == joinSpecType:
+		return perr.PULSE_UNION_JOIN_RIGHT,
+			"a union cannot be a join's right side (" + where + "): a union is read only as the request's own cohort, and a join's right names one cohort path", true
+	case u.Type == unionMemberType,
+		u.Type == cohortType && strings.Contains(u.FullPath, "union["):
+		return perr.PULSE_UNION_NESTED,
+			"unions do not nest (" + where + "): list every cohort as a member of the request's one union", true
+	}
+	return "", "", false
 }
 
 // Decode strictly decodes raw into a fresh T (see DecodeInto).
@@ -550,7 +604,7 @@ func (w *walker) object(t reflect.Type, raw []byte, path, full string, root bool
 			locKey, locIndex = loc, enclosingIndex(full)
 		}
 		return &Unknown{Path: path, FullPath: full, Keys: unknown, First: first, Valid: valid, Type: t,
-			LocationKey: locKey, LocationIndex: locIndex, Aliases: aliases}
+			LocationKey: locKey, LocationIndex: locIndex, Aliases: aliases, unionHidden: w.unionHidden()}
 	}
 	if !w.opts.DocumentOrder {
 		if u := refuse(); u != nil {

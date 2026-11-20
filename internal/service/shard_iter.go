@@ -1,11 +1,9 @@
 package service
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/spf13/afero"
@@ -31,6 +29,9 @@ type shardIter struct {
 	path   string
 	schema *encoding.Schema
 	shards []ShardEntry
+	// union, when set, is the union cohort this iterator scans: its
+	// shards are the members' flattened shards (newUnionShardIter).
+	union *unionView
 
 	// archive is the archive opened for random access (one handle, the
 	// central directory parsed once per scan). Each shard reader is a
@@ -133,6 +134,14 @@ func (it *shardIter) initArchive() error {
 	if it.archive != nil {
 		return nil
 	}
+	if it.union != nil {
+		a, err := it.union.open()
+		if err != nil {
+			return err
+		}
+		it.archive = a
+		return nil
+	}
 	a, err := openArchiveFile(it.fs, it.path)
 	if err != nil {
 		return err
@@ -151,24 +160,16 @@ func (it *shardIter) openShard(idx int) error {
 	}
 	name := it.shards[idx].Filename
 	// A deflated entry is refused (storedShard), never decoded as raw
-	// compressed bytes.
-	r, err := it.archive.shardReader(name)
+	// compressed bytes. Each shard is a complete single-file Pulse
+	// cohort: shardRows skips its header + schema so the RecordReader
+	// lands on the first record. The schema is read layout-only: the
+	// canonical schema decodes the rows, so the shard's own dictionaries
+	// and group entry tables are read past, never allocated
+	// (TestShardScan_SkipsShardDictionaries). A union's member shard
+	// arrives already rewritten into the merged layout.
+	r, err := it.archive.shardRows(name)
 	if err != nil {
 		return err
-	}
-	// Each shard is a complete single-file Pulse cohort. Skip its
-	// header + schema so the RecordReader lands on the first record.
-	// The schema is read layout-only: the canonical schema decodes the
-	// rows, so the shard's own dictionaries and group entry tables are
-	// read past, never allocated (TestShardScan_SkipsShardDictionaries).
-	pulseVersion, err := encoding.ReadHeader(r)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q header", name))
-	}
-	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
-		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q schema", name))
 	}
 	// Schema cohesion is validated at insert time; on the read
 	// path the canonical schema is authoritative.

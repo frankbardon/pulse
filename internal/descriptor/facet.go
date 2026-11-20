@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/labelcodes"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
@@ -119,10 +120,34 @@ func ValidateFacetWithExtensions(fileData io.ReadSeeker, req *types.FacetRequest
 // (finishPredictRoot); opts.EchoRequest echoes the request on
 // env.Request as passed — the form the runtime facet echoes.
 func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
+	var head cohortHead
+	if req != nil {
+		head = readerHead(fileData, req.Cohort, req.Union, req.UnionSourceField, "facet")
+	}
+	return validateFacetRoot(head, nil, req, opts)
+}
+
+// ValidateFacetUnion is ValidateFacetWithOptions for a facet whose
+// Union names the members: the facet judged over the members' merged
+// schema (unionHead — the shape rules, each member header-only, the
+// merge) with the union's summed counts, the merge's divergences
+// warned. members must align with req.Union (nil when the shape is
+// refused: none is opened).
+func ValidateFacetUnion(members []UnionSource, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
+	if req == nil {
+		return validateFacetRoot(nil, nil, nil, opts)
+	}
+	var warns []encx.CohesionWarning
+	return validateFacetRoot(unionHead(members, req.Cohort, req.Union, req.UnionSourceField, &warns), &warns, req, opts)
+}
+
+// validateFacetRoot is ValidateFacetWithOptions over head; warns
+// receives a union head's merge divergences (nil for one cohort).
+func validateFacetRoot(head cohortHead, warns *[]encx.CohesionWarning, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
-	env := validateFacetWithOptions(fileData, req, opts)
+	env := validateFacetWithOptions(head, warns, req, opts)
 	result := env.Data.(*FacetValidationResult)
 	finishPredictRoot(env, opts, func() { result.Valid = false }, func() any {
 		if req == nil {
@@ -135,7 +160,7 @@ func ValidateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 
 // validateFacetWithOptions is ValidateFacetWithOptions before the
 // Strict and echo pass.
-func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
+func validateFacetWithOptions(head cohortHead, warns *[]encx.CohesionWarning, req *types.FacetRequest, opts *PredictOptions) *descriptor.Envelope {
 	snap := opts.Extensions
 	result := &FacetValidationResult{
 		Valid:           true,
@@ -181,11 +206,14 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// length-derived record count, or a shard archive's canonical schema
 	// and per-shard header counts: the figures the pre-flight reads off
 	// the cohort Open returns (Service.cohortCounts). Never a record.
-	schema, counts, fault := readCohortHead(fileData, false)
+	schema, counts, fault := head(false)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
 		return env
+	}
+	if warns != nil {
+		addUnionWarnings(env, *warns)
 	}
 
 	result.SchemaInfo = &descriptor.PredictSchemaInfo{FieldCount: len(schema.Fields)}

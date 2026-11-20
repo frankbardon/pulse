@@ -55,6 +55,7 @@ func strictAcceptanceRoots() map[string]strictRoot {
 		"chain":    {leaves: [][]string{{"predict-chain"}, {"process-chain"}}},
 		"facet":    {leaves: [][]string{{"predict-facet"}, {"facet", "--top-k", "3"}}},
 		"lookup":   {leaves: [][]string{{"lookup"}}}, // no predict leaf
+		"sample":   {leaves: [][]string{{"sample"}}}, // no predict leaf
 	}
 }
 
@@ -79,6 +80,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		// --- Request root and every slot family ---
 		{family: "request", body: req(`"aggregatoins":[]`), unknown: "aggregatoins"},
 		{family: "request.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},` + agg + `}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "request.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],` + agg + `}`, path: "union[0].lable", unknown: "lable"},
 		{family: "request.filterers", body: req(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","valuse":["a"]}]`), path: "filterers[0].valuse", unknown: "valuse"},
 		{family: "request.filterers.params", body: req(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","values":["a"],"params":{"negete":true}}]`), path: "filterers[0].params.negete", unknown: "negete"},
 		{family: "request.aggregations", body: req(`"aggregations":[{"type":"AGG_SUM","field":"n","lable":"t"}]`), path: "aggregations[0].lable", unknown: "lable"},
@@ -181,6 +183,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		// --- Chain root ---
 		{family: "chain", body: `{"cohort":` + c + `,"stagse":[]}`, unknown: "stagse"},
 		{family: "chain.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"stages":[{"name":"s","request":` + nested(agg) + `}]}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "chain.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"stages":[{"name":"s","request":{` + agg + `}}]}`, path: "union[0].lable", unknown: "lable"},
 		{family: "chain.stages", body: `{"cohort":` + c + `,"stages":[{"name":"s","requset":` + nested(agg) + `}]}`, path: "stages[0].requset", unknown: "requset"},
 		{family: "chain.stages.request", body: `{"cohort":` + c + `,"stages":[{"name":"s","request":` + nested(agg+`,"sort":[{"feild":"t"}]`) + `}]}`, path: "sort[0].feild", unknown: "feild", locator: "stage"},
 		{family: "chain.overlays", body: chain(`"overlays":[{"name":"o","kind":"OVERLAY_DELTA_VS_STAGE","scoep":"row"}]`), path: "overlays[0].scoep", unknown: "scoep"},
@@ -189,6 +192,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		// --- Facet root ---
 		{family: "facet", body: `{"cohort":` + c + `,"feilds":["cat"]}`, unknown: "feilds"},
 		{family: "facet.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"fields":["cat"]}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "facet.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"fields":["cat"]}`, path: "union[0].lable", unknown: "lable"},
 		{family: "facet.filterers", body: facet(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","valuse":["a"]}]`), path: "filterers[0].valuse", unknown: "valuse"},
 		{family: "facet.filterers.params", body: facet(`"filterers":[{"type":"FILTER_INCLUDE","field":"cat","values":["a"],"params":{"negete":true}}]`), path: "filterers[0].params.negete", unknown: "negete"},
 		{family: "facet.labels", body: facet(`"labels":[{"field":"cat","tabel":"t"}]`), path: "labels[0].tabel", unknown: "tabel"},
@@ -199,7 +203,14 @@ func strictAcceptanceRows(c string) []strictRow {
 		// --- Lookup root ---
 		{family: "lookup", body: `{"cohort":` + c + `,"keyz":[{"field":"cat","value":"a"}]}`, unknown: "keyz"},
 		{family: "lookup.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"keys":[{"field":"cat","value":"a"}]}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "lookup.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"keys":[{"field":"cat","value":"a"}]}`, path: "union[0].lable", unknown: "lable"},
 		{family: "lookup.keys", body: `{"cohort":` + c + `,"keys":[{"field":"cat","valu":"a"}]}`, path: "keys[0].valu", unknown: "valu"},
+
+		// --- Sample root (api sample --request) ---
+		{family: "sample", body: `{"cohort":` + c + `,"n":3,"lables":[]}`, unknown: "lables"},
+		{family: "sample.cohort", body: `{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `,"data_dri":"x"},"n":3}`, path: "cohort.data_dri", unknown: "data_dri"},
+		{family: "sample.union", body: `{"union":[{"cohort":{"filename":` + strconv.Quote(cohortFile(c)) + `},"lable":"a"}],"n":3}`, path: "union[0].lable", unknown: "lable"},
+		{family: "sample.labels", body: `{"cohort":` + c + `,"n":3,"labels":[{"field":"cat","tabel":"t"}]}`, path: "labels[0].tabel", unknown: "tabel"},
 	}
 }
 
@@ -219,6 +230,7 @@ func strictAcceptanceRootTypes() map[string]reflect.Type {
 		"chain":    reflect.TypeFor[types.ChainRequest](),
 		"facet":    reflect.TypeFor[types.FacetRequest](),
 		"lookup":   reflect.TypeFor[types.LookupRequest](),
+		"sample":   reflect.TypeFor[types.SampleRequest](),
 		"synth":    reflect.TypeFor[synth.Spec](),
 	}
 }

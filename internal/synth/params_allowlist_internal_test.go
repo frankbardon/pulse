@@ -35,17 +35,23 @@ var paramsGateFields = map[string]FieldSpec{
 	DistMixture: {Type: "f64",
 		Params: map[string]any{"means": []any{0.0, 5.0}, "stds": []any{1.0, 1.0}, "weights": []any{1.0, 1.0}}},
 	DistUniformDate: {Type: "date",
-		Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31"}},
+		Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31", "month_weights": twelveMonths()}},
 	DistUniformDateTime: {Type: "datetime",
 		Params: map[string]any{"start": "2024-01-01", "end": "2024-12-31",
 			"time_zone": "Europe/Berlin", "dst_policy": "later",
-			"hour_weights": oneHot(10), "weekday_weights": []any{1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0}}},
+			"hour_weights": oneHot(10), "weekday_weights": []any{1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0},
+			"month_weights": twelveMonths()}},
 	DistRegex: {Type: "categorical_u16",
 		Params: map[string]any{"pattern": "[A-C]{2}", "max_repeat": 3.0}},
 	DistConstant: {Type: "set_u8",
 		Params: map[string]any{"value": []any{"a"}, "options": []any{"a", "b"}}},
 	DistSetBernoulli: {Type: "set_u8",
 		Params: map[string]any{"options": []any{"a", "b"}, "frequencies": []any{0.5, 0.2}}},
+}
+
+// twelveMonths is a month_weights series for a 2024-01..2024-12 range.
+func twelveMonths() []any {
+	return []any{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0}
 }
 
 // paramsGateAltProbes carries the declared keys a distribution's main

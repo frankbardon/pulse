@@ -23,6 +23,8 @@ func TestUnitAndDefault(t *testing.T) {
 		MaxExpandedItems:   UnitCount,
 		MaxMMMGeos:         UnitCount,
 		MaxMMMDrawValues:   UnitCount,
+
+		MaxDisclosureComparisons: UnitCount,
 	}
 	defs := Defaults()
 	for _, n := range Names() {

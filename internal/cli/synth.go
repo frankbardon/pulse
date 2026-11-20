@@ -335,6 +335,8 @@ func profileCreateCmd() *cli.Command {
 			&cli.BoolFlag{Name: "residual-correlations", Usage: "Capture the full correlation submatrix among --fit-models' fitted residuals (every pair, not a top-K sample); a pair with too few co-present rows is recorded as unmeasured with a reason, never as rho=0. Requires --fit-models"},
 			&cli.StringFlag{Name: "suggest-rules", Usage: "Detect structural rules on the same scan — gating relationships ('set_null'), co-missing question blocks ('null_together') and exact single-source dependencies ('set_expr') — and write them to this path as a standalone rules file (a bare JSON array, the shape 'synth from-profile --rules' consumes). PROPOSED, never applied: read the '_evidence' on each candidate, correct it, delete what you do not believe. Near-miss blocks, almost-determined pairs, always-null and constant columns are reported in the warnings rather than proposed. Dependency detection is bounded to packed_bool/u4 targets and a single low-cardinality source of at most 16 levels. The profile document itself is unchanged"},
 			&cli.BoolFlag{Name: "run-continuation", Usage: "Measure, on the same scan, each field's run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, which is exactly the run-skip decode's hit rate — into the additive 'run_continuation' section, with the high-continuation fields and advice on whether to sort the source upstream (ORDER BY its parent key). Pairs never span a shard boundary"},
+			&cli.StringFlag{Name: "time-zone", Usage: "Capture every datetime field on this IANA zone's LOCAL clock (day range, weekday, hour and month counts) and rebuild it as a zoned uniform_datetime with dst_policy earlier; exclusive with --time-zone-field. Default: the cohort's declared default zone field, else UTC"},
+			&cli.StringFlag{Name: "time-zone-field", Usage: "Capture every datetime field on each row's LOCAL clock, read from this categorical field of IANA zone names, and rebuild it with time_zone_field and dst_policy earlier; overrides the cohort's declared default zone field; exclusive with --time-zone"},
 			&cli.IntFlag{Name: "sample-limit", Usage: "Cap rows ingested for the profile (0 = unlimited)"},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed for --conditional's categorical-categorical reservoir sampling and --fit-models' residual reservoir (each draws from its own stream)", Value: 0},
 			&cli.BoolFlag{Name: "json", Usage: "Print envelope to stdout as well"},
@@ -372,6 +374,8 @@ func profileCreateCmd() *cli.Command {
 				FitResidualCorrelations: residualCorrelations,
 				SuggestRules:            suggestRulesPath != "",
 				RunContinuation:         runContinuation,
+				TimeZone:                cmd.String("time-zone"),
+				TimeZoneField:           cmd.String("time-zone-field"),
 
 				SampleLimit: sampleLimit,
 				Seed:        int64(seed),
