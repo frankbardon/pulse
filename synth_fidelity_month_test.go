@@ -62,8 +62,69 @@ func TestSynthFidelity_MonthTVDReadsTheVolumeSeries(t *testing.T) {
 	if f == nil || f.Shape == nil {
 		t.Fatal("flat ts: no shape")
 	}
-	if f.Shape.MonthTVD < 0.12 || f.Shape.HourTVD > 0.05 || f.Shape.WeekdayTVD > 0.05 {
+	if f.Shape.MonthTVD < 0.12 || *f.Shape.HourTVD > 0.05 || f.Shape.WeekdayTVD > 0.05 {
 		t.Errorf("flat twin shape = %+v, want month_tvd ≥ 0.12 with hour / weekday ≤ 0.05", f.Shape)
+	}
+}
+
+// dateVolumeSource is monthVolumeSource on a `date` field: the same
+// two-year trend with a summer peak, drawn as epoch days.
+func dateVolumeSource() *synth.Spec {
+	spec := monthVolumeSource()
+	spec.Fields[0].Name, spec.Fields[0].Type, spec.Fields[0].Distribution = "day", "date", synth.DistUniformDate
+	return spec
+}
+
+// TestSynthFidelity_DateShapeReadsMonthVolume (#736, U76 E6-S4): a
+// date field's twin is scored on weekday and month volume. The twin
+// rebuilt from the profile regenerates the month series (small
+// month_tvd); with its month weights stripped it regenerates flat and
+// month_tvd says so. A date has no hour and no zone: hour_tvd is absent
+// from the shape and from the written report, and the clock is utc.
+func TestSynthFidelity_DateShapeReadsMonthVolume(t *testing.T) {
+	t.Parallel()
+
+	src, _, err := synth.SynthBytes(dateVolumeSource(), synth.Options{Seed: 21})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prof, err := synth.ProfileBytes(src, synth.ProfileOptions{IncludeStats: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	twin, _ := synth.SpecFromProfile(prof, 5000)
+	if twin.Fields[0].Params["month_weights"] == nil {
+		t.Fatalf("rebuilt day carries no month_weights: %v", twin.Fields[0].Params)
+	}
+	report, raw, err := writeUtilityReport(t, dateVolumeSource(), twin, SynthOptions{FidelityReportPath: "/report.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := fieldEntry(report, "day")
+	if e == nil || e.Shape == nil {
+		t.Fatal("day: no shape")
+	}
+	if e.Shape.Clock != synth.TimeShapeClockUTC || e.Shape.TimeZone != "" || e.Shape.TimeZoneField != "" || e.Shape.HourTVD != nil {
+		t.Errorf("date shape = %+v, want utc, no zone, no hour_tvd", e.Shape)
+	}
+	if e.Shape.MonthTVD > 0.05 || e.Shape.WeekdayTVD > 0.05 {
+		t.Errorf("faithful date twin shape = %+v, want month / weekday tvd ≤ 0.05", e.Shape)
+	}
+	if !strings.Contains(string(raw), `"month_tvd"`) || strings.Contains(string(raw), `"hour_tvd"`) {
+		t.Errorf("written date report must carry month_tvd and no hour_tvd:\n%s", raw)
+	}
+
+	delete(twin.Fields[0].Params, "month_weights")
+	flat, _, err := writeUtilityReport(t, dateVolumeSource(), twin, SynthOptions{FidelityReportPath: "/report.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fieldEntry(flat, "day")
+	if f == nil || f.Shape == nil {
+		t.Fatal("flat day: no shape")
+	}
+	if f.Shape.MonthTVD < 0.12 || f.Shape.WeekdayTVD > 0.05 {
+		t.Errorf("flat date twin shape = %+v, want month_tvd ≥ 0.12 with weekday ≤ 0.05", f.Shape)
 	}
 }
 
@@ -108,7 +169,7 @@ func TestSynthFidelity_ShapeReadsTheCaptureClock(t *testing.T) {
 	if e.Shape.Clock != synth.TimeShapeClockLocal || e.Shape.TimeZone != "America/New_York" {
 		t.Errorf("shape clock %q zone %q; want local America/New_York", e.Shape.Clock, e.Shape.TimeZone)
 	}
-	if e.Shape.HourTVD > 0.05 || e.Shape.WeekdayTVD > 0.05 {
+	if *e.Shape.HourTVD > 0.05 || e.Shape.WeekdayTVD > 0.05 {
 		t.Errorf("faithful local shape %+v; want hour / weekday tvd ≤ 0.05", e.Shape)
 	}
 	if !strings.Contains(string(raw), `"time_zone": "America/New_York"`) {

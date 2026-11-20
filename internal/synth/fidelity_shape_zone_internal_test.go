@@ -80,7 +80,7 @@ func TestFidelityShape_ZoneFieldReadsTheLocalClock(t *testing.T) {
 	if s.Clock != TimeShapeClockLocal || s.TimeZoneField != "site" || s.TimeZone != "" {
 		t.Errorf("clock %q zone %q field %q; want local on site", s.Clock, s.TimeZone, s.TimeZoneField)
 	}
-	if s.HourTVD > 0.05 || s.WeekdayTVD > 0.05 || s.MonthTVD > 0.05 {
+	if *s.HourTVD > 0.05 || s.WeekdayTVD > 0.05 || s.MonthTVD > 0.05 {
 		t.Errorf("faithful local shape %+v; want every tvd ≤ 0.05", s)
 	}
 
@@ -98,9 +98,9 @@ func TestFidelityShape_ZoneFieldReadsTheLocalClock(t *testing.T) {
 	if onUTC.Clock != TimeShapeClockUTC {
 		t.Errorf("spec-free report clock %q, want utc", onUTC.Clock)
 	}
-	if skewed.HourTVD > 0.05 || onUTC.HourTVD < skewed.HourTVD+0.3 {
+	if *skewed.HourTVD > 0.05 || *onUTC.HourTVD < *skewed.HourTVD+0.3 {
 		t.Errorf("skewed-mix hour_tvd local %.4f, utc %.4f; want local ≤ 0.05 and utc ≥ local+0.3",
-			skewed.HourTVD, onUTC.HourTVD)
+			*skewed.HourTVD, *onUTC.HourTVD)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestFidelityShape_FixedZoneNamesTheZone(t *testing.T) {
 	if s.Clock != TimeShapeClockLocal || s.TimeZone != "America/New_York" || s.TimeZoneField != "" {
 		t.Errorf("clock %q zone %q field %q; want local America/New_York", s.Clock, s.TimeZone, s.TimeZoneField)
 	}
-	if s.HourTVD > 0.05 || s.WeekdayTVD > 0.05 {
+	if *s.HourTVD > 0.05 || s.WeekdayTVD > 0.05 {
 		t.Errorf("faithful fixed-zone shape %+v; want hour / weekday tvd ≤ 0.05", s)
 	}
 }
@@ -145,8 +145,8 @@ func TestFidelityShape_NullZoneCell(t *testing.T) {
 	if s.Clock != TimeShapeClockLocal || s.TimeZoneField != "alt_zone" {
 		t.Errorf("clock %q field %q; want local on alt_zone", s.Clock, s.TimeZoneField)
 	}
-	if s.HourTVD > 0.03 {
-		t.Errorf("hour_tvd %.4f; want ≤ 0.03 with the unzoned readings left out", s.HourTVD)
+	if *s.HourTVD > 0.03 {
+		t.Errorf("hour_tvd %.4f; want ≤ 0.03 with the unzoned readings left out", *s.HourTVD)
 	}
 	warned := false
 	for _, w := range report.Warnings {
@@ -157,5 +157,28 @@ func TestFidelityShape_NullZoneCell(t *testing.T) {
 	}
 	if !warned {
 		t.Errorf("no null-zone warning with a source count in %v", report.Warnings)
+	}
+}
+
+// TestFidelityShape_HourTVDWireKey (#736, U76 E6-S4): a datetime shape
+// keeps hour_tvd on the wire in its old place — even a perfect 0, the
+// byte-identity the pointer must not break — and a date shape, which has
+// no hour, omits the key.
+func TestFidelityShape_HourTVDWireKey(t *testing.T) {
+	t.Parallel()
+	zero := 0.0
+	dt, err := json.Marshal(TimeShapeFidelity{Clock: TimeShapeClockUTC, HourTVD: &zero, WeekdayTVD: 0.25, MonthTVD: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"clock":"utc","hour_tvd":0,"weekday_tvd":0.25,"month_tvd":0.5}`; string(dt) != want {
+		t.Errorf("datetime shape = %s, want %s", dt, want)
+	}
+	d, err := json.Marshal(TimeShapeFidelity{Clock: TimeShapeClockUTC, WeekdayTVD: 0.25, MonthTVD: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"clock":"utc","weekday_tvd":0.25,"month_tvd":0.5}`; string(d) != want {
+		t.Errorf("date shape = %s, want %s", d, want)
 	}
 }

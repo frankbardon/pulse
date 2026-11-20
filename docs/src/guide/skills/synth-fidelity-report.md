@@ -16,7 +16,7 @@ requires: [capability:synth]
 
 ## Fidelity report
 
-`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. `fields[]` scores every scalar type: integers (incl. `u4`), floats and `date` (epoch days) by KS (`split_by: _synthetic`); `datetime` by KS over epoch seconds plus `shape` (hour, weekday, month TVD on the capture clock: `utc`, or `local` + `time_zone` / `time_zone_field`, null zone cells left out; KS passes right days at wrong hours); categoricals and `packed_bool` by the χ² test. A failed test reports `error`, aborting nothing. Sections are `omitempty`: one whose capture flag was absent leaves the report byte-identical. `disclosure` (default on): [`synth-disclosure-report`](synth-disclosure-report.md).
+`--fidelity-report <path.json>` (only with `SourceCohort` set) writes a `synth.FidelityReport` after generation. `fields[]` scores every scalar type: integers (incl. `u4`), floats by KS (`split_by: _synthetic`); `datetime` (epoch seconds) and `date` (epoch days) by KS plus `shape` (hour, weekday, month TVD on the capture clock: `utc`, or `local` + `time_zone` / `time_zone_field`, null zone cells left out; KS passes right days at wrong hours; a date: no hour, `utc`); categoricals and `packed_bool` by the χ² test. A failed test reports `error`, aborting nothing. Sections are `omitempty`: one whose capture flag was absent leaves the report byte-identical. `disclosure` (default on): [`synth-disclosure-report`](synth-disclosure-report.md).
 
 **Every section scores ONLY relationships generation ACTUALLY APPLIED.** `spec` carries the full captured cross product; `generate()` applies the subset conflict resolution leaves. Scoring a conflict-dropped pair scores a relationship the generator never modelled — it LOOKS like evidence. `internal/synth.ResolveConflicts` re-runs the identical arbitration against the identical `*Spec`, so a dropped pair has no entry and its own conflict warning explains the absence ([`synth-conflicts`](synth-conflicts.md)).
 
@@ -41,7 +41,7 @@ The two structure-recovery sections — `models` and `model_residual_correlation
 
 ## Warnings in the report
 
-The report's `warnings` carry capture, translation and generation warnings, deduplicated — including which relationship a `--rules` run retired and which rule never fired. The CLI prints a counted summary to stderr and, with `--fidelity-report`, the recovery headline `N model(s) checked, M flagged`.
+The report's `warnings` carry capture, translation and generation warnings, deduplicated: which relationship a `--rules` run retired and which rule never fired. The CLI prints a counted summary to stderr and, with `--fidelity-report`, the recovery headline `N model(s) checked, M flagged`.
 
 ## See
 

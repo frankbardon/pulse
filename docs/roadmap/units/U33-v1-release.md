@@ -204,5 +204,5 @@ Filed from [U74 handed-on](U74-memory-bounds.md#handed-on); tick in [`TODO.md`](
 
 Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#736** — **A fidelity `shape` for a `date` field.** A date twin's month volume is regenerated from `month_weights` but the report does not measure it; make `synth.TimeShapeFidelity.HourTVD` optional (`omitempty` pointer) so a date field can report `weekday_tvd` / `month_tvd` alone. Public-API golden moves; do it before the v1 freeze.
+- [x] **#736** — **A fidelity `shape` for a `date` field.** A date twin's month volume is regenerated from `month_weights` but the report does not measure it; make `synth.TimeShapeFidelity.HourTVD` optional (`omitempty` pointer) so a date field can report `weekday_tvd` / `month_tvd` alone. Public-API golden moves; do it before the v1 freeze. *Done in U76 (E6-S4): `HourTVD` is a `*float64` (`omitempty`); a `date` entry carries `weekday_tvd` / `month_tvd` on the UTC clock, datetime reports byte-identical.*
 - [ ] **#738** — **A request form for `pulse sample`.** The CLI takes only `--input`, so sampling a cohort union is library / MCP only; add a `--request` JSON form (as `facet` / `lookup` accept `request.union`) or record the limit as permanent in `docs/src/cli/flags.md`.

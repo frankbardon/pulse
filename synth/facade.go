@@ -326,9 +326,10 @@ type FidelityReport = isynth.FidelityReport
 // categorical one), with its Cohen (1988) magnitude label.
 type FieldEffectSize = isynth.FieldEffectSize
 
-// TimeShapeFidelity is a datetime field's cycle beside its KS entry:
-// the total variation distance between the source and synthetic
-// hour-of-day and weekday histograms (FieldFidelity.Shape).
+// TimeShapeFidelity is a datetime or date field's cycle beside its KS
+// entry: the total variation distance between the source and synthetic
+// hour-of-day, weekday and calendar-month histograms
+// (FieldFidelity.Shape). HourTVD is nil on a date, which has no hour.
 type TimeShapeFidelity = isynth.TimeShapeFidelity
 
 // FieldContinuation is one field's run-continuation rate.

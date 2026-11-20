@@ -405,7 +405,7 @@ that fits it:
 | Field type | Test | Effect size | Why |
 |---|---|---|---|
 | `u4` … `u64`, `f32`, `f64`, `decimal128` | `TEST_KS` (`split_by: _synthetic`) | Cohen's d (none for `decimal128`) | a `u4` reconstructs from the same per-level histogram a `u8` does, so it reads on the same scale |
-| `date` | `TEST_KS` over epoch days | Cohen's d | |
+| `date` | `TEST_KS` over epoch days, plus `shape` (no `hour_tvd`) | Cohen's d | a trend or season lives in the month volume a line cannot see |
 | `datetime` | `TEST_KS` over epoch seconds, plus `shape` | Cohen's d | KS and d read instants as one line; a planted schedule lives in the daily and weekly cycle |
 | `categorical_*`, `packed_bool` | `TEST_CHISQ` (contingency against `_synthetic`) | Cramér's V | for a `packed_bool` the 2x2 χ² is the two-sample proportion test, and V = \|phi\| |
 
@@ -427,6 +427,14 @@ compared cohort does not carry (an `"output": false` helper) falls back
 to `utc` with a warning. Measured: the same days drawn at
 evening instead of morning hours read d = −0.06 (`very small`) and KS
 p = 0.07, with `hour_tvd` 1.0.
+
+A `date` entry's `shape` is `{"clock", "weekday_tvd", "month_tvd"}`: a
+date names a day, not an instant, so it has no hour bin (`hour_tvd` is
+absent) and no zone (`"clock"` is always `"utc"`); its weekday and month
+are read off the epoch day, on the same month bins a `datetime` uses.
+Measured on a two-year trend with a summer peak (5,000 rows): the twin
+rebuilt from the profile reads `month_tvd` 0.028, the same twin with its
+`month_weights` stripped 0.19.
 
 `set_*` fields have their own `set_fields` section (skill `synth-set-fields`): per option
 the selection rate on each side, plus an `effect_size` — V of the

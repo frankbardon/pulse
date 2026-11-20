@@ -5222,7 +5222,7 @@ pulse/synth: const TimeShapeClockUTC untyped string = "utc"
 pulse/synth: type TimeShapeFidelity = pulse/internal/synth.TimeShapeFidelity
 pulse/synth: type TimeShapeFidelity underlying struct
 pulse/synth: type TimeShapeFidelity field Clock string "json:\"clock\""
-pulse/synth: type TimeShapeFidelity field HourTVD float64 "json:\"hour_tvd\""
+pulse/synth: type TimeShapeFidelity field HourTVD *float64 "json:\"hour_tvd,omitempty\""
 pulse/synth: type TimeShapeFidelity field MonthTVD float64 "json:\"month_tvd\""
 pulse/synth: type TimeShapeFidelity field TimeZone string "json:\"time_zone,omitempty\""
 pulse/synth: type TimeShapeFidelity field TimeZoneField string "json:\"time_zone_field,omitempty\""
@@ -7164,4 +7164,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f5b46607dfedacd126515fd648e178acbfa4c43f7c8350d5660a055f7304feb2
+// golden-hash: 28fd5a9c78d897daa391054b558fdb85113e7486b0f116bb668a106dbd47bb23

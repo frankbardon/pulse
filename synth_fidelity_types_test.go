@@ -129,8 +129,8 @@ func TestSynthFidelity_DateIsKSOverEpochDays(t *testing.T) {
 	if e.EffectSize.Value < 0.8 || !e.Result.RejectNull {
 		t.Errorf("joined d = %+v, reject %v; want a large positive d", e.EffectSize, e.Result.RejectNull)
 	}
-	if e.Shape != nil {
-		t.Errorf("joined carries a datetime shape %+v", e.Shape)
+	if e.Shape == nil || e.Shape.HourTVD != nil || e.Shape.Clock != synth.TimeShapeClockUTC {
+		t.Errorf("joined shape = %+v, want a utc date shape with no hour_tvd", e.Shape)
 	}
 }
 
@@ -147,16 +147,16 @@ func TestSynthFidelity_DateTimeShapeCatchesTheWrongHours(t *testing.T) {
 	if e.EffectSize.Magnitude != "very small" {
 		t.Errorf("seen d = %+v, want very small (same days, other hours)", e.EffectSize)
 	}
-	if e.Shape == nil {
-		t.Fatal("seen: no shape")
+	if e.Shape == nil || e.Shape.HourTVD == nil {
+		t.Fatalf("seen: no shape or no hour_tvd: %+v", e.Shape)
 	}
-	if e.Shape.Clock != synth.TimeShapeClockUTC || e.Shape.HourTVD != 1 || e.Shape.WeekdayTVD > 0.1 {
+	if e.Shape.Clock != synth.TimeShapeClockUTC || *e.Shape.HourTVD != 1 || e.Shape.WeekdayTVD > 0.1 {
 		t.Errorf("seen shape = %+v, want utc, hour_tvd 1, weekday_tvd ≤ 0.1", e.Shape)
 	}
 
 	faithful, _ := typesReport(t, typesFixtureSpec(1500, false))
 	f := scored(t, faithful, "seen", types.TEST_KS, synth.EffectMeasureCohensD)
-	if f.Shape == nil || f.Shape.HourTVD > 0.1 {
+	if f.Shape == nil || *f.Shape.HourTVD > 0.1 {
 		t.Errorf("faithful seen shape = %+v, want hour_tvd ≤ 0.1", f.Shape)
 	}
 }

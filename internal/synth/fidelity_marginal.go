@@ -62,22 +62,26 @@ const TimeShapeClockUTC = "utc"
 // TimeShapeFidelity.TimeZoneField (each row's own zone).
 const TimeShapeClockLocal = "local"
 
-// TimeShapeFidelity is a datetime field's cycle comparison: the total
-// variation distance between the source and synthetic partitions'
+// TimeShapeFidelity is a datetime or date field's cycle comparison: the
+// total variation distance between the source and synthetic partitions'
 // hour-of-day (24 bins), ISO weekday (7 bins) and calendar-month (one
 // bin per month either partition touches) histograms, each in [0, 1] —
 // 0 when the two match, 1 when they share no bin. MonthTVD reads the
 // volume series a trend or a seasonal swing lives in (month_weights).
+// A date names a day, not an instant: it has no hour (HourTVD nil, the
+// key absent) and no zone (Clock is always TimeShapeClockUTC), and its
+// weekday and month are read off the epoch day itself.
 type TimeShapeFidelity struct {
 	// Clock is the clock the bins are read on: TimeShapeClockUTC, or
 	// TimeShapeClockLocal with the zone (TimeZone) or the zone field
 	// (TimeZoneField) named beside it.
-	Clock         string  `json:"clock"`
-	TimeZone      string  `json:"time_zone,omitempty"`
-	TimeZoneField string  `json:"time_zone_field,omitempty"`
-	HourTVD       float64 `json:"hour_tvd"`
-	WeekdayTVD    float64 `json:"weekday_tvd"`
-	MonthTVD      float64 `json:"month_tvd"`
+	Clock         string `json:"clock"`
+	TimeZone      string `json:"time_zone,omitempty"`
+	TimeZoneField string `json:"time_zone_field,omitempty"`
+	// HourTVD is set on every datetime shape and nil on a date's.
+	HourTVD    *float64 `json:"hour_tvd,omitempty"`
+	WeekdayTVD float64  `json:"weekday_tvd"`
+	MonthTVD   float64  `json:"month_tvd"`
 }
 
 // shapeClock is the clock one datetime's shape is read on: a fixed zone
@@ -184,11 +188,15 @@ func cohensDType(ft encoding.FieldType) bool {
 	return ksMarginalType(ft) && !ft.IsDecimal()
 }
 
-// attachTimeShapes sets FieldFidelity.Shape on every datetime entry
-// with a result, decoding records at most once. Each field is read on
-// its spec clock (shapeClockFor); spec nil reads every field on UTC.
+// attachTimeShapes sets FieldFidelity.Shape on every datetime and date
+// entry with a result, decoding records at most once. Each datetime is
+// read on its spec clock (shapeClockFor); spec nil reads every field on
+// UTC. A date is read off its epoch day (temporal.ISOWeekday /
+// MonthIndex — the same running month index a datetime's bins use), with
+// no hour bin and no zone.
 func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, records []byte, spec *Spec) {
 	type cycle struct {
+		date    bool // a date field: epoch days, no hour, no zone
 		clock   shapeClock
 		hour    [2][24]int
 		weekday [2][7]int
@@ -201,7 +209,7 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 		if e.Result == nil {
 			continue
 		}
-		if f := mergedSchema.Field(e.Field); f != nil && f.Type == encoding.FieldTypeDateTime {
+		if f := mergedSchema.Field(e.Field); f != nil && (f.Type == encoding.FieldTypeDateTime || f.Type == encoding.FieldTypeDate) {
 			entries = append(entries, e)
 		}
 	}
@@ -211,6 +219,11 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 	cycles := make([]cycle, len(entries))
 	for i, e := range entries {
 		cycles[i].month = map[int64]*[2]int{}
+		if mergedSchema.Field(e.Field).Type == encoding.FieldTypeDate {
+			cycles[i].date = true
+			cycles[i].clock = shapeClock{zone: temporal.UTC}
+			continue
+		}
 		clock, warning := shapeClockFor(spec, mergedSchema, e.Field)
 		cycles[i].clock = clock
 		if warning != "" {
@@ -238,15 +251,22 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 				continue
 			}
 			c := &cycles[i]
-			zone, ok := c.clock.zoneOf(values, nulls)
-			if !ok {
-				c.unzoned[part]++
-				continue
+			var mi int64
+			if c.date {
+				day := int64(v)
+				c.weekday[part][temporal.ISOWeekday(day)-1]++
+				mi = temporal.MonthIndex(day)
+			} else {
+				zone, ok := c.clock.zoneOf(values, nulls)
+				if !ok {
+					c.unzoned[part]++
+					continue
+				}
+				p := temporal.LocalParts(int64(v), zone)
+				c.hour[part][p.Hour]++
+				c.weekday[part][temporal.ISOWeekdayOf(p.Weekday)-1]++
+				mi = int64(p.Year)*12 + int64(p.Month) - 1
 			}
-			p := temporal.LocalParts(int64(v), zone)
-			c.hour[part][p.Hour]++
-			c.weekday[part][temporal.ISOWeekdayOf(p.Weekday)-1]++
-			mi := int64(p.Year)*12 + int64(p.Month) - 1
 			mc := c.month[mi]
 			if mc == nil {
 				mc = &[2]int{}
@@ -268,9 +288,12 @@ func attachTimeShapes(report *FidelityReport, mergedSchema *encoding.Schema, rec
 		}
 		e.Shape = &TimeShapeFidelity{
 			Clock:      TimeShapeClockUTC,
-			HourTVD:    histogramTVD(c.hour[0][:], c.hour[1][:], c.n[0], c.n[1]),
 			WeekdayTVD: histogramTVD(c.weekday[0][:], c.weekday[1][:], c.n[0], c.n[1]),
 			MonthTVD:   monthTVD(c.month, c.n[0], c.n[1]),
+		}
+		if !c.date {
+			hour := histogramTVD(c.hour[0][:], c.hour[1][:], c.n[0], c.n[1])
+			e.Shape.HourTVD = &hour
 		}
 		if c.clock.zoneName != "" || c.clock.field != "" {
 			e.Shape.Clock = TimeShapeClockLocal
