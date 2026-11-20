@@ -1659,6 +1659,20 @@ Not yet released. `format_version` stays `"1.1"` (synth types are not payload-re
 | a feature-profiled instance served a skill whose `## See` still pointed at a hidden skill when that item's parenthetical annotation or ` — ` description carried a backtick span (`cohort-union` under `read-only-analyst`; `tool-lookup-tables`, `sem-bootstrap`, `sem-groups`, `sem-modeling` under profiles hiding `capability:range_tables` / `capability:sem_defined`) | **Pruned like any hidden target.** Only the spans outside an item's annotation and description decide whether it points at a visible skill; on a line of described items ("`a` — x; `b` — y") each item is pruned with its own description, where cutting the last used to leave "`a` — x — y" | behaviour change (rendered skill text via `Skill` / `pulse_skill` under such a profile loses the dangling item); the full instance is byte-identical | none | U76 (E6-S5, #737) |
 | `pulse api sample` took only `--input` (required), so sampling a cohort union was a library (`SampleWithRequest`) and MCP (`pulse_sample`) surface only | **`--request FILE\|-` (`-r`)** takes a whole `SampleRequest` JSON — `cohort` or `union` (+ `union_source_field`), `n`, `labels` — through the strict request decoder (a misspelled key is `PULSE_REQUEST_UNKNOWN_FIELD`); `-` reads stdin. `--count` overrides the file's `n` when set (a file without `n` takes 10); `--labels` replaces its `labels`. `--input` is now required only without `--request`; both, or neither, is a usage error (exit 2, no envelope) | Additive (CLI flag) | none; `--input` invocations are unchanged | U76 (E6-S6, #738) |
 
+## Changes from sweep-trace
+
+Not yet released (rides `v1.0.0-alpha.47`). `format_version` stays `"1.1"` (additive `omitempty` fields only).
+
+**Behaviour breaks:** none. A non-adaptive Compose response (grid, `random`, `lhs`, no sweep) is byte-identical.
+
+**Additive:** an adaptive sweep (`mode` `de` / `bo`) reports which round each slot ran in and a per-round convergence trace.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| an adaptive sweep's `ranking` carried no round, and the response gave no view of the search's progress — a reader had to infer rounds from `slot` and the sweep's `budget` / `de` / `bo` knobs | **Round on every ranking entry.** `types.RankEntry.Round *int` (`round`, `omitempty`): the 0-based adaptive round the slot ran in, round 0 present; absent under every other sweep mode | Additive | Read `ranking[].round`; nothing to change |
+| no round trace on `ComposedResponse` | **`ComposedResponse.SweepTrace []types.SweepTraceEntry`** (`sweep_trace`, `omitempty`): one `{round, slots, evaluated, penalised, best, best_so_far, best_label}` per round in round order. `slots` is the round's inclusive `[first, last]` sweep-slot span; `penalised` counts the slots left unranked (failed stubs, a null / missing value at `rank.by`); `best` / `best_so_far` are `*float64`, `null` (key kept, never 0) while nothing ranked, and `best_label` is then absent. Read over the full ranking before `rank.top`; pinned outside the Compose `return` (full precision); the final `--stream` `{"ranking": ...}` record carries it (`[]` when no response) | Additive | Plot or assert convergence from `sweep_trace`; absent means a non-adaptive sweep |
+| every instance's payload schema was the same for a sweep | **Gated.** `round` and `sweep_trace` appear in an instance's payload schema (and the `sweep_trace` request-slot row) only with `capability:compose_sweep_adaptive`, mirroring `sweep_seed` under the sampling gate | Additive | A profile hiding the adaptive capability sees neither |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

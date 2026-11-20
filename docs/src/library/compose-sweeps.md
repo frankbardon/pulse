@@ -173,6 +173,25 @@ runs, so naming it is `PULSE_RESULT_INVALID` `slot_unknown` in predict
 and at run time. `fits[].from_sweep` binds the winner as usual
 ([Binding the winner as a fit](#binding-the-winner-as-a-fit)).
 
+An adaptive response also carries its round trace. Each `ranking` entry
+gains `round` (`RankEntry.Round`, the 0-based round the slot ran in;
+round 0 is present, other modes omit it), and
+`ComposedResponse.SweepTrace` (`sweep_trace`) lists one
+`SweepTraceEntry {round, slots, evaluated, penalised, best, best_so_far,
+best_label}` per round, in round order. `slots` is the round's inclusive
+`[first, last]` sweep-slot span, `evaluated` the slots it ran and
+`penalised` those left unranked (a failed slot's stub, or a null or
+missing value at `rank.by`). `best` is the best ranked value among the
+round's own slots (by `rank.order`), `best_so_far` the best over rounds
+0..`round` and `best_label` that slot's label; ties follow expansion
+order. `best` and `best_so_far` are `null` — never 0 — while nothing has
+ranked, and `best_label` is then absent. The trace reads the full ranking
+before `top`, sits outside the Compose `return` like `ranking` (full
+precision), and rides the trailing `--stream` ranking line. Non-adaptive
+sweeps are byte-identical. A profiled instance shows `round` and
+`sweep_trace` in its payload schema only with
+`capability:compose_sweep_adaptive`.
+
 The adaptive modes are gated by `capability:compose_sweep_adaptive`
 (which needs the sweep and the sampling modes); an instance that hides
 it refuses `budget`, `de` and `bo` as unknown fields and an adaptive

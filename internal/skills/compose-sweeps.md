@@ -75,7 +75,7 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 
 ## Rank
 
-`sweep.rank {by, order, top}` orders the SWEEP slots (never explicit ones) by one number and reports `ranking: [{label, value, rank, slot, axes}]` on the ComposedResponse, 1-based, `order` `asc` (default) or `desc`, `top` keeps the first N (>= 1). `by` is a dot path into each slot's unshaped response: an object key, or on a list the element whose `name` or `label` equals the segment (never an index), ending on a number, e.g. `regressions.fit.residual_std_err`. Two matching elements, or a `name` and `label` that differ, are ambiguous.
+`sweep.rank {by, order, top}` orders the SWEEP slots (never explicit ones) by one number and reports `ranking: [{label, value, rank, slot, axes}]` on the ComposedResponse, 1-based, `order` `asc` (default) or `desc`, `top` keeps the first N (>= 1). `by` is a dot path into each slot's unshaped response: an object key, or on a list the element whose `name` or `label` equals the segment (never an index), ending on a number, e.g. `regressions.fit.residual_std_err`. Matches that disagree are ambiguous.
 - The batch is refused `PULSE_SWEEP_RANK_PATH` (`details.reason` `syntax`, `missing`, `not_number`, `ambiguous`) when `by` resolves in no slot, hits a non-number or is ambiguous.
 - A null (NaN) value, or a path missing in this slot only, EXCLUDES that slot with a `PULSE_SWEEP_RANK_PATH` warning on its own response.
 - A computed fit figure that is exactly 0 (`r2`, `deviance`, …) ranks as 0 though the wire omits it; one the fit's type does not compute stays missing.
@@ -85,7 +85,7 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 <!-- /feature -->
 - `profile: true` adds `ranking_profile` `{axis: [{value, best, label, n}]}`: per axis value (range axis: bin), the best value over the other axes, its slot and the `n` ranked slots behind it (before `top`).
 - A ranked slot computes the ranked part even if its `return` excludes it. `ranking` / `ranking_profile` sit outside the compose `return`: always emitted, never rounded.
-- `--stream` ends with one `{"ranking":[...]}` line (even `[]`; `ranking_profile` rides it); rank-free sweeps emit none.
+- `--stream` ends with one `{"ranking":[...]}` line (even `[]`; `ranking_profile` rides it); rank-free sweeps emit none. Adaptive sweeps add `round` and `sweep_trace` (`compose-sweep-adaptive`).
 
 ## See
 
