@@ -207,7 +207,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		WantWeights: e.spec.Collinearity != nil && e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel,
 	}
 	// A penalty's N* is Σw* (n unweighted): glmnet's −loglik/N*.
-	pen := newGLMPenalty(e.spec, sum(prior))
+	pen := newGLMPenalty(e.spec, e.spec.Predictors, sum(prior))
 	if pen != nil {
 		pr.Penalty = pen
 	}

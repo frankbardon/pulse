@@ -39,8 +39,9 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). |
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Mix, `0<r<1`. |
+| `unpenalized` | []field | — | Unshrunk. |
 | `max_iters` | int | — | IRLS cap. |
-| `tol` | float | — | IRLS tolerance. |
+| `tol` | float | — | Tolerance. |
 | `resample` | enum | — | `bootstrap`, `jackknife`. |
 | `bootstrap_iters` | int | `1000` | Resample. |
 | `jackknife_groups` | int | — | Resample. |
@@ -82,10 +83,10 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Gotchas
 
-- Binomial separation → `PROCESSING_REGRESSION_SEPARATION`; the slot fails alone. Add `penalty: l2`, or drop it.
+- Binomial separation → `PROCESSING_REGRESSION_SEPARATION` (slot fails alone): add `penalty: l2` or drop it.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE`: raise `max_iters`; NB `theta_unbounded`: fit poisson. Another family's link → `PROCESSING_REGRESSION_INVALID_LINK`.
-- Poisson fixes φ = 1: overdispersed counts get too-small SEs; fit `negative_binomial` or a robust `covariance`.
-- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT`. Other refusals: [`regression-spec`](regression-spec.md).
+- Poisson fixes φ = 1 (overdispersion: too-small SEs); fit `negative_binomial` or a robust `covariance`.
+- Collinear / constant → `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 
 ## See
 

@@ -23,8 +23,8 @@ type olsPenaltyCase struct {
 	Rows         [][]float64 `json:"rows"`
 	Coefficients []float64   `json:"coefficients"`
 	Zero         []string    `json:"zero"`
-	// Unpenalized rides the ridge_unpenalized_* cases: predictors fitted
-	// with glmnet penalty.factor 0.
+	// Unpenalized rides the *_unpenalized_* cases (ridge, lasso, elastic
+	// net): predictors fitted with glmnet penalty.factor 0.
 	Unpenalized []string `json:"unpenalized"`
 	// StdErrors, PValues and DF ride the l2 cases only: the closed-form
 	// ridge covariance and its Student-t p-values, R matrix algebra
@@ -82,6 +82,9 @@ func TestRegOLS_PenaltyMatchesGlmnet(t *testing.T) {
 	for _, c := range loadOLSPenaltyReference(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			seen[c.Penalty] = true
+			if len(c.Unpenalized) > 0 {
+				seen["unpenalized/"+c.Penalty] = true
+			}
 			res, err := newOLS(t, c.spec()).FitBuffered(c.records())
 			if err != nil {
 				t.Fatalf("FitBuffered: %v", err)
@@ -98,7 +101,7 @@ func TestRegOLS_PenaltyMatchesGlmnet(t *testing.T) {
 			}
 		})
 	}
-	for _, want := range []string{"l1", "l2", "elasticnet"} {
+	for _, want := range []string{"l1", "l2", "elasticnet", "unpenalized/l1", "unpenalized/l2", "unpenalized/elasticnet"} {
 		if !seen[want] {
 			t.Errorf("golden lacks a %s case", want)
 		}
@@ -251,7 +254,7 @@ func TestRegOLS_RidgeEqualsElasticNetAtZeroL1(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		en, _, err := coordinateDescent(acc2, alpha, 0, 1000000, 1e-15)
+		en, _, err := coordinateDescent(acc2, alpha, 0, nil, 1000000, 1e-15)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -281,14 +284,11 @@ func TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet(t *testing.T) {
 
 	n := 0
 	for _, c := range loadOLSPenaltyReference(t) {
-		if len(c.Unpenalized) == 0 {
+		if len(c.Unpenalized) == 0 || c.Penalty != "l2" {
 			continue
 		}
 		n++
 		t.Run(c.Name, func(t *testing.T) {
-			if c.Penalty != "l2" {
-				t.Fatalf("unpenalized case on penalty %q", c.Penalty)
-			}
 			res, err := newOLS(t, c.spec()).FitBuffered(c.records())
 			if err != nil {
 				t.Fatalf("FitBuffered: %v", err)
@@ -319,6 +319,57 @@ func TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet(t *testing.T) {
 	}
 }
 
+// TestReferenceOracle_LassoUnpenalizedMatchesGlmnet: lasso and elastic
+// net with `unpenalized` predictors are glmnet with penalty.factor 0 on
+// them (gen_ols_penalty.R lasso_unpenalized_x1,
+// elasticnet_unpenalized_weighted; U69 E1-S1, #487): coefficients within
+// relative 1e-10 of the KKT-checked oracle, the oracle's zeros exactly 0,
+// inference null (the active set is still data-chosen). Each listed
+// predictor is one the fully penalised fit zeroes, so the factor is what
+// keeps it in the active set.
+func TestReferenceOracle_LassoUnpenalizedMatchesGlmnet(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]bool{}
+	for _, c := range loadOLSPenaltyReference(t) {
+		if len(c.Unpenalized) == 0 || c.Penalty == "l2" {
+			continue
+		}
+		seen[c.Penalty] = true
+		t.Run(c.Name, func(t *testing.T) {
+			res, err := newOLS(t, c.spec()).FitBuffered(c.records())
+			if err != nil {
+				t.Fatalf("FitBuffered: %v", err)
+			}
+			for j, key := range coefficientKeys(c.Predictors) {
+				if got := res.Coefficients[key]; !oracleClose(got, c.Coefficients[j], 1e-10) {
+					t.Errorf("β[%s] = %.17g, glmnet %.17g", key, got, c.Coefficients[j])
+				}
+			}
+			for _, name := range c.Zero {
+				if res.Coefficients[name] != 0 {
+					t.Errorf("β[%s] = %v, glmnet zeroed it", name, res.Coefficients[name])
+				}
+			}
+			assertInferenceNull(t, res, coefficientKeys(c.Predictors))
+			full := c
+			full.Unpenalized = nil
+			shrunk, err := newOLS(t, full.spec()).FitBuffered(full.records())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range c.Unpenalized {
+				if shrunk.Coefficients[name] != 0 || res.Coefficients[name] == 0 {
+					t.Errorf("β[%s]: penalised %v, unpenalized %v; want the factor to lift it off 0", name, shrunk.Coefficients[name], res.Coefficients[name])
+				}
+			}
+		})
+	}
+	if !seen["l1"] || !seen["elasticnet"] {
+		t.Fatalf("golden lacks an unpenalized case on l1 / elasticnet: %v", seen)
+	}
+}
+
 // TestRegOLS_RidgeUnpenalizedFollowsNamesInRefit: the modifier refit
 // (olsFitter, selection's subsets) skips the penalty by NAME, so a refit
 // over a reordered predictor subset equals a fresh fit of that subset
@@ -327,22 +378,40 @@ func TestRegOLS_RidgeUnpenalizedFollowsNamesInRefit(t *testing.T) {
 	t.Parallel()
 
 	predictors, records := lassoFixture()
-	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors,
-		Penalty: "l2", Alpha: 0.4, Unpenalized: []string{predictors[2]}}
-	subset := []string{predictors[3], predictors[2], predictors[0]}
-	refit, err := olsFitter(records, "y", subset, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fresh := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: subset,
-		Penalty: "l2", Alpha: 0.4, Unpenalized: []string{predictors[2]}}
-	res, err := newOLS(t, fresh).FitBuffered(records)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for j, name := range subset {
-		if !oracleClose(refit.Slopes[j], res.Coefficients[name], 1e-13) {
-			t.Errorf("β[%s]: refit %.17g, fresh fit %.17g", name, refit.Slopes[j], res.Coefficients[name])
-		}
+	// l2 (U53) and, since U69 E1-S1, l1 / elasticnet — whose refit the
+	// factor decides the active set of (x1 is zeroed when penalised).
+	for _, c := range []struct {
+		penalty     string
+		alpha, l1   float64
+		unpenalized string
+	}{
+		{"l2", 0.4, 0, predictors[2]},
+		{"l1", 0.2, 0, predictors[1]},
+		{"elasticnet", 0.2, 0.5, predictors[1]},
+	} {
+		t.Run(c.penalty, func(t *testing.T) {
+			spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors,
+				Penalty: c.penalty, Alpha: c.alpha, L1Ratio: c.l1, Unpenalized: []string{c.unpenalized},
+				Tol: 1e-15, MaxIters: 1000000}
+			subset := []string{predictors[3], predictors[2], predictors[1], predictors[0]}
+			refit, err := olsFitter(records, "y", subset, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fresh := *spec
+			fresh.Predictors = subset
+			res, err := newOLS(t, &fresh).FitBuffered(records)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for j, name := range subset {
+				if !oracleClose(refit.Slopes[j], res.Coefficients[name], 1e-13) {
+					t.Errorf("β[%s]: refit %.17g, fresh fit %.17g", name, refit.Slopes[j], res.Coefficients[name])
+				}
+			}
+			if res.Coefficients[c.unpenalized] == 0 {
+				t.Errorf("β[%s] = 0; its penalty factor 0 should keep it active", c.unpenalized)
+			}
+		})
 	}
 }

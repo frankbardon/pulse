@@ -17,12 +17,13 @@
 # Pinned packages: glmnet 5.1, jsonlite.
 #
 # Ridge (l2) cases also pin the closed-form ridge covariance
-# (ridge_inference below, reference-oracles E2-S2). The ridge_unpenalized_*
-# cases pin `unpenalized` (custom-regressions E3-S1, FR-32): the listed
-# predictors carry glmnet penalty.factor 0, so the objective's ridge term
-# runs over the others only; lasso / elastic net
+# (ridge_inference below, reference-oracles E2-S2); lasso / elastic net
 # carry none — selection makes their sampling distribution non-standard,
-# so Pulse reports their standard errors and p-values as null.
+# so Pulse reports their standard errors and p-values as null. The
+# *_unpenalized_* cases pin `unpenalized` (ridge: custom-regressions
+# E3-S1, FR-32; lasso / elastic net: regression-depth-2 E1-S1, #487): the
+# listed predictors carry glmnet penalty.factor 0, so the objective's
+# penalty (ridge and l1 terms alike) runs over the others only.
 #
 # glmnet's gaussian family standardises y internally (by its weighted
 # population SD s), which rescales its ridge term: on the raw y it does
@@ -104,13 +105,13 @@ ridge_inference <- function(X, y, w, alpha, pf = rep(1, ncol(X))) {
   list(b = bb, se = se, p = 2 * pt(-abs(bb / se), df), df = df)
 }
 
-# unpenalized names predictors with glmnet penalty.factor 0 (ridge only in
-# Pulse). glmnet rescales penalty.factor to sum to nvars, which scales the
+# unpenalized names predictors with glmnet penalty.factor 0 (every penalty
+# kind). glmnet rescales penalty.factor to sum to nvars, which scales the
 # effective lambda by nvars / sum(pf); lambda' * sum(pf) / nvars undoes it,
 # so the penalised predictors see exactly Pulse's alpha.
 op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0, unpenalized = character()) {
   r <- switch(penalty, l2 = 0, l1 = 1, elasticnet = l1_ratio)
-  stopifnot(all(unpenalized %in% colnames(X)), length(unpenalized) == 0 || penalty == "l2")
+  stopifnot(all(unpenalized %in% colnames(X)))
   pf <- ifelse(colnames(X) %in% unpenalized, 0, 1)
   wn <- w / sum(w)
   s <- sqrt(sum(wn * (y - sum(wn * y))^2))
@@ -181,6 +182,12 @@ op_case("ridge_0.05", X, y, ones, "l2", 0.05)
 # documented tolerance stays relative 1e-10.
 op_case("ridge_unpenalized_x0", X, y, ones, "l2", 0.5, unpenalized = "x0")
 op_case("ridge_unpenalized_weighted", X, y, w, "l2", 0.3, unpenalized = c("x0", "x2"))
+# Lasso / elastic net with unpenalized predictors (regression-depth-2
+# E1-S1, #487): x1 / x4 carry no signal, so the penalised fits zero them
+# (lasso_0.2, elasticnet_weighted above) — factor 0 keeps them in the
+# active set, unshrunk, and the l1 term then reads only the others.
+op_case("lasso_unpenalized_x1", X, y, ones, "l1", 0.2, unpenalized = "x1")
+op_case("elasticnet_unpenalized_weighted", X, y, w, "elasticnet", 0.1, 0.3, unpenalized = c("x1", "x4"))
 
 op_doc <- list(
   generator = "scripts/reference/gen_ols_penalty.R (via gen_reference.R)",
@@ -195,6 +202,6 @@ op_doc <- list(
     "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10.",
     "l2 cases add std_errors / p_values / df: the closed-form ridge covariance sigma2 * A^-1 G A^-1 (A = G + N* alpha I, G the weighted centred Gram, sigma2 = RSS/(N* - p - 1)), Var(b0) = sigma2/N* + mu' V mu, Student-t p on N* - p - 1 df, computed by R matrix algebra (ridge_inference).",
     "l1 / elasticnet cases carry no inference: their standard errors and p-values are undefined (null in Pulse).",
-    "A case listing unpenalized fits glmnet with penalty.factor 0 on those predictors and lambda' * sum(pf) / nvars (undoing glmnet's penalty.factor rescaling); its ridge covariance uses A = G + N* alpha diag(pf)."),
+    "A case listing unpenalized (any penalty kind) fits glmnet with penalty.factor 0 on those predictors and lambda' * sum(pf) / nvars (undoing glmnet's penalty.factor rescaling); an l2 case's ridge covariance uses A = G + N* alpha diag(pf)."),
   cases = op_cases)
 write_golden("ols_penalty", op_doc)

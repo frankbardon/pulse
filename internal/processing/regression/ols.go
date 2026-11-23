@@ -404,10 +404,10 @@ func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 		res, err := solveRidge(e.acc, e.spec.Alpha, regpenalty.UnpenalizedMask(e.spec, e.spec.Predictors))
 		return res, 0, false, err
 	case "l1":
-		res, iters, err := solveLasso(e.acc, e.spec.Alpha, e.spec.MaxIters, e.spec.Tol)
+		res, iters, err := solveLasso(e.acc, e.spec.Alpha, regpenalty.UnpenalizedMask(e.spec, e.spec.Predictors), e.spec.MaxIters, e.spec.Tol)
 		return res, iters, true, err
 	case "elasticnet":
-		res, iters, err := solveElasticNet(e.acc, e.spec.Alpha, e.spec.L1Ratio, e.spec.MaxIters, e.spec.Tol)
+		res, iters, err := solveElasticNet(e.acc, e.spec.Alpha, e.spec.L1Ratio, regpenalty.UnpenalizedMask(e.spec, e.spec.Predictors), e.spec.MaxIters, e.spec.Tol)
 		return res, iters, true, err
 	default:
 		// Spec validation rejects unknown values upstream; the default

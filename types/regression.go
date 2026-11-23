@@ -133,9 +133,9 @@ type RegressionSpec struct {
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Unpenalized lists predictors the penalty skips — glmnet's
-	// penalty.factor 0 (REG_OLS with Penalty "l2": no α term on their
-	// Gram diagonal; REG_MULTINOMIAL with any Penalty). Each must name a
-	// predictor, once. REG_OLS lasso / elastic net, REG_GLM,
+	// penalty.factor 0 on REG_OLS, REG_GLM and REG_MULTINOMIAL with any
+	// Penalty (l1, l2 or elasticnet): never shrunk, never dropped from
+	// the l1 active set. Each must name a predictor, once.
 	// REG_BAYES_LINEAR and an unpenalised fit refuse it
 	// (PROCESSING_CONFIG).
 	Unpenalized []string `json:"unpenalized,omitempty"`

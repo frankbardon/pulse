@@ -1195,9 +1195,11 @@ scalar ε, Λ₀ = ε·I; byte-identical to the former float field, absent or
 coefficient, intercept first like `prior_mu`: Λ₀ = diag; 0 is a flat
 prior). A wrong length or a negative entry is `PROCESSING_CONFIG` in
 predict and at runtime. `RegressionSpec.unpenalized` is an additive
-`omitempty` array of predictor names the `REG_OLS` ridge (`penalty`
-`l2`) penalty skips (glmnet `penalty.factor` 0); every other penalty or
-type refuses it `PROCESSING_CONFIG`, predict and runtime alike.
+`omitempty` array of predictor names the penalty skips (glmnet
+`penalty.factor` 0) on `REG_OLS`, `REG_GLM` and `REG_MULTINOMIAL`, any
+`penalty` kind (U69 E1-S1 lifted the `REG_OLS` ridge-only rule); no
+`penalty`, or any other type, refuses it `PROCESSING_CONFIG`, predict
+and runtime alike.
 `format_version` stays `"1.1"`; neither is echoed on the result.
 
 `RegressionSpec.bounds` (`REG_OLS`) is an additive `omitempty` object

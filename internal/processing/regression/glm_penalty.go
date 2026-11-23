@@ -3,6 +3,7 @@ package regression
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -39,11 +40,31 @@ import (
 // when its signs agree and every dropped predictor satisfies the KKT
 // bound |r_j| ≤ λ₁ — so the result does not hinge on how far the
 // (linearly converging) descent was run.
+//
+// Per-term penalty factors (U69 E1-S1, glmnet's penalty.factor 0 / 1):
+// an `unpenalized` predictor carries no λ₁ / λ₂ term — D's entry is 0,
+// its coordinate update is the plain r_j / A_jj, it never shrinks to 0
+// and it stays in the active set — exactly as the intercept.
+// Multinomial's ridgeMasked / descendMasked are the same scheme.
 type glmPenalty struct {
 	kind    string // "l1", "l2" or "elasticnet"
 	alpha   float64
 	l1Ratio float64
 	nStar   float64
+	// pen[j] reports whether design term j (0 the intercept, then the
+	// predictors in fit order) is penalized
+	// (regpenalty.PenalizedTerms). Nil = every predictor penalized, the
+	// intercept never (the historical penalty).
+	pen []bool
+}
+
+// penalized reports whether design term j carries the penalty: never
+// the intercept, every predictor unless pen marks it unpenalized.
+func (p *glmPenalty) penalized(j int) bool {
+	if j == 0 {
+		return false
+	}
+	return p.pen == nil || p.pen[j]
 }
 
 const (
@@ -62,11 +83,16 @@ const (
 // newGLMPenalty returns the penalty a REG_GLM spec asks for over prior
 // weights summing to nStar, or nil for an unpenalised spec. l1 is
 // l1_ratio 1 and l2 is l1_ratio 0; elasticnet reads the spec's.
-func newGLMPenalty(spec *types.RegressionSpec, nStar float64) *glmPenalty {
+// predictors are the design's predictor columns in fit order (a refit's
+// active subset): spec.Unpenalized is matched against them by name.
+func newGLMPenalty(spec *types.RegressionSpec, predictors []string, nStar float64) *glmPenalty {
 	if spec == nil || spec.Penalty == "" {
 		return nil
 	}
 	p := &glmPenalty{kind: spec.Penalty, alpha: spec.Alpha, nStar: nStar}
+	if len(spec.Unpenalized) != 0 {
+		p.pen = regpenalty.PenalizedTerms(spec, predictors)
+	}
 	switch spec.Penalty {
 	case "l1":
 		p.l1Ratio = 1
@@ -84,10 +110,14 @@ func (p *glmPenalty) lambda1() float64 { return float64(p.nStar * p.alpha * p.l1
 func (p *glmPenalty) approximateSE() bool { return p != nil && p.l1Ratio > 0 }
 
 // value is the penalty on the deviance scale: λ₂·‖β‖² + 2·λ₁·‖β‖₁ over
-// the predictors.
+// the penalized predictors.
 func (p *glmPenalty) value(beta []float64) float64 {
 	var sq, abs float64
-	for _, b := range beta[1:] {
+	for j := 1; j < len(beta); j++ {
+		if !p.penalized(j) {
+			continue
+		}
+		b := beta[j]
 		sq += float64(b * b)
 		abs += math.Abs(b)
 	}
@@ -108,7 +138,9 @@ func (p *glmPenalty) ridgeSolve(k int, a, b []float64) ([]float64, bool) {
 	m := append([]float64(nil), a...)
 	l2 := p.lambda2()
 	for j := 1; j < k; j++ {
-		m[j*k+j] += l2
+		if p.penalized(j) {
+			m[j*k+j] += l2
+		}
 	}
 	return solveEquilibrated(k, m, b)
 }
@@ -136,8 +168,12 @@ func (p *glmPenalty) descend(k int, a, b, start []float64) ([]float64, bool) {
 				}
 			}
 			var next float64
-			if j == 0 {
-				next = r / row[0]
+			if !p.penalized(j) {
+				// The intercept or an unpenalized predictor: the plain
+				// least-squares coordinate (a non-positive A_jj leaves 0).
+				if row[j] > 0 {
+					next = r / row[j]
+				}
 			} else if d := row[j] + l2; d > 0 {
 				next = softThreshold(r, l1) / d
 			}
@@ -168,14 +204,14 @@ func (p *glmPenalty) descend(k int, a, b, start []float64) ([]float64, bool) {
 }
 
 // activeSetSolve solves the penalised problem restricted to the
-// intercept and the predictors nonzero in beta with their signs fixed,
-// returning the full-length solution when it is a KKT point of the
-// whole problem.
+// intercept, the unpenalized predictors and the penalized predictors
+// nonzero in beta with their signs fixed, returning the full-length
+// solution when it is a KKT point of the whole problem.
 func (p *glmPenalty) activeSetSolve(k int, a, b, beta []float64) ([]float64, bool) {
 	l1, l2 := p.lambda1(), p.lambda2()
 	active := []int{0}
 	for j := 1; j < k; j++ {
-		if beta[j] != 0 {
+		if beta[j] != 0 || !p.penalized(j) {
 			active = append(active, j)
 		}
 	}
@@ -187,7 +223,7 @@ func (p *glmPenalty) activeSetSolve(k int, a, b, beta []float64) ([]float64, boo
 			m[u*q+v] = a[ju*k+jv]
 		}
 		rhs[u] = b[ju]
-		if ju > 0 {
+		if p.penalized(ju) {
 			m[u*q+u] += l2
 			rhs[u] -= float64(l1 * sign(beta[ju]))
 		}
@@ -198,13 +234,13 @@ func (p *glmPenalty) activeSetSolve(k int, a, b, beta []float64) ([]float64, boo
 	}
 	out := make([]float64, k)
 	for u, ju := range active {
-		if ju > 0 && sol[u]*sign(beta[ju]) <= 0 {
+		if p.penalized(ju) && sol[u]*sign(beta[ju]) <= 0 {
 			return nil, false
 		}
 		out[ju] = sol[u]
 	}
 	for j := 1; j < k; j++ {
-		if out[j] != 0 {
+		if out[j] != 0 || !p.penalized(j) {
 			continue
 		}
 		r := b[j]
@@ -225,7 +261,9 @@ func sign(x float64) float64 {
 	return 1
 }
 
-// covariance is the penalised-Fisher sandwich H⁻¹·A·H⁻¹, H = A + λ₂·D,
+// covariance is the penalised-Fisher sandwich H⁻¹·A·H⁻¹, H = A + λ₂·D
+// (D = diag of the per-term factors: 0 on the intercept and every
+// unpenalized predictor),
 // at the converged working Gram a (k × k, row-major) — over the whole
 // design for l2, over the intercept and the nonzero predictors for l1 /
 // elasticnet. It returns the active columns and their covariance
@@ -236,7 +274,7 @@ func sign(x float64) float64 {
 func (p *glmPenalty) covariance(k int, a, beta []float64) (active []int, cov [][]float64, ok bool) {
 	active = []int{0}
 	for j := 1; j < k; j++ {
-		if p.l1Ratio == 0 || beta[j] != 0 {
+		if p.l1Ratio == 0 || beta[j] != 0 || !p.penalized(j) {
 			active = append(active, j)
 		}
 	}
@@ -250,7 +288,7 @@ func (p *glmPenalty) covariance(k int, a, beta []float64) (active []int, cov [][
 	h := append([]float64(nil), sub...)
 	l2 := p.lambda2()
 	for u, ju := range active {
-		if ju > 0 {
+		if p.penalized(ju) {
 			h[u*q+u] += l2
 		}
 	}

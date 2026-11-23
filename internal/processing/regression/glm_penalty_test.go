@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,9 @@ type glmPenaltyCase struct {
 	StdErrors    []*float64  `json:"std_errors"`
 	Zero         []string    `json:"zero"`
 	Deviance     float64     `json:"deviance"`
+	// Unpenalized rides the *_unpenalized* cases: predictors fitted with
+	// glmnet penalty.factor 0 (U69 E1-S1, #487).
+	Unpenalized []string `json:"unpenalized"`
 }
 
 func loadGLMPenaltyReference(t *testing.T) []glmPenaltyCase {
@@ -71,6 +75,7 @@ func (c glmPenaltyCase) spec() *types.RegressionSpec {
 	spec := &types.RegressionSpec{
 		Type: types.REG_GLM, Target: "y", Predictors: c.Predictors, Family: c.Family,
 		Penalty: c.Penalty, Alpha: c.Alpha, Tol: 1e-13, MaxIters: 200,
+		Unpenalized: c.Unpenalized,
 	}
 	if c.Penalty == "elasticnet" {
 		spec.L1Ratio = c.L1Ratio
@@ -97,6 +102,10 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
 			seen[c.Family+"/"+c.Penalty] = true
+			if len(c.Unpenalized) > 0 {
+				seen["unpenalized/"+c.Penalty] = true
+				seen["unpenalized/"+c.Family] = true
+			}
 			if len(c.Zero) > 0 {
 				seen["zeroed"] = true
 			}
@@ -138,7 +147,8 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 			}
 		})
 	}
-	for _, want := range []string{"binomial/l2", "binomial/l1", "binomial/elasticnet", "poisson/l2", "poisson/l1", "poisson/elasticnet", "zeroed"} {
+	for _, want := range []string{"binomial/l2", "binomial/l1", "binomial/elasticnet", "poisson/l2", "poisson/l1", "poisson/elasticnet", "zeroed",
+		"unpenalized/l2", "unpenalized/l1", "unpenalized/elasticnet", "unpenalized/binomial", "unpenalized/poisson"} {
 		if !seen[want] {
 			t.Errorf("golden lacks a %s case", want)
 		}
@@ -388,5 +398,84 @@ func TestRegGLM_PenalizedStopIsNeverSeparation(t *testing.T) {
 	_, err := asBuffered(t, newGLM(t, spec)).FitBuffered(sep.records())
 	if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NO_CONVERGE) {
 		t.Fatalf("err = %v, want PROCESSING_REGRESSION_NO_CONVERGE", err)
+	}
+}
+
+// TestRegGLM_UnpenalizedVcov: an l2 fit with `unpenalized` (U69 E1-S1)
+// reports vcov from the same masked sandwich its standard errors read
+// (H = A + λ₂·diag(0, pf), pinned against R by
+// TestRegGLM_PenaltyMatchesGlmnet's binomial_l2_unpenalized).
+func TestRegGLM_UnpenalizedVcov(t *testing.T) {
+	t.Parallel()
+
+	c := penaltyFixture(t, "binomial_l2_unpenalized")
+	spec := c.spec()
+	spec.Vcov = true
+	res, err := asBuffered(t, newGLM(t, spec)).FitBuffered(c.records())
+	if err != nil {
+		t.Fatalf("l2 unpenalized vcov fit: %v", err)
+	}
+	if res.Vcov == nil || len(res.Vcov.RowKeys) != len(c.Predictors)+1 {
+		t.Fatalf("Vcov = %+v, want every coefficient", res.Vcov)
+	}
+	for i, key := range res.Vcov.RowKeys {
+		if d := math.Sqrt(res.Vcov.Values[i][i]); d != res.StdErrors[key] {
+			t.Errorf("√Vcov[%s] = %.17g, SE %.17g", key, d, res.StdErrors[key])
+		}
+	}
+}
+
+// TestRegGLM_UnpenalizedFollowsNamesInRefit: the modifier refit
+// (glmFitter, selection's subsets and the resample replicates) reads
+// `unpenalized` by NAME, so a refit over a reordered predictor subset
+// equals a fresh fit of that subset with the same list — on l1, where
+// the factor decides the active set.
+func TestRegGLM_UnpenalizedFollowsNamesInRefit(t *testing.T) {
+	t.Parallel()
+
+	c := penaltyFixture(t, "binomial_l1_unpenalized")
+	spec := c.spec()
+	subset := []string{"x3", "x1"}
+	refit, err := glmFitter(c.records(), "y", subset, binomialLogit, spec.MaxIters, spec.Tol, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := c.spec()
+	fresh.Predictors = subset
+	want, err := asBuffered(t, newGLM(t, fresh)).FitBuffered(c.records())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refit.Intercept != want.Coefficients[InterceptKey] {
+		t.Errorf("intercept: refit %v, fresh %v", refit.Intercept, want.Coefficients[InterceptKey])
+	}
+	for j, name := range subset {
+		if refit.Slopes[j] != want.Coefficients[name] {
+			t.Errorf("β[%s]: refit %v, fresh %v", name, refit.Slopes[j], want.Coefficients[name])
+		}
+	}
+	if refit.Slopes[0] == 0 {
+		t.Error("β[x3] = 0 in the refit; its penalty factor 0 should keep it active")
+	}
+}
+
+// TestRegGLM_UnpenalizedSeparatedPredictorIsSeparation: a penalty
+// bounds only the predictors it reads, so a separating predictor listed
+// in `unpenalized` diverges as in the MLE — SEPARATION naming it, never
+// the penalised fit's NO_CONVERGE (TestRegGLM_PenalizedStopIsNeverSeparation
+// keeps every-predictor-penalised fits off SEPARATION).
+func TestRegGLM_UnpenalizedSeparatedPredictorIsSeparation(t *testing.T) {
+	t.Parallel()
+
+	c := penaltyFixture(t, "separated_l2")
+	spec := c.spec()
+	spec.Unpenalized = []string{"x"}
+	_, err := asBuffered(t, newGLM(t, spec)).FitBuffered(c.records())
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_REGRESSION_SEPARATION {
+		t.Fatalf("err = %v, want PROCESSING_REGRESSION_SEPARATION", err)
+	}
+	if names, _ := ce.Details["predictors"].([]string); !slices.Equal(names, []string{"x"}) {
+		t.Errorf("separation names %v, want [x]", ce.Details["predictors"])
 	}
 }

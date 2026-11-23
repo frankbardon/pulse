@@ -680,11 +680,17 @@ b₀ + ½(RSS + ΔᵀΛ₀Δ); the quadratic form cancels μ₀ᵀΛ₀μ₀ aga
 reference, since `solve()` loses digits there), plain and
 frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
 (`TestReferenceOracle_RegBayesPrecisionVectorMatchesR`, `1e-10`). The
-`ridge_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
+`*_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
 `penalty.factor` 0 on the `unpenalized` predictors and λ′·Σpf / p
-(undoing glmnet's rescaling of the factors to sum to p), cross-checked
-against the closed form G + N*·α·diag(pf)
-(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`).
+(undoing glmnet's rescaling of the factors to sum to p) — the ridge
+ones cross-checked against the closed form G + N*·α·diag(pf)
+(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`), the
+lasso / elastic-net ones (U69 E1-S1) KKT-checked with the factors
+(`TestReferenceOracle_LassoUnpenalizedMatchesGlmnet`, `1e-10`). The
+`*_unpenalized*` cases of `glm_penalty.json` do the same for `REG_GLM`
+on every penalty kind, binomial and poisson, with λ = alpha·Σpf / p and
+the l2 sandwich over H = A + N*·α·(1 − l1_ratio)·diag(0, pf)
+(`TestRegGLM_PenaltyMatchesGlmnet`, `1e-10`).
 `scripts/reference/gen_ols_nnls.R` writes `ols_nnls.json`: `REG_OLS`
 `bounds.nonnegative` — least squares with the named slopes ≥ 0 — by
 `nnls::nnls` on the centred, √w-scaled design (the intercept profiled

@@ -185,14 +185,14 @@ func FitForAttribute(
 		coeffs = res.Coefficients
 		intercept = res.Intercept
 	case "l1":
-		res, _, err := solveLasso(acc, spec.Alpha, spec.MaxIters, spec.Tol)
+		res, _, err := solveLasso(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, spec.Predictors), spec.MaxIters, spec.Tol)
 		if err != nil {
 			return nil, err
 		}
 		coeffs = res.Coefficients
 		intercept = res.Intercept
 	case "elasticnet":
-		res, _, err := solveElasticNet(acc, spec.Alpha, spec.L1Ratio, spec.MaxIters, spec.Tol)
+		res, _, err := solveElasticNet(acc, spec.Alpha, spec.L1Ratio, regpenalty.UnpenalizedMask(spec, spec.Predictors), spec.MaxIters, spec.Tol)
 		if err != nil {
 			return nil, err
 		}

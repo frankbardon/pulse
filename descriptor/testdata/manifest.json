@@ -8971,6 +8971,14 @@
             "slot": true
           },
           {
+            "name": "unpenalized",
+            "type": "list",
+            "required": false,
+            "description": "Any penalty: predictors the penalty skips (glmnet's penalty.factor 0), each a listed predictor, once — never shrunk, never dropped from the l1 active set; l2's sandwich reads D = 0 on them. No penalty refuses it (PROCESSING_CONFIG).",
+            "slot": true,
+            "names_column": true
+          },
+          {
             "name": "max_iters",
             "type": "int",
             "required": false,
@@ -10006,7 +10014,7 @@
             "name": "unpenalized",
             "type": "list",
             "required": false,
-            "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG).",
+            "description": "Any penalty: predictors the penalty skips (glmnet's penalty.factor 0), each a listed predictor, once — never shrunk, never dropped from the l1 active set; l2's sandwich SEs read the same system. No penalty refuses it (PROCESSING_CONFIG).",
             "slot": true,
             "names_column": true
           },
@@ -22049,4 +22057,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: de753b422db40d83695f0d45141eccf2c167f48a8361c62eccf126734750f3b4
+// golden-hash: fdf8dc0964ad6b5869d49babf41e3ecc2ea191ea0773a283273d15347d4430d2

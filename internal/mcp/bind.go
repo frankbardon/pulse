@@ -1113,7 +1113,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) / REG_MULTINOMIAL (symmetric: every category, no reference) regularization; omit for none."),
 				"alpha":       num("Penalty strength (> 0) when penalty is set."),
 				"l1_ratio":    num("Elastic-net mixing in (0, 1); elasticnet only."),
-				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS ridge (penalty l2) or REG_MULTINOMIAL (any penalty): predictors the penalty skips (glmnet penalty.factor 0); REG_OLS lasso / elasticnet refuse it.", "items": enumStringField(c.Numeric, "")},
+				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS, REG_GLM or REG_MULTINOMIAL, any penalty (l1, l2 or elasticnet): predictors the penalty skips (glmnet penalty.factor 0); no penalty refuses it.", "items": enumStringField(c.Numeric, "")},
 				"bounds": map[string]any{
 					"type":        "object",
 					"description": "REG_OLS only: {nonnegative: [predictors]} constrains those slopes >= 0; a binding bound nulls the inference (resample bootstrap for replicate SEs). Refused with a penalty, selection or robust covariance.",

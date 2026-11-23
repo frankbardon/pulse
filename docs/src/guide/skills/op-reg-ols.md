@@ -35,7 +35,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `penalty` | enum | `""` | `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Mix, `0<r<1`. |
-| `unpenalized` | []field | — | `l2`: left unshrunk. |
+| `unpenalized` | []field | — | Left unshrunk. |
 | `bounds` | object | — | `{nonnegative: [...]}`: slopes ≥ 0. |
 | `intercept` | bool | `true` | `false`: no intercept. |
 | `solver` | enum | `qr` | Or `normal`. |
@@ -84,7 +84,7 @@ See `## Contract`; null / NaN / ±Inf drops the row.
 ## Gotchas
 
 - `l1` / `elasticnet`: null SE / p / CI + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`; use `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
-- `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound: [`regression-model-options`](regression-model-options.md).
+- `unpenalized` / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound: [`regression-model-options`](regression-model-options.md).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Weighted `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
 - Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one, or `l2`.

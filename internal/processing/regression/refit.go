@@ -148,9 +148,9 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	case "l2":
 		solve, err = solveRidge(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, activePredictors))
 	case "l1":
-		solve, _, err = solveLasso(acc, spec.Alpha, spec.MaxIters, spec.Tol)
+		solve, _, err = solveLasso(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, activePredictors), spec.MaxIters, spec.Tol)
 	case "elasticnet":
-		solve, _, err = solveElasticNet(acc, spec.Alpha, spec.L1Ratio, spec.MaxIters, spec.Tol)
+		solve, _, err = solveElasticNet(acc, spec.Alpha, spec.L1Ratio, regpenalty.UnpenalizedMask(spec, activePredictors), spec.MaxIters, spec.Tol)
 	default:
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
@@ -183,9 +183,9 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 // Caller responsibilities:
 //   - selectFamily(family, link) has already been validated.
 //   - spec.MaxIters / spec.Tol are usable (defaults applied upstream).
-//   - knobs, when non-nil, is the spec whose Penalty / Alpha / L1Ratio
-//     penalise every refit (glm_penalty.go; nil or Penalty "" = the MLE);
-//     nothing else on it is read.
+//   - knobs, when non-nil, is the spec whose Penalty / Alpha / L1Ratio /
+//     Unpenalized penalise every refit (glm_penalty.go; nil or Penalty ""
+//     = the MLE); nothing else on it is read.
 //
 // Returns:
 //   - refitResult with Deviance populated (RSS untouched; the
@@ -279,7 +279,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 	if prior != nil {
 		nStar = sum(prior)
 	}
-	if pen := newGLMPenalty(knobs, nStar); pen != nil {
+	if pen := newGLMPenalty(knobs, activePredictors, nStar); pen != nil {
 		pr.Penalty = pen
 	}
 	sol, err := irlsFit(pr)

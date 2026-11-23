@@ -15,7 +15,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 
 | Need | Option | Model |
 |---|---|---|
-| A penalty, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS `l2`; multinomial, any |
+| A penalty, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS, GLM, multinomial |
 | Slopes that cannot be negative (media spend, prices of goods) | `bounds: {nonnegative: [names]}` | OLS |
 | A prior centred on an experiment for ONE coefficient, flat or weak elsewhere | `prior_precision: [..]` per coefficient | Bayesian linear |
 | A curve or fit no built-in covers | a registered regression | manifest `extensions.regressions` |
@@ -25,7 +25,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 
 ## `unpenalized` (penalty subset)
 
-The penalty skips the listed predictors (glmnet `penalty.factor` 0); each a listed predictor, once. OLS takes it with `l2` only, the multinomial with any `penalty`; no `penalty`, a GLM, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
+The penalty skips the listed predictors (glmnet `penalty.factor` 0: never shrunk or dropped); each a listed predictor, once. OLS, GLM and multinomial take it with any `penalty`; no `penalty`, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
 
 ## `bounds.nonnegative` (NNLS)
 

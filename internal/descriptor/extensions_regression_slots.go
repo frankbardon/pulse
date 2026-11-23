@@ -113,7 +113,7 @@ var regressionSlotRules = []regressionSlotRule{
 		slot: "unpenalized", keys: []string{"unpenalized"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("unpenalized", len(s.Unpenalized) != 0) },
 		refusal: func(*types.RegressionSpec) string {
-			return "takes no unpenalized (a REG_OLS ridge knob); pass the model's own per-predictor penalty through params"
+			return "takes no unpenalized (a built-in penalty knob); pass the model's own per-predictor penalty through params"
 		},
 	},
 	{

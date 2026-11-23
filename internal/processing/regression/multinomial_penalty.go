@@ -84,11 +84,7 @@ func newMultinomialPenalty(spec *types.RegressionSpec) *multinomialPenalty {
 	case "elasticnet":
 		p.l1Ratio = spec.L1Ratio
 	}
-	mask := regpenalty.UnpenalizedMask(spec, spec.Predictors)
-	p.pen = make([]bool, len(spec.Predictors)+1)
-	for j := range spec.Predictors {
-		p.pen[j+1] = mask == nil || !mask[j]
-	}
+	p.pen = regpenalty.PenalizedTerms(spec, spec.Predictors)
 	return p
 }
 
