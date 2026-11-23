@@ -58,7 +58,7 @@ func runResample(
 	warm func([]Record, []float64) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runResampleCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, nil, pValueFn)
+	return runResampleCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, nil, pValueFn, nil)
 }
 
 // runResampleCtx is runResample under ctx: every replicate loop reads
@@ -66,7 +66,9 @@ func runResample(
 // is the per-replicate hook (refitReplicate) reading the statistics the
 // slot derives from each refit — its marginal effects in
 // regmargins.ResultKeys order, whose replicate SE and percentile p
-// replace the base fit's margins inference (resampleMargins).
+// replace the base fit's margins inference (resampleMargins). figures,
+// when non-nil, is released with the run's replicate covariance (a
+// Compose comparison reads it: compare_resample.go).
 func runResampleCtx(
 	ctx context.Context,
 	spec *types.RegressionSpec,
@@ -77,15 +79,16 @@ func runResampleCtx(
 	warm func([]Record, []float64) (*refitResult, error),
 	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	switch spec.Resample {
 	case "jackknife":
 		if regresample.Grouped(spec) {
-			return runGroupedJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, warm, derive, pValueFn)
+			return runGroupedJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, warm, derive, pValueFn, figures)
 		}
-		return runJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn)
+		return runJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn, figures)
 	case "bootstrap":
-		return runBootstrapCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn)
+		return runBootstrapCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn, figures)
 	default:
 		return nil, unknownResample(spec)
 	}
@@ -129,7 +132,7 @@ func runJackknife(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn)
+	return runJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn, nil)
 }
 
 func runJackknifeCtx(
@@ -141,13 +144,14 @@ func runJackknifeCtx(
 	fitter func([]Record) (*refitResult, error),
 	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	rows := jackknifeRows(spec, records, predictors)
 	run, err := jackknifeCore(ctx, spec, rows, len(predictors)+1, refitReplicate(len(predictors), fitter, derive))
 	if err != nil {
 		return nil, err
 	}
-	return packageResampleResult(spec, baseResult, predictors, run, pValueFn), nil
+	return packageResampleResult(spec, baseResult, predictors, run, pValueFn, figures), nil
 }
 
 // runGroupedJackknifeCtx is the delete-a-group jackknife (JK1): the
@@ -189,6 +193,7 @@ func runGroupedJackknifeCtx(
 	warm func([]Record, []float64) (*refitResult, error),
 	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	p := len(predictors)
 	rep := refitReplicate(p, fitter, derive)
@@ -205,7 +210,7 @@ func runGroupedJackknifeCtx(
 	if err != nil {
 		return nil, err
 	}
-	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn)
+	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn, figures)
 	out.JackknifeGroups = run.groups
 	return out, nil
 }
@@ -383,7 +388,7 @@ func runBootstrap(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runBootstrapCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn)
+	return runBootstrapCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn, nil)
 }
 
 func runBootstrapCtx(
@@ -395,13 +400,14 @@ func runBootstrapCtx(
 	fitter func([]Record) (*refitResult, error),
 	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	rows := jackknifeRows(spec, records, predictors)
 	run, err := bootstrapCore(ctx, spec, rows, predictors, len(predictors)+1, refitReplicate(len(predictors), fitter, derive), nil)
 	if err != nil {
 		return nil, err
 	}
-	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn)
+	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn, figures)
 	run.echo(out)
 	return out, nil
 }
@@ -419,13 +425,16 @@ func runBootstrapCtx(
 // predictors); when spec.Vcov is set it REPLACES the analytical
 // covariance the base fit carried, so Vcov always describes the
 // reported StdErrors. A margins block's inference is replaced by the
-// replicate one (resampleMargins).
+// replicate one (resampleMargins). figures, when non-nil, releases the
+// base fit's comparison figures with the full replicate covariance
+// (compare_resample.go), formed whether or not vcov was asked for.
 func packageResampleResult(
 	spec *types.RegressionSpec,
 	baseResult *types.RegressionResult,
 	predictors []string,
 	run *replicateRun,
 	pValueFn func(coef, se float64) float64,
+	figures *ResampledFigures,
 ) *types.RegressionResult {
 	se, cov, bootstrapP := run.se, run.cov, run.p
 	// Shallow copy of baseResult, then replace the uncertainty maps.
@@ -462,6 +471,7 @@ func packageResampleResult(
 		attachVcov(&out, predictors, cov)
 	}
 	out.Margins = resampleMargins(out.Margins, run, resolvedConfLevel(spec))
+	figures.release(coefficientKeys(predictors), run)
 	return &out
 }
 

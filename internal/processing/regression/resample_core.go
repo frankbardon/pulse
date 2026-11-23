@@ -78,6 +78,24 @@ type replicateRun struct {
 	// requested / succeeded are a bootstrap's replicate counts (0 on a
 	// jackknife); groups a delete-a-group jackknife's g (0 otherwise).
 	requested, succeeded, groups int
+	// coefs, mean, finish and full keep what cov was summarised from,
+	// so fullCov can form the off-diagonal cov skipped (a comparison
+	// reads it whether or not vcov was asked for).
+	coefs  [][]float64
+	mean   []float64
+	finish func(float64) float64
+	full   bool
+}
+
+// fullCov is the full q×q replicate covariance: cov itself when it was
+// formed full, else the same cross-product over the same replicates with
+// the off-diagonal (replicateCov) — its diagonal is cov's bit for bit,
+// so √diag is still the reported standard error.
+func (r *replicateRun) fullCov() [][]float64 {
+	if r.full {
+		return r.cov
+	}
+	return replicateCov(r.coefs, r.mean, true, r.finish)
 }
 
 // newReplicateRun summarises the replicate set: the q×q coefficient
@@ -89,8 +107,9 @@ func newReplicateRun(reps []replicate, q int, full, percentile bool, finish func
 	for i, r := range reps {
 		coefs[i] = r.coef
 	}
-	cov := replicateCov(coefs, replicateMean(coefs, q), full, finish)
-	run := &replicateRun{se: diagSqrt(cov), cov: cov}
+	mean := replicateMean(coefs, q)
+	cov := replicateCov(coefs, mean, full, finish)
+	run := &replicateRun{se: diagSqrt(cov), cov: cov, coefs: coefs, mean: mean, finish: finish, full: full}
 	if percentile {
 		run.p = percentileP(coefs, q)
 	}

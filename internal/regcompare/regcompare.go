@@ -41,7 +41,11 @@
 //     estimated reads 2ℓ₁ − 2ℓ₀ (MASS anova.negbin).
 //   - wald: b_Sᵀ V_SS⁻¹ b_S over the full fit's own covariance (classical
 //     or robust) — lmtest::waldtest(m0, m1, vcov = V); W/q on (q, df)
-//     where the coefficient table is Student t, χ² on q otherwise.
+//     where the coefficient table is Student t, χ² on q otherwise. Under
+//     resample (U69 #642) V is the full fit's jackknife / bootstrap
+//     replicate covariance — the one its standard errors are the √diag
+//     of — and the test is χ² on q, as the resampled coefficient table is
+//     Wald z: car::linearHypothesis(m1, vcov. = V, test = "Chisq").
 //
 // A declared model (Plan.Declared) reports its own figures
 // (extend.CompareRegression): its terms are its predictors (an ordinal
@@ -65,9 +69,8 @@
 // Default (empty test): R's anova default — f on REG_OLS and a family
 // that estimates its dispersion, lrt otherwise. Refused (reason
 // "requires", details.requires): a penalty ("unpenalized"), selection
-// ("no_selection"), active bounds ("unbounded"), a Wald test under
-// resample ("no_resample" — the replicate covariance is not the one the
-// test reads), an F test on a fixed dispersion ("estimated_dispersion"),
+// ("no_selection"), active bounds ("unbounded"), an F test on a fixed
+// dispersion ("estimated_dispersion"),
 // an F or likelihood-ratio test under a probability weight
 // ("no_probability_weight", alternative wald — the fits'
 // pseudo-likelihoods are no likelihoods; the dbd35fb rule that leaves
@@ -102,7 +105,6 @@ const (
 	RequiresUnpenalized         = "unpenalized"
 	RequiresNoSelection         = "no_selection"
 	RequiresUnbounded           = "unbounded"
-	RequiresNoResample          = "no_resample"
 	RequiresEstimatedDispersion = "estimated_dispersion"
 	RequiresNoProbabilityWeight = "no_probability_weight"
 	// RequiresComparableType is type_unsupported's requires: REG_OLS,
@@ -411,19 +413,26 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		}
 		p.Distribution = types.ComparisonDistributionChiSquare
 	case types.ComparisonTestWald:
-		if r1.Resample != "" {
-			return p, requires(i, c.Name, RequiresNoResample,
-				"a Wald test reads the full fit's classical or robust covariance; a resampled fit's is the replicates'", nil)
-		}
-		// The coefficient table's reference distribution: Student t on
-		// REG_OLS, and on a classical fit of a family that estimates its
-		// dispersion; Wald z otherwise (a robust REG_GLM fit too).
-		p.Distribution = types.ComparisonDistributionChiSquare
-		if !p.Declared && (p.Type == types.REG_OLS || (estimates && !r1.Covariance.Robust())) {
-			p.Distribution = types.ComparisonDistributionF
-		}
+		p.Distribution = waldDistribution(p, r1, estimates)
 	}
 	return p, nil
+}
+
+// waldDistribution is a Wald test's reference distribution: the full
+// fit's coefficient table's — Student t (so F = W/q on its df) on
+// REG_OLS and on a classical fit of a family that estimates its
+// dispersion; Wald z (χ² on q) otherwise: a robust REG_GLM fit, a
+// declared model, and any resampled fit (U69 #642: its table is Wald z
+// on the replicate standard errors, the replicate covariance the
+// statistic reads).
+func waldDistribution(p Plan, full *types.RegressionSpec, estimates bool) types.ComparisonDistribution {
+	switch {
+	case p.Declared, full.Resample != "":
+		return types.ComparisonDistributionChiSquare
+	case p.Type == types.REG_OLS, estimates && !full.Covariance.Robust():
+		return types.ComparisonDistributionF
+	}
+	return types.ComparisonDistributionChiSquare
 }
 
 // Terms is a regression spec's coefficient terms: "(intercept)" when it

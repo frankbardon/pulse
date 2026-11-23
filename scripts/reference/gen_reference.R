@@ -627,3 +627,11 @@ source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)
 # its own recorded index sets); base stats + jsonlite. Its own seed,
 # sourced last, so no other golden moves.
 source(file.path(script_dir, "gen_margins_resample.R"), local = FALSE)
+
+# The resampled Wald-comparison golden (U69 #642: compare_resample.json:
+# base-R replicate loops of the full lm / logit / poisson / gamma glm —
+# leave-one-out and delete-a-cluster jackknife, a bootstrap over its own
+# recorded index sets — and car::linearHypothesis over the replicate
+# covariance); car 3.1-5 + base stats + jsonlite. Its own seed, sourced
+# last, so no other golden moves.
+source(file.path(script_dir, "gen_compare_resample.R"), local = FALSE)

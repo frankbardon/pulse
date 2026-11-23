@@ -67,6 +67,9 @@ func (pin *multinomialPin) problem(x []float64, labels []string, prior []float64
 // through RunExtensionModifiers, every refit after the first pinned.
 func (e *multinomialEngine) fitModified(ctx context.Context, records []Record) (*types.RegressionResult, error) {
 	var pin *multinomialPin
+	// Under resample the base fit's figures are held until the replicate
+	// covariance replaces theirs (compare_resample.go).
+	offer, relay := HoldFigures(e.spec, e.figures)
 	fit := func(recs []Record, predictors []string) (*types.RegressionResult, []string, error) {
 		inner := *e.spec
 		inner.Predictors = slices.Clone(predictors)
@@ -77,7 +80,7 @@ func (e *multinomialEngine) fitModified(ctx context.Context, records []Record) (
 			// The base fit — the first refit of an unselected slot, over
 			// every row and predictor — offers the comparison figures; a
 			// replicate never does (a comparison refuses selection).
-			refit.figures = e.figures
+			refit.figures = offer
 		}
 		res, keys, err := refit.fitRows(recs, pin)
 		if err != nil {
@@ -91,9 +94,9 @@ func (e *multinomialEngine) fitModified(ctx context.Context, records []Record) (
 	// The multinomial fit always reports its deviance (nil
 	// missingDeviance), and the pin keeps every refit's keys the base
 	// fit's, so a key mismatch is an engine fault.
-	return RunExtensionModifiers(ctx, e.spec, true, records, fit, nil, func(base, got []string) error {
+	return RunExtensionModifiersReplicates(ctx, e.spec, true, records, fit, fit, nil, func(base, got []string) error {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"REG_MULTINOMIAL: a pinned refit reported other coefficients than the base fit",
 			map[string]any{"type": string(types.REG_MULTINOMIAL), "base": base, "got": got})
-	})
+	}, relay)
 }

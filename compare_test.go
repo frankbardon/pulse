@@ -500,8 +500,8 @@ func TestCompare_HiddenParity(t *testing.T) {
 
 // TestCompare_ResampleKeepsDeviances: an F or likelihood-ratio
 // comparison of resampled fits runs on the base fits' deviances — the
-// same figures as the plain fits' — while a Wald one is refused
-// (requires no_resample, follow-up #642).
+// same figures as the plain fits' — while a Wald one runs on χ² over the
+// replicate covariance (U69 #642; TestCompare_ResampledWaldReadsReplicateCovariance).
 func TestCompare_ResampleKeepsDeviances(t *testing.T) {
 	t.Parallel()
 
@@ -526,8 +526,11 @@ func TestCompare_ResampleKeepsDeviances(t *testing.T) {
 			t.Fatalf("%s: resampled %s, plain %s", test, comparisonsJSON(t, resampled), comparisonsJSON(t, plain))
 		}
 	}
-	_, err := run(jack(cmpOLS("x1")), jack(cmpOLS("x1", "x2")), types.ComparisonTestWald)
-	if ce := requireCoded(t, err, errors.PULSE_COMPARISON_INVALID); ce.Details["requires"] != "no_resample" {
-		t.Fatalf("wald under resample: %v", ce.Details)
+	resp, err := run(jack(cmpOLS("x1")), jack(cmpOLS("x1", "x2")), types.ComparisonTestWald)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := resp.Comparisons[0]; w.Error != nil || w.Distribution != types.ComparisonDistributionChiSquare {
+		t.Fatalf("wald under resample: %+v", w)
 	}
 }

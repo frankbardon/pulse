@@ -65,7 +65,7 @@ func RunExtensionModifiers(
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
 ) (*types.RegressionResult, error) {
-	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch)
+	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch, nil)
 }
 
 // RunExtensionModifiersReplicates is RunExtensionModifiers with the
@@ -74,7 +74,10 @@ func RunExtensionModifiers(
 // through fit, and only the replicates — whose outputs are discarded,
 // only their coefficients read — through replicate, so a model can skip
 // work a replicate's figures never reach (REG_ORDINAL's Brant and
-// nominal tests).
+// nominal tests). figures, when non-nil, is the relay of the base fit's
+// comparison figures (HoldFigures: the caller hands its hold to the base
+// fit), released with the replicate covariance over the base fit's
+// coefficient keys.
 func RunExtensionModifiersReplicates(
 	ctx context.Context,
 	spec *types.RegressionSpec,
@@ -83,6 +86,7 @@ func RunExtensionModifiersReplicates(
 	fit, replicate ExtensionFit,
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
 		kept := make([]Record, 0, len(records))
@@ -114,7 +118,7 @@ func RunExtensionModifiersReplicates(
 	if spec.Resample == "" {
 		return base, nil
 	}
-	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch)
+	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch, figures)
 }
 
 // extensionFatal reports whether a refit error must stop a modifier
@@ -163,7 +167,7 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 // is re-estimated on every replicate — the refit attaches it like the
 // base fit's — and its inference replaced by the replicate SE and
 // percentile p of the effects (resampleMargins, U69 #639).
-func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues bool, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error) (*types.RegressionResult, error) {
+func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues bool, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error, figures *ResampledFigures) (*types.RegressionResult, error) {
 	q := len(keys)
 	marginKeys := regmargins.ResultKeys(base.Margins)
 	rep := func(recs []Record) (replicate, error) {
@@ -233,6 +237,7 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 		AttachVcovKeys(&out, keys, cov)
 	}
 	out.Margins = resampleMargins(base.Margins, run, resolvedConfLevel(spec))
+	figures.release(keys, run)
 	return &out, nil
 }
 

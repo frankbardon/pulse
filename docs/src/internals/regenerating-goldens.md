@@ -555,6 +555,24 @@ Sourced last by `gen_reference.R`. `TestReferenceOracle_MarginsResampleMatchesR`
 (`internal/processing/regression`) holds it at `1e-7` relative (the
 bootstrap through Pulse's replicate hook over the recorded index sets).
 
+`scripts/reference/gen_compare_resample.R` writes `compare_resample.json`:
+the Compose Wald comparison over a resampled fit (U69 #642) as manual
+base-R replicate loops of the FULL model — each replicate refits `lm` /
+`glm` on its rows — on `lm` and the logit, poisson and gamma log `glm`:
+the leave-one-out and delete-a-cluster jackknife (V = (g − 1)/g·Σ(b₍ₖ₎ −
+b̄)(b₍ₖ₎ − b̄)ᵀ) and a bootstrap whose index sets are R's own
+(`sample.int` under `set.seed(20261125)`, recorded as `samples`; V the
+B − 1 sample covariance); the statistic and p-value are
+`car::linearHypothesis(m1, vcov. = V, test = "Chisq")` on the tested
+terms, checked in the script against b_Sᵀ V_SS⁻¹ b_S. Needs `car` 3.1-5
+(the pin above) + jsonlite: `Rscript scripts/reference/gen_compare_resample.R
+internal/processing/testdata/reference`, then append the hash footer.
+Sourced last by `gen_reference.R`. `TestReferenceOracle_CompareResampleMatchesR`
+(`internal/processing/regression`) holds the covariance, statistic and
+p-value at `1e-9` relative (`1e-6` on the gamma log link, whose IRLS
+converges linearly; the bootstrap through Pulse's replicate hook and
+figures relay over the recorded index sets).
+
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
 GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson

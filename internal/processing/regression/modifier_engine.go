@@ -32,7 +32,8 @@ type modifierEngine struct {
 	finalized bool
 	// figures, when set (OfferingFigures), is handed to the inner
 	// full-data engine (finalizeOnPredictors), whose figures are the
-	// fit's: a resample replaces only the standard errors.
+	// fit's — under a resample through a hold (HoldFigures) that swaps
+	// in the replicate covariance the standard errors read.
 	figures func(*model.RegressionFigures)
 }
 
@@ -145,16 +146,20 @@ func (e *modifierEngine) FitBufferedContext(ctx context.Context, records []Recor
 		// Resample reuses the selected predictor subset.
 		activePredictors = out.SelectedFeatures
 		// Pre-populate baseResult for the resample driver.
-		return e.runResampleWith(ctx, records, activePredictors, out)
+		return e.runResampleWith(ctx, records, activePredictors, out, nil)
 	}
 
-	// No selection: just resample around the inner fit.
+	// No selection: just resample around the inner fit. A comparison's
+	// figures offer is held through the base fit and released with the
+	// replicate covariance (compare_resample.go).
 	if e.spec.Resample != "" {
+		var relay *ResampledFigures
+		e.figures, relay = HoldFigures(e.spec, e.figures)
 		baseResult, err := e.finalizeOnPredictors(records, activePredictors)
 		if err != nil {
 			return nil, err
 		}
-		return e.runResampleWith(ctx, records, activePredictors, baseResult)
+		return e.runResampleWith(ctx, records, activePredictors, baseResult, relay)
 	}
 
 	// No modifier; finalize as the unmodified inner engine would.
@@ -164,19 +169,23 @@ func (e *modifierEngine) FitBufferedContext(ctx context.Context, records []Recor
 // runResampleWith dispatches the Resample driver around a baseResult.
 // activePredictors is the predictor universe the resample operates on
 // (post-selection or original spec). baseResult carries the point
-// estimate (β); the resample replaces only StdErrors / PValues.
+// estimate (β); the resample replaces only StdErrors / PValues. figures,
+// when non-nil, holds the base fit's comparison figures until the run's
+// replicate covariance replaces theirs (nil under selection, which no
+// comparison reads).
 func (e *modifierEngine) runResampleWith(
 	ctx context.Context,
 	records []Record,
 	activePredictors []string,
 	baseResult *types.RegressionResult,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	innerFitter, pValueFn := e.makeResampleFitter(activePredictors)
 	// A margins block is re-estimated on every replicate refit
 	// (margins_resample.go) — the base fit's block names the terms and
 	// the contrasts.
 	derive := marginsDerive(e.spec, e.family == "GLM", e.glmFam, activePredictors, baseResult.Margins)
-	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), derive, pValueFn)
+	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), derive, pValueFn, figures)
 	if err != nil {
 		return nil, err
 	}

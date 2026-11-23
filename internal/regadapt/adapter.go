@@ -978,6 +978,10 @@ type regressionModifierEngine struct {
 	// never to a replicate's.
 	figures func(*model.RegressionFigures)
 	offered bool
+	// relay, under a resample, releases the base fit's figures with the
+	// replicate covariance (regression.HoldFigures; set by
+	// FitBufferedContext, which hands the hold to the base fit).
+	relay *regression.ResampledFigures
 }
 
 // SetFiguresOffer keeps the comparison-figures offer for the base fit
@@ -1006,6 +1010,7 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // the pin's NoPValue coefficients keep a NaN p-value under resample.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
 	var pin *model.ReplicatePin
+	e.figures, e.relay = regression.HoldFigures(e.spec, e.figures)
 	fit := func(replicate bool, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
 		spec := e.spec
 		if pin != nil {
@@ -1059,7 +1064,7 @@ func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []r
 				fmt.Sprintf("regression %q returned the coefficients %v on a resample replicate, not the full fit's %v (every refit reports the same coefficients)", e.reg.Name, got, base),
 				map[string]any{"category": extCategoryRegression, "name": string(e.reg.Name), "reason": "replicate_coefficients",
 					"coefficients": append([]string{}, base...), "replicate": append([]string{}, got...)})
-		})
+		}, e.relay)
 }
 
 // refit is one fresh fit of the model built from spec over recs with
