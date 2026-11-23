@@ -164,8 +164,7 @@ func TestGLMRefitLeverage_FrequencyWeightIsExpansion(t *testing.T) {
 // refusals are the same code and message from Process and Predict — an
 // unknown family (REG_GLM's PROCESSING_REGRESSION_INVALID_FAMILY), a link
 // outside the family's (PROCESSING_REGRESSION_INVALID_LINK), a link
-// without a family and a negative_binomial family beside a penalty
-// (PROCESSING_CONFIG, as the fit itself),
+// without a family (PROCESSING_CONFIG),
 // params.family beside params.fit (PULSE_MODEL_SCORE_INVALID
 // slot_fields) — and a family on another refit slot is an unknown key
 // (PULSE_REQUEST_UNKNOWN_FIELD).
@@ -190,8 +189,8 @@ func TestGLMRefitLeverage_RefusalsMatchPredict(t *testing.T) {
 		{"unknown family", lev(`{"family":"tweedie"}`, nil), errors.PROCESSING_REGRESSION_INVALID_FAMILY},
 		{"foreign link", lev(`{"family":"poisson","link":"logit"}`, nil), errors.PROCESSING_REGRESSION_INVALID_LINK},
 		{"link alone", lev(`{"link":"log"}`, nil), errors.PROCESSING_CONFIG},
-		// Any other penalty is taken (E1-S4, penalized_leverage_bound_test.go).
-		{"penalized negative_binomial", lev(`{"family":"negative_binomial"}`, func(a *types.Attribute) { a.Penalty, a.Alpha = "l2", 0.1 }), errors.PROCESSING_CONFIG},
+		// Every penalty is taken (E1-S4; negative_binomial since E3-S1,
+		// TestGLMRefitLeverage_PenalizedNegBinMatchesPredict).
 		{"family on fitted", &types.Attribute{Type: types.ATTR_REG_FITTED, Label: "a", Target: "y", Predictors: []string{"x1", "x2"}, Params: json.RawMessage(`{"family":"poisson"}`)}, errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"family with fit", fitRefAttr(types.ATTR_REG_LEVERAGE, "a", `{"fit":"m","family":"poisson"}`), errors.PULSE_MODEL_SCORE_INVALID},
 	} {
@@ -213,5 +212,58 @@ func TestGLMRefitLeverage_RefusalsMatchPredict(t *testing.T) {
 				t.Errorf("predict (valid %v) errors %+v do not carry the runtime refusal %s %q", pr.Valid, pr.Errors, ce.Code, ce.Message)
 			}
 		})
+	}
+}
+
+// TestGLMRefitLeverage_PenalizedNegBinMatchesPredict: a penalized
+// negative_binomial refit (U69 E3-S1, #638 — lifted with the fit, θ
+// re-estimated by the refit's own penalized fit) runs and predict judges
+// it valid; every row's leverage equals a bound penalized REG_GLM
+// negative_binomial fit's of the same rows (one design kernel), and the
+// trace sits inside (0, p′] (a ridge hat's trace shrinks below p′ = 3).
+func TestGLMRefitLeverage_PenalizedNegBinMatchesPredict(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := loadGLMNBRef(t)[0]
+	p, _ := glmNBRefPulse(t, c.Rows)
+	attr := func() *types.Attribute {
+		return &types.Attribute{Type: types.ATTR_REG_LEVERAGE, Label: "hat", Target: "y", Predictors: []string{"x1", "x2"},
+			Penalty: "l2", Alpha: 0.1, Params: json.RawMessage(`{"family":"negative_binomial"}`)}
+	}
+	pr, err := p.Predict(ctx, fitRefSlot("glm.pulse", "id", attr()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pr.Valid || len(pr.Errors) > 0 {
+		t.Fatalf("predict valid %v errors %+v", pr.Valid, pr.Errors)
+	}
+	resp, err := p.Process(ctx, fitRefSlot("glm.pulse", "id", attr()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound := &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Family: "negative_binomial", Target: "y", Predictors: []string{"x1", "x2"},
+		Penalty: "l2", Alpha: 0.1}
+	out, err := p.Compose(ctx, &ComposedRequest{Fits: glmInfluenceFits(bound),
+		Requests: []*Request{fitRefSlot("glm.pulse", "id", fitRefAttr(types.ATTR_REG_LEVERAGE, "hat", `{"fit":"m"}`))}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Data) != len(c.Rows) || len(out.Responses[0].Data) != len(c.Rows) {
+		t.Fatalf("%d / %d rows, want %d", len(resp.Data), len(out.Responses[0].Data), len(c.Rows))
+	}
+	sum := 0.0
+	for i, row := range resp.Data {
+		h, ok := row["hat"].(float64)
+		if !ok || !(h > 0 && h < 1) {
+			t.Fatalf("row %d hat = %v", i, row["hat"])
+		}
+		sum += h
+		if b := out.Responses[0].Data[i]["hat"]; b != h {
+			t.Errorf("row %d refit hat %v ≠ bound-fit hat %v", i, h, b)
+		}
+	}
+	if !(sum > 0 && sum < 3) {
+		t.Errorf("Σh = %v, want inside (0, 3)", sum)
 	}
 }

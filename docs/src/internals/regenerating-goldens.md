@@ -455,6 +455,26 @@ p-values, Wald-t intervals, and the influence measures on the bare
 `TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
 and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 
+`scripts/reference/gen_glm_nb_penalty.R` writes `glm_nb_penalty.json`:
+the penalized negative binomial (U69 #638) as `mpath::glmregNB` fits it
+— l2 / l1 / elasticnet, `unpenalized` predictors, frequency weights, θ
+re-estimated by `theta.ml` around the penalized fit or fixed. Scaling:
+with `standardize = FALSE` mpath minimizes −Σw·loglik + λ·P (not divided
+by Σw) and rescales `penalty.factor` to sum to nvars as glmnet does, so
+Pulse's `alpha` is mpath's `lambda = alpha·N*·Σpf/nvars` and `l1_ratio`
+its `alpha`. `thresh` 1e-14, `maxit` 1e6 and `maxit.theta` 1000 push both
+loops past mpath's defaults; its alternation then stops on |Δℓ|/d1 +
+|Δθ| < 1e-8. Each case is self-checked against the KKT conditions of
+glmnet's objective (written out in the script) at relative 1e-9 and,
+with θ estimated, against `theta.ml` at mpath's means. It pins
+coefficients, θ, the l2 penalized-Fisher sandwich SEs and SE(θ), the
+NB deviance and, unweighted, the penalized hat. Run it alone under a
+library holding mpath (the pin table below); mpath compiles Fortran, so
+install it with the `FLIBS` workaround.
+`TestRegGLM_NegBinPenaltyMatchesMpath` and
+`TestRegGLM_NegBinPenaltyLeverage` (`internal/processing/regression`)
+hold it at relative `1e-8` (mpath's stopping error: worst 1.1e-9, on θ).
+
 `scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
 log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
 (`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
@@ -877,6 +897,7 @@ is the whole list in one place.
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
+| `mpath` | 0.4-2.28 | penalized `REG_GLM` negative binomial (`gen_glm_nb_penalty.R`: `glmregNB`); with its imports `pscl` 1.5.9, `bst` 0.3-24, `WeightSVM` 1.7-16 and `doParallel` 1.0.17 (pinned, recorded in the golden); compiles Fortran, so install it with the workaround below |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`) and `REG_MULTINOMIAL` (`gen_multinomial_penalty.R`); thresh / maxit through `control` |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
@@ -907,7 +928,9 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26")
+            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26",
+            pscl = "1.5.9", bst = "0.3-24", WeightSVM = "1.7-16", doParallel = "1.0.17",
+            mpath = "0.4-2.28")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

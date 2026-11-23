@@ -22,7 +22,7 @@ import (
 )
 
 // Families lists the REG_GLM families a penalty is defined for.
-var Families = []string{"binomial", "poisson"}
+var Families = []string{"binomial", "poisson", "negative_binomial"}
 
 // Check returns the PROCESSING_CONFIG refusal of spec's penalty knobs,
 // or nil. Rules (REG_OLS, REG_GLM and REG_MULTINOMIAL; every other type
@@ -106,7 +106,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec.Type == types.REG_GLM && spec.Family == "gamma" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM Penalty is defined for the binomial and poisson families only; fit family="+spec.Family+" unpenalised",
+			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family="+spec.Family+" unpenalised",
 			map[string]any{"penalty": spec.Penalty, "family": spec.Family, "allowed_families": Families, "type": t},
 		)
 	}

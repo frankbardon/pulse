@@ -34,7 +34,7 @@ Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONF
 <!-- /feature -->
 
 <!-- feature: ATTR_REG_LEVERAGE, REG_GLM -->
-**A GLM refit.** `params.family` (+ `params.link`, default the family's canonical link) refits a generalized linear model of that family on the slot's own target and predictors: h = w*·w·x̃ᵀ(XᵀW*X)⁻¹x̃ at the final IRLS working weights w = (dμ/dη)²/V(μ) — R `hatvalues(glm)`, bit-equal to the same fit bound; any `penalty` reads (XᵀW*X + λ₂·P)⁻¹ on the active design; under a frequency weight the `rep()` expansion's summed copies. Codes: an unknown family or a foreign link the GLM's own (`PROCESSING_REGRESSION_INVALID_FAMILY` / `_LINK`); `link` without `family`, or `negative_binomial` beside `penalty`, `PROCESSING_CONFIG`; beside `params.fit`, `slot_fields`. Leverage only: a GLM's fitted value, residual and influence go through a bound `REG_GLM` fit (`params.fit`).
+**A GLM refit.** `params.family` (+ `params.link`, default the family's canonical link) refits a generalized linear model of that family on the slot's own target and predictors: h = w*·w·x̃ᵀ(XᵀW*X)⁻¹x̃ at the final IRLS working weights w = (dμ/dη)²/V(μ) — R `hatvalues(glm)`, bit-equal to the same fit bound; any `penalty` reads (XᵀW*X + λ₂·P)⁻¹ on the active design (NB: at the refit's own θ̂); under a frequency weight the `rep()` expansion's summed copies. Codes: an unknown family or a foreign link the GLM's own (`PROCESSING_REGRESSION_INVALID_FAMILY` / `_LINK`); `link` without `family` `PROCESSING_CONFIG`; beside `params.fit`, `slot_fields`. Leverage only: a GLM's fitted value, residual and influence go through a bound `REG_GLM` fit (`params.fit`).
 <!-- /feature -->
 
 <!-- feature: REG_MMM_HILL -->

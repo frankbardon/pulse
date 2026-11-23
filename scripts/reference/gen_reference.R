@@ -635,3 +635,12 @@ source(file.path(script_dir, "gen_margins_resample.R"), local = FALSE)
 # covariance); car 3.1-5 + base stats + jsonlite. Its own seed, sourced
 # last, so no other golden moves.
 source(file.path(script_dir, "gen_compare_resample.R"), local = FALSE)
+
+# The penalized negative binomial golden (U69 E3-S1, #638:
+# glm_nb_penalty.json: mpath::glmregNB — l2 / l1 / elasticnet,
+# unpenalized predictors, frequency weights, theta re-estimated by
+# theta.ml around the penalized fit or fixed — KKT-checked against
+# glmnet's standardize = FALSE objective); mpath 0.4-2.28 + glmnet 5.1 +
+# MASS 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
+# moves.
+source(file.path(script_dir, "gen_glm_nb_penalty.R"), local = FALSE)

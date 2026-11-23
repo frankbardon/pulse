@@ -4395,7 +4395,7 @@
               "name": "family",
               "type": "enum",
               "required": false,
-              "description": "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). Takes any penalty: the penalized GLM's hat at its final IRLS working weights over its regularized inverse (l2 every predictor, l1 / elasticnet the active set, as the OLS refit). An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; negative_binomial beside penalty PROCESSING_CONFIG (details.requires unpenalized); beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields.",
+              "description": "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). Takes any penalty: the penalized GLM's hat at its final IRLS working weights over its regularized inverse (l2 every predictor, l1 / elasticnet the active set, as the OLS refit). negative_binomial re-estimates theta in the penalized refit. An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields.",
               "enum_values": [
                 "binomial",
                 "gamma",
@@ -8938,7 +8938,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated), two_log_lik and aic); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated; null under l1 / elasticnet), two_log_lik and aic (unpenalized)); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -8963,7 +8963,7 @@
             "name": "family",
             "type": "enum",
             "required": true,
-            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); penalty, selection and resample are refused (PROCESSING_CONFIG, details.requires).",
+            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); a penalty re-estimates theta around the penalized fit (mpath glmregNB); selection and resample are refused (PROCESSING_CONFIG, details.requires).",
             "enum_values": [
               "binomial",
               "gamma",
@@ -9035,7 +9035,7 @@
             "type": "enum",
             "required": false,
             "default": "",
-            "description": "Regularization scheme (binomial / poisson; gamma and negative_binomial refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
+            "description": "Regularization scheme (binomial / poisson / negative_binomial, theta estimated or fixed; gamma, and negative_binomial beside dispersion estimated, refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
             "enum_values": [
               "",
               "elasticnet",
@@ -22145,4 +22145,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dbb154e61bd4686d1b8f27abeef30846ff0f0f839b7d326829681e339322a534
+// golden-hash: c04e2dca81c83ae92c81a250af675b3638d017855820f1ecd74185652eaa232e

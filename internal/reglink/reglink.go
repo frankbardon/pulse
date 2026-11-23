@@ -144,10 +144,14 @@ func CheckPair(family, link string) *errors.CodedError {
 //     (details.requires "family negative_binomial"), another value
 //     ("dispersion fixed or estimated"), and with θ estimated — Theta
 //     absent — too ("theta"): glm.nb's φ is 1.
-//   - negative_binomial refuses a penalty (details.requires
-//     "unpenalized"), a selection ("no_selection") and a resample
-//     ("no_resample"): their refit drivers hold the family's θ fixed, so
-//     an estimated θ would go unrefit and a fixed one is unoracled.
+//   - negative_binomial takes a penalty with θ estimated or fixed (U69
+//     E3-S1, #638: θ is re-estimated around the penalized fit,
+//     mpath::glmregNB), but not beside dispersion "estimated"
+//     (details.requires "unpenalized": φ̂ = Pearson χ²/df reads the
+//     residual df, undefined for a penalized fit). It refuses a selection
+//     ("no_selection") and a resample ("no_resample"): their refit
+//     drivers hold the family's θ fixed, so an estimated θ would go
+//     unrefit and a fixed one is unoracled.
 //
 // An extension or model regression's theta is the shared-slot table's
 // (ExtensionRegressionSlotRefusal), never this rule's; an unknown family
@@ -210,9 +214,14 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 			map[string]any{knob: value, "type": t, "family": spec.Family, "requires": requires},
 		)
 	}
+	if spec.Penalty != "" && spec.Dispersion == types.NegBinDispersionEstimated {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			"REG_GLM negative_binomial dispersion estimated reads the residual degrees of freedom, undefined for a penalized fit; drop the penalty, or set dispersion fixed",
+			map[string]any{"penalty": spec.Penalty, "dispersion": spec.Dispersion, "type": t, "family": spec.Family, "requires": "unpenalized"},
+		)
+	}
 	switch {
-	case spec.Penalty != "":
-		return refuse("penalty", "unpenalized", spec.Penalty)
 	case spec.Selection != "":
 		return refuse("selection", "no_selection", spec.Selection)
 	case spec.Resample != "":
@@ -227,10 +236,11 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 // factory (internal/processing) and predict's field-reference pass
 // alike: a family is one of Families (FamilyRefusal), a link one of its
 // links (CheckPair) — REG_GLM's own codes —, a link needs a family, and
-// a penalized negative_binomial refit is refused as the fit itself is
-// (CheckTheta, details.requires unpenalized). Any other penalty is
-// taken (regression-depth-2 E1-S4): the refit's hat reads the penalized
-// IRLS's regularized inverse. Nil for the OLS refit (both empty).
+// the refit's own spec rule runs (CheckTheta). Every penalty is taken
+// (regression-depth-2 E1-S4; on negative_binomial since E3-S1, θ
+// re-estimated by the refit's full fit): the refit's hat reads the
+// penalized IRLS's regularized inverse. Nil for the OLS refit (both
+// empty).
 func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *errors.CodedError {
 	if family == "" {
 		if link != "" {
@@ -247,6 +257,6 @@ func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *e
 		return cerr
 	}
 	// The refit's own spec rule (the factory's ValidateRegression), so
-	// predict refuses a penalized negative_binomial refit as the runtime.
+	// predict judges a negative_binomial refit as the runtime does.
 	return CheckTheta(&types.RegressionSpec{Type: types.REG_GLM, Family: family, Link: link, Penalty: penalty})
 }

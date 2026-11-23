@@ -41,7 +41,7 @@ func TestCheck(t *testing.T) {
 			s.Family, s.Penalty, s.Alpha, s.L1Ratio = "poisson", "elasticnet", 0.1, 0.4
 		}), ""},
 		{"glm gamma l1", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "gamma", "l1", 0.1 }),
-			"REG_GLM Penalty is defined for the binomial and poisson families only; fit family=gamma unpenalised"},
+			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 		{"glm gamma unpenalised", glm(func(s *types.RegressionSpec) { s.Family = "gamma" }), ""},
 		{"glm unknown family left to the family check", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "tweedie", "l2", 0.1 }), ""},
 		{"glm alpha alone", glm(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_GLM Alpha is only valid when Penalty is set (l1, l2, or elasticnet)"},
@@ -110,7 +110,7 @@ func TestCheck(t *testing.T) {
 		}), "REG_GLM Unpenalized lists a twice"},
 		{"glm gamma penalty with unpenalized stays the family refusal", glm(func(s *types.RegressionSpec) {
 			s.Family, s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = "gamma", []string{"a"}, "l2", 0.1, []string{"a"}
-		}), "REG_GLM Penalty is defined for the binomial and poisson families only; fit family=gamma unpenalised"},
+		}), "REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

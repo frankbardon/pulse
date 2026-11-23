@@ -118,7 +118,7 @@ type RegressionSpec struct {
 	Predictors []string `json:"predictors,omitempty"`
 
 	// Penalty selects the regularization scheme for REG_OLS, REG_GLM
-	// (binomial / poisson; gamma refuses it) and REG_MULTINOMIAL
+	// (binomial / poisson / negative_binomial; gamma refuses it) and REG_MULTINOMIAL
 	// (glmnet's symmetric form: every category its own coefficients, no
 	// Reference). One of "" (no penalty), "l1" (lasso), "l2" (ridge), or
 	// "elasticnet". REG_BAYES_LINEAR refuses it.
@@ -191,8 +191,8 @@ type RegressionSpec struct {
 	// rstudent / dffits). A robust Covariance stays dispersion-free.
 	// Refused with PROCESSING_CONFIG (details.requires; the one rule
 	// predict applies, internal/reglink.CheckTheta) on any other family
-	// or regression, with θ estimated (Theta absent), or another value.
-	// Absent is byte-identical.
+	// or regression, with θ estimated (Theta absent), another value, or
+	// "estimated" beside a Penalty. Absent is byte-identical.
 	Dispersion string `json:"dispersion,omitempty"`
 
 	// Reference names REG_MULTINOMIAL's baseline category: one of the
@@ -994,7 +994,8 @@ type RegressionResult struct {
 
 	// ThetaStdErr is θ̂'s standard error 1/√I(θ̂), I the observed
 	// information of θ at the fitted means (MASS theta.ml's SE.theta);
-	// present only when θ was estimated (null if I(θ̂) ≤ 0).
+	// present only when θ was estimated (null if I(θ̂) ≤ 0, and on an l1 /
+	// elasticnet penalized fit, whose inference is undefined).
 	ThetaStdErr float64 `json:"theta_std_err,omitempty"`
 
 	// TwoLogLik is twice the maximised log-likelihood 2ℓ of a plain

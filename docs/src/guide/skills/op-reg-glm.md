@@ -36,7 +36,7 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `link` | enum | — | `logit/probit/cloglog`; `log/identity/sqrt` (poisson, NB); `inverse/log/identity`; 1st default. |
 | `theta` | float | — | NB fixed θ > 0; else ML. |
 | `dispersion` | enum | `fixed` | NB + `theta`: `estimated` φ̂. |
-| `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). |
+| `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (not gamma). |
 | `alpha` | float | — | Strength, > 0. |
 | `l1_ratio` | float | — | Mix, `0<r<1`. |
 | `unpenalized` | []field | — | Unshrunk. |
@@ -67,7 +67,7 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr`.
+`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr` (null: l1/enet).
 
 ## Reading the output
 
