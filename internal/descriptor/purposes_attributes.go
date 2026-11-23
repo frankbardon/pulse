@@ -420,7 +420,7 @@ var (
 		Assumptions: []string{
 			attrRegListwise,
 			attrRegOwnFit,
-			"Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
+			"A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.",
 			"It looks at the predictors only, never at the target.",
 		},
 		Level:    descriptor.LevelAdvanced,

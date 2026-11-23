@@ -113,11 +113,15 @@ func checkInfluenceMeasure(m string) (string, *errors.CodedError) {
 }
 
 // refitDesignUnpenalized is the PROCESSING_CONFIG refusal of a penalty
-// on a slot that reads the refit's design (leverage and σ): penalized
-// leverage needs the regularized resolvent, which is not implemented.
+// on a slot that reads the refit's residual variance (the influence
+// figures and the standardized / studentized residuals): σ² = RSS/(n −
+// p − 1) and the leave-one-out identities they rest on hold for an
+// unpenalized least-squares fit only. ATTR_REG_LEVERAGE reads no σ and
+// takes any penalty (the ridge hat, or the active-set hat under l1 /
+// elasticnet — regression-depth-2 E1-S2).
 func refitDesignUnpenalized(t types.AttributeType, penalty, what string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-		string(t)+what+" supports only unpenalized OLS — penalized leverage / GLM leverage not implemented; drop penalty",
+		string(t)+what+" supports only an unpenalized OLS refit — it reads the refit's residual variance RSS/(n − p − 1), which a penalized fit does not define; drop penalty (ATTR_REG_LEVERAGE takes one)",
 		map[string]any{"attribute": string(t), "penalty": penalty})
 }
 
@@ -168,7 +172,8 @@ func RefitResidualKind(a *types.Attribute) string {
 // {fit}; ATTR_REG_RESIDUAL {fit, kind} with kind one of ResidualKinds —
 // PULSE_MODEL_SCORE_INVALID params_invalid; ATTR_REG_INFLUENCE
 // {measure} — PROCESSING_CONFIG), and a slot reading the refit's
-// design (NeedsRefitDesign) carries no penalty (PROCESSING_CONFIG).
+// residual variance (NeedsRefitDesign but ATTR_REG_LEVERAGE, which takes
+// any penalty) carries no penalty (PROCESSING_CONFIG).
 // Target / predictor presence and types are the callers' walk.
 func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 	if a == nil {
@@ -191,10 +196,6 @@ func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 		}
 		if ScaledResidualKind(p.Kind) && a.Penalty != "" {
 			return refitDesignUnpenalized(t, a.Penalty, " params.kind "+p.Kind)
-		}
-	case types.ATTR_REG_LEVERAGE:
-		if a.Penalty != "" {
-			return refitDesignUnpenalized(t, a.Penalty, "")
 		}
 	case types.ATTR_REG_INFLUENCE:
 		if _, err := DecodeInfluenceParams(a.Params); err != nil {

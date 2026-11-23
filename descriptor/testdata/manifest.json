@@ -4338,7 +4338,7 @@
         {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. A penalized refit reads its own hat: l2 the ridge hat 1/n + (xᵢ − μ_x)ᵀ(M2_xx + n·α·I)⁻¹(xᵢ − μ_x); l1 the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} (Σᵢ hᵢᵢ = 1 + |active|, the lasso's df); elasticnet the active-set hat with the ridge term n·α·(1 − l1_ratio). With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
           "params": [
             {
               "name": "target",
@@ -4356,6 +4356,34 @@
               "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true,
               "names_column": true
+            },
+            {
+              "name": "penalty",
+              "type": "enum",
+              "required": false,
+              "default": "",
+              "description": "Regularization scheme; empty for OLS. Top-level.",
+              "enum_values": [
+                "",
+                "elasticnet",
+                "l1",
+                "l2"
+              ],
+              "slot": true
+            },
+            {
+              "name": "alpha",
+              "type": "float",
+              "required": false,
+              "description": "Regularization strength (\u003e0 when penalty is set). Top-level.",
+              "slot": true
+            },
+            {
+              "name": "l1_ratio",
+              "type": "float",
+              "required": false,
+              "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
+              "slot": true
             },
             {
               "name": "fit",
@@ -4393,7 +4421,6 @@
           "emits_type": "f64",
           "emits_type_note": "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
           "streamable": true,
-          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
           "component_schema": {
             "mergeability": ""
           },
@@ -14817,7 +14844,7 @@
       },
       {
         "name": "op-attr-reg-leverage",
-        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit or a bound fit's design — leverage diagnostic."
+        "description": "Per-row hat-matrix diagonal hᵢᵢ from an OLS refit (any penalty) or a bound fit's design — leverage diagnostic."
       },
       {
         "name": "op-attr-reg-predict",
@@ -15541,7 +15568,7 @@
       },
       {
         "name": "regression-influence",
-        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-margins",
@@ -22057,4 +22084,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fdf8dc0964ad6b5869d49babf41e3ecc2ea191ea0773a283273d15347d4430d2
+// golden-hash: f92a7f2ff5d9e797917379ea007c68b33d854e73c581f3a36bbbc4f7697bd6be

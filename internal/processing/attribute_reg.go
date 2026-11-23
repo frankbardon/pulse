@@ -236,10 +236,11 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		}
 	}
 
-	// A slot reading the refit's design is OLS-unpenalized only
-	// (model.CheckRefit refused a penalty above). Penalized leverage uses
-	// a different formula (involving the regularized resolvent) and GLM
-	// leverage requires the IRLS weight matrix; both deferred.
+	// A slot reading the refit's residual variance (influence, the
+	// standardized / studentized kinds) is unpenalized only
+	// (model.CheckRefit refused a penalty above); ATTR_REG_LEVERAGE reads
+	// the penalized refit's own hat (regression.FitForAttribute: the
+	// ridge hat, the l1 / elasticnet active-set hat).
 	var residualKind, measure string
 	switch kind {
 	case regAttrResidual:

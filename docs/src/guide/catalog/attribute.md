@@ -491,7 +491,7 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
+- A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
 - It looks at the predictors only, never at the target.
 
 **Use something else:**

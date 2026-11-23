@@ -1597,7 +1597,7 @@
       },
       {
         "name": "regression-influence",
-        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-margins",
@@ -2543,4 +2543,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0b16d0994d17db914232bddaa48bf13c85674b83c702379ff85ac51c80be3a66
+// golden-hash: b8ad5831154711f8014c5f0e7d4edc7263912026ad62cd76154e06aac5f5cd74

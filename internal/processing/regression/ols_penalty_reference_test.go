@@ -32,6 +32,11 @@ type olsPenaltyCase struct {
 	StdErrors []float64 `json:"std_errors"`
 	PValues   []float64 `json:"p_values"`
 	DF        float64   `json:"df"`
+	// Leverage rides every case: the penalised hat per row, R matrix
+	// algebra on the uncentred design (gen_ols_penalty.R penalized_hat);
+	// DFGlmnet the l1 / elasticnet cases' glmnet df (= |active|).
+	Leverage []float64 `json:"leverage"`
+	DFGlmnet *float64  `json:"df_glmnet"`
 }
 
 func loadOLSPenaltyReference(t *testing.T) []olsPenaltyCase {

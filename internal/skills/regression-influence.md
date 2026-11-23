@@ -1,10 +1,10 @@
 ---
 name: regression-influence
-description: Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills.
+description: Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [leverage, influence, hat matrix, tangent plane, Cook's distance, DFFITS, studentized residual, GLM leverage, dispersion, params.fit, bound fit, Gauss-Newton, nonlinear least squares]
+covers: [leverage, influence, hat matrix, penalized leverage, ridge hat, active set, tangent plane, Cook's distance, DFFITS, studentized residual, GLM leverage, dispersion, params.fit, bound fit, Gauss-Newton, nonlinear least squares]
 ---
 
 # Influence over a bound fit
@@ -18,6 +18,18 @@ x̃ = [1, x], μ the fitted mean, w = (dμ/dη)²/V(μ) (1 least-squares), rP th
 - h = w·x̃ᵀ(vcov/φ)x̃; standardized rP/(√φ·√(1 − h)) (`residual_type: deviance`: the deviance residual in place of rP, R `rstandard(type = "deviance")`; equal on a Gaussian fit, refused beside any other kind); cooks (rP/(1 − h))²·h/(φ·p′).
 - studentized rP/(σ₍ᵢ₎·√(1 − h)), σ₍ᵢ₎² = (φ·df − rP²/(1 − h))/(df − 1) where φ is estimated; binomial / poisson: the standardized.
 - dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ = σ₍ᵢ₎ or √φ — the change on the link scale, so under the gamma inverse link it is NEGATIVE where rP is positive.
+
+<!-- feature: ATTR_REG_LEVERAGE -->
+## A penalized refit's leverage
+
+`ATTR_REG_LEVERAGE` without `params.fit` takes any `penalty` and reads the hat the penalized refit's normal equations define, intercept unpenalized (n = Σw weighted):
+
+- `l2`: the ridge hat hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ(M2_xx + n·α·I)⁻¹(xᵢ − μ_x) — every row shrinks towards 1/n, Σh below p + 1.
+- `l1`: the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} — Σh = 1 + |active|, the lasso's degrees of freedom (Zou, Hastie & Tibshirani; glmnet's `df`). Nothing active: 1/n.
+- `elasticnet`: the active-set hat with the ridge term n·α·(1 − l1_ratio).
+
+Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONFIG`): they read σ² = RSS/(n − p − 1), which a penalized fit does not define. A penalized BOUND fit stays `requires: unpenalized`.
+<!-- /feature -->
 
 <!-- feature: REG_MMM_HILL -->
 ## A nonlinear media-mix fit

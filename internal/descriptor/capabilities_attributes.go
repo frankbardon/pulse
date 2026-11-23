@@ -162,15 +162,14 @@ func attributeCapabilities() []descriptor.Operator {
 			Streamable:    true,
 		},
 		{
-			Name:           string(types.ATTR_REG_LEVERAGE),
-			Category:       "attribute",
-			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
-			Params:         append(regAttributeParams(false), fitCarryParams...),
-			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
-			EmitsType:      "f64",
-			EmitsTypeNote:  "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
-			Streamable:     true,
-			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+			Name:          string(types.ATTR_REG_LEVERAGE),
+			Category:      "attribute",
+			Description:   "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. A penalized refit reads its own hat: l2 the ridge hat 1/n + (xᵢ − μ_x)ᵀ(M2_xx + n·α·I)⁻¹(xᵢ − μ_x); l1 the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} (Σᵢ hᵢᵢ = 1 + |active|, the lasso's df); elasticnet the active-set hat with the ridge term n·α·(1 − l1_ratio). With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
+			Params:        append(regLeverageParams(), fitCarryParams...),
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
+			EmitsType:     "f64",
+			EmitsTypeNote: "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
+			Streamable:    true,
 		},
 		{
 			Name:           string(types.ATTR_REG_INFLUENCE),
@@ -661,8 +660,8 @@ func otherForm(f metric.Form) metric.Form {
 // LEVERAGE carry: TOP-LEVEL keys of the attribute entry (Attribute.
 // Target / Predictors / Penalty / Alpha / L1Ratio — the RegressionSpec
 // shape), not members of its params object; the slot's own field is
-// unread. penalized adds the OLS penalty knobs (leverage refuses any
-// penalty) and params.fit — ATTR_REG_FITTED / RESIDUAL score a bound
+// unread. penalized adds the OLS penalty knobs (influence refuses any
+// penalty; leverage takes them, regLeverageParams) and params.fit — ATTR_REG_FITTED / RESIDUAL score a bound
 // fit instead of the refit (internal/model.CheckFitReference), and then
 // take none of the refit's fields: target and predictors stay Required
 // (the refit is the default form a draft writes) and say so.
@@ -690,6 +689,15 @@ var fitCarryParams = []descriptor.Param{
 
 // influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
 var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}
+
+// regLeverageParams are ATTR_REG_LEVERAGE's: the refit keys with the
+// OLS penalty knobs (its hat reads any penalty — regression-depth-2
+// E1-S2) and the design-reading params.fit.
+func regLeverageParams() []descriptor.Param {
+	ps := regAttributeParams(false)
+	knobs := regAttributeParams(true)[2:5] // penalty, alpha, l1_ratio
+	return append(append(ps[:2:2], knobs...), ps[2:]...)
+}
 
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {

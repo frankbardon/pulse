@@ -2,7 +2,10 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -190,34 +193,119 @@ func TestAttrRegLeverage_RangeInUnit(t *testing.T) {
 	}
 }
 
-// TestAttrRegLeverage_PenaltyRejected confirms any non-empty Penalty
-// surfaces PROCESSING_CONFIG. Penalized leverage uses a different
-// formula and is deferred.
-func TestAttrRegLeverage_PenaltyRejected(t *testing.T) {
+// TestAttrRegLeverage_PenalizedRefit: ATTR_REG_LEVERAGE refits any
+// penalty (regression-depth-2 E1-S2, #677) — the ridge hat, the lasso's
+// active-set OLS hat, the elastic net's active-set hat with its ridge
+// term — and its per-row values match R matrix algebra on the
+// uncentred design (gen_ols_penalty.R penalized_hat) on every
+// unweighted case without unpenalized predictors (the attribute has no
+// such knob). The refit runs the default coordinate-descent tolerance,
+// so l1 / elasticnet hold at relative 1e-6 and ridge (closed form) at
+// 1e-10.
+func TestAttrRegLeverage_PenalizedRefit(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join(referenceDir, "ols_penalty.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := splitReferenceHash(raw)
+	var doc struct {
+		Cases []struct {
+			Name        string      `json:"name"`
+			Penalty     string      `json:"penalty"`
+			Alpha       float64     `json:"alpha"`
+			L1Ratio     float64     `json:"l1_ratio"`
+			Predictors  []string    `json:"predictors"`
+			Weighted    bool        `json:"weighted"`
+			Unpenalized []string    `json:"unpenalized"`
+			Rows        [][]float64 `json:"rows"`
+			Leverage    []float64   `json:"leverage"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, c := range doc.Cases {
+		if c.Weighted || len(c.Unpenalized) > 0 {
+			continue
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			seen[c.Penalty] = true
+			fields := []encoding.Field{{Name: "y", Type: encoding.FieldTypeF64}}
+			for _, name := range c.Predictors {
+				fields = append(fields, encoding.Field{Name: name, Type: encoding.FieldTypeF64})
+			}
+			schema := &encoding.Schema{Fields: fields}
+			p := len(c.Predictors)
+			records := make([]*Record, len(c.Rows))
+			for i, row := range c.Rows {
+				m := map[string]float64{"y": row[p]}
+				for j, name := range c.Predictors {
+					m[name] = row[j]
+				}
+				records[i] = NewRecord(schema, m)
+			}
+			attr := &types.Attribute{Target: "y", Predictors: c.Predictors, Penalty: c.Penalty, Alpha: c.Alpha}
+			if c.Penalty == "elasticnet" {
+				attr.L1Ratio = c.L1Ratio
+			}
+			got, err := makeRegAttr(t, types.ATTR_REG_LEVERAGE, schema, attr).Compute(records, "")
+			if err != nil {
+				t.Fatalf("Compute: %v", err)
+			}
+			tol := 1e-6
+			if c.Penalty == "l2" {
+				tol = 1e-10
+			}
+			for i, h := range got {
+				if math.Abs(h-c.Leverage[i]) > tol*math.Max(math.Abs(c.Leverage[i]), 1e-12) {
+					t.Errorf("h[%d] = %.17g, oracle %.17g", i, h, c.Leverage[i])
+				}
+			}
+		})
+	}
+	for _, want := range []string{"l1", "l2", "elasticnet"} {
+		if !seen[want] {
+			t.Errorf("golden lacks an unweighted %s case", want)
+		}
+	}
+}
+
+// TestAttrRegRefit_PenaltyRefusedOnResidualVariance: the slots that
+// read the refit's residual variance — ATTR_REG_INFLUENCE and
+// ATTR_REG_RESIDUAL kind standardized / studentized — still refuse a
+// penalty (PROCESSING_CONFIG, details.penalty), naming the variance, not
+// a leverage gap; ATTR_REG_LEVERAGE accepts one.
+func TestAttrRegRefit_PenaltyRefusedOnResidualVariance(t *testing.T) {
 	t.Parallel()
 
 	schema := regSchema()
-	for _, pen := range []string{"l1", "l2", "elasticnet"} {
-		spec := &types.Attribute{
-			Type:       types.ATTR_REG_LEVERAGE,
-			Target:     "y",
-			Predictors: []string{"x1"},
-			Penalty:    pen,
-			Alpha:      0.5,
-			L1Ratio:    0.5,
+	for _, tc := range []struct {
+		typ    types.AttributeType
+		params string
+	}{
+		{types.ATTR_REG_INFLUENCE, ""},
+		{types.ATTR_REG_RESIDUAL, `{"kind":"standardized"}`},
+		{types.ATTR_REG_RESIDUAL, `{"kind":"studentized"}`},
+	} {
+		spec := &types.Attribute{Type: tc.typ, Target: "y", Predictors: []string{"x1"}, Penalty: "l2", Alpha: 0.5}
+		if tc.params != "" {
+			spec.Params = json.RawMessage(tc.params)
 		}
-		_, err := attributeRegistry[types.ATTR_REG_LEVERAGE](spec, schema)
-		if err == nil {
-			t.Errorf("Penalty=%q: expected PROCESSING_CONFIG, got nil", pen)
-			continue
-		}
+		_, err := attributeRegistry[tc.typ](spec, schema)
 		if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
-			t.Errorf("Penalty=%q: error %v does not carry PROCESSING_CONFIG", pen, err)
+			t.Errorf("%s %s: error %v, want PROCESSING_CONFIG", tc.typ, tc.params, err)
 			continue
 		}
-		if !strings.Contains(err.Error(), "ATTR_REG_LEVERAGE") {
-			t.Errorf("Penalty=%q: error = %q, want mention of ATTR_REG_LEVERAGE", pen, err.Error())
+		if msg := err.Error(); !strings.Contains(msg, "residual variance") || strings.Contains(msg, "not implemented") {
+			t.Errorf("%s %s: error = %q, want the residual-variance reason", tc.typ, tc.params, msg)
 		}
+	}
+	lev := &types.Attribute{Type: types.ATTR_REG_LEVERAGE, Target: "y", Predictors: []string{"x1"}, Penalty: "l2", Alpha: 0.5}
+	if _, err := attributeRegistry[types.ATTR_REG_LEVERAGE](lev, schema); err != nil {
+		t.Errorf("penalized ATTR_REG_LEVERAGE refused: %v", err)
 	}
 }
 
