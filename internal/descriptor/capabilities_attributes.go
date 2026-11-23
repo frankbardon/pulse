@@ -1,7 +1,10 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -696,7 +699,16 @@ var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Requ
 func regLeverageParams() []descriptor.Param {
 	ps := regAttributeParams(false)
 	knobs := regAttributeParams(true)[2:5] // penalty, alpha, l1_ratio
-	return append(append(ps[:2:2], knobs...), ps[2:]...)
+	out := append(append(ps[:2:2], knobs...), ps[2:]...)
+	return append(out, regRefitFamilyParams...)
+}
+
+// regRefitFamilyParams are ATTR_REG_LEVERAGE's params.family /
+// params.link (regression-depth-2 E1-S2, model.CheckRefit): a GLM refit
+// in place of OLS.
+var regRefitFamilyParams = []descriptor.Param{
+	{Name: "family", Type: "enum", Required: false, EnumValues: slices.Sorted(slices.Values(reglink.Families())), Description: "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; beside penalty PROCESSING_CONFIG (details.requires unpenalized); beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields."},
+	{Name: "link", Type: "enum", Required: false, EnumValues: reglink.All(), EnumBy: "family", EnumValuesBy: reglink.ByFamily(), Description: "The GLM refit's link, one of params.family's (default its canonical link; another is PROCESSING_REGRESSION_INVALID_LINK); without params.family PROCESSING_CONFIG (details.requires family)."},
 }
 
 func regAttributeParams(penalized bool) []descriptor.Param {

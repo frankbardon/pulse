@@ -1,7 +1,10 @@
 package regression
 
 import (
+	"math"
+
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
@@ -119,4 +122,48 @@ func (d *hatDesign) at(x, mean []float64, w, sumW float64) float64 {
 		quad += float64(dx[a] * row)
 	}
 	return w * (1.0/sumW + quad)
+}
+
+// fitGLMForAttribute is ATTR_REG_LEVERAGE's GLM refit (params.family,
+// regression-depth-2 E1-S2): the REG_GLM engine fits spec (vcov on, so
+// the result carries φ·(XᵀW*X)⁻¹ at the final IRLS working weights and
+// φ), and the leverage reads that design through the bound-fit kernel
+// (NewBoundInfluence) — so a refit's hat and a bound REG_GLM fit's agree
+// bit for bit on the same rows, both R hatvalues on the glm. The row's
+// prior weight multiplies it as w* (buildWeightedDesign's map onto w* =
+// c·w, a multiply only under a probability weight), the scale the
+// covariance read; the hat is invariant to that scale, as R's.
+func fitGLMForAttribute(spec *types.RegressionSpec, records []Record) (*AttributeFit, error) {
+	glmSpec := *spec
+	glmSpec.Vcov = true
+	eng, err := newGLMEngine(&glmSpec, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := eng.(*glmEngine).FitBuffered(records)
+	if err != nil {
+		return nil, err
+	}
+	b, err := model.Bind("", &glmSpec, res)
+	if err != nil {
+		return nil, err
+	}
+	d, err := NewBoundInfluence(b)
+	if err != nil {
+		return nil, err
+	}
+	rw := newRowWeights(&glmSpec)
+	_, _, _, _, sumW, sumWSq := buildWeightedDesign(records, glmSpec.Predictors, glmSpec.Target, rw, nil)
+	return &AttributeFit{
+		Coefficients:   append([]float64(nil), b.Coefficients...),
+		Intercept:      b.Intercept,
+		PredictorOrder: append([]string(nil), glmSpec.Predictors...),
+		NObs:           res.NObs,
+		SumW:           sumW,
+		RSS:            math.NaN(),
+		DF:             math.NaN(),
+		weights:        rw,
+		glm:            d,
+		glmScale:       rw.basis.Scale(sumW, sumWSq),
+	}, nil
 }

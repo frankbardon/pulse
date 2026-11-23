@@ -70,6 +70,13 @@ type AttributeFit struct {
 	// figures); nil otherwise so FITTED / RESIDUAL keep their post-fit
 	// cost free of an inverse.
 	design *hatDesign
+
+	// glm is a GLM refit's design (fitGLMForAttribute): the bound-fit
+	// kernel over the refit's own result, and glmScale the prior-weight
+	// map w* = c·w (c = 1 but under a probability weight) its
+	// covariance reads. Nil on the OLS refit.
+	glm      *BoundInfluence
+	glmScale float64
 }
 
 // FitForAttribute runs the OLS streaming accumulator over the supplied
@@ -96,10 +103,14 @@ func FitForAttribute(
 			"FitForAttribute called with nil spec",
 		)
 	}
+	if spec.Type == types.REG_GLM && needLeverage {
+		// ATTR_REG_LEVERAGE params.family: the GLM refit's hat.
+		return fitGLMForAttribute(spec, records)
+	}
 	if spec.Type != types.REG_OLS {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"FitForAttribute supports only REG_OLS specs; ATTR_REG_* delegates only to OLS in this phase",
+			"FitForAttribute refits REG_OLS, or REG_GLM for ATTR_REG_LEVERAGE (params.family) only",
 			map[string]any{"type": string(spec.Type)},
 		)
 	}
@@ -241,9 +252,19 @@ func (f *AttributeFit) RowWeight(rec Record) (float64, bool) { return f.weights.
 // TestOLSQR_NoFMAContraction); the inverse itself is a gonum Cholesky
 // inverse, whose last bits may differ across architectures.
 //
+// A GLM refit (params.family) reads its own design instead:
+// hᵢᵢ = w*ᵢ·(dμ/dη)²/V(μ)·x̃ᵀ(XᵀW*X)⁻¹x̃ at the final IRLS working
+// weights, R hatvalues on the glm (fitGLMForAttribute).
+//
 // Returns 0 when fit is nil or carries no design — callers should have
 // validated upstream.
 func LeverageForRow(fit *AttributeFit, x []float64, w float64) float64 {
+	if fit != nil && fit.glm != nil {
+		// hᵢᵢ = w*ᵢ·wᵢ·x̃ᵀ(XᵀW*X)⁻¹x̃ at the refit's final IRLS working
+		// weight wᵢ (glmLeverage).
+		h, _, _ := fit.glm.at(x)
+		return float64(float64(w*fit.glmScale) * h)
+	}
 	if fit == nil || fit.design == nil || fit.NObs == 0 {
 		return 0
 	}

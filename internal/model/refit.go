@@ -174,7 +174,10 @@ func RefitResidualKind(a *types.Attribute) string {
 // {measure} — PROCESSING_CONFIG), and a slot reading the refit's
 // residual variance (NeedsRefitDesign but ATTR_REG_LEVERAGE, which takes
 // any penalty) carries no penalty (PROCESSING_CONFIG).
-// Target / predictor presence and types are the callers' walk.
+// ATTR_REG_LEVERAGE's params decode ({fit, carryover, order, family,
+// link}); the family / link values are reglink.CheckRefitFamily's, which
+// the same callers run next on RefitFamily. Target / predictor presence and types are the
+// callers' walk.
 func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 	if a == nil {
 		return nil
@@ -197,6 +200,13 @@ func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 		if ScaledResidualKind(p.Kind) && a.Penalty != "" {
 			return refitDesignUnpenalized(t, a.Penalty, " params.kind "+p.Kind)
 		}
+	case types.ATTR_REG_LEVERAGE:
+		// params.family / params.link decode here; their values are
+		// reglink.CheckRefitFamily's (this package imports no reglink),
+		// which both callers run after CheckRefit (RefitFamily).
+		if _, err := DecodeFitParams(t, a.Params); err != nil {
+			return err
+		}
 	case types.ATTR_REG_INFLUENCE:
 		if _, err := DecodeInfluenceParams(a.Params); err != nil {
 			return err
@@ -206,4 +216,18 @@ func CheckRefit(t types.AttributeType, a *types.Attribute) *errors.CodedError {
 		}
 	}
 	return nil
+}
+
+// RefitFamily is an ATTR_REG_LEVERAGE refit slot's params.family and
+// params.link ("" for the OLS refit, or when params do not parse —
+// CheckRefit refuses them).
+func RefitFamily(t types.AttributeType, a *types.Attribute) (family, link string) {
+	if t != types.ATTR_REG_LEVERAGE || a == nil {
+		return "", ""
+	}
+	p, err := DecodeFitParams(t, a.Params)
+	if err != nil {
+		return "", ""
+	}
+	return p.Family, p.Link
 }

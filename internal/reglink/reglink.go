@@ -220,3 +220,35 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 	}
 	return nil
 }
+
+// CheckRefitFamily is the rule over an ATTR_REG_LEVERAGE refit's
+// params.family / params.link (regression-depth-2 E1-S2, #677; read with
+// model.RefitFamily), run after model.CheckRefit by the attribute
+// factory (internal/processing) and predict's field-reference pass
+// alike: a family is one of Families (FamilyRefusal), a link one of its
+// links (CheckPair) — REG_GLM's own codes —, a link needs a family, and
+// a GLM refit carries no penalty (PROCESSING_CONFIG, details.requires
+// unpenalized: a penalized GLM's hat reads the penalized IRLS system).
+// Nil for the OLS refit (both empty).
+func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *errors.CodedError {
+	if family == "" {
+		if link != "" {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				string(attr)+" params.link selects the link of a GLM refit and needs params.family; set params.family, or drop params.link to refit OLS",
+				map[string]any{"attribute": string(attr), "link": link, "requires": "family"})
+		}
+		return nil
+	}
+	if !KnownFamily(family) {
+		return FamilyRefusal(family)
+	}
+	if cerr := CheckPair(family, link); cerr != nil {
+		return cerr
+	}
+	if penalty != "" {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			string(attr)+" with params.family refits an unpenalized GLM; a penalized GLM refit's leverage is not supported — drop penalty, or drop params.family for the penalized OLS refit",
+			map[string]any{"attribute": string(attr), "penalty": penalty, "family": family, "requires": "unpenalized"})
+	}
+	return nil
+}

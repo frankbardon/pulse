@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regorder"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -502,6 +503,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			// attribute's factory runs (model.CheckRefit).
 			if cerr := model.CheckRefit(attrRoute, attr); cerr != nil {
 				w.out = append(w.out, cerr)
+			} else if family, link := model.RefitFamily(attrRoute, attr); family != "" || link != "" {
+				// ATTR_REG_LEVERAGE's GLM refit (params.family / link):
+				// the factory's next rule.
+				if cerr := reglink.CheckRefitFamily(attr.Type, family, link, attr.Penalty); cerr != nil {
+					w.out = append(w.out, cerr)
+				}
 			}
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {

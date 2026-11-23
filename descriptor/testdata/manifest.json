@@ -4392,6 +4392,56 @@
               "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
             },
             {
+              "name": "family",
+              "type": "enum",
+              "required": false,
+              "description": "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; beside penalty PROCESSING_CONFIG (details.requires unpenalized); beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields.",
+              "enum_values": [
+                "binomial",
+                "gamma",
+                "negative_binomial",
+                "poisson"
+              ]
+            },
+            {
+              "name": "link",
+              "type": "enum",
+              "required": false,
+              "description": "The GLM refit's link, one of params.family's (default its canonical link; another is PROCESSING_REGRESSION_INVALID_LINK); without params.family PROCESSING_CONFIG (details.requires family).",
+              "enum_values": [
+                "cloglog",
+                "identity",
+                "inverse",
+                "log",
+                "logit",
+                "probit",
+                "sqrt"
+              ],
+              "enum_by": "family",
+              "enum_values_by": {
+                "binomial": [
+                  "logit",
+                  "probit",
+                  "cloglog"
+                ],
+                "gamma": [
+                  "inverse",
+                  "log",
+                  "identity"
+                ],
+                "negative_binomial": [
+                  "log",
+                  "identity",
+                  "sqrt"
+                ],
+                "poisson": [
+                  "log",
+                  "identity",
+                  "sqrt"
+                ]
+              }
+            },
+            {
               "name": "carryover",
               "type": "bool",
               "required": false,
@@ -15568,7 +15618,7 @@
       },
       {
         "name": "regression-influence",
-        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage and a GLM refit's hat. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-margins",
@@ -22084,4 +22134,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f92a7f2ff5d9e797917379ea007c68b33d854e73c581f3a36bbbc4f7697bd6be
+// golden-hash: d3d2232f3118b2cbb7e3f7e7d75045c64d2e5e3b992efe2a1aff5a1f96f5316d

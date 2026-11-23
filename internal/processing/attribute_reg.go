@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -162,7 +163,7 @@ func (m *mapRecord) NumericValue(name string) (float64, bool) {
 // this just packages the fields for the regression.FitForAttribute
 // entry point.
 func makeRegressionSpec(attr *types.Attribute) *types.RegressionSpec {
-	return &types.RegressionSpec{
+	spec := &types.RegressionSpec{
 		Type:       types.REG_OLS,
 		Target:     attr.Target,
 		Predictors: append([]string(nil), attr.Predictors...),
@@ -173,6 +174,12 @@ func makeRegressionSpec(attr *types.Attribute) *types.RegressionSpec {
 		// refit is weighted with the regression's own kinds.
 		Weight: attr.Weight,
 	}
+	// ATTR_REG_LEVERAGE params.family refits a REG_GLM (model.CheckRefit
+	// judged the family, link and penalty).
+	if family, link := model.RefitFamily(attr.Type, attr); family != "" {
+		spec.Type, spec.Family, spec.Link = types.REG_GLM, family, link
+	}
+	return spec
 }
 
 // newRegressionAttribute is the shared factory body. The three
@@ -196,6 +203,11 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	// field-reference pass (model.CheckRefit).
 	if cerr := model.CheckRefit(attr.Type, attr); cerr != nil {
 		return nil, cerr
+	}
+	if family, link := model.RefitFamily(attr.Type, attr); family != "" || link != "" {
+		if cerr := reglink.CheckRefitFamily(attr.Type, family, link, attr.Penalty); cerr != nil {
+			return nil, cerr
+		}
 	}
 	if attr.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
