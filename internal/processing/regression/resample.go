@@ -476,7 +476,7 @@ func packageResampleResult(
 }
 
 // deriveBootstrapSeed is the rng_seed 0 seed: DeriveSeed over the
-// spec's wire form (rng_seed excluded; the raw params in
+// spec's wire form (rng_seed, margins and vcov excluded; the raw params in
 // regresample.CanonicalJSON form, so their key order never moves it;
 // the type's seed-neutral keys dropped, seedParams) and every record's
 // target and
@@ -490,8 +490,11 @@ func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictor
 	cp.RNGSeed = 0
 	// A margins block reads the replicates, it never draws them: the
 	// same request with or without margins resamples the same rows, so
-	// the coefficient table is identical either way (U69 #639).
+	// the coefficient table is identical either way (U69 #639). vcov
+	// likewise only reports the replicate covariance: the request with
+	// or without it draws the same replicates (U69 E2-S4).
 	cp.Margins = nil
+	cp.Vcov = false
 	cp.Params = seedParams(cp.Type, regresample.CanonicalJSON(cp.Params))
 	body, err := types.MarshalFinite(&cp)
 	if err != nil {

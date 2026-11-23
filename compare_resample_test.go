@@ -65,7 +65,8 @@ func waldOver(t *testing.T, res *types.RegressionResult, keys []string) float64 
 // resample kind, the Wald comparison of two resampled fits equals
 // b_Sᵀ V_SS⁻¹ b_S over the full fit's own replicate vcov on χ²(q) (no
 // df_residual), differs from the unresampled test, is byte-identical
-// whether or not the full fit asks for vcov, and predict's summary
+// (statistic and standard errors) whether or not the full fit asks for
+// vcov at rng_seed 0 (U69 E2-S4), and predict's summary
 // names the run's test, distribution and terms.
 func TestCompare_ResampledWaldReadsReplicateCovariance(t *testing.T) {
 	t.Parallel()
@@ -78,14 +79,14 @@ func TestCompare_ResampledWaldReadsReplicateCovariance(t *testing.T) {
 	jack := func(s *types.RegressionSpec) *types.RegressionSpec { s.Resample = "jackknife"; return s }
 	jackG := func(g int) func(*types.RegressionSpec) *types.RegressionSpec {
 		return func(s *types.RegressionSpec) *types.RegressionSpec {
-			// A pinned seed: the rng_seed 0 group assignment hashes the
-			// spec, vcov included.
-			s.Resample, s.JackknifeGroups, s.RNGSeed = "jackknife", g, 5
+			// rng_seed 0: the derived group assignment ignores vcov
+			// (U69 E2-S4), so the with / without comparison below holds.
+			s.Resample, s.JackknifeGroups = "jackknife", g
 			return s
 		}
 	}
 	boot := func(s *types.RegressionSpec) *types.RegressionSpec {
-		s.Resample, s.BootstrapIters, s.RNGSeed = "bootstrap", 60, 11
+		s.Resample, s.BootstrapIters = "bootstrap", 60 // rng_seed 0, vcov-neutral
 		return s
 	}
 	mn := func(preds ...string) *types.RegressionSpec {
@@ -150,6 +151,13 @@ func TestCompare_ResampledWaldReadsReplicateCovariance(t *testing.T) {
 			bare, _ := run(tc.mod(tc.r0()), tc.mod(tc.r1()))
 			if comparisonsJSON(t, bare) != comparisonsJSON(t, resp) {
 				t.Fatalf("without vcov %s, with %s", comparisonsJSON(t, bare), comparisonsJSON(t, resp))
+			}
+			// The same replicates (rng_seed 0 ignores vcov): the full
+			// fit's standard errors are bit-identical too.
+			for k, se := range full.StdErrors {
+				if math.Float64bits(bare.Fits["m1"].StdErrors[k]) != math.Float64bits(se) {
+					t.Fatalf("SE %s: %v without vcov, %v with", k, bare.Fits["m1"].StdErrors[k], se)
+				}
 			}
 			// The unresampled test reads the analytical covariance.
 			plain, _ := run(tc.r0(), tc.r1())
