@@ -1168,9 +1168,10 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"type":        "object",
 					"description": "REG_OLS / REG_GLM / REG_MULTINOMIAL or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
 					"properties": map[string]any{
-						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
-						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
-						"scale": enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+						"type":   enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
+						"terms":  map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
+						"scale":  enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+						"binary": enumStringField(types.AllMarginsBinary(), "slope (default); contrast: a predictor whose fitted values are all 0/1 reports mu(1) - mu(0), listed in contrasts."),
 					},
 					"additionalProperties": false,
 				},

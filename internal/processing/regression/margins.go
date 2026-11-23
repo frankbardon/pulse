@@ -22,6 +22,20 @@ import (
 //	link scale, or an identity link (REG_OLS): the effect is β_j and its
 //	                standard error the coefficient's (J = e_j exactly)
 //
+// binary contrast (U69 #641): a term whose fitted values are all 0 or 1
+// reports the discrete contrast instead of the slope,
+//
+//	ame, response:  C_j = Σw·(μ(η_i1) − μ(η_i0))/Σw,
+//	                η_i1 / η_i0 the row's linear predictor at x_ij = 1 / 0
+//	                J_k  = Σw·(μ′(η_i1)·x1_ik − μ′(η_i0)·x0_ik)/Σw
+//	mem, response:  the same at x̄ (x̄_j replaced by 1 and 0), weight 1
+//	link scale, or an identity link: η(1) − η(0) = β_j, the coefficient
+//
+// — marginaleffects' avg_comparisons / comparisons at the means for a
+// 0/1 column (its default for one). glmContrast is a pure function of
+// the design, the prior weights and β, so a replicate fit can recompute
+// it.
+//
 // x_i0 = 1 (the intercept), w the fit's prior weights (1 unweighted), so
 // a frequency-weighted effect is the rep()-expanded fit's
 // (marginaleffects avg_slopes(wts =); Stata margins with fweights) and
@@ -63,6 +77,9 @@ func newMarginsResult(spec *types.RegressionSpec, terms []string, inf marginsInf
 		CIUpper:    make(map[string]float64, n),
 		ConfLevel:  inf.level,
 	}
+	if regmargins.Contrast(spec) {
+		out.Binary = types.MarginsBinaryContrast
+	}
 	if inf.studentT {
 		out.DF = inf.df
 		if !(inf.df > 0) {
@@ -102,13 +119,89 @@ func setMargin(out *types.RegressionMarginsResult, term string, est, se float64,
 	out.CILower[term], out.CIUpper[term] = est-half, est+half
 }
 
+// contrastTerms lists, in terms order, the terms spec reports as a
+// discrete contrast: under binary contrast those binary reports all-0/1
+// (binary takes the term's design column, its predictor index + 1);
+// nil under slope.
+func contrastTerms(spec *types.RegressionSpec, terms []string, binary func(col int) bool) []string {
+	if !regmargins.Contrast(spec) {
+		return nil
+	}
+	var out []string
+	for _, t := range terms {
+		if binary(slices.Index(spec.Predictors, t) + 1) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// designBinary is the binary test of a row-major design (n × k,
+// intercept first): column c is binary when every row's value is 0 or 1.
+func designBinary(xRows []float64, k int) func(col int) bool {
+	return func(col int) bool {
+		for i := col; i < len(xRows); i += k {
+			if !regmargins.IsBinaryValue(xRows[i]) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// glmContrast is the response-scale discrete contrast of design column j
+// (0/1) of a REG_GLM fit and its β-gradient: xRows the fitted design
+// (n × k row-major, intercept first), prior the prior weights and beta
+// the coefficients — or, under mem, the single point xbar (xRows nil).
+// A pure function of its arguments.
+func glmContrast(fam glmFamily, xRows, prior, beta, xbar []float64, k, j int) (float64, []float64) {
+	jac := make([]float64, k)
+	est := 0.0
+	add := func(x []float64, w float64) {
+		// eta0 is the row's linear predictor with x_j = 0; eta1 adds β_j.
+		eta0 := 0.0
+		for c := 0; c < k; c++ {
+			if c != j {
+				eta0 += float64(x[c] * beta[c])
+			}
+		}
+		eta1 := eta0 + beta[j]
+		est += float64(w * (fam.InverseLink(eta1) - fam.InverseLink(eta0)))
+		d1, d0 := fam.DmuDeta(eta1), fam.DmuDeta(eta0)
+		wd := float64(w * (d1 - d0))
+		for c := 0; c < k; c++ {
+			if c != j {
+				jac[c] += float64(wd * x[c])
+			}
+		}
+		jac[j] += float64(w * d1)
+	}
+	if xbar != nil {
+		add(xbar, 1)
+		return est, jac
+	}
+	sw := 0.0
+	for i := range prior {
+		add(xRows[i*k:(i+1)*k], prior[i])
+		sw += prior[i]
+	}
+	est /= sw
+	for c := range jac {
+		jac[c] /= sw
+	}
+	return est, jac
+}
+
 // coefficientMargins is the block where every effect is its
 // coefficient: the link scale, or an identity link on the response
 // scale (REG_OLS; REG_GLM poisson / gamma / negative_binomial identity).
 // at, when non-nil, is mem's evaluation point (every predictor's mean).
-func coefficientMargins(spec *types.RegressionSpec, res *types.RegressionResult, inf marginsInference, at []float64) *types.RegressionMarginsResult {
+// contrasts lists the binary terms under binary contrast, whose
+// contrast η(1) − η(0) is the coefficient too.
+func coefficientMargins(spec *types.RegressionSpec, res *types.RegressionResult, inf marginsInference, at []float64, contrasts []string) *types.RegressionMarginsResult {
 	terms := regmargins.Terms(spec)
 	out := newMarginsResult(spec, terms, inf)
+	out.Contrasts = contrasts
 	for _, t := range terms {
 		setMargin(out, t, res.Coefficients[t], res.StdErrors[t], inf)
 	}
@@ -131,13 +224,15 @@ func glmMargins(spec *types.RegressionSpec, fam glmFamily, xRows, prior, eta, be
 	n := len(eta)
 	terms := regmargins.Terms(spec)
 	out := newMarginsResult(spec, terms, inf)
+	out.Contrasts = contrastTerms(spec, terms, designBinary(xRows, k))
 
 	// grad[k] is Σw·μ″·x_k/Σw (ame) or μ″(η̄)·x̄_k (mem); scale is m̄ or
 	// μ′(η̄).
 	grad := make([]float64, k)
 	var scale float64
+	var xbar []float64
 	if spec.Margins.EffectiveType() == types.MarginsMEM {
-		xbar := designMeans(xRows, prior, k)
+		xbar = designMeans(xRows, prior, k)
 		etaBar := 0.0
 		for c := 0; c < k; c++ {
 			etaBar += float64(xbar[c] * beta[c])
@@ -173,6 +268,11 @@ func glmMargins(spec *types.RegressionSpec, fam glmFamily, xRows, prior, eta, be
 	jac := make([]float64, k)
 	for _, t := range terms {
 		j := slices.Index(spec.Predictors, t) + 1
+		if slices.Contains(out.Contrasts, t) {
+			est, cj := glmContrast(fam, xRows, prior, beta, xbar, k, j)
+			setMargin(out, t, est, math.Sqrt(quadForm(v, cj)), inf)
+			continue
+		}
 		for c := 0; c < k; c++ {
 			jac[c] = float64(beta[j] * grad[c])
 		}
@@ -224,14 +324,17 @@ func identityLink(fam glmFamily) bool { return fam.Link == "identity" }
 // table's (AttachExtensionIntervals): a Student t on the fit's reported
 // df, else the standard normal, at conf_level, through setMargin — so an
 // extension's effect reads its statistic, p-value and interval exactly
-// as a built-in's. at (mem only; nil none) is echoed as the block's At.
-func AttachExtensionMargins(res *types.RegressionResult, spec *types.RegressionSpec, outcomes []string, est, se, at map[string]float64) {
+// as a built-in's. at (mem only; nil none) is echoed as the block's At;
+// contrasts (verified against the request) lists the terms the model
+// reported as a discrete contrast, kept in the terms' order.
+func AttachExtensionMargins(res *types.RegressionResult, spec *types.RegressionSpec, outcomes []string, est, se, at map[string]float64, contrasts []string) {
 	if spec == nil || spec.Margins == nil {
 		return
 	}
 	inf := marginsInference{level: resolvedConfLevel(spec), df: res.DF,
 		studentT: res.Resample == "" && slices.Contains(res.ReportedFigures, "df")}
 	out := newMarginsResult(spec, regmargins.Terms(spec), inf)
+	out.Contrasts = contrastTerms(spec, out.Terms, func(col int) bool { return slices.Contains(contrasts, spec.Predictors[col-1]) })
 	if len(outcomes) > 0 {
 		out.Outcomes = slices.Clone(outcomes)
 	}

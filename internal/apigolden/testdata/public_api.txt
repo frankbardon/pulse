@@ -3364,11 +3364,13 @@ pulse/extend: type MarginalEffect field StdErr *float64
 pulse/extend: type MarginalEffect field Term string
 pulse/extend: type MarginsOutput struct
 pulse/extend: type MarginsOutput field At map[string]float64
+pulse/extend: type MarginsOutput field Contrasts []string
 pulse/extend: type MarginsOutput field Effects []pulse/extend.MarginalEffect
 pulse/extend: type MarginsOutput field Outcomes []string
 pulse/extend: type MarginsRegression interface
 pulse/extend: type MarginsRegression imethod Margins(req pulse/extend.MarginsRequest) (pulse/extend.MarginsOutput, error)
 pulse/extend: type MarginsRequest struct
+pulse/extend: type MarginsRequest field Binary string
 pulse/extend: type MarginsRequest field Scale string
 pulse/extend: type MarginsRequest field Terms []string
 pulse/extend: type MarginsRequest field Type string
@@ -5439,6 +5441,7 @@ pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
 pulse/types: func AllLabelModes() []pulse/types.LabelMode
 pulse/types: func AllLookupMultiplicities() []pulse/types.LookupMultiplicity
+pulse/types: func AllMarginsBinary() []string
 pulse/types: func AllMarginsScales() []string
 pulse/types: func AllMarginsTypes() []string
 pulse/types: func AllMatrixEncodings() []pulse/types.MatrixEncoding
@@ -6095,6 +6098,8 @@ pulse/types: const MarginRecompute pulse/types.MarginReducibility = "recompute"
 pulse/types: type MarginReducibility string
 pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
 pulse/types: const MarginsAME untyped string = "ame"
+pulse/types: const MarginsBinaryContrast untyped string = "contrast"
+pulse/types: const MarginsBinarySlope untyped string = "slope"
 pulse/types: const MarginsMEM untyped string = "mem"
 pulse/types: const MarginsScaleLink untyped string = "link"
 pulse/types: const MarginsScaleResponse untyped string = "response"
@@ -6665,16 +6670,20 @@ pulse/types: type RegressionHoldout field R2 *float64 "json:\"r2,omitempty\""
 pulse/types: type RegressionHoldout field RMSE *float64 "json:\"rmse,omitempty\""
 pulse/types: type RegressionHoldout field RPS *float64 "json:\"rps,omitempty\""
 pulse/types: type RegressionMargins struct
+pulse/types: type RegressionMargins field Binary string "json:\"binary,omitempty\""
 pulse/types: type RegressionMargins field Scale string "json:\"scale,omitempty\""
 pulse/types: type RegressionMargins field Terms []string "json:\"terms,omitempty\""
 pulse/types: type RegressionMargins field Type string "json:\"type,omitempty\""
+pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveBinary() string
 pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveScale() string
 pulse/types: type RegressionMargins method (*RegressionMargins) EffectiveType() string
 pulse/types: type RegressionMarginsResult struct
 pulse/types: type RegressionMarginsResult field At map[string]float64 "json:\"at,omitempty\""
+pulse/types: type RegressionMarginsResult field Binary string "json:\"binary,omitempty\""
 pulse/types: type RegressionMarginsResult field CILower map[string]float64 "json:\"ci_lower\""
 pulse/types: type RegressionMarginsResult field CIUpper map[string]float64 "json:\"ci_upper\""
 pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_level\""
+pulse/types: type RegressionMarginsResult field Contrasts []string "json:\"contrasts,omitempty\""
 pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
 pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -7177,4 +7186,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 923b5caf359f72996f37fed202edb76e56ef118afe0de86feb20eaafe4da0a2e
+// golden-hash: 66a90e9d658cab25c6d3400b2eb07fdd859840d8e60b9d6cd54f07e0102c158f

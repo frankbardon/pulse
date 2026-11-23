@@ -95,12 +95,17 @@ type MarginsRegression interface {
 
 // MarginsRequest is the slot's resolved margins block: its type
 // (types.MarginsAME or types.MarginsMEM), its scale
-// (types.MarginsScaleResponse or types.MarginsScaleLink) and its terms
-// (the block's terms, else every predictor, in order).
+// (types.MarginsScaleResponse or types.MarginsScaleLink), its terms
+// (the block's terms, else every predictor, in order) and its
+// binary-predictor treatment (types.MarginsBinarySlope or
+// types.MarginsBinaryContrast: under contrast the model may report a
+// 0/1 predictor as μ(x=1) − μ(x=0), listing it in
+// MarginsOutput.Contrasts).
 type MarginsRequest struct {
-	Type  string
-	Scale string
-	Terms []string
+	Type   string
+	Scale  string
+	Terms  []string
+	Binary string
 }
 
 // MarginsOutput is a model's marginal effects. Without Outcomes there
@@ -116,6 +121,11 @@ type MarginsOutput struct {
 	// effects are evaluated at (the weighted means, say); nil reports
 	// none. Each key must be a predictor of the spec.
 	At map[string]float64
+	// Contrasts lists the requested terms whose effects are a discrete
+	// contrast μ(x=1) − μ(x=0) rather than a slope; each a requested
+	// term, once, and only under MarginsRequest.Binary
+	// types.MarginsBinaryContrast. Nil reports every effect a slope.
+	Contrasts []string
 }
 
 // MarginalEffect is one effect: the outcome it is on (empty without

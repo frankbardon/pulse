@@ -530,6 +530,22 @@ const (
 	MarginsScaleLink = "link"
 )
 
+// Binary-predictor treatments (RegressionMargins.Binary).
+const (
+	// MarginsBinarySlope reports a 0/1 predictor like any other: the
+	// derivative of the effect's scale in it.
+	MarginsBinarySlope = "slope"
+	// MarginsBinaryContrast reports each predictor whose fitted values
+	// are all 0 or 1 as its discrete contrast μ(x=1) − μ(x=0): the other
+	// predictors as observed (ame) or at their means (mem), with a
+	// delta-method standard error. Every other predictor keeps its slope.
+	MarginsBinaryContrast = "contrast"
+)
+
+// AllMarginsBinary lists the RegressionMargins.Binary values, the
+// default first.
+func AllMarginsBinary() []string { return []string{MarginsBinarySlope, MarginsBinaryContrast} }
+
 // AllMarginsTypes lists the RegressionMargins.Type values, the default
 // first.
 func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
@@ -552,6 +568,12 @@ type RegressionMargins struct {
 
 	// Scale is response (the default; empty selects it) or link.
 	Scale string `json:"scale,omitempty"`
+
+	// Binary is slope (the default; empty selects it) or contrast: under
+	// contrast a predictor whose fitted values are all 0 or 1 reports
+	// μ(x=1) − μ(x=0) (on the link scale, and on an identity link, that
+	// is its coefficient), listed in RegressionMarginsResult.Contrasts.
+	Binary string `json:"binary,omitempty"`
 }
 
 // EffectiveType is m's type, MarginsAME when unset.
@@ -560,6 +582,15 @@ func (m *RegressionMargins) EffectiveType() string {
 		return MarginsAME
 	}
 	return m.Type
+}
+
+// EffectiveBinary is m's binary-predictor treatment, MarginsBinarySlope
+// when unset.
+func (m *RegressionMargins) EffectiveBinary() string {
+	if m == nil || m.Binary == "" {
+		return MarginsBinarySlope
+	}
+	return m.Binary
 }
 
 // EffectiveScale is m's scale, MarginsScaleResponse when unset.
@@ -671,6 +702,16 @@ type RegressionMarginsResult struct {
 	// Terms lists the reported predictors in their resolved order.
 	Terms []string `json:"terms"`
 
+	// Binary echoes RegressionMargins.Binary when it is contrast; absent
+	// under slope.
+	Binary string `json:"binary,omitempty"`
+
+	// Contrasts lists, in Terms order, the terms reported as a discrete
+	// contrast μ(x=1) − μ(x=0) rather than a slope — under binary
+	// contrast, every term whose fitted values are all 0 or 1. Absent
+	// when none is.
+	Contrasts []string `json:"contrasts,omitempty"`
+
 	// Outcomes lists, in the model's level order, the outcome levels a
 	// categorical-response fit reports one effect on each of (REG_ORDINAL:
 	// each level's probability; on the link scale each level but the
@@ -684,7 +725,8 @@ type RegressionMarginsResult struct {
 	// Estimates maps each term to its marginal effect: under type ame
 	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response
 	// scale) — under type mem β_j·μ′(x̄ᵀβ) — or β_j (link scale; and on
-	// every identity link, REG_OLS included, where μ′ = 1).
+	// every identity link, REG_OLS included, where μ′ = 1); a term in
+	// Contrasts reports μ(x=1) − μ(x=0) instead, averaged the same way.
 	Estimates map[string]float64 `json:"estimates"`
 
 	// StdErrors maps each term to its delta-method standard error

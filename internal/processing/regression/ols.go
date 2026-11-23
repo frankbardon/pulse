@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbounds"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regsolve"
 	"github.com/frankbardon/pulse/types"
@@ -55,6 +56,11 @@ type olsEngine struct {
 	// figures, when set (OfferingFigures), receives the fit's
 	// nested-model comparison figures at finalize (compare.go).
 	figures func(*model.RegressionFigures)
+	// nonBinary, under margins binary contrast only (nil otherwise),
+	// marks each predictor a fitted row has seen outside {0, 1}: the
+	// rest report as a discrete contrast (margins.go). A per-row flag,
+	// so the block still streams with the fit.
+	nonBinary []bool
 }
 
 // newOLSEngine validates the spec and constructs an empty accumulator
@@ -117,13 +123,17 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 		// unbounded, classical, on the QR solver).
 		acc.fitThroughOrigin()
 	}
-	return &olsEngine{
+	e := &olsEngine{
 		spec:    spec,
 		schema:  schema,
 		acc:     acc,
 		weights: weights,
 		robust:  spec.Covariance.Robust(),
-	}, nil
+	}
+	if regmargins.Contrast(spec) {
+		e.nonBinary = make([]bool, len(spec.Predictors))
+	}
+	return e, nil
 }
 
 // UpdateRow folds one record into the running sufficient statistics.
@@ -143,6 +153,11 @@ func (e *olsEngine) UpdateRow(rec Record) error {
 		return nil
 	}
 	e.acc.UpdateRowWeighted(x, y, w)
+	for j := range e.nonBinary {
+		if !regmargins.IsBinaryValue(x[j]) {
+			e.nonBinary[j] = true
+		}
+	}
 	return nil
 }
 
@@ -336,7 +351,10 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		// on the coefficient table's t (margins.go) — no row pass, so the
 		// block streams with the fit; mem's point is the accumulator's
 		// (weighted) predictor means.
-		res.Margins = coefficientMargins(e.spec, res, marginsInference{level: resolvedConfLevel(e.spec), df: infDF, studentT: true}, e.acc.meanX)
+		// Under binary contrast a 0/1 predictor's contrast is its
+		// coefficient too; only its listing needs the rows' flags.
+		contrasts := contrastTerms(e.spec, regmargins.Terms(e.spec), func(col int) bool { return !e.nonBinary[col-1] })
+		res.Margins = coefficientMargins(e.spec, res, marginsInference{level: resolvedConfLevel(e.spec), df: infDF, studentT: true}, e.acc.meanX, contrasts)
 	}
 	if e.spec.Collinearity != nil {
 		// The design's VIF off the accumulator's centered moments — the

@@ -64,7 +64,7 @@ var (
 		Means: "The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).",
 	}
 	regMarginsCommon = []string{
-		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.",
+		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.",
 		regCoefCausal,
 		"A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.",
 	}

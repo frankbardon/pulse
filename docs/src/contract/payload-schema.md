@@ -1053,10 +1053,13 @@ the additive `omitempty` `RegressionSpec` string `dispersion`
 `summary.glm`). Every other family leaves `theta` and `theta_std_err`
 absent.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
-terms, scale}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
+terms, scale, binary}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
 model declaring `Margins`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
 (`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
+under `binary: "contrast"` (U69 #641) the additive `omitempty` string
+`binary` echo and string array `contrasts` (the 0/1 terms reported as
+μ(1) − μ(0); absent under `slope`, the default, byte-identical),
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
 `p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
 `conf_level` and `df` (present only for a Student t; `null` when ≤ 0),

@@ -231,6 +231,7 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 	}{
 		{"type", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Type = "aie" })), "type ame or mem"},
 		{"scale", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Scale = "odds" })), "scale response or link"},
+		{"binary", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Binary = "dummy" })), "binary slope or contrast"},
 		{"unknown term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x3"} })), "a predictor"},
 		{"repeated term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x1", "x1"} })), "a predictor"},
 		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
@@ -276,6 +277,8 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 			Resample: "jackknife", Margins: &types.RegressionMargins{}}), "no_resample"},
 		{"ordinal scale", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
 			Margins: &types.RegressionMargins{Scale: "odds"}}), "scale response or link"},
+		{"ordinal binary", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
+			Margins: &types.RegressionMargins{Binary: "contrasts"}}), "binary slope or contrast"},
 		{"ordinal predictor derived from a predictor", func() *Request {
 			r := marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: []string{"x1", "x1_log"},
 				Margins: &types.RegressionMargins{}})
@@ -344,8 +347,8 @@ func TestMargins_DerivedPredictorAllowed(t *testing.T) {
 // TestMargins_DerivedPredictorsMatchR: margins over a FEAT_LOG output
 // (log1p of a raw column) and a FEAT_ONE_HOT dummy equal R's analytic
 // AME on the same pre-computed columns (margins.json logit_ame_derived)
-// at 1e-9 relative: the effect of a unit change in each column, as
-// given.
+// at 1e-9 relative: the slope of the log column, as given, and under
+// binary contrast the dummy's discrete 1 − 0 contrast (U69 #641).
 func TestMargins_DerivedPredictorsMatchR(t *testing.T) {
 	t.Parallel()
 
@@ -389,7 +392,7 @@ func TestMargins_DerivedPredictorsMatchR(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := marginsReq("derived.pulse", &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Family: "binomial", Target: "y",
-		Predictors: []string{"z_log", "g_b"}, Margins: &types.RegressionMargins{}, Tol: 1e-13, MaxIters: 200})
+		Predictors: []string{"z_log", "g_b"}, Margins: &types.RegressionMargins{Binary: types.MarginsBinaryContrast}, Tol: 1e-13, MaxIters: 200})
 	req.Features = []*types.Feature{{Type: types.FEAT_LOG, Field: "z", Label: "z_log"}, {Type: types.FEAT_ONE_HOT, Field: "g"}}
 	resp, err := p.Process(context.Background(), req)
 	if err != nil {
@@ -398,6 +401,9 @@ func TestMargins_DerivedPredictorsMatchR(t *testing.T) {
 	mg := resp.Regressions[0].Margins
 	if mg == nil {
 		t.Fatalf("no margins: %+v", resp.Regressions[0].Error)
+	}
+	if mg.Binary != types.MarginsBinaryContrast || !slices.Equal(mg.Contrasts, []string{"g_b"}) {
+		t.Fatalf("binary %q contrasts %v, want the one-hot dummy g_b", mg.Binary, mg.Contrasts)
 	}
 	for i, k := range []string{"z_log", "g_b"} {
 		for _, f := range []struct {

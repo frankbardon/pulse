@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -370,7 +371,8 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			if e.spec.Margins.EffectiveType() == types.MarginsMEM {
 				at = designMeans(xRows, prior, p+1)[1:]
 			}
-			res.Margins = coefficientMargins(e.spec, res, inf, at)
+			res.Margins = coefficientMargins(e.spec, res, inf, at,
+				contrastTerms(e.spec, regmargins.Terms(e.spec), designBinary(xRows, p+1)))
 		default:
 			res.Margins = glmMargins(e.spec, e.family, xRows, prior, eta, beta, coefCov(), inf)
 		}

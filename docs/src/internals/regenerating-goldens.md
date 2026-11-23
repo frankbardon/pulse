@@ -478,8 +478,15 @@ frequency-weighted `ame` / `mem` pair asserted equal to its
 `rep()`-expanded fit, and a derived-predictor case (`logit_ame_derived`:
 a pre-computed `log1p(z)` column and a 0/1 dummy, with the raw `z` / `g`
 recorded so the root test builds them through `FEAT_LOG` /
-`FEAT_ONE_HOT`; `marginaleffects` reports the dummy as a 1 − 0 contrast,
-flagged `me_binary_terms`, so its cross-check skips that term). The primary figures are analytic closed forms in
+`FEAT_ONE_HOT`, under `binary: "contrast"` so the dummy reports its 1 − 0
+contrast, as `marginaleffects` does). Every case carries `binary` /
+`contrasts` under `binary: "contrast"` (U69 #641): a 0/1 term's
+μ(1) − μ(0) with its gradient checked against a central difference, and
+a block of `_contrast` cases drawn last under `set.seed(20261123)` — lm,
+logit (ame / mem / link / HC3), probit, poisson (+ cluster), gamma log,
+negative binomial, a frequency-weighted pair, and the ordinal and
+multinomial blocks' contrast cases — each cross-checked against
+`marginaleffects`' own 1 − 0 contrast of the 0/1 column. The primary figures are analytic closed forms in
 base R at the fit's fixed point (glm refitted from its optimum; the
 negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
 does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method
@@ -525,7 +532,12 @@ insight 1.7.0, marginaleffects 1.0.0> Rscript
 scripts/reference/gen_margins.R internal/processing/testdata/reference`,
 then append the hash footer as the Makefile's `reference` target does.
 A rerun moves the existing cases by a few ulps (well inside every
-tolerance).
+tolerance). On a Homebrew R whose `Makeconf` `FLIBS` names a stale gcc
+target directory (`aarch64-apple-darwin<N>` that no longer exists), the
+`Matrix` 1.7-6 source build fails to link (`library 'emutls_w' not
+found`); point `R_MAKEVARS_USER` at a file overriding `FLIBS` with the
+installed gcc's directory (`ls /opt/homebrew/opt/gcc/lib/gcc/current/gcc/`)
+for that one install rather than editing `Makeconf`.
 
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s

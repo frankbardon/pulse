@@ -274,7 +274,7 @@ The marginal effect of this term (requested by margins): the change in the expec
 
 - Unlike a coefficient, a response-scale effect depends on where it is evaluated: ame and mem differ, and the ame describes these rows, not a typical one.
 - Standard errors are delta-method (first order); with few rows or fitted values near 0 or 1 they can understate the uncertainty.
-- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
 
@@ -692,7 +692,7 @@ The marginal effect of this term on one category's probability (requested by mar
 **Caveats:**
 
 - A term's effects over all categories sum to 0: probability moves between categories. Its sign can differ from the coefficient's, which compares the category with the reference only.
-- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
 
@@ -900,7 +900,7 @@ The marginal effect of this term (requested by margins): the change in the expec
 
 **Caveats:**
 
-- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
 
@@ -1136,7 +1136,7 @@ The marginal effect of this term on one level's probability (requested by margin
 **Caveats:**
 
 - A term's effects over all levels sum to 0: probability moves between levels. A positive coefficient lowers the lowest level and raises the highest; a middle level's effect can take either sign.
-- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
 

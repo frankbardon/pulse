@@ -1268,6 +1268,9 @@
     "RegressionMargins": {
       "additionalProperties": false,
       "properties": {
+        "binary": {
+          "type": "string"
+        },
         "scale": {
           "type": "string"
         },
@@ -1298,6 +1301,9 @@
           },
           "type": "object"
         },
+        "binary": {
+          "type": "string"
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -1319,6 +1325,15 @@
         "conf_level": {
           "type": [
             "number",
+            "null"
+          ]
+        },
+        "contrasts": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -2541,4 +2556,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1335e4b71e0a33ec68cc7e2ccb2905ed443ccd78206354eb4aff27071231d999
+// golden-hash: cbbc53a52fbcc2bac7b19a3a1c5030e82a9959e56969619c770c4e687fb83cd4

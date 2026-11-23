@@ -1054,16 +1054,21 @@ runtime adapter alike:
 | `multiplicity` | method `none` always; any other method needs `PValues` (`PULSE_MULTIPLICITY_INVALID` otherwise, from the shared multiplicity resolver) |
 
 **Marginal effects.** A registration declaring `Margins` takes the
-shared `margins` block (`{type, terms, scale}`). After a successful fit
+shared `margins` block (`{type, terms, scale, binary}`). After a successful fit
 on a slot carrying one, the engine calls the fitted value's
-`Margins(extend.MarginsRequest{Type, Scale, Terms})` exactly once — so
+`Margins(extend.MarginsRequest{Type, Scale, Terms, Binary})` exactly once — so
 the model keeps what it needs (its design, its covariance) from the
 fit. The model returns each effect and its delta-method standard error
 (`extend.MarginalEffect{Outcome, Term, Estimate, StdErr}`, a nil
 `StdErr` null on the wire), plus `At` under `mem`; a categorical-response
 model lists `Outcomes` and reports one effect per outcome and term,
 keyed `"<outcome>:<term>"` on the result (whose `margins.outcomes` lists
-them — `REG_ORDINAL` is the built-in implementer). The engine writes the
+them — `REG_ORDINAL` is the built-in implementer). Under `Binary`
+`types.MarginsBinaryContrast` the model may report a 0/1 predictor as its
+discrete contrast μ(1) − μ(0) and list it in `MarginsOutput.Contrasts`
+(a requested term, once; any entry under `slope` is `margins_shape`),
+surfaced as the result's `margins.contrasts` beside the `binary` echo; a
+model that ignores `Binary` lists none. The engine writes the
 statistic, p-value and interval at `conf_level` on the coefficient
 table's rule (Student t on the reported `Fit.DF`, else the normal) and
 folds the effects into the regression's own `margins` multiplicity
