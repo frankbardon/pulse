@@ -368,7 +368,8 @@ func RegressionFieldClassOf(key string) (class RegressionFieldClass, slot string
 // slot). A declared covariance then passes the shared shape rule
 // (regcov.CheckDeclared), a declared margins block the shared margins
 // rule (regmargins.CheckDeclared: shape, then unpenalized / no_selection
-// / no_resample / unbounded). Nil when every set slot is declared.
+// / unbounded; a resample is admitted, U69 #639). Nil when every set
+// slot is declared.
 func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRegression) *errors.CodedError {
 	if spec == nil {
 		return nil

@@ -1063,6 +1063,10 @@ under `binary: "contrast"` (U69 #641) the additive `omitempty` string
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
 `p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
 `conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
+the additive `omitempty` string `inference` (U69 #639: `"resample"`
+when the regression's `resample` made the standard errors the effects'
+replicate spread — Wald z / percentile p, normal intervals, no `df`;
+absent on the delta method, byte-identical),
 and — gated on `capability:multiplicity` like the coefficient twins —
 `p_adjusted` / `significant_adjusted` and a `multiplicity`
 (`AppliedMultiplicity`, `family: "margins"`) echo: under the

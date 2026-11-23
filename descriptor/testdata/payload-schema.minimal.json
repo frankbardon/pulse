@@ -1358,6 +1358,9 @@
           },
           "type": "object"
         },
+        "inference": {
+          "type": "string"
+        },
         "outcomes": {
           "items": {
             "type": "string"
@@ -2562,4 +2565,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2e7f0b80d3f69cb141c57ab751290afa4afb776f54038a9fc0750b33a191661f
+// golden-hash: b15b56ca75d92d5dddf7c7917b4a6f1cc698dc8333901b68155c4e57b67cf8d8

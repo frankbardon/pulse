@@ -15,7 +15,7 @@ Rides `Response.Regressions[i]`; no `Response.Components`.
 
 ## Params
 
-Flat keys (`params` is refused); shared: `regression-spec`.
+Flat keys (no `params`); shared: `regression-spec`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -39,7 +39,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `multiplicity` | object | — | Every non-intercept key. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
-| `holdout` | expr | — | Proper scores: `regression-row-scores`. |
+| `holdout` | expr | — | Scores: `regression-row-scores`. |
 <!-- /feature -->
 | `resample` | enum | — | `op-reg-mod-resample`. |
 | `bootstrap_iters` | int | `1000` | — |
@@ -54,7 +54,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 
 ## Inputs
 
-`target`: a `categorical_*` field (derived: `requires: categorical_target`). Null predictors drop the row.
+`target`: a `categorical_*` field (derived: `requires: categorical_target`). A null drops the row.
 
 ## Output
 
@@ -68,9 +68,9 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 
 - β: ITS level's log odds vs the reference.
 - Empty levels drop; an empty `reference` (`reference_empty`) or one level (`one_category`) fails alone.
-- Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `collinearity`; `margins` / `term_tests` beside a modifier or `penalty`.
+- Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `collinearity`; `term_tests` beside a modifier, `margins` beside `selection`, both beside `penalty`.
 - `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI unless `resample`; no `vcov`.
-- `resample` / `selection` keep the categories: a bootstrap draw missing one is skipped, a jackknife fails (`replicate_empty_level`).
+- `resample` / `selection` keep the categories: a bootstrap draw lacking one skips, a jackknife fails (`replicate_empty_level`).
 <!-- feature: ATTR_REG_PREDICT -->
 - `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `Categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
 <!-- /feature -->

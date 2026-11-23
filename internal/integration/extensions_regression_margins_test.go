@@ -121,6 +121,43 @@ func TestExtensions_RegressionMarginsDeclaredMatchesBuiltin(t *testing.T) {
 	}
 }
 
+// TestExtensions_RegressionMarginsUnderResampleMatchesBuiltin: a
+// declared model's margins under resample (U69 #639) — every replicate
+// refit reporting its effects again — carry REG_OLS's own resampled
+// block: the replicate standard error, Wald statistic, p-value and
+// normal interval, inference resample, no df; predict admits it.
+func TestExtensions_RegressionMarginsUnderResampleMatchesBuiltin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p, cohort := openE2E(t, pulse.Extensions{Regressions: []pulse.RegressionRegistration{marginsRegistration(regMarginsOLS, true, nil, nil)}})
+	builtin, ext := marginsSpec(types.REG_OLS, &types.RegressionMargins{}), marginsSpec(regMarginsOLS, &types.RegressionMargins{})
+	builtin.Resample, ext.Resample = "jackknife", "jackknife"
+	req := regressionRequest(cohort, builtin, ext)
+	if pr, err := p.Predict(ctx, req); err != nil || !pr.Valid {
+		t.Fatalf("predict refused margins under resample: %v %+v", err, pr.Errors)
+	}
+	resp := processE2E(t, p, req)
+	want, got := resp.Regressions[0].Margins, resp.Regressions[1].Margins
+	if want == nil || got == nil || got.Inference != types.MarginsInferenceResample || want.Inference != types.MarginsInferenceResample || got.DF != 0 {
+		t.Fatalf("margins built-in %+v, extension %+v", want, got)
+	}
+	for _, term := range want.Terms {
+		for _, f := range []struct {
+			what      string
+			got, want float64
+		}{
+			{"estimate", got.Estimates[term], want.Estimates[term]}, {"std_error", got.StdErrors[term], want.StdErrors[term]},
+			{"statistic", got.Statistics[term], want.Statistics[term]}, {"p_value", got.PValues[term], want.PValues[term]},
+			{"ci_lower", got.CILower[term], want.CILower[term]}, {"ci_upper", got.CIUpper[term], want.CIUpper[term]},
+		} {
+			if !closeRel(f.got, f.want) {
+				t.Errorf("%s[%s] = %v, REG_OLS %v", f.what, term, f.got, f.want)
+			}
+		}
+	}
+}
+
 // TestExtensions_RegressionMarginsManifest: the manifest row lists the
 // margins slot param exactly when the registration declares Margins.
 func TestExtensions_RegressionMarginsManifest(t *testing.T) {
@@ -185,11 +222,6 @@ func TestExtensions_RegressionMarginsRefusalsPredictMatchesRuntime(t *testing.T)
 		{"undeclared", marginsSpec(regMarginsUndeclared, &types.RegressionMargins{}), "declared_margins"},
 		{"type", marginsSpec(regMarginsOLS, &types.RegressionMargins{Type: "aie"}), "type ame or mem"},
 		{"term", marginsSpec(regMarginsOLS, &types.RegressionMargins{Terms: []string{"score"}}), "a predictor"},
-		{"resample", func() *types.RegressionSpec {
-			s := marginsSpec(regMarginsOLS, &types.RegressionMargins{})
-			s.Resample = "jackknife"
-			return s
-		}(), "no_resample"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := regressionRequest(cohort, tc.spec)

@@ -619,3 +619,11 @@ source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)
 # 2.0-6 + lmerTest 3.2-1 + numDeriv 2016.8-1.1 + jsonlite. Its own seed,
 # sourced last, so no other golden moves.
 source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)
+
+# The resampled marginal-effects golden (U69 #639:
+# margins_resample.json: base-R replicate loops of the ame / mem / 0/1
+# contrast on lm and the logit / probit / poisson glm — leave-one-out,
+# delete-a-cluster and frequency-weighted jackknife, a bootstrap over
+# its own recorded index sets); base stats + jsonlite. Its own seed,
+# sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_margins_resample.R"), local = FALSE)

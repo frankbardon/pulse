@@ -172,7 +172,11 @@ func (e *modifierEngine) runResampleWith(
 	baseResult *types.RegressionResult,
 ) (*types.RegressionResult, error) {
 	innerFitter, pValueFn := e.makeResampleFitter(activePredictors)
-	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), pValueFn)
+	// A margins block is re-estimated on every replicate refit
+	// (margins_resample.go) — the base fit's block names the terms and
+	// the contrasts.
+	derive := marginsDerive(e.spec, e.family == "GLM", e.glmFam, activePredictors, baseResult.Margins)
+	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), derive, pValueFn)
 	if err != nil {
 		return nil, err
 	}

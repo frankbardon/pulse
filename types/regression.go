@@ -530,6 +530,11 @@ const (
 	MarginsScaleLink = "link"
 )
 
+// MarginsInferenceResample is RegressionMarginsResult.Inference under
+// the regression's Resample: the effects' standard errors are their
+// replicate spread (U69 #639).
+const MarginsInferenceResample = "resample"
+
 // Binary-predictor treatments (RegressionMargins.Binary).
 const (
 	// MarginsBinarySlope reports a 0/1 predictor like any other: the
@@ -689,7 +694,8 @@ type RegressionCollinearityResult struct {
 }
 
 // RegressionMarginsResult is RegressionResult.Margins: one marginal
-// effect per term with its delta-method inference. The maps are keyed by
+// effect per term with its delta-method (or, under Resample, replicate)
+// inference. The maps are keyed by
 // term (a predictor name), like the coefficient table — or, when
 // Outcomes is present, "<outcome>:<term>", one effect per outcome level
 // and term; Terms (and Outcomes) keep the order. An undefined figure is
@@ -733,7 +739,8 @@ type RegressionMarginsResult struct {
 	// √(J·V·Jᵀ), V the fit's coefficient covariance (the one StdErrors
 	// reads: classical or the robust Covariance) and J the gradient of
 	// the effect in β. On the link scale and on an identity link it is
-	// the coefficient's standard error.
+	// the coefficient's standard error. Under Inference resample it is
+	// the effect's replicate standard error instead.
 	StdErrors map[string]float64 `json:"std_errors"`
 
 	// Statistics maps each term to Estimate / StdError: a Student t on DF
@@ -757,6 +764,15 @@ type RegressionMarginsResult struct {
 
 	// ConfLevel is the interval coverage, the regression's conf_level.
 	ConfLevel float64 `json:"conf_level"`
+
+	// Inference names where StdErrors come from when it is not the
+	// delta method: MarginsInferenceResample under the regression's
+	// Resample — the replicate spread of the effect, each replicate
+	// refit recomputing it (statistics a Wald z, p-values the Wald z
+	// under a jackknife and the percentile p under a bootstrap, the
+	// interval Wald normal, no DF), the resampled coefficient table's
+	// rules. Absent on the delta method.
+	Inference string `json:"inference,omitempty"`
 
 	// At maps each predictor (every one of Predictors, not only Terms)
 	// to the (weighted) mean the effects are evaluated at; type mem only.

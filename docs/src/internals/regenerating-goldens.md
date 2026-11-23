@@ -539,6 +539,22 @@ found`); point `R_MAKEVARS_USER` at a file overriding `FLIBS` with the
 installed gcc's directory (`ls /opt/homebrew/opt/gcc/lib/gcc/current/gcc/`)
 for that one install rather than editing `Makeconf`.
 
+`scripts/reference/gen_margins_resample.R` writes `margins_resample.json`:
+marginal effects under `resample` (U69 #639) as manual base-R replicate
+loops — each replicate refits `lm` / `glm` on its rows and recomputes
+the effect itself (ame, mem, the 0/1 contrast) — on `lm` and the logit,
+probit and poisson `glm`: the leave-one-out, delete-a-cluster and
+frequency-weighted jackknife (√((g − 1)/g·Σ(θ₍ₖ₎ − θ̄)²), Wald z p) and a
+bootstrap whose index sets are R's own (`sample.int` under
+`set.seed(20261124)`, recorded as `samples`; sample SD, percentile p
+floored at 1/B), the interval Wald normal; a replicate that warns stops
+the script. Base R + jsonlite only, so it regenerates without the
+`marginaleffects` library: `Rscript scripts/reference/gen_margins_resample.R
+internal/processing/testdata/reference`, then append the hash footer.
+Sourced last by `gen_reference.R`. `TestReferenceOracle_MarginsResampleMatchesR`
+(`internal/processing/regression`) holds it at `1e-7` relative (the
+bootstrap through Pulse's replicate hook over the recorded index sets).
+
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
 GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson

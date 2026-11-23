@@ -1189,10 +1189,12 @@ type RegressionRegistration struct {
 	// types.RegressionMarginsResult — keyed by term, or "<outcome>:<term>"
 	// with Outcomes for a per-level model — and the margins multiplicity
 	// family. Declared, the block is judged by the built-ins' shape and
-	// fit rules (type, scale, terms; refused beside penalty, selection,
-	// resample or bounds, and over a predictor derived from another —
+	// fit rules (type, scale, terms; refused beside penalty, selection
+	// or bounds, and over a predictor derived from another —
 	// PROCESSING_CONFIG with details.requires) at predict and at runtime
-	// alike; a value without the interface, or effects not covering
+	// alike; under resample every replicate refit reports its effects
+	// again and their replicate spread replaces the model's standard
+	// errors (inference "resample"); a value without the interface, or effects not covering
 	// every requested (outcome, term) once, is
 	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason missing_margins
 	// / margins_shape), at pulse.New's probe (which fits a spec carrying

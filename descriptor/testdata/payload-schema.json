@@ -5946,6 +5946,9 @@
           },
           "type": "object"
         },
+        "inference": {
+          "type": "string"
+        },
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
         },
@@ -8589,4 +8592,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1af7436c3812fb91fcc3da551c840957917facc225588101fe37a3e5b38ac5db
+// golden-hash: 12cbc31e1648ebd5b721a384b6bcc5866c6e16d45d0488f9cc43b73995e0d184

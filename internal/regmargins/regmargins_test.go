@@ -60,7 +60,8 @@ func TestCheck_Refusals(t *testing.T) {
 		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
 		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
 		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
-		{"resample", base(func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), "no_resample"},
+		// U69 #639: a resampled fit re-estimates the effects per replicate.
+		{"ok resample", base(func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), ""},
 		{"bounds", base(func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"a"}} }), "unbounded"},
 	} {
 		cerr := Check(tc.spec)
@@ -161,7 +162,7 @@ func TestCheckDeclared(t *testing.T) {
 		{"term", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"c"} }), "a predictor"},
 		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
 		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
-		{"resample", base(func(s *types.RegressionSpec) { s.Resample = "jackknife" }), "no_resample"},
+		{"ok resample", base(func(s *types.RegressionSpec) { s.Resample = "jackknife" }), ""},
 		{"bounds", base(func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{Nonnegative: []string{"a"}} }), "unbounded"},
 	} {
 		cerr := CheckDeclared(tc.spec)

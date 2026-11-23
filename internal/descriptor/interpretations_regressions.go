@@ -190,13 +190,13 @@ func regMargins(means string, caveats ...string) []descriptor.Interpretation {
 		},
 		{
 			Field: "margins.std_errors.*",
-			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 		},
 		{
 			Field:  "margins.p_values.*",
 			Shared: SharedPValue,
 			Caveats: []string{
-				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).",
+				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal; under resample its replicate rules).",
 			},
 		},
 	}
@@ -466,7 +466,7 @@ var interpRegMultinomialMargins = []descriptor.Interpretation{
 	},
 	{
 		Field: "margins.std_errors.*",
-		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 	},
 	{
 		Field:   "margins.p_values.*",
@@ -818,7 +818,7 @@ var interpRegOrdinalMargins = []descriptor.Interpretation{
 	},
 	{
 		Field: "margins.std_errors.*",
-		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 	},
 	{
 		Field:   "margins.p_values.*",

@@ -6100,6 +6100,7 @@ pulse/types: const MarginSummable pulse/types.MarginReducibility = "summable"
 pulse/types: const MarginsAME untyped string = "ame"
 pulse/types: const MarginsBinaryContrast untyped string = "contrast"
 pulse/types: const MarginsBinarySlope untyped string = "slope"
+pulse/types: const MarginsInferenceResample untyped string = "resample"
 pulse/types: const MarginsMEM untyped string = "mem"
 pulse/types: const MarginsScaleLink untyped string = "link"
 pulse/types: const MarginsScaleResponse untyped string = "response"
@@ -6686,6 +6687,7 @@ pulse/types: type RegressionMarginsResult field ConfLevel float64 "json:\"conf_l
 pulse/types: type RegressionMarginsResult field Contrasts []string "json:\"contrasts,omitempty\""
 pulse/types: type RegressionMarginsResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionMarginsResult field Estimates map[string]float64 "json:\"estimates\""
+pulse/types: type RegressionMarginsResult field Inference string "json:\"inference,omitempty\""
 pulse/types: type RegressionMarginsResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionMarginsResult field Outcomes []string "json:\"outcomes,omitempty\""
 pulse/types: type RegressionMarginsResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
@@ -7186,4 +7188,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 66a90e9d658cab25c6d3400b2eb07fdd859840d8e60b9d6cd54f07e0102c158f
+// golden-hash: f509845b1325119ac5b5545a051f3a11cf3a1f6aa447572162e19de79f6bb970

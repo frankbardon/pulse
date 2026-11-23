@@ -58,11 +58,15 @@ func runResample(
 	warm func([]Record, []float64) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runResampleCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, pValueFn)
+	return runResampleCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, nil, pValueFn)
 }
 
 // runResampleCtx is runResample under ctx: every replicate loop reads
-// ctx.Err() before each refit (resample_core.go).
+// ctx.Err() before each refit (resample_core.go). derive, when non-nil,
+// is the per-replicate hook (refitReplicate) reading the statistics the
+// slot derives from each refit — its marginal effects in
+// regmargins.ResultKeys order, whose replicate SE and percentile p
+// replace the base fit's margins inference (resampleMargins).
 func runResampleCtx(
 	ctx context.Context,
 	spec *types.RegressionSpec,
@@ -71,16 +75,17 @@ func runResampleCtx(
 	baseResult *types.RegressionResult,
 	fitter func([]Record) (*refitResult, error),
 	warm func([]Record, []float64) (*refitResult, error),
+	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
 	switch spec.Resample {
 	case "jackknife":
 		if regresample.Grouped(spec) {
-			return runGroupedJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, warm, pValueFn)
+			return runGroupedJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, warm, derive, pValueFn)
 		}
-		return runJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, pValueFn)
+		return runJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn)
 	case "bootstrap":
-		return runBootstrapCtx(ctx, spec, records, predictors, baseResult, fitter, pValueFn)
+		return runBootstrapCtx(ctx, spec, records, predictors, baseResult, fitter, derive, pValueFn)
 	default:
 		return nil, unknownResample(spec)
 	}
@@ -124,7 +129,7 @@ func runJackknife(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, pValueFn)
+	return runJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn)
 }
 
 func runJackknifeCtx(
@@ -134,14 +139,15 @@ func runJackknifeCtx(
 	predictors []string,
 	baseResult *types.RegressionResult,
 	fitter func([]Record) (*refitResult, error),
+	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
 	rows := jackknifeRows(spec, records, predictors)
-	se, cov, err := jackknifeCore(ctx, spec, rows, len(predictors)+1, refitReplicate(len(predictors), fitter))
+	run, err := jackknifeCore(ctx, spec, rows, len(predictors)+1, refitReplicate(len(predictors), fitter, derive))
 	if err != nil {
 		return nil, err
 	}
-	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil), nil
+	return packageResampleResult(spec, baseResult, predictors, run, pValueFn), nil
 }
 
 // runGroupedJackknifeCtx is the delete-a-group jackknife (JK1): the
@@ -181,25 +187,26 @@ func runGroupedJackknifeCtx(
 	baseResult *types.RegressionResult,
 	fitter func([]Record) (*refitResult, error),
 	warm func([]Record, []float64) (*refitResult, error),
+	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
 	p := len(predictors)
-	rep := refitReplicate(p, fitter)
+	rep := refitReplicate(p, fitter, derive)
 	if warm != nil {
 		start := make([]float64, p+1)
 		start[0] = baseResult.Coefficients[InterceptKey]
 		for j, name := range predictors {
 			start[j+1] = baseResult.Coefficients[name]
 		}
-		rep = refitReplicate(p, func(subset []Record) (*refitResult, error) { return warm(subset, start) })
+		rep = refitReplicate(p, func(subset []Record) (*refitResult, error) { return warm(subset, start) }, derive)
 	}
 	rows := jackknifeRows(spec, records, predictors)
-	se, cov, g, err := groupedJackknifeCore(ctx, spec, records, predictors, rows, p+1, rep)
+	run, err := groupedJackknifeCore(ctx, spec, records, predictors, rows, p+1, rep)
 	if err != nil {
 		return nil, err
 	}
-	out := packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil)
-	out.JackknifeGroups = g
+	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn)
+	out.JackknifeGroups = run.groups
 	return out, nil
 }
 
@@ -376,7 +383,7 @@ func runBootstrap(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	return runBootstrapCtx(context.Background(), spec, records, predictors, baseResult, fitter, pValueFn)
+	return runBootstrapCtx(context.Background(), spec, records, predictors, baseResult, fitter, nil, pValueFn)
 }
 
 func runBootstrapCtx(
@@ -386,14 +393,15 @@ func runBootstrapCtx(
 	predictors []string,
 	baseResult *types.RegressionResult,
 	fitter func([]Record) (*refitResult, error),
+	derive func(*refitResult) []float64,
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
 	rows := jackknifeRows(spec, records, predictors)
-	run, err := bootstrapCore(ctx, spec, rows, predictors, len(predictors)+1, refitReplicate(len(predictors), fitter), nil)
+	run, err := bootstrapCore(ctx, spec, rows, predictors, len(predictors)+1, refitReplicate(len(predictors), fitter, derive), nil)
 	if err != nil {
 		return nil, err
 	}
-	out := packageResampleResult(spec, baseResult, predictors, run.se, run.cov, pValueFn, run.p)
+	out := packageResampleResult(spec, baseResult, predictors, run, pValueFn)
 	run.echo(out)
 	return out, nil
 }
@@ -402,23 +410,24 @@ func runBootstrapCtx(
 // a copy of baseResult, preserving the point estimate (Coefficients)
 // and every non-uncertainty quantity (R², deviance, NObs, …).
 //
-// When bootstrapP is non-nil it is used directly (one entry per
-// [intercept, slope_1, …]); when nil the analytical pValueFn is
-// applied to (β, SE) instead — this is the jackknife path which uses
-// the t-distribution / Wald-z form.
+// When the run carries percentile p-values (a bootstrap) they are used
+// directly (one entry per [intercept, slope_1, …]); when nil the
+// analytical pValueFn is applied to (β, SE) instead — this is the
+// jackknife path which uses the t-distribution / Wald-z form.
 //
-// cov is the replicate covariance (keys (intercept) then predictors);
-// when spec.Vcov is set it REPLACES the analytical covariance the base
-// fit carried, so Vcov always describes the reported StdErrors.
+// run.cov is the replicate covariance (keys (intercept) then
+// predictors); when spec.Vcov is set it REPLACES the analytical
+// covariance the base fit carried, so Vcov always describes the
+// reported StdErrors. A margins block's inference is replaced by the
+// replicate one (resampleMargins).
 func packageResampleResult(
 	spec *types.RegressionSpec,
 	baseResult *types.RegressionResult,
 	predictors []string,
-	se []float64,
-	cov [][]float64,
+	run *replicateRun,
 	pValueFn func(coef, se float64) float64,
-	bootstrapP []float64,
 ) *types.RegressionResult {
+	se, cov, bootstrapP := run.se, run.cov, run.p
 	// Shallow copy of baseResult, then replace the uncertainty maps.
 	out := *baseResult
 	seMap := make(map[string]float64, len(predictors)+1)
@@ -452,6 +461,7 @@ func packageResampleResult(
 	if spec.Vcov {
 		attachVcov(&out, predictors, cov)
 	}
+	out.Margins = resampleMargins(out.Margins, run, resolvedConfLevel(spec))
 	return &out
 }
 
@@ -468,6 +478,10 @@ func packageResampleResult(
 func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictors []string) int64 {
 	cp := *spec
 	cp.RNGSeed = 0
+	// A margins block reads the replicates, it never draws them: the
+	// same request with or without margins resamples the same rows, so
+	// the coefficient table is identical either way (U69 #639).
+	cp.Margins = nil
 	cp.Params = seedParams(cp.Type, regresample.CanonicalJSON(cp.Params))
 	body, err := types.MarshalFinite(&cp)
 	if err != nil {

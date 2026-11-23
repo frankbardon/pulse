@@ -258,15 +258,13 @@ func TestMultinomial_PredictMatchesRuntime(t *testing.T) {
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0}
 		})), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
 		// U68 E4-S2: margins run on the plain fit (below); beside a
-		// penalty, resample or selection they are the shared margins
-		// rule's refusal (internal/regmargins), as on REG_OLS / REG_GLM,
-		// and so are the joint term tests (internal/regmultinom).
+		// penalty or selection they are the shared margins rule's
+		// refusal (internal/regmargins), as on REG_OLS / REG_GLM — a
+		// resample re-estimates them per replicate (U69 #639) — and the
+		// joint term tests refuse all three (internal/regmultinom).
 		{"margins under penalty", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
 			s.Margins, s.Penalty, s.Alpha = &types.RegressionMargins{}, "l2", 0.1
 		})), errors.PROCESSING_CONFIG, "unpenalized"},
-		{"margins under resample", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
-			s.Margins, s.Resample = &types.RegressionMargins{}, "jackknife"
-		})), errors.PROCESSING_CONFIG, "no_resample"},
 		{"margins under selection", mnReq(mnCohort, mnSpec(func(s *types.RegressionSpec) {
 			s.Margins, s.Selection, s.Criterion = &types.RegressionMargins{}, "forward", "aic"
 		})), errors.PROCESSING_CONFIG, "no_selection"},

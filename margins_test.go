@@ -237,7 +237,6 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
 		{"penalty", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), "unpenalized"},
 		{"selection", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" })), "no_selection"},
-		{"resample", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Resample = "jackknife" })), "no_resample"},
 		{"bounds", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{},
 			Bounds: &types.RegressionBounds{Nonnegative: []string{"x1"}}}), "unbounded"},
 		{"predictor derived from a predictor", func() *Request {
@@ -273,8 +272,8 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 		}(), "declared_margins"},
 		// REG_ORDINAL declares margins (U68 E4-S1): the built-ins' shape
 		// and fit rules judge its block.
-		{"ordinal resample", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
-			Resample: "jackknife", Margins: &types.RegressionMargins{}}), "no_resample"},
+		{"ordinal selection", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
+			Selection: "forward", Criterion: "aic", Margins: &types.RegressionMargins{}}), "no_selection"},
 		{"ordinal scale", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,
 			Margins: &types.RegressionMargins{Scale: "odds"}}), "scale response or link"},
 		{"ordinal binary", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_ORDINAL, Target: "y", Predictors: xs,

@@ -30,6 +30,12 @@ type refitResult struct {
 	// by its log-likelihood (aicBICFromGamma). They alias the refit's own
 	// slices; nothing copies them.
 	Y, Mu, Prior []float64
+	// X and Eta are a GLM refit's fitted design (n × (p+1) row-major,
+	// intercept first) and converged linear predictor, row for row with
+	// Y — what a resample replicate's derived statistics read
+	// (marginsDerive). Aliases, nil on the intercept-only refit and on
+	// every OLS refit.
+	X, Eta []float64
 	// Params is an extension model's coefficient count — the k its
 	// selection criterion charges (RunExtensionModifiers); 0 for the
 	// built-ins, whose criteria count k0 themselves.
@@ -298,6 +304,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		Deviance:  deviance,
 		MeanY:     yBar,
 		Y:         yVec, Mu: sol.Mu, Prior: prior,
+		X: xRows, Eta: sol.Eta,
 	}, nil
 }
 

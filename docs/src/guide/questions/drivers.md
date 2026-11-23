@@ -317,13 +317,13 @@ The marginal effect of this term (requested by margins): the change in the expec
 
 **`margins.std_errors.*`**
 
-The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.
 
 **`margins.p_values.*`**
 
 **Caveats:**
 
-- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal; under resample its replicate rules).
 
 Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-value).
 
