@@ -22,8 +22,10 @@ Refit keys top-level, not `params`; `field` unread.
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Regularization strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
+<!-- feature: REG_GLM -->
 | `family` | enum | — | `params.family`: refit a GLM. |
 | `link` | enum | — | `params.link`; default canonical. |
+<!-- /feature -->
 | `fit` | string | — | `params.fit`: a bound fit's leverage. |
 | `carryover` | bool | `true` | Carry adstock (`regression-order`). |
 | `order` | object | — | `{field, partition?}`; needed to carry. |
@@ -45,7 +47,7 @@ One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀM2_xx⁻¹(xᵢ 
 
 ## Gotchas
 
-- Refit: two-pass. `fit`: row-local (two-pass with `order`), unpenalized.
+- Refit: two-pass. `fit`: row-local (two-pass with `order`), any penalty.
 - Flags outliers in PREDICTOR space. Rule of thumb: hᵢᵢ > 2(p+1)/n; over a frequency-weighted `fit` h is one copy's, so /Σw.
 
 ## See

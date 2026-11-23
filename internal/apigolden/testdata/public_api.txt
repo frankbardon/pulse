@@ -5945,6 +5945,7 @@ pulse/types: type FitResult field RegressionResult.NullDeviance float64 "json:\"
 pulse/types: type FitResult field RegressionResult.Outputs map[string]any "json:\"outputs,omitempty\""
 pulse/types: type FitResult field RegressionResult.PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type FitResult field RegressionResult.PValues map[string]float64 "json:\"p_values,omitempty\""
+pulse/types: type FitResult field RegressionResult.PenalizedInverse *pulse/types.MatrixValues "json:\"penalized_inverse,omitempty\""
 pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalty,omitempty\""
 pulse/types: type FitResult field RegressionResult.Prior string "json:\"prior,omitempty\""
 pulse/types: type FitResult field RegressionResult.PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
@@ -6734,6 +6735,7 @@ pulse/types: type RegressionResult field NullDeviance float64 "json:\"null_devia
 pulse/types: type RegressionResult field Outputs map[string]any "json:\"outputs,omitempty\""
 pulse/types: type RegressionResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionResult field PValues map[string]float64 "json:\"p_values,omitempty\""
+pulse/types: type RegressionResult field PenalizedInverse *pulse/types.MatrixValues "json:\"penalized_inverse,omitempty\""
 pulse/types: type RegressionResult field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type RegressionResult field Prior string "json:\"prior,omitempty\""
 pulse/types: type RegressionResult field PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
@@ -7175,4 +7177,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ae874f376ece19528f26892a4e3c8783dcfb1aa5eceb066b4f39a30ecbe11a40
+// golden-hash: f1022a9399e7cb41138a6cbf02f2ab592a74c75db3fbc503ba6d4318d76d3db4

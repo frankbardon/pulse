@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/model"
 	"reflect"
 	"slices"
 	"strings"
@@ -130,6 +131,28 @@ func hideRegressionSlotParams(m *descriptor.Manifest, inst *InstanceSnapshot) {
 			rs[i].Params = filterSlice(rs[i].Params, func(p descriptor.Param) bool {
 				return !slices.Contains(hidden, p.Name)
 			})
+		}
+	}
+}
+
+// hideRefitFeatureParams drops, from every built-in attribute entry,
+// the params a feature inst hides owns (model.RefitFeatureParams:
+// ATTR_REG_LEVERAGE's family / link under a hidden REG_GLM), as the
+// params allowlist refuses their keys as unknown. No-op on a nil /
+// unscoped instance.
+func hideRefitFeatureParams(attrs []descriptor.Operator, inst *InstanceSnapshot) {
+	if !inst.Scoped() {
+		return
+	}
+	for i := range attrs {
+		var drop []string
+		for feat, keys := range model.RefitFeatureParams(types.AttributeType(attrs[i].Name)) {
+			if inst.Hidden(feat) {
+				drop = append(drop, keys...)
+			}
+		}
+		if len(drop) != 0 {
+			attrs[i].Params = filterSlice(attrs[i].Params, func(p descriptor.Param) bool { return !slices.Contains(drop, p.Name) })
 		}
 	}
 }

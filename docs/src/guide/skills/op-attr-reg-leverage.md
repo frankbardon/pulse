@@ -62,7 +62,7 @@ One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀM2_xx⁻¹(xᵢ 
 
 ## Gotchas
 
-- Refit: two-pass. `fit`: row-local (two-pass with `order`), unpenalized.
+- Refit: two-pass. `fit`: row-local (two-pass with `order`), any penalty.
 - Flags outliers in PREDICTOR space. Rule of thumb: hᵢᵢ > 2(p+1)/n; over a frequency-weighted `fit` h is one copy's, so /Σw.
 
 ## See

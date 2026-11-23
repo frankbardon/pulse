@@ -54,7 +54,7 @@ func TestRegression_GeneratedFitsBitsPinned(t *testing.T) {
 		{"ols_hc3", ols([]string{"x1", "x2"}, func(s *types.RegressionSpec) { s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3} }), genRecords,
 			"28ee1a7069c22f678518e26832bab5d3bda25a030c8ac048a0b2b42e83c3bff4"},
 		{"ols_ridge", ols([]string{"x1", "x2"}, func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.5 }), genRecords,
-			"454531fa6848b89b8f46f146c893ef33d82c419ac4cf21e53d3e402e3ee3eeaa"},
+			"9ee85ad613d09651bb2b425cc79da5655ed3b7d5e82ffe509e2926dcb501596c"},
 		{"ols_jackknife", ols(predictorNames(2), func(s *types.RegressionSpec) { s.Resample = "jackknife" }),
 			func() []Record { return makeLinearRecords(t, 40, []float64{2.0, -1.5}, 1.0, 0.5, 7) },
 			"ad69aefebf39028115caf5a82ebab02b8c7a6d7277342b736524d9ca4e267fa9"},

@@ -127,7 +127,9 @@ func (d *hatDesign) at(x, mean []float64, w, sumW float64) float64 {
 // fitGLMForAttribute is ATTR_REG_LEVERAGE's GLM refit (params.family,
 // regression-depth-2 E1-S2): the REG_GLM engine fits spec (vcov on, so
 // the result carries φ·(XᵀW*X)⁻¹ at the final IRLS working weights and
-// φ), and the leverage reads that design through the bound-fit kernel
+// φ; a penalized spec — E1-S4 — carries its regularized inverse
+// (XᵀW*X + λ₂·P)⁻¹ over the active design instead, the same convention
+// as the OLS refit's hat design), and the leverage reads that design through the bound-fit kernel
 // (NewBoundInfluence) — so a refit's hat and a bound REG_GLM fit's agree
 // bit for bit on the same rows, both R hatvalues on the glm. The row's
 // prior weight multiplies it as w* (buildWeightedDesign's map onto w* =
@@ -135,7 +137,10 @@ func (d *hatDesign) at(x, mean []float64, w, sumW float64) float64 {
 // covariance read; the hat is invariant to that scale, as R's.
 func fitGLMForAttribute(spec *types.RegressionSpec, records []Record) (*AttributeFit, error) {
 	glmSpec := *spec
-	glmSpec.Vcov = true
+	// A penalized refit carries its regularized inverse instead
+	// (RegressionResult.PenalizedInverse, E1-S4); l1 / elasticnet refuse
+	// a vcov.
+	glmSpec.Vcov = spec.Penalty == ""
 	eng, err := newGLMEngine(&glmSpec, nil)
 	if err != nil {
 		return nil, err
@@ -166,4 +171,86 @@ func fitGLMForAttribute(spec *types.RegressionSpec, records []Record) (*Attribut
 		glm:            d,
 		glmScale:       rw.basis.Scale(sumW, sumWSq),
 	}, nil
+}
+
+// penalizedInverseOLS is a penalized REG_OLS fit's carried regularized
+// inverse (RegressionResult.PenalizedInverse, regression-depth-2 E1-S4):
+// leverageDesign's hat design over acc and coeffs, uncentred. With C⁻¹
+// = (M2_AA + Σw·λ₂·P_A)⁻¹ its inverse and μ the weighted means over A,
+//
+//	M = [[1/Σw + μᵀC⁻¹μ, −(C⁻¹μ)ᵀ], [−C⁻¹μ, C⁻¹]]
+//
+// is (X̃_AᵀWX̃_A + Σw·λ₂·P̃_A)⁻¹ over [intercept, A] (the block inverse;
+// the intercept is unpenalized), so x̃ᵀMx̃ = 1/Σw + (x − μ)_Aᵀ C⁻¹
+// (x − μ)_A — the refit's hat (hatDesign.at) for one copy of a row, the
+// form a bound fit's design kernel (BoundInfluence) reads. A singular
+// active design (the refit's PROCESSING_REGRESSION_RANK_DEFICIENT) is
+// carried with every entry NaN — null on the wire, a null leverage —
+// never a fit failure. FMA-free products.
+func penalizedInverseOLS(spec *types.RegressionSpec, acc *olsAccumulator, coeffs []float64) *types.MatrixValues {
+	d, err := leverageDesign(spec, acc, coeffs)
+	if err != nil {
+		cols := make([]int, 0, len(coeffs))
+		for j, c := range coeffs {
+			if spec.Penalty == "l2" || c != 0 {
+				cols = append(cols, j)
+			}
+		}
+		return penalizedInverseMatrix(spec.Predictors, cols, nil)
+	}
+	q := len(d.Cols)
+	m := make([][]float64, q+1)
+	for i := range m {
+		m[i] = make([]float64, q+1)
+	}
+	v := make([]float64, q)
+	for a := 0; a < q; a++ {
+		r := 0.0
+		for b, j := range d.Cols {
+			r += float64(d.Inverse.At(a, b) * acc.meanX[j])
+		}
+		v[a] = r
+	}
+	m00 := 1.0 / acc.sumW
+	for a, j := range d.Cols {
+		m00 += float64(acc.meanX[j] * v[a])
+		m[0][a+1], m[a+1][0] = -v[a], -v[a]
+		for b := 0; b < q; b++ {
+			m[a+1][b+1] = d.Inverse.At(a, b)
+		}
+	}
+	m[0][0] = m00
+	return penalizedInverseMatrix(spec.Predictors, d.Cols, m)
+}
+
+// carriesPenalizedInverse reports whether a fit of spec carries
+// RegressionResult.PenalizedInverse: a penalized fit without resample or
+// selection — a bound fit's leverage reads no other
+// (model.CheckFitDesign refuses those modifiers first), so they carry
+// none and keep their output. model.FitDesign's spec face is the
+// same rule.
+func carriesPenalizedInverse(spec *types.RegressionSpec) bool {
+	return model.CarriesPenalizedInverse(spec)
+}
+
+// penalizedInverseMatrix keys inv (len(cols)+1 square over the
+// intercept and predictors[cols…], fit order) as
+// RegressionResult.PenalizedInverse; nil inv is the all-NaN matrix of a
+// singular active design.
+func penalizedInverseMatrix(predictors []string, cols []int, inv [][]float64) *types.MatrixValues {
+	keys := make([]string, 0, len(cols)+1)
+	keys = append(keys, InterceptKey)
+	for _, j := range cols {
+		keys = append(keys, predictors[j])
+	}
+	if inv == nil {
+		inv = make([][]float64, len(keys))
+		for i := range inv {
+			inv[i] = make([]float64, len(keys))
+			for j := range inv[i] {
+				inv[i][j] = math.NaN()
+			}
+		}
+	}
+	return vcovMatrix(keys, inv)
 }

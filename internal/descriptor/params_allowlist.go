@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -202,7 +203,9 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 // instanceBuiltinDecl is built-in k's allowlist d on inst: a MAT_SEM
 // params surface the instance hides (vectors.SEMFeatureParams: the
 // mean structure, the multi-group fit — on MAT_SEM and on
-// ATTR_SEM_SCORE's inline fit, vectors.SEMScoreFeatureParams) is no key
+// ATTR_SEM_SCORE's inline fit, vectors.SEMScoreFeatureParams), or a
+// refit key whose engine it hides (model.RefitFeatureParams:
+// ATTR_REG_LEVERAGE's family / link under a hidden REG_GLM), is no key
 // at all — refused, and absent from valid_keys, exactly as a key the
 // operator never read. d itself
 // is never mutated (the built-in table is shared).
@@ -217,6 +220,9 @@ func instanceBuiltinDecl(k paramread.Key, d ParamsDecl, inst *InstanceSnapshot) 
 	case k.Category == paramread.Attribute && k.Op == string(types.ATTR_SEM_SCORE):
 		// ATTR_SEM_SCORE's inline fit reads the same MAT_SEM surfaces.
 		owned = vectors.SEMScoreFeatureParams()
+	case k.Category == paramread.Attribute && model.RefitFeatureParams(types.AttributeType(k.Op)) != nil:
+		// ATTR_REG_LEVERAGE's GLM refit keys ride REG_GLM.
+		owned = model.RefitFeatureParams(types.AttributeType(k.Op))
 	default:
 		return d
 	}

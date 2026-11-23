@@ -231,3 +231,18 @@ func RefitFamily(t types.AttributeType, a *types.Attribute) (family, link string
 	}
 	return p.Family, p.Link
 }
+
+// RefitFeatureParams are the refit params keys a hideable feature owns,
+// per attribute type: ATTR_REG_LEVERAGE's params.family / params.link
+// run the REG_GLM engine (regression-depth-2 E1-S2), so on an instance
+// whose feature profile hides REG_GLM they are no keys at all — the
+// params allowlist (internal/descriptor.ParamsAllowlist) refuses them
+// PULSE_REQUEST_UNKNOWN_FIELD, as a key the slot never read, at
+// predict and at run time alike, and the manifest drops them
+// (regression-depth-2 E1-S4). A fresh map.
+func RefitFeatureParams(t types.AttributeType) map[string][]string {
+	if t != types.ATTR_REG_LEVERAGE {
+		return nil
+	}
+	return map[string][]string{string(types.REG_GLM): {"family", "link"}}
+}

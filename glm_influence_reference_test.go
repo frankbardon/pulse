@@ -347,6 +347,12 @@ func TestGLMInfluence_RefusalsMatchPredict(t *testing.T) {
 		{"bayes", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}, Vcov: true}, "type_unsupported", ""},
 	} {
 		for _, slot := range slots {
+			if tc.name == "penalized" && slot.Type == types.ATTR_REG_LEVERAGE {
+				// A penalized bound fit's leverage reads its carried
+				// regularized inverse (regression-depth-2 E1-S4,
+				// penalized_leverage_bound_test.go).
+				continue
+			}
 			t.Run(tc.name+"/"+string(slot.Type), func(t *testing.T) {
 				t.Parallel()
 				req := func() *ComposedRequest {

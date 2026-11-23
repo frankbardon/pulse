@@ -28,9 +28,13 @@ x̃ = [1, x], μ the fitted mean, w = (dμ/dη)²/V(μ) (1 least-squares), rP th
 - `l1`: the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} — Σh = 1 + |active|, the lasso's degrees of freedom (Zou, Hastie & Tibshirani; glmnet's `df`). Nothing active: 1/n.
 - `elasticnet`: the active-set hat with the ridge term n·α·(1 − l1_ratio).
 
-**A GLM refit.** `params.family` (+ `params.link`, default the family's canonical link) refits a generalized linear model of that family on the slot's own target and predictors: h = w*·w·x̃ᵀ(XᵀW*X)⁻¹x̃ at the final IRLS working weights w = (dμ/dη)²/V(μ) — R `hatvalues(glm)`, bit-equal to the same fit bound with `vcov: true`; under a frequency weight the `rep()` expansion's summed copies. Codes: an unknown family or a foreign link the GLM's own (`PROCESSING_REGRESSION_INVALID_FAMILY` / `_LINK`); `link` without `family`, or `family` beside `penalty`, `PROCESSING_CONFIG` (`details.requires` `family` / `unpenalized`); beside `params.fit`, `slot_fields`.
+Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONFIG`): they read σ² = RSS/(n − p − 1), which a penalized fit does not define.
 
-Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONFIG`): they read σ² = RSS/(n − p − 1), which a penalized fit does not define. A penalized BOUND fit stays `requires: unpenalized`.
+**A penalized bound fit.** A penalized least-squares or GLM fit (no `resample` / `selection`) carries `penalized_inverse` — (XᵀWX + λ₂·P)⁻¹ over the intercept and its active predictors — so `params.fit` reads the same hat as the penalized refit, `vcov` not needed (lasso qualifies). Over it influence and the studentized kinds stay `requires: unpenalized`; a model file of an earlier build lacks it: `requires: penalized_inverse`, re-save.
+<!-- /feature -->
+
+<!-- feature: ATTR_REG_LEVERAGE, REG_GLM -->
+**A GLM refit.** `params.family` (+ `params.link`, default the family's canonical link) refits a generalized linear model of that family on the slot's own target and predictors: h = w*·w·x̃ᵀ(XᵀW*X)⁻¹x̃ at the final IRLS working weights w = (dμ/dη)²/V(μ) — R `hatvalues(glm)`, bit-equal to the same fit bound; any `penalty` reads (XᵀW*X + λ₂·P)⁻¹ on the active design; under a frequency weight the `rep()` expansion's summed copies. Codes: an unknown family or a foreign link the GLM's own (`PROCESSING_REGRESSION_INVALID_FAMILY` / `_LINK`); `link` without `family`, or `negative_binomial` beside `penalty`, `PROCESSING_CONFIG`; beside `params.fit`, `slot_fields`. Leverage only: a GLM's fitted value, residual and influence go through a bound `REG_GLM` fit (`params.fit`).
 <!-- /feature -->
 
 <!-- feature: REG_MMM_HILL -->
@@ -44,7 +48,7 @@ Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONF
 
 ## Which fits qualify
 
-- `vcov: true`, the classical covariance, no penalty, selection, resample or bounds, else `PULSE_MODEL_SCORE_INVALID` `params_invalid` (`details.requires` names the missing face).
+- `vcov: true`, the classical covariance, no penalty (bar the leverage, above), selection, resample or bounds, else `PULSE_MODEL_SCORE_INVALID` `params_invalid` (`details.requires` names the missing face).
 - **A frequency-weighted fit** reads each record as w identical observations: every figure is ONE copy's of the `rep()`-expanded fit (df = Σw − p′; h = R `hatvalues(glm(weights = f))`/f, so compare with 2p′/Σw).
 - **A probability weight is refused permanently** (`requires: unweighted`): a sampling weight defines no observation to delete, so a design-based fit has no model-based influence. Declare `kind: frequency` for replication counts, else refit with `weight: null`.
 - A model file without `dispersion` (an earlier build's) needs a re-save.

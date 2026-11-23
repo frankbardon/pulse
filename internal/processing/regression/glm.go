@@ -537,6 +537,15 @@ func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, pr
 		ConvergedIters: sol.Iters,
 	}
 	rw.note(res, sumW, sumWSq)
+	if carriesPenalizedInverse(e.spec) {
+		// The regularized inverse a bound fit's leverage reads (E1-S4).
+		hatActive, hatInv := pen.hatInverse(k, sol.Gram, sol.Beta)
+		cols := make([]int, 0, len(hatActive)-1)
+		for _, j := range hatActive[1:] {
+			cols = append(cols, j-1)
+		}
+		res.PenalizedInverse = penalizedInverseMatrix(predictors, cols, hatInv)
+	}
 	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
 	if e.spec.Vcov && !pen.approximateSE() {
 		attachVcov(res, predictors, cov)

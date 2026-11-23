@@ -212,15 +212,16 @@ var dependencyScanAllowlist = map[[2]string]string{
 	// through remedyFrequencyModeCount, which drops the clause when the
 	// instance hides AGG_MODE_COUNT; the counter never reads it.
 	{"AGG_FREQUENCY", "AGG_MODE_COUNT"}: "named in a hidden-aware refusal remedy only",
-	// makeRegressionSpec (shared by the four refit factories) types an
-	// ATTR_REG_LEVERAGE refit REG_GLM when params.family is set
+	// leverageGLMRefit (passed by the ATTR_REG_LEVERAGE factory alone)
+	// types the refit REG_GLM when params.family is set
 	// (regression-depth-2 E1-S2): an opt-in param running the IRLS engine
-	// internally, as the default refit runs OLS; the slot itself never
-	// needs REG_GLM, and the other three refits refuse the key.
-	{"ATTR_REG_LEVERAGE", "REG_GLM"}:  "opt-in params.family GLM refit; the slot runs without it",
-	{"ATTR_REG_FITTED", "REG_GLM"}:    "shared refit factory file; only ATTR_REG_LEVERAGE's params.family reaches REG_GLM",
-	{"ATTR_REG_RESIDUAL", "REG_GLM"}:  "shared refit factory file; only ATTR_REG_LEVERAGE's params.family reaches REG_GLM",
-	{"ATTR_REG_INFLUENCE", "REG_GLM"}: "shared refit factory file; only ATTR_REG_LEVERAGE's params.family reaches REG_GLM",
+	// internally, as the default refit runs OLS. Not a dependency: the
+	// keys are instance-aware (model.RefitFeatureParams, E1-S4) — on an
+	// instance hiding REG_GLM they are unknown keys, refused before the
+	// factory runs, so the slot reaches the GLM engine only where REG_GLM
+	// is enabled and runs (the OLS refit) where it is not. The other
+	// three refit factories no longer reach the identifier.
+	{"ATTR_REG_LEVERAGE", "REG_GLM"}: "instance-aware opt-in params.family GLM refit; hidden REG_GLM makes the keys unknown, the slot runs without it",
 }
 
 // typesOperatorConstants maps every types constant identifier of an

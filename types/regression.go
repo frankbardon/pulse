@@ -1020,6 +1020,22 @@ type RegressionResult struct {
 	// standardized / studentized with params.fit).
 	Dispersion float64 `json:"dispersion,omitempty"`
 
+	// PenalizedInverse is a penalized REG_OLS / REG_GLM fit's
+	// regularized inverse (XᵀWX + λ₂·P)⁻¹ over its active design —
+	// what a bound fit's leverage reads (ATTR_REG_LEVERAGE with
+	// params.fit), present on every penalized REG_OLS / REG_GLM fit and
+	// absent otherwise. Square symmetric, full encoding, keys
+	// "(intercept)" then the active predictors in spec order: every
+	// predictor under l2, the nonzero ones under l1 / elasticnet (an
+	// absent predictor reads 0). W is the prior weights (REG_OLS) or the
+	// final IRLS working weights (REG_GLM), P the penalty mask (0 on the
+	// intercept and every Unpenalized predictor) and λ₂ the objective's
+	// ridge term — N*·Alpha under l2, N*·Alpha·(1 − L1Ratio) under
+	// elasticnet, 0 under l1 (the unpenalized hat of the active set).
+	// Not a covariance: no φ scales it. Null entries when the active
+	// design is singular.
+	PenalizedInverse *MatrixValues `json:"penalized_inverse,omitempty"`
+
 	// Covariance echoes the robust estimator the standard errors,
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),
 	// "auto" lags resolved; absent on a classical fit.

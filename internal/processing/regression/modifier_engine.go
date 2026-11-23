@@ -293,6 +293,17 @@ func (e *modifierEngine) makeFinalizeFn() func([]Record, []string) (*types.Regre
 // copied with Resample / Selection / Criterion blanked so the inner
 // engine doesn't re-enter modifierEngine via the registry.
 func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string) (*types.RegressionResult, error) {
+	res, err := e.finalizeOnPredictorsInner(records, active)
+	if res != nil {
+		// A resampled or selected fit carries no regularized inverse
+		// (carriesPenalizedInverse): the inner engine's blanked spec
+		// would attach one no bound leverage reads.
+		res.PenalizedInverse = nil
+	}
+	return res, err
+}
+
+func (e *modifierEngine) finalizeOnPredictorsInner(records []Record, active []string) (*types.RegressionResult, error) {
 	inner := *e.spec
 	inner.Predictors = active
 	inner.Resample = ""

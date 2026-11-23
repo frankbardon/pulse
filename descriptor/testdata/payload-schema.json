@@ -6253,6 +6253,9 @@
           },
           "type": "object"
         },
+        "penalized_inverse": {
+          "$ref": "#/$defs/MatrixValues"
+        },
         "penalty": {
           "type": "string"
         },
@@ -8574,4 +8577,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: bd110d184eb2b0eee800a69932608d9f46ae9459b8b03e5988849952aaa2abb5
+// golden-hash: 7c22ff5f5a8e2ac3cd63f7b25c938c5a4fa5ff1815fb1d1ae37a2f01d9a0dea9

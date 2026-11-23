@@ -29,8 +29,16 @@ import (
 // a fixed-θ negative binomial under dispersion "estimated") and 1 under
 // binomial / poisson / negative binomial (V(μ) at the fit's θ,
 // RegressionResult.Theta); model.CheckFitDesign refused every fit
-// that carries no such design (no vcov, robust, penalized, selection,
-// resample, probability-weighted, …) before this is built.
+// that carries no such design (no vcov, robust, selection, resample,
+// probability-weighted, …) before this is built.
+//
+// A PENALIZED REG_OLS / REG_GLM fit (regression-depth-2 E1-S4) serves
+// the leverage alone, and its design is its carried regularized inverse
+// M = (XᵀW*X + λ₂·P)⁻¹ over the active design
+// (RegressionResult.PenalizedInverse; penalizedDesign), never its vcov:
+// h = w·x̃ᵀMx̃ — the penalized refit's hat (leverageDesign) for one copy
+// of a row on REG_OLS, the penalized IRLS's final weighted least
+// squares' hat on REG_GLM.
 //
 // A FREQUENCY-weighted fit (regression-depth-2 E1-S3, #640) carries its
 // prior weights inside Vcov = φ·(XᵀW*X)⁻¹ (W* = the prior weight times
@@ -86,7 +94,16 @@ type BoundInfluence struct {
 // always resolves; anything else (no vcov, a vcov missing a coefficient
 // key) is an engine invariant violation (PROCESSING_INTERNAL).
 func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
-	if b == nil || b.Vcov == nil || b.Result == nil || len(b.Coefficients) != len(b.Predictors) {
+	if b == nil || b.Result == nil || len(b.Coefficients) != len(b.Predictors) {
+		return nil, internalDesign(b, "carries no coefficient covariance")
+	}
+	// A penalized fit's design is its carried regularized inverse
+	// (penalizedDesign), never its vcov (a ridge sandwich, or none).
+	pen := b.Result.Penalty != "" && (b.Type == types.REG_OLS || b.Type == types.REG_GLM)
+	if pen && b.Result.PenalizedInverse == nil {
+		return nil, internalDesign(b, "carries no penalized inverse")
+	}
+	if !pen && b.Vcov == nil {
 		return nil, internalDesign(b, "carries no coefficient covariance")
 	}
 	d := &BoundInfluence{
@@ -115,10 +132,13 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 		return newTangentInfluence(b, tf)
 	}
 	d.phi = 1
-	if d.estimated {
+	if d.estimated && !pen {
 		d.phi = b.Result.Dispersion
 	}
 	d.df = boundObservations(b.Result) - d.p1
+	if pen {
+		return d, d.penalizedDesign(b)
+	}
 	// Vcov's keys are (intercept) then the predictors (fit order);
 	// index by key so the design row lines up whatever the order.
 	idx := make(map[string]int, len(b.Vcov.RowKeys))
@@ -146,6 +166,53 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 		}
 	}
 	return d, nil
+}
+
+// penalizedDesign sets M to a penalized REG_OLS / REG_GLM fit's carried
+// regularized inverse (RegressionResult.PenalizedInverse,
+// regression-depth-2 E1-S4) over [intercept, predictors…]: (XᵀWX +
+// λ₂·P)⁻¹ over the active design, 0 on every predictor outside it (an
+// l1 / elasticnet zero). Not a covariance, so no φ divides it; only the
+// leverage reads it (model.CheckFitDesign admits ATTR_REG_LEVERAGE alone
+// over a penalized fit), h = w·x̃ᵀMx̃ — the refit's hat (leverageDesign)
+// for one copy of a row on REG_OLS, the penalized IRLS's final weighted
+// least squares' hat on REG_GLM.
+func (d *BoundInfluence) penalizedDesign(b *model.Bound) error {
+	pi := b.Result.PenalizedInverse
+	keys := append([]string{model.InterceptKey}, b.Predictors...)
+	pos := make(map[string]int, len(keys))
+	for i, k := range keys {
+		pos[k] = i
+	}
+	d.m = make([][]float64, len(keys))
+	for i := range d.m {
+		d.m[i] = make([]float64, len(keys))
+	}
+	if len(pi.ColumnKeys) != len(pi.RowKeys) || len(pi.Values) != len(pi.RowKeys) {
+		return internalDesign(b, "has a ragged penalized inverse")
+	}
+	hasIntercept := false
+	for a, ka := range pi.RowKeys {
+		i, ok := pos[ka]
+		if !ok {
+			return internalDesign(b, fmt.Sprintf("has a penalized inverse row %q that is no coefficient", ka))
+		}
+		hasIntercept = hasIntercept || i == 0
+		if len(pi.Values[a]) != len(pi.ColumnKeys) {
+			return internalDesign(b, "has a ragged penalized inverse")
+		}
+		for c, kc := range pi.ColumnKeys {
+			j, ok := pos[kc]
+			if !ok {
+				return internalDesign(b, fmt.Sprintf("has a penalized inverse column %q that is no coefficient", kc))
+			}
+			d.m[i][j] = pi.Values[a][c]
+		}
+	}
+	if !hasIntercept {
+		return internalDesign(b, "has no penalized inverse row for the intercept")
+	}
+	return nil
 }
 
 // boundObservations is the observation count a bound fit's residual

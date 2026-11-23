@@ -227,9 +227,10 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 // factory (internal/processing) and predict's field-reference pass
 // alike: a family is one of Families (FamilyRefusal), a link one of its
 // links (CheckPair) — REG_GLM's own codes —, a link needs a family, and
-// a GLM refit carries no penalty (PROCESSING_CONFIG, details.requires
-// unpenalized: a penalized GLM's hat reads the penalized IRLS system).
-// Nil for the OLS refit (both empty).
+// a penalized negative_binomial refit is refused as the fit itself is
+// (CheckTheta, details.requires unpenalized). Any other penalty is
+// taken (regression-depth-2 E1-S4): the refit's hat reads the penalized
+// IRLS's regularized inverse. Nil for the OLS refit (both empty).
 func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *errors.CodedError {
 	if family == "" {
 		if link != "" {
@@ -245,10 +246,7 @@ func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *e
 	if cerr := CheckPair(family, link); cerr != nil {
 		return cerr
 	}
-	if penalty != "" {
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			string(attr)+" with params.family refits an unpenalized GLM; a penalized GLM refit's leverage is not supported — drop penalty, or drop params.family for the penalized OLS refit",
-			map[string]any{"attribute": string(attr), "penalty": penalty, "family": family, "requires": "unpenalized"})
-	}
-	return nil
+	// The refit's own spec rule (the factory's ValidateRegression), so
+	// predict refuses a penalized negative_binomial refit as the runtime.
+	return CheckTheta(&types.RegressionSpec{Type: types.REG_GLM, Family: family, Link: link, Penalty: penalty})
 }

@@ -164,7 +164,8 @@ func TestGLMRefitLeverage_FrequencyWeightIsExpansion(t *testing.T) {
 // refusals are the same code and message from Process and Predict — an
 // unknown family (REG_GLM's PROCESSING_REGRESSION_INVALID_FAMILY), a link
 // outside the family's (PROCESSING_REGRESSION_INVALID_LINK), a link
-// without a family and a family beside a penalty (PROCESSING_CONFIG),
+// without a family and a negative_binomial family beside a penalty
+// (PROCESSING_CONFIG, as the fit itself),
 // params.family beside params.fit (PULSE_MODEL_SCORE_INVALID
 // slot_fields) — and a family on another refit slot is an unknown key
 // (PULSE_REQUEST_UNKNOWN_FIELD).
@@ -189,7 +190,8 @@ func TestGLMRefitLeverage_RefusalsMatchPredict(t *testing.T) {
 		{"unknown family", lev(`{"family":"tweedie"}`, nil), errors.PROCESSING_REGRESSION_INVALID_FAMILY},
 		{"foreign link", lev(`{"family":"poisson","link":"logit"}`, nil), errors.PROCESSING_REGRESSION_INVALID_LINK},
 		{"link alone", lev(`{"link":"log"}`, nil), errors.PROCESSING_CONFIG},
-		{"penalized family", lev(`{"family":"poisson"}`, func(a *types.Attribute) { a.Penalty, a.Alpha = "l2", 0.1 }), errors.PROCESSING_CONFIG},
+		// Any other penalty is taken (E1-S4, penalized_leverage_bound_test.go).
+		{"penalized negative_binomial", lev(`{"family":"negative_binomial"}`, func(a *types.Attribute) { a.Penalty, a.Alpha = "l2", 0.1 }), errors.PROCESSING_CONFIG},
 		{"family on fitted", &types.Attribute{Type: types.ATTR_REG_FITTED, Label: "a", Target: "y", Predictors: []string{"x1", "x2"}, Params: json.RawMessage(`{"family":"poisson"}`)}, errors.PULSE_REQUEST_UNKNOWN_FIELD},
 		{"family with fit", fitRefAttr(types.ATTR_REG_LEVERAGE, "a", `{"fit":"m","family":"poisson"}`), errors.PULSE_MODEL_SCORE_INVALID},
 	} {

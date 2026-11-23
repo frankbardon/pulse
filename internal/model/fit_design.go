@@ -38,8 +38,14 @@ type FitDesign struct {
 	Robust bool
 	// Penalized, Selection and Resample echo those modifiers.
 	Penalized bool
-	Selection bool
-	Resample  bool
+	// PenalizedInverse reports that a penalized fit carries its
+	// regularized inverse (RegressionResult.PenalizedInverse,
+	// regression-depth-2 E1-S4) — every penalized REG_OLS / REG_GLM fit
+	// of this build; a model file saved by an earlier build carries
+	// none.
+	PenalizedInverse bool
+	Selection        bool
+	Resample         bool
 	// Constrained: a REG_OLS `bounds` fit (its covariance is undefined
 	// once a bound binds). NoIntercept: a through-origin REG_OLS fit.
 	// Both are known from the spec only — a model file does not keep
@@ -70,9 +76,11 @@ func designFromResult(res *types.RegressionResult) FitDesign {
 		Dispersion: res.Dispersion != 0 || !estimatedDispersion(res.Type, res.Family),
 		Robust:     res.Covariance != nil,
 		Penalized:  res.Penalty != "",
-		Selection:  res.Selection != "",
-		Resample:   res.Resample != "",
-		Weighted:   res.SumWeights != 0,
+		// A penalized REG_OLS / REG_GLM fit's carriage (E1-S4).
+		PenalizedInverse: res.PenalizedInverse != nil,
+		Selection:        res.Selection != "",
+		Resample:         res.Resample != "",
+		Weighted:         res.SumWeights != 0,
 		// n_eff is written under kind probability only (rowWeights.note).
 		ProbabilityWeight: res.SumWeights != 0 && res.NEff != 0,
 	}
@@ -93,6 +101,7 @@ func designFromSpec(req *types.Request, reg *types.RegressionSpec) FitDesign {
 		Dispersion:        !estimatedDispersion(reg.Type, reg.Family) || reg.Vcov && !robust && !penalized && !resample,
 		Robust:            robust,
 		Penalized:         penalized,
+		PenalizedInverse:  CarriesPenalizedInverse(reg),
 		Selection:         reg.Selection != "",
 		Resample:          resample,
 		Constrained:       reg.Bounds.Active(),
@@ -100,6 +109,16 @@ func designFromSpec(req *types.Request, reg *types.RegressionSpec) FitDesign {
 		Weighted:          weighted,
 		ProbabilityWeight: weighted && specWeightKind(req, reg) == types.WeightKindProbability,
 	}
+}
+
+// CarriesPenalizedInverse reports whether a fit of reg carries its
+// regularized inverse (RegressionResult.PenalizedInverse,
+// regression-depth-2 E1-S4): a penalized REG_OLS / REG_GLM fit without
+// resample or selection. The engine attaches it by this rule and the
+// static face reads it, so predict and the runtime agree.
+func CarriesPenalizedInverse(reg *types.RegressionSpec) bool {
+	return reg != nil && reg.Penalty != "" && reg.Resample == "" && reg.Selection == "" &&
+		(reg.Type == types.REG_OLS || reg.Type == types.REG_GLM)
 }
 
 // specWeightKind is the kind of the weight a weighted fit spec reads:
@@ -202,12 +221,18 @@ func FitDesignKind(t types.AttributeType, p FitParams) bool {
 // or a REG_MMM_HILL (DesignType; a Bayesian-linear, extension or other
 // model regression is type_unsupported — REG_MMM_BAYES by design,
 // designByDesignRefusal), its covariance is the classical φ·(XᵀWX)⁻¹ it
-// carries (vcov, not robust, no penalty / selection / resample / bounds,
-// with an intercept), its dispersion is carried where it is estimated,
-// and it is unweighted or frequency-weighted (a probability weight is a
-// permanent refusal). Every other fault is PULSE_MODEL_SCORE_INVALID
-// reason params_invalid with details.requires naming the missing face.
-// The first fault wins.
+// carries (vcov, not robust, no selection / resample / bounds, with an
+// intercept), its dispersion is carried where it is estimated, and it
+// is unweighted or frequency-weighted (a probability weight is a
+// permanent refusal). A penalized REG_OLS / REG_GLM fit (regression-
+// depth-2 E1-S4) serves ATTR_REG_LEVERAGE alone — through its carried
+// regularized inverse (XᵀWX + λ₂·P)⁻¹, needing neither vcov nor
+// dispersion (requires penalized_inverse on a model file of an earlier
+// build); the influence measures and the scaled residual kinds read a
+// residual variance a penalized fit does not define (requires
+// unpenalized), as does a REG_MMM_HILL params.prior fit's every slot.
+// Every other fault is PULSE_MODEL_SCORE_INVALID reason params_invalid
+// with details.requires naming the missing face. The first fault wins.
 func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
 	// A residual names its kind: "ATTR_REG_RESIDUAL kind studentized
 	// over a …".
@@ -228,8 +253,8 @@ func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.C
 	switch {
 	case d.Penalized && sig.Type == types.REG_MMM_HILL:
 		return refuse("unpenalized", "over a REG_MMM_HILL fit with params.prior is not supported (the prior is a penalty: its vcov is σ²·(JᵀJ + P)⁻¹, not the tangent plane's σ²·(JᵀJ)⁻¹); bind a fit without params.prior")
-	case d.Penalized:
-		return refuse("unpenalized", "over a penalized bound fit is not supported (its leverage needs the regularized resolvent); bind an unpenalized fit")
+	case d.Penalized && t != types.ATTR_REG_LEVERAGE:
+		return refuse("unpenalized", "over a penalized bound fit is not supported: it reads the residual variance σ² = RSS/(n − p′), which a penalized fit does not define; bind an unpenalized fit (ATTR_REG_LEVERAGE alone reads a penalized fit)")
 	case d.Selection:
 		return refuse("no_selection", "over a selection bound fit is not supported (the selected design's influence ignores the search); bind a fit without selection")
 	case d.Resample:
@@ -242,6 +267,13 @@ func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.C
 		return refuse("intercept", "over a through-origin bound fit (intercept: false) is not supported; bind a fit with an intercept")
 	case d.Weighted && d.ProbabilityWeight:
 		return refuse("unweighted", "over a probability-weighted bound fit is refused permanently, not a gap: a sampling (design-based) weight defines no observation to delete, so a model-based leverage, influence measure or studentized residual has no meaning under it; if the weights are replication counts declare them kind: frequency (the figures are then the rep() expansion's), else refit unweighted (weight: null on the fit's regression)")
+	case d.Penalized && !d.PenalizedInverse:
+		return refuse("penalized_inverse", "reads the bound penalized fit's regularized inverse (XᵀWX + λ₂·P)⁻¹ over its active design, which it does not carry (a model file saved by an earlier build); refit, or re-save the model with this build")
+	case d.Penalized:
+		// The carried inverse is the whole design the leverage reads: no
+		// vcov (a ridge sandwich, or none under l1 / elasticnet) and no
+		// dispersion.
+		return nil
 	case !d.Vcov:
 		return refuse("vcov", "reads the bound fit's coefficient covariance, which it does not carry; set vcov: true on the fit's regression")
 	case !d.Dispersion && sig.Type == types.REG_MMM_HILL:

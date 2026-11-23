@@ -443,7 +443,7 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unpenalized, unweighted or frequency-weighted, and carry its vcov.
+- Its refit is unpenalized least squares: a penalty is refused, since a penalized fit defines no residual variance. Over a bound fit (params.fit) it reads that fit — least-squares, generalized-linear or nonlinear media-mix — which must be unpenalized, unweighted or frequency-weighted, and carry its vcov.
 - A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.
 
 **Use something else:**
@@ -492,7 +492,7 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep. Over a bound fit (params.fit) it reads that fit, which must be unpenalized, unweighted or frequency-weighted, and carry its vcov.
+- A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep; params.family refits a generalized linear model and reads its hat. Over a bound fit (params.fit) it reads that fit, which must be unweighted or frequency-weighted and carry its vcov — or be penalized, read through the same hat as the penalized refit.
 - It looks at the predictors only, never at the target.
 
 **Use something else:**

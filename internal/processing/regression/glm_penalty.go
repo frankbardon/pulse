@@ -316,6 +316,47 @@ func (p *glmPenalty) covariance(k int, a, beta []float64) (active []int, cov [][
 	return active, cov, true
 }
 
+// hatInverse is the penalized fit's carried regularized inverse
+// (RegressionResult.PenalizedInverse, regression-depth-2 E1-S4): H⁻¹,
+// H = A_SS + λ₂·D_S, at the converged working Gram a over S = the
+// intercept and the hat's active predictors — every one under l2, the
+// nonzero ones under l1 / elasticnet (leverageDesign's convention: λ₂ =
+// 0 under l1, so the lasso's is the unpenalized hat of its active set).
+// A bound fit's leverage reads h = w·x̃ᵀH⁻¹x̃ at the row's working
+// weight w (BoundInfluence), R's hat of the penalized IRLS's final
+// weighted least squares. A singular H is carried all-NaN (inv nil).
+func (p *glmPenalty) hatInverse(k int, a, beta []float64) (active []int, inv [][]float64) {
+	active = []int{0}
+	for j := 1; j < k; j++ {
+		if p.l1Ratio == 0 || beta[j] != 0 {
+			active = append(active, j)
+		}
+	}
+	q := len(active)
+	h := make([]float64, q*q)
+	l2 := p.lambda2()
+	for u, ju := range active {
+		for v, jv := range active {
+			h[u*q+v] = a[ju*k+jv]
+		}
+		if p.penalized(ju) {
+			h[u*q+u] += l2
+		}
+	}
+	sym, ok := inverseEquilibrated(q, h)
+	if !ok {
+		return active, nil
+	}
+	inv = make([][]float64, q)
+	for u := range inv {
+		inv[u] = make([]float64, q)
+		for v := range inv[u] {
+			inv[u][v] = sym.At(u, v)
+		}
+	}
+	return active, inv
+}
+
 // solveEquilibrated solves the k × k SPD system m·x = rhs through the
 // exactly power-of-two-equilibrated Cholesky factor (equilibrate scales
 // m in place). It is irlsProblem.step's unpenalised solve, operation for

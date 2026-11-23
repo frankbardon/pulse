@@ -308,6 +308,11 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 		ConvergedIters: e.convergedIters,
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
+	if carriesPenalizedInverse(e.spec) {
+		// The regularized inverse a bound fit's leverage reads
+		// (leverage.go; regression-depth-2 E1-S4): the refit's hat design.
+		res.PenalizedInverse = penalizedInverseOLS(e.spec, e.acc, solve.Coefficients)
+	}
 	if e.spec.Penalty == "" && len(e.activeBounds) == 0 && logLikDefined(e.weights.basis) {
 		// logLik.lm's maximised Gaussian likelihood and AIC (loglik.go):
 		// the coefficients plus σ, on N* (n, or Σw — the rep() expansion
