@@ -30,7 +30,15 @@ import (
 // binomial / poisson / negative binomial (V(μ) at the fit's θ,
 // RegressionResult.Theta); model.CheckFitDesign refused every fit
 // that carries no such design (no vcov, robust, penalized, selection,
-// resample, weighted, …) before this is built.
+// resample, probability-weighted, …) before this is built.
+//
+// A FREQUENCY-weighted fit (regression-depth-2 E1-S3, #640) carries its
+// prior weights inside Vcov = φ·(XᵀW*X)⁻¹ (W* = the prior weight times
+// the working weight) and φ on Σw − p′ df (OLS σ̂², gamma's Pearson
+// χ²/df), so the same formulas with df = Σw − p′ are the rep()-expanded
+// unweighted fit's figures for ONE copy of a row — a scoring row is one
+// observation (the slot reads no weight of its own): h is
+// hatvalues(glm(weights = f))/f, and Σ f·h = p′ over the fit's rows.
 //
 // A REG_MMM_HILL fit (U71 E2-S6, #732) is a nonlinear least squares:
 // its design row is the tangent g = ∂ŷ/∂θ at the optimum (the
@@ -110,7 +118,7 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 	if d.estimated {
 		d.phi = b.Result.Dispersion
 	}
-	d.df = float64(b.Result.NObs) - d.p1
+	d.df = boundObservations(b.Result) - d.p1
 	// Vcov's keys are (intercept) then the predictors (fit order);
 	// index by key so the design row lines up whatever the order.
 	idx := make(map[string]int, len(b.Vcov.RowKeys))
@@ -138,6 +146,18 @@ func NewBoundInfluence(b *model.Bound) (*BoundInfluence, error) {
 		}
 	}
 	return d, nil
+}
+
+// boundObservations is the observation count a bound fit's residual
+// df reads: its rows, or Σw under a frequency weight — each record is
+// w identical observations, so df = Σw − p′ is the rep() expansion's
+// (regression-depth-2 E1-S3). model.CheckFitDesign admits no other
+// weighted fit, so a weighted result here is frequency-weighted.
+func boundObservations(res *types.RegressionResult) float64 {
+	if res.SumWeights != 0 {
+		return res.SumWeights
+	}
+	return float64(res.NObs)
 }
 
 func internalDesign(b *model.Bound, what string) error {

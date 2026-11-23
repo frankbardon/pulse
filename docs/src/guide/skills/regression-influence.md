@@ -40,7 +40,9 @@ Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONF
 
 ## Which fits qualify
 
-- `vcov: true`, the classical covariance, no penalty, selection, resample, bounds or weight, else `PULSE_MODEL_SCORE_INVALID` `params_invalid` (`details.requires` names the missing face). Weighted fits are not supported yet: refit with `weight: null`.
+- `vcov: true`, the classical covariance, no penalty, selection, resample or bounds, else `PULSE_MODEL_SCORE_INVALID` `params_invalid` (`details.requires` names the missing face).
+- **A frequency-weighted fit** reads each record as w identical observations: every figure is ONE copy's of the `rep()`-expanded fit (df = Σw − p′; h = R `hatvalues(glm(weights = f))`/f, so compare with 2p′/Σw).
+- **A probability weight is refused permanently** (`requires: unweighted`): a sampling weight defines no observation to delete, so a design-based fit has no model-based influence. Declare `kind: frequency` for replication counts, else refit with `weight: null`.
 - A model file without `dispersion` (an earlier build's) needs a re-save.
 - A Bayesian-linear or registered fit is `type_unsupported`. So is `REG_MMM_BAYES`, by design: hat-matrix leverage and Cook's distance belong to a point estimate's (XᵀWX)⁻¹ and a posterior has none — its influence analogue, PSIS-LOO's Pareto k, is a different statistic. Read its rows with the fitted value and residual instead.
 

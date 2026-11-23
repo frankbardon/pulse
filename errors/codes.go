@@ -2000,7 +2000,8 @@ const (
 	// lower / upper bound without exactly one predictor term
 	// ("bound_terms"); a leverage / influence / standardized /
 	// studentized params.fit slot over a fit without the design it reads
-	// ("params_invalid" with "requires": vcov, dispersion, unweighted,
+	// ("params_invalid" with "requires": vcov, dispersion, unweighted —
+	// a probability-weighted fit, permanently; a frequency weight reads —
 	// classical_covariance, unpenalized, no_selection, no_resample,
 	// unconstrained, intercept; "type_unsupported" on a type other than
 	// REG_OLS / REG_GLM). Refused identically by predict and the

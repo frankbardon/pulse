@@ -210,7 +210,10 @@ var validationRegistry = map[string]ValidationRecord{
 	}, {
 		Against: rPin + " + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated."},
+	}, {
+		Against: rPin + " `rstandard` / `rstudent` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"}, Weighted: true,
+	}}, Gap: "The refit's response residual is checked against Pulse's own OLS. Over a probability-weighted bound fit the standardized / studentized kinds are refused (permanently), not validated."},
 	"ATTR_REG_LEVERAGE": {Refs: []ValidationRef{{
 		Against: rPin + " `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"},
@@ -220,7 +223,10 @@ var validationRegistry = map[string]ValidationRecord{
 	}, {
 		Against: rPin + " + MASS 7.3-66 `hatvalues` over a bound negative binomial fit (log / sqrt / identity link, θ estimated or fixed; `params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated."},
+	}, {
+		Against: rPin + " `hatvalues` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"}, Weighted: true,
+	}}, Gap: "The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a probability-weighted bound fit is refused (permanently), not validated."},
 	"ATTR_REG_INFLUENCE": {Refs: []ValidationRef{{
 		Against: "statsmodels 0.14.5 `OLSInfluence.cooks_distance` / `dffits` (R `cooks.distance` / `dffits`)",
 		Tol:     "1e-9 relative (absolute below 1)", Tests: []string{"ols_influence_reference_test.go"},
@@ -239,7 +245,10 @@ var validationRegistry = map[string]ValidationRecord{
 	}, {
 		Against: rPin + " + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`)",
 		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_nb_reference_test.go"},
-	}}, Gap: "Over a weighted bound fit the figures are refused, not validated."},
+	}, {
+		Against: rPin + " `cooks.distance` / `dffits` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`)",
+		Tol:     "1e-9 relative (absolute floor 1e-12)", Tests: []string{"glm_influence_reference_test.go"}, Weighted: true,
+	}}, Gap: "Over a probability-weighted bound fit the figures are refused (permanently), not validated."},
 
 	// Regressions.
 	"REG_OLS": {Refs: []ValidationRef{

@@ -50,6 +50,12 @@ type FitDesign struct {
 	// whose regression names no weight and whose request none knows it
 	// only with the instance default weight (WithDefaultWeight).
 	Weighted bool
+	// ProbabilityWeight: that weight is kind probability (the default
+	// kind). A frequency-weighted fit's design is its rep() expansion's
+	// (regression-depth-2 E1-S3) and is read; a probability-weighted
+	// one is refused permanently. The result face reads it off n_eff,
+	// which only a probability-weighted fit reports.
+	ProbabilityWeight bool
 }
 
 // designFromResult is the face of a finished fit's result: the
@@ -67,6 +73,8 @@ func designFromResult(res *types.RegressionResult) FitDesign {
 		Selection:  res.Selection != "",
 		Resample:   res.Resample != "",
 		Weighted:   res.SumWeights != 0,
+		// n_eff is written under kind probability only (rowWeights.note).
+		ProbabilityWeight: res.SumWeights != 0 && res.NEff != 0,
 	}
 }
 
@@ -78,18 +86,32 @@ func designFromResult(res *types.RegressionResult) FitDesign {
 func designFromSpec(req *types.Request, reg *types.RegressionSpec) FitDesign {
 	// A REG_MMM_HILL params.prior is a penalty on one β (MMMHillPrior).
 	robust, penalized, resample := reg.Covariance.Robust(), reg.Penalty != "" || MMMHillPrior(reg), reg.Resample != ""
+	weighted := !reg.Weight.IsNull() && (!reg.Weight.IsZero() || req != nil && req.Weight != nil)
 	return FitDesign{
-		Family:      reg.Family,
-		Vcov:        reg.Vcov,
-		Dispersion:  !estimatedDispersion(reg.Type, reg.Family) || reg.Vcov && !robust && !penalized && !resample,
-		Robust:      robust,
-		Penalized:   penalized,
-		Selection:   reg.Selection != "",
-		Resample:    resample,
-		Constrained: reg.Bounds.Active(),
-		NoIntercept: reg.Intercept != nil && !*reg.Intercept,
-		Weighted:    !reg.Weight.IsNull() && (!reg.Weight.IsZero() || req != nil && req.Weight != nil),
+		Family:            reg.Family,
+		Vcov:              reg.Vcov,
+		Dispersion:        !estimatedDispersion(reg.Type, reg.Family) || reg.Vcov && !robust && !penalized && !resample,
+		Robust:            robust,
+		Penalized:         penalized,
+		Selection:         reg.Selection != "",
+		Resample:          resample,
+		Constrained:       reg.Bounds.Active(),
+		NoIntercept:       reg.Intercept != nil && !*reg.Intercept,
+		Weighted:          weighted,
+		ProbabilityWeight: weighted && specWeightKind(req, reg) == types.WeightKindProbability,
 	}
+}
+
+// specWeightKind is the kind of the weight a weighted fit spec reads:
+// its regression's own, else its request's.
+func specWeightKind(req *types.Request, reg *types.RegressionSpec) types.WeightKind {
+	if w := reg.Weight.Spec(); w != nil {
+		return w.EffectiveKind()
+	}
+	if req != nil && req.Weight != nil {
+		return req.Weight.EffectiveKind()
+	}
+	return types.WeightKindProbability
 }
 
 // weightInherited reports whether reg (in fit request req) names no
@@ -100,13 +122,13 @@ func weightInherited(req *types.Request, reg *types.RegressionSpec) bool {
 }
 
 // WithDefaultWeight settles the static faces of fits (the list c was
-// built from, CatalogFromFits) under the instance default weight
-// (pulse.Options.DefaultWeight, on = set): every regression fit that
-// inherits it (weightInherited) is weighted. Predict's catalog of a
+// built from, CatalogFromFits) under the instance default weight w
+// (pulse.Options.DefaultWeight, nil = none): every regression fit that
+// inherits it (weightInherited) is weighted, under w's kind. Predict's catalog of a
 // `fits` list and the runtime's failed-fit signature both call it, so
 // the two judge an inheriting fit alike. Returns c (modified in place).
-func (c FitCatalog) WithDefaultWeight(fits []types.FitSpec, on bool) FitCatalog {
-	if !on {
+func (c FitCatalog) WithDefaultWeight(fits []types.FitSpec, w *types.WeightSpec) FitCatalog {
+	if w == nil {
 		return c
 	}
 	for _, f := range fits {
@@ -116,6 +138,7 @@ func (c FitCatalog) WithDefaultWeight(fits []types.FitSpec, on bool) FitCatalog 
 		}
 		if weightInherited(f.Request, f.Request.Regressions[0]) {
 			sig.Influence.Weighted = true
+			sig.Influence.ProbabilityWeight = w.EffectiveKind() == types.WeightKindProbability
 			c[f.Name] = sig
 		}
 	}
@@ -181,7 +204,8 @@ func FitDesignKind(t types.AttributeType, p FitParams) bool {
 // designByDesignRefusal), its covariance is the classical φ·(XᵀWX)⁻¹ it
 // carries (vcov, not robust, no penalty / selection / resample / bounds,
 // with an intercept), its dispersion is carried where it is estimated,
-// and it is unweighted. Every other fault is PULSE_MODEL_SCORE_INVALID
+// and it is unweighted or frequency-weighted (a probability weight is a
+// permanent refusal). Every other fault is PULSE_MODEL_SCORE_INVALID
 // reason params_invalid with details.requires naming the missing face.
 // The first fault wins.
 func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.CodedError {
@@ -216,8 +240,8 @@ func CheckFitDesign(t types.AttributeType, p FitParams, sig Signature) *errors.C
 		return refuse("unconstrained", "over a bounds-constrained bound fit is not supported; bind a fit without bounds")
 	case d.NoIntercept:
 		return refuse("intercept", "over a through-origin bound fit (intercept: false) is not supported; bind a fit with an intercept")
-	case d.Weighted:
-		return refuse("unweighted", "influence over a weighted bound fit is not supported; refit unweighted (weight: null on the fit's regression), or drop params.fit to refit OLS on the slot's own fields")
+	case d.Weighted && d.ProbabilityWeight:
+		return refuse("unweighted", "over a probability-weighted bound fit is refused permanently, not a gap: a sampling (design-based) weight defines no observation to delete, so a model-based leverage, influence measure or studentized residual has no meaning under it; if the weights are replication counts declare them kind: frequency (the figures are then the rep() expansion's), else refit unweighted (weight: null on the fit's regression)")
 	case !d.Vcov:
 		return refuse("vcov", "reads the bound fit's coefficient covariance, which it does not carry; set vcov: true on the fit's regression")
 	case !d.Dispersion && sig.Type == types.REG_MMM_HILL:

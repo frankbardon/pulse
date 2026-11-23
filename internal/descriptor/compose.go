@@ -1449,7 +1449,7 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 	// A fit whose regression inherits the instance default weight is
 	// weighted (the influence face, model.CheckFitDesign).
 	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries).WithSweepAxes(sweepAxes).
-		WithDefaultWeight(req.Fits, opts != nil && opts.DefaultWeight != nil))
+		WithDefaultWeight(req.Fits, defaultWeightOf(opts)))
 	normalized := make([]*types.Request, len(req.Requests))
 	postWindows := make([]*descriptor.PostWindowPlan, len(req.Requests))
 	catalogs := make([]model.Catalog, len(req.Requests))
@@ -1883,4 +1883,13 @@ func composeFormulaTotalRefusal(spec *types.ComposeOverlaySpec, specIdx int, rou
 		details[k] = v
 	}
 	return errors.NewCodedErrorWithDetails(cerr.Code, cerr.Message, details)
+}
+
+// defaultWeightOf is opts' instance default weight
+// (pulse.Options.DefaultWeight), nil for none or no opts.
+func defaultWeightOf(opts *PredictOptions) *types.WeightSpec {
+	if opts == nil {
+		return nil
+	}
+	return opts.DefaultWeight
 }

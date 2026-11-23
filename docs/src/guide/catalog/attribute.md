@@ -443,7 +443,7 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
+- Unpenalized least squares only: any penalty is refused. Over a bound fit (params.fit) it reads that fit, which must be unpenalized, unweighted or frequency-weighted, and carry its vcov.
 - A frequency weight counts a row as that many identical rows and reports one copy's figure; a probability weight is refused.
 
 **Use something else:**
@@ -462,8 +462,9 @@ Adds to every row how much it moves a straight-line fit: how far the fitted valu
 - R 4.6.1 `dffits` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`; its sign is that of g′(μ)) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `cooks.distance` and `dffits` at dispersion 1 (`family$dispersion <- 1`) over a bound negative binomial fit (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `cooks.distance` at `summary.glm`'s φ̂ and `dffits` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 `cooks.distance` / `dffits` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 
-**Validation gap:** Over a weighted bound fit the figures are refused, not validated.
+**Validation gap:** Over a probability-weighted bound fit the figures are refused (permanently), not validated.
 
 See [How Pulse is validated](../validation.md).
 
@@ -491,7 +492,7 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep. Over a bound fit (params.fit) it reads that fit, which must be unweighted, unpenalized and carry its vcov.
+- A penalized refit reads its own hat: ridge shrinks every row's leverage, lasso and elastic net count only the predictors they keep. Over a bound fit (params.fit) it reads that fit, which must be unpenalized, unweighted or frequency-weighted, and carry its vcov.
 - It looks at the predictors only, never at the target.
 
 **Use something else:**
@@ -507,8 +508,9 @@ Adds to every row its leverage: how unusual its predictor values are, and so how
 - R 4.6.1 `hatvalues` over a bound `lm` and binomial-logit, poisson-log and gamma-inverse `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 - R 4.6.1 `hatvalues` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `hatvalues` over a bound negative binomial fit (log / sqrt / identity link, θ estimated or fixed; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 `hatvalues` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 
-**Validation gap:** The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a weighted bound fit is refused, not validated.
+**Validation gap:** The OLS refit's leverage is checked against Pulse's own OLS (and the statsmodels influence figures that read it); a probability-weighted bound fit is refused (permanently), not validated.
 
 See [How Pulse is validated](../validation.md).
 
@@ -592,8 +594,9 @@ Adds to every row its residual: the actual target value minus the value a straig
 - R 4.6.1 `residuals(type = "working")` over a bound probit, cloglog, poisson identity / sqrt and gamma log / identity `glm` (`params.fit`, `params.kind` working) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_links_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `residuals` (pearson / deviance / working), `rstandard` (both types) and `rstudent` at dispersion 1 over a bound negative binomial fit (`glm.nb`, θ estimated or fixed; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
 - R 4.6.1 + MASS 7.3-66 `rstandard` (both types) at `summary.glm`'s φ̂ and `rstudent` on the leave-one-out σ over a bound fixed-θ negative binomial fit with `dispersion: estimated` (`glm(negative.binomial(θ))`; `params.fit`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_nb_reference_test.go`
+- R 4.6.1 `rstandard` / `rstudent` on the `rep()`-expanded unweighted `lm` / binomial-logit, poisson-log and gamma-inverse `glm`, one copy's figure, over the bound frequency-weighted fit (`params.fit`; `hatvalues(glm(weights = f))/f`) — tolerance 1e-9 relative (absolute floor 1e-12); `glm_influence_reference_test.go`
 
-**Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a weighted bound fit the standardized / studentized kinds are refused, not validated.
+**Validation gap:** The refit's response residual is checked against Pulse's own OLS. Over a probability-weighted bound fit the standardized / studentized kinds are refused (permanently), not validated.
 
 See [How Pulse is validated](../validation.md).
 

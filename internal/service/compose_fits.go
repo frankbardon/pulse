@@ -379,7 +379,7 @@ func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitRes
 			continue
 		}
 		if se := p.failed[i]; se != nil {
-			sig := failedSignature(f, i, p.s.defaultWeight != nil)
+			sig := failedSignature(f, i, p.s.defaultWeight)
 			if sig.SweepBound {
 				sig = model.FitCatalog{f.Name: sig}.WithSweepAxes(p.sweepAxes)[f.Name]
 			}
@@ -527,11 +527,11 @@ func slotFailedWarnings(resp *types.Response, i int) []*types.ResponseWarning {
 
 // failedSignature is failed fit i's static signature — the one
 // predict's FitCatalog holds for it (model.CatalogFromFits, settled by
-// the instance default weight: defaultWeighted), so a reference to it
+// the instance default weight: defaultWeight), so a reference to it
 // is judged at runtime exactly as in predict.
-func failedSignature(f types.FitSpec, i int, defaultWeighted bool) model.Signature {
+func failedSignature(f types.FitSpec, i int, defaultWeight *types.WeightSpec) model.Signature {
 	fits := []types.FitSpec{f}
-	sig := model.CatalogFromFits(fits).WithDefaultWeight(fits, defaultWeighted)[f.Name]
+	sig := model.CatalogFromFits(fits).WithDefaultWeight(fits, defaultWeight)[f.Name]
 	sig.Source = model.FitSource(i)
 	return sig
 }
