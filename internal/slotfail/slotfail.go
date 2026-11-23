@@ -115,18 +115,20 @@ var RegressionCodes = map[errors.Code]bool{
 // TestCodes are the data-dependent refusals a test's Finalize / Run
 // raises: a single split level, too few rows, zero variance, a
 // degenerate table, an undefined correlation, a split missing
-// params.reference, a singular or too-small covariance. A grouped run's
+// params.reference, a singular or too-small covariance, a repeated
+// TEST_ANOVA_RM (subject, condition) cell. A grouped run's
 // one sparse group turns the same codes into a null-statistics result
 // for that group (processing's sparseTestCodes is this set).
 var TestCodes = map[errors.Code]bool{
-	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:      true,
-	errors.PULSE_TEST_INSUFFICIENT_N:         true,
-	errors.PULSE_TEST_VARIANCE_ZERO:          true,
-	errors.PULSE_TEST_CONTINGENCY_DEGENERATE: true,
-	errors.PULSE_TEST_CORRELATION_UNDEFINED:  true,
-	errors.PULSE_TEST_REFERENCE_MISSING:      true,
-	errors.PULSE_MATRIX_SINGULAR:             true,
-	errors.PULSE_MATRIX_INSUFFICIENT_N:       true,
+	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:        true,
+	errors.PULSE_TEST_INSUFFICIENT_N:           true,
+	errors.PULSE_TEST_VARIANCE_ZERO:            true,
+	errors.PULSE_TEST_CONTINGENCY_DEGENERATE:   true,
+	errors.PULSE_TEST_CORRELATION_UNDEFINED:    true,
+	errors.PULSE_TEST_REFERENCE_MISSING:        true,
+	errors.PULSE_TEST_BALANCED_DESIGN_REQUIRED: true,
+	errors.PULSE_MATRIX_SINGULAR:               true,
+	errors.PULSE_MATRIX_INSUFFICIENT_N:         true,
 }
 
 // MatrixCodes are the data-dependent refusals a matrix finalizer

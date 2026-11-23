@@ -14,6 +14,11 @@
 //     one-proportion score interval of prop.test), and params.correct:
 //     false (default) or true (prop.test's continuity correction on the
 //     statistic and the interval).
+//   - TEST_ANOVA_RM params.incomplete: "complete_case" (default: a
+//     subject missing a condition is dropped, PULSE_TEST_SUBJECT_MISSING
+//     warns) or "mixed" (U69 #678: the REML random-intercept model
+//     y ~ cond + (1 | subject) on every observed cell, F with
+//     Satterthwaite's denominator df, lmerTest's anova).
 //
 // Predict (internal/descriptor) and the runtime constructors
 // (internal/processing) both read the options here, so what one
@@ -40,6 +45,8 @@ const (
 	ExactKey    = "exact"
 	CorrectKey  = "correct"
 	IntervalKey = "interval"
+	// IncompleteKey is TEST_ANOVA_RM's params.incomplete.
+	IncompleteKey = "incomplete"
 )
 
 // TEST_T params.variance values.
@@ -54,6 +61,12 @@ const (
 	IntervalWilson = "wilson"
 )
 
+// TEST_ANOVA_RM params.incomplete values.
+const (
+	IncompleteCompleteCase = "complete_case"
+	IncompleteMixed        = "mixed"
+)
+
 // Options are a test's decoded options; the zero value is every
 // default.
 type Options struct {
@@ -65,12 +78,14 @@ type Options struct {
 	Correct bool
 	// Wilson is TEST_PROP_Z params.interval "wilson".
 	Wilson bool
+	// Mixed is TEST_ANOVA_RM params.incomplete "mixed".
+	Mixed bool
 }
 
 // Takes reports whether op reads any option.
 func Takes(op types.TestType) bool {
 	switch op {
-	case types.TEST_T, types.TEST_MANN_WHITNEY_U, types.TEST_CHISQ, types.TEST_PROP_Z:
+	case types.TEST_T, types.TEST_MANN_WHITNEY_U, types.TEST_CHISQ, types.TEST_PROP_Z, types.TEST_ANOVA_RM:
 		return true
 	}
 	return false
@@ -120,6 +135,12 @@ func Parse(t *types.Test) (Options, *errors.CodedError) {
 			return out, cerr
 		}
 		out.Correct = b
+	case types.TEST_ANOVA_RM:
+		v, ok, cerr := enumParam(op, in, IncompleteKey, []string{IncompleteCompleteCase, IncompleteMixed})
+		if cerr != nil {
+			return out, cerr
+		}
+		out.Mixed = ok && v == IncompleteMixed
 	case types.TEST_PROP_Z:
 		v, ok, cerr := enumParam(op, in, IntervalKey, []string{IntervalWald, IntervalWilson})
 		if cerr != nil {

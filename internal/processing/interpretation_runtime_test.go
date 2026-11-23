@@ -61,7 +61,7 @@ var interpretationProbes = map[string][]string{
 	"TEST_BARTLETT_SPHERICITY": {"details.determinant"},
 	"TEST_BOX_M":               {"details.f", "details.m"},
 	"TEST_MARDIA":              {"details.kurtosis", "details.skewness"},
-	"TEST_ANOVA_RM":            {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
+	"TEST_ANOVA_RM":            {"details.df_error", "details.dropped_subjects", "details.effect_size.partial_eta_squared", "details.incomplete_subjects", "details.var_residual", "details.var_subject"},
 	"TEST_ANOVA_WELCH":         {"details.effect_size.omega_squared"},
 	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected", "details.expected_min"},
 	"TEST_FISHER_EXACT":        {"details.ci_high", "details.ci_low"},
@@ -438,6 +438,29 @@ var testProbeFixtures = []testProbeFixture{
 		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
 			for i, row := range table {
 				for j, v := range row {
+					mustUpdate(t, rt, NewRecord(schema, map[string]float64{
+						"metric":     v,
+						"condition":  float64(dictIDOrAdd(schema, "condition", []string{"a", "b", "c"}[j])),
+						"subject_id": float64(dictIDOrAdd(schema, "subject_id", []string{"s1", "s2", "s3", "s4", "s5"}[i])),
+					}))
+				}
+			}
+		})
+	}},
+	{types.TEST_ANOVA_RM, tierRow, "5x3_mixed_incomplete", func(t *testing.T) *types.TestResult {
+		schema := &encoding.Schema{Fields: []encoding.Field{
+			{Name: "metric", Type: encoding.FieldTypeF64},
+			{Name: "condition", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+			{Name: "subject_id", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},
+		}}
+		spec := &types.Test{Type: types.TEST_ANOVA_RM, Field: "metric", SplitBy: "condition", SubjectField: "subject_id", Params: json.RawMessage(`{"incomplete":"mixed"}`)}
+		table := [][]float64{{45, 50, 55}, {42, 42, 45}, {36, 41, 43}, {39, 35, 40}, {51, 55, 59}}
+		return runRegisteredRow(t, spec, schema, func(rt RowTest) {
+			for i, row := range table {
+				for j, v := range row {
+					if i == 4 && j == 1 {
+						continue // one missing cell: the subject stays in
+					}
 					mustUpdate(t, rt, NewRecord(schema, map[string]float64{
 						"metric":     v,
 						"condition":  float64(dictIDOrAdd(schema, "condition", []string{"a", "b", "c"}[j])),

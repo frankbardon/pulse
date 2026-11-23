@@ -450,7 +450,27 @@ var (
 			Means: "How many subjects were left out because they lacked a value for at least one condition; only complete subjects enter the test.",
 			Caveats: []string{
 				"If dropped subjects differ from the rest (for example, people who quit early), the result describes the completers only.",
+				"With params.incomplete mixed no subject is dropped and this is 0.",
 			},
+		},
+		{
+			Field: "details.df_error",
+			Means: "The degrees of freedom of the noise the F is compared against: (subjects − 1)(conditions − 1) for complete subjects; with params.incomplete mixed, Satterthwaite's estimate, usually not a whole number.",
+		},
+		{
+			Field: "details.incomplete_subjects",
+			Means: "With params.incomplete mixed, how many subjects lacked a value for at least one condition yet still entered the model through the values they have.",
+		},
+		{
+			Field: "details.var_subject",
+			Means: "With params.incomplete mixed, the estimated variance of the subjects' own levels around the overall level: how much subjects differ from each other.",
+			Caveats: []string{
+				"A value of 0 means the subjects differ no more than the noise predicts; the F is then the one of an ordinary model on every row.",
+			},
+		},
+		{
+			Field: "details.var_residual",
+			Means: "With params.incomplete mixed, the estimated variance of the noise left once each subject's own level and the condition averages are removed.",
 		},
 	}
 

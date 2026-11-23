@@ -224,8 +224,11 @@ func testCapabilities() []descriptor.TestMeta {
 			Tier:        1,
 			Description: "Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.",
 			Streamable:  types.TEST_ANOVA_RM.Streamable(),
-			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy", "SubjectField"},
+			Params: []descriptor.Param{
+				alphaParam,
+				{Name: "incomplete", Type: "enum", Required: false, Default: "complete_case", EnumValues: []string{"complete_case", "mixed"}, Description: "A subject missing a condition: complete_case drops it (details.dropped_subjects, PULSE_TEST_SUBJECT_MISSING warns); mixed keeps every observed cell in the REML model y ~ cond + (1 | subject) and reports F with Satterthwaite df (lmerTest anova; Variant mixed; details.df_error fractional, var_subject, var_residual, incomplete_subjects; no sums of squares or effect size)."},
+			},
+			Requires: []string{"Field", "SplitBy", "SubjectField"},
 		},
 		{
 			Name:        string(types.TEST_BROWN_FORSYTHE),

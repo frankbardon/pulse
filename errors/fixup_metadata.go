@@ -1958,15 +1958,21 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"Filterers"},
 				Hint:   "Pre-filter the cohort to retain only fully observed subjects, or ignore the warning if the dropped count is small relative to N.",
 			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"Tests", "*", "Params", "incomplete"},
+				Hint:     "Set params.incomplete to \"mixed\" to keep incomplete subjects in a REML random-intercept model (F with Satterthwaite df) instead of dropping them.",
+				Examples: []any{"mixed"},
+			},
 		},
 	},
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED: {
-		Message: "A repeated-measures test observed unequal cell counts; only balanced designs are supported in v1.",
+		Message: "TEST_ANOVA_RM takes one observation per subject per condition; a subject has a second value for a condition (details carry the subject and the condition).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Filterers"},
-				Hint:   "Filter or pre-aggregate so each subject contributes exactly one observation per condition before running TEST_ANOVA_RM.",
+				Hint:   "Filter or pre-aggregate (for example average the repeats) so each subject contributes exactly one observation per condition before running TEST_ANOVA_RM.",
 			},
 		},
 	},

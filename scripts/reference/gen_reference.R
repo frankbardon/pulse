@@ -611,3 +611,11 @@ source(file.path(script_dir, "gen_multinomial_penalty.R"), local = FALSE)
 # partial proportional-odds fit, ordinal::nominal_test); MASS 7.3-66 +
 # sandwich 3.1-3 + brant 0.3.0 + ordinal 2026.7-26 + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)
+
+# The TEST_ANOVA_RM params.incomplete "mixed" golden (U69 E6-S1, #678:
+# test_anova_rm_mixed.json: REML y ~ cond + (1 | subj) on every observed
+# cell, the closed-form REML optimum and Satterthwaite F / df / p that
+# lmerTest::anova approximates, lmerTest's own figures beside); lme4
+# 2.0-6 + lmerTest 3.2-1 + numDeriv 2016.8-1.1 + jsonlite. Its own seed,
+# sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)

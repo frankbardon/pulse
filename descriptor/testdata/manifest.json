@@ -7513,6 +7513,17 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "incomplete",
+            "type": "enum",
+            "required": false,
+            "default": "complete_case",
+            "description": "A subject missing a condition: complete_case drops it (details.dropped_subjects, PULSE_TEST_SUBJECT_MISSING warns); mixed keeps every observed cell in the REML model y ~ cond + (1 | subject) and reports F with Satterthwaite df (lmerTest anova; Variant mixed; details.df_error fractional, var_subject, var_residual, incomplete_subjects; no sums of squares or effect size).",
+            "enum_values": [
+              "complete_case",
+              "mixed"
+            ]
           }
         ],
         "requires": [
@@ -22134,4 +22145,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9639660b5341118263196c1badbff1d173105f67c4c0cd1762aa22a0476dd0f5
+// golden-hash: 384bd44bc602e760c5859e65da3c6f1089721d651c68ecd4fe6bafa7c2f8487c

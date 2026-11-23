@@ -325,6 +325,18 @@ inputs, so the `TestReferenceOracle_*` tests in
 `test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
 operator at relative `1e-10`.
 
+`scripts/reference/gen_test_anova_rm_mixed.R` (sourced last by
+`gen_reference.R`, its own seed, and runnable on its own) writes
+`test_anova_rm_mixed.json` for `TEST_ANOVA_RM` `incomplete: "mixed"`:
+the REML fit of `y ~ cond + (1 | subj)` and the Satterthwaite F / df /
+p computed in closed form on the dense matrices (the REML root bisected
+by `uniroot` at `tol = 1e-15`, the observed Hessian, lmerTest's
+`contestMD` ddf rule), with `lmerTest::anova`'s own figures — which
+carry its optimiser's and `numDeriv`'s error — kept as `r_lmertest_*`
+(the script stops beyond `1e-4`). The balanced case also records the
+classic `aov` F. `TestReferenceOracle_AnovaRMMixed` holds the operator
+to the golden at `1e-8` and to lmerTest at `1e-4`.
+
 `scripts/reference/gen_post_tests.R` (sourced after it, reusing its
 helpers) writes `test_post_nulls.json`: one case per post-test family
 whose rows hold nulls (`null` where R reads `NA`), the R figures at R's
@@ -827,6 +839,8 @@ is the whole list in one place.
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
 | `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) and `REG_MMM_HILL` (`gen_mmm_hill.R`, `make reference`; `gen_mmm_hill_adstock.R`, `make reference-mmm-hill-adstock`; on Linux it installs from the Posit noble binary repo); links gfortran, so install it with the workaround below |
 | `nloptr` | 2.2.1 | `optimize.Minimize`, `NLOPT_LD_SLSQP` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) |
+| `lme4` | 2.0-6 | `TEST_ANOVA_RM` `incomplete: "mixed"` (`gen_test_anova_rm_mixed.R`: `lmer(y ~ cond + (1 \| subj), REML = TRUE)`, the cross-check fit) |
+| `lmerTest` | 3.2-1 | `TEST_ANOVA_RM` `incomplete: "mixed"` (`gen_test_anova_rm_mixed.R`: `anova(m, ddf = "Satterthwaite")`, kept as `r_lmertest_*` beside the closed-form REML / Satterthwaite golden; pure R, installs from CRAN source), with its import `numDeriv` 2016.8-1.1 |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance
