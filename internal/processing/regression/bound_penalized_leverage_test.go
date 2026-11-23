@@ -315,3 +315,53 @@ func TestBoundPenalizedLeverage_UnpenalizedCarriesNothing(t *testing.T) {
 		t.Error("a penalized fit without its carriage resolves a design")
 	}
 }
+
+// TestBoundPenalizedLeverage_ProbabilityBasis: under kind probability
+// the carried inverse is on the inference basis w* = c·w (c = n_eff/Σw,
+// as REG_GLM's prior weights), so the penalized refit's leverage is
+// w·c times the bound design's for every row (the GLM refit's glmScale
+// convention) — and the inverse is (X̃ᵀWX̃ + Σw·λ₂·P̃)⁻¹/c, not the raw
+// weights' inverse. On every weighted oracle case.
+func TestBoundPenalizedLeverage_ProbabilityBasis(t *testing.T) {
+	t.Parallel()
+
+	n := 0
+	for _, c := range loadOLSPenaltyReference(t) {
+		if !c.Weighted {
+			continue
+		}
+		n++
+		t.Run(c.Name, func(t *testing.T) {
+			recs := c.records()
+			spec := c.spec()
+			spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
+			res, err := newOLS(t, spec).FitBuffered(recs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d := boundLeverage(t, spec, res)
+			fit, err := FitForAttribute(spec, recs, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scale := res.NEff / res.SumWeights
+			if !(scale > 0) || scale == 1 {
+				t.Fatalf("vacuous: basis scale %v", scale)
+			}
+			p := len(c.Predictors)
+			for i, row := range c.Rows {
+				w, ok := fit.RowWeight(recs[i])
+				if !ok {
+					t.Fatalf("row %d excluded", i)
+				}
+				hb, _ := d.Leverage(rowOf(c.Predictors, row[:p]))
+				if hr := LeverageForRow(fit, row[:p], w); !oracleClose(hr, w*scale*hb, 1e-12) {
+					t.Errorf("row %d: refit h = %.17g, w·c·bound h = %.17g", i, hr, w*scale*hb)
+				}
+			}
+		})
+	}
+	if n == 0 {
+		t.Fatal("oracle has no weighted case")
+	}
+}

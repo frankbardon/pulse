@@ -30,7 +30,7 @@ x̃ = [1, x], μ the fitted mean, w = (dμ/dη)²/V(μ) (1 least-squares), rP th
 
 Influence and the two studentized kinds still refuse a penalty (`PROCESSING_CONFIG`): they read σ² = RSS/(n − p − 1), which a penalized fit does not define.
 
-**A penalized bound fit.** A penalized least-squares or GLM fit (no `resample` / `selection`) carries `penalized_inverse` — (XᵀWX + λ₂·P)⁻¹ over the intercept and its active predictors — so `params.fit` reads the same hat as the penalized refit, `vcov` not needed (lasso qualifies). Over it influence and the studentized kinds stay `requires: unpenalized`; a model file of an earlier build lacks it: `requires: penalized_inverse`, re-save.
+**A penalized bound fit.** A penalized least-squares or GLM fit (no `resample` / `selection`) carries its regularized inverse (XᵀWX + λ₂·P)⁻¹ over the intercept and its active predictors (in memory and in a saved model file, never in the response), so `params.fit` reads the same hat as the penalized refit, `vcov` not needed (lasso qualifies). Over it influence and the studentized kinds stay `requires: unpenalized`; a model file of an earlier build lacks it: `requires: penalized_inverse`, re-save.
 <!-- /feature -->
 
 <!-- feature: ATTR_REG_LEVERAGE, REG_GLM -->

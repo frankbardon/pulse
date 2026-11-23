@@ -1021,20 +1021,25 @@ type RegressionResult struct {
 	Dispersion float64 `json:"dispersion,omitempty"`
 
 	// PenalizedInverse is a penalized REG_OLS / REG_GLM fit's
-	// regularized inverse (XᵀWX + λ₂·P)⁻¹ over its active design —
+	// regularized inverse (X̃ᵀW*X̃ + λ₂·P)⁻¹ over its active design —
 	// what a bound fit's leverage reads (ATTR_REG_LEVERAGE with
-	// params.fit), present on every penalized REG_OLS / REG_GLM fit and
-	// absent otherwise. Square symmetric, full encoding, keys
-	// "(intercept)" then the active predictors in spec order: every
-	// predictor under l2, the nonzero ones under l1 / elasticnet (an
-	// absent predictor reads 0). W is the prior weights (REG_OLS) or the
-	// final IRLS working weights (REG_GLM), P the penalty mask (0 on the
-	// intercept and every Unpenalized predictor) and λ₂ the objective's
-	// ridge term — N*·Alpha under l2, N*·Alpha·(1 − L1Ratio) under
-	// elasticnet, 0 under l1 (the unpenalized hat of the active set).
-	// Not a covariance: no φ scales it. Null entries when the active
-	// design is singular.
-	PenalizedInverse *MatrixValues `json:"penalized_inverse,omitempty"`
+	// params.fit; regression-depth-2 E1-S4). NEVER on the wire (a
+	// response is byte-identical to one without it): it rides the
+	// in-memory result a Compose fit binds and the model file a `save`
+	// writes (feature penalized_inverse). Set on a penalized fit
+	// without Resample or Selection, nil otherwise. Square symmetric,
+	// full encoding, keys "(intercept)" then the active predictors in
+	// spec order: every predictor under l2, the nonzero ones under l1 /
+	// elasticnet (an absent predictor reads 0). W* is the prior weights
+	// on the inference basis N* — w* = w·N*/Σw, the weights as given
+	// unweighted or under kind frequency, scale-free under kind
+	// probability — times, on REG_GLM, the final IRLS working weights;
+	// P the penalty mask (0 on the intercept and every Unpenalized
+	// predictor) and λ₂ the objective's ridge term (N*·Alpha under l2,
+	// N*·Alpha·(1 − L1Ratio) under elasticnet, 0 under l1: the
+	// unpenalized hat of the active set). Not a covariance: no φ scales
+	// it. NaN entries when the active design is singular.
+	PenalizedInverse *MatrixValues `json:"-"`
 
 	// Covariance echoes the robust estimator the standard errors,
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),

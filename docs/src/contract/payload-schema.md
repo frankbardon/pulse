@@ -1034,16 +1034,6 @@ so `vcov / dispersion` is (XᵀWX)⁻¹ (`null` when the residual df is ≤ 0;
 absent on binomial / poisson, whose φ is 1, and on every robust,
 resampled, penalized or Bayesian fit). The influence figures over a
 bound fit read it.
-Every penalized `REG_OLS` / `REG_GLM` fit without `resample` or
-`selection` carries the additive `omitempty` square matrix
-`penalized_inverse` (`MatrixValues`, full encoding): the regularized
-inverse (XᵀWX + λ₂·P)⁻¹ over `(intercept)` and the active predictors
-(every one under `l2`; the nonzero ones under `l1` / `elasticnet`, λ₂ =
-0 under `l1`), W the prior weights (OLS) or the final IRLS working
-weights (GLM), P the penalty mask — not a covariance, no φ scales it;
-`null` cells when the active design is singular. A bound fit's leverage
-reads it (`ATTR_REG_LEVERAGE` with `params.fit`). An unpenalized fit's
-wire form is unchanged.
 Every plain `REG_OLS` / `REG_GLM` fit carries the additive `omitempty`
 numbers `two_log_lik` (twice the maximised log-likelihood, R's
 `logLik()`) and `aic` (−`two_log_lik` + 2·k, k `logLik`'s df: σ counted

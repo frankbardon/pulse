@@ -183,7 +183,8 @@ func fitGLMForAttribute(spec *types.RegressionSpec, records []Record) (*Attribut
 // is (X̃_AᵀWX̃_A + Σw·λ₂·P̃_A)⁻¹ over [intercept, A] (the block inverse;
 // the intercept is unpenalized), so x̃ᵀMx̃ = 1/Σw + (x − μ)_Aᵀ C⁻¹
 // (x − μ)_A — the refit's hat (hatDesign.at) for one copy of a row, the
-// form a bound fit's design kernel (BoundInfluence) reads. A singular
+// form a bound fit's design kernel (BoundInfluence) reads; divided by
+// the inference-basis scale c under kind probability (below). A singular
 // active design (the refit's PROCESSING_REGRESSION_RANK_DEFICIENT) is
 // carried with every entry NaN — null on the wire, a null leverage —
 // never a fit failure. FMA-free products.
@@ -220,6 +221,19 @@ func penalizedInverseOLS(spec *types.RegressionSpec, acc *olsAccumulator, coeffs
 		}
 	}
 	m[0][0] = m00
+	// On the inference basis, as REG_GLM's prior weights w* = c·w
+	// (buildWeightedDesign): (X̃ᵀ(cW)X̃ + c·Σw·λ₂·P̃)⁻¹ = M/c, so the
+	// carriage is scale-free under kind probability and the hat a GLM
+	// refit reads (w·c·x̃ᵀMx̃, glmScale) is one convention for both
+	// engines. c is exactly 1 unweighted and under kind frequency (no
+	// division: the bits are the hat design's).
+	if c := acc.basis.Scale(acc.sumW, acc.sumWSq); c != 1 {
+		for i := range m {
+			for j := range m[i] {
+				m[i][j] /= c
+			}
+		}
+	}
 	return penalizedInverseMatrix(spec.Predictors, d.Cols, m)
 }
 

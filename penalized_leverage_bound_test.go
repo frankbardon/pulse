@@ -17,7 +17,8 @@ import (
 
 // penalized_leverage_bound_test.go pins regression-depth-2 E1-S4
 // (#677): a penalized REG_OLS / REG_GLM fit carries its regularized
-// inverse (RegressionResult.PenalizedInverse) and ATTR_REG_LEVERAGE over
+// inverse in memory and in a saved model file — never on the wire
+// (RegressionResult.PenalizedInverse) — and ATTR_REG_LEVERAGE over
 // it (params.fit) is the penalized refit's hat, predict judging it as
 // the runtime runs it; a model file without the carriage is refused
 // alike; the GLM refit takes a penalty; and an instance hiding REG_GLM
@@ -123,6 +124,17 @@ func TestPenalizedBoundLeverage_EqualsRefit(t *testing.T) {
 				}
 				if f := out.Fits["m"]; f == nil || f.RegressionResult == nil || f.PenalizedInverse == nil || f.Vcov != nil {
 					t.Fatalf("fit %+v: want penalized_inverse and no vcov", f)
+				}
+				// The carriage is in memory only: the wire (the bound fit's
+				// entry and a plain penalized fit) never shows it.
+				plain, err := p.Process(ctx, &Request{Cohort: &types.Cohort{Filename: "pen.pulse"}, Regressions: []*types.RegressionSpec{reg}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, v := range []any{out, plain} {
+					if b, _ := json.Marshal(v); strings.Contains(string(b), "penalized_inverse") {
+						t.Errorf("penalized_inverse reached the wire: %s", b)
+					}
 				}
 				env, err := p.PredictCompose(ctx, composed())
 				if err != nil {
