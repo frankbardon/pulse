@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -709,8 +710,6 @@ func (r *repo) paramEnumSection(op operator) (Section, bool) {
 // oracleRefDir holds the R oracle goldens (`make reference`).
 const oracleRefDir = "internal/processing/testdata/reference/"
 
-var stringLitRe = regexp.MustCompile(`"([A-Za-z0-9_./-]+)"`)
-
 // oracleSection lists the R oracle fixtures the operator's tests read
 // (by string literal) or that name the operator, and the scripts under
 // scripts/reference/ that write them.
@@ -719,7 +718,15 @@ var stringLitRe = regexp.MustCompile(`"([A-Za-z0-9_./-]+)"`)
 // no symbols); any other only in the declarations naming the operator, so
 // a shared oracle test listing many fixtures contributes just the ones
 // the operator's own cases open.
-func (r *repo) oracleSection(testDecls map[string][]string, namedFixtures []string) (Section, []string) {
+//
+// Inside a shared declaration a fixture is attributed only from the
+// innermost composite literal or keyed entry around the operator's
+// mention that holds a fixture name (a table row {Name: "symmetry",
+// Kind: …Symmetry}, a map entry keyed by the operator), so
+// its siblings' fixtures stay theirs. primitiveTests are the tests of
+// the shared primitives the operator calls (statdist's binomial.json
+// reader), attributed as such.
+func (r *repo) oracleSection(testDecls map[string][]string, testHits map[string][]hit, primitiveTests map[string][]string, namedFixtures []string) (Section, []string) {
 	stems := map[string]string{} // fixture stem -> path
 	for _, p := range r.files {
 		if strings.HasPrefix(p, oracleRefDir) && path.Dir(p)+"/" == oracleRefDir && path.Ext(p) == ".json" {
@@ -732,23 +739,71 @@ func (r *repo) oracleSection(testDecls map[string][]string, namedFixtures []stri
 			readers[p] = nil
 		}
 	}
+	// a fixture is opened by a Go string literal that IS its stem or a
+	// path to it — a JSON body mentioning "margins" is no read
+	stemsIn := func(n ast.Node) []string {
+		var out []string
+		if n == nil || reflect.ValueOf(n).IsNil() {
+			return nil
+		}
+		ast.Inspect(n, func(x ast.Node) bool {
+			bl, ok := x.(*ast.BasicLit)
+			if !ok || bl.Kind != token.STRING {
+				return true
+			}
+			v, err := strconv.Unquote(bl.Value)
+			if err != nil {
+				return true
+			}
+			base := path.Base(v)
+			stem := strings.TrimSuffix(base, ".json")
+			if base != v && stem == base {
+				return true // a path must end in the fixture's .json
+			}
+			if f, ok := stems[stem]; ok && !contains(out, f) {
+				out = append(out, f)
+			}
+			return true
+		})
+		return out
+	}
+	addReader := func(f, t string) {
+		if !contains(readers[f], t) {
+			readers[f] = append(readers[f], t)
+		}
+	}
 	var testPaths []string
 	for p := range testDecls {
 		testPaths = append(testPaths, p)
 	}
 	sort.Strings(testPaths)
 	for _, t := range testPaths {
-		src := r.read(t) // a file named for the operator: whole
-		if syms := testDecls[t]; len(syms) > 0 {
-			src = nil
-			for _, sym := range syms {
-				src = append(src, r.declSource(t, sym)...)
+		syms := testDecls[t]
+		if len(syms) == 0 { // a file named for the operator: whole
+			var file ast.Node
+			if g := r.parse(t); g != nil {
+				file = g.file
+			}
+			for _, f := range stemsIn(file) {
+				addReader(f, t)
+			}
+			continue
+		}
+		for _, sym := range syms {
+			for _, f := range r.scopedFixtures(t, sym, testHits[t], stemsIn) {
+				addReader(f, t)
 			}
 		}
-		for _, m := range stringLitRe.FindAllSubmatch(src, -1) {
-			stem := strings.TrimSuffix(path.Base(string(m[1])), ".json")
-			if f, ok := stems[stem]; ok && !contains(readers[f], t) {
-				readers[f] = append(readers[f], t)
+	}
+	var primPaths []string
+	for p := range primitiveTests {
+		primPaths = append(primPaths, p)
+	}
+	sort.Strings(primPaths)
+	for _, t := range primPaths {
+		for _, sym := range primitiveTests[t] {
+			for _, f := range stemsIn(r.declNode(t, sym)) {
+				addReader(f, t+" (a shared primitive's test)")
 			}
 		}
 	}
@@ -774,9 +829,8 @@ func (r *repo) oracleSection(testDecls map[string][]string, namedFixtures []stri
 		}
 		sec.Sites = append(sec.Sites, Site{Path: f, Note: note})
 		stem := strings.TrimSuffix(path.Base(f), ".json")
-		stemRe := regexp.MustCompile(`(^|[^A-Za-z0-9_])` + regexp.QuoteMeta(stem) + `([^A-Za-z0-9_]|$)`)
 		for _, p := range r.files {
-			if strings.HasPrefix(p, "scripts/reference/") && stemRe.Match(r.read(p)) && !contains(gens[p], stem) {
+			if strings.HasPrefix(p, "scripts/reference/") && writesFixture(r.read(p), stem) && !contains(gens[p], stem) {
 				gens[p] = append(gens[p], stem)
 			}
 		}
@@ -789,15 +843,83 @@ func (r *repo) oracleSection(testDecls map[string][]string, namedFixtures []stri
 	for _, p := range gp {
 		sec.Sites = append(sec.Sites, Site{Path: p, Note: "writes " + strings.Join(gens[p], ", ")})
 	}
+	// drivers: scripts sourcing a writer (gen_reference.R runs them all)
+	drivers := map[string][]string{}
+	for _, p := range r.files {
+		if !strings.HasPrefix(p, "scripts/reference/") || gens[p] != nil {
+			continue
+		}
+		code := stripRComments(r.read(p))
+		for _, w := range gp {
+			if sourceRe(path.Base(w)).Match(code) {
+				drivers[p] = append(drivers[p], path.Base(w))
+			}
+		}
+	}
+	var dp []string
+	for p := range drivers {
+		dp = append(dp, p)
+	}
+	sort.Strings(dp)
+	for _, p := range dp {
+		sec.Sites = append(sec.Sites, Site{Path: p, Note: "driver: sources " + strings.Join(drivers[p], ", ")})
+	}
 	return sec, fixtures
 }
 
-// declSource returns the source of the top-level declaration named sym
-// (as symbolAt names it) in p, doc comment excluded.
-func (r *repo) declSource(p, sym string) []byte {
+// scopedFixtures attributes the fixtures of a shared test declaration:
+// from the innermost composite literal or keyed entry around a code
+// mention of the operator that names a fixture, walking outward; the
+// whole declaration when no mention sits in such a literal or every
+// mention is a comment (a doc line naming the operator on the test that
+// opens a fixture).
+func (r *repo) scopedFixtures(p, sym string, hs []hit, stemsIn func(ast.Node) []string) []string {
 	g := r.parse(p)
-	src := r.read(p)
-	if g == nil || src == nil {
+	decl := r.declNode(p, sym)
+	if g == nil || decl == nil {
+		return nil
+	}
+	var out []string
+	scoped, code := false, false
+	for _, h := range hs {
+		pos := token.Pos(g.base + h.Off)
+		if pos < decl.Pos() || pos >= decl.End() || g.inComment(h.Off) {
+			continue
+		}
+		code = true
+		var chain []ast.Node // composite literals and keyed entries, outermost first
+		ast.Inspect(decl, func(n ast.Node) bool {
+			if n == nil || pos < n.Pos() || pos >= n.End() {
+				return n == nil
+			}
+			switch n.(type) {
+			case *ast.CompositeLit, *ast.KeyValueExpr: // a map row keyed by the operator
+				chain = append(chain, n)
+			}
+			return true
+		})
+		for i := len(chain) - 1; i >= 0; i-- {
+			if fs := stemsIn(chain[i]); len(fs) > 0 {
+				scoped = true
+				for _, f := range fs {
+					if !contains(out, f) {
+						out = append(out, f)
+					}
+				}
+				break
+			}
+		}
+	}
+	if !code || !scoped {
+		return stemsIn(decl)
+	}
+	return out
+}
+
+// declNode is the declaration named sym in p (nil when absent).
+func (r *repo) declNode(p, sym string) ast.Decl {
+	g := r.parse(p)
+	if g == nil {
 		return nil
 	}
 	for _, d := range g.file.Decls {
@@ -809,10 +931,36 @@ func (r *repo) declSource(p, sym string) []byte {
 			name = genName(d, d.Pos())
 		}
 		if name == sym {
-			return src[int(d.Pos())-g.base : int(d.End())-g.base]
+			return d
 		}
 	}
 	return nil
+}
+
+// writesFixture reports a generator writing fixture stem: outside
+// comments it hands "stem" to a write* call (write_golden("symmetry", …))
+// or spells "stem.json" — a family name such as "binomial" passed
+// anywhere else is no write.
+func writesFixture(src []byte, stem string) bool {
+	code := stripRComments(src)
+	q := regexp.QuoteMeta(stem)
+	return regexp.MustCompile(`write\w*\(\s*["']` + q + `["']|["'/]` + q + `\.json`).Match(code)
+}
+
+// stripRComments drops R `#` comments (a `#` inside a string is rare in
+// the generators and only widens a match).
+func stripRComments(src []byte) []byte {
+	lines := strings.Split(string(src), "\n")
+	for i, l := range lines {
+		if j := strings.IndexByte(l, '#'); j >= 0 {
+			lines[i] = l[:j]
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+func sourceRe(script string) *regexp.Regexp {
+	return regexp.MustCompile(`source\([^)]*` + regexp.QuoteMeta(script))
 }
 
 // benchGates are the benchmarks of the packages the operator's non-test

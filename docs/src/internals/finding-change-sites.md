@@ -61,8 +61,14 @@ from the ones that do:
   (`*Bytes`, `estimate*`, `*memory*`) declared in its files with their
   callers (`AccumulatorBytes` → `matrixMemory`).
 - **R oracle fixtures** — the `internal/processing/testdata/reference/`
-  JSON its tests read by name, and the `scripts/reference/` scripts
-  that write them (`make reference`).
+  JSON its tests open (a string literal that is the fixture's name or
+  path), and the `scripts/reference/` scripts that write them
+  (`write_golden("<stem>", …)` or `<stem>.json`; a driver such as
+  `gen_reference.R` that `source()`s a writer is listed as one). In a
+  shared test only the table row or map entry around the operator's
+  mention counts, so a sibling's fixture stays the sibling's; the tests
+  of its shared primitives count too (`binomial.json` through
+  `internal/statdist`).
 - **Param index** — every param its capability declares (not only the
   enums, and through helpers such as `comparisonCapability`), the
   struct fields that decode it in the files naming the operator, and
@@ -132,7 +138,15 @@ Compose-level slot also prints **Compose sites**, each found by shape:
 - **Key carriers** — skills and examples holding the slot's json key.
 
 `op` also warns about **category-norm sites missing**: files at least
-75% of the category's operators appear in but this one does not.
+75% of the category's operators appear in, outside Go comments, but
+this one does not (a doc comment walking per-operator special cases is
+no norm).
+
+`new-op` also prints **Operator subsets**: non-test composite literals
+whose elements or map keys spell at least two and under 75% of the
+category (`vectors.VectorAggregationTypes`). A new operator of the
+family a list selects joins it; the registry enumerators never reach
+it.
 `slot` warns about **per-slot walkers** (functions that reference many
 of the struct's fields) that skip this slot.
 
@@ -194,6 +208,10 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   function — shows up only through the **Enumerators** section (callers
   of the registry function) or the category gates. Read the
   update-demand slice for the contract.
+- Whole-repo runners and floors that never name the operator or slot
+  (the every-example runner, a `ReadSchema` call-site floor) are not
+  listed; grep for them when your change reaches examples or a read
+  path.
 - Predicate callers are matched by function name; a name with more than
   80 call sites is reported in the footer instead of expanded.
 - Contributor recipes describe a category in general and rarely name

@@ -162,6 +162,9 @@ func newOpReport(r *repo, catName string, opts options) (*Report, error) {
 	if sec, ok := r.specSection(def); ok {
 		rep.Sections = append(rep.Sections, sec)
 	}
+	if sec, ok := r.subsetSection(c); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
 	if r.categoryConsumesMetrics(c) {
 		if sec, gates, ok := r.metricConsumerSection(); ok {
 			sec.Title += " (only if the new operator consumes a metric)"

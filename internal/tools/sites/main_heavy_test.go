@@ -690,3 +690,63 @@ func TestOpReport_ReachedThroughDeps(t *testing.T) {
 		t.Error("new-op attribute lacks the metric consumer sites")
 	}
 }
+
+// TestPrecision_RealTree pins TODO #453 (3)-(5) on the real tree: no
+// false category-norm warning for MAT_RELIABILITY, the hand-kept
+// vector-aggregator subset in new-op, and oracle fixtures / generators
+// attributed to the operators they serve.
+func TestPrecision_RealTree(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	rep, err := opReport(r, "MAT_RELIABILITY", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "category-norm site missing") {
+			t.Errorf("MAT_RELIABILITY: false warning %q", w)
+		}
+	}
+	rep, err = newOpReport(r, "aggregator", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := symbolNote(siteIn(rep, "subsets", "internal/vectors/aggregations.go"), "func VectorAggregationTypes"); !ok {
+		t.Error("new-op aggregator lacks the VectorAggregationTypes subset")
+	}
+	oracle := func(op string) map[string]string {
+		rep, err := opReport(r, op, options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]string{}
+		for _, s := range rep.Sections {
+			if s.Class == "oracle" {
+				for _, site := range s.Sites {
+					out[site.Path] = site.Note
+				}
+			}
+		}
+		return out
+	}
+	ref := "internal/processing/testdata/reference/"
+	sym := oracle("OVERLAY_SYMMETRY")
+	if !strings.Contains(sym[ref+"binomial.json"], "shared primitive") {
+		t.Errorf("OVERLAY_SYMMETRY: binomial.json not attributed through statdist (%q)", sym[ref+"binomial.json"])
+	}
+	for _, p := range []string{ref + "markov.json", ref + "correspondence.json", ref + "margins.json", "scripts/reference/gen_glm_irls.R"} {
+		if _, ok := sym[p]; ok {
+			t.Errorf("OVERLAY_SYMMETRY: %s attributed (another operator's fixture or a family name)", p)
+		}
+	}
+	fa := oracle("MAT_FACTOR")
+	for _, p := range []string{ref + "mv_rotation.json", ref + "mv_factor.json", "scripts/reference/gen_rotation.R"} {
+		if _, ok := fa[p]; !ok {
+			t.Errorf("MAT_FACTOR: %s not attributed", p)
+		}
+	}
+	if _, ok := fa[ref+"normal_cdf.json"]; ok {
+		t.Error("MAT_FACTOR: a shared oracle file read whole (normal_cdf.json attributed)")
+	}
+}

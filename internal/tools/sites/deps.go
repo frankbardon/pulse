@@ -434,3 +434,22 @@ func (r *repo) categoryConsumesMetrics(c *category) bool {
 	}
 	return false
 }
+
+// gateDecls maps gates back to the test files declaring their tests
+// (path -> "func TestX" symbols).
+func (r *repo) gateDecls(gates []Gate) map[string][]string {
+	out := map[string][]string{}
+	for _, gt := range gates {
+		for _, p := range r.files {
+			if path.Dir(p) != gt.Package || !strings.HasSuffix(p, "_test.go") {
+				continue
+			}
+			for _, t := range gt.Tests {
+				if r.funcDecl(p, "func "+t) != nil {
+					out[p] = append(out[p], "func "+t)
+				}
+			}
+		}
+	}
+	return out
+}
