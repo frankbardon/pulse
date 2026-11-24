@@ -1030,7 +1030,8 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26",
             pscl = "1.5.9", bst = "0.3-24", WeightSVM = "1.7-16", doParallel = "1.0.17",
             mpath = "0.4-2.28", bdsmatrix = "1.3-7", collapse = "2.1.9",
-            miscTools = "0.6-30", maxLik = "1.6-10", plm = "2.6-7")
+            miscTools = "0.6-30", maxLik = "1.6-10", plm = "2.6-7",
+            numDeriv = "2016.8-1.1", lme4 = "2.0-6", lmerTest = "3.2-1")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'
