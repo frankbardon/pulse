@@ -15625,7 +15625,7 @@
       },
       {
         "name": "regression-comparison-batteries",
-        "description": "Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows, multiplicity and the refusals. Topical design; regression-fit comparisons live in regression-comparison."
+        "description": "Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows and the refusals. Topical design; regression-fit comparisons live in regression-comparison."
       },
       {
         "name": "regression-inference",
@@ -22153,4 +22153,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1aba43e862b1e7a936b111b4afac7a634dc9dc6ca468517e3c3b3881a48a9745
+// golden-hash: 0a2352ea91d5b010fdbcbe9b68e16bdd13a92d0f4539a291860f81da4d3c4c56
