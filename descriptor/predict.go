@@ -1163,6 +1163,40 @@ type ComparisonSummary struct {
 	// Terms are the tested terms (the full fit's terms the restricted
 	// fit lacks, in its order).
 	Terms []string `json:"terms"`
+	// Unresolved is set when a side binds from the sweep (`from_sweep`)
+	// and the sweep slots that could win disagree: some refuse the
+	// comparison, or the passing ones resolve another test or
+	// distribution. Test, Distribution and Terms are then the first
+	// passing slot's; the run judges the actual winner (a refusal there
+	// fails the comparison alone). Absent when every slot resolves alike.
+	Unresolved *ComparisonUnresolved `json:"unresolved,omitempty"`
+}
+
+// ComparisonUnresolved is what predict cannot decide about a
+// comparison reading a sweep-bound fit: the winning slot is known only
+// once the sweep has run.
+type ComparisonUnresolved struct {
+	// Slots is the number of sweep slots judged (every slot that could
+	// win).
+	Slots int `json:"slots"`
+	// Refused lists the sweep slots whose winning fit the comparison
+	// would refuse, in slot order (absent when none would).
+	Refused []ComparisonSlotRefusal `json:"refused,omitempty"`
+	// Varies names the resolved parts the passing slots disagree on —
+	// "test", "distribution" (absent when they agree).
+	Varies []string `json:"varies,omitempty"`
+}
+
+// ComparisonSlotRefusal is one sweep slot a comparison would refuse if
+// it won.
+type ComparisonSlotRefusal struct {
+	// Slot is the slot's index among the sweep slots (a RankEntry.Slot);
+	// Label its label.
+	Slot  int    `json:"slot"`
+	Label string `json:"label,omitempty"`
+	// Reason is the PULSE_COMPARISON_INVALID details.reason the
+	// comparison would refuse with.
+	Reason string `json:"reason"`
 }
 
 // VectorFitSummary is a vector fit's FitSummary: its battery and, when

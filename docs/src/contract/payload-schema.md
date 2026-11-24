@@ -1909,9 +1909,17 @@ and each fit's residual df is (K − 1)·N* − rank (`anova.multinom`).
 Two declared or multinomial fits whose non-tested terms (ordinal
 thresholds, multinomial categories) differ once fitted fail the
 comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` `reason:
-terms_differ`. `pulse_predict` with `composed` lists the
+terms_differ`. A side may bind from the sweep (`from_sweep`, U69 #643):
+the entry is judged against the fit request of every sweep slot that
+could win — refused when every slot refuses, else valid — and the run
+judges the winning slot again; a refusal there keeps `{name,
+restricted, full, test, error}` with `PULSE_COMPARISON_INVALID`
+(`details.sweep_slot` / `sweep_label` name the winner) and warns
+`PULSE_SLOT_FAILED`. `pulse_predict` with `composed` lists the
 entries as `compare [{name, restricted, full, test, distribution,
-terms}]` on the predict result (not payload-reachable). The figures a
+terms, unresolved}]` on the predict result (not payload-reachable);
+`unresolved {slots, refused [{slot, label, reason}], varies}` is present
+only on a sweep-bound entry whose slots disagree. The figures a
 comparison reads off each fit beyond its wire result (its residual
 deviance, the Pearson dispersion, the covariance its standard errors
 read) travel through an internal capture on the fit's run, never a

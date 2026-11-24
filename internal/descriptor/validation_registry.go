@@ -93,6 +93,7 @@ const (
 	regDir       = "internal/processing/regression/"
 	// svcCompareOracle is the nested-model comparison's R oracle test.
 	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
+	svcCompareSweep  = "internal/service/compose_compare_sweep_oracle_test.go"
 	strdTest         = "strd_reference_test.go"
 	mmmSynthSrc      = "synthetic data with known true parameters (internal/mmmfixture)"
 )
@@ -270,6 +271,7 @@ var validationRegistry = map[string]ValidationRecord{
 		{Against: rPin + " + `car` 3.1-5 `vif(lm(weights = w))`: frequency weights against the `rep()`-expanded fit, probability weights scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
 		valR("+ `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `lm` fits — `anova(m0, m1)` F and `test = \"Chisq\"`, `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"))`, a restricted fit through the origin; statistic, df, p-value, each fit's residual df and RSS, σ̂²", tol10, svcCompareOracle, "compare_test.go"),
 		{Against: rPin + " `anova` of the `rep()`-expanded `lm` fits (frequency weights; df = Σw − rank)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
+		valR("+ `lmtest` 0.9-40: the Compose nested-model comparison of two sweep-bound `lm` fits (U69 #643) — R ranks every candidate row window by the full model's residual standard error, picks the same winner and runs `anova(m0, m1)` on its rows; statistic, df, p-value, each fit's residual df and RSS", tol10, svcCompareSweep, "compare_sweep_test.go"),
 		valR("+ `car` 3.1-5: the Compose Wald comparison over a resampled `lm` fit (U69 #642) — manual leave-one-out jackknife and a bootstrap over R's own index sets of the full model, `linearHypothesis(m1, vcov. = V, test = \"Chisq\")` on the replicate covariance V; the covariance, statistic and p-value", tol9, regDir+"compare_resample_oracle_test.go", "compare_resample_test.go"),
 		valWeighted,
 	},
@@ -301,6 +303,7 @@ var validationRegistry = map[string]ValidationRecord{
 			{Against: rPin + " + `car` 3.1-5 `vif(glm(weights = w))`: frequency weights against the `rep()`-expanded fit (logit, poisson basis predictors), probability weights (gamma log) scale-free", Tol: tol10, Tests: []string{regDir + "vif_oracle_test.go"}, Weighted: true},
 			valR("+ MASS 7.3-66 + `sandwich` 3.1-3 + `lmtest` 0.9-40: the Compose nested-model comparison (`compare`) of two `glm` fits refitted to their fixed point — `anova(m0, m1, test = \"LRT\" | \"F\")` on logit, probit, poisson, gamma inverse / log and fixed-θ negative binomial fits (the full fit's Pearson dispersion), MASS `anova.negbin` (θ estimated, 2 loglik change; cross-checked against `lrtest`), `waldtest(m0, m1, vcov = vcov | vcovHC(type = \"HC3\"), test = \"Chisq\" | \"F\")`", tol10, svcCompareOracle, "compare_test.go"),
 			{Against: rPin + " `anova` of the `rep()`-expanded `glm` fits (poisson LRT, gamma log F; frequency weights)", Tol: tol10, Tests: []string{svcCompareOracle}, Weighted: true},
+			valR("+ `lmtest` 0.9-40: the Compose nested-model comparison of two sweep-bound `glm` fits (U69 #643) — R ranks every candidate row window by a full-model coefficient, picks the same winner and runs `anova(m0, m1, test = \"LRT\")` (poisson) or `waldtest(m0, m1, test = \"Chisq\")` (logit) on its rows", tol10, svcCompareSweep),
 			valR("+ `car` 3.1-5: the Compose Wald comparison over a resampled `glm` fit (U69 #642) — manual delete-a-cluster and leave-one-out jackknife and a bootstrap over R's own index sets of the full logit / poisson / gamma log model, `linearHypothesis(m1, vcov. = V, test = \"Chisq\")` on the replicate covariance V (1e-6 on the gamma log link, whose IRLS converges linearly)", tol9, regDir+"compare_resample_oracle_test.go", "compare_resample_test.go"),
 			valWeighted,
 		},

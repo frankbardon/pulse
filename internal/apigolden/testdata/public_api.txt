@@ -1511,6 +1511,10 @@ pulse/descriptor: type CommandAnnotations struct
 pulse/descriptor: type CommandAnnotations field Deterministic bool "json:\"deterministic\""
 pulse/descriptor: type CommandAnnotations field Expensive bool "json:\"expensive\""
 pulse/descriptor: type CommandAnnotations field Streamable bool "json:\"streamable\""
+pulse/descriptor: type ComparisonSlotRefusal struct
+pulse/descriptor: type ComparisonSlotRefusal field Label string "json:\"label,omitempty\""
+pulse/descriptor: type ComparisonSlotRefusal field Reason string "json:\"reason\""
+pulse/descriptor: type ComparisonSlotRefusal field Slot int "json:\"slot\""
 pulse/descriptor: type ComparisonSummary struct
 pulse/descriptor: type ComparisonSummary field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
 pulse/descriptor: type ComparisonSummary field Full string "json:\"full\""
@@ -1518,6 +1522,11 @@ pulse/descriptor: type ComparisonSummary field Name string "json:\"name\""
 pulse/descriptor: type ComparisonSummary field Restricted string "json:\"restricted\""
 pulse/descriptor: type ComparisonSummary field Terms []string "json:\"terms\""
 pulse/descriptor: type ComparisonSummary field Test pulse/types.ComparisonTest "json:\"test\""
+pulse/descriptor: type ComparisonSummary field Unresolved *pulse/descriptor.ComparisonUnresolved "json:\"unresolved,omitempty\""
+pulse/descriptor: type ComparisonUnresolved struct
+pulse/descriptor: type ComparisonUnresolved field Refused []pulse/descriptor.ComparisonSlotRefusal "json:\"refused,omitempty\""
+pulse/descriptor: type ComparisonUnresolved field Slots int "json:\"slots\""
+pulse/descriptor: type ComparisonUnresolved field Varies []string "json:\"varies,omitempty\""
 pulse/descriptor: type ComponentKey struct
 pulse/descriptor: type ComponentKey field Description string "json:\"description\""
 pulse/descriptor: type ComponentKey field Name string "json:\"name\""
@@ -7196,4 +7205,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 81eb80452a2137d2b012d0a4d4719332a13fc12f980fd4537212ed9310693fee
+// golden-hash: 252d23414b7c9d708e2a250de777d64820e1f5068a152ec1ee3fdd148b01b3d3

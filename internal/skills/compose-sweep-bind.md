@@ -73,6 +73,12 @@ When no slot is ranked (every value null), the fit binds failed: `fits.best` car
 
 `pulse_predict` with `composed` (`PredictCompose`) lists the entry as `{name, type, target, predictors, cohort, from_sweep: {regression}}`. Which slot wins is unknown until the slots run.
 
+<!-- feature: capability:compose_compare -->
+## Comparing
+
+A `compare` side may be a bound fit. Predict judges it against every slot that could win: refused if all refuse, else valid with `unresolved {slots, refused [{slot, label, reason}], varies}` when some refuse (e.g. `request_mismatch`) or resolve another test. The run judges the winner; a refusal fails the comparison alone (`PULSE_COMPARISON_INVALID`, `sweep_slot`). Bind both sides from one sweep to compare in every slot.
+<!-- /feature -->
+
 ## See
 
 `compose-fits` (fits, names, failures) · `compose-sweeps` (the sweep and its `rank`)

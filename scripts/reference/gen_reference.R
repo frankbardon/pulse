@@ -662,3 +662,11 @@ source(file.path(script_dir, "gen_glm_nb_refit.R"), local = FALSE)
 # sandwich 3.1-3 + plm 2.6-7 + jsonlite. Its own seed, sourced last, so
 # no other golden moves.
 source(file.path(script_dir, "gen_robust_vcov_panel.R"), local = FALSE)
+
+# The sweep-bound comparison golden (U69 E5-S1, #643: compare_sweep.json:
+# a sweep over the row window id <= hi ranked by the full model's
+# figure, R picking the same winner, then anova(m0, m1) on lm,
+# anova(test = "LRT") on a poisson glm and lmtest::waldtest on a logit
+# over the winning rows); lmtest 0.9-40 + base stats + jsonlite. Its own
+# seed, sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_compare_sweep.R"), local = FALSE)

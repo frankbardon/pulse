@@ -638,6 +638,23 @@ p-value at `1e-9` relative (`1e-6` on the gamma log link, whose IRLS
 converges linearly; the bootstrap through Pulse's replicate hook and
 figures relay over the recorded index sets).
 
+`scripts/reference/gen_compare_sweep.R` writes `compare_sweep.json`: the
+Compose nested-model comparison over sweep-bound fits (U69 #643). Each
+case is a sweep over the row window `id <= hi` whose body holds the
+restricted and full models; R fits the full model on every candidate
+window, ranks the windows by the same figure (the residual standard
+error, or a coefficient; the script stops unless the winner leads the
+runner-up clearly) and compares the winning pair: `anova(m0, m1)` on
+`lm`, `anova(m0, m1, test = "LRT")` on a poisson `glm`,
+`lmtest::waldtest(m0, m1, test = "Chisq")` on a logit — each statistic
+checked in the script against its closed form. Needs `lmtest` 0.9-40
+(the `gen_nested.R` pin) + jsonlite: `Rscript
+scripts/reference/gen_compare_sweep.R internal/processing/testdata/reference`,
+then append the hash footer. Sourced last by `gen_reference.R`.
+`TestReferenceOracle_CompareSweepMatchesR` (`internal/service`) holds the
+winner slot, statistic, df, p-value, deviances and residual dfs at
+`1e-10` relative.
+
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
 GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson

@@ -1914,7 +1914,7 @@ const (
 	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
 	// entry (a nested-model comparison of two `fits`) that cannot run:
 	// a missing or repeated name, a fit name that is missing, unknown,
-	// not a request-bound regression fit, or the same on both sides; fits
+	// not a regression fit, or the same on both sides; fits
 	// that are not both REG_OLS, both REG_GLM, both REG_MULTINOMIAL or
 	// both one model declaring Compare (REG_ORDINAL, an embedder's); an
 	// unknown test; terms that are not nested; declared fits whose
@@ -1924,9 +1924,13 @@ const (
 	// or a fit or test the comparison does not support (reason
 	// "requires", with "requires" naming the condition). Refused
 	// identically by predict and the runtime before any fit or slot
-	// runs. Details carry "compare" (the 0-based entry index), "name",
-	// "reason" and, where they apply, "field", "value", "valid",
-	// "available", "missing", "keys", "requires" and "alternative".
+	// runs — a side bound from the sweep (`from_sweep`) when every sweep
+	// slot refuses; the winning slot is judged again after the rank, and
+	// a refusal there fails the comparison alone (its result's error,
+	// details "sweep_slot" / "sweep_label"). Details carry "compare" (the
+	// 0-based entry index), "name", "reason" and, where they apply,
+	// "field", "value", "valid", "available", "missing", "keys",
+	// "requires" and "alternative".
 	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
 
 	// PULSE_POSTFIT_INVALID indicates a ComposedRequest `post_fit` entry

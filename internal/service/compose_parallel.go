@@ -114,7 +114,7 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	// The nested-model comparisons' rules, exactly as on the serial path.
-	cmpPlans, err := s.compareRefusal(composed)
+	cmpPlans, err := s.compareRefusal(composed, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func (s *Service) composeParallel(
 	fitWarnings = append(fitWarnings, pfWarnings...)
 	// The nested-model comparisons read the finished fits only
 	// (runComposeCompare).
-	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
+	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs, composed, ext)
 	if err != nil {
 		return nil, err
 	}

@@ -180,7 +180,10 @@ type ComposeValidationResult struct {
 	// comparisons) in declaration order — name, fits, the resolved test
 	// and distribution and the tested terms — validated statically,
 	// never computed. Set once every entry passes its rules
-	// (regcompare.Check, the runtime's too); omitted without comparisons.
+	// (regcompare.CheckSweep, the runtime's too); omitted without
+	// comparisons. An entry reading a sweep-bound fit is judged over every
+	// sweep slot that could win; what the winner decides is its
+	// `unresolved`.
 	Compare []descriptor.ComparisonSummary `json:"compare,omitempty"`
 
 	// LimitFindings lists every instance resource limit the batch's
@@ -389,7 +392,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// Then the nested-model comparisons — the runtime's compareRefusal,
 	// run right after its optimize rules; nothing past it runs on a
 	// refusal.
-	cmpPlans, cerr := regcompare.Check(req.Compare, req.Fits, opts.defaultWeight(), ComparableRegressions(opts.instance(), extensionsFromOpts(opts)))
+	cmpPlans, cerr := regcompare.CheckSweep(req.Compare, req.Fits, sweepFits.Slots, opts.defaultWeight(), ComparableRegressions(opts.instance(), extensionsFromOpts(opts)))
 	if cerr != nil {
 		addCodedError(env, cerr)
 		result.Valid = false

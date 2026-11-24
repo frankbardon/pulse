@@ -28,7 +28,7 @@ requires: [capability:compose_compare]
 
 Verified on the specs, at predict and at run alike:
 
-- both names are request-bound regression fits (not vector / SEM, not `from_sweep`), two different ones, one regression type;
+- both names are regression fits (not vector / SEM; `from_sweep`: per slot, `compose-sweep-bind`), two different ones, one regression type;
 - every restricted term (its predictors, plus the intercept when it fits one) is a full-fit term, and the full fit adds at least one — the tested `terms`;
 - the requests are equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->) and the request's `label`, `return`, `disable_components`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->: same cohort, filters, features<!-- feature: capability:weighting -->, weight<!-- /feature -->, family, link, θ, dispersion, covariance. Put a feature only the full model uses in both requests.
 
@@ -72,7 +72,7 @@ A comparison is one hypothesis: like a test it inherits the batch `multiplicity`
 
 ## Refusals
 
-`PULSE_COMPARISON_INVALID`, `details.reason` (`compare` = entry index), identical at predict and run: `name_missing` / `name_duplicate`, `fit_missing` / `fit_unknown` (`available`) / `fit_kind` / `from_sweep` / `same_fit`, `type_unsupported` / `type_mismatch`, `test_unknown`, `not_nested` (`missing`; swapped sides say so), `no_extra_terms`, `request_mismatch` (`keys`), and `requires`: `unpenalized`, `no_selection`, `unbounded`, `estimated_dispersion` (`f` on a fixed dispersion)<!-- feature: capability:weighting -->, `no_probability_weight` (`alternative: wald`)<!-- /feature -->. Predict lists each valid entry's resolved `test`, `distribution` and `terms` under `compare`.<!-- feature: REG_ORDINAL --> Ordinal `params.levels` differ: `levels_differ`.<!-- /feature --><!-- feature: REG_MULTINOMIAL --> Multinomial `reference` differs: `reference_differs`.<!-- /feature -->
+`PULSE_COMPARISON_INVALID`, `details.reason` (`compare` = entry index), identical at predict and run: `name_missing` / `name_duplicate`, `fit_missing` / `fit_unknown` (`available`) / `fit_kind` / `same_fit`, `type_unsupported` / `type_mismatch`, `test_unknown`, `not_nested` (`missing`; swapped sides say so), `no_extra_terms`, `request_mismatch` (`keys`), and `requires`: `unpenalized`, `no_selection`, `unbounded`, `estimated_dispersion` (`f` on a fixed dispersion)<!-- feature: capability:weighting -->, `no_probability_weight` (`alternative: wald`)<!-- /feature -->. Predict lists each valid entry's resolved `test`, `distribution` and `terms` under `compare`.<!-- feature: REG_ORDINAL --> Ordinal `params.levels` differ: `levels_differ`.<!-- /feature --><!-- feature: REG_MULTINOMIAL --> Multinomial `reference` differs: `reference_differs`.<!-- /feature -->
 
 ## Against R
 

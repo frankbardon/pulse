@@ -59,7 +59,7 @@ func TestCheck_Refusals(t *testing.T) {
 		{"name duplicate", append(one(""), one("")...), pair(ols("a"), ols("a", "b")), nil, "name_duplicate", ""},
 		{"fit missing", []types.FitComparisonSpec{{Name: "c", Full: "m1"}}, pair(ols("a"), ols("a", "b")), nil, "fit_missing", ""},
 		{"fit unknown", []types.FitComparisonSpec{{Name: "c", Restricted: "m0", Full: "mx"}}, pair(ols("a"), ols("a", "b")), nil, "fit_unknown", ""},
-		{"from sweep", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))}, {Name: "m1", FromSweep: &types.FitFromSweep{Regression: "r"}}}, nil, "from_sweep", ""},
+		{"from sweep unresolved", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))}, {Name: "m1", FromSweep: &types.FitFromSweep{Regression: "r"}}}, nil, "fit_kind", ""},
 		{"fit kind", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))},
 			{Name: "m1", Request: &types.Request{Cohort: &types.Cohort{Filename: "c.pulse"}, Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"a", "b"}}}}}}, nil, "fit_kind", ""},
 		{"same fit", []types.FitComparisonSpec{{Name: "c", Restricted: "m1", Full: "m1"}}, pair(ols("a"), ols("a", "b")), nil, "same_fit", ""},
