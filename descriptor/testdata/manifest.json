@@ -16165,6 +16165,7 @@
       "normality-test",
       "ols",
       "one-sample",
+      "optimize",
       "ordinal",
       "outlier-detection",
       "overlay",
@@ -22157,4 +22158,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 22555d1b133d66e3d7c0081bf713fd86a9a355cac1af71e9ec9e2d7b849a06bb
+// golden-hash: 29da113a5e49fddb77b0412282dd7e0ca959f90946b0aba8a7611a79de5df50a

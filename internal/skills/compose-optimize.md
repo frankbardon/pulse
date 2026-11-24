@@ -83,4 +83,4 @@ A block fails alone: no converged start (`PULSE_OPTIMIZE_NOT_CONVERGED`, `_INFEA
 
 ## See
 
-`compose-fits` (the fits and `coef()`)<!-- feature: REG_MMM_HILL,capability:compose_sweep_bind --> · `mmm-workflow` (the one-call media-mix allocation)<!-- /feature --> · `compose-requests` · `expression-language` (functions, `params`) · `regression-modeling` · `pulse_examples_search tags=[compose, ols]`.
+`compose-fits` (the fits and `coef()`)<!-- feature: REG_MMM_HILL,capability:compose_sweep_bind --> · `mmm-workflow` (the one-call media-mix allocation)<!-- /feature --> · `compose-requests` · `expression-language` (functions, `params`) · `regression-modeling` · `pulse_examples_search tags=[optimize]`.

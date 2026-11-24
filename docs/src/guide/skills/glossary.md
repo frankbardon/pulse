@@ -423,6 +423,16 @@ Written as: marginal effect, marginal effects, average marginal effect, average 
 
 See also: link-function, regression-coefficient, odds-ratio
 
+## marginal-return
+
+How much an optimized objective changes per extra unit of one decision variable at the optimum, such as revenue gained per extra unit of spend on a channel.
+
+Why it matters: At a budget optimum every variable not stuck on a bound has the same marginal return; one on its upper bound returns more and one at zero returns less. It is a slope at the optimum, not the average return of the whole amount.
+
+Written as: marginal return, marginal returns, mroi
+
+See also: shadow-price, marginal-effect
+
 ## mean
 
 The average: add the values up and divide by how many there are.
@@ -786,6 +796,16 @@ How many rows (or respondents, or measurements) an estimate or test is based on.
 Why it matters: Small samples give noisy estimates and weak tests; very large ones make tiny, unimportant differences significant.
 
 See also: standard-error, statistical-power, effective-sample-size
+
+## shadow-price
+
+How much the optimized objective would improve if a binding constraint were loosened by one unit, such as the gain from one more unit of budget.
+
+Why it matters: It tells you which limit is worth relaxing and by roughly how much, but only for small moves: past some point another constraint binds and the price changes. A slack constraint has a shadow price of zero.
+
+Written as: shadow price, shadow prices, lagrange multiplier, lagrange multipliers
+
+See also: marginal-return
 
 ## similarity
 

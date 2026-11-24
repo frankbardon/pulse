@@ -508,6 +508,18 @@ How much a model's expected outcome changes, in the outcome's own units, when on
 
 **See also:** [`link-function`](#term-link-function), [`regression-coefficient`](#term-regression-coefficient), [`odds-ratio`](#term-odds-ratio)
 
+<a id="term-marginal-return"></a>
+
+## marginal-return
+
+How much an optimized objective changes per extra unit of one decision variable at the optimum, such as revenue gained per extra unit of spend on a channel.
+
+**Why care:** At a budget optimum every variable not stuck on a bound has the same marginal return; one on its upper bound returns more and one at zero returns less. It is a slope at the optimum, not the average return of the whole amount.
+
+**Forms:** marginal return, marginal returns, mroi
+
+**See also:** [`shadow-price`](#term-shadow-price), [`marginal-effect`](#term-marginal-effect)
+
 <a id="term-mean"></a>
 
 ## mean
@@ -949,6 +961,18 @@ How many rows (or respondents, or measurements) an estimate or test is based on.
 **Why care:** Small samples give noisy estimates and weak tests; very large ones make tiny, unimportant differences significant.
 
 **See also:** [`standard-error`](#term-standard-error), [`statistical-power`](#term-statistical-power), [`effective-sample-size`](#term-effective-sample-size)
+
+<a id="term-shadow-price"></a>
+
+## shadow-price
+
+How much the optimized objective would improve if a binding constraint were loosened by one unit, such as the gain from one more unit of budget.
+
+**Why care:** It tells you which limit is worth relaxing and by roughly how much, but only for small moves: past some point another constraint binds and the price changes. A slack constraint has a shadow price of zero.
+
+**Forms:** shadow price, shadow prices, lagrange multiplier, lagrange multipliers
+
+**See also:** [`marginal-return`](#term-marginal-return)
 
 <a id="term-similarity"></a>
 

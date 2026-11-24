@@ -15,7 +15,8 @@
     "tags": [
       "compose",
       "composed",
-      "financial"
+      "financial",
+      "optimize"
     ]
   },
   "params": {"budget": 120, "cap_social": 30},

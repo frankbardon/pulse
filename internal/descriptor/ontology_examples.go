@@ -39,6 +39,9 @@ type exampleCapabilityDetector struct {
 // with its detector.
 var exampleCapabilityDetectors = []exampleCapabilityDetector{
 	{featCrosstab, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "crosstab") }},
+	// A `cells` key on any crosstab object is the multi-measure crosstab
+	// (CrosstabSpec.Cells): capability:crosstab_cells.
+	{featCrosstabCells, func(_ ontologyExample, body any) bool { return crosstabHasKey(body, "cells") }},
 	{featCompose, func(_ ontologyExample, body any) bool { return rootHasKey(body, "requests") }},
 	{featProcessChain, func(_ ontologyExample, body any) bool { return rootHasKey(body, "stages") }},
 	{featJoins, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "joins") }},
@@ -52,6 +55,31 @@ var exampleCapabilityDetectors = []exampleCapabilityDetector{
 	{featFacet, func(ex ontologyExample, _ any) bool {
 		return ex.Category == "facet" || slices.Contains(ex.Tags, "facet")
 	}},
+}
+
+// crosstabHasKey reports whether any `crosstab` object at any depth (a
+// request root, a Compose slot, a chain stage) carries key.
+func crosstabHasKey(body any, key string) bool {
+	switch t := body.(type) {
+	case map[string]any:
+		if xt, ok := t["crosstab"].(map[string]any); ok {
+			if _, ok := xt[key]; ok {
+				return true
+			}
+		}
+		for _, c := range t {
+			if crosstabHasKey(c, key) {
+				return true
+			}
+		}
+	case []any:
+		for _, c := range t {
+			if crosstabHasKey(c, key) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func rootHasKey(body any, key string) bool {

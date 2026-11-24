@@ -72,6 +72,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
+| `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
 | `TestPredict_Streamable_MatchesRuntime` | `PredictResult.Streamable` mirrors `internal/processing`'s `CanStreamRequest` |
 | `TestStreamability_*Known`              | Every `All*Types()` entry has a streamability table row |

@@ -20,7 +20,8 @@
       "composed",
       "regression",
       "time-series",
-      "financial"
+      "financial",
+      "optimize"
     ]
   },
   "params": {"budget": 700},

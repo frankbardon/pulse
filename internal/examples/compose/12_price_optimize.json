@@ -19,7 +19,8 @@
       "composed",
       "regression",
       "ols",
-      "financial"
+      "financial",
+      "optimize"
     ]
   },
   "params": {"cost": 6},

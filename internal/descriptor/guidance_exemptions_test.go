@@ -23,8 +23,9 @@ import (
 // (`docs/roadmap/units/<Owner>-*.md`) that will close the gap. When that
 // unit's frontmatter flips to `status: done` the entry fails as stale —
 // the owner shipped without closing it. Owner ownerPermanent marks a gap
-// that is closed by design and never by a unit (today only the `lookup`
-// intent, which routes to tooling, never an operator).
+// that is closed by design and never by a unit (the `lookup` intent,
+// which routes to tooling, never an operator, and the glossary terms read
+// off a capability no Purpose describes).
 
 // ownerPermanent is the Owner of an exemption no roadmap unit will close.
 const ownerPermanent = "permanent"
@@ -68,7 +69,10 @@ var exampleIntentExemptions = []guidanceExemption{}
 
 // glossaryOrphanExemptions — glossary terms no built-in Purpose links
 // (TestGlossary_OrphanReport). Key: the term ID.
-var glossaryOrphanExemptions = []guidanceExemption{}
+var glossaryOrphanExemptions = []guidanceExemption{
+	{Key: "marginal-return", Owner: ownerPermanent, Why: "Read off the Compose optimize block's variables[].marginal (skills/compose-optimize.md); the block is a capability, not an operator, so no Purpose can link it."},
+	{Key: "shadow-price", Owner: ownerPermanent, Why: "Read off the Compose optimize block's constraints[].multiplier (skills/compose-optimize.md); the block is a capability, not an operator, so no Purpose can link it."},
+}
 
 // exemptionTables is every ledger table above, keyed by its gate's
 // table name. TestGuidanceExemptions_TablesComplete fails when a new

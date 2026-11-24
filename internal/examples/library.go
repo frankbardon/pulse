@@ -418,6 +418,9 @@ var CanonicalTags = []string{
 	"overlay",
 	"byte-equal-test",
 	"compose",
+	// The Compose optimize block (capability:compose_optimize): a search
+	// for "optimize" finds the optimum examples without the skill.
+	"optimize",
 	"crosstab",
 	"welch",
 	"welford-triple",

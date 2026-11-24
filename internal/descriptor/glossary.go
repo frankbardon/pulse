@@ -628,6 +628,21 @@ var glossaryRegistry = []descriptor.Term{
 		Jargon:  true, Forms: []string{"credible interval", "credible intervals"},
 	},
 
+	// --- Optimization -----------------------------------------------------
+	{
+		ID:      "marginal-return",
+		Short:   "How much an optimized objective changes per extra unit of one decision variable at the optimum, such as revenue gained per extra unit of spend on a channel.",
+		WhyCare: "At a budget optimum every variable not stuck on a bound has the same marginal return; one on its upper bound returns more and one at zero returns less. It is a slope at the optimum, not the average return of the whole amount.",
+		SeeAlso: []string{"shadow-price", "marginal-effect"},
+		Jargon:  true, Forms: []string{"marginal return", "marginal returns", "mroi"},
+	},
+	{
+		ID:      "shadow-price",
+		Short:   "How much the optimized objective would improve if a binding constraint were loosened by one unit, such as the gain from one more unit of budget.",
+		WhyCare: "It tells you which limit is worth relaxing and by roughly how much, but only for small moves: past some point another constraint binds and the price changes. A slack constraint has a shadow price of zero.",
+		SeeAlso: []string{"marginal-return"},
+		Jargon:  true, Forms: []string{"shadow price", "shadow prices", "lagrange multiplier", "lagrange multipliers"},
+	},
 	// --- Weighting --------------------------------------------------------
 	{
 		ID:      "weighting",

@@ -71,6 +71,9 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		features: Features(),
 		examples: []ontologyExample{
 			{Name: "xt", Body: json.RawMessage(`{"crosstab":{"rows":[]}}`)},
+			{Name: "xtc", Body: json.RawMessage(`{"requests":[{"crosstab":{"rows":[],"cells":[]}}]}`)},
+			// a `cells` key outside a crosstab object is not the multi-measure slot
+			{Name: "strayCells", Body: json.RawMessage(`{"cells":[],"crosstab":{"rows":[]}}`)},
 			{Name: "cmp", Body: json.RawMessage(`{"requests":[{"joins":[{}]}]}`)},
 			{Name: "chain", Body: json.RawMessage(`{"stages":[]}`)},
 			{Name: "fct", Category: "facet", Body: json.RawMessage(`{"fields":["a"]}`)},
@@ -88,6 +91,7 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 	req := descriptor.OntologyEdgeRequiresCapability
 	for _, e := range []descriptor.OntologyEdge{
 		ontoEdge(ex("xt"), featCrosstab, req),
+		ontoEdge(ex("xtc"), featCrosstabCells, req),
 		ontoEdge(ex("cmp"), featCompose, req),
 		ontoEdge(ex("cmp"), featJoins, req),
 		ontoEdge(ex("chain"), featProcessChain, req),
@@ -104,6 +108,11 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 	if hasEdge(g, ontoEdge(ex("st"), opID("TEST_WELCH"), descriptor.OntologyEdgeRoutesTo)) {
 		t.Error("description mention duplicated an operators edge")
 	}
+	for _, n := range []string{"xt", "strayCells"} {
+		if hasEdge(g, ontoEdge(ex(n), featCrosstabCells, req)) {
+			t.Errorf("%s: crosstab_cells detected without a crosstab cells key", n)
+		}
+	}
 	if out := g.Out(ex("nested"), ""); len(out) != 0 {
 		t.Errorf("nested stages produced edges %v", out)
 	}
@@ -113,6 +122,8 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		ontoEdge(ex("facet_simple_one_field"), featFacet, req),
 		ontoEdge(ex("facet-index-vs-pop"), featFacet, req),
 		ontoEdge(opID("OVERLAY_INDEX_VS_POP"), ex("facet-index-vs-pop"), descriptor.OntologyEdgeExemplifiedBy),
+		// detected from the body; the example declares no _meta.capabilities
+		ontoEdge(ex("crosstab_measures_as_stub_rows"), featCrosstabCells, req),
 	} {
 		if !hasEdge(base, e) {
 			t.Errorf("base missing %+v", e)
