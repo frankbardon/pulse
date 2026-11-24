@@ -82,6 +82,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 | `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Known breaks sit in the shrink-only allowlist `internal/doccheck/allowlists/links.txt`; `make linkcheck-external` checks http(s) links by hand |
+| `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and `docs/src/cli/flags.md` name the same leaves and flags (global, persistent, per-leaf, aliases included), names only, both directions; known gaps sit in the shrink-only allowlist `internal/doccheck/allowlists/cli-flags.txt` |
 
 ## Running a subset of gates locally
 
