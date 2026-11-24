@@ -10,7 +10,7 @@ requires: [capability:compose_compare]
 
 # Nested-model comparison
 
-`compare` asks whether a larger model fits better than a smaller one it contains: do the full model's extra terms add anything? R `anova(m0, m1)`, `lmtest::waldtest`; Stata `lrtest` / `test`. It reads two finished `fits`, no row.
+`compare` asks whether a larger model fits better than a smaller one it contains: do the full model's extra terms add anything? R `anova(m0, m1)`, `lmtest::waldtest`. It reads two finished `fits`.
 
 <!-- feature: REG_GLM -->
 ```json
@@ -28,11 +28,11 @@ requires: [capability:compose_compare]
 
 Verified on the specs, at predict and at run alike:
 
-- both names are regression fits (not vector / SEM; `from_sweep`: per slot, `compose-sweep-bind`), two different ones, one regression type;
+- both names are regression fits (not SEM; two vector fits: `regression-comparison-batteries`; `from_sweep`: per slot, `compose-sweep-bind`), two different ones, one type;
 - every restricted term (its predictors, plus the intercept when it fits one) is a full-fit term, and the full fit adds at least one — the tested `terms`;
-- the requests are equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->) and the request's `label`, `return`, `disable_components`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->: same cohort, filters, features<!-- feature: capability:weighting -->, weight<!-- /feature -->, family, link, θ, dispersion, covariance. Put a feature only the full model uses in both requests.
+- the requests are equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->) and the request's `label`, `return`, `disable_components`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->: same cohort, filters, features<!-- feature: capability:weighting -->, weight<!-- /feature -->, family, link, θ, dispersion, covariance. Put a full-only feature in both requests.
 
-The full fit's rows (listwise over more columns) are then a subset of the restricted fit's; unequal row counts fail the comparison alone, `PULSE_COMPARISON_ROWS_DIFFER` (as R's anova stops). Filter both to rows where the extra predictors are non-null.
+The full fit's rows (listwise over more columns) are a subset of the restricted fit's; unequal row counts fail the comparison alone, `PULSE_COMPARISON_ROWS_DIFFER` (as R's anova stops). Filter both to non-null extra predictors.
 
 ## Tests
 
@@ -42,7 +42,7 @@ The full fit's rows (listwise over more columns) are then a subset of the restri
 | `lrt` | (D₀ − D₁)/φ₁ on q; a θ-estimated negative binomial 2ℓ₁ − 2ℓ₀ | `anova(..., test = "Chisq" / "LRT")`, MASS `anova.negbin` |
 | `wald` | b_Sᵀ V_SS⁻¹ b_S, V the full fit's own covariance | `lmtest::waldtest(m0, m1, vcov = V)` |
 
-D is the residual deviance (OLS: the weighted RSS), φ̂₁ the full fit's estimated dispersion (OLS σ̂², the Pearson χ²/df), φ₁ = 1 where the family fixes it. Default (omitted `test`): R's anova default — `f` where the dispersion is estimated (least squares, gamma, a fixed-θ negative binomial under `dispersion: estimated`), `lrt` otherwise. `wald` reads the classical or robust `covariance` the fit chose (HC, cluster, HAC) and the coefficient table's distribution: F = W/q on its df where the p-values are Student t (least squares, classical gamma), χ² otherwise. A classical least-squares Wald equals the F test. Under `resample` V is the full fit's replicate covariance (its `vcov`, asked or not), χ² on every type; `f` / `lrt` keep the base deviances.
+D is the residual deviance (OLS: the weighted RSS), φ̂₁ the full fit's estimated dispersion (OLS σ̂², the Pearson χ²/df), φ₁ = 1 where the family fixes it. Default (omitted `test`): R's anova default — `f` where the dispersion is estimated (least squares, gamma, a fixed-θ negative binomial under `dispersion: estimated`), `lrt` otherwise. `wald` reads the classical or robust `covariance` the fit chose (HC, cluster, HAC) and the coefficient table's distribution: F = W/q on its df where the p-values are Student t (least squares, classical gamma), χ² otherwise. A classical OLS Wald equals the F test. Under `resample` V is the full fit's replicate covariance (its `vcov`, asked or not), χ² on every type; `f` / `lrt` keep the base deviances.
 
 ## Categorical-response fits
 
@@ -82,3 +82,4 @@ R 4.6.1 (`anova`, MASS, `sandwich`, `lmtest`) at 1e-10 — least squares, logit,
 
 - `compose-fits` — the fits a comparison reads.
 - `regression-inference` — the coefficient table and covariance.
+- `regression-comparison-batteries` — two vector fits.

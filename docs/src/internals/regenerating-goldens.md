@@ -655,6 +655,21 @@ then append the hash footer. Sourced last by `gen_reference.R`.
 winner slot, statistic, df, p-value, deviances and residual dfs at
 `1e-10` relative.
 
+`scripts/reference/gen_compare_vector.R` writes `compare_vector.json`:
+the Compose nested-model comparison of two vector fits (U69 #643,
+member-wise). Each case names a restricted and a full battery over the
+same rows; per restricted member j R fits `lm(j ~ restricted others)`
+and `lm(j ~ full others)` and compares them with `anova(m0, m1)` (f),
+`anova(m0, m1, test = "Chisq")` (lrt) or `lmtest::waldtest(m0, m1)`
+(wald) — each statistic checked in the script against its closed form;
+the frequency-weighted case expands each row `w` times. Needs `lmtest`
+0.9-40 (the `gen_nested.R` pin) + jsonlite, nothing new: `Rscript
+scripts/reference/gen_compare_vector.R internal/processing/testdata/reference`,
+then append the hash footer. Sourced last by `gen_reference.R`.
+`TestReferenceOracle_CompareVectorMatchesR` (`internal/service`) holds
+every member row's statistic, p-value, deviances and dispersion and the
+df / residual dfs at `1e-10` relative.
+
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
 GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson

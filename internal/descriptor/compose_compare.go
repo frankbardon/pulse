@@ -25,6 +25,7 @@ func comparisonSummaries(plans []regcompare.Plan) []descriptor.ComparisonSummary
 			Distribution: p.Distribution,
 			Terms:        slices.Clone(p.Terms),
 			Unresolved:   unresolvedSummary(p.Unresolved),
+			Members:      slices.Clone(p.Members),
 		}
 	}
 	return out

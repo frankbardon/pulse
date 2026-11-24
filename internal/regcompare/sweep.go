@@ -63,9 +63,14 @@ func sweepSides(c *types.FitComparisonSpec, byName map[string]*types.FitSpec) []
 	return out
 }
 
-// checkEntry judges comparison i: checkOne as the fits read, or — a
-// side bound from the sweep and slots given — over every slot.
+// checkEntry judges comparison i: checkBattery when the restricted side
+// is a vector fit, checkOne as the fits read, or — a side bound from the
+// sweep and slots given — over every slot.
 func checkEntry(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpec, available []string, slots []*types.Request, defaultWeight *types.WeightSpec, declared func(types.RegressionType) bool) (Plan, *errors.CodedError) {
+	if isVectorFit(byName[c.Restricted]) {
+		// Two vector fits: member-wise nesting (battery.go).
+		return checkBattery(i, c, byName, defaultWeight)
+	}
 	bound := sweepSides(c, byName)
 	if len(bound) == 0 || len(slots) == 0 {
 		p, err := checkOne(i, c, byName, available, defaultWeight, declared)

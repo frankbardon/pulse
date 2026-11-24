@@ -670,3 +670,11 @@ source(file.path(script_dir, "gen_robust_vcov_panel.R"), local = FALSE)
 # over the winning rows); lmtest 0.9-40 + base stats + jsonlite. Its own
 # seed, sourced last, so no other golden moves.
 source(file.path(script_dir, "gen_compare_sweep.R"), local = FALSE)
+
+# The vector-fit comparison golden (U69 E5-S2, #643: compare_vector.json:
+# member-wise nesting of two batteries — per restricted member j,
+# anova(lm(j ~ restricted others), lm(j ~ full others)), its Chisq form
+# and lmtest::waldtest, one case under a frequency weight as the row
+# expansion); lmtest 0.9-40 + base stats + jsonlite. Its own seed,
+# sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_compare_vector.R"), local = FALSE)

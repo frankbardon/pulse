@@ -1914,7 +1914,9 @@ const (
 	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
 	// entry (a nested-model comparison of two `fits`) that cannot run:
 	// a missing or repeated name, a fit name that is missing, unknown,
-	// not a regression fit, or the same on both sides; fits
+	// not a regression fit (nor two vector fits), or the same on both
+	// sides; two vector fits whose batteries do not list their members
+	// ("members_unlisted") or are not nested member-wise; fits
 	// that are not both REG_OLS, both REG_GLM, both REG_MULTINOMIAL or
 	// both one model declaring Compare (REG_ORDINAL, an embedder's); an
 	// unknown test; terms that are not nested; declared fits whose

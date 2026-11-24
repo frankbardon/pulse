@@ -326,6 +326,7 @@
     - [process-chain](guide/skills/process-chain.md)
     - [regression-collinearity](guide/skills/regression-collinearity.md)
     - [regression-comparison](guide/skills/regression-comparison.md)
+    - [regression-comparison-batteries](guide/skills/regression-comparison-batteries.md)
     - [regression-inference](guide/skills/regression-inference.md)
     - [regression-influence](guide/skills/regression-influence.md)
     - [regression-margins](guide/skills/regression-margins.md)

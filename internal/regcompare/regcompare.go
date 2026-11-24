@@ -9,8 +9,9 @@
 //
 // Nesting is verified on the specs, never guessed from the numbers:
 //
-//   - both names bind regression `fits` entries (not a vector / SEM
-//     fit; a `from_sweep` one is judged per sweep slot — sweep.go), two
+//   - both names bind regression `fits` entries (not a SEM fit; two
+//     vector fits are nested member-wise — battery.go; a `from_sweep`
+//     one is judged per sweep slot — sweep.go), two
 //     different ones, both
 //     REG_OLS, both REG_GLM, both REG_MULTINOMIAL (admitted by the rule
 //     itself as a declared-like plan) or both one model whose
@@ -157,6 +158,11 @@ type Plan struct {
 	// Unresolved is what the static rule could not decide over the
 	// sweep slots (nil when every slot resolves the same plan).
 	Unresolved *Unresolved
+	// Battery reports a comparison of two vector fits (battery.go):
+	// Terms are the tested members, Members the restricted battery's
+	// members — one test row each (ComputeBattery).
+	Battery bool
+	Members []string
 }
 
 // FitNames returns every fit name a comparison reads (the fits the

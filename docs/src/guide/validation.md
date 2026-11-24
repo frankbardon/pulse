@@ -87,7 +87,7 @@ To regenerate the goldens, see *Regenerating goldens* in the contributor guide.
 |---|---|---|---|
 | [`MAT_COLLINEARITY`](catalog/matrix.md#op-mat_collinearity) | R 4.6.1 `car::vif`, `perturb::colldiag` | 1e-9 relative | — |
 | [`MAT_CORRELATION`](catalog/matrix.md#op-mat_correlation) | numpy / statsmodels<br>R 4.6.1 `cor` and `cor.test` (p-values, intervals) | 1e-12 relative | — |
-| [`MAT_COVARIANCE`](catalog/matrix.md#op-mat_covariance) | numpy `cov` / statsmodels `DescrStatsW` | 1e-12 relative | — |
+| [`MAT_COVARIANCE`](catalog/matrix.md#op-mat_covariance) | numpy `cov` / statsmodels `DescrStatsW`<br>R 4.6.1 + `lmtest` 0.9-40: the Compose comparison of two vector fits member by member (U69 #643) — per restricted member j, `anova(lm(j ~ restricted others), lm(j ~ full others))`, its `test = "Chisq"` form and `waldtest(m0, m1)`; each row's statistic, p-value, RSS pair and σ̂², the df and residual dfs<br>weighted reference (see above) | 1e-12 relative | — |
 | [`MAT_DISTANCE`](catalog/matrix.md#op-mat_distance) | R 4.6.1 `dist` | 1e-9 relative | — |
 | [`MAT_FACTOR`](catalog/matrix.md#op-mat_factor) | R 4.6.1 `psych::fa`, `GPArotation` | 1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations | — |
 | [`MAT_PARTIAL_CORRELATION`](catalog/matrix.md#op-mat_partial_correlation) | R 4.6.1 `ppcor` / `corpcor` | 1e-10 relative | — |

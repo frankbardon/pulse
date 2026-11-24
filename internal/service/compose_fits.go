@@ -204,6 +204,8 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 			return
 		}
 		p.vectorFits[i] = vf
+		// A battery comparison reads the bound state (compose_compare.go).
+		recordComparisonVector(ctx, fits[i].Name, vf)
 		// The fit's `save` writes its population file under the
 		// fit's name (the overwrite warning lifts to the batch).
 		w, err := s.saveFitPopulation(ctx, i, fits[i], vf)

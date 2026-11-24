@@ -1518,6 +1518,7 @@ pulse/descriptor: type ComparisonSlotRefusal field Slot int "json:\"slot\""
 pulse/descriptor: type ComparisonSummary struct
 pulse/descriptor: type ComparisonSummary field Distribution pulse/types.ComparisonDistribution "json:\"distribution\""
 pulse/descriptor: type ComparisonSummary field Full string "json:\"full\""
+pulse/descriptor: type ComparisonSummary field Members []string "json:\"members,omitempty\""
 pulse/descriptor: type ComparisonSummary field Name string "json:\"name\""
 pulse/descriptor: type ComparisonSummary field Restricted string "json:\"restricted\""
 pulse/descriptor: type ComparisonSummary field Terms []string "json:\"terms\""
@@ -5883,6 +5884,16 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitComparisonMember struct
+pulse/types: type FitComparisonMember field Dispersion float64 "json:\"dispersion,omitempty\""
+pulse/types: type FitComparisonMember field FullDeviance float64 "json:\"full_deviance\""
+pulse/types: type FitComparisonMember field Member string "json:\"member\""
+pulse/types: type FitComparisonMember field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type FitComparisonMember field PAdjusted *float64 "json:\"p_adjusted,omitempty\""
+pulse/types: type FitComparisonMember field PValue float64 "json:\"p_value\""
+pulse/types: type FitComparisonMember field RestrictedDeviance float64 "json:\"restricted_deviance\""
+pulse/types: type FitComparisonMember field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type FitComparisonMember field Statistic float64 "json:\"statistic\""
 pulse/types: type FitComparisonResult struct
 pulse/types: type FitComparisonResult field DF float64 "json:\"df\""
 pulse/types: type FitComparisonResult field DFResidual float64 "json:\"df_residual,omitempty\""
@@ -5893,6 +5904,7 @@ pulse/types: type FitComparisonResult field Full string "json:\"full\""
 pulse/types: type FitComparisonResult field FullDFResidual float64 "json:\"full_df_residual\""
 pulse/types: type FitComparisonResult field FullDeviance float64 "json:\"full_deviance\""
 pulse/types: type FitComparisonResult field FullTwoLogLik float64 "json:\"full_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field Members []pulse/types.FitComparisonMember "json:\"members,omitempty\""
 pulse/types: type FitComparisonResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type FitComparisonResult field NObs int "json:\"n_obs\""
 pulse/types: type FitComparisonResult field Name string "json:\"name\""
@@ -7205,4 +7217,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 252d23414b7c9d708e2a250de777d64820e1f5068a152ec1ee3fdd148b01b3d3
+// golden-hash: a9985bd6e01b50c9b5f520991c347c4fca5d381b06c4b381d3aa50c552e660bc

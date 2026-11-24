@@ -1919,7 +1919,15 @@ restricted, full, test, error}` with `PULSE_COMPARISON_INVALID`
 entries as `compare [{name, restricted, full, test, distribution,
 terms, unresolved}]` on the predict result (not payload-reachable);
 `unresolved {slots, refused [{slot, label, reason}], varies}` is present
-only on a sweep-bound entry whose slots disagree. The figures a
+only on a sweep-bound entry whose slots disagree. Two vector fits
+compare member-wise (U69 #643): each restricted battery member j is one
+row of `members`, an array of `FitComparisonMember {member, statistic,
+p_value, restricted_deviance, full_deviance, dispersion, p_adjusted,
+significant_adjusted, multiplicity}` — lm(j ~ restricted others)
+against lm(j ~ full others), read off the full fit's co-moment; `terms`
+are the tested members, the single-pair `statistic`, `p_value` and
+`*_deviance` are `null`, every row is one member of the multiplicity
+family, and the predict summary lists the rows' `members`. The figures a
 comparison reads off each fit beyond its wire result (its residual
 deviance, the Pearson dispersion, the covariance its standard errors
 read) travel through an internal capture on the fit's run, never a

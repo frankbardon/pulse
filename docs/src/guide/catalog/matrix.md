@@ -142,6 +142,8 @@ How every pair in a set of numeric fields varies together, as one square table w
 **Validated against:**
 
 - numpy `cov` / statsmodels `DescrStatsW` — tolerance 1e-12 relative; `internal/service/matrix_covariance_test.go`
+- R 4.6.1 + `lmtest` 0.9-40: the Compose comparison of two vector fits member by member (U69 #643) — per restricted member j, `anova(lm(j ~ restricted others), lm(j ~ full others))`, its `test = "Chisq"` form and `waldtest(m0, m1)`; each row's statistic, p-value, RSS pair and σ̂², the df and residual dfs — tolerance 1e-10 relative; `internal/service/compose_compare_vector_oracle_test.go`, `compare_vector_test.go`
+- R 4.6.1 per-member `anova` of the `rep()`-expanded `lm` fits (a vector-fit comparison under frequency weights; N* = Σw) — tolerance 1e-10 relative; `internal/service/compose_compare_vector_oracle_test.go`
 
 See [How Pulse is validated](../validation.md).
 

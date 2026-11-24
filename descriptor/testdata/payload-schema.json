@@ -2422,6 +2422,64 @@
       ],
       "type": "string"
     },
+    "FitComparisonMember": {
+      "additionalProperties": false,
+      "properties": {
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "member": {
+          "type": "string"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p_value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "significant_adjusted": {
+          "type": "boolean"
+        },
+        "statistic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "full_deviance",
+        "member",
+        "p_value",
+        "restricted_deviance",
+        "statistic"
+      ],
+      "type": "object"
+    },
     "FitComparisonResult": {
       "additionalProperties": false,
       "if": {
@@ -2474,6 +2532,15 @@
         "full_two_log_lik": {
           "type": [
             "number",
+            "null"
+          ]
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonMember"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -8614,4 +8681,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b2960da1ee18b6732dada16d831ad10a9bc9109e2279e7c013a0008818515d05
+// golden-hash: a17f90d10264c0d9ac7af532210cf6dbf0b4c07f81de2449af1e1d49e0c0129d

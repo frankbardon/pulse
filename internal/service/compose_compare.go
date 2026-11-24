@@ -90,6 +90,9 @@ type comparisonFigures struct {
 	names map[string]bool
 	mu    sync.Mutex
 	figs  map[string][]*model.RegressionFigures
+	// vectors are the bound states of the vector fits a battery
+	// comparison reads (recordComparisonVector), by fit name.
+	vectors map[string]*model.VectorFit
 }
 
 // newComparisonFigures is the collector for compare's fits, nil without
@@ -98,7 +101,7 @@ func newComparisonFigures(compare []types.FitComparisonSpec) *comparisonFigures 
 	if len(compare) == 0 {
 		return nil
 	}
-	return &comparisonFigures{names: regcompare.FitNames(compare), figs: map[string][]*model.RegressionFigures{}}
+	return &comparisonFigures{names: regcompare.FitNames(compare), figs: map[string][]*model.RegressionFigures{}, vectors: map[string]*model.VectorFit{}}
 }
 
 type comparisonFiguresKey struct{}
@@ -132,6 +135,29 @@ func recordComparisonFigures(ctx context.Context, name string, c *model.VectorCa
 	cf.mu.Lock()
 	cf.figs[name] = c.RegressionFigures()
 	cf.mu.Unlock()
+}
+
+// recordComparisonVector files vector fit name's closed state when a
+// comparison reads it (ctx's collector; a no-op without one).
+func recordComparisonVector(ctx context.Context, name string, vf *model.VectorFit) {
+	cf, _ := ctx.Value(comparisonFiguresKey{}).(*comparisonFigures)
+	if cf == nil || vf == nil || !cf.names[name] {
+		return
+	}
+	cf.mu.Lock()
+	cf.vectors[name] = vf
+	cf.mu.Unlock()
+}
+
+// vector is vector fit name's recorded state (nil when none: a failed
+// fit).
+func (cf *comparisonFigures) vector(name string) *model.VectorFit {
+	if cf == nil {
+		return nil
+	}
+	cf.mu.Lock()
+	defer cf.mu.Unlock()
+	return cf.vectors[name]
 }
 
 // of is fit name's figures: nil when none was offered (a failed fit),
@@ -190,6 +216,28 @@ func (s *Service) runComposeCompare(plans []regcompare.Plan, fits map[string]*ty
 				return nil, nil, slotfail.StrictError(f)
 			}
 			warnings = append(warnings, slotfail.Warning(f))
+			continue
+		}
+		if p.Battery {
+			// Two vector fits: member-wise from the bound co-moments.
+			vec := func(name string) *types.VectorFitResult {
+				if f := fits[name]; f != nil {
+					return f.Vector
+				}
+				return nil
+			}
+			res, err := regcompare.ComputeBattery(p, vec(p.Restricted), vec(p.Full), figs.vector(p.Restricted), figs.vector(p.Full))
+			if err != nil {
+				return nil, nil, err
+			}
+			out[i] = res
+			if res.Error != nil {
+				f := slotfail.Failure{Kind: slotfail.KindComparisons, Index: i, Label: p.Name, Err: res.Error}
+				if s.strict {
+					return nil, nil, slotfail.StrictError(f)
+				}
+				warnings = append(warnings, slotfail.Warning(f))
+			}
 			continue
 		}
 		g0, err := figs.of(p.Restricted)

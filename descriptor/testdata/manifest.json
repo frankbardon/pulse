@@ -15624,6 +15624,10 @@
         "description": "Nested-model comparison of two Compose regression fits — the F test, the likelihood-ratio (deviance) test and the Wald test of the full model's extra terms, R's anova(m0, m1) / lmtest::waldtest; how nesting and same rows are verified, the defaults per family, weights, the result and the refusals. Topical design; the fits themselves in compose-fits."
       },
       {
+        "name": "regression-comparison-batteries",
+        "description": "Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows, multiplicity and the refusals. Topical design; regression-fit comparisons live in regression-comparison."
+      },
+      {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
@@ -22149,4 +22153,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 339c0c37496c50414c6fdbb5663de59e04f11b7d34514058ad5b5208a2b57b7e
+// golden-hash: 1aba43e862b1e7a936b111b4afac7a634dc9dc6ca468517e3c3b3881a48a9745

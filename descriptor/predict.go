@@ -1170,6 +1170,11 @@ type ComparisonSummary struct {
 	// passing slot's; the run judges the actual winner (a refusal there
 	// fails the comparison alone). Absent when every slot resolves alike.
 	Unresolved *ComparisonUnresolved `json:"unresolved,omitempty"`
+	// Members lists a comparison of two vector fits' test rows: the
+	// restricted battery's members, one nested test each (the runtime's
+	// FitComparisonResult.Members, in this order); Terms are then the
+	// tested members. Absent on a regression comparison.
+	Members []string `json:"members,omitempty"`
 }
 
 // ComparisonUnresolved is what predict cannot decide about a

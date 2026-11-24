@@ -94,6 +94,7 @@ const (
 	// svcCompareOracle is the nested-model comparison's R oracle test.
 	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
 	svcCompareSweep  = "internal/service/compose_compare_sweep_oracle_test.go"
+	svcCompareVector = "internal/service/compose_compare_vector_oracle_test.go"
 	strdTest         = "strd_reference_test.go"
 	mmmSynthSrc      = "synthetic data with known true parameters (internal/mmmfixture)"
 )
@@ -391,7 +392,13 @@ var validationRegistry = map[string]ValidationRecord{
 		{Against: "numpy / statsmodels", Tol: tol12, Tests: []string{"internal/service/matrix_correlation_test.go"}},
 		valR("`cor` and `cor.test` (p-values, intervals)", tol10, "internal/service/matrix_inference_test.go"),
 	}},
-	"MAT_COVARIANCE":          {Refs: []ValidationRef{{Against: "numpy `cov` / statsmodels `DescrStatsW`", Tol: tol12, Tests: []string{"internal/service/matrix_covariance_test.go"}}}},
+	"MAT_COVARIANCE": {Refs: []ValidationRef{
+		{Against: "numpy `cov` / statsmodels `DescrStatsW`", Tol: tol12, Tests: []string{"internal/service/matrix_covariance_test.go"}},
+		// A Compose comparison of two vector fits (batteries) reads
+		// their co-moments member by member.
+		valR("+ `lmtest` 0.9-40: the Compose comparison of two vector fits member by member (U69 #643) — per restricted member j, `anova(lm(j ~ restricted others), lm(j ~ full others))`, its `test = \"Chisq\"` form and `waldtest(m0, m1)`; each row's statistic, p-value, RSS pair and σ̂², the df and residual dfs", tol10, svcCompareVector, "compare_vector_test.go"),
+		{Against: rPin + " per-member `anova` of the `rep()`-expanded `lm` fits (a vector-fit comparison under frequency weights; N* = Σw)", Tol: tol10, Tests: []string{svcCompareVector}, Weighted: true},
+	}},
 	"MAT_DISTANCE":            {Refs: []ValidationRef{valR("`dist`", tol9, "internal/processing/matrix_distance_test.go")}},
 	"MAT_FACTOR":              {Refs: []ValidationRef{valR("`psych::fa`, `GPArotation`", "1e-9 exact paths; 1e-4 to 2e-3 vs psych iterations", "internal/processing/matrix_factor_test.go", "internal/service/matrix_factor_test.go")}},
 	"MAT_PARTIAL_CORRELATION": {Refs: []ValidationRef{valR("`ppcor` / `corpcor`", tol10, "internal/service/matrix_partial_test.go")}},
