@@ -644,3 +644,13 @@ source(file.path(script_dir, "gen_compare_resample.R"), local = FALSE)
 # MASS 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
 # moves.
 source(file.path(script_dir, "gen_glm_nb_penalty.R"), local = FALSE)
+
+# The negative binomial under selection and resample golden (U69 E3-S2,
+# #638: glm_nb_refit.json: MASS::stepAIC on glm.nb — theta re-estimated
+# per candidate — beside an exact greedy for a fixed theta, and base-R
+# replicate loops of glm.nb — leave-one-out, delete-a-cluster and
+# frequency-weighted jackknife, a bootstrap over its own recorded index
+# sets, ame / mem effects — theta re-estimated per replicate); MASS
+# 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
+# moves.
+source(file.path(script_dir, "gen_glm_nb_refit.R"), local = FALSE)

@@ -88,6 +88,13 @@ func marginsDerive(spec *types.RegressionSpec, glm bool, fam glmFamily, predicto
 	}
 	contrasts := base.Contrasts
 	return func(r *refitResult) []float64 {
+		// A negative binomial replicate's effects read its own θ̂
+		// family (U69 E3-S2): μ′ is link-only, a contrast's μ too, but
+		// the family is the replicate's fit either way.
+		fam := fam
+		if r.Family.Name != "" {
+			fam = r.Family
+		}
 		beta := make([]float64, 0, len(r.Slopes)+1)
 		beta = append(append(beta, r.Intercept), r.Slopes...)
 		prior := r.Prior

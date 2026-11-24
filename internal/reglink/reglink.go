@@ -148,10 +148,11 @@ func CheckPair(family, link string) *errors.CodedError {
 //     E3-S1, #638: θ is re-estimated around the penalized fit,
 //     mpath::glmregNB), but not beside dispersion "estimated"
 //     (details.requires "unpenalized": φ̂ = Pearson χ²/df reads the
-//     residual df, undefined for a penalized fit). It refuses a selection
-//     ("no_selection") and a resample ("no_resample"): their refit
-//     drivers hold the family's θ fixed, so an estimated θ would go
-//     unrefit and a fixed one is unoracled.
+//     residual df, undefined for a penalized fit). A selection and a
+//     resample run too (U69 E3-S2): every selection candidate and every
+//     jackknife / bootstrap replicate re-estimates θ on its own rows
+//     (or holds the fixed θ), MASS stepAIC on glm.nb and a glm.nb
+//     replicate loop.
 //
 // An extension or model regression's theta is the shared-slot table's
 // (ExtensionRegressionSlotRefusal), never this rule's; an unknown family
@@ -207,25 +208,12 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 			)
 		}
 	}
-	refuse := func(knob, requires, value string) *errors.CodedError {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_GLM negative_binomial does not support "+knob+" (its refit holds θ fixed, so an estimated θ is never refit); fit without "+knob+", or fit family poisson with a robust covariance",
-			map[string]any{knob: value, "type": t, "family": spec.Family, "requires": requires},
-		)
-	}
 	if spec.Penalty != "" && spec.Dispersion == types.NegBinDispersionEstimated {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
 			"REG_GLM negative_binomial dispersion estimated reads the residual degrees of freedom, undefined for a penalized fit; drop the penalty, or set dispersion fixed",
 			map[string]any{"penalty": spec.Penalty, "dispersion": spec.Dispersion, "type": t, "family": spec.Family, "requires": "unpenalized"},
 		)
-	}
-	switch {
-	case spec.Selection != "":
-		return refuse("selection", "no_selection", spec.Selection)
-	case spec.Resample != "":
-		return refuse("resample", "no_resample", spec.Resample)
 	}
 	return nil
 }

@@ -32,17 +32,18 @@ Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host<!-
 ## Output
 
 - `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
+- NB re-estimates θ per replicate; `ThetaStdErr` is θ̂'s replicate SE.
 - A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
 - `Resample` echoes back; `Coefficients` unchanged; `margins` are re-estimated per replicate (`regression-margins`). Under `l1` / `elasticnet` it supplies the null SE / p (penalized refits) and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
-- Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (successful refits; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
+- Bootstrap echoes `bootstrap_requested` and `bootstrap_succeeded` (SE / p / vcov use only successes). A failed refit is skipped (`succeeded < requested`: unstable fit); under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas
 
-- Forces buffered; predict reports the downgrade.
-- Leave-one-out costs n² — `PULSE_ADVISORY_JACKKNIFE_COST` at ≥ 10,000 records; use `jackknife_groups: 50` or `jackknife_by`.
+- Forces buffered (predict reports it).
+- Leave-one-out costs n²: `PULSE_ADVISORY_JACKKNIFE_COST` at ≥ 10,000 records; use `jackknife_groups` or `jackknife_by`.
 - Every jackknife replicate must refit: one failure (e.g. separation) fails the slot with that refit's code, `details.jackknife_group` naming it. `g` above the fitted rows, or one cluster, is `PROCESSING_REGRESSION_INSUFFICIENT_DATA`.
-- Composes with `selection`: wraps the selected-feature fit.
+- Wraps a `selection`'s selected-feature fit.
 - `rng_seed: 0` is deterministic but cohort-dependent (`params` key order, `vcov`, `margins` never move it); pin non-zero across cohorts.
 - Jackknife is weighted (JK1); bootstrap under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
 

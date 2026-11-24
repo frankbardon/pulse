@@ -18,7 +18,7 @@ Every param is a FLAT top-level key of the regression entry (manifest `slot: tru
 Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at predict and at runtime alike:
 
 - a `penalty` on a gamma GLM, or `alpha` / `l1_ratio` without a `penalty`;
-- `theta` off a `negative_binomial` GLM, `dispersion` off it, without `theta` or `estimated` beside `penalty`, and its `selection` / `resample` (`details.requires`);
+- `theta` off a `negative_binomial` GLM, `dispersion` off it, without `theta` or `estimated` beside `penalty` (`details.requires`);
 - `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on the Bayesian fit;
 - `resample` / `selection` on the Bayesian fit (credible intervals already convey uncertainty).
 

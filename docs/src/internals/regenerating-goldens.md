@@ -475,6 +475,23 @@ install it with the `FLIBS` workaround.
 `TestRegGLM_NegBinPenaltyLeverage` (`internal/processing/regression`)
 hold it at relative `1e-8` (mpath's stopping error: worst 1.1e-9, on θ).
 
+`scripts/reference/gen_glm_nb_refit.R` writes `glm_nb_refit.json`: the
+negative binomial under `selection` and `resample` (U69 #638), θ
+re-estimated inside every candidate and replicate at the joint MLE (the
+`gen_glm_nb.R` fixed-point push) or fixed. Selection runs are MASS
+`stepAIC` on `glm.nb` (its `addterm.negbin` / `dropterm.negbin` refit
+each move exactly), self-checked against an exact greedy on Pulse's
+score −2ℓ + k·(rank + 1); a fixed θ is pinned to that exact greedy
+alone, because `step` and `stepAIC` on a `glm` rank moves by a one-step
+approximation (on this fixture `step` accepts a move that raises the
+exact AIC). Resample cases are base-R replicate loops recording
+coefficients, θ̂ and the ame / mem effects; a bootstrap draws until 40
+index sets refit cleanly and records them. MASS 7.3-66 + jsonlite, R
+4.6.1 only. `TestReferenceOracle_GLMNegBinSelectionMatchesStepAIC` and
+`TestReferenceOracle_GLMNegBinResampleMatchesR`
+(`internal/processing/regression`) hold it at relative `1e-7` (`1e-6` on
+the SEs).
+
 `scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
 log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
 (`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and

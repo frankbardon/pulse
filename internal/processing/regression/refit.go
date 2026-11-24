@@ -2,6 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/internal/regbounds"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"math"
 
@@ -36,6 +37,16 @@ type refitResult struct {
 	// (marginsDerive). Aliases, nil on the intercept-only refit and on
 	// every OLS refit.
 	X, Eta []float64
+	// Family, Theta, ThetaSE and ThetaEstimated are a negative binomial
+	// refit's own (U69 E3-S2, #638): the family at the refit's θ — its
+	// θ̂, re-estimated on the refit's rows, or the spec's fixed θ —, that
+	// θ, 1/√I(θ̂) (NaN when I ≤ 0; 0 when fixed) and whether θ was
+	// estimated. Family is the zero value on every other refit (its
+	// family is the engine's fixed one); a selection candidate's
+	// criterion and a replicate's margins read the refit's own.
+	Family         glmFamily
+	Theta, ThetaSE float64
+	ThetaEstimated bool
 	// Params is an extension model's coefficient count — the k its
 	// selection criterion charges (RunExtensionModifiers); 0 for the
 	// built-ins, whose criteria count k0 themselves.
@@ -244,6 +255,9 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		yBar = weightedMean(yVec, prior)
 	}
 
+	if p == 0 && fam.Name == reglink.NegativeBinomial {
+		return negBinInterceptRefit(yVec, prior, yBar, fam, knobs)
+	}
 	if p == 0 {
 		// Intercept-only fit: β₀ = g(ȳ), deviance = NullDeviance.
 		mu0 := fam.SafeMean(yBar)
@@ -288,8 +302,20 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 	if pen := newGLMPenalty(knobs, activePredictors, nStar); pen != nil {
 		pr.Penalty = pen
 	}
-	sol, err := irlsFit(pr)
-	if err != nil {
+	var nb *negBinFit
+	var sol *irlsSolution
+	var err error
+	if fam.Name == reglink.NegativeBinomial {
+		// θ re-estimated on the refit's own rows (or the spec's fixed θ)
+		// by the full fit's alternation (U69 E3-S2, #638).
+		if pr.Prior == nil {
+			pr.Prior = onesVec(n)
+		}
+		if nb, err = fitNegBin(pr, specTheta(knobs)); err != nil {
+			return nil, err
+		}
+		sol = nb.sol
+	} else if sol, err = irlsFit(pr); err != nil {
 		return nil, err
 	}
 	beta, deviance := sol.Beta, sol.Deviance
@@ -297,7 +323,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 	intercept := beta[0]
 	slopes := make([]float64, p)
 	copy(slopes, beta[1:])
-	return &refitResult{
+	out := &refitResult{
 		Intercept: intercept,
 		Slopes:    slopes,
 		N:         n,
@@ -305,6 +331,75 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		MeanY:     yBar,
 		Y:         yVec, Mu: sol.Mu, Prior: prior,
 		X: xRows, Eta: sol.Eta,
+	}
+	if nb != nil {
+		out.Family, out.Theta, out.ThetaSE, out.ThetaEstimated = nb.fam, nb.theta, nb.thetaSE, nb.estimated
+	}
+	return out, nil
+}
+
+// specTheta is knobs' fixed θ (0 = estimate it; knobs nil estimates).
+func specTheta(knobs *types.RegressionSpec) float64 {
+	if knobs == nil {
+		return 0
+	}
+	return knobs.Theta
+}
+
+// onesVec is n prior weights of 1 (an unweighted negative binomial's
+// thetaML reads them).
+func onesVec(n int) []float64 {
+	w := make([]float64, n)
+	for i := range w {
+		w[i] = 1
+	}
+	return w
+}
+
+// negBinInterceptRefit is the intercept-only negative binomial refit
+// (U69 E3-S2): μ̂ = ȳ on every link (the intercept's score equation is
+// Σw(y − μ)/(1 + μ/θ) = 0 at any θ), θ̂ the Newton root of the θ score
+// at it (thetaML, MASS glm.nb(y ~ 1)) or the spec's fixed θ, the
+// deviance at that θ.
+func negBinInterceptRefit(yVec, prior []float64, yBar float64, fam glmFamily, knobs *types.RegressionSpec) (*refitResult, error) {
+	n := len(yVec)
+	w := prior
+	if w == nil {
+		w = onesVec(n)
+	}
+	muRows := make([]float64, n)
+	for i := range muRows {
+		muRows[i] = yBar
+	}
+	theta, estimated := specTheta(knobs), false
+	if !(theta > 0) {
+		pr := &irlsProblem{Y: yVec, Prior: w, K: 1, Columns: []string{InterceptKey}, Family: fam}
+		t, err := thetaML(pr, muRows, 0)
+		if err != nil {
+			return nil, err
+		}
+		theta, estimated = t, true
+	}
+	nbFam := negBinFamily(fam.Link, theta)
+	dev := 0.0
+	for i := 0; i < n; i++ {
+		dev += float64(w[i] * nbFam.Deviance(yVec[i], yBar))
+	}
+	dev *= 2
+	se := 0.0
+	if estimated {
+		se = math.NaN()
+		if info := thetaInfo(theta, yVec, muRows, w); info > 0 {
+			se = 1 / math.Sqrt(info)
+		}
+	}
+	return &refitResult{
+		Intercept: nbFam.LinkFunc(yBar),
+		N:         n,
+		Deviance:  dev,
+		MeanY:     yBar,
+		Y:         yVec, Mu: muRows, Prior: prior,
+		Family: nbFam, Theta: theta, ThetaSE: se, ThetaEstimated: estimated,
 	}, nil
 }
 

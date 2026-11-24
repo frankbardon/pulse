@@ -8963,7 +8963,7 @@
             "name": "family",
             "type": "enum",
             "required": true,
-            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); a penalty re-estimates theta around the penalized fit (mpath glmregNB); selection and resample are refused (PROCESSING_CONFIG, details.requires).",
+            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); a penalty re-estimates theta around the penalized fit (mpath glmregNB); selection and resample re-estimate theta in every candidate and replicate (MASS stepAIC on glm.nb), a resampled theta_std_err being theta-hat's replicate SE.",
             "enum_values": [
               "binomial",
               "gamma",
@@ -22145,4 +22145,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c04e2dca81c83ae92c81a250af675b3638d017855820f1ecd74185652eaa232e
+// golden-hash: e1921330ae7a0e18bc363080a8727dd3ad3af6b10b007017e20d80428aaac944

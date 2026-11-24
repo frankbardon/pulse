@@ -7,6 +7,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -184,7 +186,7 @@ func (e *modifierEngine) runResampleWith(
 	// A margins block is re-estimated on every replicate refit
 	// (margins_resample.go) — the base fit's block names the terms and
 	// the contrasts.
-	derive := marginsDerive(e.spec, e.family == "GLM", e.glmFam, activePredictors, baseResult.Margins)
+	derive := withThetaDerive(e.spec, marginsDerive(e.spec, e.family == "GLM", e.glmFam, activePredictors, baseResult.Margins))
 	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), derive, pValueFn, figures)
 	if err != nil {
 		return nil, err
@@ -205,6 +207,25 @@ func (e *modifierEngine) runResampleWith(
 // its dispersion (glmFamily.EstimatesDispersion).
 func (e *modifierEngine) makeCriterionFn() func(*refitResult, int) float64 {
 	wantBIC := e.spec.Criterion == "bic"
+	if e.family == "GLM" && e.glmFam.Name == reglink.NegativeBinomial {
+		// The negative binomial scores each candidate by its own
+		// log-likelihood at its own θ (re-estimated per candidate, U69
+		// E3-S2): −2ℓ + (2 | log N*)·df, df counting θ when estimated
+		// (MASS glm.nb's AIC; stepAIC's extractAIC.negbin omits that
+		// constant +2, so the path is the same). Deviances at different
+		// θ are not comparable, so deviance + 2k would mis-rank them.
+		return func(fit *refitResult, k0 int) float64 {
+			ll, df := glmLogLik(fit.Family, fit.Y, fit.Mu, fit.Prior, fit.Deviance, k0+1, fit.Theta, fit.ThetaEstimated)
+			nStar := float64(len(fit.Y))
+			if fit.Prior != nil {
+				nStar = sum(fit.Prior)
+			}
+			if wantBIC {
+				return float64(-2*ll) + float64(detmath.Log(nStar)*float64(df))
+			}
+			return float64(-2*ll) + float64(2*df)
+		}
+	}
 	if e.family == "GLM" && e.glmFam.EstimatesDispersion {
 		// The family hook: an estimated dispersion (gamma) scores by the
 		// full log-likelihood with φ counted, R's AIC(glm) / BIC(glm)
@@ -456,11 +477,20 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 		PseudoR2:     0,
 		NObs:         fit.N,
 	}
+	fam := e.glmFam
+	if fit.Family.Name != "" {
+		// A negative binomial's θ (U69 E3-S2): θ̂ of the intercept-only
+		// model (glm.nb(y ~ 1)) or the fixed θ; SE(θ̂) when estimated.
+		fam = fit.Family
+		res.Theta = fit.Theta
+		if fit.ThetaEstimated {
+			res.ThetaStdErr = fit.ThetaSE
+		}
+	}
 	if e.spec.Penalty == "" && fit.Y != nil && !newRowWeights(e.spec).weighted() {
 		// The intercept-only glm's logLik / AIC (loglik.go); selection
-		// refuses a weight and the negative binomial (θ), so the fit is
-		// unweighted on a fixed-dispersion or gamma family.
-		ll, df := glmLogLik(e.glmFam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, 0, false)
+		// refuses a weight, so the fit is unweighted.
+		ll, df := glmLogLik(fam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, fit.Theta, fit.ThetaEstimated)
 		attachLogLik(res, ll, df)
 	}
 	return res, nil

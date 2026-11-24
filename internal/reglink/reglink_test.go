@@ -79,18 +79,22 @@ func TestCheckTheta(t *testing.T) {
 		return s
 	}
 	for name, s := range map[string]*types.RegressionSpec{
-		"estimated":            nb(func(*types.RegressionSpec) {}),
-		"fixed":                nb(func(s *types.RegressionSpec) { s.Theta = 0.3 }),
-		"fixed φ = 1":          nb(func(s *types.RegressionSpec) { s.Theta, s.Dispersion = 0.3, types.NegBinDispersionFixed }),
-		"φ estimated":          nb(func(s *types.RegressionSpec) { s.Theta, s.Dispersion = 0.3, types.NegBinDispersionEstimated }),
-		"robust":               nb(func(s *types.RegressionSpec) { s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0} }),
-		"penalty, θ estimated": nb(func(s *types.RegressionSpec) { s.Penalty = "l1" }),
-		"penalty, θ fixed":     nb(func(s *types.RegressionSpec) { s.Penalty, s.Theta = "elasticnet", 2 }),
-		"penalty, fixed φ = 1": nb(func(s *types.RegressionSpec) { s.Penalty, s.Theta, s.Dispersion = "l2", 2, types.NegBinDispersionFixed }),
-		"poisson":              {Type: types.REG_GLM, Family: "poisson", Penalty: "l2", Selection: "forward", Resample: "bootstrap"},
-		"extension":            {Type: "REG_X_CUSTOM", Theta: 2},
-		"model regr.":          {Type: types.REG_MMM_HILL, Theta: 2},
-		"nil-safe ols":         {Type: types.REG_OLS},
+		"estimated":              nb(func(*types.RegressionSpec) {}),
+		"fixed":                  nb(func(s *types.RegressionSpec) { s.Theta = 0.3 }),
+		"fixed φ = 1":            nb(func(s *types.RegressionSpec) { s.Theta, s.Dispersion = 0.3, types.NegBinDispersionFixed }),
+		"φ estimated":            nb(func(s *types.RegressionSpec) { s.Theta, s.Dispersion = 0.3, types.NegBinDispersionEstimated }),
+		"robust":                 nb(func(s *types.RegressionSpec) { s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC0} }),
+		"penalty, θ estimated":   nb(func(s *types.RegressionSpec) { s.Penalty = "l1" }),
+		"penalty, θ fixed":       nb(func(s *types.RegressionSpec) { s.Penalty, s.Theta = "elasticnet", 2 }),
+		"penalty, fixed φ = 1":   nb(func(s *types.RegressionSpec) { s.Penalty, s.Theta, s.Dispersion = "l2", 2, types.NegBinDispersionFixed }),
+		"selection, θ estimated": nb(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "backward", "aic" }),
+		"selection, θ fixed":     nb(func(s *types.RegressionSpec) { s.Selection, s.Criterion, s.Theta = "forward", "bic", 2 }),
+		"resample, θ estimated":  nb(func(s *types.RegressionSpec) { s.Resample = "jackknife" }),
+		"resample, θ fixed":      nb(func(s *types.RegressionSpec) { s.Resample, s.Theta = "bootstrap", 2 }),
+		"poisson":                {Type: types.REG_GLM, Family: "poisson", Penalty: "l2", Selection: "forward", Resample: "bootstrap"},
+		"extension":              {Type: "REG_X_CUSTOM", Theta: 2},
+		"model regr.":            {Type: types.REG_MMM_HILL, Theta: 2},
+		"nil-safe ols":           {Type: types.REG_OLS},
 	} {
 		if cerr := CheckTheta(s); cerr != nil {
 			t.Errorf("%s refused: %v", name, cerr)
@@ -113,8 +117,6 @@ func TestCheckTheta(t *testing.T) {
 		{"penalty beside φ estimated", nb(func(s *types.RegressionSpec) {
 			s.Penalty, s.Theta, s.Dispersion = "l2", 2, types.NegBinDispersionEstimated
 		}), "unpenalized"},
-		{"selection", nb(func(s *types.RegressionSpec) { s.Selection = "backward" }), "no_selection"},
-		{"resample", nb(func(s *types.RegressionSpec) { s.Resample = "bootstrap"; s.Theta = 2 }), "no_resample"},
 		{"dispersion on gamma", &types.RegressionSpec{Type: types.REG_GLM, Family: "gamma", Dispersion: types.NegBinDispersionEstimated}, "family negative_binomial"},
 		{"dispersion on REG_OLS", &types.RegressionSpec{Type: types.REG_OLS, Dispersion: types.NegBinDispersionFixed}, "family negative_binomial"},
 		{"dispersion with θ estimated", nb(func(s *types.RegressionSpec) { s.Dispersion = types.NegBinDispersionEstimated }), "theta"},

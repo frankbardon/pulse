@@ -216,8 +216,8 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 		}
 	}
 
-	// theta and the negative binomial's refused penalty / selection /
-	// resample — the runtime's rule itself (internal/reglink, shared).
+	// theta / dispersion and the negative binomial's knob rules — the
+	// runtime's rule itself (internal/reglink, shared).
 	if cerr := reglink.CheckTheta(reg); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}

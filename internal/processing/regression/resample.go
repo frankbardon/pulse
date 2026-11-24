@@ -471,6 +471,10 @@ func packageResampleResult(
 		attachVcov(&out, predictors, cov)
 	}
 	out.Margins = resampleMargins(out.Margins, run, resolvedConfLevel(spec))
+	if resampleTheta(spec) && len(run.derivedSE) > 0 {
+		// θ̂'s replicate SE, the last derived column (withThetaDerive).
+		out.ThetaStdErr = run.derivedSE[len(run.derivedSE)-1]
+	}
 	figures.release(coefficientKeys(predictors), run)
 	return &out
 }

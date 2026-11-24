@@ -43,6 +43,14 @@ import (
 // information of θ at the fitted means. A robust covariance's sandwich
 // holds θ fixed at θ̂ (as R's sandwich on a glm.nb fit does).
 //
+// Every refit re-estimates θ the same way (U69 #638): the penalized fit
+// (glm_penalty.go, each β step the penalized IRLS), every selection
+// candidate and every jackknife / bootstrap replicate (glmRefit; the
+// intercept-only candidate in negBinInterceptRefit) — a fixed θ stays
+// fixed. A selection candidate is scored by its own log-likelihood at
+// its own θ̂ (modifierEngine.makeCriterionFn); a resample reports θ̂'s
+// replicate SE as theta_std_err (negbin_resample.go).
+//
 // Refusals, each PROCESSING_REGRESSION_NO_CONVERGE (a data-dependent
 // slot failure) with details.reason: theta_unbounded (θ̂ grows past
 // thetaUnbounded, or stalls past thetaLarge — the data show no
