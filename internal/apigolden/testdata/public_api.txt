@@ -5914,6 +5914,7 @@ pulse/types: type FitComparisonResult field Restricted string "json:\"restricted
 pulse/types: type FitComparisonResult field RestrictedDFResidual float64 "json:\"restricted_df_residual\""
 pulse/types: type FitComparisonResult field RestrictedDeviance float64 "json:\"restricted_deviance\""
 pulse/types: type FitComparisonResult field RestrictedTwoLogLik float64 "json:\"restricted_two_log_lik,omitempty\""
+pulse/types: type FitComparisonResult field ScalingFactor float64 "json:\"scaling_factor,omitempty\""
 pulse/types: type FitComparisonResult field SignificantAdjusted *bool "json:\"significant_adjusted,omitempty\""
 pulse/types: type FitComparisonResult field Statistic float64 "json:\"statistic\""
 pulse/types: type FitComparisonResult field Terms []string "json:\"terms\""
@@ -7217,4 +7218,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a9985bd6e01b50c9b5f520991c347c4fca5d381b06c4b381d3aa50c552e660bc
+// golden-hash: f080129a81aaf4f6123cc23fa1754239246ae6b7d1b7c0eab5470a8c37e603d1

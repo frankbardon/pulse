@@ -342,6 +342,7 @@
     - [response-components](guide/skills/response-components.md)
     - [response-shaping](guide/skills/response-shaping.md)
     - [sem-bootstrap](guide/skills/sem-bootstrap.md)
+    - [sem-comparison](guide/skills/sem-comparison.md)
     - [sem-defined-parameters](guide/skills/sem-defined-parameters.md)
     - [sem-fits](guide/skills/sem-fits.md)
     - [sem-groups](guide/skills/sem-groups.md)

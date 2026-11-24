@@ -2586,6 +2586,12 @@
             "null"
           ]
         },
+        "scaling_factor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "significant_adjusted": {
           "type": "boolean"
         },
@@ -8681,4 +8687,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: a17f90d10264c0d9ac7af532210cf6dbf0b4c07f81de2449af1e1d49e0c0129d
+// golden-hash: f6155b1422d0a5a2500533bdcfc161d80e5edd1412f1378483f54466f4f3df9c

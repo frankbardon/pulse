@@ -617,7 +617,7 @@ source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)
 # cell, the closed-form REML optimum and Satterthwaite F / df / p that
 # lmerTest::anova approximates, lmerTest's own figures beside); lme4
 # 2.0-6 + lmerTest 3.2-1 + numDeriv 2016.8-1.1 + jsonlite. Its own seed,
-# sourced last, so no other golden moves.
+# sourced after the rest, so no other golden moves.
 source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)
 
 # The resampled marginal-effects golden (U69 #639:
@@ -625,7 +625,7 @@ source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)
 # contrast on lm and the logit / probit / poisson glm — leave-one-out,
 # delete-a-cluster and frequency-weighted jackknife, a bootstrap over
 # its own recorded index sets); base stats + jsonlite. Its own seed,
-# sourced last, so no other golden moves.
+# sourced after the rest, so no other golden moves.
 source(file.path(script_dir, "gen_margins_resample.R"), local = FALSE)
 
 # The resampled Wald-comparison golden (U69 #642: compare_resample.json:
@@ -676,5 +676,12 @@ source(file.path(script_dir, "gen_compare_sweep.R"), local = FALSE)
 # anova(lm(j ~ restricted others), lm(j ~ full others)), its Chisq form
 # and lmtest::waldtest, one case under a frequency weight as the row
 # expansion); lmtest 0.9-40 + base stats + jsonlite. Its own seed,
-# sourced last, so no other golden moves.
+# sourced after the rest, so no other golden moves.
 source(file.path(script_dir, "gen_compare_vector.R"), local = FALSE)
+
+# The SEM-pair comparison golden (U69 E5-S3, #643: sem_compare.json:
+# lavaan::lavTestLRT on two MAT_SEM fits of the brand survey — the plain
+# chi-square difference under ML / DWLS, the Satorra-Bentler (2001)
+# scaled difference under WLSMV); lavaan 0.7.3 + jsonlite. No random
+# draw, sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_sem_compare.R"), local = FALSE)

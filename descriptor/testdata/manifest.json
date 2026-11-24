@@ -15688,6 +15688,10 @@
         "description": "Bootstrap standard errors, p-values and percentile intervals for a structural equation model — lavaan's se = \"bootstrap\" on MAT_SEM, seeded and reproducible, within-group under a multi-group fit. When to prefer it over the analytic (delta-method) figures, what it costs and how to read the replicate counts."
       },
       {
+        "name": "sem-comparison",
+        "description": "Nested comparison of two Compose SEM fits — the chi-square difference test of lavaan's lavTestLRT, plain under ml / dwls and the Satorra-Bentler (2001) scaled difference under wlsmv; invariance steps (configural, metric, scalar) and dropped paths, how nesting is declared and checked, the result, the refusals and the failures. Topical design; the regression comparisons in regression-comparison."
+      },
+      {
         "name": "sem-defined-parameters",
         "description": "Defined parameters on MAT_SEM — lavaan's name := expr for indirect, total and contribution effects (a path times a latent mean change) with a delta-method or bootstrap interval and a p. The grammar and its refusals, the convention switch, how the rows read, correcting them together, and telling whether an effect differs from zero."
       },
@@ -22153,4 +22157,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0a2352ea91d5b010fdbcbe9b68e16bdd13a92d0f4539a291860f81da4d3c4c56
+// golden-hash: 22555d1b133d66e3d7c0081bf713fd86a9a355cac1af71e9ec9e2d7b849a06bb

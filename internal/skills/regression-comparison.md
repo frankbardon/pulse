@@ -28,7 +28,7 @@ requires: [capability:compose_compare]
 
 Verified on the specs, at predict and at run alike:
 
-- both names are regression fits (not SEM; two vector fits: `regression-comparison-batteries`; `from_sweep`: per slot, `compose-sweep-bind`), two different ones, one type;
+- both are regression fits (vector: `regression-comparison-batteries`; SEM: `sem-comparison`; `from_sweep`: per slot, `compose-sweep-bind`), two different ones, one type;
 - every restricted term (its predictors, plus the intercept when it fits one) is a full-fit term, and the full fit adds at least one — the tested `terms`;
 - the requests are equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->) and the request's `label`, `return`, `disable_components`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature -->: same cohort, filters, features<!-- feature: capability:weighting -->, weight<!-- /feature -->, family, link, θ, dispersion, covariance. Put a full-only feature in both requests.
 

@@ -500,6 +500,11 @@ func (m *matrixSlot) semCaptureFit(cm *linalg.CoMoment, converged bool, status s
 		Converged:      converged,
 		Status:         status,
 		Iterations:     iterations,
+		Chi2:           st.Chi2,
+		Means:          spec.Model.MeanStructure,
+	}
+	if st.Scaled != nil {
+		sf.TraceUG = st.Scaled.TraceUG
 	}
 	if len(sf.GroupEqual) == 0 {
 		sf.GroupEqual = nil

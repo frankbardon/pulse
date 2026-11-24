@@ -180,6 +180,9 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 			return
 		}
 		p.semFits[i] = sf
+		// A SEM fit a nested-model comparison reads files its fit
+		// (compose_compare.go).
+		recordComparisonSEM(ctx, fits[i].Name, sf)
 		// The fit's `save` writes its SEM fit file under the fit's
 		// name (the overwrite warning lifts to the batch).
 		w, err := s.saveFitSEM(ctx, i, fits[i], sf)

@@ -1,0 +1,165 @@
+{
+  "description": "Nested comparison of two SEM fits: lavaan 0.7.3 lavTestLRT — the chi-square difference (ML, DWLS) and the Satorra-Bentler (2001) scaled difference (WLSMV) on the brand survey",
+  "packages": {
+    "R": "R version 4.6.1 (2026-06-24)",
+    "lavaan": "0.7.3",
+    "jsonlite": "2.0.0"
+  },
+  "cases": [
+    {
+      "name": "ml_dropped_path",
+      "estimator": "ml",
+      "group": "",
+      "meanstructure": true,
+      "ordered": [],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value",
+        "group_equal": []
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service",
+        "group_equal": []
+      },
+      "n": 1200,
+      "restricted_chisq": 356.63885802959283,
+      "full_chisq": 33.396651411246836,
+      "restricted_df": 31,
+      "full_df": 30,
+      "df": 1,
+      "statistic": 323.24220661834602,
+      "p_value": 2.848979881365852e-72
+    },
+    {
+      "name": "ml_metric_vs_configural",
+      "estimator": "ml",
+      "group": "wave",
+      "meanstructure": true,
+      "ordered": [],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service",
+        "group_equal": [
+          "loadings"
+        ]
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service",
+        "group_equal": []
+      },
+      "n": 1200,
+      "restricted_chisq": 62.951397665819542,
+      "full_chisq": 59.593676800595219,
+      "restricted_df": 66,
+      "full_df": 60,
+      "df": 6,
+      "statistic": 3.3577208652243229,
+      "p_value": 0.7627928969072193
+    },
+    {
+      "name": "ml_scalar_vs_metric",
+      "estimator": "ml",
+      "group": "wave",
+      "meanstructure": true,
+      "ordered": [],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service",
+        "group_equal": [
+          "loadings",
+          "intercepts"
+        ]
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value + service",
+        "group_equal": [
+          "loadings"
+        ]
+      },
+      "n": 1200,
+      "restricted_chisq": 66.760403913450261,
+      "full_chisq": 62.951397665819542,
+      "restricted_df": 73,
+      "full_df": 66,
+      "df": 7,
+      "statistic": 3.8090062476307196,
+      "p_value": 0.8014946704263981
+    },
+    {
+      "name": "dwls_fixed_covariance",
+      "estimator": "dwls",
+      "group": "",
+      "meanstructure": false,
+      "ordered": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nquality ~~ 0*service",
+        "group_equal": []
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
+        "group_equal": []
+      },
+      "n": 1200,
+      "restricted_chisq": 493.65715380226118,
+      "full_chisq": 18.579420219096601,
+      "restricted_df": 25,
+      "full_df": 24,
+      "df": 1,
+      "statistic": 475.07773358316456,
+      "p_value": 2.5166872281737202e-105
+    },
+    {
+      "name": "wlsmv_fixed_covariance",
+      "estimator": "wlsmv",
+      "group": "",
+      "meanstructure": false,
+      "ordered": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nquality ~~ 0*service",
+        "group_equal": []
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
+        "group_equal": []
+      },
+      "n": 1200,
+      "restricted_chisq": 493.65715380226118,
+      "full_chisq": 18.579420219096601,
+      "restricted_df": 25,
+      "full_df": 24,
+      "df": 1,
+      "restricted_trace_ug": 17.591529289097942,
+      "full_trace_ug": 12.98724424406263,
+      "scaling_factor": 4.6042850450353114,
+      "statistic": 103.18165120889492,
+      "p_value": 3.0578511111051026e-24
+    },
+    {
+      "name": "wlsmv_thload_vs_configural",
+      "estimator": "wlsmv",
+      "group": "wave",
+      "meanstructure": false,
+      "ordered": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"],
+      "restricted": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
+        "group_equal": [
+          "thresholds",
+          "loadings"
+        ]
+      },
+      "full": {
+        "model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
+        "group_equal": []
+      },
+      "n": 1200,
+      "restricted_chisq": 46.250273010947538,
+      "full_chisq": 28.270370639030386,
+      "restricted_df": 72,
+      "full_df": 48,
+      "df": 24,
+      "restricted_trace_ug": 42.195110606967724,
+      "full_trace_ug": 25.871168100166031,
+      "scaling_factor": 0.68016427111673716,
+      "statistic": 26.434646945504209,
+      "p_value": 0.33148585587706048
+    }
+  ]
+}
+// golden-hash: dfd8279fe420090203ec0537ca749b71fc00f90c741329d7df46248cead11449

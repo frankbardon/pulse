@@ -16,4 +16,5 @@ Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md 
 | `predict-inspect/predict.md` | Predict; `PredictResult.Sizes`; `ComposeSlotPredict.Sizes`; `PredictResult.PostWindow`; `Pulse.ClassifyPostWindow(ctx, req, schema)`; Field references are one rule, not a predict-only check; Field-type acceptance is gated table-wide; Literal `lookup()` / `range_label()` calls are judged statically; Saved files are the one non-cohort read predict makes (`models`, `populations`) |
 | `predict-inspect/limits.md` | Limit findings; `PredictResult.LimitFindings` (+ the Compose, chain and facet roots); The memory estimate (`MaxEstimatedMemory`, U19 E2-S3) |
 | `predict-inspect/advisories.md` | Advisories; `PredictResult.Advisories`; Import predict is not descriptor predict |
+| `predict-inspect/compose-compare.md` | Nested-model comparisons (U65 E3-S3) — the `regcompare` rule at predict, the summary, sweep-bound and SEM pairs |
 | `predict-inspect/history.md` (not loaded by default) | The CLAUDE.md Inspect bullet, pre-compression (relocated verbatim at weighting-descriptive E1-S1) |

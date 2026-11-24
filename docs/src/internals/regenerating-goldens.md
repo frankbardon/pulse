@@ -665,10 +665,30 @@ and `lm(j ~ full others)` and compares them with `anova(m0, m1)` (f),
 the frequency-weighted case expands each row `w` times. Needs `lmtest`
 0.9-40 (the `gen_nested.R` pin) + jsonlite, nothing new: `Rscript
 scripts/reference/gen_compare_vector.R internal/processing/testdata/reference`,
-then append the hash footer. Sourced last by `gen_reference.R`.
+then append the hash footer. Sourced near the end of `gen_reference.R`.
 `TestReferenceOracle_CompareVectorMatchesR` (`internal/service`) holds
 every member row's statistic, p-value, deviances and dispersion and the
 df / residual dfs at `1e-10` relative.
+
+`scripts/reference/gen_sem_compare.R` writes `sem_compare.json`: the
+Compose nested-model comparison of two SEM fits (U69 #643) on the
+brand survey (`internal/sem/testdata/brand_data.csv`, read relative to
+the repository root, so run the script from there) — a dropped
+structural path and the metric / scalar invariance steps across the
+waves under ML, a fixed factor covariance under DWLS and WLSMV, and
+WLSMV threshold + loading invariance against the configural fit.
+`lavaan::lavTestLRT(m0, m1)` is the plain chi-square difference (ML,
+DWLS); under WLSMV each fit carries `test = c("scaled.shifted",
+"satorra.bentler")` and `lavTestLRT(m0, m1, method =
+"satorra.bentler.2001", test = "satorra.bentler")` is the scaled
+difference over the fits' `trace.UGamma` / df scaling factors. The
+script re-derives each statistic from the two fits' test slots and
+stops unless `lavTestLRT` agrees at 1e-9. Needs lavaan 0.7.3 +
+jsonlite; no random draw. Sourced last by `gen_reference.R`.
+`TestReferenceOracle_CompareSEMMatchesR` (`internal/integration`) holds
+each fit's χ² and df, the statistic, scaling factor and p-value at
+`1e-8` relative under ML and `1e-6` under the ordinal estimators (the
+two-step fit's optimizer stop).
 
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
@@ -972,6 +992,7 @@ is the whole list in one place.
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
 | `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`), the `REG_ORDINAL` sandwich cross-check (`gen_ordinal.R`) |
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
+| `lavaan` | 0.7.3 | `MAT_SEM` / `ATTR_SEM_SCORE` reference fits (`internal/sem/testdata/gen_lavaan.sh`, its own runner, each fixture recording the release) and the SEM nested comparison (`gen_sem_compare.R`: `lavTestLRT`, standard and `satorra.bentler.2001`); with its imports `pbivnorm` 0.6.0, `quadprog` 1.5.8, `numDeriv` 2016.8-1.1, `mnormt` 2.1.2 and `MASS` (the row above) — the versions the goldens were generated with; the scripts check lavaan's alone |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `mpath` | 0.4-2.28 | penalized `REG_GLM` negative binomial (`gen_glm_nb_penalty.R`: `glmregNB`); with its imports `pscl` 1.5.9, `bst` 0.3-24, `WeightSVM` 1.7-16 and `doParallel` 1.0.17 (pinned, recorded in the golden); compiles Fortran, so install it with the workaround below |

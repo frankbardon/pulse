@@ -29,6 +29,15 @@ package types
 // Gaussian lm(j ~ restricted others) against lm(j ~ full others), read
 // exactly off the full fit's co-moment (FitComparisonResult.Members).
 //
+// Two SEM fits (a MAT_SEM fit request each, U69 #643) compare by the
+// chi-square difference — lavaan's lavTestLRT: the plain difference of
+// the fits' model χ² under ml / dwls, the Satorra–Bentler (2001) scaled
+// difference under wlsmv. Their nesting is declared, never proven: the
+// fit requests equal but for params.model, group_equal, group_partial
+// and the reporting and solver knobs; the test lrt (the default); the
+// restricted fit's degrees of freedom above the full fit's (judged at
+// run, the comparison failing alone).
+//
 // The result is ComposedResponse.Comparisons, in declaration order. A
 // nil / empty list is absent: the slot is `omitempty`, so a
 // comparison-free request is byte-identical on the wire and under
@@ -142,6 +151,7 @@ type FitComparisonResult struct {
 	// first when only the full fit has one; on REG_MULTINOMIAL the added
 	// predictors). DF = len(Terms), (K − 1)·len(Terms) on
 	// REG_MULTINOMIAL.
+	// Empty on a SEM comparison: DF is the df difference d₀ − d₁ there.
 	Terms []string `json:"terms"`
 
 	// Statistic is F (Distribution f) or χ² (chisq); null when
@@ -178,6 +188,10 @@ type FitComparisonResult struct {
 	// deviance: the (weighted) RSS on REG_OLS (R's deviance(lm)), the
 	// RegressionResult.Deviance on REG_GLM (a negative binomial's at its
 	// own θ).
+	//
+	// On a SEM comparison the residual df are each fit's model df and
+	// the deviances each fit's model χ² against the saturated model
+	// (lavaan's standard test statistic).
 	RestrictedDeviance float64 `json:"restricted_deviance"`
 	FullDeviance       float64 `json:"full_deviance"`
 
@@ -193,6 +207,14 @@ type FitComparisonResult struct {
 	// — a negative binomial with θ estimated; absent otherwise.
 	RestrictedTwoLogLik float64 `json:"restricted_two_log_lik,omitempty"`
 	FullTwoLogLik       float64 `json:"full_two_log_lik,omitempty"`
+
+	// ScalingFactor is a SEM comparison's Satorra–Bentler (2001)
+	// difference scaling factor c_d = (d₀c₀ − d₁c₁)/(d₀ − d₁), each c the
+	// fit's mean-adjusted scaling factor tr(UΓ)/df — present only on two
+	// WLSMV fits (Statistic is then (T₀ − T₁)/c_d), null where c_d < 0
+	// (lavaan's NA; Statistic and PValue null too); absent on every other
+	// comparison.
+	ScalingFactor float64 `json:"scaling_factor,omitempty"`
 
 	// PAdjusted is the multiplicity-adjusted p-value, present only when
 	// the comparison's resolved correction is not none; it rides BESIDE
@@ -212,7 +234,7 @@ type FitComparisonResult struct {
 	// their count, the residual dfs N* − p of each battery; the
 	// single-pair Statistic, PValue and deviances are undefined (null)
 	// and every row's PValue is one member of the multiplicity family.
-	// Absent on a regression comparison.
+	// Absent on a regression or SEM comparison.
 	Members []FitComparisonMember `json:"members,omitempty"`
 
 	// Error is set when the comparison failed on its data: the entry

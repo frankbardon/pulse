@@ -86,6 +86,10 @@ func (s *Service) rebindComparisons(plans []regcompare.Plan, composed *types.Com
 // name. Nothing reaches a request, a result or the public API, so no
 // fit's bytes move and the caller's request is never touched. Safe for
 // the concurrent fits of ComposeParallel.
+//
+// A SEM fit a comparison reads files its bound model.SEMFit (its χ²,
+// df, tr(UΓ), groups and observed variables: regcompare.ComputeSEM's
+// inputs) the same way (recordComparisonSEM).
 type comparisonFigures struct {
 	names map[string]bool
 	mu    sync.Mutex
@@ -93,6 +97,9 @@ type comparisonFigures struct {
 	// vectors are the bound states of the vector fits a battery
 	// comparison reads (recordComparisonVector), by fit name.
 	vectors map[string]*model.VectorFit
+	// sems are the bound SEM fits a SEM comparison reads
+	// (recordComparisonSEM), by fit name.
+	sems map[string]*model.SEMFit
 }
 
 // newComparisonFigures is the collector for compare's fits, nil without
@@ -101,7 +108,7 @@ func newComparisonFigures(compare []types.FitComparisonSpec) *comparisonFigures 
 	if len(compare) == 0 {
 		return nil
 	}
-	return &comparisonFigures{names: regcompare.FitNames(compare), figs: map[string][]*model.RegressionFigures{}, vectors: map[string]*model.VectorFit{}}
+	return &comparisonFigures{names: regcompare.FitNames(compare), figs: map[string][]*model.RegressionFigures{}, vectors: map[string]*model.VectorFit{}, sems: map[string]*model.SEMFit{}}
 }
 
 type comparisonFiguresKey struct{}
@@ -158,6 +165,29 @@ func (cf *comparisonFigures) vector(name string) *model.VectorFit {
 	cf.mu.Lock()
 	defer cf.mu.Unlock()
 	return cf.vectors[name]
+}
+
+// recordComparisonSEM files SEM fit name's bound fit when ctx's
+// collector reads it (a no-op otherwise).
+func recordComparisonSEM(ctx context.Context, name string, sf *model.SEMFit) {
+	cf, _ := ctx.Value(comparisonFiguresKey{}).(*comparisonFigures)
+	if cf == nil || sf == nil || !cf.names[name] {
+		return
+	}
+	cf.mu.Lock()
+	cf.sems[name] = sf
+	cf.mu.Unlock()
+}
+
+// semOf is SEM fit name's bound fit (nil when none was filed: a failed
+// fit).
+func (cf *comparisonFigures) semOf(name string) *model.SEMFit {
+	if cf == nil {
+		return nil
+	}
+	cf.mu.Lock()
+	defer cf.mu.Unlock()
+	return cf.sems[name]
 }
 
 // of is fit name's figures: nil when none was offered (a failed fit),
@@ -218,15 +248,30 @@ func (s *Service) runComposeCompare(plans []regcompare.Plan, fits map[string]*ty
 			warnings = append(warnings, slotfail.Warning(f))
 			continue
 		}
-		if p.Battery {
-			// Two vector fits: member-wise from the bound co-moments.
-			vec := func(name string) *types.VectorFitResult {
-				if f := fits[name]; f != nil {
-					return f.Vector
+		if p.Battery || p.SEM {
+			// Two vector fits compare member-wise from the bound
+			// co-moments; two SEM fits by the chi-square difference.
+			var (
+				res types.FitComparisonResult
+				err error
+			)
+			if p.Battery {
+				vec := func(name string) *types.VectorFitResult {
+					if f := fits[name]; f != nil {
+						return f.Vector
+					}
+					return nil
 				}
-				return nil
+				res, err = regcompare.ComputeBattery(p, vec(p.Restricted), vec(p.Full), figs.vector(p.Restricted), figs.vector(p.Full))
+			} else {
+				semRes := func(name string) *types.SEMFitResult {
+					if f := fits[name]; f != nil {
+						return f.SEM
+					}
+					return nil
+				}
+				res, err = regcompare.ComputeSEM(p, semRes(p.Restricted), semRes(p.Full), figs.semOf(p.Restricted), figs.semOf(p.Full))
 			}
-			res, err := regcompare.ComputeBattery(p, vec(p.Restricted), vec(p.Full), figs.vector(p.Restricted), figs.vector(p.Full))
 			if err != nil {
 				return nil, nil, err
 			}

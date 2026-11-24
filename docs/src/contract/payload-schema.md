@@ -1894,15 +1894,25 @@ knobs, an unsupported fit or test under `requires`). Results land in
 `p_value`, `n_obs`, `restricted_df_residual`, `full_df_residual`,
 `restricted_deviance`, `full_deviance`, `dispersion` (F / LR on a
 deviance), `restricted_two_log_lik` / `full_two_log_lik` (a θ-estimated
-negative binomial's LR), `p_adjusted` / `significant_adjusted` /
-`multiplicity` — pinned outside the Compose-level `return` (always
+negative binomial's LR), `scaling_factor` (a WLSMV SEM pair's
+Satorra–Bentler difference factor), `p_adjusted` /
+`significant_adjusted` / `multiplicity` — pinned outside the Compose-level `return` (always
 emitted, never rounded); an undefined figure is `null`, key kept. A
 comparison whose fit failed on its data, or whose fits used different
 row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
 full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
 (`slot_kind` `comparisons`). Both slots are gated by
 `capability:compose_compare` (a dependency on `capability:compose_fits`
-and `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`). On
+and `MAT_SEM`, `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`).
+Two SEM fits (U69 #643) compare by the chi-square difference: `test`
+`lrt` only, `terms` empty, `df` the df difference, the per-fit
+`*_df_residual` / `*_deviance` each fit's model df and χ²;
+`scaling_factor` is present only on two `wlsmv` fits (null where the
+difference factor is negative). Their refusals add `kind_mismatch`,
+`test_unsupported`, `same_model` and `observed_differ`; once run a
+pair fails alone on `df_not_positive` / `conventions_differ`
+(`PULSE_COMPARISON_INVALID`) or `rows_differ`
+(`PULSE_COMPARISON_ROWS_DIFFER`). On
 `REG_MULTINOMIAL` the `terms` are the added predictors and `df` counts
 their K − 1 `"<level>:<term>"` coefficients each, (K − 1)·len(`terms`),
 and each fit's residual df is (K − 1)·N* − rank (`anova.multinom`).

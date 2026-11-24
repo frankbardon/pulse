@@ -53,6 +53,7 @@ The inline fit's warnings carry over: too few fit rows or negative degrees of fr
 ## See
 
 - [`compose-fits`](compose-fits.md) — the `fits` slot, names, failures.
+- [`sem-comparison`](sem-comparison.md) — two SEM fits compared (chi-square difference).
 - [`op-attr-sem-score`](op-attr-sem-score.md) — the scoring attribute.
 - [`sem-modeling`](sem-modeling.md) — conventions, means and multi-group fits.
 - [`vector-row-scores`](vector-row-scores.md) — the row-local versus two-pass rule.

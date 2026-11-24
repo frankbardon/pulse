@@ -9,9 +9,10 @@
 //
 // Nesting is verified on the specs, never guessed from the numbers:
 //
-//   - both names bind regression `fits` entries (not a SEM fit; two
-//     vector fits are nested member-wise — battery.go; a `from_sweep`
-//     one is judged per sweep slot — sweep.go), two
+//   - both names bind regression `fits` entries (two vector fits are
+//     nested member-wise — battery.go; two SEM fits are the chi-square
+//     difference test — sem.go; a `from_sweep` one is judged per sweep
+//     slot — sweep.go), two
 //     different ones, both
 //     REG_OLS, both REG_GLM, both REG_MULTINOMIAL (admitted by the rule
 //     itself as a declared-like plan) or both one model whose
@@ -163,6 +164,10 @@ type Plan struct {
 	// members — one test row each (ComputeBattery).
 	Battery bool
 	Members []string
+	// SEM reports a comparison of two SEM fits (sem.go: ComputeSEM runs
+	// it); Scaled its Satorra–Bentler (2001) scaled difference (two
+	// WLSMV fits).
+	SEM, Scaled bool
 }
 
 // FitNames returns every fit name a comparison reads (the fits the
@@ -229,7 +234,7 @@ func indexFits(fits []types.FitSpec) (map[string]*types.FitSpec, []string) {
 			continue
 		}
 		byName[f.Name] = f
-		if isRegressionFit(f) {
+		if isRegressionFit(f) || isSEMFit(f) {
 			available = append(available, f.Name)
 		}
 	}
@@ -286,8 +291,8 @@ func fitOf(i int, c *types.FitComparisonSpec, field, name string, byName map[str
 		return nil, invalid(i, c.Name, "fit_unknown", "`"+field+"` "+strconv.Quote(name)+" names no `fits` entry",
 			map[string]any{"field": field, "value": name, "available": nonNil(available)})
 	}
-	if !isRegressionFit(f) {
-		return nil, invalid(i, c.Name, "fit_kind", "`"+field+"` "+strconv.Quote(name)+" is not a regression fit",
+	if !isRegressionFit(f) && !isSEMFit(f) {
+		return nil, invalid(i, c.Name, "fit_kind", "`"+field+"` "+strconv.Quote(name)+" is not a regression or SEM fit",
 			map[string]any{"field": field, "value": name, "available": nonNil(available)})
 	}
 	return f, nil
@@ -313,6 +318,9 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 	}
 	if c.Restricted == c.Full {
 		return p, invalid(i, c.Name, "same_fit", "`restricted` and `full` name the same fit", map[string]any{"value": c.Full})
+	}
+	if isSEMFit(f0) || isSEMFit(f1) {
+		return checkSEM(i, c, f0, f1)
 	}
 	r0, r1 := f0.Request.Regressions[0], f1.Request.Regressions[0]
 	for _, side := range []struct {
