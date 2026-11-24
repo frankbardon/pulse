@@ -7,35 +7,45 @@ import (
 	"testing"
 )
 
-// claudeMdPath returns the absolute-ish path to CLAUDE.md from the
-// descriptor package's working directory. Go test working directory is
-// the package directory (internal/descriptor), so CLAUDE.md sits two
-// levels up.
-func claudeMdPath() string {
-	return filepath.Join("..", "..", "CLAUDE.md")
-}
-
-// readClaudeMdForComponents reads CLAUDE.md from the repo root via
-// `../../CLAUDE.md`. Mirrors the hygiene_test.go helper at the repo root
-// (which uses os.ReadFile("CLAUDE.md") from the root pulse package).
-func readClaudeMdForComponents(t *testing.T) string {
+// readReferenceDoc returns .claude/reference/<name>.md plus, for a split
+// index, every slice under .claude/reference/<name>/ (history.md excluded),
+// concatenated. The test working directory is internal/descriptor, so the
+// repo root is two levels up.
+func readReferenceDoc(t *testing.T, name string) string {
 	t.Helper()
-	data, err := os.ReadFile(claudeMdPath())
+	root := filepath.Join("..", "..", ".claude", "reference")
+	data, err := os.ReadFile(filepath.Join(root, name+".md"))
 	if err != nil {
-		t.Fatalf("reading CLAUDE.md: %v", err)
+		t.Fatalf("reading %s.md: %v", name, err)
 	}
-	return string(data)
+	var b strings.Builder
+	b.Write(data)
+	slices, _ := filepath.Glob(filepath.Join(root, name, "*.md"))
+	for _, sl := range slices {
+		if filepath.Base(sl) == "history.md" {
+			continue
+		}
+		raw, err := os.ReadFile(sl)
+		if err != nil {
+			t.Fatalf("reading %s: %v", sl, err)
+		}
+		b.WriteString("\n")
+		b.Write(raw)
+	}
+	return b.String()
 }
 
-func TestClaudeMdMentionsComponentsContract(t *testing.T) {
+// TestComponentsContractDocumented pins the Response.Components contract in
+// its long-form home, .claude/reference/response-components.md.
+func TestComponentsContractDocumented(t *testing.T) {
 	t.Parallel()
 
-	content := readClaudeMdForComponents(t)
+	content := readReferenceDoc(t, "response-components")
 
 	// Response.Components (the struct name; reachable as a section
 	// anchor too).
 	if !strings.Contains(content, "Response.Components") {
-		t.Error("CLAUDE.md does not mention `Response.Components` — the Output Format Contract section must surface the new struct name")
+		t.Error("the response-components reference does not mention `Response.Components` — it must surface the new struct name")
 	}
 
 	// Universal floor — accept either the bullet form or the typed
@@ -44,7 +54,7 @@ func TestClaudeMdMentionsComponentsContract(t *testing.T) {
 	hasFloorPhrase := strings.Contains(content, "universal floor")
 	hasFloorTriple := strings.Contains(content, "{n, n_null}")
 	if !hasFloorPhrase && !hasFloorTriple {
-		t.Error("CLAUDE.md does not mention the universal floor (`universal floor` phrase or `{n, n_null}` literal) — the Output Format Contract section must document the aggregator floor")
+		t.Error("the response-components reference does not mention the universal floor (`universal floor` phrase or `{n, n_null}` literal) — it must document the aggregator floor")
 	}
 
 	// ComponentSchema — both the type name and the manifest projection
@@ -54,7 +64,7 @@ func TestClaudeMdMentionsComponentsContract(t *testing.T) {
 	hasSchemaBlock := strings.Contains(content, "components_schemas")
 	hasManifestProjection := strings.Contains(content, "ComponentsSchemas")
 	if !hasSchemaType && !hasSchemaBlock && !hasManifestProjection {
-		t.Error("CLAUDE.md does not mention `ComponentSchema` or `components_schemas` — the per-operator schema surface must be reachable from CLAUDE.md")
+		t.Error("the response-components reference does not mention `ComponentSchema` or `components_schemas` — the per-operator schema surface must be documented")
 	}
 
 	// Coexistence between Metadata and Components.Run — embedders must
@@ -73,23 +83,7 @@ func TestClaudeMdMentionsComponentsContract(t *testing.T) {
 func TestUpdateDemandTableCoversComponents(t *testing.T) {
 	t.Parallel()
 
-	content := readClaudeMdForComponents(t)
-
-	// Extract the Update Demand section (from "## The Update Demand"
-	// to the next "##"). Mirrors the extraction logic in
-	// hygiene_test.go's TestUpdateDemandTableCovers.
-	start := strings.Index(content, "## The Update Demand")
-	if start < 0 {
-		t.Fatal("CLAUDE.md does not contain '## The Update Demand' section")
-	}
-	rest := content[start+len("## The Update Demand"):]
-	end := strings.Index(rest, "\n## ")
-	var section string
-	if end < 0 {
-		section = rest
-	} else {
-		section = rest[:end]
-	}
+	section := readReferenceDoc(t, "update-demand")
 
 	// Row 1: Response.Components shape change. Identifying phrase:
 	// "Response.Components" must appear in the table (the row's

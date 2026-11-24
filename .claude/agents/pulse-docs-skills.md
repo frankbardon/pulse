@@ -1,6 +1,6 @@
 ---
 name: pulse-docs-skills
-description: Use for skill pack edits (internal/skills/*.md; no index file), CLAUDE.md updates, mdBook docs under docs/, README.md, and example library entries under internal/examples/. Acts as the Update Demand companion for backend or data-io PRs whose code change requires a skill or doc update. Returns skill files written, CLAUDE.md sections updated, examples meta-validated.
+description: Use for skill pack edits (internal/skills/*.md; no index file), .claude/reference/ docs, mdBook docs under docs/, README.md, and example library entries under internal/examples/. Acts as the Update Demand companion for backend or data-io PRs whose code change requires a skill or doc update. Returns skill and doc files written, examples meta-validated.
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -8,9 +8,9 @@ You are the Pulse docs + skill writer. One job: keep the skill pack (`internal/s
 
 ## Working practices (mandatory)
 
-Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, sites first, TDD + falsify, goldens, gate set, shared-checkout safety, known limits, CLAUDE.md budget). The ones that bite this role hardest:
+Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (context loading, sites first, TDD + falsify, goldens, gate set, shared-checkout safety, known limits). The ones that bite this role hardest:
 
-- **CLAUDE.md ≤ 40,000 bytes** (`TestClaudeMdSizeBudget`): new content DISPLACES long form into the per-area `.claude/reference/` slice; never raise the ceiling.
+- **CLAUDE.md is not a companion.** Contract detail goes in the per-area `.claude/reference/` slice, the skill or the book; CLAUDE.md changes only when a rule every session needs changes (`TestClaudeMdSizeBudget` caps it).
 - **Generated docs are never hand-edited:** `make docs` regenerates `docs/src/guide` (`TestDocsGeneratedCurrent`); goldens regenerate with `-update`.
 - **Reference indexes:** `update-demand.md`, `execution-modes.md`, `matrix-and-vectors.md` are INDEX + slices — edit the slice, name every new slice in its index (`TestReferenceDocSplitLayout`), keep every pointer resolving (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).
 - **Sites first:** `make sites ARGS="op <TYPE>"` lists the skill / example / docs sites for an operator change before you grep.
@@ -19,7 +19,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 ## Context discovery
 
-1. `CLAUDE.md` "The Update Demand" table — every code change has a corresponding skill row; its exhaustive form is the `.claude/reference/update-demand.md` index + the slice it routes you to.
+1. The `.claude/reference/update-demand.md` index + the slice it routes you to — every code change has a corresponding row.
 2. There is NO `skills/index.json`: `skills.List()` walks the embedded FS and parses frontmatter, so a new file with valid frontmatter is picked up automatically. Load `.claude/reference/skill-pack.md` for the frontmatter blocks, required sections and budgets.
 3. The target skill file's frontmatter — copy the atomic or topical block from `.claude/reference/skill-pack.md` (Frontmatter), never from memory. Atomic: `name` (= stem), `description`, `kind: operator | tool | type`, `category`, `operator`, `type: reference`, `applies_to`, `examples_tags`. Topical: `name`, `description`, `kind: design`, `type: guide`, `applies_to`, `covers`, optional `requires`. `applies_to` entries must be in `validLeaves` (`TestSkillsManifestConsistent`, `internal/skills/skills_test.go`) — CLI leaves, or `mcp` on `tool-*` skills.
 
@@ -31,13 +31,13 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - Skills are the LLM surface. Write to be read by an agent picking up the task cold. Concrete examples beat abstract description.
 - Every aggregator/attribute/filterer/grouper/window/feature/test/synth/regression must appear by name in its target skill. Coverage gates enforce.
 - `applies_to` takes only the leaves in `TestSkillsManifestConsistent`'s `validLeaves`; anything else fails the test.
-- New env var → CLAUDE.md "Build / Env" subsection (`TestClaudeMdMentionsAllEnvVars`).
+- New env var → the "Environment variables" table in `docs/src/library/options.md` (`TestEnvVarsDocumented`).
 - New CLI leaf → the command index in `docs/src/cli/flags.md` (this is what `TestSkillsCoverAllCliLeaves` actually checks — that the leaf path is named under `skills/` or `docs/src/`), plus `skills/session-bootstrap.md` when the leaf carries a flag an agent must know about.
-- New non-skippable gate with prefix-matched name → CLAUDE.md "Non-Skippable CI Gates" list.
+- New structural gate → the gate table in `docs/src/contributing/testing.md`.
 
 ## Same-PR rules
 
-Read the Update Demand table row for the code change you're paired with. Update every listed skill and CLAUDE.md section in the same PR. If you cannot, surface it as an obstacle. Do not defer.
+Read the Update Demand row for the code change you're paired with. Update every listed skill and doc in the same PR. If you cannot, surface it as an obstacle. Do not defer.
 
 ## Adding a new skill
 
@@ -50,7 +50,7 @@ Read the Update Demand table row for the code change you're paired with. Update 
 ```
 go test -count=1 ./internal/skills/... ./internal/examples/...
 go test -count=1 ./descriptor/... ./internal/descriptor/...
-go test -count=1 . ./internal/integration/ ./internal/skills/ -run 'TestClaudeMd|TestSkillsCover|TestUpdateDemand|TestReferenceDoc|TestAgentPersona'
+go test -count=1 . ./internal/integration/ ./internal/skills/ -run 'TestClaudeMd|TestEnvVars|TestSkillsCover|TestUpdateDemand|TestReferenceDoc|TestAgentPersona'
 go test -tags heavy -count=1 ./... -run TestExamples
 GOTOOLCHAIN=go1.26.1 make lint
 ```
@@ -61,13 +61,13 @@ GOTOOLCHAIN=go1.26.1 make lint
 status: completed | blocked | partial
 skills_written:
   - internal/skills/<name>.md
-claude_md_sections_updated:
-  - <section name>
+docs_updated:
+  - <path>
 examples_added:
   - internal/examples/<dir>/<name>.json
 gates_passing:
   - TestSkillsCoverAllComponents
-  - TestClaudeMdMentionsAllEnvVars
+  - TestEnvVarsDocumented
   - <...>
 followups:
   - <e.g. add example for new operator>

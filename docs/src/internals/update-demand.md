@@ -1,44 +1,43 @@
 # The Update Demand
 
-> **Source of truth:** this chapter is mirrored from the "Update Demand"
-> section of [`CLAUDE.md`](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md).
-> Both files are kept in lock-step; `CLAUDE.md` is authoritative if they ever
-> diverge (a `TestUpdateDemandTableCovers` CI gate enforces table coverage
-> against the registries).
+A change to Pulse code, configuration, file format or public surface ships
+with its companions in the same PR: the skill file(s), capability
+declarations, book pages and regenerated goldens that describe it, plus its
+tests. A companion deferred to a follow-up PR does not get written, and the
+next session reads stale docs and writes wrong code.
 
-Any change to Pulse code, configuration, file format, or public surface MUST update the corresponding skill file(s) and `CLAUDE.md` in the same PR. This is not a courtesy. It is a non-skippable CI failure if any of the trigger conditions below is met without the corresponding doc update.
+## Finding the companions
 
-To find every concrete file and declaration a change lands in — with the gates to rerun and the goldens to regenerate — run `make sites ARGS="op <TYPE>"`, `make sites ARGS="new-op <category>"` or `make sites ARGS="slot request <name>"` first; see [Finding Change Sites](finding-change-sites.md).
+1. **Run `sites`.** `make sites ARGS="op <TYPE>"` (an existing operator),
+   `make sites ARGS="new-op <category>"` (a new one) or
+   `make sites ARGS="slot <request|response> <name>"` prints every file and
+   declaration the change lands in, the gates to rerun and the goldens to
+   regenerate. See [Finding Change Sites](finding-change-sites.md).
+2. **Read the trigger row.** `.claude/reference/update-demand.md` is an index
+   of areas; load only the slice your change touches. Each row names the
+   trigger, the companions and the gate that enforces them.
+3. **Let the gates tell you.** Most rows are enforced by a test (skill
+   coverage, manifest completeness, goldens, docs-generated-current). A
+   failing gate names what is missing — fix the companion, never the gate.
 
-## Trigger → required update
+Generated pages (`docs/src/guide`, the payload schema and manifest goldens)
+are regenerated with `make docs` or `-update`, never hand-edited.
 
-| If you change... | You MUST also update... | Enforced by |
-|---|---|---|
-| A registered aggregator | `skills/op-agg-<kebab>.md` (one atomic skill per operator) | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
-| A registered attribute | `skills/op-attr-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
-| A registered filterer | `skills/op-filter-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
-| A registered grouper | `skills/op-group-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
-| A registered window operator | `skills/op-win-<kebab>.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllWindowTypes` |
-| An error code (added/removed/renamed) | `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups; surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE`) | `TestCodesHaveFixups`, `TestManifestErrorCodesComplete` |
-| A CLI leaf (added/removed/flag added) | the command index in `docs/src/cli/flags.md` + `skills/session-bootstrap.md` if the leaf carries a user-facing flag | `TestSkillsCoverAllCliLeaves` (checks the leaf path is NAMED under `skills/` or `docs/src/`; it cannot check that the prose is adequate) |
-| A `--json` envelope or `format_version` | `CLAUDE.md` "Output Format Contract" | `TestClaudeMdMentionsFormatVersion` |
-| A `.pulse` file format change (header layout, new field type) | `CLAUDE.md` "Byte-layout invariants" + `skills/type-<kebab>.md` (one atomic skill per `FieldType`) + `skills/cohort-schema-design.md` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestClaudeMdMentionsFormatVersion`, `TestSkillsCoverAllFieldTypes` |
-| A new non-skippable CI gate | `CLAUDE.md` "Non-Skippable CI Gates" (gate listed by name) | `TestClaudeMdMentionsAllNonSkippableGates` |
-| Purpose / Interpretation / glossary / intent / `ComponentSchema` / skill-body prose (anything `internal/docgen` renders) | `make docs` (regenerates the committed Analysis Guide under `docs/src/guide` and the `docs/src/SUMMARY.md` span; never hand-edit them) | `TestDocsGeneratedCurrent`, `TestSkillPurposeSectionsCurrent` |
-| A new architectural decision | `CLAUDE.md` (relevant section) + PRD if applicable | reviewer enforcement |
-| An environment variable | `CLAUDE.md` "Build / Env" + `skills/session-bootstrap.md` | `TestClaudeMdMentionsAllEnvVars` |
-| A registered MCP tool (added/removed) | `docs/src/internals/adding-mcp-tool.md` + `internal/mcp/toolmeta/meta.go` (name + description) | `TestSkillsCoverAllMCPTools`, `TestManifestMCPToolsComplete` |
-| A new MCP action tool with field-name parameters | `internal/mcp/bind.go` (add a per-tool JSON Schema builder + entry in `Bind`) + `docs/src/internals/adding-mcp-tool.md` (Schema-bound enums section) | `TestMCPSchemaBinding_RemovesInvalidFields`, `TestMCPSchemaBinding_AllFieldsInFiltererEnum`, `TestMCPSchemaBinding_SampleAndFacetFieldEnum`, `TestMCPSchemaBinding_DedupAndSort`, `TestMCPSchemaBinding_NilSchema` |
-| A registered feature operator | `skills/op-feat-<kebab>.md` + capability declaration in `internal/descriptor/capabilities_features.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllComponents` |
-| A registered synth distribution kind | `skills/op-synth-<kebab>.md` + capability declaration in `internal/descriptor/capabilities_distributions.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestSkillsCoverAllSynthDistributions`, `TestManifestDistributionsComplete` |
-| A registered statistical test (`TEST_*`) | `skills/op-test-<kebab>.md` + `types/streamability.go` + `types/streamability_test.go` + capability declaration in `internal/descriptor/capabilities_tests.go` | `TestOperatorHasAtomicSkill`, `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`, `TestStreamability_TestsKnown`, `TestManifestTestsComplete` |
-| A registered tier-2 post-test variant | Capability declaration in `internal/descriptor/capabilities_tests.go` (`postTestCapabilities`) | `TestManifestPostTestsComplete` |
-| A registered aggregator/attribute/filterer/grouper/window capability metadata | Capability declaration in `internal/descriptor/capabilities_<category>.go` (params, accepts_types, emits_type, streamable_hint) | `TestManifestOperatorsComplete` |
-| A new error code | Description row in `internal/descriptor/capabilities_errors.go` (`errorMetaTable`) | `TestManifestErrorCodesComplete` |
-| An error code's fixup template | Entry in `errors/fixup_metadata.go` (`codeMetadata`) — surfaced per-code via `pulse_errors_lookup` / `pulse errors lookup CODE` | `TestCodesHaveFixups` |
-| A new operator's streaming capability | `types/streamability.go` (case for the new type) + table in `types/streamability_test.go` | `TestRegistryStreamabilityMatchesTypes`, `TestStreamability_*Known`, `TestManifestStreamableMatchesTypes` |
-| The default operator table | `CLAUDE.md` "Code Conventions → Smart defaults" + `skills/request-envelope.md` ("Smart defaults" section) | `TestDefaults_Applied` + reviewer enforcement |
+## Common companions
 
-**The Update Demand applies recursively to itself:** when a new trigger row is added (e.g., a new component category, a new contract), this table MUST be updated in the same PR. `TestUpdateDemandTableCovers` (non-skippable) parses this table and asserts every registered component category and contract type has a row.
+- **A registered operator** of any category: its atomic skill
+  `skills/op-<category>-<kebab>.md`, its capability declaration in
+  `internal/descriptor/capabilities_*.go`, an example tagged with it under
+  `internal/examples/`, and `make docs`.
+- **An error code:** a `codeMetadata` entry in `errors/fixup_metadata.go` and an
+  owner in `internal/descriptor/error_owners.go`.
+- **A CLI leaf:** a row in the command index in `docs/src/cli/flags.md`.
+- **An MCP tool:** `skills/tool-<kebab>.md` and `internal/mcp/toolmeta/meta.go`.
+- **An environment variable:** the table in
+  [Options → Environment variables](../library/options.md#environment-variables).
+- **A field type or format change:** `skills/type-<kebab>.md`,
+  `skills/cohort-schema-design.md` and `.claude/reference/byte-layout.md`.
+- **A `--json` envelope change:** `format_version` bumps only for a
+  backward-incompatible shape change; regenerate the payload-schema golden.
 
-If you find yourself wanting to defer the doc/skill update to "a follow-up PR," stop. The follow-up PR will not happen, and the next Claude Code session will read a stale CLAUDE.md and produce wrong code. Update in the same PR or do not merge.
+CLAUDE.md is not a companion: it carries only the rules every session needs.

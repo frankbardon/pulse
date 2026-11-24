@@ -10,7 +10,7 @@
 
 - [ ] `make test` passes
 - [ ] `make lint` passes
-- [ ] Skill / CLAUDE.md updates included per the Update Demand (if applicable)
+- [ ] Skill / doc updates included per the Update Demand (if applicable)
 - [ ] Manual testing done (describe below)
 
 ## Related Issues

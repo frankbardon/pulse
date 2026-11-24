@@ -21,6 +21,34 @@ func readClaudeMd(t *testing.T) string {
 	return string(data)
 }
 
+// readReferenceCorpus returns a .claude/reference document and, when it is a
+// split index, every slice under its same-named directory, concatenated. The
+// documentation gates below check the reference docs (the long-form home of
+// each contract), not CLAUDE.md, which carries only what every session needs.
+func readReferenceCorpus(t *testing.T, name string) string {
+	t.Helper()
+	var b strings.Builder
+	index := filepath.Join(".claude", "reference", name+".md")
+	data, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatalf("reading %s: %v", index, err)
+	}
+	b.Write(data)
+	slices, _ := filepath.Glob(filepath.Join(".claude", "reference", name, "*.md"))
+	for _, sl := range slices {
+		if filepath.Base(sl) == "history.md" {
+			continue
+		}
+		data, err := os.ReadFile(sl)
+		if err != nil {
+			t.Fatalf("reading %s: %v", sl, err)
+		}
+		b.WriteString("\n")
+		b.Write(data)
+	}
+	return b.String()
+}
+
 // findGoFiles walks the directory tree and returns all .go file paths.
 func findGoFiles(t *testing.T, root string) []string {
 	t.Helper()
@@ -43,28 +71,6 @@ func findGoFiles(t *testing.T, root string) []string {
 	return files
 }
 
-// findGoTestFiles walks the directory tree and returns all _test.go file paths.
-func findGoTestFiles(t *testing.T, root string) []string {
-	t.Helper()
-	var files []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if info.IsDir() && (info.Name() == ".git" || info.Name() == "vendor") {
-			return filepath.SkipDir
-		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), "_test.go") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking directory tree: %v", err)
-	}
-	return files
-}
-
 // TestClaudeMdMentionsFormatVersion verifies that CLAUDE.md contains the
 // current format_version value "1.1". This is a non-skippable CI gate.
 func TestClaudeMdMentionsFormatVersion(t *testing.T) {
@@ -77,13 +83,18 @@ func TestClaudeMdMentionsFormatVersion(t *testing.T) {
 	}
 }
 
-// TestClaudeMdMentionsAllEnvVars scans all Go source files for os.Getenv("PULSE_...")
-// calls and verifies that each environment variable name appears in CLAUDE.md.
-// This is a non-skippable CI gate.
-func TestClaudeMdMentionsAllEnvVars(t *testing.T) {
+// TestEnvVarsDocumented scans all Go source files for os.Getenv("PULSE_...")
+// calls and verifies that each environment variable name appears in the
+// "Environment variables" table of docs/src/library/options.md.
+func TestEnvVarsDocumented(t *testing.T) {
 	t.Parallel()
 
-	content := readClaudeMd(t)
+	const envDoc = "docs/src/library/options.md"
+	raw, err := os.ReadFile(envDoc)
+	if err != nil {
+		t.Fatalf("reading %s: %v", envDoc, err)
+	}
+	content := string(raw)
 
 	// Find all Go files in the repo using find (works even if files are untracked).
 	goFiles := findGoFiles(t, ".")
@@ -121,74 +132,18 @@ func TestClaudeMdMentionsAllEnvVars(t *testing.T) {
 
 	for envVar := range seen {
 		if !strings.Contains(content, envVar) {
-			t.Errorf("CLAUDE.md does not mention environment variable %s", envVar)
+			t.Errorf("%s does not document environment variable %s", envDoc, envVar)
 		}
 	}
 }
 
-// TestClaudeMdMentionsAllNonSkippableGates verifies that every non-skippable
-// CI gate test name appears in CLAUDE.md. The gate prefixes identify tests that
-// are part of the CI contract and must be documented.
-// This is a non-skippable CI gate.
-func TestClaudeMdMentionsAllNonSkippableGates(t *testing.T) {
-	t.Parallel()
-
-	content := readClaudeMd(t)
-
-	// Collect all test function names matching the non-skippable gate prefixes.
-	prefixes := []string{
-		"TestSkillsCover",
-		"TestClaudeMd",
-		"TestUpdateDemand",
-		"TestNoOrbit",
-		"TestGoldensNot",
-		"TestPredictNo",
-		"TestDescriptorNo",
-		"TestPerPackageCoverage",
-		"TestCrossArch",
-	}
-
-	// Find all Go test files using find (works even if files are untracked).
-	testFiles := findGoTestFiles(t, ".")
-
-	testFuncPattern := regexp.MustCompile(`func (Test\w+)\(`)
-	var gates []string
-
-	for _, f := range testFiles {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-		matches := testFuncPattern.FindAllStringSubmatch(string(data), -1)
-		for _, m := range matches {
-			name := m[1]
-			for _, prefix := range prefixes {
-				if strings.HasPrefix(name, prefix) {
-					gates = append(gates, name)
-					break
-				}
-			}
-		}
-	}
-
-	if len(gates) == 0 {
-		t.Fatal("found no non-skippable gate test functions")
-	}
-
-	for _, gate := range gates {
-		if !strings.Contains(content, gate) {
-			t.Errorf("CLAUDE.md does not mention non-skippable gate %s", gate)
-		}
-	}
-}
-
-// TestUpdateDemandTableCovers verifies that the Update Demand table in CLAUDE.md
-// has rows covering every registered component category and contract type.
-// This is a non-skippable CI gate.
+// TestUpdateDemandTableCovers verifies that the Update Demand reference
+// (.claude/reference/update-demand.md and its slices) has trigger rows for
+// every registered component category and contract type.
 func TestUpdateDemandTableCovers(t *testing.T) {
 	t.Parallel()
 
-	content := readClaudeMd(t)
+	sectionLower := strings.ToLower(readReferenceCorpus(t, "update-demand"))
 
 	required := []string{
 		"aggregator",
@@ -203,65 +158,26 @@ func TestUpdateDemandTableCovers(t *testing.T) {
 		"MCP tool",
 		"feature operator",
 	}
-
-	// Extract the Update Demand section (from "## The Update Demand" to the next "##").
-	start := strings.Index(content, "## The Update Demand")
-	if start < 0 {
-		t.Fatal("CLAUDE.md does not contain '## The Update Demand' section")
-	}
-	// Find the next ## heading after the Update Demand section.
-	rest := content[start+len("## The Update Demand"):]
-	end := strings.Index(rest, "\n## ")
-	var section string
-	if end < 0 {
-		section = rest
-	} else {
-		section = rest[:end]
-	}
-	sectionLower := strings.ToLower(section)
-
 	for _, req := range required {
 		if !strings.Contains(sectionLower, strings.ToLower(req)) {
-			t.Errorf("Update Demand table in CLAUDE.md does not mention %q", req)
+			t.Errorf("the Update Demand reference does not mention %q", req)
 		}
 	}
 }
 
-// TestShardArchiveLayoutDocumented verifies that CLAUDE.md's
-// "Byte-layout invariants" section documents the shard archive variant
-// — specifically the zip magic `PK\x03\x04` dispatch and the reserved
-// `_schema.pulse` entry name. Non-skippable CI gate (Update Demand row
-// for shard archive layout enforces this).
+// TestShardArchiveLayoutDocumented verifies that the byte-layout reference
+// (.claude/reference/byte-layout.md and its slices) documents the shard
+// archive variant: the zip magic `PK\x03\x04` dispatch and the reserved
+// `_schema.pulse` entry name.
 func TestShardArchiveLayoutDocumented(t *testing.T) {
 	t.Parallel()
 
-	content := readClaudeMd(t)
-
-	start := strings.Index(content, "### Byte-layout invariants")
-	if start < 0 {
-		t.Fatal("CLAUDE.md does not contain '### Byte-layout invariants' section")
+	content := readReferenceCorpus(t, "byte-layout")
+	if !strings.Contains(content, `PK\x03\x04`) {
+		t.Error("the byte-layout reference does not mention zip magic `PK\\x03\\x04`")
 	}
-	rest := content[start:]
-	// Section ends at the next "### " heading (the next subsection of
-	// "## Code Conventions") or the next "## " heading.
-	end := len(rest)
-	if idx := strings.Index(rest[len("### Byte-layout invariants"):], "\n### "); idx >= 0 {
-		end = len("### Byte-layout invariants") + idx
-	}
-	if idx := strings.Index(rest[len("### Byte-layout invariants"):], "\n## "); idx >= 0 && len("### Byte-layout invariants")+idx < end {
-		end = len("### Byte-layout invariants") + idx
-	}
-	section := rest[:end]
-
-	// The literal magic `PK\x03\x04` must appear (the four-byte zip
-	// magic — also expressible as the printable bytes "PK" plus two
-	// control bytes; we accept either the escaped-byte form or the
-	// literal "PK\x03\x04" string).
-	if !strings.Contains(section, `PK\x03\x04`) {
-		t.Error("CLAUDE.md 'Byte-layout invariants' section does not mention zip magic `PK\\x03\\x04`")
-	}
-	if !strings.Contains(section, "_schema.pulse") {
-		t.Error("CLAUDE.md 'Byte-layout invariants' section does not mention reserved entry `_schema.pulse`")
+	if !strings.Contains(content, "_schema.pulse") {
+		t.Error("the byte-layout reference does not mention reserved entry `_schema.pulse`")
 	}
 }
 
@@ -300,28 +216,16 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 
 // claudeMdSizeCeiling is the maximum size of CLAUDE.md in bytes.
 //
-// TestClaudeMdSizeBudget exists because nothing in this repo ever said to take
-// something OUT of CLAUDE.md. Every row of the Update Demand table says
-// "update CLAUDE.md in the same PR", so each new contract appended prose and
-// none removed any; the file reached 244,155 bytes — a quarter of a megabyte
-// loaded into context before a session has read a single line of Go.
+// CLAUDE.md is loaded into every session before any code is read, so it
+// carries only what every session needs: the design principles, how to find
+// a change's companions, the byte-layout and output-format invariants, and
+// the index of .claude/reference/. Contract long form lives in the reference
+// docs, which a session loads only when its change touches that surface.
 //
-// The ceiling turns that one-way ratchet into DISPLACEMENT. When a contract
-// addition pushes CLAUDE.md over the limit, the fix is to move the long form
-// into .claude/reference/ and leave a pointer behind, not to raise the number.
-// CLAUDE.md carries the always-load half of each contract; .claude/reference/
-// carries the half you load when you are about to change that surface.
-//
-// The gate is deliberately self-listing: its name starts with "TestClaudeMd",
-// so TestClaudeMdMentionsAllNonSkippableGates requires it to appear by name in
-// CLAUDE.md's "## Non-Skippable CI Gates" section — the gate that stops the
-// file growing is itself documented in the file it guards.
-//
-// The ceiling was 50,000 until U18 slimmed CLAUDE.md below 38,000 and lowered
-// it to 40,000. Lowering is allowed; raising is the thing this gate forbids.
-//
-// Non-skippable CI gate.
-const claudeMdSizeCeiling = 40_000
+// The file once grew to 244,155 bytes because every Update Demand row said
+// "update CLAUDE.md". It is no longer a companion; the ceiling stops it
+// drifting back. Lowering the ceiling is allowed; raising it is not.
+const claudeMdSizeCeiling = 16_000
 
 func TestClaudeMdSizeBudget(t *testing.T) {
 	t.Parallel()
