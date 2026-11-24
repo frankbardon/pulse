@@ -507,7 +507,18 @@ vcovPL on `lm`. Run it alone under a library holding plm (the pin table
 below; `R_LIBS=<lib> Rscript scripts/reference/gen_robust_vcov_panel.R
 internal/processing/testdata/reference`, then the hash footer).
 `TestRegressionCovariancePanel_MatchesROracle` (`internal/service`)
-holds it at relative `1e-10`.
+holds it at relative `1e-10`. Its `cluster2_cases` (U69 E4-S2) are
+two-way clustering on the same rows (no new draws; a `month` column,
+(week − 1) %/% 4 + 1, joins them): cluster geo + cluster2 week or month,
+self-checked against `sandwich::vcovCL(cluster = ~geo + b, type =
+"HC1")` (data-frame and formula forms, `lmtest::coeftest` p on
+min(G₁, G₂) − 1 df), weighted fits against vcovCL HC0 on the w*-weighted
+fit × (N* − 1)/(N* − k), frequency OLS against the `rep()` expansion,
+Bayes at prior precision 0 against vcovCL on `lm`. A negative two-way
+variance (few clusters) is written with `null` standard errors, p-values
+and intervals (`negative_variances` counts them);
+`TestRegressionCovariancePanel_TwoWayMatchesROracle` holds them at
+`1e-10`.
 
 `scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
 log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports

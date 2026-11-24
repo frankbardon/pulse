@@ -166,6 +166,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 		}
 		if c := reg.Covariance; c != nil {
 			judge(c.Cluster, slot+" covariance.cluster", "")
+			judge(c.Cluster2, slot+" covariance.cluster2", "")
 			judge(c.OrderBy, slot+" covariance.order_by", "")
 			judge(c.Entity, slot+" covariance.entity", "")
 		}

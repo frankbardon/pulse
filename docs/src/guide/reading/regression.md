@@ -816,7 +816,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 #### `df`
 
-Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1.
+Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1 (two-way: the smaller of the two counts, minus 1).
 
 **Caveats:**
 

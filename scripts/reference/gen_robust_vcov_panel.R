@@ -40,6 +40,10 @@
 # T periods (sandwich's lag = "NW1994"). OLS inference on N* - k df (t),
 # GLM Wald z, Bayes normal intervals without p-values.
 #
+# Two-way cluster (U69 E4-S2, cluster2_cases): see the block above
+# pv_rows — sandwich::vcovCL(cluster = ~geo + week / month) on the same
+# rows (a `month` column joins them; the panel cases do not read it).
+#
 # Asserted: unweighted OLS == sandwich::vcovPL(lm, cluster = ~geo,
 # order.by = ~week, aggregate = FALSE / TRUE, adjust = TRUE) AND
 # plm::vcovNW / plm::vcovSCC(type = "HC1") on the pooling plm fit;
@@ -82,6 +86,11 @@ pv_g17 <- function(v) {
 pv_num <- function(x) {
   if (length(x) != 1 || !is.finite(x)) stop("pv_num() takes a finite scalar")
   structure(sprintf("%.17g", x), class = "json")
+}
+pv_g17n <- function(v) {
+  v <- unname(as.numeric(v))
+  if (any(is.infinite(v))) stop("infinite reference value")
+  structure(paste0("[", paste(ifelse(is.nan(v) | is.na(v), "null", sprintf("%.17g", v)), collapse = ","), "]"), class = "json")
 }
 pv_mat <- function(m) structure(paste0("[", paste(vapply(seq_len(nrow(m)), function(i) unclass(pv_g17(m[i, ])), ""), collapse = ","), "]"), class = "json")
 pv_near <- function(a, b, tol, what) {
@@ -243,8 +252,102 @@ for (family in c("ols", "binomial", "poisson", "bayes")) {
   }
 }
 
+# --- Two-way clustering (U69 E4-S2): Cameron-Gelbach-Miller over the
+# same rows, no new draws (so the panel cases above are unchanged).
+# Pairs: geo x week (every intersection cell one row, G12 = n) and geo x
+# month, month = (week - 1) %/% 4 + 1 (four levels; cells of up to four
+# rows). With M_c = sum over the levels of c of s s', s = sum w* g:
+#   V = B [G1/(G1-1) M_1 + G2/(G2-1) M_2 - G12/(G12-1) M_12] B (N*-1)/(N*-k)
+# = sandwich::vcovCL(cluster = ~a + b, type = "HC1", cadjust = TRUE,
+# multi0 = FALSE) unweighted; weighted == vcovCL(lm / glm(weights = w*),
+# type = "HC0") * (N*-1)/(N*-k) (vcovCL's HC1 factor counts rows), plus a
+# frequency-weighted OLS check on the rep()-expanded rows. OLS inference
+# on min(G1, G2) - 1 df (t, the one-way G - 1 rule's two-way form), GLM
+# Wald z, Bayes normal intervals without p-values.
+pv$month <- (pv$week - 1) %/% 4 + 1
+pv_cl_meat <- function(U, key) crossprod(rowsum(U, key, reorder = TRUE))
+pv_cl2_cases <- list()
+pv_cl2_case <- function(family, kind, c2) {
+  d <- pv
+  target <- switch(family, ols = "y", bayes = "y", binomial = "y_bin", poisson = "y_count")
+  w <- switch(kind, none = rep(1, nrow(d)), frequency = d$w_freq, probability = d$w_prob)
+  ns <- if (kind == "probability") sum(w)^2 / sum(w^2) else sum(w)
+  ws <- w * ns / sum(w)
+  X <- model.matrix(~ x1 + x2, d); yv <- d[[target]]; k <- ncol(X)
+  fam <- switch(family, binomial = binomial(), poisson = poisson(), NULL)
+  f <- switch(family, ols = pv_ols(X, yv, ws), bayes = pv_bayes(X, yv, ws, 1e-3), pv_glm(X, yv, ws, fam))
+  k1 <- d$geo; k2 <- d[[c2]]; k12 <- paste(k1, k2, sep = "_")
+  g <- c(length(unique(k1)), length(unique(k2)), length(unique(k12)))
+  a <- g / (g - 1)
+  U <- f$G * ws
+  M <- a[1] * pv_cl_meat(U, k1) + a[2] * pv_cl_meat(U, k2) - a[3] * pv_cl_meat(U, k12)
+  V <- f$B %*% M %*% f$B * (ns - 1) / (ns - k)
+  b <- f$b
+  dimnames(V) <- list(colnames(X), colnames(X))
+  # The CGM meat is a difference: a variance can come out negative (few
+  # clusters). vcovCL(fix = FALSE) keeps it; its SE, p-value and interval
+  # are NaN here and null in the golden (pv_g17n).
+  se <- suppressWarnings(sqrt(diag(V)))
+  if (family == "ols") {
+    df <- min(g[1:2]) - 1; q <- qt(0.975, df); pval <- 2 * pt(-abs(b / se), df)
+  } else {
+    df <- NULL; q <- qnorm(0.975); pval <- 2 * pnorm(-abs(b / se))
+  }
+  fml <- reformulate(c("x1", "x2"), target)
+  ctl <- glm.control(epsilon = 1e-14, maxit = 200)
+  cl <- data.frame(a = k1, b = k2)
+
+  # --- self-checks against sandwich::vcovCL (two-way)
+  if (family == "ols" && kind == "none") {
+    fit <- lm(fml, data = d)
+    pv_near(vcovCL(fit, cluster = cl, type = "HC1"), V, 1e-10, paste("vcovCL two-way lm", c2))
+    d$.k2 <- k2
+    pv_near(vcovCL(fit, cluster = ~ geo + .k2, type = "HC1"), V, 1e-10, paste("vcovCL two-way formula", c2))
+    ct <- lmtest::coeftest(fit, vcov. = V, df = df)
+    pv_near(ct[, 4], pval, 1e-10, paste("coeftest two-way", c2))
+  }
+  if (family %in% c("binomial", "poisson") && kind == "none") {
+    fit <- glm(fml, family = fam, data = d, start = b, control = ctl)
+    pv_near(vcovCL(fit, cluster = cl, type = "HC1"), V, 1e-8, paste("vcovCL two-way glm", family, c2))
+  }
+  if (family %in% c("ols", "binomial", "poisson") && kind != "none") {
+    d$.ws <- ws
+    fw <- if (family == "ols") lm(fml, data = d, weights = .ws) else
+      suppressWarnings(glm(fml, family = fam, data = d, weights = .ws, start = b, control = ctl))
+    pv_near(vcovCL(fw, cluster = cl, type = "HC0") * (ns - 1) / (ns - k), V, 1e-8, paste("weighted vcovCL two-way", family, kind, c2))
+  }
+  if (family == "ols" && kind == "frequency") {
+    ix <- rep(seq_len(nrow(d)), d$w_freq)
+    ed <- d[ix, ]
+    fe <- lm(fml, data = ed)
+    pv_near(vcovCL(fe, cluster = data.frame(a = ed$geo, b = ed[[c2]]), type = "HC1"), V, 1e-9, paste("expanded vcovCL two-way", c2))
+  }
+  if (family == "bayes" && kind == "none") {
+    f0 <- pv_bayes(X, yv, ws, 0)
+    U0 <- f0$G * ws
+    M0 <- a[1] * pv_cl_meat(U0, k1) + a[2] * pv_cl_meat(U0, k2) - a[3] * pv_cl_meat(U0, k12)
+    V0 <- f0$B %*% M0 %*% f0$B * (ns - 1) / (ns - k)
+    pv_near(vcovCL(lm(fml, data = d), cluster = cl, type = "HC1"), V0, 1e-10, paste("bayes precision 0 vs vcovCL two-way", c2))
+  }
+
+  pv_cl2_cases[[length(pv_cl2_cases) + 1]] <<- Filter(Negate(is.null), list(
+    family = family, target = target, weight = kind, cluster = "geo", cluster2 = c2,
+    clusters = pv_num(g[1]), clusters2 = pv_num(g[2]), intersections = pv_num(g[3]),
+    n_star = pv_num(ns), df = if (is.null(df)) NULL else pv_num(df),
+    terms = I(colnames(X)), coefficients = pv_g17(b), std_errors = pv_g17n(se),
+    negative_variances = pv_num(sum(diag(V) < 0)),
+    p_values = if (family == "bayes") NULL else pv_g17n(pval),
+    ci_lower = pv_g17n(b - q * se), ci_upper = pv_g17n(b + q * se),
+    vcov = pv_mat(V)
+  ))
+}
+for (family in c("ols", "binomial", "poisson", "bayes")) {
+  kinds <- if (family == "bayes") c("none", "frequency") else c("none", "frequency", "probability")
+  for (kind in kinds) for (c2 in c("week", "month")) pv_cl2_case(family, kind, c2)
+}
+
 pv_rows <- lapply(seq_len(nrow(pv)), function(i) list(
-  week = pv_num(pv$week[i]), geo = pv$geo[i], geo_id = pv_num(pv$geo_id[i]),
+  week = pv_num(pv$week[i]), month = pv_num(pv$month[i]), geo = pv$geo[i], geo_id = pv_num(pv$geo_id[i]),
   x1 = pv_num(pv$x1[i]), x2 = pv_num(pv$x2[i]), y = pv_num(pv$y[i]),
   y_bin = pv_num(pv$y_bin[i]), y_count = pv_num(pv$y_count[i]),
   w_freq = pv_num(pv$w_freq[i]), w_prob = pv_num(pv$w_prob[i])))
@@ -254,9 +357,11 @@ write_golden("robust_vcov_panel", list(
   generator = "scripts/reference/gen_robust_vcov_panel.R (via gen_reference.R)",
   r_version = R.version.string,
   packages = setNames(lapply(pv_pkgs, function(p) as.character(packageVersion(p))), pv_pkgs),
-  primitive = "panel series coefficient covariance: per-entity Newey-West (hac + entity) and Driscoll-Kraay",
+  primitive = "panel series coefficient covariance: per-entity Newey-West (hac + entity) and Driscoll-Kraay; two-way cluster (cluster2_cases)",
   r_function = "sandwich::vcovPL(fit, cluster = geo, order.by = week, aggregate = FALSE (hac + entity) / TRUE (driscoll_kraay), lag, adjust); plm::vcovNW / vcovSCC(pooling plm, maxlag, type = 'HC1') cross-check",
   note = "family ols (y ~ x1 + x2, REG_OLS, t on N* - k df), binomial (y_bin, logit), poisson (y_count, log) — Wald z — or bayes (y, REG_BAYES_LINEAR, default prior, normal intervals, no p-values). entity geo (six levels; geo_id the same as an integer), order_by week (14 periods, unbalanced with gaps; a lag counts periods). Weights follow the one rule (w* = w N*/sum(w)). lags: the request, lags_used the resolved floor(4 (T/100)^(2/9)) over the T periods. Terms use R's '(Intercept)' spelling.",
   cases = pv_cases,
+  cluster2_note = "two-way cluster (covariance cluster geo + cluster2 week or month, month = (week - 1) %/% 4 + 1): V = B [G1/(G1-1) M_1 + G2/(G2-1) M_2 - G12/(G12-1) M_12] B (N*-1)/(N*-k), M_c the cluster meat over c's levels (G12 the intersection cells); == sandwich::vcovCL(cluster = ~geo + b, type = 'HC1', multi0 = FALSE) unweighted, vcovCL(weights = w*, type = 'HC0') * (N*-1)/(N*-k) weighted. OLS t on min(G1, G2) - 1 df; GLM Wald z; Bayes normal, no p-values.",
+  cluster2_cases = pv_cl2_cases,
   rows = pv_rows
 ))

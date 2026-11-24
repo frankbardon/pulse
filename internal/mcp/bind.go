@@ -1153,8 +1153,9 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"type":        "object",
 					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator (REG_MULTINOMIAL: hc0, hc1, cluster); omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
 					"properties": map[string]any{
-						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1), hac (Newey-West; per entity with entity), driscoll_kraay (panel: period-summed scores, Newey-West over the periods)."),
+						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1; two-way with cluster2), hac (Newey-West; per entity with entity), driscoll_kraay (panel: period-summed scores, Newey-West over the periods)."),
 						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
+						"cluster2": map[string]any{"type": "string", "description": "type cluster, beside cluster: a second cluster field for two-way clustering (Cameron-Gelbach-Miller V1 + V2 - V12; REG_OLS df = min(clusters) - 1). REG_OLS / REG_GLM / REG_BAYES_LINEAR only."},
 						"order_by": map[string]any{"type": "string", "description": "types hac / driscoll_kraay: date, datetime or numeric field ordering the series; unique per row (per entity with entity)."},
 						"entity":   map[string]any{"type": "string", "description": "types hac / driscoll_kraay: categorical, unsigned-integer, date, datetime or packed_bool field naming the panel entity (hac: per-entity Newey-West); an entity may not repeat an order_by value."},
 						"lags": map[string]any{

@@ -1174,16 +1174,21 @@ manifest row lists the model's `output_schema` (`key`, `json_type`,
 ## Regression robust covariance
 
 `RegressionSpec` takes an additive `covariance` object `{type, cluster,
-order_by, entity, lags}` and `RegressionResult` an additive `omitempty`
-`covariance` echo `{type, cluster, clusters, order_by, lags, entity,
-entities, periods}` (`format_version` stays `"1.1"`). `type` is the
+cluster2, order_by, entity, lags}` and `RegressionResult` an additive `omitempty`
+`covariance` echo `{type, cluster, clusters, cluster2, clusters2,
+order_by, lags, entity, entities, periods}` (`format_version` stays `"1.1"`). `type` is the
 `CovarianceType` enum (`classical`, `hc0`, `hc1`, `hc2`, `hc3`,
 `cluster`, `hac`, `driscoll_kraay`); `lags` is a non-negative integer or
 `"auto"`. `entity` (U69 #401, types `hac` and `driscoll_kraay`) names a
 panel's entity field: `hac` + `entity` is per-entity Newey–West,
 `driscoll_kraay` sums the scores per `order_by` period; the echo then
 adds `periods` (distinct `order_by` values) and, with an entity,
-`entity` / `entities`. A plain `hac` echo carries none of the three. Absent or `classical` is
+`entity` / `entities`. A plain `hac` echo carries none of the three.
+`cluster2` (U69 #401, type `cluster`) makes it two-way
+(Cameron–Gelbach–Miller); the echo adds `cluster2` / `clusters2`, an
+OLS `df` is min(G₁, G₂) − 1, and a negative two-way variance leaves its
+`std_errors` / `p_values` / interval entries `null` beside the negative
+`vcov` diagonal. A one-way echo carries neither key. Absent or `classical` is
 byte-identical to a request without the block and echoes nothing. Any
 other type on `REG_OLS` or `REG_GLM` replaces the estimator behind
 `std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` (so

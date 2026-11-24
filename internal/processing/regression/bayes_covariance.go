@@ -59,17 +59,18 @@ func (e *bayesLinearEngine) bayesSandwich(muN []float64, invLambda *linalg.Sym, 
 			quad += float64(z[a] * s)
 		}
 		rows = append(rows, sandwichRow{
-			score:   score,
-			weight:  c * w,
-			lev:     quad,
-			cluster: key.cluster,
-			order:   key.order,
-			entity:  key.entity,
+			score:    score,
+			weight:   c * w,
+			lev:      quad,
+			cluster:  key.cluster,
+			cluster2: key.cluster2,
+			order:    key.order,
+			entity:   key.entity,
 		})
 	}
 	fit, err := sandwich(e.spec, bread, rows, e.acc.nStar())
 	if err != nil {
 		return nil, err
 	}
-	return &bayesRobust{fit: fit, stdErrors: robustStdErrors(fit.v)}, nil
+	return &bayesRobust{fit: fit, stdErrors: robustStdErrors(fit)}, nil
 }

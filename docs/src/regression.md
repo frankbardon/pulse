@@ -79,7 +79,7 @@ Ordinary least squares with optional regularization.
 | `bounds`      | no       | `{nonnegative: [predictors]}`: those slopes are constrained `>= 0` (non-negative least squares); see "Non-negative slopes" below. |
 | `intercept`   | no       | `true` (default) fits the intercept. `false` fits through the origin; see "Solver and intercept" below. |
 | `solver`      | no       | `qr` (default) or `normal`; see "Solver and intercept" below. |
-| `covariance`  | no       | `{type, cluster, order_by, entity, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1), `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`; with `entity`, per-entity Newey–West over the `order_by` periods) or `driscoll_kraay` (panel: scores summed per period, Newey–West over the periods). See [Panel-robust covariance](#panel-robust-covariance). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
+| `covariance`  | no       | `{type, cluster, cluster2, order_by, entity, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1; with `cluster2`, two-way on df = min(G₁, G₂) − 1), `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`; with `entity`, per-entity Newey–West over the `order_by` periods) or `driscoll_kraay` (panel: scores summed per period, Newey–West over the periods). See [Panel-robust covariance](#panel-robust-covariance). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 | `margins`     | no       | `{type, terms, scale, binary}`: marginal effects — on OLS every one is its coefficient, with its SE, t and interval; streams. See [Marginal effects](#marginal-effects-margins). |
 | `collinearity` | no     | `{basis, groups}`: each term's variance inflation factor and tolerance (generalized VIF for a group of columns), off the weighted predictor moments the fit streams. See [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
@@ -254,6 +254,24 @@ run time. The echo adds `periods` and, with an entity, `entity` /
 cross-checked by `plm::vcovNW` / `vcovSCC(type = "HC1")`
 (`scripts/reference/gen_robust_vcov_panel.R`); `"auto"` equals vcovPL's
 `lag = "NW1994"` (plm's default lag differs — pass `lags`).
+
+**Two-way clustering** (U69 #401) — `{"type": "cluster", "cluster":
+"geo", "cluster2": "week"}`: Cameron, Gelbach & Miller (2011),
+V = B·[G₁/(G₁−1)·M₁ + G₂/(G₂−1)·M₂ − G₁₂/(G₁₂−1)·M₁₂]·B·(N* − 1)/(N* − k),
+M_c the cluster meat over c's levels and M₁₂ over the intersection cells
+(G₁₂ of them) — `sandwich::vcovCL(cluster = ~geo + week, type = "HC1")`
+(`cadjust = TRUE`, `multi0 = FALSE`). On `REG_OLS`, `REG_GLM` and
+`REG_BAYES_LINEAR`; `REG_OLS` reads t on min(G₁, G₂) − 1 df. The meat
+is a difference, so with few clusters a variance can come out negative:
+it is kept in `vcov` (vcovCL's `fix = FALSE`) and its standard error,
+p-value and interval are `null`, never a clamped 0. `cluster2` takes the
+`cluster` field types; off type `cluster` or naming `cluster` it is
+`PROCESSING_CONFIG`, on `REG_MULTINOMIAL` or an extension model (whose
+cluster is one-way) `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` `reason:
+type`, and a second field with fewer than two levels in the fitted rows
+`reason: clusters` (`details.cluster` names it). The echo adds `cluster2`
+/ `clusters2`. Oracle: `robust_vcov_panel.json` `cluster2_cases` (geo ×
+week and geo × four-week month; unweighted, frequency, probability).
 
 ### Nested-model comparison (Compose `compare`)
 

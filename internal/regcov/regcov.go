@@ -86,12 +86,13 @@ func supports(t types.RegressionType, ct types.CovarianceType) bool {
 // it is absent or well formed and supported:
 //
 //   - PROCESSING_CONFIG for a malformed block: an unknown or empty type,
-//     cluster without a cluster field (or a cluster field on another
-//     type), hac / driscoll_kraay without order_by (or order_by / lags /
+//     cluster without a cluster field (or a cluster / cluster2 field on
+//     another type, or cluster2 naming cluster), hac / driscoll_kraay without order_by (or order_by / lags /
 //     entity on another type), an entity naming order_by, a negative
 //     lags;
 //   - PROCESSING_REGRESSION_VCOV_UNSUPPORTED for a robust type the fit
-//     cannot honour: details.reason type, penalty, resample, selection
+//     cannot honour: details.reason type (cluster2 included, off
+//     REG_OLS / REG_GLM / REG_BAYES_LINEAR), penalty, resample, selection
 //     or bounds.
 func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Covariance == nil {
@@ -104,12 +105,23 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 // registration declares the covariance type itself (the model computes
 // it): the type is judged by the declaration, never by robustTypes, so
 // only the block's shape and the penalty / resample / selection
-// refusals apply.
+// refusals apply — and cluster2: a declaration names covariance types,
+// not the two-way form, so a declared cluster never reads a second
+// field (ReasonType; an extension type is never in robustTypes).
 func CheckDeclared(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Covariance == nil {
 		return nil
 	}
 	return check(spec, true)
+}
+
+// twoWay reports whether regression type t computes the two-way cluster
+// sandwich (covariance.cluster2): the types with every robust estimator
+// (REG_OLS, REG_GLM, REG_BAYES_LINEAR) — never REG_MULTINOMIAL or an
+// extension model, whose declared cluster is one-way.
+func twoWay(t types.RegressionType) bool {
+	only, ok := robustTypes[t]
+	return ok && only == nil
 }
 
 // check is Check with the type's robust support decided by the caller.
@@ -139,6 +151,9 @@ func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 			"covariance "+string(c.Type)+" is not computed by "+string(spec.Type)+" (it computes "+strings.Join(names, ", ")+"; hc2 / hc3 need a per-row leverage, hac / driscoll_kraay a series order); use one of those or drop covariance")
 	case !robustType:
 		return unsupported(spec, ReasonType, string(spec.Type))
+	case c.Cluster2 != "" && !twoWay(spec.Type):
+		return Unsupported(spec, ReasonType, map[string]any{"cluster2": c.Cluster2},
+			"two-way covariance cluster (covariance.cluster2) is computed by REG_OLS, REG_GLM and REG_BAYES_LINEAR only; drop cluster2 for one-way clustering on cluster")
 	case spec.Penalty != "":
 		return unsupported(spec, ReasonPenalty, spec.Penalty)
 	case spec.Resample != "":
@@ -164,6 +179,10 @@ func checkShape(spec *types.RegressionSpec, c *types.RegressionCovariance) *erro
 		return config("covariance type cluster requires covariance.cluster (the field whose levels are the clusters)", map[string]any{})
 	case c.Type != types.CovarianceCluster && c.Cluster != "":
 		return config("covariance.cluster is read only by covariance type cluster", map[string]any{"cluster": c.Cluster})
+	case c.Type != types.CovarianceCluster && c.Cluster2 != "":
+		return config("covariance.cluster2 is read only by covariance type cluster (two-way, beside cluster)", map[string]any{"cluster2": c.Cluster2})
+	case c.Cluster2 != "" && c.Cluster2 == c.Cluster:
+		return config("covariance.cluster2 names covariance.cluster "+c.Cluster+"; two-way clustering needs two different fields (drop cluster2 for one-way)", map[string]any{"cluster2": c.Cluster2})
 	case panelType(c.Type) && c.OrderBy == "":
 		return config("covariance type "+string(c.Type)+" requires covariance.order_by (the field that orders the series)", map[string]any{})
 	case !panelType(c.Type) && c.OrderBy != "":
@@ -204,10 +223,16 @@ func Unsupported(spec *types.RegressionSpec, reason string, extra map[string]any
 }
 
 // TooFewClusters is the engine's refusal of a cluster fit whose rows
-// span fewer than two clusters.
+// span fewer than two clusters of covariance.cluster.
 func TooFewClusters(spec *types.RegressionSpec, g int) *errors.CodedError {
-	return Unsupported(spec, ReasonClusters, map[string]any{"clusters": g, "cluster": spec.Covariance.Cluster},
-		"covariance cluster needs at least 2 clusters in the fitted rows; got "+strconv.Itoa(g))
+	return TooFewClustersOf(spec, spec.Covariance.Cluster, g)
+}
+
+// TooFewClustersOf is TooFewClusters naming field — covariance.cluster,
+// or covariance.cluster2 under two-way clustering — in details.cluster.
+func TooFewClustersOf(spec *types.RegressionSpec, field string, g int) *errors.CodedError {
+	return Unsupported(spec, ReasonClusters, map[string]any{"clusters": g, "cluster": field},
+		"covariance cluster needs at least 2 clusters of "+field+" in the fitted rows; got "+strconv.Itoa(g))
 }
 
 // OrderTies is the engine's refusal of a hac fit whose order_by value

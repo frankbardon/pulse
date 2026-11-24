@@ -65,19 +65,20 @@ func (e *glmEngine) glmSandwich(xRows, y, eta, mu, prior []float64, keys []robus
 			quad += float64(xi[a] * bx[a])
 		}
 		rows[i] = sandwichRow{
-			score:   score,
-			weight:  prior[i],
-			lev:     dmu * dmu / v * quad,
-			cluster: keys[i].cluster,
-			order:   keys[i].order,
-			entity:  keys[i].entity,
+			score:    score,
+			weight:   prior[i],
+			lev:      dmu * dmu / v * quad,
+			cluster:  keys[i].cluster,
+			cluster2: keys[i].cluster2,
+			order:    keys[i].order,
+			entity:   keys[i].entity,
 		}
 	}
 	fit, err := sandwich(e.spec, bread, rows, nStar)
 	if err != nil {
 		return nil, err
 	}
-	return &glmRobust{fit: fit, stdErrors: robustStdErrors(fit.v)}, nil
+	return &glmRobust{fit: fit, stdErrors: robustStdErrors(fit)}, nil
 }
 
 // robustKeyReader is the covariance-key read a robust spec's design

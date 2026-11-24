@@ -1182,6 +1182,9 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
         "entity": {
           "type": "string"
         },
@@ -1206,7 +1209,13 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
         "clusters": {
+          "type": "integer"
+        },
+        "clusters2": {
           "type": "integer"
         },
         "entities": {
@@ -2572,4 +2581,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 4d45dfc9641eeee92616a0dadc10557accabe0b196aefc475fe01d6ee0bf43b7
+// golden-hash: b07516c08aa94d1ebbc50217615aa90dc6c6a7cfc49006abec9f6a916148683c

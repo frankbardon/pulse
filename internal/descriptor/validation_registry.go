@@ -87,8 +87,10 @@ const (
 	svcCovGLM   = "internal/service/regression_covariance_glm_test.go"
 	// svcCovPanel is the panel series covariance oracle (U69 #401).
 	svcCovPanel = "internal/service/regression_covariance_panel_test.go"
-	svcVcov     = "internal/service/regression_vcov_test.go"
-	regDir      = "internal/processing/regression/"
+	// svcCovTwoWay is the two-way cluster oracle (U69 #401).
+	svcCovTwoWay = "internal/service/regression_covariance_twoway_test.go"
+	svcVcov      = "internal/service/regression_vcov_test.go"
+	regDir       = "internal/processing/regression/"
 	// svcCompareOracle is the nested-model comparison's R oracle test.
 	svcCompareOracle = "internal/service/compose_compare_oracle_test.go"
 	strdTest         = "strd_reference_test.go"
@@ -259,6 +261,7 @@ var validationRegistry = map[string]ValidationRecord{
 		valR("`glmnet` (penalties), `nnls` (non-negative)", tol10, regDir+"ols_penalty_reference_test.go", regDir+"ols_nnls_reference_test.go"),
 		valR("`sandwich` / `lmtest` (HC0–HC3, cluster, HAC standard errors; vcov)", tol10, svcCov, svcVcov),
 		{Against: rPin + " + `sandwich` 3.1-3 `vcovPL` (aggregate FALSE / TRUE), cross-checked by `plm` 2.6-7 `vcovNW` / `vcovSCC` (type HC1) on the pooling fit: per-entity Newey–West (`covariance` hac + entity) and Driscoll–Kraay standard errors, t p-values, intervals and vcov over an unbalanced panel with gaps — unweighted, frequency- and probability-weighted (vcovPL on lm(weights = w*), adjust FALSE, × N*/(N* − k))", Tol: tol10, Tests: []string{svcCovPanel}, Weighted: true},
+		{Against: rPin + " + `sandwich` 3.1-3 `vcovCL(cluster = ~a + b, type = \"HC1\")` (multi0 FALSE): two-way cluster (`covariance` cluster + cluster2) standard errors, t p-values on min(G₁, G₂) − 1 df, intervals and vcov, negative variances kept with null standard errors — unweighted, frequency- (and its `rep()` expansion) and probability-weighted (vcovCL HC0 on lm(weights = w*) × (N* − 1)/(N* − k))", Tol: tol10, Tests: []string{svcCovTwoWay}, Weighted: true},
 		valR("`logLik` / `AIC` of `lm` with and without an intercept (two_log_lik, aic; σ counted)", tol10, regDir+"loglik_oracle_test.go"),
 		{Against: rPin + " `logLik` / `AIC` of the `rep()`-expanded `lm` (frequency weights; `lm(weights = f)` reads them as precision weights)", Tol: tol10, Tests: []string{regDir + "loglik_oracle_test.go"}, Weighted: true},
 		valR("+ MASS 7.3-66 + `sandwich` 3.1-3: analytic marginal effects (`margins`, ame / mem) of `lm` with their delta-method standard errors, t statistics, p-values and intervals; cross-checked against `marginaleffects` 1.0.0 `avg_slopes` / `slopes(newdata = \"mean\")` at 1e-7", tol9, regDir+"margins_oracle_test.go"),
@@ -285,6 +288,7 @@ var validationRegistry = map[string]ValidationRecord{
 			valR("+ MASS 7.3-66 (U69 #638): the negative binomial under `selection` and `resample`, θ re-estimated in every candidate and replicate — `stepAIC` on `glm.nb` (forward / backward / both, AIC / BIC: final terms and the final model's coefficients, θ, SE(θ)), a fixed θ against the exact greedy over `glm(negative.binomial(θ))`; base-R `glm.nb` replicate loops (leave-one-out, delete-a-cluster and frequency-weighted jackknife, a bootstrap over R's own index sets): the coefficients' and θ̂'s replicate SE, ame / mem effects' replicate SE", "1e-6 relative", regDir+"glm_nb_refit_oracle_test.go"),
 			valR("`sandwich` (robust standard errors; vcov)", "1e-11 relative", svcCovGLM, svcVcov),
 			{Against: rPin + " + `sandwich` 3.1-3 `vcovPL` on binomial-logit and poisson-log `glm` refitted from the polished MLE: per-entity Newey–West (`covariance` hac + entity) and Driscoll–Kraay standard errors, Wald p-values, intervals and vcov over an unbalanced panel — unweighted, frequency- and probability-weighted (w* prior weights)", Tol: tol10, Tests: []string{svcCovPanel}, Weighted: true},
+			{Against: rPin + " + `sandwich` 3.1-3 `vcovCL(cluster = ~a + b)` on binomial-logit and poisson-log `glm` refitted from the polished MLE: two-way cluster standard errors, Wald p-values, intervals and vcov (negative variances kept, null standard errors) — unweighted, frequency- and probability-weighted", Tol: tol10, Tests: []string{svcCovTwoWay}, Weighted: true},
 			valR("`sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3 on the non-canonical links", tol9, regDir+"glm_links_oracle_test.go"),
 			valR("+ MASS 7.3-66 `glm.nb` (negative binomial, θ estimated on log / sqrt / identity, pushed to its fixed point) and `glm(negative.binomial(θ))` (θ fixed): coefficients, standard errors and vcov at dispersion 1, θ, SE(θ), twice the log-likelihood, AIC, deviance, null deviance, fitted means, residuals; `sandwich` 3.1-3 `vcovHC` HC0 / HC1 / HC3", tol9, regDir+"glm_nb_oracle_test.go"),
 			{Against: rPin + " + MASS 7.3-66 `glm.nb(weights = f)` against its `rep()`-expanded fit (negative binomial, log link; frequency weights)", Tol: tol9, Tests: []string{regDir + "glm_nb_oracle_test.go"}, Weighted: true},
@@ -305,6 +309,7 @@ var validationRegistry = map[string]ValidationRecord{
 	"REG_BAYES_LINEAR": {Refs: []ValidationRef{
 		valR("matrix algebra for the normal-inverse-gamma posterior", tol10, regDir+"bayes_reference_test.go", regDir+"bayes_precision_test.go"),
 		valR("closed form of Müller's sandwich posterior with the per-entity Newey–West (`covariance` hac + entity) and Driscoll–Kraay meats (at prior precision 0 asserted equal to `sandwich` 3.1-3 `vcovPL` on `lm`), unweighted and frequency-weighted", tol10, svcCovPanel),
+		valR("closed form of Müller's sandwich posterior with the two-way cluster meat (at prior precision 0 asserted equal to `sandwich` 3.1-3 `vcovCL(cluster = ~a + b)` on `lm`), unweighted and frequency-weighted", tol10, svcCovTwoWay),
 		valWeighted,
 	}},
 	"REG_MULTINOMIAL": {

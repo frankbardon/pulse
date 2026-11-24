@@ -94,7 +94,7 @@ var typedSlots = map[string][]typedSlot{
 	catWindow:     {{"field", shapeOne}, {"partition_by", shapeList}, {"order_by", shapeOrder}},
 	catFeature:    {{"field", shapeOne}, {"tz_field", shapeOne}},
 	catTest:       {{"field", shapeOne}, {"field2", shapeOne}, {"vector", shapeOne}, {"fields", shapeList}, {"vector2", shapeOne}, {"fields2", shapeList}, {"split_by", shapeOne}, {"rows", shapeOne}, {"cols", shapeOne}, {"subject_field", shapeOne}, {"order_by", shapeOrder}, {"weight", shapeWeight}},
-	catRegression: {{"target", shapeOne}, {"predictors", shapeList}, {"unpenalized", shapeList}, {"bounds.nonnegative", shapeList}, {"jackknife_by", shapeOne}, {"covariance.cluster", shapeOne}, {"covariance.order_by", shapeOne}, {"covariance.entity", shapeOne}, {"weight", shapeWeight}},
+	catRegression: {{"target", shapeOne}, {"predictors", shapeList}, {"unpenalized", shapeList}, {"bounds.nonnegative", shapeList}, {"jackknife_by", shapeOne}, {"covariance.cluster", shapeOne}, {"covariance.cluster2", shapeOne}, {"covariance.order_by", shapeOne}, {"covariance.entity", shapeOne}, {"weight", shapeWeight}},
 	catMatrix:     {{"vector", shapeOne}, {"fields", shapeList}, {"weight", shapeWeight}},
 	catVector:     {{"fields", shapeList}},
 	catSortKey:    {{"field", shapeOne}},

@@ -123,7 +123,7 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 ), regConfLevel, descriptor.Interpretation{
 	Field: "df",
 	Means: "Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; " +
-		"under covariance cluster, the number of clusters minus 1.",
+		"under covariance cluster, the number of clusters minus 1 (two-way: the smaller of the two counts, minus 1).",
 	Caveats: []string{
 		"Null when it is 0 or below: too few rows (or too small an effective sample) for the predictors, and every bound is then null too.",
 	},

@@ -65,8 +65,9 @@
         "rg_Southeast"
       ],
       "covariance": {
-        "type": "cluster",
-        "cluster": "week_index"
+        "type": "driscoll_kraay",
+        "order_by": "week_index",
+        "entity": "region"
       },
       "save": "models/mmm_final.pulse-model.json"
     }

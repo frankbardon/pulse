@@ -228,7 +228,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Covariance"},
-				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR (REG_MULTINOMIAL computes the types details.supported lists: hc0, hc1, cluster); reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series) — on a panel, set covariance.entity (hac: per-entity Newey–West) or use type driscoll_kraay, and keep one row per entity per period (details.entity_value names the repeating entity).",
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR (REG_MULTINOMIAL computes the types details.supported lists: hc0, hc1, cluster); reason clusters: cluster (and cluster2) on fields with at least two levels in the filtered rows (details.cluster names the short one); reason type with details.cluster2: two-way clustering runs on REG_OLS, REG_GLM, REG_BAYES_LINEAR only — drop cluster2; reason order_by_ties: order_by a field unique per row (one series) — on a panel, set covariance.entity (hac: per-entity Newey–West) or use type driscoll_kraay, and keep one row per entity per period (details.entity_value names the repeating entity).",
 			},
 		},
 	},

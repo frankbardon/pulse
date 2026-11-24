@@ -517,7 +517,7 @@
       },
       {
         "name": "regression-panel-covariance",
-        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
+        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), two-way clustering (cluster + cluster2), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
       },
       {
         "name": "regression-row-scores",
@@ -931,4 +931,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9086942a1d957994ca089e2e0bed3c38396a66289a962140d6e74bd972cb26a4
+// golden-hash: d804d70367c00e129df56f7c8b6e955bcfd71ded4d714eed3d4e0bfcdf46551c

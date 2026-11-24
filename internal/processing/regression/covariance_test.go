@@ -114,6 +114,77 @@ func TestCovariance_SingletonClustersAreHC1(t *testing.T) {
 	}
 }
 
+// TestCovariance_TwoWayNestedIsOneWay: a second cluster nested in the
+// first (each row its own level, inside one g) makes the intersection
+// cells the second clustering itself, so V₂ − V₁∩₂ cancels and the
+// two-way fit is the one-way CR1 on g, on the same G₁ − 1 df; the echo
+// adds cluster2 and its count. A second cluster with one level in the
+// fitted rows is refused naming it, and a null second-cluster value
+// drops the row.
+func TestCovariance_TwoWayNestedIsOneWay(t *testing.T) {
+	t.Parallel()
+
+	recs := covRecords()
+	one := covFit(t, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g"}, recs)
+	two := covFit(t, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}, recs)
+	for k, se := range one.StdErrors {
+		if math.Abs(two.StdErrors[k]-se) > 1e-12*se {
+			t.Errorf("SE[%s]: two-way nested %v, one-way %v", k, two.StdErrors[k], se)
+		}
+	}
+	if two.DF != 3 || two.Covariance.Clusters != 4 || two.Covariance.Cluster2 != "t" || two.Covariance.Clusters2 != 12 {
+		t.Errorf("two-way echo %+v df %v, want g 4 / t 12, df 3", two.Covariance, two.DF)
+	}
+	if one.Covariance.Cluster2 != "" || one.Covariance.Clusters2 != 0 {
+		t.Errorf("one-way echo carries a second cluster: %+v", one.Covariance)
+	}
+
+	constant := make([]Record, len(recs))
+	for i, r := range recs {
+		lr := r.(labeledRecord)
+		vals := map[string]float64{"k": 1}
+		for name, v := range lr.values {
+			vals[name] = v
+		}
+		constant[i] = labeledRecord{mockRecord: mockRecord{values: vals}, labels: lr.labels}
+	}
+	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"},
+		Covariance: &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "k"}}
+	eng, err := newOLSEngine(spec, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = eng.(BufferedEngine).FitBuffered(constant)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Details["reason"] != "clusters" || ce.Details["cluster"] != "k" || ce.Details["clusters"] != 1 {
+		t.Errorf("one-level cluster2: err %v, want reason clusters naming k", err)
+	}
+
+	lr := recs[5].(labeledRecord)
+	recs[5] = labeledRecord{mockRecord: mockRecord{values: lr.values, nulls: map[string]bool{"t": true}}, labels: lr.labels}
+	if res := covFit(t, &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}, recs); res.NObs != 11 {
+		t.Errorf("n_obs = %d, want 11 (the null-cluster2 row dropped)", res.NObs)
+	}
+}
+
+// TestCovariance_IndefiniteKeepsNegativeVariance: on a two-way fit a
+// negative variance is the estimator's (a difference of sandwiches) —
+// kept in the diagonal, its standard error NaN — while a one-way fit's
+// rounding residue clamps to 0 (robustSE).
+func TestCovariance_IndefiniteKeepsNegativeVariance(t *testing.T) {
+	t.Parallel()
+
+	if v, se := robustSE(-0.5, true); v != -0.5 || !math.IsNaN(se) {
+		t.Errorf("indefinite: (%v, %v), want (-0.5, NaN)", v, se)
+	}
+	if v, se := robustSE(-1e-18, false); v != 0 || se != 0 {
+		t.Errorf("definite: (%v, %v), want (0, 0)", v, se)
+	}
+	if v, se := robustSE(4, true); v != 4 || se != 2 {
+		t.Errorf("positive: (%v, %v), want (4, 2)", v, se)
+	}
+}
+
 // TestCovariance_NullKeyDropsRow: a null cluster value drops the row
 // from the fit itself (n_obs), like a null predictor.
 func TestCovariance_NullKeyDropsRow(t *testing.T) {

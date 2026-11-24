@@ -456,7 +456,7 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 		}
 	}
 	if len(covTypes) > 0 {
-		out = append(out, descriptor.Param{Name: "covariance", Type: "object", Description: "{type, cluster, order_by, entity, lags}: the covariance estimator the model computes; declared types: " + strings.Join(covTypes, ", ") + ". A top-level key of the regression entry.", Slot: true})
+		out = append(out, descriptor.Param{Name: "covariance", Type: "object", Description: "{type, cluster, order_by, entity, lags}: the covariance estimator the model computes; declared types: " + strings.Join(covTypes, ", ") + " (cluster one-way: cluster2 is refused). A top-level key of the regression entry.", Slot: true})
 	}
 	// holdout: an accepted field, listed when the model can be scored.
 	if decl.Scorer {

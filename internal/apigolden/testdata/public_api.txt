@@ -6645,6 +6645,7 @@ pulse/types: type RegressionCollinearityResult field Tolerance map[string]float6
 pulse/types: type RegressionCollinearityResult field VIF map[string]float64 "json:\"vif\""
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
+pulse/types: type RegressionCovariance field Cluster2 string "json:\"cluster2,omitempty\""
 pulse/types: type RegressionCovariance field Entity string "json:\"entity,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
 pulse/types: type RegressionCovariance field OrderBy string "json:\"order_by,omitempty\""
@@ -6653,7 +6654,9 @@ pulse/types: type RegressionCovariance method (*RegressionCovariance) EffectiveT
 pulse/types: type RegressionCovariance method (*RegressionCovariance) Robust() bool
 pulse/types: type RegressionCovarianceResult struct
 pulse/types: type RegressionCovarianceResult field Cluster string "json:\"cluster,omitempty\""
+pulse/types: type RegressionCovarianceResult field Cluster2 string "json:\"cluster2,omitempty\""
 pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters,omitempty\""
+pulse/types: type RegressionCovarianceResult field Clusters2 int "json:\"clusters2,omitempty\""
 pulse/types: type RegressionCovarianceResult field Entities int "json:\"entities,omitempty\""
 pulse/types: type RegressionCovarianceResult field Entity string "json:\"entity,omitempty\""
 pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
@@ -7193,4 +7196,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4bcbb38c075d5ac03e4507d06db7124d7bac727323723105ece330bd53a91faf
+// golden-hash: 81eb80452a2137d2b012d0a4d4719332a13fc12f980fd4537212ed9310693fee

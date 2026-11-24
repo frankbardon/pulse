@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -128,7 +129,26 @@ func checkRegressionExample(t *testing.T, resp *pulse.Response) {
 // "<dir>/<file>", run on the response TestExamples_RunEndToEnd already
 // holds — so a heavyExamples entry is executed once.
 var exampleChecks = map[string]func(t *testing.T, resp *pulse.Response){
-	"matrices/17_sem_contribution.json": checkSEMContributionRecipe,
+	"matrices/17_sem_contribution.json":       checkSEMContributionRecipe,
+	"regression/26_mmm_panel_covariance.json": checkMMMPanelCovariance,
+}
+
+// checkMMMPanelCovariance holds regression/26_mmm_panel_covariance.json
+// over the mmm_weekly fixture (two markets × 104 weeks): the fit runs
+// Driscoll–Kraay over the 104 weeks (lags auto) with both markets
+// echoed, and every standard error is a positive figure.
+func checkMMMPanelCovariance(t *testing.T, resp *pulse.Response) {
+	t.Helper()
+	r := resp.Regressions[0]
+	c := r.Covariance
+	if c == nil || c.Type != types.CovarianceDriscollKraay || c.Periods != 104 || c.Entities != 2 || c.Lags == nil || *c.Lags != types.AutoHACLags(104) {
+		t.Fatalf("covariance echo %+v, want driscoll_kraay over 104 weeks, 2 markets, lags auto", c)
+	}
+	for k, se := range r.StdErrors {
+		if !(se > 0) {
+			t.Errorf("std_errors[%s] = %v, want a positive Driscoll–Kraay figure", k, se)
+		}
+	}
 }
 
 // checkSEMContributionRecipe holds matrices/17_sem_contribution.json over

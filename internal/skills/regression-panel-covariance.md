@@ -1,10 +1,10 @@
 ---
 name: regression-panel-covariance
-description: Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference.
+description: Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), two-way clustering (cluster + cluster2), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [panel, entity, driscoll_kraay, Driscoll-Kraay, per-entity Newey-West, vcovPL, vcovSCC, vcovNW, hac, order_by, lags, covariance, regressions]
+covers: [panel, entity, driscoll_kraay, cluster2, two-way cluster, vcovCL, Driscoll-Kraay, per-entity Newey-West, vcovPL, vcovSCC, vcovNW, hac, order_by, lags, covariance, regressions]
 ---
 
 # Panel-robust covariance
@@ -15,6 +15,7 @@ A panel is many entities (geos, stores, users) observed over the same periods. A
 |---|---|
 | Serial correlation within each entity, entities independent | `{"type": "hac", "order_by": "week", "entity": "geo"}` |
 | Serial AND cross-sectional correlation (a shared shock hits every geo in a week) | `{"type": "driscoll_kraay", "order_by": "week"}` (`entity` optional) |
+| Rows correlated within a geo AND within a week, no lag structure | `{"type": "cluster", "cluster": "geo", "cluster2": "week"}` |
 
 <!-- feature: REG_OLS -->
 ```json
@@ -58,6 +59,10 @@ REG_BAYES_LINEAR: Müller's sandwich posterior with this meat; normal intervals,
 ## Refusals
 
 Shape faults are `PROCESSING_CONFIG` in predict and at run time: `driscoll_kraay` without `order_by`; `entity` / `order_by` / `lags` on another type; `entity` naming the `order_by` field. Beside a penalty, resample, selection or OLS `bounds`, or on a type without the estimators, it is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (as every robust type).
+
+## Two-way cluster
+
+`cluster2` beside `cluster` (same field types; OLS, GLM and Bayes-linear fits): Cameron–Gelbach–Miller V₁ + V₂ − V₁∩₂, each one-way meat at its own G/(G − 1), the intersection cells the third, all × (N* − 1)/(N* − k). OLS reads t on min(G₁, G₂) − 1 df. The echo adds `cluster2` / `clusters2`. The meat is a difference: with few clusters a variance can come out NEGATIVE — kept in `vcov`, its `std_errors`, p-value and interval `null` (never 0). Few clusters on either field: prefer `driscoll_kraay`. Refused: `cluster2` off type `cluster` or naming `cluster` (`PROCESSING_CONFIG`); on the multinomial or an extension model (reason `type`); a field with < 2 levels (reason `clusters`, run time). R: `sandwich::vcovCL(cluster = ~a + b, type = "HC1")`.
 
 ## Against R
 

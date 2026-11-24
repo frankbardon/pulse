@@ -27,7 +27,10 @@ const (
 	CovarianceHC3 CovarianceType = "hc3"
 	// CovarianceCluster is the cluster-robust CR1 sandwich over the
 	// Cluster field's levels, G/(G − 1)·(N* − 1)/(N* − k); REG_OLS reads
-	// it on G − 1 df, REG_GLM and REG_BAYES_LINEAR stay normal.
+	// it on G − 1 df, REG_GLM and REG_BAYES_LINEAR stay normal. With
+	// Cluster2 it is the Cameron–Gelbach–Miller two-way sandwich
+	// V₁ + V₂ − V₁∩₂, each term with its own G/(G − 1); REG_OLS reads it
+	// on min(G₁, G₂) − 1 df.
 	CovarianceCluster CovarianceType = "cluster"
 	// CovarianceHAC is Newey–West: a Bartlett-kernel sandwich over the
 	// rows ordered by OrderBy, truncated at Lags, scaled N*/(N* − k).
@@ -78,6 +81,17 @@ type RegressionCovariance struct {
 	// cluster only; a categorical or unsigned-integer field). Fewer than
 	// two clusters is refused.
 	Cluster string `json:"cluster,omitempty"`
+
+	// Cluster2 names a second cluster field (type cluster only, beside
+	// Cluster; the same field types): two-way clustering, Cameron,
+	// Gelbach & Miller (2011) — V₁ + V₂ − V₁∩₂, the one-way sandwiches
+	// over each field's levels less the one over their intersection
+	// cells, each scaled by its own G/(G − 1) and all by
+	// (N* − 1)/(N* − k) (R sandwich::vcovCL(cluster = ~a + b), type
+	// HC1, multi0 FALSE). REG_OLS, REG_GLM and REG_BAYES_LINEAR only.
+	// Fewer than two levels on either field is refused; naming Cluster
+	// again is a configuration fault.
+	Cluster2 string `json:"cluster2,omitempty"`
 
 	// OrderBy names the field that orders the series (types hac and
 	// driscoll_kraay, required by both; a date, datetime or numeric
@@ -243,6 +257,12 @@ type RegressionCovarianceResult struct {
 	// (type cluster); a REG_OLS DF is then G − 1.
 	Cluster  string `json:"cluster,omitempty"`
 	Clusters int    `json:"clusters,omitempty"`
+
+	// Cluster2 and Clusters2 are the second cluster field and its level
+	// count G₂ (two-way cluster); a REG_OLS DF is then
+	// min(G₁, G₂) − 1. Absent on a one-way cluster fit.
+	Cluster2  string `json:"cluster2,omitempty"`
+	Clusters2 int    `json:"clusters2,omitempty"`
 
 	// OrderBy and Lags are the series order field and the truncation lag
 	// the fit used, "auto" resolved (types hac and driscoll_kraay).

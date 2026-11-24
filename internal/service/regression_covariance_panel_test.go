@@ -30,6 +30,7 @@ import (
 // panelRow is one robust_vcov_panel.json row.
 type panelRow struct {
 	Week   float64 `json:"week"`
+	Month  float64 `json:"month"`
 	Geo    string  `json:"geo"`
 	GeoID  float64 `json:"geo_id"`
 	X1     float64 `json:"x1"`
@@ -63,9 +64,35 @@ type panelCase struct {
 	Vcov       [][]float64     `json:"vcov"`
 }
 
+// twoWayCase is one robust_vcov_panel.json cluster2_cases entry: a
+// two-way cluster fit (cluster geo + cluster2 week or month). A
+// negative variance (the CGM meat is a difference) leaves its standard
+// error, p-value and interval null — nil here.
+type twoWayCase struct {
+	Family        string      `json:"family"`
+	Target        string      `json:"target"`
+	Weight        string      `json:"weight"`
+	Cluster       string      `json:"cluster"`
+	Cluster2      string      `json:"cluster2"`
+	Clusters      int         `json:"clusters"`
+	Clusters2     int         `json:"clusters2"`
+	Intersections int         `json:"intersections"`
+	NStar         float64     `json:"n_star"`
+	DF            float64     `json:"df"`
+	Terms         []string    `json:"terms"`
+	Coeffs        []float64   `json:"coefficients"`
+	StdErrors     []*float64  `json:"std_errors"`
+	NegVariances  int         `json:"negative_variances"`
+	PValues       []*float64  `json:"p_values"`
+	CILower       []*float64  `json:"ci_lower"`
+	CIUpper       []*float64  `json:"ci_upper"`
+	Vcov          [][]float64 `json:"vcov"`
+}
+
 type panelGolden struct {
-	Rows  []panelRow  `json:"rows"`
-	Cases []panelCase `json:"cases"`
+	Rows          []panelRow   `json:"rows"`
+	Cases         []panelCase  `json:"cases"`
+	Cluster2Cases []twoWayCase `json:"cluster2_cases"`
 }
 
 // panelTol is the robust oracles' 1e-10 (OLS solves through Welford
@@ -79,14 +106,15 @@ func loadPanel(t *testing.T) panelGolden {
 	t.Helper()
 	var g panelGolden
 	loadMV(t, "robust_vcov_panel.json", &g)
-	if len(g.Rows) != 78 || len(g.Cases) != 44 {
-		t.Fatalf("golden has %d rows / %d cases, want 78 / 44", len(g.Rows), len(g.Cases))
+	if len(g.Rows) != 78 || len(g.Cases) != 44 || len(g.Cluster2Cases) != 22 {
+		t.Fatalf("golden has %d rows / %d cases / %d two-way cases, want 78 / 44 / 22", len(g.Rows), len(g.Cases), len(g.Cluster2Cases))
 	}
 	return g
 }
 
 // panelCohort writes the golden's rows as panel.pulse: week u16 (the
-// period), geo categorical_u8 and geo_id u8 (the same six entities),
+// period), month u8 (four-week blocks, a two-way cluster), geo
+// categorical_u8 and geo_id u8 (the same six entities),
 // x1 / x2 / the responses / the weights f64.
 func panelCohort(t *testing.T, rows []panelRow) (*Service, []byte) {
 	t.Helper()
@@ -103,6 +131,7 @@ func panelCohort(t *testing.T, rows []panelRow) (*Service, []byte) {
 	}
 	fields := []encoding.Field{
 		{Name: "week", Type: encoding.FieldTypeU16},
+		{Name: "month", Type: encoding.FieldTypeU8},
 		{Name: "geo", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
 		{Name: "geo_id", Type: encoding.FieldTypeU8},
 	}
@@ -122,7 +151,7 @@ func panelCohort(t *testing.T, rows []panelRow) (*Service, []byte) {
 		t.Fatal(err)
 	}
 	for _, r := range rows {
-		vals := []uint64{uint64(r.Week), ids[r.Geo], uint64(r.GeoID)}
+		vals := []uint64{uint64(r.Week), uint64(r.Month), ids[r.Geo], uint64(r.GeoID)}
 		for _, f := range []float64{r.X1, r.X2, r.Y, r.YBin, r.YCount, r.WFreq, r.WProb} {
 			vals = append(vals, math.Float64bits(f))
 		}
