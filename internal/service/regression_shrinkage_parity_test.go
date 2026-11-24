@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,7 +18,7 @@ import (
 
 // regression_shrinkage_parity_test.go: the per-coefficient shrinkage
 // controls — REG_BAYES_LINEAR's prior_precision vector (the shared rule
-// internal/regbayes) and REG_OLS ridge `unpenalized` (internal/regpenalty)
+// internal/regbayes) and the OLS / GLM `unpenalized` (internal/regpenalty)
 // — and REG_BAYES_LINEAR's refused resample / selection modifiers are
 // refused by Process and by Predict with the same code, message and
 // details. Before regbayes, predict accepted a Bayes fit with resample or
@@ -56,12 +57,13 @@ func TestRegShrinkage_PredictRuntimeParity(t *testing.T) {
 		{"bayes family", bayes, func(s *types.RegressionSpec) { s.Family = "binomial" }},
 		{"ridge unpenalized unknown", ridge, func(s *types.RegressionSpec) { s.Unpenalized = []string{"cyl"} }},
 		{"ridge unpenalized twice", ridge, func(s *types.RegressionSpec) { s.Unpenalized = []string{"wt", "wt"} }},
-		{"lasso unpenalized", ridge, func(s *types.RegressionSpec) { s.Penalty, s.Unpenalized = "l1", []string{"wt"} }},
-		{"elasticnet unpenalized", ridge, func(s *types.RegressionSpec) {
-			s.Penalty, s.L1Ratio, s.Unpenalized = "elasticnet", 0.5, []string{"wt"}
+		{"lasso unpenalized unknown", ridge, func(s *types.RegressionSpec) { s.Penalty, s.Unpenalized = "l1", []string{"cyl"} }},
+		{"elasticnet unpenalized twice", ridge, func(s *types.RegressionSpec) {
+			s.Penalty, s.L1Ratio, s.Unpenalized = "elasticnet", 0.5, []string{"hp", "hp"}
 		}},
 		{"ols unpenalized without penalty", ridge, func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "", 0, []string{"wt"} }},
-		{"glm unpenalized", glm, func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l2", 0.1, []string{"wt"} }},
+		{"glm unpenalized without penalty", glm, func(s *types.RegressionSpec) { s.Unpenalized = []string{"wt"} }},
+		{"glm unpenalized unknown", glm, func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"cyl"} }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -134,6 +136,69 @@ func TestRegShrinkage_WireRequestsRun(t *testing.T) {
 	free, full := byName["ridge_free_wt"].Coefficients["wt"], byName["ridge"].Coefficients["wt"]
 	if !(free < full && full < 0) {
 		t.Errorf("β(wt): unpenalized %v should sit further from 0 than the penalised %v", free, full)
+	}
+}
+
+// TestRegShrinkage_PenaltyFactorsAcceptedPredictAndRuntime (U69 E1-S1,
+// #487): `unpenalized` on every penalty kind of REG_OLS and REG_GLM —
+// lifted together in internal/regpenalty — predicts clean and runs, and
+// the listed predictor escapes the shrinkage the fully penalised twin
+// applies (further from 0 under l2; never closer under l1 / elasticnet).
+func TestRegShrinkage_PenaltyFactorsAcceptedPredictAndRuntime(t *testing.T) {
+	t.Parallel()
+
+	var golden struct {
+		Cases []vcovOracle `json:"cases"`
+	}
+	dir := loadMV(t, "mv_vcov.json", &golden)
+	cfg := fixtureFS(t, dir)
+	cohort := filepath.Join(dir, "mtcars.pulse")
+	data, err := os.ReadFile(cohort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ols := types.RegressionSpec{Type: types.REG_OLS, Target: "mpg", Predictors: []string{"wt", "hp"}}
+	glm := types.RegressionSpec{Type: types.REG_GLM, Family: "binomial", Target: "am", Predictors: []string{"wt", "hp"}}
+	cases := []struct {
+		name    string
+		base    types.RegressionSpec
+		penalty string
+		alpha   float64
+		ratio   float64
+	}{
+		{"ols lasso", ols, "l1", 2, 0},
+		{"ols elasticnet", ols, "elasticnet", 2, 0.5},
+		{"glm ridge", glm, "l2", 0.2, 0},
+		{"glm lasso", glm, "l1", 0.05, 0},
+		{"glm elasticnet", glm, "elasticnet", 0.05, 0.5},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			free, full := c.base, c.base
+			free.Name, full.Name = "free", "full"
+			for _, s := range []*types.RegressionSpec{&free, &full} {
+				s.Penalty, s.Alpha, s.L1Ratio = c.penalty, c.alpha, c.ratio
+			}
+			free.Unpenalized = []string{"wt"}
+			req := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Regressions: []*types.RegressionSpec{&free, &full}}
+			if pred := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{}); len(pred.Errors) != 0 {
+				t.Fatalf("predict errors %+v", pred.Errors)
+			}
+			resp, err := New(cfg).Process(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			got := map[string]float64{}
+			for _, r := range resp.Regressions {
+				if r.Error != nil {
+					t.Fatalf("%s: slot error %v", r.Name, r.Error)
+				}
+				got[r.Name] = r.Coefficients["wt"]
+			}
+			if math.Abs(got["free"]) <= math.Abs(got["full"]) {
+				t.Errorf("β(wt): unpenalized %v not further from 0 than penalised %v", got["free"], got["full"])
+			}
+		})
 	}
 }
 

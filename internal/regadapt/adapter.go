@@ -431,9 +431,10 @@ func (d *RegressionDriver) attachMargins(res *types.RegressionResult) error {
 			"declares Margins but its model does not implement extend.MarginsRegression", nil, false)
 	}
 	req := extend.MarginsRequest{
-		Type:  d.spec.Margins.EffectiveType(),
-		Scale: d.spec.Margins.EffectiveScale(),
-		Terms: regmargins.Terms(d.spec),
+		Type:   d.spec.Margins.EffectiveType(),
+		Scale:  d.spec.Margins.EffectiveScale(),
+		Terms:  regmargins.Terms(d.spec),
+		Binary: d.spec.Margins.EffectiveBinary(),
 	}
 	out, err := m.Margins(req)
 	if err != nil {
@@ -447,7 +448,7 @@ func (d *RegressionDriver) attachMargins(res *types.RegressionResult) error {
 	if req.Type == types.MarginsMEM {
 		at = out.At
 	}
-	regression.AttachExtensionMargins(res, d.spec, out.Outcomes, est, se, at)
+	regression.AttachExtensionMargins(res, d.spec, out.Outcomes, est, se, at, out.Contrasts)
 	return nil
 }
 
@@ -464,8 +465,9 @@ func regMismatch(reg RegressionAdapter, reason, msg string, extra map[string]any
 // PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason margins_shape: an
 // empty or repeated outcome, an effect on a term req does not list or on
 // an outcome out.Outcomes does not (an outcome set without Outcomes), a
-// repeated (outcome, term) pair, a missing one, or (type mem) an At key
-// that is not a predictor. It returns the estimates and standard errors
+// repeated (outcome, term) pair, a missing one, (type mem) an At key
+// that is not a predictor, or a Contrasts entry that is not a requested
+// term, repeats one, or comes without binary contrast. It returns the estimates and standard errors
 // keyed regmargins.Key(outcome, term), a nil StdErr NaN. The probe and
 // every run apply it.
 func VerifyMarginsOutput(reg RegressionAdapter, spec *types.RegressionSpec, req extend.MarginsRequest, out extend.MarginsOutput, weighted bool) (est, se map[string]float64, err error) {
@@ -502,6 +504,16 @@ func VerifyMarginsOutput(reg RegressionAdapter, spec *types.RegressionSpec, req 
 	if len(est) != want {
 		return nil, nil, shape(fmt.Sprintf("returned %d effects, want %d (one per requested term, per outcome when Outcomes is set)", len(est), want),
 			map[string]any{"effects": len(est), "want": want})
+	}
+	for i, c := range out.Contrasts {
+		switch {
+		case req.Binary != types.MarginsBinaryContrast:
+			return nil, nil, shape(fmt.Sprintf("returned Contrasts %v, but the request's binary is %s", out.Contrasts, req.Binary),
+				map[string]any{"contrast": c})
+		case !slices.Contains(req.Terms, c) || slices.Contains(out.Contrasts[:i], c):
+			return nil, nil, shape(fmt.Sprintf("returned a contrast on %q, which is not a requested term %v or repeats one", c, req.Terms),
+				map[string]any{"contrast": c})
+		}
 	}
 	if req.Type == types.MarginsMEM {
 		for k := range out.At {
@@ -966,6 +978,10 @@ type regressionModifierEngine struct {
 	// never to a replicate's.
 	figures func(*model.RegressionFigures)
 	offered bool
+	// relay, under a resample, releases the base fit's figures with the
+	// replicate covariance (regression.HoldFigures; set by
+	// FitBufferedContext, which hands the hold to the base fit).
+	relay *regression.ResampledFigures
 }
 
 // SetFiguresOffer keeps the comparison-figures offer for the base fit
@@ -994,6 +1010,7 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // the pin's NoPValue coefficients keep a NaN p-value under resample.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
 	var pin *model.ReplicatePin
+	e.figures, e.relay = regression.HoldFigures(e.spec, e.figures)
 	fit := func(replicate bool, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
 		spec := e.spec
 		if pin != nil {
@@ -1047,7 +1064,7 @@ func (e *regressionModifierEngine) runModifiers(ctx context.Context, records []r
 				fmt.Sprintf("regression %q returned the coefficients %v on a resample replicate, not the full fit's %v (every refit reports the same coefficients)", e.reg.Name, got, base),
 				map[string]any{"category": extCategoryRegression, "name": string(e.reg.Name), "reason": "replicate_coefficients",
 					"coefficients": append([]string{}, base...), "replicate": append([]string{}, got...)})
-		})
+		}, e.relay)
 }
 
 // refit is one fresh fit of the model built from spec over recs with

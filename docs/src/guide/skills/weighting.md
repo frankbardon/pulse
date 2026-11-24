@@ -57,7 +57,7 @@ Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweigh
 
 - Results keep raw `n` / `n_obs` and add `sum_weights` + `n_eff` (test `details`, regressions, overlays): the sample size, never `n`.
 - Floors read Σw (`frequency`) or raw n (`probability`: n_eff under the minimum — regressions p + 1 — warns `PULSE_WEIGHT_LOW_NEFF`, strict errors).
-- Frequency-only operators (rank, exact, distribution tests) equal the duplicated rows; probability is refused, naming the kind.
+- Frequency-only operators (rank, exact, distribution tests, influence figures) equal duplicated rows; probability is refused, naming the kind.
 - Test `covariate` (CUPED), either kind: θ, x̄ on the raw weights, then y − θ(x − x̄) on each group's N* (the weighted two-step).
 - Unequal weighting only (weights assumed unrelated to the outcome): no strata, clusters or FPC. Probability χ² is a first-order Kish approximation, not Rao-Scott.
 - Overlays read each host cell's N* from its floor keys, even when only the cell's own weight set it. Omitted, `n_source` is the N* of the cell's base (normalise denominator); raw-count and distinct-key modes are `PROCESSING_CONFIG`. A probability host with components off refuses the χ² and proportion overlays.

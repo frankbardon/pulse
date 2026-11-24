@@ -81,6 +81,11 @@ const (
 	// what its scorer rebuilds the per-row category probabilities from
 	// (U68 E1-S2). Every REG_MULTINOMIAL file carries it.
 	FeatureCategories = "categories"
+	// FeaturePenalizedInverse: `penalized_inverse`, a penalized REG_OLS
+	// / REG_GLM fit's regularized inverse (XᵀWX + λ₂·P)⁻¹ over its
+	// active design (RegressionResult.PenalizedInverse) — what a bound
+	// fit's leverage reads (regression-depth-2 E1-S4).
+	FeaturePenalizedInverse = "penalized_inverse"
 )
 
 // fileFeature is one optional model-file section: the registry entry a
@@ -135,6 +140,27 @@ var fileFeatures = []fileFeature{
 				return "carries a dispersion without a vcov (the dispersion rides a classical vcov)"
 			case f.Covariance != nil:
 				return "carries both a dispersion and a robust covariance (the dispersion rides a classical vcov)"
+			}
+			return ""
+		},
+	},
+	{
+		name: FeaturePenalizedInverse, key: "penalized_inverse",
+		present: func(f *File) bool { return f.PenalizedInverse != nil },
+		rule: func(f *File) string {
+			if (f.Type != types.REG_OLS && f.Type != types.REG_GLM) || f.Penalty == "" {
+				return fmt.Sprintf("carries a penalized_inverse, which only a penalized REG_OLS or REG_GLM fit has, but its type is %s with penalty %s", f.Type, strconv.Quote(f.Penalty))
+			}
+			if msg := squareMatrixRule("penalized_inverse", f.PenalizedInverse); msg != "" {
+				return msg
+			}
+			if len(f.PenalizedInverse.RowKeys) == 0 || f.PenalizedInverse.RowKeys[0] != InterceptKey {
+				return "has a penalized_inverse whose first key is not " + InterceptKey
+			}
+			for _, k := range f.PenalizedInverse.RowKeys[1:] {
+				if !slices.Contains(f.Predictors, k) {
+					return fmt.Sprintf("has a penalized_inverse key %q that is not one of predictors", k)
+				}
 			}
 			return ""
 		},
@@ -324,6 +350,11 @@ type File struct {
 	// REG_GLM gamma's Pearson χ²/df, a fixed-θ negative binomial's under
 	// dispersion "estimated"); null when undefined (df ≤ 0).
 	Dispersion Float `json:"dispersion,omitempty"`
+	// PenalizedInverse (feature penalized_inverse) is a penalized REG_OLS
+	// / REG_GLM fit's regularized inverse over its active design —
+	// RegressionResult.PenalizedInverse, keys (intercept) then the active
+	// predictors.
+	PenalizedInverse *FileMatrix `json:"penalized_inverse,omitempty"`
 	// Theta (feature theta) is a REG_GLM
 	// negative_binomial fit's θ — RegressionResult.Theta, its estimate or
 	// the fixed θ: the variance μ + μ²/θ its residual kinds and influence
@@ -504,6 +535,9 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 	}
 	if res.Vcov != nil {
 		f.Vcov = toFileMatrix(res.Vcov)
+	}
+	if res.PenalizedInverse != nil {
+		f.PenalizedInverse = toFileMatrix(res.PenalizedInverse)
 	}
 	if res.Dispersion != 0 && dispersionType(res.Type) && res.Covariance == nil {
 		// The engine sets it beside a classical vcov only.
@@ -755,6 +789,23 @@ func (f *File) check() string {
 	return ""
 }
 
+// squareMatrixRule is a carried square matrix's shape: row_keys equal
+// column_keys, one row per key, each row one value per key.
+func squareMatrixRule(key string, m *FileMatrix) string {
+	if !slices.Equal(m.RowKeys, m.ColumnKeys) {
+		return key + " has row_keys unlike its column_keys"
+	}
+	if len(m.Values) != len(m.RowKeys) {
+		return key + " has a row count unlike its row_keys"
+	}
+	for _, row := range m.Values {
+		if len(row) != len(m.ColumnKeys) {
+			return key + " has a row length unlike its column_keys"
+		}
+	}
+	return ""
+}
+
 // Bind rebuilds the Bound the saved fit had, under name: the same
 // predictors, terms and figures, bit for bit. Its Result carries the
 // saved figures only (no R² or deviance). A file carrying sweep_axes
@@ -814,6 +865,9 @@ func (f *File) Result() *types.RegressionResult {
 	}
 	if f.Vcov != nil {
 		res.Vcov = fromFileMatrix(f.Vcov)
+	}
+	if f.PenalizedInverse != nil {
+		res.PenalizedInverse = fromFileMatrix(f.PenalizedInverse)
 	}
 	if f.Covariance != nil {
 		c := *f.Covariance

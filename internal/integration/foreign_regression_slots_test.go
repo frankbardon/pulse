@@ -136,9 +136,9 @@ func TestForeignRegressionSlots_RefusedEverywhere(t *testing.T) {
 
 // TestForeignRegressionSlots_TakersUnaffected: the refit attributes
 // still run with target / predictors, and ATTR_REG_FITTED /
-// ATTR_REG_RESIDUAL with a penalty (alpha, l1_ratio), with no general
-// refusal on predict or the runtime; a penalty on ATTR_REG_LEVERAGE /
-// ATTR_REG_INFLUENCE / ATTR_REG_PREDICT (and alpha or l1_ratio alone on
+// ATTR_REG_RESIDUAL / ATTR_REG_LEVERAGE with a penalty (alpha, l1_ratio), with no general
+// refusal on predict or the runtime; a penalty on ATTR_REG_INFLUENCE /
+// ATTR_REG_PREDICT (and alpha or l1_ratio alone on
 // ATTR_REG_PREDICT) stays their own refusal, never
 // the general one.
 func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
@@ -156,7 +156,9 @@ func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE} {
 		cases = append(cases, takerCase{name: string(typ), typ: typ})
 	}
-	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL} {
+	// ATTR_REG_LEVERAGE takes a penalty since regression-depth-2 E1-S2
+	// (#677): the ridge / active-set hat.
+	for _, typ := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE} {
 		cases = append(cases,
 			takerCase{string(typ) + "/l2", typ, "l2", 0.5, 0},
 			takerCase{string(typ) + "/elasticnet", typ, "elasticnet", 0.5, 0.3})
@@ -178,7 +180,7 @@ func TestForeignRegressionSlots_TakersUnaffected(t *testing.T) {
 			}
 		})
 	}
-	for _, typ := range []types.AttributeType{types.ATTR_REG_LEVERAGE, types.ATTR_REG_INFLUENCE, types.ATTR_REG_PREDICT} {
+	for _, typ := range []types.AttributeType{types.ATTR_REG_INFLUENCE, types.ATTR_REG_PREDICT} {
 		t.Run(string(typ)+"/own-penalty-refusal", func(t *testing.T) {
 			t.Parallel()
 			mk := func() *types.Request {

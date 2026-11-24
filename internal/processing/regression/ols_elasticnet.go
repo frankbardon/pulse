@@ -18,12 +18,15 @@ package regression
 //
 // reference: R glmnet(standardize = FALSE) on a unit-SD response
 // (scripts/reference/gen_ols_penalty.R).
-func solveElasticNet(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
+//
+// unpenalized (regpenalty.UnpenalizedMask; nil = none) marks predictors
+// with glmnet's penalty.factor 0 (coordinateDescent).
+func solveElasticNet(a *olsAccumulator, alpha, l1Ratio float64, unpenalized []bool, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	if maxIters <= 0 {
 		maxIters = defaultLassoMaxIters
 	}
 	if tol <= 0 {
 		tol = defaultLassoTol
 	}
-	return coordinateDescent(a, alpha, l1Ratio, maxIters, tol)
+	return coordinateDescent(a, alpha, l1Ratio, unpenalized, maxIters, tol)
 }

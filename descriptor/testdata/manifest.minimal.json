@@ -900,7 +900,7 @@
       },
       {
         "name": "regression-influence",
-        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage and a GLM refit's hat. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-margins",
@@ -913,6 +913,10 @@
       {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-panel-covariance",
+        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), two-way clustering (cluster + cluster2), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
       },
       {
         "name": "regression-row-scores",
@@ -1461,4 +1465,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 735094961c6c3a40f24cfbfde268fe6180be3c51f650dbc46edb3cdc314e870b
+// golden-hash: 6b38acfcf325e28b7fd336b6eb4e5218876c19b0d450ec8de5270caadb2883f2

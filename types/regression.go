@@ -118,7 +118,7 @@ type RegressionSpec struct {
 	Predictors []string `json:"predictors,omitempty"`
 
 	// Penalty selects the regularization scheme for REG_OLS, REG_GLM
-	// (binomial / poisson; gamma refuses it) and REG_MULTINOMIAL
+	// (binomial / poisson / negative_binomial; gamma refuses it) and REG_MULTINOMIAL
 	// (glmnet's symmetric form: every category its own coefficients, no
 	// Reference). One of "" (no penalty), "l1" (lasso), "l2" (ridge), or
 	// "elasticnet". REG_BAYES_LINEAR refuses it.
@@ -133,9 +133,9 @@ type RegressionSpec struct {
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Unpenalized lists predictors the penalty skips — glmnet's
-	// penalty.factor 0 (REG_OLS with Penalty "l2": no α term on their
-	// Gram diagonal; REG_MULTINOMIAL with any Penalty). Each must name a
-	// predictor, once. REG_OLS lasso / elastic net, REG_GLM,
+	// penalty.factor 0 on REG_OLS, REG_GLM and REG_MULTINOMIAL with any
+	// Penalty (l1, l2 or elasticnet): never shrunk, never dropped from
+	// the l1 active set. Each must name a predictor, once.
 	// REG_BAYES_LINEAR and an unpenalised fit refuse it
 	// (PROCESSING_CONFIG).
 	Unpenalized []string `json:"unpenalized,omitempty"`
@@ -191,8 +191,8 @@ type RegressionSpec struct {
 	// rstudent / dffits). A robust Covariance stays dispersion-free.
 	// Refused with PROCESSING_CONFIG (details.requires; the one rule
 	// predict applies, internal/reglink.CheckTheta) on any other family
-	// or regression, with θ estimated (Theta absent), or another value.
-	// Absent is byte-identical.
+	// or regression, with θ estimated (Theta absent), another value, or
+	// "estimated" beside a Penalty. Absent is byte-identical.
 	Dispersion string `json:"dispersion,omitempty"`
 
 	// Reference names REG_MULTINOMIAL's baseline category: one of the
@@ -530,6 +530,27 @@ const (
 	MarginsScaleLink = "link"
 )
 
+// MarginsInferenceResample is RegressionMarginsResult.Inference under
+// the regression's Resample: the effects' standard errors are their
+// replicate spread (U69 #639).
+const MarginsInferenceResample = "resample"
+
+// Binary-predictor treatments (RegressionMargins.Binary).
+const (
+	// MarginsBinarySlope reports a 0/1 predictor like any other: the
+	// derivative of the effect's scale in it.
+	MarginsBinarySlope = "slope"
+	// MarginsBinaryContrast reports each predictor whose fitted values
+	// are all 0 or 1 as its discrete contrast μ(x=1) − μ(x=0): the other
+	// predictors as observed (ame) or at their means (mem), with a
+	// delta-method standard error. Every other predictor keeps its slope.
+	MarginsBinaryContrast = "contrast"
+)
+
+// AllMarginsBinary lists the RegressionMargins.Binary values, the
+// default first.
+func AllMarginsBinary() []string { return []string{MarginsBinarySlope, MarginsBinaryContrast} }
+
 // AllMarginsTypes lists the RegressionMargins.Type values, the default
 // first.
 func AllMarginsTypes() []string { return []string{MarginsAME, MarginsMEM} }
@@ -552,6 +573,12 @@ type RegressionMargins struct {
 
 	// Scale is response (the default; empty selects it) or link.
 	Scale string `json:"scale,omitempty"`
+
+	// Binary is slope (the default; empty selects it) or contrast: under
+	// contrast a predictor whose fitted values are all 0 or 1 reports
+	// μ(x=1) − μ(x=0) (on the link scale, and on an identity link, that
+	// is its coefficient), listed in RegressionMarginsResult.Contrasts.
+	Binary string `json:"binary,omitempty"`
 }
 
 // EffectiveType is m's type, MarginsAME when unset.
@@ -560,6 +587,15 @@ func (m *RegressionMargins) EffectiveType() string {
 		return MarginsAME
 	}
 	return m.Type
+}
+
+// EffectiveBinary is m's binary-predictor treatment, MarginsBinarySlope
+// when unset.
+func (m *RegressionMargins) EffectiveBinary() string {
+	if m == nil || m.Binary == "" {
+		return MarginsBinarySlope
+	}
+	return m.Binary
 }
 
 // EffectiveScale is m's scale, MarginsScaleResponse when unset.
@@ -658,7 +694,8 @@ type RegressionCollinearityResult struct {
 }
 
 // RegressionMarginsResult is RegressionResult.Margins: one marginal
-// effect per term with its delta-method inference. The maps are keyed by
+// effect per term with its delta-method (or, under Resample, replicate)
+// inference. The maps are keyed by
 // term (a predictor name), like the coefficient table — or, when
 // Outcomes is present, "<outcome>:<term>", one effect per outcome level
 // and term; Terms (and Outcomes) keep the order. An undefined figure is
@@ -670,6 +707,16 @@ type RegressionMarginsResult struct {
 
 	// Terms lists the reported predictors in their resolved order.
 	Terms []string `json:"terms"`
+
+	// Binary echoes RegressionMargins.Binary when it is contrast; absent
+	// under slope.
+	Binary string `json:"binary,omitempty"`
+
+	// Contrasts lists, in Terms order, the terms reported as a discrete
+	// contrast μ(x=1) − μ(x=0) rather than a slope — under binary
+	// contrast, every term whose fitted values are all 0 or 1. Absent
+	// when none is.
+	Contrasts []string `json:"contrasts,omitempty"`
 
 	// Outcomes lists, in the model's level order, the outcome levels a
 	// categorical-response fit reports one effect on each of (REG_ORDINAL:
@@ -684,14 +731,16 @@ type RegressionMarginsResult struct {
 	// Estimates maps each term to its marginal effect: under type ame
 	// the (weighted) mean over the fitted rows of β_j·μ′(η_i) (response
 	// scale) — under type mem β_j·μ′(x̄ᵀβ) — or β_j (link scale; and on
-	// every identity link, REG_OLS included, where μ′ = 1).
+	// every identity link, REG_OLS included, where μ′ = 1); a term in
+	// Contrasts reports μ(x=1) − μ(x=0) instead, averaged the same way.
 	Estimates map[string]float64 `json:"estimates"`
 
 	// StdErrors maps each term to its delta-method standard error
 	// √(J·V·Jᵀ), V the fit's coefficient covariance (the one StdErrors
 	// reads: classical or the robust Covariance) and J the gradient of
 	// the effect in β. On the link scale and on an identity link it is
-	// the coefficient's standard error.
+	// the coefficient's standard error. Under Inference resample it is
+	// the effect's replicate standard error instead.
 	StdErrors map[string]float64 `json:"std_errors"`
 
 	// Statistics maps each term to Estimate / StdError: a Student t on DF
@@ -715,6 +764,15 @@ type RegressionMarginsResult struct {
 
 	// ConfLevel is the interval coverage, the regression's conf_level.
 	ConfLevel float64 `json:"conf_level"`
+
+	// Inference names where StdErrors come from when it is not the
+	// delta method: MarginsInferenceResample under the regression's
+	// Resample — the replicate spread of the effect, each replicate
+	// refit recomputing it (statistics a Wald z, p-values the Wald z
+	// under a jackknife and the percentile p under a bootstrap, the
+	// interval Wald normal, no DF), the resampled coefficient table's
+	// rules. Absent on the delta method.
+	Inference string `json:"inference,omitempty"`
 
 	// At maps each predictor (every one of Predictors, not only Terms)
 	// to the (weighted) mean the effects are evaluated at; type mem only.
@@ -936,7 +994,8 @@ type RegressionResult struct {
 
 	// ThetaStdErr is θ̂'s standard error 1/√I(θ̂), I the observed
 	// information of θ at the fitted means (MASS theta.ml's SE.theta);
-	// present only when θ was estimated (null if I(θ̂) ≤ 0).
+	// present only when θ was estimated (null if I(θ̂) ≤ 0, and on an l1 /
+	// elasticnet penalized fit, whose inference is undefined).
 	ThetaStdErr float64 `json:"theta_std_err,omitempty"`
 
 	// TwoLogLik is twice the maximised log-likelihood 2ℓ of a plain
@@ -1019,6 +1078,27 @@ type RegressionResult struct {
 	// (ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE / ATTR_REG_RESIDUAL kind
 	// standardized / studentized with params.fit).
 	Dispersion float64 `json:"dispersion,omitempty"`
+
+	// PenalizedInverse is a penalized REG_OLS / REG_GLM fit's
+	// regularized inverse (X̃ᵀW*X̃ + λ₂·P)⁻¹ over its active design —
+	// what a bound fit's leverage reads (ATTR_REG_LEVERAGE with
+	// params.fit; regression-depth-2 E1-S4). NEVER on the wire (a
+	// response is byte-identical to one without it): it rides the
+	// in-memory result a Compose fit binds and the model file a `save`
+	// writes (feature penalized_inverse). Set on a penalized fit
+	// without Resample or Selection, nil otherwise. Square symmetric,
+	// full encoding, keys "(intercept)" then the active predictors in
+	// spec order: every predictor under l2, the nonzero ones under l1 /
+	// elasticnet (an absent predictor reads 0). W* is the prior weights
+	// on the inference basis N* — w* = w·N*/Σw, the weights as given
+	// unweighted or under kind frequency, scale-free under kind
+	// probability — times, on REG_GLM, the final IRLS working weights;
+	// P the penalty mask (0 on the intercept and every Unpenalized
+	// predictor) and λ₂ the objective's ridge term (N*·Alpha under l2,
+	// N*·Alpha·(1 − L1Ratio) under elasticnet, 0 under l1: the
+	// unpenalized hat of the active set). Not a covariance: no φ scales
+	// it. NaN entries when the active design is singular.
+	PenalizedInverse *MatrixValues `json:"-"`
 
 	// Covariance echoes the robust estimator the standard errors,
 	// p-values, intervals and Vcov came from (RegressionSpec.Covariance),

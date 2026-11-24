@@ -86,6 +86,18 @@ func TestRegression_GeneratedFitsBitsPinned(t *testing.T) {
 		}),
 			func() []Record { return glmJackknifeRecords(400, 11) },
 			"1dd74969aa0d9f8dcaf19c0a216e15bbaca0a0eb4709e2da2a37b810874e7659"},
+		// U69 #639: margins under resample — each replicate re-estimates
+		// the effect (the derived-seed bootstrap and a mem contrast).
+		{"glm_logit_bootstrap_margins", glm([]string{"x1", "x2"}, func(s *types.RegressionSpec) {
+			s.Resample, s.BootstrapIters, s.Margins = "bootstrap", 150, &types.RegressionMargins{}
+		}),
+			func() []Record { return glmJackknifeRecords(200, 13) },
+			"0a2aab30144c424aa522cf87e441aed8e2fd4a5d7691276558eab6a921523904"},
+		{"glm_logit_jackknife_margins_mem", glm([]string{"x1", "x2"}, func(s *types.RegressionSpec) {
+			s.Resample, s.Margins = "jackknife", &types.RegressionMargins{Type: types.MarginsMEM}
+		}),
+			func() []Record { return makeLogisticFixture(t, 60, []float64{1.2, -0.8}, 0.1, 53) },
+			"020fd1f1f1830af3823cc53eb924f18df24bc46337094922a8a2cb05079afb34"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

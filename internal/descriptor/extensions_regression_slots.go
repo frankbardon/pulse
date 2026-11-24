@@ -113,7 +113,7 @@ var regressionSlotRules = []regressionSlotRule{
 		slot: "unpenalized", keys: []string{"unpenalized"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("unpenalized", len(s.Unpenalized) != 0) },
 		refusal: func(*types.RegressionSpec) string {
-			return "takes no unpenalized (a REG_OLS ridge knob); pass the model's own per-predictor penalty through params"
+			return "takes no unpenalized (a built-in penalty knob); pass the model's own per-predictor penalty through params"
 		},
 	},
 	{
@@ -368,7 +368,8 @@ func RegressionFieldClassOf(key string) (class RegressionFieldClass, slot string
 // slot). A declared covariance then passes the shared shape rule
 // (regcov.CheckDeclared), a declared margins block the shared margins
 // rule (regmargins.CheckDeclared: shape, then unpenalized / no_selection
-// / no_resample / unbounded). Nil when every set slot is declared.
+// / unbounded; a resample is admitted, U69 #639). Nil when every set
+// slot is declared.
 func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRegression) *errors.CodedError {
 	if spec == nil {
 		return nil
@@ -455,7 +456,7 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 		}
 	}
 	if len(covTypes) > 0 {
-		out = append(out, descriptor.Param{Name: "covariance", Type: "object", Description: "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: " + strings.Join(covTypes, ", ") + ". A top-level key of the regression entry.", Slot: true})
+		out = append(out, descriptor.Param{Name: "covariance", Type: "object", Description: "{type, cluster, order_by, entity, lags}: the covariance estimator the model computes; declared types: " + strings.Join(covTypes, ", ") + " (cluster one-way: cluster2 is refused). A top-level key of the regression entry.", Slot: true})
 	}
 	// holdout: an accepted field, listed when the model can be scored.
 	if decl.Scorer {

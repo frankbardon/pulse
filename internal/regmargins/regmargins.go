@@ -9,9 +9,10 @@
 // Every refusal is PROCESSING_CONFIG with details.requires naming what
 // the request must change:
 //
-//   - shape: type ame | mem, scale response | link, terms each a
-//     predictor, once (requires "type ame or mem", "scale response or
-//     link", "a predictor");
+//   - shape: type ame | mem, scale response | link, binary slope |
+//     contrast, terms each a predictor, once (requires "type ame or
+//     mem", "scale response or link", "binary slope or contrast", "a
+//     predictor");
 //   - the regression type: REG_OLS, REG_GLM or REG_MULTINOMIAL (requires
 //     "type REG_OLS, REG_GLM or REG_MULTINOMIAL"); an extension or model
 //     regression is the shared-slot
@@ -20,10 +21,10 @@
 //     and fit exactly as Check does a built-in's;
 //   - the fit: no penalty ("unpenalized" — a shrunken β has no
 //     delta-method sampling distribution), no selection ("no_selection"
-//     — post-selection inference), no resample ("no_resample" — the
-//     replicate covariance is not the AME's: bootstrap the effect
-//     itself), no bounds ("unbounded" — a binding bound has no
-//     covariance);
+//     — post-selection inference), no bounds ("unbounded" — a binding
+//     bound has no covariance). A resampled fit is admitted (U69 #639):
+//     every replicate refit re-estimates the effects and their replicate
+//     spread is the inference;
 //   - CheckDependent: no predictor derived from another predictor of the
 //     same regression ("independent_predictors") — FEAT_POLY's x² beside
 //     x, an interaction beside its factors: the effect of one holding the
@@ -72,6 +73,16 @@ func builtin(t types.RegressionType) bool {
 	}
 	return false
 }
+
+// Contrast reports whether spec's block asks for binary predictors as
+// discrete contrasts (binary contrast).
+func Contrast(spec *types.RegressionSpec) bool {
+	return spec != nil && spec.Margins != nil && spec.Margins.EffectiveBinary() == types.MarginsBinaryContrast
+}
+
+// IsBinaryValue reports whether v is exactly 0 or 1 — the values a
+// predictor must take on every fitted row to be reported as a contrast.
+func IsBinaryValue(v float64) bool { return v == 0 || v == 1 }
 
 // Key is the result key of term's effect on outcome: "<outcome>:<term>"
 // (the coefficients' "<category>:<term>" convention), or term alone when
@@ -136,7 +147,7 @@ func CheckDeclared(spec *types.RegressionSpec) *errors.CodedError {
 	return checkFit(spec)
 }
 
-// checkShape judges the block itself: type, scale, terms.
+// checkShape judges the block itself: type, scale, binary, terms.
 func checkShape(spec *types.RegressionSpec) *errors.CodedError {
 	m := spec.Margins
 	if m.Type != "" && !slices.Contains(types.AllMarginsTypes(), m.Type) {
@@ -146,6 +157,10 @@ func checkShape(spec *types.RegressionSpec) *errors.CodedError {
 	if m.Scale != "" && !slices.Contains(types.AllMarginsScales(), m.Scale) {
 		return refuse(spec, "scale must be one of "+strings.Join(types.AllMarginsScales(), ", ")+" (empty selects response); got "+m.Scale,
 			"scale response or link", map[string]any{"key": "scale", "value": m.Scale, "allowed": types.AllMarginsScales()})
+	}
+	if m.Binary != "" && !slices.Contains(types.AllMarginsBinary(), m.Binary) {
+		return refuse(spec, "binary must be one of "+strings.Join(types.AllMarginsBinary(), ", ")+" (empty selects slope); got "+m.Binary,
+			"binary slope or contrast", map[string]any{"key": "binary", "value": m.Binary, "allowed": types.AllMarginsBinary()})
 	}
 	for i, t := range m.Terms {
 		if !slices.Contains(spec.Predictors, t) {
@@ -161,7 +176,8 @@ func checkShape(spec *types.RegressionSpec) *errors.CodedError {
 }
 
 // checkFit judges the fit the effects read: unpenalized, no selection,
-// no resample, unbounded.
+// unbounded. A Resample is admitted: the engine re-estimates the effects
+// on every replicate refit.
 func checkFit(spec *types.RegressionSpec) *errors.CodedError {
 	switch {
 	case spec.Penalty != "":
@@ -170,9 +186,6 @@ func checkFit(spec *types.RegressionSpec) *errors.CodedError {
 	case spec.Selection != "":
 		return refuse(spec, "need a fixed predictor set: after selection the coefficient covariance ignores the search; drop selection or margins",
 			"no_selection", map[string]any{"selection": spec.Selection})
-	case spec.Resample != "":
-		return refuse(spec, "read the fit's analytical coefficient covariance, not a replicate one (the replicates would have to be of the effect itself); drop resample or margins",
-			"no_resample", map[string]any{"resample": spec.Resample})
 	case spec.Bounds.Active():
 		return refuse(spec, "need an unbounded fit: a binding bound leaves the coefficients without a covariance; drop bounds or margins",
 			"unbounded", nil)

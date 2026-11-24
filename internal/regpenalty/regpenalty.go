@@ -22,7 +22,7 @@ import (
 )
 
 // Families lists the REG_GLM families a penalty is defined for.
-var Families = []string{"binomial", "poisson"}
+var Families = []string{"binomial", "poisson", "negative_binomial"}
 
 // Check returns the PROCESSING_CONFIG refusal of spec's penalty knobs,
 // or nil. Rules (REG_OLS, REG_GLM and REG_MULTINOMIAL; every other type
@@ -35,8 +35,8 @@ var Families = []string{"binomial", "poisson"}
 //   - REG_GLM: a penalty on a family outside Families (gamma) is
 //     refused, judged after the knobs themselves (an unknown family is
 //     the family check's refusal, never this one).
-//   - Unpenalized (checkUnpenalized): REG_OLS with Penalty "l2", or
-//     REG_MULTINOMIAL with any Penalty; each name a predictor, once.
+//   - Unpenalized (checkUnpenalized): any Penalty on any of the three
+//     types (never without one); each name a predictor, once.
 func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || (spec.Type != types.REG_OLS && spec.Type != types.REG_GLM && spec.Type != types.REG_MULTINOMIAL) {
 		return nil
@@ -106,47 +106,28 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec.Type == types.REG_GLM && spec.Family == "gamma" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM Penalty is defined for the binomial and poisson families only; fit family="+spec.Family+" unpenalised",
+			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family="+spec.Family+" unpenalised",
 			map[string]any{"penalty": spec.Penalty, "family": spec.Family, "allowed_families": Families, "type": t},
 		)
 	}
 	return checkUnpenalized(spec)
 }
 
-// checkUnpenalized is the Unpenalized rule: absent passes; on REG_GLM,
-// on a REG_OLS fit whose Penalty is not "l2" or on an unpenalised
-// REG_MULTINOMIAL it is refused; every name must be one of Predictors,
-// listed once. REG_MULTINOMIAL takes it on every kind (glmnet's
-// penalty.factor 0); REG_OLS lasso / elastic net do not offer it.
+// checkUnpenalized is the Unpenalized rule: absent passes; beside no
+// Penalty it is refused (an unpenalized fit already leaves every
+// coefficient unshrunk); every name must be one of Predictors, listed
+// once. Every penalty kind on REG_OLS, REG_GLM and REG_MULTINOMIAL
+// takes it — glmnet's penalty.factor 0 on the named predictors (U69
+// E1-S1 lifted the REG_OLS ridge-only and the REG_GLM refusals).
 func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 	if len(spec.Unpenalized) == 0 {
 		return nil
 	}
 	t := string(spec.Type)
-	if spec.Type == types.REG_GLM {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			t+" does not accept Unpenalized; it is a REG_OLS ridge (penalty l2) knob",
-			map[string]any{"unpenalized": spec.Unpenalized, "type": t},
-		)
-	}
-	if spec.Type == types.REG_MULTINOMIAL && spec.Penalty == "" {
+	if spec.Penalty == "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
 			t+" Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk",
-			map[string]any{"unpenalized": spec.Unpenalized, "penalty": spec.Penalty, "type": t},
-		)
-	}
-	if spec.Type == types.REG_OLS && spec.Penalty != "l2" {
-		msg := "REG_OLS Unpenalized requires Penalty=l2 (ridge); "
-		if spec.Penalty == "" {
-			msg += "an unpenalized fit already leaves every coefficient unshrunk"
-		} else {
-			msg += "lasso and elastic net take no per-predictor penalty factor"
-		}
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			msg,
 			map[string]any{"unpenalized": spec.Unpenalized, "penalty": spec.Penalty, "type": t},
 		)
 	}
@@ -185,6 +166,23 @@ func UnpenalizedMask(spec *types.RegressionSpec, predictors []string) []bool {
 		mask[j] = slices.Contains(spec.Unpenalized, name)
 	}
 	return mask
+}
+
+// PenalizedTerms returns, for a design whose terms are the intercept
+// then predictors in fit order, which terms the penalty reads (true =
+// penalized, glmnet's penalty.factor 1; false = factor 0): the
+// intercept never, an Unpenalized predictor never, every other
+// predictor always. Matched by name like UnpenalizedMask, so a refit
+// over a predictor subset keeps each name's rule. Always len
+// (predictors)+1 — the one per-term mask the GLM, negative-binomial and
+// multinomial penalties and the penalized hat matrix share.
+func PenalizedTerms(spec *types.RegressionSpec, predictors []string) []bool {
+	mask := UnpenalizedMask(spec, predictors)
+	pen := make([]bool, len(predictors)+1)
+	for j := range predictors {
+		pen[j+1] = mask == nil || !mask[j]
+	}
+	return pen
 }
 
 // ApproximateSE reports whether spec selects its predictors from the

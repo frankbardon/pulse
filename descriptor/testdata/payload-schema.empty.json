@@ -293,7 +293,7 @@
       "type": "object"
     },
     "CovarianceLags": {
-      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "description": "Bartlett truncation lag (covariance types hac and driscoll_kraay): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows (plain hac) or its distinct order_by periods (hac with an entity, driscoll_kraay).",
       "oneOf": [
         {
           "minimum": 0,
@@ -308,6 +308,7 @@
       "enum": [
         "classical",
         "cluster",
+        "driscoll_kraay",
         "hac",
         "hc0",
         "hc1",
@@ -1181,6 +1182,12 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
+        "entity": {
+          "type": "string"
+        },
         "lags": {
           "$ref": "#/$defs/CovarianceLags"
         },
@@ -1202,14 +1209,29 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
         "clusters": {
           "type": "integer"
+        },
+        "clusters2": {
+          "type": "integer"
+        },
+        "entities": {
+          "type": "integer"
+        },
+        "entity": {
+          "type": "string"
         },
         "lags": {
           "type": "integer"
         },
         "order_by": {
           "type": "string"
+        },
+        "periods": {
+          "type": "integer"
         },
         "type": {
           "$ref": "#/$defs/CovarianceType"
@@ -1268,6 +1290,9 @@
     "RegressionMargins": {
       "additionalProperties": false,
       "properties": {
+        "binary": {
+          "type": "string"
+        },
         "scale": {
           "type": "string"
         },
@@ -1298,6 +1323,9 @@
           },
           "type": "object"
         },
+        "binary": {
+          "type": "string"
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -1322,6 +1350,15 @@
             "null"
           ]
         },
+        "contrasts": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "df": {
           "type": [
             "number",
@@ -1336,6 +1373,9 @@
             ]
           },
           "type": "object"
+        },
+        "inference": {
+          "type": "string"
         },
         "outcomes": {
           "items": {
@@ -2541,4 +2581,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 1335e4b71e0a33ec68cc7e2ccb2905ed443ccd78206354eb4aff27071231d999
+// golden-hash: b07516c08aa94d1ebbc50217615aa90dc6c6a7cfc49006abec9f6a916148683c

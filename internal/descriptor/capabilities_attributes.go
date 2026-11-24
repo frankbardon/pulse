@@ -1,7 +1,10 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
@@ -162,20 +165,19 @@ func attributeCapabilities() []descriptor.Operator {
 			Streamable:    true,
 		},
 		{
-			Name:           string(types.ATTR_REG_LEVERAGE),
-			Category:       "attribute",
-			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
-			Params:         append(regAttributeParams(false), fitCarryParams...),
-			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
-			EmitsType:      "f64",
-			EmitsTypeNote:  "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
-			Streamable:     true,
-			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+			Name:          string(types.ATTR_REG_LEVERAGE),
+			Category:      "attribute",
+			Description:   "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. A penalized refit reads its own hat: l2 the ridge hat 1/n + (xᵢ − μ_x)ᵀ(M2_xx + n·α·I)⁻¹(xᵢ − μ_x); l1 the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} (Σᵢ hᵢᵢ = 1 + |active|, the lasso's df); elasticnet the active-set hat with the ridge term n·α·(1 − l1_ratio). With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true) — a penalized one's reads its carried regularized inverse (XᵀWX + λ₂·P)⁻¹ over its active design instead (kept in memory and in a saved model file, never in the response), the penalized refit's hat, no vcov needed —, or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
+			Params:        append(regLeverageParams(), fitCarryParams...),
+			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
+			EmitsType:     "f64",
+			EmitsTypeNote: "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
+			Streamable:    true,
 		},
 		{
 			Name:           string(types.ATTR_REG_INFLUENCE),
 			Category:       "attribute",
-			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
+			Description:    "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true, no penalty and no probability weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
 			Params:         append(append(regAttributeParams(false), influenceMeasureParam), fitCarryParams...),
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_INFLUENCE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
@@ -661,19 +663,19 @@ func otherForm(f metric.Form) metric.Form {
 // LEVERAGE carry: TOP-LEVEL keys of the attribute entry (Attribute.
 // Target / Predictors / Penalty / Alpha / L1Ratio — the RegressionSpec
 // shape), not members of its params object; the slot's own field is
-// unread. penalized adds the OLS penalty knobs (leverage refuses any
-// penalty) and params.fit — ATTR_REG_FITTED / RESIDUAL score a bound
+// unread. penalized adds the OLS penalty knobs (influence refuses any
+// penalty; leverage takes them, regLeverageParams) and params.fit — ATTR_REG_FITTED / RESIDUAL score a bound
 // fit instead of the refit (internal/model.CheckFitReference), and then
 // take none of the refit's fields: target and predictors stay Required
 // (the refit is the default form a draft writes) and say so.
 // residualKindParam is ATTR_REG_RESIDUAL's params.kind (U65 E1-S1).
 // U65 E1-S2 adds the refit's standardized / studentized kinds.
-var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal)."}
+var residualKindParam = descriptor.Param{Name: "kind", Type: "enum", Required: false, Default: "response", EnumValues: model.ResidualKinds(), Description: "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted or frequency-weighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal)."}
 
 // regDesignFitParam is params.fit on a slot that reads the bound fit's
 // design (ATTR_REG_LEVERAGE, ATTR_REG_INFLUENCE; U65 E1-S2,
 // model.CheckFitDesign).
-var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."}
+var regDesignFitParam = descriptor.Param{Name: "fit", Type: "string", Required: false, Description: "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted or frequency-weighted (a probability weight is refused permanently, requires unweighted), unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); ATTR_REG_LEVERAGE also reads a penalized REG_OLS / REG_GLM fit, through its carried regularized inverse (no vcov needed; a model file of an earlier build without it requires penalized_inverse); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; under a frequency weight every figure is one copy's of the rep()-expanded fit (df = Σw − p′, h = hatvalues/f); on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is <TYPE>_<fit>; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."}
 
 // residualTypeParam is ATTR_REG_RESIDUAL's params.residual_type (U65
 // E1-S2): the residual kind standardized starts from.
@@ -690,6 +692,24 @@ var fitCarryParams = []descriptor.Param{
 
 // influenceMeasureParam is ATTR_REG_INFLUENCE's params.measure (U65 E1-S2).
 var influenceMeasureParam = descriptor.Param{Name: "measure", Type: "enum", Required: false, Default: model.InfluenceCooks, EnumValues: model.InfluenceMeasures(), Description: "cooks (default): Cook's distance r²·h / (p′·(1 − h)), R cooks.distance; dffits: t·√(h / (1 − h)), R dffits. With params.fit, R 4.6.1 on the bound lm / glm (rP the Pearson residual, φ the dispersion): cooks (rP/(1 − h))²·h/(φ·p′); dffits sign(g′(μ))·rP·√h/(σ·(1 − h)), σ the leave-one-out σ₍ᵢ₎ where φ is estimated (OLS, gamma) else √φ — negative-signed against rP under the gamma inverse link. Any other value is PROCESSING_CONFIG."}
+
+// regLeverageParams are ATTR_REG_LEVERAGE's: the refit keys with the
+// OLS penalty knobs (its hat reads any penalty — regression-depth-2
+// E1-S2) and the design-reading params.fit.
+func regLeverageParams() []descriptor.Param {
+	ps := regAttributeParams(false)
+	knobs := regAttributeParams(true)[2:5] // penalty, alpha, l1_ratio
+	out := append(append(ps[:2:2], knobs...), ps[2:]...)
+	return append(out, regRefitFamilyParams...)
+}
+
+// regRefitFamilyParams are ATTR_REG_LEVERAGE's params.family /
+// params.link (regression-depth-2 E1-S2, model.CheckRefit): a GLM refit
+// in place of OLS.
+var regRefitFamilyParams = []descriptor.Param{
+	{Name: "family", Type: "enum", Required: false, EnumValues: slices.Sorted(slices.Values(reglink.Families())), Description: "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). Takes any penalty: the penalized GLM's hat at its final IRLS working weights over its regularized inverse (l2 every predictor, l1 / elasticnet the active set, as the OLS refit). negative_binomial re-estimates theta in the penalized refit. An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields."},
+	{Name: "link", Type: "enum", Required: false, EnumValues: reglink.All(), EnumBy: "family", EnumValuesBy: reglink.ByFamily(), Description: "The GLM refit's link, one of params.family's (default its canonical link; another is PROCESSING_REGRESSION_INVALID_LINK); without params.family PROCESSING_CONFIG (details.requires family)."},
+}
 
 func regAttributeParams(penalized bool) []descriptor.Param {
 	if !penalized {

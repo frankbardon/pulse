@@ -415,6 +415,20 @@ func collectComparisonSites(fams *multFamilies, slots []descx.ResolvedMultiplici
 			continue
 		}
 		rm := slots[i]
+		if len(r.Members) > 0 {
+			// A battery comparison: every member row is one test of
+			// the family; the single-pair p is undefined.
+			for k := range r.Members {
+				row := &r.Members[k]
+				fams.add(multFamilyKey(composeHostScope, rm.Family), rm.Family, rm.Method, multSite{
+					p: row.PValue,
+					write: func(adjusted float64, m, excluded int) {
+						writeComparisonMemberAdjusted(row, rm, adjusted, m, excluded)
+					},
+				})
+			}
+			continue
+		}
 		fams.add(multFamilyKey(composeHostScope, rm.Family), rm.Family, rm.Method, multSite{
 			p: r.PValue,
 			write: func(adjusted float64, m, excluded int) {
@@ -422,6 +436,18 @@ func collectComparisonSites(fams *multFamilies, slots []descx.ResolvedMultiplici
 			},
 		})
 	}
+}
+
+// writeComparisonMemberAdjusted is writeComparisonAdjusted on one row
+// of a battery comparison.
+func writeComparisonMemberAdjusted(r *types.FitComparisonMember, rm descx.ResolvedMultiplicity, adjusted float64, m, excluded int) {
+	r.PAdjusted = &adjusted
+	r.SignificantAdjusted = nil
+	if !math.IsNaN(adjusted) {
+		sig := adjusted < rm.Alpha
+		r.SignificantAdjusted = &sig
+	}
+	r.Multiplicity = &types.AppliedMultiplicity{Method: rm.Method, Family: rm.Family, Alpha: rm.Alpha, M: m, Excluded: excluded}
 }
 
 // writeComparisonAdjusted records a comparison's adjusted p beside its

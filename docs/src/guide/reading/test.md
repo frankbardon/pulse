@@ -106,6 +106,27 @@ How many subjects were left out because they lacked a value for at least one con
 **Caveats:**
 
 - If dropped subjects differ from the rest (for example, people who quit early), the result describes the completers only.
+- With params.incomplete mixed no subject is dropped and this is 0.
+
+#### `details.df_error`
+
+The degrees of freedom of the noise the F is compared against: (subjects − 1)(conditions − 1) for complete subjects; with params.incomplete mixed, Satterthwaite's estimate, usually not a whole number.
+
+#### `details.incomplete_subjects`
+
+With params.incomplete mixed, how many subjects lacked a value for at least one condition yet still entered the model through the values they have.
+
+#### `details.var_subject`
+
+With params.incomplete mixed, the estimated variance of the subjects' own levels around the overall level: how much subjects differ from each other.
+
+**Caveats:**
+
+- A value of 0 means the subjects differ no more than the noise predicts; the F is then the one of an ordinary model on every row.
+
+#### `details.var_residual`
+
+With params.incomplete mixed, the estimated variance of the noise left once each subject's own level and the condition averages are removed.
 
 <a id="op-test_anova_welch"></a>
 

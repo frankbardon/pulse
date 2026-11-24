@@ -32,6 +32,12 @@
 #   mem  xbar = sum(w x_i) / sum(w), etabar = xbar' b
 #        MEM_j = b_j mu'(etabar), J_jk = (j == k) mu'(etabar) + b_j mu''(etabar) xbar_k
 #   link scale: the effect is b_j, J = e_j
+#   binary = "contrast" (U69 #641): a term whose values are all 0 / 1
+#   reports mu(x_j = 1) - mu(x_j = 0) instead (other terms as observed
+#   under ame, at xbar under mem), J = sum(w (mu'(eta1) x1 - mu'(eta0)
+#   x0)) / sum(w), checked against a central difference; on the link
+#   scale and an identity link that is b_j again. marginaleffects reports
+#   such a column as that contrast by default, so it cross-checks it.
 #   se = sqrt(diag(J V J')), V = vcov(m) | sandwich::vcovHC(m, "HC3") |
 #   sandwich::vcovCL(m, cluster = ~g, type = "HC1")
 #   statistic = est / se; a Student t on df.residual(m) for lm and the
@@ -155,7 +161,19 @@ mg_nb <- function(d, w) {
 
 # mg_effects is the analytic block of fit m: type ame | mem, scale
 # response | link, V the coefficient covariance, df the t df (NULL = z).
-mg_effects <- function(m, link, type, scale, V, df, w) {
+mg_isbin <- function(v) all(v %in% c(0, 1))
+
+# mg_contrast is the response-scale contrast of column j at the points
+# pts (rows, intercept first) with weights ww, and its gradient in b.
+mg_contrast <- function(fam, b, pts, ww, j) {
+  p1 <- pts; p1[, j] <- 1
+  p0 <- pts; p0[, j] <- 0
+  e1 <- drop(p1 %*% b); e0 <- drop(p0 %*% b)
+  list(est = sum(ww * (fam$linkinv(e1) - fam$linkinv(e0))) / sum(ww),
+       J = colSums(ww * (fam$mu.eta(e1) * p1 - fam$mu.eta(e0) * p0)) / sum(ww))
+}
+
+mg_effects <- function(m, link, type, scale, V, df, w, binary = "slope") {
   X <- model.matrix(m)
   b <- coef(m)
   k <- length(b)
@@ -178,6 +196,18 @@ mg_effects <- function(m, link, type, scale, V, df, w) {
     if (scale == "link" || link == "identity") {
       est[t] <- b[j]
       J[t, j] <- 1
+    } else if (binary == "contrast" && mg_isbin(X[, j])) {
+      pts <- if (type == "mem") matrix(xbar, nrow = 1) else X
+      ww <- if (type == "mem") 1 else w
+      cc <- mg_contrast(fam, b, pts, ww, j)
+      h <- 1e-6
+      num <- sapply(seq_len(k), function(a) {
+        bp <- b; bm <- b; bp[a] <- bp[a] + h; bm[a] <- bm[a] - h
+        (mg_contrast(fam, bp, pts, ww, j)$est - mg_contrast(fam, bm, pts, ww, j)$est) / (2 * h)
+      })
+      mg_check("contrast gradient", cc$J, num, 1e-7)
+      est[t] <- cc$est
+      J[t, ] <- cc$J
     } else if (type == "ame") {
       mbar <- sum(w * fam$mu.eta(eta)) / sw
       g <- colSums((w * mg_d2(link, eta)) * X) / sw
@@ -204,6 +234,10 @@ mg_effects <- function(m, link, type, scale, V, df, w) {
     ci_lower = mg_g17(est - q * se), ci_upper = mg_g17(est + q * se))
   if (!is.null(df)) out$df <- mg_g17(df)
   if (type == "mem") out$at <- mg_g17(xbar[c("x1", "x2")])
+  if (binary == "contrast") {
+    out$binary <- binary
+    out$contrasts <- I(terms[sapply(terms, function(t) mg_isbin(X[, t]))])
+  }
   list(json = out, est = est, se = se)
 }
 
@@ -233,7 +267,7 @@ mg_cases <- list()
 # mg_case fits one case and records the analytic block (+ the
 # marginaleffects one). fit is a function of the data frame and weights.
 mg_case <- function(name, model, family, link, d, type = "ame", scale = "response", covariance = "classical",
-                    weighted = FALSE, cluster = FALSE) {
+                    weighted = FALSE, cluster = FALSE, binary = "slope") {
   w <- if (weighted) d$f else rep(1, nrow(d))
   m <- switch(model,
     lm = lm(y ~ x1 + x2, data = d),
@@ -248,7 +282,7 @@ mg_case <- function(name, model, family, link, d, type = "ame", scale = "respons
     cluster = vcovCL(m, cluster = ~g, type = "HC1"))
   tdist <- model == "lm" || (identical(family$family, "Gamma") && covariance == "classical")
   df <- if (tdist) df.residual(m) else NULL
-  eff <- mg_effects(m, link, type, scale, V, df, w)
+  eff <- mg_effects(m, link, type, scale, V, df, w, binary)
   rows <- lapply(seq_len(nrow(d)), function(i) {
     r <- c(d$x1[i], d$x2[i], d$y[i])
     if (cluster) r <- c(r, d$g[i])
@@ -264,7 +298,7 @@ mg_case <- function(name, model, family, link, d, type = "ame", scale = "respons
     me <- if (model == "nb") mg_nb(ex, rep(1, nrow(ex))) else mg_refit(y ~ x1 + x2, family, ex, rep(1, nrow(ex)))
     Ve <- vcov(me)
     mg_check(paste(name, "weighted vs expanded vcov"), V, Ve)
-    effe <- mg_effects(me, link, type, scale, Ve, df, rep(1, nrow(ex)))
+    effe <- mg_effects(me, link, type, scale, Ve, df, rep(1, nrow(ex)), binary)
     mg_check(paste(name, "weighted vs expanded estimates"), eff$est, effe$est)
     mg_check(paste(name, "weighted vs expanded std errors"), eff$se, effe$se)
     cx <- mg_me(m, type, scale, V, df, d, w, wts = if (type == "ame") "f" else NULL)
@@ -318,22 +352,18 @@ mg_case("logit_mem_freq", "glm", binomial("logit"), "logit", d, type = "mem", we
 # Derived predictors, differentiated as given (Pulse margins over a
 # feature output): x1 is a pre-computed log1p(z) (Pulse FEAT_LOG's
 # formula) and x2 a 0/1 dummy of a two-level category g (FEAT_ONE_HOT's
-# "b" column). Each effect is the slope in the column itself (a unit
-# change at the derivative, Stata's dydx on a continuous-coded dummy),
-# so the fit and its effects are an ordinary logit on (x1, x2); the case
-# also carries the raw z and g ("raw": [z, g index], g "a" = 0, "b" = 1)
-# so the root test builds the same columns through the features.
+# "b" column). x1's effect is the slope in the column itself; under
+# binary = "contrast" (U69 #641) the dummy x2 reports its discrete
+# 1 - 0 contrast, so the fit and its effects are an ordinary logit on
+# (x1, x2); the case also carries the raw z and g ("raw": [z, g index],
+# g "a" = 0, "b" = 1) so the root test builds the same columns through
+# the features.
 d <- data.frame(z = round(runif(120, 0, 6), 3), g = sample(0:1, 120, replace = TRUE))
 d$x1 <- log1p(d$z)
 d$x2 <- as.numeric(d$g == 1)
 d$y <- rbinom(120, 1, plogis(-0.8 + 0.7 * d$x1 - 0.9 * d$x2))
-mg_case("logit_ame_derived", "glm", binomial("logit"), "logit", d)
+mg_case("logit_ame_derived", "glm", binomial("logit"), "logit", d, binary = "contrast")
 mg_cases[[length(mg_cases)]]$raw <- lapply(seq_len(nrow(d)), function(i) mg_g17(c(d$z[i], d$g[i])))
-# marginaleffects detects a 0/1 column and reports its discrete 1 - 0
-# contrast, not the slope Pulse (and the closed form above) reports for
-# it: its x2 cross-check figure is that contrast, flagged so the Go test
-# compares x1 only (the slope is pinned by the closed form).
-mg_cases[[length(mg_cases)]]$me_binary_terms <- I("x2")
 
 # ---- REG_ORDINAL (U68 E4-S1, #652) -----------------------------------
 # Per-level marginal effects of a proportional-odds fit (MASS::polr):
@@ -429,7 +459,22 @@ mo_newton <- function(theta, X, y, w, J, L) {
 
 # mo_effects: the closed-form block (estimates and standard errors,
 # outcome-major) of theta / V over rows X with prior weights w.
-mo_effects <- function(theta, V, X, w, J, L, type, scale) {
+# mo_contrast: the per-level contrast P_k(x_j = 1) - P_k(x_j = 0) at
+# the points pts with weights ww (a function of theta alone).
+mo_contrast <- function(theta, pts, ww, J, L, j) {
+  p <- ncol(pts)
+  beta <- theta[seq_len(p)]
+  zeta <- theta[p + seq_len(J - 1)]
+  pk <- function(pp, k) {
+    eta <- drop(pp %*% beta)
+    (if (k < J) L$F(zeta[k] - eta) else 1) - (if (k > 1) L$F(zeta[k - 1] - eta) else 0)
+  }
+  p1 <- pts; p1[, j] <- 1
+  p0 <- pts; p0[, j] <- 0
+  sapply(seq_len(J), function(k) sum(ww * (pk(p1, k) - pk(p0, k))) / sum(ww))
+}
+
+mo_effects <- function(theta, V, X, w, J, L, type, scale, binary = "slope") {
   p <- ncol(X)
   beta <- theta[seq_len(p)]
   zeta <- theta[p + seq_len(J - 1)]
@@ -445,6 +490,27 @@ mo_effects <- function(theta, V, X, w, J, L, type, scale) {
       if (scale == "link") {
         e <- -beta[j]
         Jv[j] <- -1
+      } else if (binary == "contrast" && mg_isbin(X[, j])) {
+        # The closed-form gradient of the level-k contrast.
+        p1 <- pts; p1[, j] <- 1
+        p0 <- pts; p0[, j] <- 0
+        side <- function(pp) {
+          eta <- drop(pp %*% beta)
+          fu <- if (k < J) L$f(zeta[k] - eta) else 0
+          fl <- if (k > 1) L$f(zeta[k - 1] - eta) else 0
+          list(D = fu - fl, fu = fu, fl = fl)
+        }
+        s1 <- side(p1); s0 <- side(p0)
+        e <- mo_contrast(theta, pts, ww, J, L, j)[k]
+        Jv[seq_len(p)] <- -colSums(ww * (s1$D * p1 - s0$D * p0)) / sum(ww)
+        if (k < J) Jv[p + k] <- sum(ww * (s1$fu - s0$fu)) / sum(ww)
+        if (k > 1) Jv[p + k - 1] <- -sum(ww * (s1$fl - s0$fl)) / sum(ww)
+        h <- 1e-6
+        num <- sapply(seq_len(q), function(a) {
+          tp <- theta; tm <- theta; tp[a] <- tp[a] + h; tm[a] <- tm[a] - h
+          (mo_contrast(tp, pts, ww, J, L, j)[k] - mo_contrast(tm, pts, ww, J, L, j)[k]) / (2 * h)
+        })
+        mg_check("ordinal contrast gradient", Jv, num, 1e-7)
       } else {
         eta <- drop(pts %*% beta)
         fu <- if (k < J) L$f(zeta[k] - eta) else 0
@@ -472,7 +538,8 @@ mo_effects <- function(theta, V, X, w, J, L, type, scale) {
 mo_cases <- list()
 
 # mo_case fits one ordinal case: d has x1, x2, y (1..J), w and g.
-mo_case <- function(name, d, link = "logit", type = "ame", scale = "response", covariance = "classical", weighted = FALSE) {
+mo_case <- function(name, d, link = "logit", type = "ame", scale = "response", covariance = "classical", weighted = FALSE,
+                    binary = "slope") {
   L <- mo_links[[link]]
   if (!weighted) d$w <- 1
   J <- max(d$y)
@@ -499,7 +566,7 @@ mo_case <- function(name, d, link = "logit", type = "ame", scale = "response", c
     })
   if (!weighted && covariance == "hc1") mg_check(paste(name, "sandwich(polr)"), sandwich(pf, adjust = TRUE), V, 1e-4)
   if (!weighted && covariance == "cluster") mg_check(paste(name, "vcovCL(polr)"), vcovCL(pf, cluster = d$g, type = "HC1"), V, 1e-4)
-  eff <- mo_effects(theta, V, X, w, J, L, type, scale)
+  eff <- mo_effects(theta, V, X, w, J, L, type, scale, binary)
   stat <- eff$est / eff$se
   zq <- qnorm(0.975)
   out <- list(name = name, link = link, type = type, scale = scale, covariance = covariance, weighted = weighted,
@@ -509,13 +576,17 @@ mo_case <- function(name, d, link = "logit", type = "ame", scale = "response", c
     estimates = mg_g17(eff$est), std_errors = mg_g17(eff$se), statistics = mg_g17(stat),
     p_values = mg_g17(2 * pnorm(-abs(stat))), ci_lower = mg_g17(eff$est - zq * eff$se), ci_upper = mg_g17(eff$est + zq * eff$se))
   if (type == "mem") out$at <- mg_g17(colSums(w * X) / sum(w))
+  if (binary == "contrast") {
+    out$binary <- binary
+    out$contrasts <- I(c("x1", "x2")[c(mg_isbin(X[, 1]), mg_isbin(X[, 2]))])
+  }
   if (weighted) {
     ex <- d[rep(seq_len(nrow(d)), d$w), ]
     Xe <- as.matrix(ex[, c("x1", "x2")])
     te <- mo_newton(theta, Xe, ex$y, rep(1, nrow(ex)), J, L)
     Ve <- solve(-mo_parts(te, Xe, ex$y, rep(1, nrow(ex)), J, L)$H)
     mg_check(paste(name, "weighted vs expanded vcov"), V, Ve)
-    effe <- mo_effects(te, Ve, Xe, rep(1, nrow(ex)), J, L, type, scale)
+    effe <- mo_effects(te, Ve, Xe, rep(1, nrow(ex)), J, L, type, scale, binary)
     mg_check(paste(name, "weighted vs expanded estimates"), eff$est, effe$est)
     mg_check(paste(name, "weighted vs expanded std errors"), eff$se, effe$se)
   }
@@ -631,14 +702,34 @@ mm_newton <- function(beta, X, Yi, w) {
 # mm_point: the per-category effects of every term at the points pts
 # (rows, intercept first) with weights ww, and their gradients in beta
 # (category order = the fitted order, reference first).
-mm_point <- function(beta, pts, ww, K, terms) {
+mm_point <- function(beta, pts, ww, K, terms, bin = rep(FALSE, length(terms))) {
   q <- ncol(pts)
   B <- cbind(0, matrix(beta, nrow = q))   # q x K, reference column 0
   eta <- pts %*% B
   P <- exp(eta - apply(eta, 1, max)); P <- P / rowSums(P)
   est <- matrix(0, K, length(terms)); jac <- array(0, c(K, length(terms), length(beta)))
+  probs <- function(pp) {
+    e <- pp %*% B
+    Q <- exp(e - apply(e, 1, max))
+    Q / rowSums(Q)
+  }
   for (t in seq_along(terms)) {
     j <- t + 1
+    if (bin[t]) {
+      # binary contrast: pi_c(x_j = 1) - pi_c(x_j = 0), gradient
+      # x_a pi_c (d_cl - pi_l) differenced over the two points.
+      p1 <- pts; p1[, j] <- 1
+      p0 <- pts; p0[, j] <- 0
+      P1 <- probs(p1); P0 <- probs(p0)
+      for (c in 1:K) {
+        est[c, t] <- sum(ww * (P1[, c] - P0[, c])) / sum(ww)
+        for (l in 2:K) {
+          cols <- (l - 2) * q + 1:q
+          jac[c, t, cols] <- colSums(ww * (P1[, c] * ((c == l) - P1[, l]) * p1 - P0[, c] * ((c == l) - P0[, l]) * p0)) / sum(ww)
+        }
+      }
+      next
+    }
     bbar <- drop(P %*% B[j, ])
     for (c in 1:K) {
       dc <- B[j, c] - bbar
@@ -658,7 +749,8 @@ mm_point <- function(beta, pts, ww, K, terms) {
 mm_cases <- list()
 
 # mm_case fits one case: d has x1, x2, y (0-based into levels), w, g.
-mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "response", covariance = "classical", kind = "") {
+mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "response", covariance = "classical", kind = "",
+                    binary = "slope") {
   w <- if (kind == "") rep(1, nrow(d)) else d$w
   if (kind == "probability") w <- w * (sum(w)^2 / sum(w^2)) / sum(w)
   ref <- if (is.null(reference)) levels[1] else reference
@@ -687,6 +779,7 @@ mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "re
       Hinv %*% crossprod(Sg) %*% Hinv * G / (G - 1) * (nstar - 1) / (nstar - dd_)
     })
   terms <- c("x1", "x2")
+  bin <- binary == "contrast" & c(mg_isbin(d$x1), mg_isbin(d$x2))
   pts <- if (type == "mem") matrix(colSums(w * X) / sum(w), nrow = 1) else X
   ww <- if (type == "mem") 1 else w
   # Effects in dictionary order (the Go fit's categories).
@@ -703,14 +796,14 @@ mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "re
     }
   } else {
     outcomes <- levels
-    pt <- mm_point(beta, pts, ww, K, terms)
+    pt <- mm_point(beta, pts, ww, K, terms, bin)
     if (max(abs(colSums(pt$est))) > 1e-14) stop(name, ": effects of a term do not sum to 0")
     # The gradient against a central difference of the effect.
     h <- 1e-6
     num <- array(0, dim(pt$jac))
     for (a in seq_along(beta)) {
       bp <- beta; bm <- beta; bp[a] <- bp[a] + h; bm[a] <- bm[a] - h
-      num[, , a] <- (mm_point(bp, pts, ww, K, terms)$est - mm_point(bm, pts, ww, K, terms)$est) / (2 * h)
+      num[, , a] <- (mm_point(bp, pts, ww, K, terms, bin)$est - mm_point(bm, pts, ww, K, terms, bin)$est) / (2 * h)
     }
     mg_check(paste(name, "delta-method gradient"), pt$jac, num, 1e-7)
     est <- c(); se <- c()
@@ -729,6 +822,10 @@ mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "re
     estimates = mg_g17(est), std_errors = mg_g17(se), statistics = mg_g17(stat),
     p_values = mg_g17(2 * pnorm(-abs(stat))), ci_lower = mg_g17(est - zq * se), ci_upper = mg_g17(est + zq * se))
   if (type == "mem") out$at <- mg_g17(colSums(w * X[, -1]) / sum(w))
+  if (binary == "contrast") {
+    out$binary <- binary
+    out$contrasts <- I(terms[bin])
+  }
   if (kind == "frequency") {
     ex <- d[rep(seq_len(nrow(d)), d$w), ]
     Xe <- cbind(1, ex$x1, ex$x2)
@@ -739,8 +836,8 @@ mm_case <- function(name, d, levels, reference = NULL, type = "ame", scale = "re
     mg_check(paste(name, "weighted vs expanded vcov"), Hinv, Ve)
     if (scale == "response") {
       pe <- if (type == "mem") matrix(colSums(Xe) / nrow(Xe), nrow = 1) else Xe
-      ef <- mm_point(be, pe, if (type == "mem") 1 else rep(1, nrow(ex)), K, terms)
-      mg_check(paste(name, "weighted vs expanded estimates"), mm_point(beta, pts, ww, K, terms)$est, ef$est)
+      ef <- mm_point(be, pe, if (type == "mem") 1 else rep(1, nrow(ex)), K, terms, bin)
+      mg_check(paste(name, "weighted vs expanded estimates"), mm_point(beta, pts, ww, K, terms, bin)$est, ef$est)
     }
   }
   if (mg_have_me && scale == "response") {
@@ -801,6 +898,75 @@ mm_case("mn_mem_freq", d, c("a", "b", "c"), type = "mem", kind = "frequency")
 d$w <- round(runif(70, 0.2, 3), 3)
 mm_case("mn_ame_prob", d, c("a", "b", "c"), kind = "probability")
 
+# ---- binary contrast (U69 #641) --------------------------------------
+# x2 is a 0/1 column; binary = "contrast" reports its mu(1) - mu(0) (the
+# closed forms in each block's header), x1 keeps its slope. Seeded apart
+# (set.seed(20261123)), after every case above, so none of them moves.
+set.seed(20261123)
+mc_design <- function(n) data.frame(x1 = round(runif(n, -1, 2), 3), x2 = rbinom(n, 1, 0.45))
+d <- mc_design(100)
+d$y <- 1 + 0.8 * d$x1 - 0.5 * d$x2 + rnorm(100, sd = 0.7)
+mg_case("ols_ame_contrast", "lm", NULL, "identity", d, binary = "contrast")
+d <- mc_design(150)
+d$y <- rbinom(150, 1, plogis(-0.3 + 0.9 * d$x1 - 0.7 * d$x2))
+mg_case("logit_ame_contrast", "glm", binomial("logit"), "logit", d, binary = "contrast")
+mg_case("logit_mem_contrast", "glm", binomial("logit"), "logit", d, type = "mem", binary = "contrast")
+mg_case("logit_link_contrast", "glm", binomial("logit"), "logit", d, scale = "link", binary = "contrast")
+mg_case("logit_hc3_contrast", "glm", binomial("logit"), "logit", d, covariance = "hc3", binary = "contrast")
+mg_case("probit_mem_contrast", "glm", binomial("probit"), "probit", d, type = "mem", binary = "contrast")
+d <- mc_design(120)
+d$y <- rpois(120, exp(0.4 + 0.5 * d$x1 - 0.6 * d$x2))
+d$g <- rep(1:12, each = 10)
+mg_case("poisson_ame_contrast", "glm", poisson("log"), "log", d, binary = "contrast")
+mg_case("poisson_cluster_contrast", "glm", poisson("log"), "log", d, covariance = "cluster", cluster = TRUE, binary = "contrast")
+d <- mc_design(100)
+d$y <- rgamma(100, shape = 4, rate = 4 / exp(0.3 + 0.2 * d$x1 + 0.25 * d$x2))
+mg_case("gamma_log_ame_contrast", "glm", Gamma("log"), "log", d, binary = "contrast")
+d <- mc_design(100)
+d$y <- rnbinom(100, size = 2, mu = exp(0.6 + 0.5 * d$x1 - 0.4 * d$x2))
+mg_case("nb_ame_contrast", "nb", NULL, "log", d, binary = "contrast")
+d <- mc_design(50)
+d$y <- rbinom(50, 1, plogis(0.2 + 1.1 * d$x1 - 0.8 * d$x2))
+d$f <- sample(1:4, 50, replace = TRUE)
+mg_case("logit_ame_freq_contrast", "glm", binomial("logit"), "logit", d, weighted = TRUE, binary = "contrast")
+mg_case("logit_mem_freq_contrast", "glm", binomial("logit"), "logit", d, type = "mem", weighted = TRUE, binary = "contrast")
+
+mo_design_bin <- function(n, J, b, g = 10) {
+  d <- mc_design(n)
+  eta <- b[1] * d$x1 + b[2] * d$x2
+  cuts <- qlogis(seq_len(J - 1) / J)
+  d$y <- 1 + rowSums(outer(eta + rlogis(n), cuts, ">"))
+  d$g <- rep(seq_len(g), length.out = n)
+  d$w <- 1
+  d
+}
+d <- mo_design_bin(160, 4, c(0.9, -0.8))
+mo_case("ord_logit_ame_contrast", d, binary = "contrast")
+mo_case("ord_probit_mem_contrast", d, link = "probit", type = "mem", binary = "contrast")
+mo_case("ord_logit_link_contrast", d, scale = "link", binary = "contrast")
+mo_case("ord_logit_hc1_contrast", d, covariance = "hc1", binary = "contrast")
+d <- mo_design_bin(70, 3, c(1.1, -0.9), g = 7)
+d$w <- sample(1:3, 70, replace = TRUE)
+mo_case("ord_logit_ame_freq_contrast", d, weighted = TRUE, binary = "contrast")
+
+mm_design_bin <- function(n, B, g = 9) {
+  d <- mc_design(n)
+  eta <- cbind(0, cbind(1, d$x1, d$x2) %*% B)
+  P <- exp(eta) / rowSums(exp(eta))
+  d$y <- apply(P, 1, function(p) sample.int(length(p), 1, prob = p)) - 1
+  d$w <- 1
+  d$g <- rep(seq_len(g), length.out = n)
+  d
+}
+d <- mm_design_bin(180, cbind(c(0.3, 0.8, -0.7), c(-0.4, 1.1, 0.6)))
+mm_case("mn_ame_contrast", d, c("a", "b", "c"), binary = "contrast")
+mm_case("mn_mem_contrast", d, c("a", "b", "c"), type = "mem", binary = "contrast")
+mm_case("mn_link_contrast", d, c("a", "b", "c"), scale = "link", binary = "contrast")
+mm_case("mn_cluster_contrast", d, c("a", "b", "c"), covariance = "cluster", binary = "contrast")
+d <- mm_design_bin(70, cbind(c(0.1, 0.7, -0.6), c(-0.2, -0.5, 0.9)), g = 7)
+d$w <- sample(1:3, 70, replace = TRUE)
+mm_case("mn_ame_freq_contrast", d, c("a", "b", "c"), kind = "frequency", binary = "contrast")
+
 pk <- list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite")),
   MASS = as.character(packageVersion("MASS")), sandwich = as.character(packageVersion("sandwich")))
 if (mg_have_me) {
@@ -822,7 +988,8 @@ write_golden("margins", list(
     "vcov: the covariance the effects read (vcov | sandwich vcovHC HC3 | vcovCL HC1 over g).",
     "me_estimates / me_std_errors: marginaleffects avg_slopes / slopes(newdata = 'mean'), numerical derivatives.",
     "_freq: glm(weights = f), equal to its rep() expansion (checked).",
-    "_derived: x1 = log1p(z), x2 = (g == 'b'), pre-computed; raw carries [z, g index] per row."),
+    "_derived: x1 = log1p(z), x2 = (g == 'b'), pre-computed; raw carries [z, g index] per row.",
+    "binary / contrasts (every block): binary = 'contrast' reports each listed 0/1 term as mu(1) - mu(0) (absent: slopes)."),
   cases = mg_cases,
   ordinal_note = paste(
     "REG_ORDINAL (polr, y ~ x1 + x2): per-level effects, outcome-major (for each outcome, for each term); rows are [x1, x2, y, w, g].",

@@ -1,6 +1,7 @@
 package regpenalty
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestCheck(t *testing.T) {
 			s.Family, s.Penalty, s.Alpha, s.L1Ratio = "poisson", "elasticnet", 0.1, 0.4
 		}), ""},
 		{"glm gamma l1", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "gamma", "l1", 0.1 }),
-			"REG_GLM Penalty is defined for the binomial and poisson families only; fit family=gamma unpenalised"},
+			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 		{"glm gamma unpenalised", glm(func(s *types.RegressionSpec) { s.Family = "gamma" }), ""},
 		{"glm unknown family left to the family check", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "tweedie", "l2", 0.1 }), ""},
 		{"glm alpha alone", glm(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_GLM Alpha is only valid when Penalty is set (l1, l2, or elasticnet)"},
@@ -59,13 +60,17 @@ func TestCheck(t *testing.T) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a", "b"}, "l2", 0.1, []string{"b"}
 		}), ""},
 		{"ols unpenalized without penalty", ols(func(s *types.RegressionSpec) { s.Predictors, s.Unpenalized = []string{"a"}, []string{"a"} }),
-			"REG_OLS Unpenalized requires Penalty=l2 (ridge); an unpenalized fit already leaves every coefficient unshrunk"},
+			"REG_OLS Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
+		// U69 E1-S1 (#487): lasso and elastic net take penalty factors.
 		{"ols lasso unpenalized", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"a"}
-		}), "REG_OLS Unpenalized requires Penalty=l2 (ridge); lasso and elastic net take no per-predictor penalty factor"},
+		}), ""},
 		{"ols elasticnet unpenalized", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = []string{"a"}, "elasticnet", 0.1, 0.5, []string{"a"}
-		}), "REG_OLS Unpenalized requires Penalty=l2 (ridge); lasso and elastic net take no per-predictor penalty factor"},
+		}), ""},
+		{"ols lasso unpenalized unknown", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"z"}
+		}), "REG_OLS Unpenalized names z, which is not one of Predictors"},
 		{"ols unpenalized unknown", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"z"}
 		}), "REG_OLS Unpenalized names z, which is not one of Predictors"},
@@ -88,9 +93,24 @@ func TestCheck(t *testing.T) {
 			"REG_MULTINOMIAL Unpenalized names z, which is not one of Predictors"},
 		{"multinomial unpenalized duplicate", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"b", "b"} }),
 			"REG_MULTINOMIAL Unpenalized lists b twice"},
-		{"glm unpenalized", glm(func(s *types.RegressionSpec) {
+		// REG_GLM (U69 E1-S1): every penalty kind takes it.
+		{"glm ridge unpenalized", glm(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"a"}
-		}), "REG_GLM does not accept Unpenalized; it is a REG_OLS ridge (penalty l2) knob"},
+		}), ""},
+		{"glm lasso unpenalized", glm(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a", "b"}, "l1", 0.1, []string{"b"}
+		}), ""},
+		{"glm elasticnet unpenalized", glm(func(s *types.RegressionSpec) {
+			s.Family, s.Predictors, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "poisson", []string{"a", "b"}, "elasticnet", 0.1, 0.5, []string{"a"}
+		}), ""},
+		{"glm unpenalized without penalty", glm(func(s *types.RegressionSpec) { s.Predictors, s.Unpenalized = []string{"a"}, []string{"a"} }),
+			"REG_GLM Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
+		{"glm unpenalized duplicate", glm(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"a", "a"}
+		}), "REG_GLM Unpenalized lists a twice"},
+		{"glm gamma penalty with unpenalized stays the family refusal", glm(func(s *types.RegressionSpec) {
+			s.Family, s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = "gamma", []string{"a"}, "l2", 0.1, []string{"a"}
+		}), "REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -194,5 +214,24 @@ func TestUnpenalizedMask(t *testing.T) {
 	}
 	if UnpenalizedMask(&types.RegressionSpec{}, []string{"a"}) != nil || UnpenalizedMask(nil, nil) != nil {
 		t.Error("mask without a list is not nil")
+	}
+}
+
+// TestPenalizedTerms: the per-term mask — intercept never penalized,
+// an Unpenalized name never, every other predictor always; matched by
+// name over the given (possibly subset) predictors.
+func TestPenalizedTerms(t *testing.T) {
+	t.Parallel()
+
+	spec := &types.RegressionSpec{Type: types.REG_GLM, Penalty: "l1", Predictors: []string{"a", "b", "c"}, Unpenalized: []string{"b"}}
+	if got := PenalizedTerms(spec, spec.Predictors); !slices.Equal(got, []bool{false, true, false, true}) {
+		t.Errorf("full design = %v", got)
+	}
+	if got := PenalizedTerms(spec, []string{"c", "b"}); !slices.Equal(got, []bool{false, true, false}) {
+		t.Errorf("subset design = %v", got)
+	}
+	spec.Unpenalized = nil
+	if got := PenalizedTerms(spec, spec.Predictors); !slices.Equal(got, []bool{false, true, true, true}) {
+		t.Errorf("no unpenalized = %v", got)
 	}
 }

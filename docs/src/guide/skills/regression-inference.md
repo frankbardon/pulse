@@ -53,10 +53,10 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 ## Robust standard errors
 
-`"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov` (√diag still = `StdErrors`): `hc0`–`hc3`, `cluster` (CR1, OLS `df` = clusters − 1) or `hac` (Newey–West over `order_by`). Absent = `classical`, byte-identical. Matches R `sandwich` + `lmtest::coeftest`.
+`"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov`: `hc0`–`hc3`, `cluster` (CR1, OLS `df` = clusters − 1), `hac` (Newey–West over `order_by`) or, on a panel, per-entity `hac` / `driscoll_kraay` ([`regression-panel-covariance`](regression-panel-covariance.md)). Absent = `classical`, byte-identical. R: `sandwich`.
 `REG_GLM` takes it too: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`), dispersion-free, still Wald z with no `df` (cluster and gamma too); weighted, it follows w*.
 `REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`) — no longer the conjugate posterior.
-`REG_MULTINOMIAL`: `hc0`, `hc1`, `cluster` over the scores (y − π) ⊗ x, Wald z; `hc2` / `hc3` / `hac` refused (reason `type`).
+`REG_MULTINOMIAL`: `hc0`, `hc1`, `cluster` over the scores (y − π) ⊗ x, Wald z; others refused (reason `type`).
 
 ## Refusals
 
@@ -74,13 +74,14 @@ Predict refuses identically, before any fit.
 
 ## Response shaping
 
-`vcov`, `correlation`, `ci_lower`, `ci_upper`, `df`, `conf_level` ride the `standard` preset (the MCP default) and are absent from `minimal`. Exclude with `regressions[*].<key>` paths in `return.exclude`; `return.precision` rounds them like any figure. See [`response-shaping`](response-shaping.md).
+`vcov`, `correlation`, `ci_lower`, `ci_upper`, `df`, `conf_level` ride the `standard` preset (the MCP default) and are absent from `minimal`. Exclude with `regressions[*].<key>` paths in `return.exclude`. See [`response-shaping`](response-shaping.md).
 
 ## See
 
 - [`regression-modeling`](regression-modeling.md) — choosing a model and modifiers.
 - [`regression-margins`](regression-margins.md) — marginal effects on these SEs.
 - [`regression-collinearity`](regression-collinearity.md) — VIF on the fit.
+- [`regression-panel-covariance`](regression-panel-covariance.md) — entity × period panels.
 - [`regression-comparison`](regression-comparison.md) — nested-model F / LR / Wald tests of two fits.
 - [`op-reg-ols`](op-reg-ols.md) — the `vcov` Param for OLS and ridge.
 - [`op-reg-glm`](op-reg-glm.md) — the `vcov` Param for GLM.

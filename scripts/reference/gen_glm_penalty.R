@@ -39,6 +39,15 @@
 # set is chosen by the data, so a sandwich that treats it as fixed has no
 # valid sampling distribution — Pulse reports those standard errors and
 # p-values as null (reference-oracles E2-S2).
+#
+# The *_unpenalized* cases pin `unpenalized` (regression-depth-2 E1-S1,
+# #487) on every penalty kind: the listed predictors carry glmnet
+# penalty.factor pf = 0 (1 otherwise), so the penalty reads
+# alpha * sum_j pf_j * [...]. glmnet rescales penalty.factor to sum to
+# nvars, which scales its effective lambda by nvars / sum(pf); lambda =
+# alpha * sum(pf) / nvars undoes it (as gen_ols_penalty.R). The KKT checks
+# and the l2 sandwich read the same pf: H = A + N*.alpha.(1 - l1_ratio).
+# diag(0, pf).
 
 suppressPackageStartupMessages({
   library(jsonlite)
@@ -71,11 +80,20 @@ gp_cases <- list()
 
 # gp_case fits one penalised model on the design X (n x p, named
 # columns), response y and weights w, self-checks it, and records it.
-gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0) {
+gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0, unpenalized = character()) {
   mix <- switch(penalty, l2 = 0, l1 = 1, elasticnet = l1_ratio)
-  fit <- glmnet(X, y, family = family, weights = w, alpha = mix, lambda = alpha,
-                standardize = FALSE, intercept = TRUE,
-                control = list(thresh = 1e-20, maxit = 1e7))
+  stopifnot(all(unpenalized %in% colnames(X)))
+  pf <- ifelse(colnames(X) %in% unpenalized, 0, 1)
+  fit <- if (length(unpenalized) == 0) {
+    glmnet(X, y, family = family, weights = w, alpha = mix, lambda = alpha,
+           standardize = FALSE, intercept = TRUE,
+           control = list(thresh = 1e-20, maxit = 1e7))
+  } else {
+    glmnet(X, y, family = family, weights = w, alpha = mix,
+           lambda = alpha * sum(pf) / ncol(X), penalty.factor = pf,
+           standardize = FALSE, intercept = TRUE,
+           control = list(thresh = 1e-20, maxit = 1e7))
+  }
   b <- as.numeric(as.matrix(coef(fit)))
   Xd <- cbind(1, X)
   eta <- as.numeric(Xd %*% b)
@@ -89,18 +107,19 @@ gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0) {
   scale <- max(1, max(abs(score)))
   if (abs(score[1]) > 1e-10 * scale) stop(name, ": intercept score ", score[1])
   for (j in seq_along(b)[-1]) {
+    f <- pf[j - 1]
     if (b[j] != 0) {
-      r <- score[j] - l2 * b[j] - l1 * sign(b[j])
+      r <- score[j] - l2 * f * b[j] - l1 * f * sign(b[j])
       if (abs(r) > 1e-10 * scale) stop(name, ": KKT active ", j, " residual ", r)
-    } else if (abs(score[j]) > l1 * (1 + 1e-10) + 1e-14) {
-      stop(name, ": KKT inactive ", j, " |score| ", abs(score[j]), " > ", l1)
+    } else if (abs(score[j]) > l1 * f * (1 + 1e-10) + 1e-14) {
+      stop(name, ": KKT inactive ", j, " |score| ", abs(score[j]), " > ", l1 * f)
     }
   }
   # Penalised-Fisher sandwich (l2 only; l1 / elasticnet: no inference).
   se <- rep(NA_real_, length(b))
   if (penalty == "l2") {
     A <- t(Xd) %*% (Xd * (w * v))
-    H <- A + diag(c(0, rep(nstar * l2, length(b) - 1)), length(b))
+    H <- A + diag(c(0, nstar * l2 * pf), length(b))
     Hi <- solve(H)
     se <- sqrt(diag(Hi %*% A %*% Hi))
   }
@@ -108,7 +127,7 @@ gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0) {
     binomial = ifelse(y == 1, -log(mu), -log(1 - mu)),
     poisson = ifelse(y > 0, y * log(y / mu), 0) - (y - mu)))
   rows <- lapply(seq_len(nrow(X)), function(i) gp_vec(c(X[i, ], y[i], w[i])))
-  gp_cases[[length(gp_cases) + 1]] <<- list(
+  doc <- list(
     name = name, family = family, penalty = penalty,
     alpha = gp_num(alpha), l1_ratio = gp_num(if (penalty == "elasticnet") l1_ratio else 0),
     predictors = I(colnames(X)), weighted = any(w != 1),
@@ -116,6 +135,8 @@ gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0) {
     coefficients = gp_vec(b), std_errors = gp_vec(se),
     zero = I(colnames(X)[b[-1] == 0]),
     deviance = gp_num(dev))
+  if (length(unpenalized) > 0) doc$unpenalized <- I(unpenalized)
+  gp_cases[[length(gp_cases) + 1]] <<- doc
 }
 
 set.seed(20261018)
@@ -154,6 +175,15 @@ xs <- seq(-19.5, 19.5, by = 1)
 zs <- (seq_along(xs) %% 3) - 1
 gp_case("separated_l2", "binomial", cbind(x = xs, z = zs), as.numeric(xs >= 0), rep(1, length(xs)), "l2", 0.1)
 
+# unpenalized (regression-depth-2 E1-S1, #487): every penalty kind, both
+# families, weighted too. x3 / z3 carry no signal, so the plain l1 fits
+# zero them; penalty factor 0 keeps them in the active set, unshrunk.
+gp_case("binomial_l2_unpenalized", "binomial", Xb, yb, ones, "l2", 0.05, unpenalized = "x1")
+gp_case("binomial_l1_unpenalized", "binomial", Xb, yb, ones, "l1", 0.1, unpenalized = "x3")
+gp_case("binomial_elasticnet_unpenalized_weighted", "binomial", Xb, yb, wb, "elasticnet", 0.03, 0.5, unpenalized = c("x1", "x3"))
+gp_case("poisson_l1_unpenalized", "poisson", Xp, yp, onesp, "l1", 0.15, unpenalized = "z3")
+gp_case("poisson_l2_unpenalized", "poisson", Xp, yp, onesp, "l2", 0.05, unpenalized = c("z1", "z2"))
+
 gp_doc <- list(
   generator = "scripts/reference/gen_glm_penalty.R (via gen_reference.R)",
   r_version = R.version.string,
@@ -165,6 +195,7 @@ gp_doc <- list(
     "Pulse alpha = glmnet lambda; Pulse l1_ratio = glmnet alpha (l2 0, l1 1).",
     "rows are [predictors..., y, w]; N* = sum(w).",
     "std_errors: l2 the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's solution; l1 / elasticnet null on every coefficient (no valid inference after data-driven selection).",
+    "A case listing unpenalized fits glmnet with penalty.factor 0 on those predictors and lambda = alpha * sum(pf) / nvars (undoing glmnet's penalty.factor rescaling); its KKT checks and l2 sandwich read H = A + N*.alpha.(1 - l1_ratio).diag(0, pf).",
     "deviance: the unpenalised deviance at the penalised estimate.",
     "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10."),
   cases = gp_cases)

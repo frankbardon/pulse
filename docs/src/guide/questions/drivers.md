@@ -186,7 +186,7 @@ How much the coefficient would vary from sample to sample; smaller means a more 
 
 **Caveats:**
 
-- Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.
+- Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; covariance hc3 guards the first, cluster (rows grouped by a field), hac (a series in time) or driscoll_kraay (a panel) the second, and p_values, the intervals and vcov follow it.
 - Null on every coefficient of an l1 or elasticnet fit: the penalty picks the predictors from the data, so no analytical standard error is valid (advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED); request resample for replicate ones. An l2 fit's is the closed-form ridge sandwich.
 - Null on every coefficient of a bounds fit whose non-negativity constraint binds (a coefficient held at 0): the constrained estimator has no classical standard error (advisory PULSE_ADVISORY_CONSTRAINT_ACTIVE); resample bootstrap refits the bounded model for replicate ones. When no bound binds the fit is plain OLS.
 
@@ -227,7 +227,7 @@ The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95
 
 **`df`**
 
-Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1.
+Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; under covariance cluster, the number of clusters minus 1 (two-way: the smaller of the two counts, minus 1).
 
 **Caveats:**
 
@@ -311,19 +311,19 @@ The marginal effect of this term (requested by margins): the change in the expec
 
 **Caveats:**
 
-- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.
+- Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.
 - Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
 - A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.
 
 **`margins.std_errors.*`**
 
-The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).
+The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.
 
 **`margins.p_values.*`**
 
 **Caveats:**
 
-- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).
+- The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal; under resample its replicate rules).
 
 Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-value).
 

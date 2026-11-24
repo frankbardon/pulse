@@ -300,7 +300,7 @@ func TestGLMInfluence_LoadedModelMatchesFit(t *testing.T) {
 
 // TestGLMInfluence_RefusalsMatchPredict: a design-reading params.fit
 // slot over a fit that carries no such design — no vcov, a robust
-// covariance, a penalty, selection, resample, a weight, a
+// covariance, a penalty, selection, resample, a probability weight, a
 // Bayesian-linear fit — is refused at runtime (Compose) and by
 // PredictCompose with the same code and message, details.requires
 // naming what is missing; the response residual and the fitted value
@@ -343,10 +343,16 @@ func TestGLMInfluence_RefusalsMatchPredict(t *testing.T) {
 		{"penalized", glm(func(r *types.RegressionSpec) { r.Penalty, r.Alpha = "l2", 0.1 }), "params_invalid", "unpenalized"},
 		{"selection", ols(func(r *types.RegressionSpec) { r.Selection, r.Criterion = "forward", "aic" }), "params_invalid", "no_selection"},
 		{"resample", ols(func(r *types.RegressionSpec) { r.Resample = "jackknife" }), "params_invalid", "no_resample"},
-		{"weighted", glm(func(r *types.RegressionSpec) { r.Weight = weight }), "params_invalid", "unweighted"},
+		{"probability weighted", glm(func(r *types.RegressionSpec) { r.Weight = weight }), "params_invalid", "unweighted"},
 		{"bayes", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Name: "m", Target: "y", Predictors: []string{"x1", "x2"}, Vcov: true}, "type_unsupported", ""},
 	} {
 		for _, slot := range slots {
+			if tc.name == "penalized" && slot.Type == types.ATTR_REG_LEVERAGE {
+				// A penalized bound fit's leverage reads its carried
+				// regularized inverse (regression-depth-2 E1-S4,
+				// penalized_leverage_bound_test.go).
+				continue
+			}
 			t.Run(tc.name+"/"+string(slot.Type), func(t *testing.T) {
 				t.Parallel()
 				req := func() *ComposedRequest {
@@ -474,4 +480,200 @@ func TestGLMInfluence_RefusalsMatchPredict(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// glmWeightedInfluenceCase is one frequency-weighted oracle case: the
+// unweighted case's figures plus each row's frequency (weights).
+type glmWeightedInfluenceCase struct {
+	glmInfluenceCase
+	Weights []float64 `json:"weights"`
+}
+
+func loadGLMWeightedInfluence(t *testing.T) []glmWeightedInfluenceCase {
+	t.Helper()
+	loadGLMInfluence(t) // the hash check
+	raw, err := os.ReadFile(glmInfluenceGolden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	var doc struct {
+		Cases []glmWeightedInfluenceCase `json:"weighted_cases"`
+	}
+	if err := json.Unmarshal([]byte(s[:strings.LastIndex(s, "\n// golden-hash: ")]), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Cases) != 4 {
+		t.Fatalf("%d weighted cases, want 4", len(doc.Cases))
+	}
+	return doc.Cases
+}
+
+// glmWeightedInfluencePulse writes a weighted case's rows as glm.pulse
+// {id, x1, x2, y, f}; expand instead writes each row f times (unit
+// weight), the rep() expansion, every copy keeping its row's id.
+func glmWeightedInfluencePulse(t *testing.T, c glmWeightedInfluenceCase, expand bool) *Pulse {
+	t.Helper()
+	var rows [][]any
+	for i, r := range c.Rows {
+		copies := 1
+		if expand {
+			copies = int(c.Weights[i])
+		}
+		for k := 0; k < copies; k++ {
+			f := c.Weights[i]
+			if expand {
+				f = 1
+			}
+			rows = append(rows, []any{float64(i), r[0], r[1], r[2], f})
+		}
+	}
+	return strdPulse(t, "glm.pulse", []string{"id", "x1", "x2", "y", "f"}, rows, nil)
+}
+
+// glmFrequencyWeight is the oracle's frequency weight on column f.
+var glmFrequencyWeight = types.SlotWeightOf(types.WeightSpec{Field: "f", Kind: types.WeightKindFrequency})
+
+// TestGLMInfluence_FrequencyWeightedMatchesR (regression-depth-2
+// E1-S3, #640): over a bound OLS, binomial-logit, poisson-log and
+// gamma-inverse fit with a FREQUENCY weight, every row's leverage,
+// standardized (Pearson and deviance) and studentized residual, Cook's
+// distance and DFFITS equal R 4.6.1's figures on the rep()-expanded
+// unweighted fit — one copy's — to 1e-9 relative (absolute floor
+// 1e-12), and so do the coefficients and dispersion; the physically
+// expanded cohort's unweighted bound fit scores the same figures.
+func TestGLMInfluence_FrequencyWeightedMatchesR(t *testing.T) {
+	t.Parallel()
+
+	const tol = 1e-9
+	for _, c := range loadGLMWeightedInfluence(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			run := func(expand bool) *ComposedResponse {
+				reg := glmInfluenceSpec(c.glmInfluenceCase)
+				if !expand {
+					reg.Weight = glmFrequencyWeight
+				}
+				out, err := glmWeightedInfluencePulse(t, c, expand).Compose(context.Background(),
+					&ComposedRequest{Fits: glmInfluenceFits(reg), Requests: []*Request{glmInfluenceSlot()}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return out
+			}
+			out, expanded := run(false), run(true)
+			fit := out.Fits["m"].RegressionResult
+			for j, k := range []string{"(intercept)", "x1", "x2"} {
+				if e := relErr(fit.Coefficients[k], c.Coefficients[j]); e > tol {
+					t.Errorf("coefficient %s = %.17g, R %.17g (rel %.3g)", k, fit.Coefficients[k], c.Coefficients[j], e)
+				}
+			}
+			if c.Family == "gaussian" || c.Family == "gamma" {
+				if e := relErr(fit.Dispersion, c.Dispersion[0]); e > tol {
+					t.Errorf("dispersion = %.17g, R (expansion) %.17g (rel %.3g)", fit.Dispersion, c.Dispersion[0], e)
+				}
+			}
+			data, edata := out.Responses[0].Data, expanded.Responses[0].Data
+			if len(data) != len(c.Rows) || len(edata) != len(c.Rows) {
+				t.Fatalf("%d / %d rows, want %d", len(data), len(edata), len(c.Rows))
+			}
+			want := map[string][]float64{"hat": c.Hat, "standardized": c.Standardized, "standardized_deviance": c.StdDeviance,
+				"studentized": c.Studentized, "cooks": c.Cooks, "dffits": c.DFFITS}
+			for col, ws := range want {
+				if len(ws) != len(c.Rows) {
+					t.Fatalf("oracle has %d %s rows", len(ws), col)
+				}
+				for i, row := range data {
+					got, ok := row[col].(float64)
+					exp, eok := edata[i][col].(float64)
+					if !ok || !eok {
+						t.Fatalf("row %d %s = %v / expanded %v, not numbers", i, col, row[col], edata[i][col])
+					}
+					if e := relErr(got, ws[i]); e > tol {
+						t.Errorf("row %d %s = %.17g, R %.17g (rel %.3g)", i, col, got, ws[i], e)
+					}
+					// The two fits iterate IRLS on different row sets, so they
+					// meet at the convergence noise, not the bit: 1e-8 (a
+					// gamma deviance residual near zero sits at 2e-9).
+					if e := relErr(got, exp); e > 1e-8 {
+						t.Errorf("row %d %s = %.17g, expanded cohort %.17g (rel %.3g)", i, col, got, exp, e)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestGLMInfluence_FrequencyWeightMatchesPredict: a frequency weight on
+// the bound fit — its regression's, or an inherited instance default of
+// kind frequency — is admitted by Compose and PredictCompose alike; the
+// same default of kind probability is refused by both with one code and
+// message (requires unweighted, worded permanent).
+func TestGLMInfluence_FrequencyWeightMatchesPredict(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := loadGLMWeightedInfluence(t)[2] // poisson_log_frequency
+	slot := func() *Request {
+		return fitRefSlot("glm.pulse", "id",
+			fitRefAttr(types.ATTR_REG_LEVERAGE, "h", `{"fit":"m"}`),
+			fitRefAttr(types.ATTR_REG_INFLUENCE, "d", `{"fit":"m"}`),
+			fitRefAttr(types.ATTR_REG_RESIDUAL, "t", `{"fit":"m","kind":"studentized"}`))
+	}
+	req := func(w types.SlotWeight) *ComposedRequest {
+		reg := glmInfluenceSpec(c.glmInfluenceCase)
+		reg.Weight = w
+		return &ComposedRequest{Fits: glmInfluenceFits(reg), Requests: []*Request{slot()}}
+	}
+	p := glmWeightedInfluencePulse(t, c, false)
+	if _, err := p.Compose(ctx, req(glmFrequencyWeight)); err != nil {
+		t.Fatalf("frequency-weighted fit: %v", err)
+	}
+	if env, err := p.PredictCompose(ctx, req(glmFrequencyWeight)); err != nil || len(env.Errors) != 0 {
+		t.Fatalf("predict refuses the frequency-weighted fit: %v %+v", err, env.Errors)
+	}
+	for _, kind := range []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability} {
+		t.Run("default "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			dp, _ := matPulse(t, Options{DefaultWeight: &types.WeightSpec{Field: "f", Kind: kind}})
+			var schema encoding.Schema
+			for _, name := range []string{"id", "x1", "x2", "y", "f"} {
+				schema.Fields = append(schema.Fields, encoding.Field{Name: name, Type: encoding.FieldTypeF64, Description: "influence weight column " + name})
+			}
+			b, err := dp.NewCohortBuilder(ctx, "glm.pulse", schema, CohortBuilderOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, r := range c.Rows {
+				if err := b.Append(CohortRow{float64(i), r[0], r[1], r[2], c.Weights[i]}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := b.Close(); err != nil {
+				t.Fatal(err)
+			}
+			_, rerr := dp.Compose(ctx, req(types.SlotWeight{}))
+			env, perr := dp.PredictCompose(ctx, req(types.SlotWeight{}))
+			if perr != nil {
+				t.Fatal(perr)
+			}
+			if kind == types.WeightKindFrequency {
+				if rerr != nil || len(env.Errors) != 0 {
+					t.Fatalf("inherited frequency default: runtime %v, predict %+v", rerr, env.Errors)
+				}
+				return
+			}
+			ce := codedOf(t, rerr)
+			if ce.Details["requires"] != "unweighted" || !strings.Contains(ce.Message, "permanently") {
+				t.Fatalf("inherited probability default: %v (details %v)", rerr, ce.Details)
+			}
+			matched := false
+			for _, e := range env.Errors {
+				matched = matched || (e.Code == string(ce.Code) && e.Message == ce.Message)
+			}
+			if !matched {
+				t.Errorf("predict errors %+v do not carry the runtime refusal %q", env.Errors, ce.Message)
+			}
+		})
+	}
 }

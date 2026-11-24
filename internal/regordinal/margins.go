@@ -34,7 +34,19 @@ import (
 //
 // scale link is the effect on each cumulative link g(P(Y ≤ k)) = ζ_k − η:
 // −β_j for every level but the last (whose cumulative probability is 1),
-// with the coefficient's standard error. Rows are summed serially in
+// with the coefficient's standard error.
+//
+// binary contrast (U69 #641): a predictor whose fitted values are all 0
+// or 1 reports, per level, the discrete contrast P_k(η₁) − P_k(η₀), η₁ /
+// η₀ the linear predictor at x_j = 1 / 0 (other predictors as observed
+// under ame, at x̄ under mem), with the gradient
+//
+//	∂/∂β_m   = −(x1_m·D_k(η₁) − x0_m·D_k(η₀))
+//	∂/∂ζ_k   = f(ζ_k − η₁) − f(ζ_k − η₀)               (k < K)
+//	∂/∂ζ_{k−1} = −(f(ζ_{k−1} − η₁) − f(ζ_{k−1} − η₀))  (k > 1)
+//
+// (design.contrast); on the link scale the contrast of ζ_k − η is −β_j,
+// the slope's figure. Rows are summed serially in
 // record order and every product is barriered, so the effects are
 // bit-identical across worker counts and architectures.
 
@@ -72,6 +84,15 @@ func (m *model) Margins(req extend.MarginsRequest) (extend.MarginsOutput, error)
 			out.At[m.spec.Predictors[j]] = v
 		}
 	}
+	isContrast := make(map[string]bool)
+	if req.Binary == types.MarginsBinaryContrast {
+		for _, t := range req.Terms {
+			if d.binary(col[t]) {
+				isContrast[t] = true
+				out.Contrasts = append(out.Contrasts, t)
+			}
+		}
+	}
 	if req.Scale == types.MarginsScaleLink {
 		out.Outcomes = append([]string(nil), st.levels[:d.k-1]...)
 		for _, lv := range out.Outcomes {
@@ -85,6 +106,10 @@ func (m *model) Margins(req extend.MarginsRequest) (extend.MarginsOutput, error)
 	}
 	g := d.thresholdDerivatives(m.link, st.theta, req.Type == types.MarginsMEM)
 	out.Outcomes = append([]string(nil), st.levels...)
+	contrasts := make(map[string]levelContrast, len(isContrast))
+	for t := range isContrast {
+		contrasts[t] = d.contrast(m.link, st.theta, col[t], req.Type == types.MarginsMEM)
+	}
 	q := d.q()
 	jac := make([]float64, q)
 	for k, lv := range out.Outcomes {
@@ -105,6 +130,11 @@ func (m *model) Margins(req extend.MarginsRequest) (extend.MarginsOutput, error)
 			}
 		}
 		for _, t := range req.Terms {
+			if lc, ok := contrasts[t]; ok {
+				out.Effects = append(out.Effects, extend.MarginalEffect{Outcome: lv, Term: t,
+					Estimate: lc.est[k], StdErr: extend.Figure(math.Sqrt(quadForm(st.vcov, lc.jac[k])))})
+				continue
+			}
 			j := col[t]
 			bj := st.theta[j]
 			clear(jac)
@@ -123,6 +153,94 @@ func (m *model) Margins(req extend.MarginsRequest) (extend.MarginsOutput, error)
 		}
 	}
 	return out, nil
+}
+
+// binary reports whether predictor j's value is 0 or 1 on every fitted
+// row.
+func (d *design) binary(j int) bool {
+	for _, x := range d.x {
+		if x[j] != 0 && x[j] != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// levelContrast is a 0/1 predictor's per-level discrete contrast and
+// its gradient in θ = (β, ζ).
+type levelContrast struct {
+	est []float64
+	jac [][]float64
+}
+
+// contrast is predictor j's per-level contrast P_k(x_j=1) − P_k(x_j=0)
+// under link l at θ: averaged over the fitted rows with their prior
+// weights, or at the weighted means (atMeans). A pure function of the
+// design and θ.
+func (d *design) contrast(l link, theta []float64, j int, atMeans bool) levelContrast {
+	q, nt := d.q(), d.k-1
+	lc := levelContrast{est: make([]float64, d.k), jac: make([][]float64, d.k)}
+	for k := range lc.jac {
+		lc.jac[k] = make([]float64, q)
+	}
+	pt := make([]float64, d.p)
+	f := make([]float64, nt)
+	// side adds sign·w times level k's probability (and its gradient) at
+	// the point pt.
+	side := func(sign, w float64) {
+		eta := 0.0
+		for c, v := range pt {
+			eta += float64(v * theta[c])
+		}
+		cum := make([]float64, nt)
+		for t := 0; t < nt; t++ {
+			cum[t], f[t], _ = l.eval(theta[d.p+t] - eta)
+		}
+		sw := float64(sign * w)
+		for k := 0; k < d.k; k++ {
+			pk, dk := 0.0, 0.0
+			if k < nt {
+				pk += cum[k]
+				dk += f[k]
+				lc.jac[k][d.p+k] += float64(sw * f[k])
+			} else {
+				pk += 1
+			}
+			if k > 0 {
+				pk -= cum[k-1]
+				dk -= f[k-1]
+				lc.jac[k][d.p+k-1] -= float64(sw * f[k-1])
+			}
+			lc.est[k] += float64(sw * pk)
+			swd := float64(sw * dk)
+			for c, v := range pt {
+				lc.jac[k][c] -= float64(swd * v)
+			}
+		}
+	}
+	add := func(x []float64, w float64) {
+		copy(pt, x)
+		pt[j] = 1
+		side(1, w)
+		pt[j] = 0
+		side(-1, w)
+	}
+	if atMeans {
+		add(d.weightedMeans(), 1)
+		return lc
+	}
+	sw := 0.0
+	for i := range d.y {
+		add(d.x[i], d.w[i])
+		sw += d.w[i]
+	}
+	for k := range lc.est {
+		lc.est[k] /= sw
+		for c := range lc.jac[k] {
+			lc.jac[k][c] /= sw
+		}
+	}
+	return lc
 }
 
 // thresholdTerms are the per-threshold averages the effects read: for

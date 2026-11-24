@@ -22,7 +22,7 @@ name: CI
 #                           coverage job, split into two legs by
 #                           `citest cover-shard` (one leg would overrun the
 #                           8-minute job cap on a cold cache)
-#   test-heavy (1..6, catchall)  the heavy tier, split by
+#   test-heavy (1..8, catchall)  the heavy tier, split by
 #                           .github/heavy-shards.txt (a heavy test the list
 #                           does not name runs in the catchall shard)
 #   test-windows (1, 2)     the fast tier on Windows, split by package
@@ -335,7 +335,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1", "2", "3", "4", "5", "6", "catchall"]
+        shard: ["1", "2", "3", "4", "5", "6", "7", "8", "catchall"]
     steps:
       - uses: actions/checkout@v7
 

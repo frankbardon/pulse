@@ -35,6 +35,8 @@ func TestParse_DefaultsAndRefusals(t *testing.T) {
 		{"welch ignores", spec(types.TEST_WELCH, "g", `{"variance":"pooled"}`), Options{}},
 		{"exact", spec(types.TEST_MANN_WHITNEY_U, "g", `{"exact":true}`), Options{Exact: true}},
 		{"chisq correct", spec(types.TEST_CHISQ, "", `{"correct":true}`), Options{Correct: true}},
+		{"rm mixed", spec(types.TEST_ANOVA_RM, "c", `{"incomplete":"mixed"}`), Options{Mixed: true}},
+		{"rm complete case", spec(types.TEST_ANOVA_RM, "c", `{"incomplete":"complete_case"}`), Options{}},
 		{"prop wilson correct", spec(types.TEST_PROP_Z, "", `{"p0":0.3,"interval":"wilson","correct":true}`), Options{Wilson: true, Correct: true}},
 	} {
 		got, cerr := Parse(c.t)
@@ -49,6 +51,8 @@ func TestParse_DefaultsAndRefusals(t *testing.T) {
 		{"variance value", VarianceKey, spec(types.TEST_T, "g", `{"variance":"equal"}`)},
 		{"pooled one-sample", VarianceKey, spec(types.TEST_T, "", `{"variance":"pooled"}`)},
 		{"exact type", ExactKey, spec(types.TEST_MANN_WHITNEY_U, "g", `{"exact":null}`)},
+		{"incomplete value", IncompleteKey, spec(types.TEST_ANOVA_RM, "c", `{"incomplete":"drop"}`)},
+		{"incomplete type", IncompleteKey, spec(types.TEST_ANOVA_RM, "c", `{"incomplete":true}`)},
 		{"correct type", CorrectKey, spec(types.TEST_CHISQ, "", `{"correct":"yes"}`)},
 		{"wilson two-proportion", IntervalKey, spec(types.TEST_PROP_Z, "g", `{"interval":"wilson"}`)},
 		{"correct with covariate", CorrectKey, spec(types.TEST_PROP_Z, "g", `{"correct":true,"covariate":"x"}`)},

@@ -21,6 +21,23 @@ package types
 // requests and nested terms make the full fit's rows a subset of the
 // restricted fit's, so an equal count is the same rows.
 //
+// Two vector fits compare member-wise (U69 #643): the Restricted
+// battery's members (each listed — `fields`, or a `vectors` entry with
+// `fields`) a strict subset of the Full battery's, the requests equal
+// but for the member lists and the battery's reporting knobs, no
+// probability weight; each restricted member j is one test of the
+// Gaussian lm(j ~ restricted others) against lm(j ~ full others), read
+// exactly off the full fit's co-moment (FitComparisonResult.Members).
+//
+// Two SEM fits (a MAT_SEM fit request each, U69 #643) compare by the
+// chi-square difference — lavaan's lavTestLRT: the plain difference of
+// the fits' model χ² under ml / dwls, the Satorra–Bentler (2001) scaled
+// difference under wlsmv. Their nesting is declared, never proven: the
+// fit requests equal but for params.model, group_equal, group_partial
+// and the reporting and solver knobs; the test lrt (the default); the
+// restricted fit's degrees of freedom above the full fit's (judged at
+// run, the comparison failing alone).
+//
 // The result is ComposedResponse.Comparisons, in declaration order. A
 // nil / empty list is absent: the slot is `omitempty`, so a
 // comparison-free request is byte-identical on the wire and under
@@ -134,6 +151,7 @@ type FitComparisonResult struct {
 	// first when only the full fit has one; on REG_MULTINOMIAL the added
 	// predictors). DF = len(Terms), (K − 1)·len(Terms) on
 	// REG_MULTINOMIAL.
+	// Empty on a SEM comparison: DF is the df difference d₀ − d₁ there.
 	Terms []string `json:"terms"`
 
 	// Statistic is F (Distribution f) or χ² (chisq); null when
@@ -170,6 +188,10 @@ type FitComparisonResult struct {
 	// deviance: the (weighted) RSS on REG_OLS (R's deviance(lm)), the
 	// RegressionResult.Deviance on REG_GLM (a negative binomial's at its
 	// own θ).
+	//
+	// On a SEM comparison the residual df are each fit's model df and
+	// the deviances each fit's model χ² against the saturated model
+	// (lavaan's standard test statistic).
 	RestrictedDeviance float64 `json:"restricted_deviance"`
 	FullDeviance       float64 `json:"full_deviance"`
 
@@ -186,6 +208,14 @@ type FitComparisonResult struct {
 	RestrictedTwoLogLik float64 `json:"restricted_two_log_lik,omitempty"`
 	FullTwoLogLik       float64 `json:"full_two_log_lik,omitempty"`
 
+	// ScalingFactor is a SEM comparison's Satorra–Bentler (2001)
+	// difference scaling factor c_d = (d₀c₀ − d₁c₁)/(d₀ − d₁), each c the
+	// fit's mean-adjusted scaling factor tr(UΓ)/df — present only on two
+	// WLSMV fits (Statistic is then (T₀ − T₁)/c_d), null where c_d < 0
+	// (lavaan's NA; Statistic and PValue null too); absent on every other
+	// comparison.
+	ScalingFactor float64 `json:"scaling_factor,omitempty"`
+
 	// PAdjusted is the multiplicity-adjusted p-value, present only when
 	// the comparison's resolved correction is not none; it rides BESIDE
 	// PValue, which never moves. SignificantAdjusted is PAdjusted <
@@ -195,10 +225,53 @@ type FitComparisonResult struct {
 	SignificantAdjusted *bool                `json:"significant_adjusted,omitempty"`
 	Multiplicity        *AppliedMultiplicity `json:"multiplicity,omitempty"`
 
+	// Members are a comparison of two vector fits' per-member tests
+	// (U69 #643): one row per restricted battery member j, in the
+	// restricted battery's order — the Gaussian linear model of j on
+	// the other restricted members against j on the other full members,
+	// both from the full fit's co-moment. Terms are then the tested
+	// members (the full battery's members the restricted one lacks), DF
+	// their count, the residual dfs N* − p of each battery; the
+	// single-pair Statistic, PValue and deviances are undefined (null)
+	// and every row's PValue is one member of the multiplicity family.
+	// Absent on a regression or SEM comparison.
+	Members []FitComparisonMember `json:"members,omitempty"`
+
 	// Error is set when the comparison failed on its data: the entry
 	// keeps Name, Restricted, Full, Test and the error, every figure
 	// absent on the wire (see SlotError).
 	Error *SlotError `json:"error,omitempty"`
+}
+
+// FitComparisonMember is one row of a vector-fit comparison
+// (FitComparisonResult.Members): member j's nested test — R's
+// anova(lm(j ~ restricted others), lm(j ~ full others)).
+type FitComparisonMember struct {
+	// Member is the restricted battery member's label.
+	Member string `json:"member"`
+
+	// Statistic is F (f, wald: the classical Wald W/q, equal to F on a
+	// linear model) or χ² (lrt); null when undefined (df₁ ≤ 0, a
+	// singular co-moment block).
+	Statistic float64 `json:"statistic"`
+
+	// PValue is P(statistic ≥ observed); null where Statistic is.
+	PValue float64 `json:"p_value"`
+
+	// RestrictedDeviance and FullDeviance are the two models' residual
+	// sums of squares (weighted under a frequency weight).
+	RestrictedDeviance float64 `json:"restricted_deviance"`
+	FullDeviance       float64 `json:"full_deviance"`
+
+	// Dispersion is σ̂² = FullDeviance / FullDFResidual, the scale the f
+	// and lrt statistics divide by; absent on a Wald test.
+	Dispersion float64 `json:"dispersion,omitempty"`
+
+	// PAdjusted, SignificantAdjusted and Multiplicity are the row's
+	// adjusted p-value beside PValue, as FitComparisonResult's.
+	PAdjusted           *float64             `json:"p_adjusted,omitempty"`
+	SignificantAdjusted *bool                `json:"significant_adjusted,omitempty"`
+	Multiplicity        *AppliedMultiplicity `json:"multiplicity,omitempty"`
 }
 
 // slotFailureComparison is the wire form of a FitComparisonResult

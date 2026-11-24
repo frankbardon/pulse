@@ -9,8 +9,11 @@
 //
 // Nesting is verified on the specs, never guessed from the numbers:
 //
-//   - both names bind request-bound regression `fits` entries (not a
-//     vector / SEM fit, not `from_sweep`), two different ones, both
+//   - both names bind regression `fits` entries (two vector fits are
+//     nested member-wise — battery.go; two SEM fits are the chi-square
+//     difference test — sem.go; a `from_sweep` one is judged per sweep
+//     slot — sweep.go), two
+//     different ones, both
 //     REG_OLS, both REG_GLM, both REG_MULTINOMIAL (admitted by the rule
 //     itself as a declared-like plan) or both one model whose
 //     declaration carries Compare (REG_ORDINAL, an embedder's: the
@@ -41,7 +44,11 @@
 //     estimated reads 2ℓ₁ − 2ℓ₀ (MASS anova.negbin).
 //   - wald: b_Sᵀ V_SS⁻¹ b_S over the full fit's own covariance (classical
 //     or robust) — lmtest::waldtest(m0, m1, vcov = V); W/q on (q, df)
-//     where the coefficient table is Student t, χ² on q otherwise.
+//     where the coefficient table is Student t, χ² on q otherwise. Under
+//     resample (U69 #642) V is the full fit's jackknife / bootstrap
+//     replicate covariance — the one its standard errors are the √diag
+//     of — and the test is χ² on q, as the resampled coefficient table is
+//     Wald z: car::linearHypothesis(m1, vcov. = V, test = "Chisq").
 //
 // A declared model (Plan.Declared) reports its own figures
 // (extend.CompareRegression): its terms are its predictors (an ordinal
@@ -65,9 +72,8 @@
 // Default (empty test): R's anova default — f on REG_OLS and a family
 // that estimates its dispersion, lrt otherwise. Refused (reason
 // "requires", details.requires): a penalty ("unpenalized"), selection
-// ("no_selection"), active bounds ("unbounded"), a Wald test under
-// resample ("no_resample" — the replicate covariance is not the one the
-// test reads), an F test on a fixed dispersion ("estimated_dispersion"),
+// ("no_selection"), active bounds ("unbounded"), an F test on a fixed
+// dispersion ("estimated_dispersion"),
 // an F or likelihood-ratio test under a probability weight
 // ("no_probability_weight", alternative wald — the fits'
 // pseudo-likelihoods are no likelihoods; the dbd35fb rule that leaves
@@ -102,7 +108,6 @@ const (
 	RequiresUnpenalized         = "unpenalized"
 	RequiresNoSelection         = "no_selection"
 	RequiresUnbounded           = "unbounded"
-	RequiresNoResample          = "no_resample"
 	RequiresEstimatedDispersion = "estimated_dispersion"
 	RequiresNoProbabilityWeight = "no_probability_weight"
 	// RequiresComparableType is type_unsupported's requires: REG_OLS,
@@ -148,6 +153,21 @@ type Plan struct {
 	// Wald test chi-square, and Compute holds the two fits' other terms
 	// (an ordinal model's thresholds) equal by name.
 	Declared bool
+	// SweepBound reports a side bound from the sweep (`from_sweep`):
+	// the runtime re-judges the plan on the winning slot (Rebind).
+	SweepBound bool
+	// Unresolved is what the static rule could not decide over the
+	// sweep slots (nil when every slot resolves the same plan).
+	Unresolved *Unresolved
+	// Battery reports a comparison of two vector fits (battery.go):
+	// Terms are the tested members, Members the restricted battery's
+	// members — one test row each (ComputeBattery).
+	Battery bool
+	Members []string
+	// SEM reports a comparison of two SEM fits (sem.go: ComputeSEM runs
+	// it); Scaled its Satorra–Bentler (2001) scaled difference (two
+	// WLSMV fits).
+	SEM, Scaled bool
 }
 
 // FitNames returns every fit name a comparison reads (the fits the
@@ -194,10 +214,18 @@ func requires(i int, name, req, msg string, extra map[string]any) *errors.CodedE
 // declared reports a regression type beyond REG_OLS / REG_GLM whose
 // declaration carries Compare (descriptor.ComparableRegressions — predict
 // and the runtime hand it the same instance view); nil admits none.
+//
+// A from_sweep fit is judged as its Request reads (the representative
+// model.ResolveSweepFits filled, or the winner's fit request at run):
+// CheckSweep is the static rule that judges it over every sweep slot.
 func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeight *types.WeightSpec, declared func(types.RegressionType) bool) ([]Plan, *errors.CodedError) {
-	if len(compare) == 0 {
-		return nil, nil
-	}
+	return CheckSweep(compare, fits, nil, defaultWeight, declared)
+}
+
+// indexFits is fits by name (the first of a duplicated name; an
+// unnamed entry skipped) and the sorted names of the regression fits
+// among them — a from_sweep entry's as its resolved Request reads.
+func indexFits(fits []types.FitSpec) (map[string]*types.FitSpec, []string) {
 	byName := make(map[string]*types.FitSpec, len(fits))
 	var available []string
 	for k := range fits {
@@ -206,11 +234,27 @@ func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeigh
 			continue
 		}
 		byName[f.Name] = f
-		if f.FromSweep == nil && isRegressionFit(f) {
+		if isRegressionFit(f) || isSEMFit(f) {
 			available = append(available, f.Name)
 		}
 	}
 	sort.Strings(available)
+	return byName, available
+}
+
+// CheckSweep is Check with the batch's expanded sweep slots (the
+// model.SweepScope.Slots both sides build from one expansion; nil
+// without a sweep): a comparison reading a from_sweep fit is judged
+// against the fit request of every slot that could win (sweep.go) —
+// refused when every slot refuses, its Plan marked Unresolved when only
+// some do or the passing slots resolve another test or distribution.
+// Predict and the runtime's pre-fit rule call it with the same slots;
+// the runtime re-judges the actual winner with Rebind.
+func CheckSweep(compare []types.FitComparisonSpec, fits []types.FitSpec, slots []*types.Request, defaultWeight *types.WeightSpec, declared func(types.RegressionType) bool) ([]Plan, *errors.CodedError) {
+	if len(compare) == 0 {
+		return nil, nil
+	}
+	byName, available := indexFits(fits)
 	seen := map[string]bool{}
 	plans := make([]Plan, len(compare))
 	for i := range compare {
@@ -222,7 +266,7 @@ func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeigh
 			return nil, invalid(i, c.Name, "name_duplicate", "the name is used by an earlier comparison", nil)
 		}
 		seen[c.Name] = true
-		p, err := checkOne(i, c, byName, available, defaultWeight, declared)
+		p, err := checkEntry(i, c, byName, available, slots, defaultWeight, declared)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +275,7 @@ func Check(compare []types.FitComparisonSpec, fits []types.FitSpec, defaultWeigh
 	return plans, nil
 }
 
-// isRegressionFit reports a request-bound regression fit (one
+// isRegressionFit reports a regression fit (one
 // regression, no vector battery: model.FitKindOf).
 func isRegressionFit(f *types.FitSpec) bool {
 	return model.FitKindOf(f.Request) == types.FitKindRegression
@@ -247,12 +291,8 @@ func fitOf(i int, c *types.FitComparisonSpec, field, name string, byName map[str
 		return nil, invalid(i, c.Name, "fit_unknown", "`"+field+"` "+strconv.Quote(name)+" names no `fits` entry",
 			map[string]any{"field": field, "value": name, "available": nonNil(available)})
 	}
-	if f.FromSweep != nil {
-		return nil, invalid(i, c.Name, "from_sweep", "`"+field+"` "+strconv.Quote(name)+" is bound from the sweep; a comparison reads request-bound fits only",
-			map[string]any{"field": field, "value": name})
-	}
-	if !isRegressionFit(f) {
-		return nil, invalid(i, c.Name, "fit_kind", "`"+field+"` "+strconv.Quote(name)+" is not a regression fit",
+	if !isRegressionFit(f) && !isSEMFit(f) {
+		return nil, invalid(i, c.Name, "fit_kind", "`"+field+"` "+strconv.Quote(name)+" is not a regression or SEM fit",
 			map[string]any{"field": field, "value": name, "available": nonNil(available)})
 	}
 	return f, nil
@@ -278,6 +318,9 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 	}
 	if c.Restricted == c.Full {
 		return p, invalid(i, c.Name, "same_fit", "`restricted` and `full` name the same fit", map[string]any{"value": c.Full})
+	}
+	if isSEMFit(f0) || isSEMFit(f1) {
+		return checkSEM(i, c, f0, f1)
 	}
 	r0, r1 := f0.Request.Regressions[0], f1.Request.Regressions[0]
 	for _, side := range []struct {
@@ -411,19 +454,26 @@ func checkOne(i int, c *types.FitComparisonSpec, byName map[string]*types.FitSpe
 		}
 		p.Distribution = types.ComparisonDistributionChiSquare
 	case types.ComparisonTestWald:
-		if r1.Resample != "" {
-			return p, requires(i, c.Name, RequiresNoResample,
-				"a Wald test reads the full fit's classical or robust covariance; a resampled fit's is the replicates'", nil)
-		}
-		// The coefficient table's reference distribution: Student t on
-		// REG_OLS, and on a classical fit of a family that estimates its
-		// dispersion; Wald z otherwise (a robust REG_GLM fit too).
-		p.Distribution = types.ComparisonDistributionChiSquare
-		if !p.Declared && (p.Type == types.REG_OLS || (estimates && !r1.Covariance.Robust())) {
-			p.Distribution = types.ComparisonDistributionF
-		}
+		p.Distribution = waldDistribution(p, r1, estimates)
 	}
 	return p, nil
+}
+
+// waldDistribution is a Wald test's reference distribution: the full
+// fit's coefficient table's — Student t (so F = W/q on its df) on
+// REG_OLS and on a classical fit of a family that estimates its
+// dispersion; Wald z (χ² on q) otherwise: a robust REG_GLM fit, a
+// declared model, and any resampled fit (U69 #642: its table is Wald z
+// on the replicate standard errors, the replicate covariance the
+// statistic reads).
+func waldDistribution(p Plan, full *types.RegressionSpec, estimates bool) types.ComparisonDistribution {
+	switch {
+	case p.Declared, full.Resample != "":
+		return types.ComparisonDistributionChiSquare
+	case p.Type == types.REG_OLS, estimates && !full.Covariance.Robust():
+		return types.ComparisonDistributionF
+	}
+	return types.ComparisonDistributionChiSquare
 }
 
 // Terms is a regression spec's coefficient terms: "(intercept)" when it

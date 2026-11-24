@@ -29,6 +29,7 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `incomplete` | enum | `complete_case` | `complete_case` drops a subject missing a condition; `mixed` keeps every observed cell (below). |
 
 ## Inputs
 
@@ -37,6 +38,8 @@ Use something else:
 ## Output
 
 `Statistic` = F = MS_treatment / MS_error; `DF` = k-1 (`Details.df_error` = (n-1)(k-1)); `PValue` via F survival. `Details.ss_between_subjects`, `Details.ss_treatment`, `Details.ss_error`; `effect_size.partial_eta_squared` = SS_treatment / (SS_treatment + SS_error); unbanded.
+
+`incomplete: "mixed"` (`Variant` `mixed`): REML `y ~ cond + (1 | subject)` on every cell, F with Satterthwaite `df_error` (fractional; lmerTest `anova`). Details `var_subject`, `var_residual`, `incomplete_subjects`, `n_obs`, model `condition_means`; no SS or effect size. Balanced data reproduce the classic F.
 
 ## Reading the output
 
@@ -56,7 +59,8 @@ Use something else:
 ## Gotchas
 
 - Buffered — requires the full wide subject × condition table.
-- Subjects missing a condition are dropped (`Details.dropped_subjects`); < 2 left -> `PULSE_TEST_INSUFFICIENT_N`.
+- One observation per subject per condition: a repeat -> `PULSE_TEST_BALANCED_DESIGN_REQUIRED` (details `subject`, `condition`); the slot fails alone. Average repeats first.
+- Subjects missing a condition are dropped (`Details.dropped_subjects`); < 2 left -> `PULSE_TEST_INSUFFICIENT_N`. Keep them with `incomplete: "mixed"`.
 - Sphericity violations inflate type-I; no Greenhouse-Geisser yet.
 - Non-normal differences: Friedman not yet shipped.
 

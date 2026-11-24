@@ -121,6 +121,43 @@ func TestExtensions_RegressionMarginsDeclaredMatchesBuiltin(t *testing.T) {
 	}
 }
 
+// TestExtensions_RegressionMarginsUnderResampleMatchesBuiltin: a
+// declared model's margins under resample (U69 #639) — every replicate
+// refit reporting its effects again — carry REG_OLS's own resampled
+// block: the replicate standard error, Wald statistic, p-value and
+// normal interval, inference resample, no df; predict admits it.
+func TestExtensions_RegressionMarginsUnderResampleMatchesBuiltin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p, cohort := openE2E(t, pulse.Extensions{Regressions: []pulse.RegressionRegistration{marginsRegistration(regMarginsOLS, true, nil, nil)}})
+	builtin, ext := marginsSpec(types.REG_OLS, &types.RegressionMargins{}), marginsSpec(regMarginsOLS, &types.RegressionMargins{})
+	builtin.Resample, ext.Resample = "jackknife", "jackknife"
+	req := regressionRequest(cohort, builtin, ext)
+	if pr, err := p.Predict(ctx, req); err != nil || !pr.Valid {
+		t.Fatalf("predict refused margins under resample: %v %+v", err, pr.Errors)
+	}
+	resp := processE2E(t, p, req)
+	want, got := resp.Regressions[0].Margins, resp.Regressions[1].Margins
+	if want == nil || got == nil || got.Inference != types.MarginsInferenceResample || want.Inference != types.MarginsInferenceResample || got.DF != 0 {
+		t.Fatalf("margins built-in %+v, extension %+v", want, got)
+	}
+	for _, term := range want.Terms {
+		for _, f := range []struct {
+			what      string
+			got, want float64
+		}{
+			{"estimate", got.Estimates[term], want.Estimates[term]}, {"std_error", got.StdErrors[term], want.StdErrors[term]},
+			{"statistic", got.Statistics[term], want.Statistics[term]}, {"p_value", got.PValues[term], want.PValues[term]},
+			{"ci_lower", got.CILower[term], want.CILower[term]}, {"ci_upper", got.CIUpper[term], want.CIUpper[term]},
+		} {
+			if !closeRel(f.got, f.want) {
+				t.Errorf("%s[%s] = %v, REG_OLS %v", f.what, term, f.got, f.want)
+			}
+		}
+	}
+}
+
 // TestExtensions_RegressionMarginsManifest: the manifest row lists the
 // margins slot param exactly when the registration declares Margins.
 func TestExtensions_RegressionMarginsManifest(t *testing.T) {
@@ -185,11 +222,6 @@ func TestExtensions_RegressionMarginsRefusalsPredictMatchesRuntime(t *testing.T)
 		{"undeclared", marginsSpec(regMarginsUndeclared, &types.RegressionMargins{}), "declared_margins"},
 		{"type", marginsSpec(regMarginsOLS, &types.RegressionMargins{Type: "aie"}), "type ame or mem"},
 		{"term", marginsSpec(regMarginsOLS, &types.RegressionMargins{Terms: []string{"score"}}), "a predictor"},
-		{"resample", func() *types.RegressionSpec {
-			s := marginsSpec(regMarginsOLS, &types.RegressionMargins{})
-			s.Resample = "jackknife"
-			return s
-		}(), "no_resample"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := regressionRequest(cohort, tc.spec)
@@ -227,7 +259,8 @@ func (*panicMarginsOLS) Margins(extend.MarginsRequest) (extend.MarginsOutput, er
 // registration with a default margins block — a model without the
 // interface is missing_margins, effects off the request margins_shape
 // (an unknown term, a repeated effect, a missing one, an outcome its
-// Outcomes do not list), a Margins panic FACTORY_PANIC (stage margins).
+// Outcomes do not list, a contrast under binary slope), a Margins panic
+// FACTORY_PANIC (stage margins).
 func TestExtensions_RegressionMarginsProbed(t *testing.T) {
 	t.Parallel()
 
@@ -252,6 +285,8 @@ func TestExtensions_RegressionMarginsProbed(t *testing.T) {
 		{"repeated", shaped(func(o *extend.MarginsOutput) { o.Effects[1] = o.Effects[0] }), perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, "margins_shape"},
 		{"missing", shaped(func(o *extend.MarginsOutput) { o.Effects = o.Effects[:1] }), perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, "margins_shape"},
 		{"unlisted outcome", shaped(func(o *extend.MarginsOutput) { o.Effects[0].Outcome = "a" }), perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, "margins_shape"},
+		// The probe's block is binary slope: a contrast is off the request.
+		{"contrast under slope", shaped(func(o *extend.MarginsOutput) { o.Contrasts = []string{o.Effects[0].Term} }), perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, "margins_shape"},
 		{"panic", reg(func(spec *types.RegressionSpec) extend.Regression {
 			return &panicMarginsOLS{marginsOLS{bufferedOLS: bufferedOLS{spec: spec}}}
 		}), perr.PULSE_EXTENSION_FACTORY_PANIC, ""},
@@ -273,4 +308,63 @@ func TestExtensions_RegressionMarginsProbed(t *testing.T) {
 	if _, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: pulse.Extensions{Regressions: []pulse.RegressionRegistration{undeclared}}}); err != nil {
 		t.Fatalf("pulse.New refused an undeclared registration: %v", err)
 	}
+}
+
+// TestExtensions_RegressionMarginsBinaryContrast (U69 #641): a declared
+// model receives the block's binary treatment in MarginsRequest.Binary;
+// the terms it reports as contrasts surface as the result's contrasts
+// (in term order) beside the binary echo; one that reports none leaves
+// contrasts absent; a contrast on a term off the request fails the run
+// margins_shape.
+func TestExtensions_RegressionMarginsBinaryContrast(t *testing.T) {
+	t.Parallel()
+
+	contrasting := func(name types.RegressionType, pick []string) pulse.RegressionRegistration {
+		return pulse.RegressionRegistration{Name: name, Description: "Test-only REG_OLS clone reporting contrasts.", PValues: true, Margins: true,
+			Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
+				return &binaryMarginsOLS{marginsOLS: marginsOLS{bufferedOLS: bufferedOLS{spec: spec}}, pick: pick}, nil
+			}}
+	}
+	const (
+		regContrast types.RegressionType = "REG_PARITY_MCONTRAST"
+		regIgnore   types.RegressionType = "REG_PARITY_MIGNORE"
+		regBroken   types.RegressionType = "REG_PARITY_MBROKEN"
+	)
+	p, cohort := openE2E(t, pulse.Extensions{Regressions: []pulse.RegressionRegistration{
+		contrasting(regContrast, []string{"day", "qty"}),
+		contrasting(regIgnore, nil),
+		contrasting(regBroken, []string{"nope"}),
+	}})
+	contrast := &types.RegressionMargins{Binary: types.MarginsBinaryContrast}
+	resp := processE2E(t, p, regressionRequest(cohort, marginsSpec(regContrast, contrast), marginsSpec(regIgnore, contrast),
+		marginsSpec(regContrast, &types.RegressionMargins{})))
+	got, ignored, slope := resp.Regressions[0].Margins, resp.Regressions[1].Margins, resp.Regressions[2].Margins
+	if got == nil || got.Binary != types.MarginsBinaryContrast || !slices.Equal(got.Contrasts, []string{"qty", "day"}) {
+		t.Fatalf("contrasting model: %+v", got)
+	}
+	if ignored == nil || ignored.Binary != types.MarginsBinaryContrast || ignored.Contrasts != nil {
+		t.Fatalf("ignoring model: %+v", ignored)
+	}
+	if slope == nil || slope.Binary != "" || slope.Contrasts != nil {
+		t.Fatalf("binary slope: %+v", slope)
+	}
+	_, err := p.Process(context.Background(), regressionRequest(cohort, marginsSpec(regBroken, contrast)))
+	if ce := requireCodedError(t, err, perr.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH); ce.Details["reason"] != "margins_shape" {
+		t.Fatalf("broken model: %v", ce.Details)
+	}
+}
+
+// binaryMarginsOLS is marginsOLS reporting pick as its contrasts under
+// binary contrast (and none under slope, as the contract asks).
+type binaryMarginsOLS struct {
+	marginsOLS
+	pick []string
+}
+
+func (m *binaryMarginsOLS) Margins(req extend.MarginsRequest) (extend.MarginsOutput, error) {
+	out, err := m.marginsOLS.Margins(req)
+	if req.Binary == types.MarginsBinaryContrast {
+		out.Contrasts = m.pick
+	}
+	return out, err
 }

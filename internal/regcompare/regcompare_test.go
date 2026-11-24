@@ -59,7 +59,7 @@ func TestCheck_Refusals(t *testing.T) {
 		{"name duplicate", append(one(""), one("")...), pair(ols("a"), ols("a", "b")), nil, "name_duplicate", ""},
 		{"fit missing", []types.FitComparisonSpec{{Name: "c", Full: "m1"}}, pair(ols("a"), ols("a", "b")), nil, "fit_missing", ""},
 		{"fit unknown", []types.FitComparisonSpec{{Name: "c", Restricted: "m0", Full: "mx"}}, pair(ols("a"), ols("a", "b")), nil, "fit_unknown", ""},
-		{"from sweep", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))}, {Name: "m1", FromSweep: &types.FitFromSweep{Regression: "r"}}}, nil, "from_sweep", ""},
+		{"from sweep unresolved", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))}, {Name: "m1", FromSweep: &types.FitFromSweep{Regression: "r"}}}, nil, "fit_kind", ""},
 		{"fit kind", one(""), []types.FitSpec{{Name: "m0", Request: fitReq(ols("a"))},
 			{Name: "m1", Request: &types.Request{Cohort: &types.Cohort{Filename: "c.pulse"}, Matrices: []types.MatrixSpec{{Type: types.MAT_CORRELATION, Fields: []string{"a", "b"}}}}}}, nil, "fit_kind", ""},
 		{"same fit", []types.FitComparisonSpec{{Name: "c", Restricted: "m1", Full: "m1"}}, pair(ols("a"), ols("a", "b")), nil, "same_fit", ""},
@@ -91,9 +91,6 @@ func TestCheck_Refusals(t *testing.T) {
 			with(glm("poisson", "a", "b"), func(s *types.RegressionSpec) { s.Weight = prob })), nil, "requires", RequiresNoProbabilityWeight},
 		{"f under the default probability weight", one(""), pair(ols("a"), ols("a", "b")),
 			&types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}, "requires", RequiresNoProbabilityWeight},
-		{"wald under resample", one(types.ComparisonTestWald), pair(
-			with(ols("a"), func(s *types.RegressionSpec) { s.Resample = "jackknife" }),
-			with(ols("a", "b"), func(s *types.RegressionSpec) { s.Resample = "jackknife" })), nil, "requires", RequiresNoResample},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -128,6 +125,11 @@ func TestCheck_Plans(t *testing.T) {
 		s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3}
 		return s
 	}
+	jack := func(s *types.RegressionSpec) *types.RegressionSpec { s.Resample = "jackknife"; return s }
+	boot := func(s *types.RegressionSpec) *types.RegressionSpec {
+		s.Resample, s.BootstrapIters, s.RNGSeed = "bootstrap", 200, 7
+		return s
+	}
 	for _, tc := range []struct {
 		name   string
 		test   types.ComparisonTest
@@ -151,6 +153,13 @@ func TestCheck_Plans(t *testing.T) {
 		{"negbin fixed theta", "", nbFixed("", "a"), nbFixed("", "a", "b"), types.ComparisonTestLRT, types.ComparisonDistributionChiSquare, []string{"b"}, false},
 		{"negbin fixed theta estimated dispersion", "", nbFixed(types.NegBinDispersionEstimated, "a"), nbFixed(types.NegBinDispersionEstimated, "a", "b"),
 			types.ComparisonTestF, types.ComparisonDistributionF, []string{"b"}, false},
+		// Under resample (U69 #642) a Wald test reads the replicate
+		// covariance on χ² — the resampled table is Wald z — even where
+		// the unresampled table is Student t; F / LRT keep their own.
+		{"ols jackknife wald", types.ComparisonTestWald, jack(ols("a")), jack(ols("a", "b")), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}, false},
+		{"gamma bootstrap wald", types.ComparisonTestWald, boot(glm("gamma", "a")), boot(glm("gamma", "a", "b")), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}, false},
+		{"logit jackknife wald", types.ComparisonTestWald, jack(glm("binomial", "a")), jack(glm("binomial", "a", "b")), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}, false},
+		{"ols jackknife default", "", jack(ols("a")), jack(ols("a", "b")), types.ComparisonTestF, types.ComparisonDistributionF, []string{"b"}, false},
 		{"reporting knobs and a canonical link", "", func() *types.RegressionSpec {
 			s := glm("poisson", "a")
 			s.Name, s.Vcov, s.ConfLevel, s.Save = "small", true, 0.9, "m.pulse-model.json"
@@ -358,6 +367,8 @@ func TestCheck_Declared(t *testing.T) {
 			s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
 			return s
 		}(), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}},
+		{"jackknife wald chi-square", types.ComparisonTestWald, func() *types.RegressionSpec { s := ordinal("", "a"); s.Resample = "jackknife"; return s }(),
+			func() *types.RegressionSpec { s := ordinal("", "a", "b"); s.Resample = "jackknife"; return s }(), types.ComparisonTestWald, types.ComparisonDistributionChiSquare, []string{"b"}},
 	} {
 		plans, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, declaredOrdinal)
 		if err != nil {
@@ -386,8 +397,6 @@ func TestCheck_Declared(t *testing.T) {
 			s.Params = []byte(`{"link":"probit","levels":["1","2","3"]}`)
 			return s
 		}(), "request_mismatch", ""},
-		{"wald under resample", types.ComparisonTestWald, func() *types.RegressionSpec { s := ordinal("", "a"); s.Resample = "jackknife"; return s }(),
-			func() *types.RegressionSpec { s := ordinal("", "a", "b"); s.Resample = "jackknife"; return s }(), "requires", RequiresNoResample},
 		{"selection", "", ordinal("", "a"), func() *types.RegressionSpec { s := ordinal("", "a", "b"); s.Selection = "forward"; return s }(), "requires", RequiresNoSelection},
 	} {
 		_, err := Check(one(tc.test), pair(tc.r0, tc.r1), nil, declaredOrdinal)

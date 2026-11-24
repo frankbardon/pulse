@@ -440,7 +440,7 @@ How much the row moves the fitted line. With measure cooks (the default): Cook's
 - Several unusual rows close together can mask each other, since leaving out one leaves the others to hold the line.
 - The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
 - A row missing the target or any predictor, or left out of a weighted fit (no usable weight), gets null, never 0; so does every row when the fit has too few rows to estimate its spread.
-- Unpenalized least squares only; a request with a penalty is refused. A frequency weight reads one copy of the row; a probability weight is refused.
+- A penalty is refused, on the refit and on a bound fit: a penalized fit defines no residual variance to scale the figures by. A frequency weight reads one copy of the row; a probability weight is refused.
 - Over a bound generalized-linear fit (params.fit) dffits is the shift on the link scale, so under a decreasing link (gamma's inverse) its sign is the reverse of the residual's; Cook's distance is unaffected.
 
 <a id="op-attr_reg_leverage"></a>
@@ -458,7 +458,7 @@ How far the row's predictor values sit from the other rows' (from the predictors
 - A common rule of thumb flags leverage above 2p / n, twice the average (Hoaglin & Welsch 1978); it is a screening threshold, not a graded convention, and with few rows per coefficient it flags many rows.
 - It reads the predictors only, never the target: a high-leverage row can sit right on the line. Whether it moved the fit depends on its residual too (ATTR_REG_RESIDUAL); ATTR_REG_INFLUENCE combines the two (Cook's distance, DFFITS).
 - A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor gets null; a row a weighted fit leaves out (no usable weight) reads 0.
-- Unpenalized least squares only; a request with a penalty is refused. Over a bound fit (params.fit) it is that fit's leverage: for a generalized-linear fit it also weighs the row's fitted value (its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move. Over a nonlinear media-mix fit it is the tangent-plane leverage, which also counts the curve's (and in-model adstock's) parameters: a row on the curve's steep stretch carries more.
+- A penalized refit (penalty l1, l2 or elasticnet) reads its own hat: the ridge hat under l2, under l1 the hat of the unpenalized fit on the predictors the penalty kept, so its leverages sum to less than p and shrink toward 1/n. params.family refits a generalized linear model of that family instead (penalized or not) and reads its hat at the final fitted weights. Over a bound fit (params.fit) it is that fit's leverage, a penalized fit's the same hat as the penalized refit: for a generalized-linear fit it also weighs the row's fitted value (its working weight), so the same predictor values carry less leverage where the fitted mean leaves little room to move. Over a nonlinear media-mix fit it is the tangent-plane leverage, which also counts the curve's (and in-model adstock's) parameters: a row on the curve's steep stretch carries more. Over a frequency-weighted bound fit it is one observation's leverage, so compare it with 2p / Σw.
 
 <a id="op-attr_reg_predict"></a>
 

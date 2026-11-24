@@ -27,11 +27,20 @@ const (
 	CovarianceHC3 CovarianceType = "hc3"
 	// CovarianceCluster is the cluster-robust CR1 sandwich over the
 	// Cluster field's levels, G/(G − 1)·(N* − 1)/(N* − k); REG_OLS reads
-	// it on G − 1 df, REG_GLM and REG_BAYES_LINEAR stay normal.
+	// it on G − 1 df, REG_GLM and REG_BAYES_LINEAR stay normal. With
+	// Cluster2 it is the Cameron–Gelbach–Miller two-way sandwich
+	// V₁ + V₂ − V₁∩₂, each term with its own G/(G − 1); REG_OLS reads it
+	// on min(G₁, G₂) − 1 df.
 	CovarianceCluster CovarianceType = "cluster"
 	// CovarianceHAC is Newey–West: a Bartlett-kernel sandwich over the
 	// rows ordered by OrderBy, truncated at Lags, scaled N*/(N* − k).
 	CovarianceHAC CovarianceType = "hac"
+	// CovarianceDriscollKraay is Driscoll–Kraay (1998): the scores of
+	// every row in one OrderBy period are summed (across entities)
+	// before a Bartlett-kernel sandwich over the periods, truncated at
+	// Lags, scaled N*/(N* − k) — robust to cross-sectional and serial
+	// dependence in a panel.
+	CovarianceDriscollKraay CovarianceType = "driscoll_kraay"
 )
 
 // AllCovarianceTypes returns every covariance estimator name in
@@ -45,6 +54,7 @@ func AllCovarianceTypes() []CovarianceType {
 		CovarianceHC3,
 		CovarianceCluster,
 		CovarianceHAC,
+		CovarianceDriscollKraay,
 	}
 }
 
@@ -63,8 +73,8 @@ func AllCovarianceTypes() []CovarianceType {
 // A null Cluster or OrderBy value drops the row from the fit, like a
 // null predictor.
 type RegressionCovariance struct {
-	// Type is the estimator: classical, hc0, hc1, hc2, hc3, cluster or
-	// hac. Required.
+	// Type is the estimator: classical, hc0, hc1, hc2, hc3, cluster, hac
+	// or driscoll_kraay. Required.
 	Type CovarianceType `json:"type"`
 
 	// Cluster names the field whose levels are the clusters (type
@@ -72,14 +82,41 @@ type RegressionCovariance struct {
 	// two clusters is refused.
 	Cluster string `json:"cluster,omitempty"`
 
-	// OrderBy names the field that orders the series (type hac only; a
-	// date, datetime or numeric field). Each row is one period: two rows
-	// with the same value are refused.
+	// Cluster2 names a second cluster field (type cluster only, beside
+	// Cluster; the same field types): two-way clustering, Cameron,
+	// Gelbach & Miller (2011) — V₁ + V₂ − V₁∩₂, the one-way sandwiches
+	// over each field's levels less the one over their intersection
+	// cells, each scaled by its own G/(G − 1) and all by
+	// (N* − 1)/(N* − k) (R sandwich::vcovCL(cluster = ~a + b), type
+	// HC1, multi0 FALSE). REG_OLS, REG_GLM and REG_BAYES_LINEAR only.
+	// Fewer than two levels on either field is refused; naming Cluster
+	// again is a configuration fault.
+	Cluster2 string `json:"cluster2,omitempty"`
+
+	// OrderBy names the field that orders the series (types hac and
+	// driscoll_kraay, required by both; a date, datetime or numeric
+	// field). Under hac without Entity each row is one period: two rows
+	// with the same value are refused. With Entity (or under
+	// driscoll_kraay) the distinct values are the panel's periods, and
+	// a lag counts periods, not rows.
 	OrderBy string `json:"order_by,omitempty"`
 
-	// Lags is the Newey–West truncation lag (type hac only): a
-	// non-negative integer, or "auto" (also the meaning when absent) for
-	// ⌊4·(n/100)^(2/9)⌋ over the fit's n rows.
+	// Entity names the field whose levels are the panel's entities
+	// (types hac and driscoll_kraay only; a categorical, unsigned
+	// integer, date, datetime or packed_bool field — the
+	// order.partition key types). Under hac it makes the estimator
+	// per-entity Newey–West: each entity's rows are one series in
+	// OrderBy order and the lagged products never cross entities.
+	// Under driscoll_kraay it is optional and only asserts the panel
+	// shape. Either way an entity repeating an OrderBy value is
+	// refused; other entities may share it.
+	Entity string `json:"entity,omitempty"`
+
+	// Lags is the Bartlett truncation lag (types hac and driscoll_kraay
+	// only): a non-negative integer, or "auto" (also the meaning when
+	// absent) for ⌊4·(n/100)^(2/9)⌋ — n the fit's rows under a plain
+	// hac, its distinct OrderBy periods with Entity or under
+	// driscoll_kraay.
 	Lags CovarianceLags `json:"lags,omitzero"`
 }
 
@@ -221,8 +258,25 @@ type RegressionCovarianceResult struct {
 	Cluster  string `json:"cluster,omitempty"`
 	Clusters int    `json:"clusters,omitempty"`
 
+	// Cluster2 and Clusters2 are the second cluster field and its level
+	// count G₂ (two-way cluster); a REG_OLS DF is then
+	// min(G₁, G₂) − 1. Absent on a one-way cluster fit.
+	Cluster2  string `json:"cluster2,omitempty"`
+	Clusters2 int    `json:"clusters2,omitempty"`
+
 	// OrderBy and Lags are the series order field and the truncation lag
-	// the fit used, "auto" resolved (type hac).
+	// the fit used, "auto" resolved (types hac and driscoll_kraay).
 	OrderBy string `json:"order_by,omitempty"`
 	Lags    *int   `json:"lags,omitempty"`
+
+	// Entity and Entities are the panel's entity field and its level
+	// count in the fitted rows (hac or driscoll_kraay with an entity).
+	Entity   string `json:"entity,omitempty"`
+	Entities int    `json:"entities,omitempty"`
+
+	// Periods is the number of distinct OrderBy values in the fitted
+	// rows — the series length a lag counts in (hac with an entity,
+	// driscoll_kraay); absent on a plain hac, whose periods are its
+	// rows.
+	Periods int `json:"periods,omitempty"`
 }

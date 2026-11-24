@@ -19,15 +19,15 @@ Model coefficients come from a regression slot ([`regression-modeling`](regressi
 - `ATTR_REG_INFLUENCE` — Cook's distance (`params.measure` `cooks`) or DFFITS (`dffits`).
 
 - `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` are top-level keys, not `params`; `field` is unread. `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
-- Two-pass: each slot runs its own OLS fit in the prepass, no sharing between slots.
+- Two-pass: each slot runs its own OLS fit in the prepass (no sharing).
 - A weight follows OLS's kinds (a WLS refit); the residual stays the raw y − ŷ.
-- Penalized residuals are bias-shrunk — diagnose on an unpenalized fit.
+- Penalized residuals are bias-shrunk: diagnose unpenalized.
 
 **Studentized residuals.** On the refit `params.kind` `pearson` / `deviance` / `working` equal y − ŷ (OLS is Gaussian, identity). `standardized` (R `rstandard`) is e / (s·√(1 − h)) and `studentized` (R `rstudent`) r·√((df − 1)/(df − r²)), with h the leverage, df = n − p − 1 and s² = RSS/df.
 
-**Design-reading figures** (leverage, influence, the two studentized kinds) read the hat diagonal and σ:
+**Design-reading figures** (leverage, influence, the studentized kinds) read the hat and σ:
 
-- Unpenalized only (`penalty` is `PROCESSING_CONFIG`).
+- Unpenalized only (`PROCESSING_CONFIG`); leverage takes any penalty ([`regression-influence`](regression-influence.md)).
 - A frequency weight is w identical observations: influence and studentized figures are ONE copy's (h/w, df = Σw − p − 1). Leverage stays the record's summed h.
 - A probability weight refuses the per-observation figures (`PULSE_WEIGHT_UNSUPPORTED`); leverage takes either kind.
 - Null outside the fit and where undefined (df ≤ 1, h ≥ 1).
@@ -37,7 +37,7 @@ Model coefficients come from a regression slot ([`regression-modeling`](regressi
 `params.fit` names a bound fit (a compose `fits` entry or a loaded `models` entry) instead of refitting — always on the predict attribute (`ATTR_REG_PREDICT`), optionally on the other four:
 
 - Row-local: one pass; it fits nothing. The score equals the bound model's bit for bit.
-- The row weight is ignored; the fit's own weight applied when it ran.
+- The row weight is ignored (the fit's own applied when it ran).
 - Fitted reads the fit's score (a GLM: its fitted mean); residual reads y − score, y the fit's target.
 - Refusals, predict identically: an unknown name `PULSE_MODEL_UNKNOWN`; a refit field beside it `slot_fields`; a registered model without a scorer `no_scorer`.
 - A fit that failed on its data: every row null + `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; strict mode fails the batch with the fit's code.

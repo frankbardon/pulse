@@ -4257,7 +4257,7 @@
         {
           "name": "ATTR_REG_INFLUENCE",
           "category": "attribute",
-          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true and no weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
+          "description": "Per-row influence of an unpenalized OLS refit, from its leverage h and residual: params.measure cooks (default, R cooks.distance) r²·h / (p′·(1 − h)) or dffits (R dffits) t·√(h / (1 − h)), where r is the standardized and t the externally studentized residual and p′ = p + 1. Same keys and rules as ATTR_REG_LEVERAGE. A frequency weight reads each row as w identical observations (one copy's figure); a probability weight is refused. With params.fit the figures are a bound REG_OLS / REG_GLM fit's (R 4.6.1 cooks.distance / dffits on its lm / glm; the fit needs vcov: true, no penalty and no probability weight), or a REG_MMM_HILL fit's on its tangent plane (p′ its free parameters, σ̂² = SSR/(n − p)).",
           "params": [
             {
               "name": "target",
@@ -4280,7 +4280,7 @@
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted or frequency-weighted (a probability weight is refused permanently, requires unweighted), unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); ATTR_REG_LEVERAGE also reads a penalized REG_OLS / REG_GLM fit, through its carried regularized inverse (no vcov needed; a model file of an earlier build without it requires penalized_inverse); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; under a frequency weight every figure is one copy's of the rep()-expanded fit (df = Σw − p′, h = hatvalues/f); on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
             },
             {
               "name": "measure",
@@ -4338,7 +4338,7 @@
         {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage deferred. With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true), or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. A penalized refit reads its own hat: l2 the ridge hat 1/n + (xᵢ − μ_x)ᵀ(M2_xx + n·α·I)⁻¹(xᵢ − μ_x); l1 the unpenalized OLS hat over the active set {j : βⱼ ≠ 0} (Σᵢ hᵢᵢ = 1 + |active|, the lasso's df); elasticnet the active-set hat with the ridge term n·α·(1 − l1_ratio). With params.fit it is a bound REG_OLS / REG_GLM fit's leverage w·x̃ᵀ(Vcov/φ)x̃ (R hatvalues on its own rows; the fit needs vcov: true) — a penalized one's reads its carried regularized inverse (XᵀWX + λ₂·P)⁻¹ over its active design instead (kept in memory and in a saved model file, never in the response), the penalized refit's hat, no vcov needed —, or a REG_MMM_HILL fit's tangent-plane gᵀ(JᵀJ)⁻¹g, g = ∂ŷ/∂θ over every estimated parameter (carried over an in-model adstock, as ATTR_REG_FITTED).",
           "params": [
             {
               "name": "target",
@@ -4358,10 +4358,88 @@
               "names_column": true
             },
             {
+              "name": "penalty",
+              "type": "enum",
+              "required": false,
+              "default": "",
+              "description": "Regularization scheme; empty for OLS. Top-level.",
+              "enum_values": [
+                "",
+                "elasticnet",
+                "l1",
+                "l2"
+              ],
+              "slot": true
+            },
+            {
+              "name": "alpha",
+              "type": "float",
+              "required": false,
+              "description": "Regularization strength (\u003e0 when penalty is set). Top-level.",
+              "slot": true
+            },
+            {
+              "name": "l1_ratio",
+              "type": "float",
+              "required": false,
+              "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
+              "slot": true
+            },
+            {
               "name": "fit",
               "type": "string",
               "required": false,
-              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted, unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
+              "description": "Read a bound fit's design instead of refitting OLS: a `fits` entry or a loaded `models` entry that is an unweighted or frequency-weighted (a probability weight is refused permanently, requires unweighted), unpenalized REG_OLS, REG_GLM or REG_MMM_HILL fit with vcov: true and the classical covariance, no selection, resample, bounds or (HILL) params.prior (else PULSE_MODEL_SCORE_INVALID, details.requires); ATTR_REG_LEVERAGE also reads a penalized REG_OLS / REG_GLM fit, through its carried regularized inverse (no vcov needed; a model file of an earlier build without it requires penalized_inverse); REG_MMM_BAYES is type_unsupported by design (a posterior has no hat matrix). h = w·x̃ᵀ(Vcov/φ)x̃ at the row's fitted mean (w the IRLS working weight, 1 under OLS), R 4.6.1 hatvalues on the fit's own rows; under a frequency weight every figure is one copy's of the rep()-expanded fit (df = Σw − p′, h = hatvalues/f); on REG_MMM_HILL the tangent-plane gᵀ(Vcov/σ̂²)g, g = ∂ŷ/∂θ over the free parameters (a parameter held on a bound joins nothing). The slot then takes no target or predictors; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound (two-pass when it carries). Absent, the slot refits OLS."
+            },
+            {
+              "name": "family",
+              "type": "enum",
+              "required": false,
+              "description": "Refit a generalized linear model of this family instead of OLS (absent: the OLS refit): the leverage is the GLM's hat diag(W½X(XᵀWX)⁻¹XᵀW½) at the final IRLS working weights, R hatvalues(glm). Takes any penalty: the penalized GLM's hat at its final IRLS working weights over its regularized inverse (l2 every predictor, l1 / elasticnet the active set, as the OLS refit). negative_binomial re-estimates theta in the penalized refit. An unknown family is PROCESSING_REGRESSION_INVALID_FAMILY; beside params.fit PULSE_MODEL_SCORE_INVALID slot_fields.",
+              "enum_values": [
+                "binomial",
+                "gamma",
+                "negative_binomial",
+                "poisson"
+              ]
+            },
+            {
+              "name": "link",
+              "type": "enum",
+              "required": false,
+              "description": "The GLM refit's link, one of params.family's (default its canonical link; another is PROCESSING_REGRESSION_INVALID_LINK); without params.family PROCESSING_CONFIG (details.requires family).",
+              "enum_values": [
+                "cloglog",
+                "identity",
+                "inverse",
+                "log",
+                "logit",
+                "probit",
+                "sqrt"
+              ],
+              "enum_by": "family",
+              "enum_values_by": {
+                "binomial": [
+                  "logit",
+                  "probit",
+                  "cloglog"
+                ],
+                "gamma": [
+                  "inverse",
+                  "log",
+                  "identity"
+                ],
+                "negative_binomial": [
+                  "log",
+                  "identity",
+                  "sqrt"
+                ],
+                "poisson": [
+                  "log",
+                  "identity",
+                  "sqrt"
+                ]
+              }
             },
             {
               "name": "carryover",
@@ -4393,7 +4471,6 @@
           "emits_type": "f64",
           "emits_type_note": "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
           "streamable": true,
-          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
           "component_schema": {
             "mergeability": ""
           },
@@ -4570,7 +4647,7 @@
               "type": "enum",
               "required": false,
               "default": "response",
-              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal).",
+              "description": "The residual scale. response y − μ (default). With params.fit, as R residuals.glm: pearson (y − μ)/√V(μ); deviance sign(y − μ)·√d(y, μ); working (y − μ)·g′(μ); on an OLS or Bayesian-linear fit all four are y − μ, and a registered or media-mix fit takes response only (PULSE_MODEL_SCORE_INVALID; a REG_MMM_HILL fit also standardized / studentized). On the OLS refit pearson / deviance / working equal response, and standardized (R rstandard) e / (s·√(1 − h)) and studentized (R rstudent) r·√((df − 1)/(df − r²)) read its leverage and σ: unpenalized only (PROCESSING_CONFIG), frequency weight only (PULSE_WEIGHT_UNSUPPORTED). With params.fit standardized / studentized read the bound fit's design (R 4.6.1 rstandard / rstudent on its lm / glm: rP/(√φ·√(1 − h)), and rP/(σ₍ᵢ₎·√(1 − h)) where φ is estimated, else the standardized) — an unweighted or frequency-weighted, unpenalized REG_OLS / REG_GLM / REG_MMM_HILL fit with vcov: true, as ATTR_REG_INFLUENCE's params.fit (on REG_MMM_HILL, Gaussian, both residual types are equal).",
               "enum_values": [
                 "response",
                 "pearson",
@@ -7436,6 +7513,17 @@
             "default": 0.05,
             "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
             "slot": true
+          },
+          {
+            "name": "incomplete",
+            "type": "enum",
+            "required": false,
+            "default": "complete_case",
+            "description": "A subject missing a condition: complete_case drops it (details.dropped_subjects, PULSE_TEST_SUBJECT_MISSING warns); mixed keeps every observed cell in the REML model y ~ cond + (1 | subject) and reports F with Satterthwaite df (lmerTest anova; Variant mixed; details.df_error fractional, var_subject, var_residual, incomplete_subjects; no sums of squares or effect size).",
+            "enum_values": [
+              "complete_case",
+              "mixed"
+            ]
           }
         ],
         "requires": [
@@ -8787,7 +8875,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance.",
+            "description": "{type, cluster, cluster2, order_by, entity, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2; two-way with cluster2), hac (Newey–West over order_by, unique per row — per entity with entity; lags an integer or \"auto\"), driscoll_kraay (period-summed scores over order_by). Forces the buffered path; echoes as covariance.",
             "slot": true
           },
           {
@@ -8850,7 +8938,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated), two_log_lik and aic); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits; negative_binomial: Wald z at dispersion 1 and theta-hat, plus theta, theta_std_err (theta estimated; null under l1 / elasticnet), two_log_lik and aic (unpenalized)); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo; margins adds the marginal effects; collinearity adds the variance inflation factors.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -8875,7 +8963,7 @@
             "name": "family",
             "type": "enum",
             "required": true,
-            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); penalty, selection and resample are refused (PROCESSING_CONFIG, details.requires).",
+            "description": "GLM error family. negative_binomial is NB2 (Var = mu + mu^2/theta) for over-dispersed counts: theta estimated by maximum likelihood, alternating IRLS with a Newton step for theta (MASS glm.nb), unless theta fixes it; SEs at dispersion 1 and theta-hat (summary.negbin); a penalty re-estimates theta around the penalized fit (mpath glmregNB); selection and resample re-estimate theta in every candidate and replicate (MASS stepAIC on glm.nb), a resampled theta_std_err being theta-hat's replicate SE.",
             "enum_values": [
               "binomial",
               "gamma",
@@ -8947,7 +9035,7 @@
             "type": "enum",
             "required": false,
             "default": "",
-            "description": "Regularization scheme (binomial / poisson; gamma and negative_binomial refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
+            "description": "Regularization scheme (binomial / poisson / negative_binomial, theta estimated or fixed; gamma, and negative_binomial beside dispersion estimated, refuse it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
             "enum_values": [
               "",
               "elasticnet",
@@ -8969,6 +9057,14 @@
             "required": false,
             "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha).",
             "slot": true
+          },
+          {
+            "name": "unpenalized",
+            "type": "list",
+            "required": false,
+            "description": "Any penalty: predictors the penalty skips (glmnet's penalty.factor 0), each a listed predictor, once — never shrunk, never dropped from the l1 active set; l2's sandwich reads D = 0 on them. No penalty refuses it (PROCESSING_CONFIG).",
+            "slot": true,
+            "names_column": true
           },
           {
             "name": "max_iters",
@@ -9070,7 +9166,7 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_GLM the response-scale effect reads mu'(eta) per fitted row (one pass after IRLS); an identity link's, and every link-scale one, is the coefficient. t on df for gamma (classical), Wald z otherwise.",
+            "description": "{type, terms, scale, binary}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient); binary slope (default) or contrast (a predictor whose fitted values are all 0/1 reports mu(1) - mu(0), marginaleffects avg_comparisons, listed in margins.contrasts; the coefficient on the link scale and an identity link). Under resample every replicate refit re-estimates the effects and their replicate std error replaces the delta method (Wald z; bootstrap: percentile p), margins.inference resample. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_GLM the response-scale effect reads mu'(eta) per fitted row (one pass after IRLS); an identity link's, and every link-scale one, is the coefficient. t on df for gamma (classical), Wald z otherwise.",
             "slot": true
           },
           {
@@ -9084,7 +9180,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "description": "{type, cluster, cluster2, order_by, entity, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2; two-way with cluster2), hac (Newey–West over order_by, unique per row — per entity with entity; lags an integer or \"auto\"), driscoll_kraay (period-summed scores over order_by). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
             "slot": true
           },
           {
@@ -9840,7 +9936,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.",
+            "description": "{type, cluster}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the score sandwich over (y − π) ⊗ x at the MLE, w* in the meat. type classical (absent: unchanged), hc0, hc1 (N*/(N* − d)), cluster (CR1 over cluster's levels, ≥2; one-way only); inference stays Wald z. Echoes as covariance. hc2 / hc3 / hac (no per-row leverage or series), cluster2, or beside penalty / resample / selection: PROCESSING_REGRESSION_VCOV_UNSUPPORTED.",
             "slot": true
           },
           {
@@ -9869,7 +9965,7 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_MULTINOMIAL per category, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with outcomes: scale response dπ_k/dx (every fitted level; they sum to 0), link the level's log-odds against the reference (its coefficient). Wald z.",
+            "description": "{type, terms, scale, binary}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient); binary slope (default) or contrast (a predictor whose fitted values are all 0/1 reports mu(1) - mu(0), marginaleffects avg_comparisons, listed in margins.contrasts; the coefficient on the link scale and an identity link). Under resample every replicate refit re-estimates the effects and their replicate std error replaces the delta method (Wald z; bootstrap: percentile p), margins.inference resample. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_MULTINOMIAL per category, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with outcomes: scale response dπ_k/dx (every fitted level; they sum to 0), link the level's log-odds against the reference (its coefficient). Wald z.",
             "slot": true
           },
           {
@@ -10006,7 +10102,7 @@
             "name": "unpenalized",
             "type": "list",
             "required": false,
-            "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG).",
+            "description": "Any penalty: predictors the penalty skips (glmnet's penalty.factor 0), each a listed predictor, once — never shrunk, never dropped from the l1 active set; l2's sandwich SEs read the same system. No penalty refuses it (PROCESSING_CONFIG).",
             "slot": true,
             "names_column": true
           },
@@ -10137,7 +10233,7 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient). Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_OLS every effect is its coefficient (identity link) with its standard error and t on df; streams with the fit.",
+            "description": "{type, terms, scale, binary}: adds margins, the marginal effect of each term with a delta-method std error on the fit's own covariance (classical or covariance's robust one), statistic, p-value and interval at conf_level. type ame (default; the weighted mean over the fitted rows of dmu/dx, marginaleffects avg_slopes) or mem (at the weighted predictor means, echoed as at); terms default every predictor; scale response (default, dmu/dx) or link (deta/dx = the coefficient); binary slope (default) or contrast (a predictor whose fitted values are all 0/1 reports mu(1) - mu(0), marginaleffects avg_comparisons, listed in margins.contrasts; the coefficient on the link scale and an identity link). Under resample every replicate refit re-estimates the effects and their replicate std error replaces the delta method (Wald z; bootstrap: percentile p), margins.inference resample. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection or bounds, and when a predictor is derived from another predictor of the regression (independent_predictors); any other derived column (a log, a dummy) is differentiated as given. A multiplicity block corrects the effects as a family of their own (margins.multiplicity echo, family margins), apart from the coefficients'. On REG_OLS every effect is its coefficient (identity link) with its standard error and t on df; streams with the fit.",
             "slot": true
           },
           {
@@ -10151,7 +10247,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "description": "{type, cluster, cluster2, order_by, entity, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1; with cluster2, two-way V₁ + V₂ − V₁∩₂ on df min(G₁, G₂) − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋; with entity, per-entity Newey–West over the order_by periods), driscoll_kraay (panel: scores summed per order_by period, Newey–West over the periods). An entity may not repeat an order_by value. Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
             "slot": true
           },
           {
@@ -10362,14 +10458,14 @@
             "name": "margins",
             "type": "object",
             "required": false,
-            "description": "{type, terms, scale}: adds margins, the model's marginal effect of each term (ame default, or mem at the weighted means; scale response default, or link) with its delta-method std error on the fit's own covariance; the engine adds statistic, p-value and interval at conf_level (t on the fit's df, else normal). A categorical-outcome model reports one effect per outcome level, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with margins.outcomes listing the levels. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection, resample or bounds, and when a predictor is derived from another predictor (independent_predictors). A multiplicity block corrects the effects as a family of their own (family margins). A top-level key of the regression entry.",
+            "description": "{type, terms, scale, binary}: adds margins, the model's marginal effect of each term (ame default, or mem at the weighted means; scale response default, or link; binary contrast lets it report a 0/1 term as mu(1) - mu(0), listed in margins.contrasts) with its delta-method std error on the fit's own covariance; the engine adds statistic, p-value and interval at conf_level (t on the fit's df, else normal). A categorical-outcome model reports one effect per outcome level, keyed \"\u003clevel\u003e:\u003cterm\u003e\" with margins.outcomes listing the levels. Under resample every replicate refit re-reports the effects and their replicate std error replaces the model's (Wald z; bootstrap: percentile p), margins.inference resample. Refused (PROCESSING_CONFIG, details.requires) beside penalty, selection or bounds, and when a predictor is derived from another predictor (independent_predictors). A multiplicity block corrects the effects as a family of their own (family margins). A top-level key of the regression entry.",
             "slot": true
           },
           {
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster. A top-level key of the regression entry.",
+            "description": "{type, cluster, order_by, entity, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster (cluster one-way: cluster2 is refused). A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -14809,7 +14905,7 @@
       },
       {
         "name": "op-attr-reg-leverage",
-        "description": "Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit or a bound fit's design — leverage diagnostic."
+        "description": "Per-row hat-matrix diagonal hᵢᵢ from an OLS refit (any penalty) or a bound fit's design — leverage diagnostic."
       },
       {
         "name": "op-attr-reg-predict",
@@ -15528,12 +15624,16 @@
         "description": "Nested-model comparison of two Compose regression fits — the F test, the likelihood-ratio (deviance) test and the Wald test of the full model's extra terms, R's anova(m0, m1) / lmtest::waldtest; how nesting and same rows are verified, the defaults per family, weights, the result and the refusals. Topical design; the fits themselves in compose-fits."
       },
       {
+        "name": "regression-comparison-batteries",
+        "description": "Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows and the refusals. Topical design; regression-fit comparisons live in regression-comparison."
+      },
+      {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-influence",
-        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
+        "description": "Leverage, Cook's distance, DFFITS and studentized residuals over a BOUND fit (params.fit) — read off the fit's vcov and dispersion, the least-squares / GLM hat matrix and a nonlinear media-mix fit's tangent plane, which fits qualify, their refusals and why a posterior has none — plus a penalized refit's ridge / active-set leverage and a GLM refit's hat. Topical design; the refit and the per-attribute params live in regression-row-scores and the atomic op-attr-reg-* skills."
       },
       {
         "name": "regression-margins",
@@ -15550,6 +15650,10 @@
       {
         "name": "regression-order",
         "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-panel-covariance",
+        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), two-way clustering (cluster + cluster2), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
       },
       {
         "name": "regression-row-scores",
@@ -15582,6 +15686,10 @@
       {
         "name": "sem-bootstrap",
         "description": "Bootstrap standard errors, p-values and percentile intervals for a structural equation model — lavaan's se = \"bootstrap\" on MAT_SEM, seeded and reproducible, within-group under a multi-group fit. When to prefer it over the analytic (delta-method) figures, what it costs and how to read the replicate counts."
+      },
+      {
+        "name": "sem-comparison",
+        "description": "Nested comparison of two Compose SEM fits — the chi-square difference test of lavaan's lavTestLRT, plain under ml / dwls and the Satorra-Bentler (2001) scaled difference under wlsmv; invariance steps (configural, metric, scalar) and dropped paths, how nesting is declared and checked, the result, the refusals and the failures. Topical design; the regression comparisons in regression-comparison."
       },
       {
         "name": "sem-defined-parameters",
@@ -16000,7 +16108,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 281,
+    "examples_count": 282,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -22049,4 +22157,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: de753b422db40d83695f0d45141eccf2c167f48a8361c62eccf126734750f3b4
+// golden-hash: 22555d1b133d66e3d7c0081bf713fd86a9a355cac1af71e9ec9e2d7b849a06bb

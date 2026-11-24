@@ -63,5 +63,5 @@ func (e *multinomialEngine) multinomialSandwich(pr *multinomialProblem, beta []f
 	if err != nil {
 		return nil, nil, err
 	}
-	return fit, robustStdErrors(fit.v), nil
+	return fit, robustStdErrors(fit), nil
 }

@@ -718,6 +718,7 @@ func wlsStats(of *OrdinalFit, info, einv *mat.SymDense, nacov [][]float64, nPara
 	st.Scaled = &ScaledStats{
 		Chi2: sc.stat, ScalingFactor: sc.scaling, ShiftParameter: sc.shift,
 		Chi2Baseline: bsc.stat, BaselineScalingFactor: bsc.scaling,
+		TraceUG: trUG,
 	}
 	st.Scaled.Chi2P = 1 - chiCDF(sc.stat, st.DoF)
 	st.Scaled.CFI, st.Scaled.TLI, st.Scaled.RMSEA = lavaanIndices(sc.stat, st.DoF, bsc.stat, st.DoFBaseline, n, 1)
@@ -739,11 +740,16 @@ func scaledShifted(t, df, tr, tr2 float64) scaledTest {
 
 // ScaledStats are WLSMV's scaled-shifted test and the indices it scales
 // (lavaan's chisq.scaled, chisq.scaling.factor, shift.parameter,
-// baseline.chisq.scaled, cfi.scaled, tli.scaled, rmsea.scaled).
+// baseline.chisq.scaled, cfi.scaled, tli.scaled, rmsea.scaled), and
+// TraceUG, the model test's tr(UΓ) (lavaan's trace.UGamma) — the
+// mean-adjusted (satorra.bentler) scaling factor is TraceUG / DoF, the
+// one a Satorra–Bentler (2001) scaled difference test reads
+// (internal/regcompare).
 type ScaledStats struct {
 	Chi2, Chi2P                   float64
 	ScalingFactor, ShiftParameter float64
 	Chi2Baseline                  float64
 	BaselineScalingFactor         float64
 	CFI, TLI, RMSEA               float64
+	TraceUG                       float64
 }

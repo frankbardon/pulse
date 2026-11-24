@@ -36,6 +36,8 @@
 # The script re-derives each figure from those closed forms and stops
 # on a mismatch, so the golden also pins the formulas Pulse implements.
 # "ols" is lm(); the gaussian GLM case must agree with it.
+# weighted_cases (regression-depth-2 E1-S3): the same figures over a
+# frequency-weighted fit, held to the rep() expansion (see below).
 
 suppressPackageStartupMessages(library(jsonlite))
 
@@ -134,10 +136,71 @@ d$y <- round(rgamma(50, shape = 4, rate = 4 / mu), 4)
 cases[[length(cases) + 1]] <- influence_case("gamma_inverse", "gamma", "inverse", d,
   glm_exact(y ~ x1 + x2, Gamma(), d))
 
+# Frequency-weighted bound fits (regression-depth-2 E1-S3, #640). Each
+# row carries an integer frequency f ∈ {1, 2, 3}; the fit is
+# lm / glm(weights = f) and its figures are the rep()-expanded
+# unweighted fit's, ONE copy's per distinct row (every copy of a row
+# has the same figures): the expansion's dispersion (Σf·rP²/(Σf − p′),
+# not glm(weights =)'s n − p′ df), df = Σf − p′, and the leverage of
+# one observation — hatvalues(glm(weights = f)) / f, the record's
+# grouped hat divided by its frequency (asserted below). The weighted
+# and expanded coefficients must agree.
+weighted_case <- function(name, family, link, d, fam) {
+  n <- nrow(d)
+  e <- d[rep(seq_len(n), d$f), ]
+  first <- match(seq_len(n), rep(seq_len(n), d$f))
+  if (is.null(fam)) {
+    mw <- lm(y ~ x1 + x2, data = d, weights = f)
+    me <- lm(y ~ x1 + x2, data = e)
+  } else {
+    mw <- glm(y ~ x1 + x2, family = fam, data = d, weights = f, control = ctl)
+    for (k in 1:2) mw <- glm(y ~ x1 + x2, family = fam, data = d, weights = f, control = ctl, start = coef(mw))
+    me <- glm_exact(y ~ x1 + x2, fam, e)
+  }
+  check(paste(name, "weighted = expanded coefficients"), unname(coef(mw)), unname(coef(me)))
+  ex <- influence_case(name, family, link, e, me)
+  he <- hatvalues(me)
+  check(paste(name, "hat/f = one copy's hat"), unname(hatvalues(mw) / d$f), unname(he[first]))
+  for (k in c("hat", "standardized", "standardized_deviance", "studentized", "cooks", "dffits")) {
+    v <- as.numeric(fromJSON(unclass(ex[[k]])))
+    # Every copy of a row carries the same figure.
+    check(paste(name, k, "copies agree"), v, v[first][rep(seq_len(n), d$f)])
+    ex[[k]] <- g17(v[first])
+  }
+  ex$rows <- lapply(seq_len(n), function(i) g17(c(d$x1[i], d$x2[i], d$y[i])))
+  ex$weights <- g17(d$f)
+  ex
+}
+weighted <- list()
+
+d <- design(30)
+d$y <- round(1.5 + 0.8 * d$x1 - 0.6 * d$x2 + rnorm(30, 0, 0.5), 4)
+d$x1[30] <- 3.5; d$y[30] <- -2
+d$f <- sample(1:3, 30, replace = TRUE)
+weighted[[length(weighted) + 1]] <- weighted_case("ols_frequency", "gaussian", "identity", d, NULL)
+
+d <- design(50)
+d$y <- as.numeric(runif(50) < plogis(0.3 + 0.9 * d$x1 - 0.5 * d$x2))
+d$f <- sample(1:3, 50, replace = TRUE)
+weighted[[length(weighted) + 1]] <- weighted_case("binomial_logit_frequency", "binomial", "logit", d, binomial())
+
+d <- design(40)
+d$y <- rpois(40, exp(0.4 + 0.5 * d$x1 - 0.4 * d$x2))
+d$f <- sample(1:3, 40, replace = TRUE)
+weighted[[length(weighted) + 1]] <- weighted_case("poisson_log_frequency", "poisson", "log", d, poisson())
+
+d <- design(40)
+mu <- 1 / (2 + 0.4 * d$x1 - 0.3 * d$x2)
+d$y <- round(rgamma(40, shape = 4, rate = 4 / mu), 4)
+d$f <- sample(1:3, 40, replace = TRUE)
+weighted[[length(weighted) + 1]] <- weighted_case("gamma_inverse_frequency", "gamma", "inverse", d, Gamma())
+
 write_golden("glm_influence", list(
   generator = "scripts/reference/gen_glm_influence.R",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")), jsonlite = as.character(packageVersion("jsonlite"))),
   note = "unweighted y ~ x1 + x2; rows are [x1, x2, y]; figures per row in row order",
-  cases = cases
+  cases = cases,
+  weighted_note = "frequency weight f (weights[i]) on row i: lm / glm(weights = f); figures are the rep()-expanded unweighted fit's, one copy's per row",
+  weighted_cases = weighted
 ))

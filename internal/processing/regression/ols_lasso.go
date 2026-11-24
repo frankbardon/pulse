@@ -50,7 +50,11 @@ const (
 // standardizes a gaussian y internally, which rescales its ridge term;
 // at sd(y) = 1 that is the identity) — ols_penalty_reference_test.go,
 // oracle scripts/reference/gen_ols_penalty.R.
-func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
+//
+// unpenalized (regpenalty.UnpenalizedMask; nil = none) marks predictor
+// columns with glmnet's penalty.factor 0: coordinateDescent gives them
+// no soft threshold and no ridge term, so they never shrink.
+func solveLasso(a *olsAccumulator, alpha float64, unpenalized []bool, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	if maxIters <= 0 {
 		maxIters = defaultLassoMaxIters
 	}
@@ -62,7 +66,7 @@ func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*o
 	// loop: the L2 contribution to the denominator vanishes and the
 	// soft-threshold parameter reduces to plain alpha.
 	const l1Ratio = 1.0
-	res, iters, err := coordinateDescent(a, alpha, l1Ratio, maxIters, tol)
+	res, iters, err := coordinateDescent(a, alpha, l1Ratio, unpenalized, maxIters, tol)
 	if err != nil {
 		return nil, iters, err
 	}
@@ -78,9 +82,16 @@ func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*o
 // with α = l1Ratio. At l1Ratio = 0 the fixed point is ridge's
 // (M2_xx + N*·λ·I)β = M2_xy (TestRegOLS_RidgeEqualsElasticNetAtZeroL1).
 //
+// Per-feature penalty factors pf_j ∈ {0, 1} (glmnet's penalty.factor;
+// unpenalized[j] true = 0, nil = every predictor 1): the update reads
+// soft_threshold(r_j/N*, λ·α·pf_j) / (M2_xx[j,j]/N* + λ·(1−α)·pf_j), so
+// an unpenalized predictor takes the plain least-squares coordinate —
+// it never shrinks and never leaves the active set — the scheme
+// multinomial_penalty.go's descendMasked and glmPenalty share.
+//
 // Returns the solve result, the iteration count actually executed,
 // and any error.
-func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
+func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, unpenalized []bool, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	p := a.p
 	if a.floorN() < float64(p+1) {
 		return nil, 0, errors.NewCodedErrorWithDetails(
@@ -115,9 +126,16 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	// and ridge. denom_j = M2_xx[j,j]/n + λ·(1−α).
 	coeffs := make([]float64, p)
 	denom := make([]float64, p)
+	gamma := make([]float64, p)
 	scale := make([]float64, p)
 	for j := 0; j < p; j++ {
-		denom[j] = a.m2XX[j*p+j]/n + lambdaL2
+		if unpenalized != nil && unpenalized[j] {
+			// penalty.factor 0: no ridge term, no soft threshold.
+			denom[j] = a.m2XX[j*p+j] / n
+		} else {
+			denom[j] = a.m2XX[j*p+j]/n + lambdaL2
+			gamma[j] = lambdaL1
+		}
 		// The column SD: convergence judges sd_j·|Δβ_j| (the move in
 		// outcome units per predictor SD), the scale-free test the
 		// standardized solver applied.
@@ -136,7 +154,7 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 				}
 				r -= float64(a.m2XX[j*p+k] * coeffs[k])
 			}
-			newBeta := softThreshold(r/n, lambdaL1) / denom[j]
+			newBeta := softThreshold(r/n, gamma[j]) / denom[j]
 			delta := scale[j] * math.Abs(newBeta-coeffs[j])
 			if delta > maxDelta {
 				maxDelta = delta

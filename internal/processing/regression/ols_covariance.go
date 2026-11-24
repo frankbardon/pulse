@@ -37,12 +37,18 @@ type LabeledRecord interface {
 }
 
 // levelFields are the fields spec keys rows by through clusterKey: the
-// covariance cluster, the jackknife_by delete-group field and the
-// order.partition series key.
+// covariance cluster(s) and entity, the jackknife_by delete-group field
+// and the order.partition series key.
 func levelFields(spec *types.RegressionSpec) []string {
 	var out []string
 	if spec.Covariance != nil && spec.Covariance.Cluster != "" {
 		out = append(out, spec.Covariance.Cluster)
+	}
+	if spec.Covariance != nil && spec.Covariance.Cluster2 != "" {
+		out = append(out, spec.Covariance.Cluster2)
+	}
+	if spec.Covariance != nil && spec.Covariance.Entity != "" {
+		out = append(out, spec.Covariance.Entity)
 	}
 	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
 		out = append(out, spec.JackknifeBy)
@@ -54,7 +60,8 @@ func levelFields(spec *types.RegressionSpec) []string {
 }
 
 // LevelFault is the first corrupt categorical code among the fields
-// spec keys rows by (covariance cluster, jackknife_by, order.partition)
+// spec keys rows by (covariance cluster / cluster2 / entity, jackknife_by,
+// order.partition)
 // across records —
 // ENCODING_INVALID with the CategoricalIndexFault details — or nil. The
 // drivers run it before a fit reads a row (FitEachBufferedWithContext
@@ -104,28 +111,43 @@ func clusterKey(rec Record, field string) (string, bool) {
 }
 
 // robustKeys reads the covariance keys a row needs (the cluster under
-// type cluster, the order_by value under hac); ok=false drops the row
-// listwise, like a null predictor.
-func (e *olsEngine) robustKeys(rec Record) (cluster string, order float64, ok bool) {
+// type cluster, the order_by value under hac / driscoll_kraay, the
+// entity under a panel); ok=false drops the row listwise, like a null
+// predictor.
+func (e *olsEngine) robustKeys(rec Record) (robustRowKey, bool) {
 	return robustRowKeys(e.spec, rec)
 }
 
 // robustRowKeys is the covariance-key read every engine's robust path
-// shares (REG_OLS, REG_GLM, REG_BAYES_LINEAR): spec's cluster key and
-// order_by value of rec, ok=false when either is null.
-func robustRowKeys(spec *types.RegressionSpec, rec Record) (cluster string, order float64, ok bool) {
+// shares (REG_OLS, REG_GLM, REG_BAYES_LINEAR): spec's cluster key(s),
+// order_by value and entity key of rec, ok=false when any is null. The
+// second cluster and the entity are keyed like a cluster (its categorical label, else its
+// number), the order.partition semantics.
+func robustRowKeys(spec *types.RegressionSpec, rec Record) (robustRowKey, bool) {
 	c := spec.Covariance
+	var key robustRowKey
+	var ok bool
 	if c.Cluster != "" {
-		if cluster, ok = clusterKey(rec, c.Cluster); !ok {
-			return "", 0, false
+		if key.cluster, ok = clusterKey(rec, c.Cluster); !ok {
+			return robustRowKey{}, false
+		}
+	}
+	if c.Cluster2 != "" {
+		if key.cluster2, ok = clusterKey(rec, c.Cluster2); !ok {
+			return robustRowKey{}, false
 		}
 	}
 	if c.OrderBy != "" {
-		if order, ok = InputValue(rec, c.OrderBy); !ok {
-			return "", 0, false
+		if key.order, ok = InputValue(rec, c.OrderBy); !ok {
+			return robustRowKey{}, false
 		}
 	}
-	return cluster, order, true
+	if c.Entity != "" {
+		if key.entity, ok = clusterKey(rec, c.Entity); !ok {
+			return robustRowKey{}, false
+		}
+	}
+	return key, true
 }
 
 // olsRobust is the robust covariance of an OLS solve, in (β₀, β)
@@ -164,7 +186,7 @@ func (e *olsEngine) olsSandwich(solve *olsSolveResult, records []Record) (*olsRo
 		if !ok {
 			continue
 		}
-		cluster, order, _ := e.robustKeys(rec)
+		key, _ := e.robustKeys(rec)
 		resid := y - a.meanY
 		for j := 0; j < p; j++ {
 			d[j] = x[j] - a.meanX[j]
@@ -184,11 +206,13 @@ func (e *olsEngine) olsSandwich(solve *olsSolveResult, records []Record) (*olsRo
 			score[j+1] = resid * d[j]
 		}
 		rows = append(rows, sandwichRow{
-			score:   score,
-			weight:  c * w,
-			lev:     1/nStar + quad/c,
-			cluster: cluster,
-			order:   order,
+			score:    score,
+			weight:   c * w,
+			lev:      1/nStar + quad/c,
+			cluster:  key.cluster,
+			cluster2: key.cluster2,
+			order:    key.order,
+			entity:   key.entity,
 		})
 	}
 
@@ -225,16 +249,12 @@ func (e *olsEngine) olsSandwich(solve *olsSolveResult, records []Record) (*olsRo
 
 	// The standard errors are √ of the clamped diagonal, and the
 	// diagonal IS that clamped variance: √diag(Vcov) == StdErrors bit
-	// for bit (sqrt passes NaN through).
+	// for bit (sqrt passes NaN through; an indefinite two-way variance
+	// stays negative, its standard error NaN — robustSE).
 	out := &olsRobust{fit: fit, variances: make([]float64, k), stdErrors: make([]float64, k)}
 	for j := 0; j < k; j++ {
-		vj := v[j][j]
-		if vj < 0 {
-			vj = 0
-		}
-		v[j][j] = vj
-		out.variances[j] = vj
-		out.stdErrors[j] = sqrt(vj)
+		v[j][j], out.stdErrors[j] = robustSE(v[j][j], fit.indefinite)
+		out.variances[j] = v[j][j]
 	}
 	fit.v = v
 	return out, nil

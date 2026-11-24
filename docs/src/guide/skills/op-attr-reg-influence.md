@@ -67,7 +67,7 @@ With `fit` **dffits is signed by g′(μ): negative for a positive residual unde
 
 - Refit: unpenalized OLS (`penalty`, a bad `measure`: `PROCESSING_CONFIG`); two-pass.
 - `fit`: qualifying fits, refusals: [`regression-influence`](regression-influence.md).
-- A frequency weight: one copy's figure (h/w, df = Σw − p′); probability: `PULSE_WEIGHT_UNSUPPORTED`.
+- Frequency weight (refit or `fit`): one copy's figure, df = Σw − p′; probability refused.
 - Pearson-based, as R. Screens D > 1, 4/n, |DFFITS| > 2√(p′/n).
 
 ## See

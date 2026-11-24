@@ -2,6 +2,7 @@ package regression
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -27,12 +28,31 @@ import (
 //     scales by N*/(N* − k);
 //   - cluster (CR1): meat Σ_g s_g·s_gᵀ with s_g = Σ_{i∈g} w*·g_i, scaled
 //     G/(G − 1)·(N* − 1)/(N* − k), inference on G − 1 df;
+//   - cluster + cluster2 (two-way, Cameron–Gelbach–Miller 2011): meat
+//     G₁/(G₁−1)·M₁ + G₂/(G₂−1)·M₂ − G₁₂/(G₁₂−1)·M₁₂, M₁₂ over the
+//     intersection cells, scaled (N* − 1)/(N* − k), inference on
+//     min(G₁, G₂) − 1 df — sandwich::vcovCL(cluster = ~a + b, type =
+//     "HC1", multi0 = FALSE); no eigenvalue fix, so a negative variance
+//     clamps to 0 (robustStdErrors);
 //   - hac (Newey–West, Bartlett kernel): each row is one period with
 //     score u_t = w*·g_t (a period's copies share one residual, so they
 //     add before the product); meat Γ₀ + Σ_{l=1..L} (1 − l/(L+1))·(Γ_l +
 //     Γ_lᵀ), Γ_l = Σ_t u_t·u_{t−l}ᵀ over the rows in order_by order,
 //     scaled N*/(N* − k) — R's sandwich::NeweyWest(prewhite = FALSE,
-//     adjust = TRUE) unweighted.
+//     adjust = TRUE) unweighted;
+//   - hac + entity (per-entity Newey–West): the periods are the distinct
+//     order_by values over every fitted row, ranked 0..T−1; each entity
+//     is its own series and Γ_l = Σ_entities Σ u_{e,t}·u_{e,t−l}ᵀ pairs
+//     an entity's rows exactly l periods apart (a period the entity
+//     lacks leaves no pair), the same Bartlett weights and scale, L
+//     auto over T — sandwich::vcovPL(aggregate = FALSE) / plm::vcovNW;
+//   - driscoll_kraay: S_t = Σ_{i in period t} w*·g_i summed across
+//     entities, then the hac meat over the T periods S_0..S_{T−1} in
+//     order, L auto over T, scaled N*/(N* − k) —
+//     sandwich::vcovPL(aggregate = TRUE) / plm::vcovSCC.
+//
+// Under an entity (hac or driscoll_kraay) an entity repeating an
+// order_by value is refused (regcov.EntityOrderTies).
 
 // sandwichRow is one fitted row's input to the sandwich.
 type sandwichRow struct {
@@ -44,8 +64,12 @@ type sandwichRow struct {
 	lev float64
 	// cluster is the row's cluster key (type cluster).
 	cluster string
-	// order is the row's order_by value (type hac).
+	// cluster2 is the row's second cluster key (two-way cluster).
+	cluster2 string
+	// order is the row's order_by value (types hac, driscoll_kraay).
 	order float64
+	// entity is the row's panel entity key (covariance.entity).
+	entity string
 }
 
 // sandwichFit is the robust covariance and what the result echoes.
@@ -57,6 +81,14 @@ type sandwichFit struct {
 	// (G − 1 under cluster); hasDF is false when the fit keeps its own.
 	df    float64
 	hasDF bool
+	// indefinite marks a meat that is a DIFFERENCE of sandwiches
+	// (two-way cluster: V₁ + V₂ − V₁∩₂), which need not be positive
+	// semi-definite: a negative variance is then the estimator's, not
+	// rounding residue, so it is kept (as R sandwich::vcovCL, fix =
+	// FALSE) and its standard error is NaN — null on the wire, its
+	// p-value and interval with it — never clamped to a 0 that would
+	// read as infinite precision.
+	indefinite bool
 	// info is the RegressionResult.Covariance echo.
 	info *types.RegressionCovarianceResult
 }
@@ -82,37 +114,49 @@ func sandwich(spec *types.RegressionSpec, bread [][]float64, rows []sandwichRow,
 			adj = nStar / (nStar - kf)
 		}
 	case types.CovarianceCluster:
-		sums := map[string][]float64{}
-		for _, r := range rows {
-			s, ok := sums[r.cluster]
-			if !ok {
-				s = make([]float64, k)
-				sums[r.cluster] = s
-			}
-			for j := range s {
-				s[j] += float64(r.weight * r.score[j])
-			}
+		cl := func(r sandwichRow) string { return r.cluster }
+		m1, g1 := clusterMeat(rows, k, cl)
+		if g1 < 2 {
+			return nil, regcov.TooFewClustersOf(spec, c.Cluster, g1)
 		}
-		g := len(sums)
-		if g < 2 {
-			return nil, regcov.TooFewClusters(spec, g)
+		gf := float64(g1)
+		fit.info.Cluster, fit.info.Clusters = c.Cluster, g1
+		if c.Cluster2 == "" {
+			meat = m1
+			adj = gf / (gf - 1) * ((nStar - 1) / (nStar - kf))
+			fit.df, fit.hasDF = gf-1, true
+			break
 		}
-		// Sorted keys: the meat's summation order is a function of the
-		// clusters, never of map iteration.
-		keys := make([]string, 0, g)
-		for key := range sums {
-			keys = append(keys, key)
+		// Two-way (Cameron–Gelbach–Miller): V₁ + V₂ − V₁∩₂, each meat at
+		// its own G/(G − 1); the intersection cells key on both levels
+		// (a NUL never occurs in a clusterKey, so the pair is unique).
+		m2, g2 := clusterMeat(rows, k, func(r sandwichRow) string { return r.cluster2 })
+		if g2 < 2 {
+			return nil, regcov.TooFewClustersOf(spec, c.Cluster2, g2)
 		}
-		sort.Strings(keys)
+		m12, g12 := clusterMeat(rows, k, func(r sandwichRow) string { return r.cluster + "\x00" + r.cluster2 })
+		cadj := func(g int) float64 { return float64(g) / float64(g-1) }
+		// G₁₂ ≥ max(G₁, G₂) ≥ 2: the cells refine both partitions.
+		a1, a2, a12 := cadj(g1), cadj(g2), cadj(g12)
 		meat = newSquare(k)
-		for _, key := range keys {
-			addOuter(meat, sums[key], sums[key], 1)
+		for i := range meat {
+			for j := range meat[i] {
+				meat[i][j] = float64(a1*m1[i][j]) + float64(a2*m2[i][j]) - float64(a12*m12[i][j])
+			}
 		}
-		gf := float64(g)
-		adj = gf / (gf - 1) * ((nStar - 1) / (nStar - kf))
-		fit.df, fit.hasDF = gf-1, true
-		fit.info.Cluster, fit.info.Clusters = c.Cluster, g
-	case types.CovarianceHAC:
+		adj = (nStar - 1) / (nStar - kf)
+		fit.df, fit.hasDF = float64(min(g1, g2)-1), true
+		fit.indefinite = true
+		fit.info.Cluster2, fit.info.Clusters2 = c.Cluster2, g2
+	case types.CovarianceHAC, types.CovarianceDriscollKraay:
+		if c.Type == types.CovarianceDriscollKraay || c.Entity != "" {
+			meat, err := panelMeat(spec, rows, k, fit.info)
+			if err != nil {
+				return nil, err
+			}
+			fit.v = sandwichProduct(bread, meat, nStar/(nStar-kf))
+			return fit, nil
+		}
 		ordered := append([]sandwichRow(nil), rows...)
 		sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].order < ordered[j].order })
 		for t := 1; t < len(ordered); t++ {
@@ -151,6 +195,151 @@ func sandwich(spec *types.RegressionSpec, bread [][]float64, rows []sandwichRow,
 	}
 	fit.v = sandwichProduct(bread, meat, adj)
 	return fit, nil
+}
+
+// clusterMeat is Σ_g s_g·s_gᵀ, s_g = Σ_{i∈g} w*·g_i over the levels key
+// reads, and the level count G. The levels are summed in sorted key
+// order, so the meat's summation order is a function of the clusters,
+// never of map iteration or row order.
+func clusterMeat(rows []sandwichRow, k int, key func(sandwichRow) string) ([][]float64, int) {
+	sums := map[string][]float64{}
+	for _, r := range rows {
+		kk := key(r)
+		s, ok := sums[kk]
+		if !ok {
+			s = make([]float64, k)
+			sums[kk] = s
+		}
+		for j := range s {
+			s[j] += float64(r.weight * r.score[j])
+		}
+	}
+	keys := make([]string, 0, len(sums))
+	for kk := range sums {
+		keys = append(keys, kk)
+	}
+	sort.Strings(keys)
+	meat := newSquare(k)
+	for _, kk := range keys {
+		addOuter(meat, sums[kk], sums[kk], 1)
+	}
+	return meat, len(keys)
+}
+
+// panelMeat is the meat of a panel series estimator — hac with an
+// entity (per-entity Newey–West) or driscoll_kraay — and fills info's
+// echo (order_by, the resolved lag, the period count, the entity and
+// its level count). The periods are the distinct order_by values over
+// every row, ranked in order; a lag counts periods. Refuses an entity
+// repeating an order_by value.
+func panelMeat(spec *types.RegressionSpec, rows []sandwichRow, k int, info *types.RegressionCovarianceResult) ([][]float64, error) {
+	c := spec.Covariance
+	// Every row in (entity, order) order: the entity series are
+	// contiguous runs, the ties adjacent, and the summation order is a
+	// function of the data, never of the row order.
+	ordered := append([]sandwichRow(nil), rows...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].entity != ordered[j].entity {
+			return ordered[i].entity < ordered[j].entity
+		}
+		return ordered[i].order < ordered[j].order
+	})
+	entities := 0
+	for t := range ordered {
+		if t == 0 || ordered[t].entity != ordered[t-1].entity {
+			entities++
+			continue
+		}
+		if c.Entity != "" && ordered[t].order == ordered[t-1].order {
+			return nil, regcov.EntityOrderTies(spec, entityLabel(ordered[t].entity), ordered[t].order)
+		}
+	}
+	// The periods: distinct order values ascending, and each row's rank.
+	values := make([]float64, len(ordered))
+	for i, r := range ordered {
+		values[i] = r.order
+	}
+	sort.Float64s(values)
+	values = slices.Compact(values)
+	periods := len(values)
+	rank := func(v float64) int { return sort.SearchFloat64s(values, v) }
+
+	lags, fixed := c.Lags.Value()
+	if !fixed {
+		lags = types.AutoHACLags(periods)
+	}
+	bartlett := func(l int) float64 { return 1 - float64(l)/float64(lags+1) }
+	score := func(r sandwichRow) []float64 {
+		u := make([]float64, k)
+		for j := range u {
+			u[j] = r.weight * r.score[j]
+		}
+		return u
+	}
+
+	meat := newSquare(k)
+	if c.Type == types.CovarianceDriscollKraay {
+		// S_t: the period's scores summed across entities, in the
+		// (entity, order) order fixed above.
+		s := make([][]float64, periods)
+		for t := range s {
+			s[t] = make([]float64, k)
+		}
+		for _, r := range ordered {
+			st := s[rank(r.order)]
+			for j := range st {
+				st[j] += float64(r.weight * r.score[j])
+			}
+		}
+		for t := range s {
+			addOuter(meat, s[t], s[t], 1)
+		}
+		for l := 1; l <= lags && l < periods; l++ {
+			bw := bartlett(l)
+			for t := l; t < periods; t++ {
+				addOuter(meat, s[t], s[t-l], bw)
+				addOuter(meat, s[t-l], s[t], bw)
+			}
+		}
+	} else {
+		// Per-entity Newey–West: within each entity's run, pair rows
+		// whose period ranks are 1..lags apart.
+		for start := 0; start < len(ordered); {
+			end := start + 1
+			for end < len(ordered) && ordered[end].entity == ordered[start].entity {
+				end++
+			}
+			run := ordered[start:end]
+			u := make([][]float64, len(run))
+			rk := make([]int, len(run))
+			for i, r := range run {
+				u[i], rk[i] = score(r), rank(r.order)
+			}
+			for b := range run {
+				addOuter(meat, u[b], u[b], 1)
+				for a := b - 1; a >= 0 && rk[b]-rk[a] <= lags; a-- {
+					bw := bartlett(rk[b] - rk[a])
+					addOuter(meat, u[b], u[a], bw)
+					addOuter(meat, u[a], u[b], bw)
+				}
+			}
+			start = end
+		}
+	}
+	info.OrderBy, info.Lags, info.Periods = c.OrderBy, &lags, periods
+	if c.Entity != "" {
+		info.Entity, info.Entities = c.Entity, entities
+	}
+	return meat, nil
+}
+
+// entityLabel is an entity key as a refusal names it: clusterKey's
+// label or number without its kind prefix.
+func entityLabel(key string) string {
+	if len(key) > 2 && (key[:2] == "s:" || key[:2] == "n:") {
+		return key[2:]
+	}
+	return key
 }
 
 // hcOmega is the hc-type weight on a row's squared score: 1 for hc0 /
@@ -218,26 +407,43 @@ func sandwichProduct(b, m [][]float64, adj float64) [][]float64 {
 	return v
 }
 
-// robustStdErrors clamps v's diagonal at 0 in place and returns its
-// square roots: the diagonal IS the variance the standard errors read,
-// so √diag(Vcov) == StdErrors bit for bit (sqrt passes NaN through).
-// REG_GLM and REG_BAYES_LINEAR use it on their raw-coordinate sandwich;
-// REG_OLS clamps after its back-transform (olsSandwich).
-func robustStdErrors(v [][]float64) []float64 {
+// robustStdErrors clamps fit.v's diagonal at 0 in place and returns
+// its square roots: the diagonal IS the variance the standard errors
+// read, so √diag(Vcov) == StdErrors bit for bit (sqrt passes NaN
+// through). An indefinite fit (two-way cluster) keeps a negative
+// variance and reads its standard error NaN (robustSE) — math.Sqrt of
+// the kept diagonal, so the identity holds there too. REG_GLM,
+// REG_BAYES_LINEAR and REG_MULTINOMIAL use it on their raw-coordinate
+// sandwich; REG_OLS clamps after its back-transform (olsSandwich).
+func robustStdErrors(fit *sandwichFit) []float64 {
+	v := fit.v
 	se := make([]float64, len(v))
 	for j := range v {
-		if v[j][j] < 0 {
-			v[j][j] = 0
-		}
-		se[j] = sqrt(v[j][j])
+		v[j][j], se[j] = robustSE(v[j][j], fit.indefinite)
 	}
 	return se
+}
+
+// robustSE is one robust variance as the result reads it and its
+// standard error: a negative variance clamps to 0 (rounding residue of
+// a positive semi-definite sandwich), except on an indefinite fit,
+// where it is kept and its standard error is NaN.
+func robustSE(v float64, indefinite bool) (float64, float64) {
+	if v < 0 && indefinite {
+		return v, math.NaN()
+	}
+	if v < 0 {
+		v = 0
+	}
+	return v, sqrt(v)
 }
 
 // robustRowKey is one fitted row's covariance keys, collected beside the
 // design by the buffered engines (REG_GLM's buildWeightedDesign,
 // REG_BAYES_LINEAR's second pass).
 type robustRowKey struct {
-	cluster string
-	order   float64
+	cluster  string
+	cluster2 string
+	order    float64
+	entity   string
 }

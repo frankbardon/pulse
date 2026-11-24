@@ -1203,7 +1203,7 @@
       "type": "object"
     },
     "CovarianceLags": {
-      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "description": "Bartlett truncation lag (covariance types hac and driscoll_kraay): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows (plain hac) or its distinct order_by periods (hac with an entity, driscoll_kraay).",
       "oneOf": [
         {
           "minimum": 0,
@@ -1218,6 +1218,7 @@
       "enum": [
         "classical",
         "cluster",
+        "driscoll_kraay",
         "hac",
         "hc0",
         "hc1",
@@ -2421,6 +2422,64 @@
       ],
       "type": "string"
     },
+    "FitComparisonMember": {
+      "additionalProperties": false,
+      "properties": {
+        "dispersion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "full_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "member": {
+          "type": "string"
+        },
+        "multiplicity": {
+          "$ref": "#/$defs/AppliedMultiplicity"
+        },
+        "p_adjusted": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p_value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "restricted_deviance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "significant_adjusted": {
+          "type": "boolean"
+        },
+        "statistic": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "full_deviance",
+        "member",
+        "p_value",
+        "restricted_deviance",
+        "statistic"
+      ],
+      "type": "object"
+    },
     "FitComparisonResult": {
       "additionalProperties": false,
       "if": {
@@ -2476,6 +2535,15 @@
             "null"
           ]
         },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/FitComparisonMember"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
         },
@@ -2513,6 +2581,12 @@
           ]
         },
         "restricted_two_log_lik": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scaling_factor": {
           "type": [
             "number",
             "null"
@@ -5717,6 +5791,12 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
+        "entity": {
+          "type": "string"
+        },
         "lags": {
           "$ref": "#/$defs/CovarianceLags"
         },
@@ -5738,14 +5818,29 @@
         "cluster": {
           "type": "string"
         },
+        "cluster2": {
+          "type": "string"
+        },
         "clusters": {
           "type": "integer"
+        },
+        "clusters2": {
+          "type": "integer"
+        },
+        "entities": {
+          "type": "integer"
+        },
+        "entity": {
+          "type": "string"
         },
         "lags": {
           "type": "integer"
         },
         "order_by": {
           "type": "string"
+        },
+        "periods": {
+          "type": "integer"
         },
         "type": {
           "$ref": "#/$defs/CovarianceType"
@@ -5862,6 +5957,9 @@
     "RegressionMargins": {
       "additionalProperties": false,
       "properties": {
+        "binary": {
+          "type": "string"
+        },
         "scale": {
           "type": "string"
         },
@@ -5892,6 +5990,9 @@
           },
           "type": "object"
         },
+        "binary": {
+          "type": "string"
+        },
         "ci_lower": {
           "additionalProperties": {
             "type": [
@@ -5916,6 +6017,15 @@
             "null"
           ]
         },
+        "contrasts": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "df": {
           "type": [
             "number",
@@ -5930,6 +6040,9 @@
             ]
           },
           "type": "object"
+        },
+        "inference": {
+          "type": "string"
         },
         "multiplicity": {
           "$ref": "#/$defs/AppliedMultiplicity"
@@ -8574,4 +8687,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: bd110d184eb2b0eee800a69932608d9f46ae9459b8b03e5988849952aaa2abb5
+// golden-hash: f6155b1422d0a5a2500533bdcfc161d80e5edd1412f1378483f54466f4f3df9c

@@ -13,7 +13,8 @@ import (
 // the opt-in test options — TEST_T params.variance, TEST_MANN_WHITNEY_U
 // params.exact, TEST_CHISQ params.correct, TEST_PROP_Z params.interval
 // / params.correct (internal/testopts) and OVERLAY_CHISQ_MATRIX
-// params.correct (overlayhost.ParseChiSqMatrixParams) — is raised by
+// params.correct (overlayhost.ParseChiSqMatrixParams), TEST_ANOVA_RM
+// params.incomplete (U69 #678) — is raised by
 // predict and the runtime with the same code and message, and each
 // accepted form runs on both.
 func TestTestOptions_PredictMatchesRuntime(t *testing.T) {
@@ -34,6 +35,8 @@ func TestTestOptions_PredictMatchesRuntime(t *testing.T) {
 		{"interval not an enum value", `{"tests":[{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1","p0":0.5,"interval":"score"}}]}`, errors.PROCESSING_CONFIG},
 		{"wilson two-proportion", `{"tests":[{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","interval":"wilson"}}]}`, errors.PROCESSING_CONFIG},
 		{"prop correct with covariate", `{"tests":[{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","covariate":"y","correct":true}}]}`, errors.PROCESSING_CONFIG},
+		{"rm incomplete not an enum value", `{"tests":[{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp","subject_field":"subj","params":{"incomplete":"drop"}}]}`, errors.PROCESSING_CONFIG},
+		{"rm incomplete not a string", `{"tests":[{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp","subject_field":"subj","params":{"incomplete":true}}]}`, errors.PROCESSING_CONFIG},
 		{"overlay correct not a bool", `{` + crosstab + `,"overlays":[{"kind":"OVERLAY_CHISQ_MATRIX","scope":"matrix","params":{"correct":"yes"}}]}`, errors.PULSE_OVERLAY_PARAM_MISSING},
 	}
 	for _, c := range cases {
@@ -63,6 +66,8 @@ func TestTestOptions_PredictMatchesRuntime(t *testing.T) {
 		`{"tests":[{"type":"TEST_PROP_Z","field":"cat_flag","params":{"success":"1","p0":0.4,"interval":"wilson","correct":true}}]}`,
 		`{"tests":[{"type":"TEST_PROP_Z","field":"cat_flag","split_by":"cat_grp","params":{"success":"1","correct":true,"interval":"wald"}}]}`,
 		`{` + crosstab + `,"overlays":[{"kind":"OVERLAY_CHISQ_MATRIX","scope":"matrix","params":{"correct":true}}]}`,
+		`{"tests":[{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp","subject_field":"subj","params":{"incomplete":"mixed"}}]}`,
+		`{"tests":[{"type":"TEST_ANOVA_RM","field":"x","split_by":"cat_grp","subject_field":"subj","params":{"incomplete":"complete_case"}}]}`,
 	} {
 		req := decodeRequest(t, body)
 		req.Cohort = &types.Cohort{Filename: cohort}

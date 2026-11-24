@@ -545,6 +545,7 @@ func (j *jointWLS) stats(gf *GroupFit, parts []*wlsPart, deltas [][][]float64, e
 	st.Scaled = &ScaledStats{
 		Chi2: sc.stat, ScalingFactor: sc.scaling, ShiftParameter: sc.shift,
 		Chi2Baseline: bsc.stat, BaselineScalingFactor: bsc.scaling,
+		TraceUG: tr,
 	}
 	st.Scaled.Chi2P = 1 - chiCDF(sc.stat, st.DoF)
 	st.Scaled.CFI, st.Scaled.TLI, st.Scaled.RMSEA = lavaanIndices(sc.stat, st.DoF, bsc.stat, st.DoFBaseline, total, G)

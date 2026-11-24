@@ -1,12 +1,15 @@
 package processing
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/testopts"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,8 +17,18 @@ import (
 // one-way repeated-measures ANOVA over a (SubjectField × SplitBy)
 // design.
 //
-// Algorithm — balanced design only (one observation per subject per
-// condition):
+// One observation per subject per condition: a second value for a
+// (subject, condition) cell is PULSE_TEST_BALANCED_DESIGN_REQUIRED
+// (U69 #678; details subject / condition), latched at UpdateRow and
+// returned by Finalize so the slot fails alone — never a silent
+// overwrite.
+//
+// params.incomplete (testopts) picks what a subject missing a condition
+// does: "complete_case" (default, below) drops it; "mixed" keeps every
+// observed cell in a REML random-intercept model with a Satterthwaite
+// F (test_anova_rm_mixed.go, Variant "mixed").
+//
+// Algorithm — complete-case (Variant "balanced"):
 //  1. Buffer the wide subject × condition table, one value per cell.
 //  2. Drop subjects with any missing condition (warn).
 //  3. Compute grand mean μ, per-condition mean μ_j, per-subject mean μ_i.
@@ -37,6 +50,11 @@ type anovaRMRow struct {
 	condition string
 	subject   string
 	alpha     float64
+	// mixed is params.incomplete "mixed".
+	mixed bool
+	// duplicate is the first repeated (subject, condition) cell; once
+	// set, no later row is folded and Finalize returns it.
+	duplicate error
 
 	// cells maps subject → (condition → value). Drop-subject semantics
 	// applies when any condition is missing.
@@ -70,7 +88,20 @@ func newAnovaRMRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 			return nil, cerr
 		}
 	}
+	var params struct {
+		// Incomplete is params.incomplete, read (and judged) by
+		// testopts.Parse.
+		Incomplete json.RawMessage `json:"incomplete"`
+	}
+	if err := paramread.DecodeOptional(paramread.Test, string(spec.Type), spec.Params, &params); err != nil {
+		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "TEST_ANOVA_RM params: "+err.Error())
+	}
+	opts, cerr := testopts.Parse(spec)
+	if cerr != nil {
+		return nil, cerr
+	}
 	return &anovaRMRow{
+		mixed:         opts.Mixed,
 		spec:          spec,
 		schema:        schema,
 		valueCol:      spec.Field,
@@ -83,6 +114,9 @@ func newAnovaRMRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 }
 
 func (a *anovaRMRow) UpdateRow(record *Record) error {
+	if a.duplicate != nil {
+		return nil
+	}
 	v, ok := record.NumericValue(a.valueCol)
 	if !ok {
 		return nil
@@ -111,12 +145,21 @@ func (a *anovaRMRow) UpdateRow(record *Record) error {
 		a.cells[subj] = row
 		a.subjectOrder = append(a.subjectOrder, subj)
 	}
+	if _, dup := row[cond]; dup {
+		a.duplicate = errors.NewCodedErrorWithDetails(errors.PULSE_TEST_BALANCED_DESIGN_REQUIRED,
+			fmt.Sprintf("TEST_ANOVA_RM takes one observation per subject per condition: subject %q has a second value for condition %q", subj, cond),
+			map[string]any{"type": string(a.spec.Type), "subject": subj, "condition": cond})
+		return nil
+	}
 	row[cond] = v
 	return nil
 }
 
 func (a *anovaRMRow) Finalize() (*types.TestResult, error) {
 	defer a.reset()
+	if a.duplicate != nil {
+		return nil, a.duplicate
+	}
 	conditions := append([]string(nil), a.conditionOrder...)
 	sort.Strings(conditions)
 	k := len(conditions)
@@ -124,6 +167,9 @@ func (a *anovaRMRow) Finalize() (*types.TestResult, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
 			fmt.Sprintf("TEST_ANOVA_RM requires ≥ 2 conditions, got %d", k),
 			map[string]any{"conditions": conditions, "min_required": 2})
+	}
+	if a.mixed {
+		return a.finalizeMixed(conditions)
 	}
 	// Filter to complete subjects.
 	subjects := make([]string, 0, len(a.subjectOrder))
@@ -233,4 +279,5 @@ func (a *anovaRMRow) reset() {
 	a.subjectOrder = nil
 	a.conditionOrder = nil
 	a.conditionSeen = make(map[string]struct{})
+	a.duplicate = nil
 }

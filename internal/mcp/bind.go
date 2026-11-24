@@ -1110,10 +1110,10 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"name":        map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
 				"target":      enumStringField(regressionTargets(c), "Response variable: numeric, or categorical for REG_MULTINOMIAL."),
 				"predictors":  map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
-				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) / REG_MULTINOMIAL (symmetric: every category, no reference) regularization; omit for none."),
+				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson, negative_binomial) / REG_MULTINOMIAL (symmetric: every category, no reference) regularization; omit for none."),
 				"alpha":       num("Penalty strength (> 0) when penalty is set."),
 				"l1_ratio":    num("Elastic-net mixing in (0, 1); elasticnet only."),
-				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS ridge (penalty l2) or REG_MULTINOMIAL (any penalty): predictors the penalty skips (glmnet penalty.factor 0); REG_OLS lasso / elasticnet refuse it.", "items": enumStringField(c.Numeric, "")},
+				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS, REG_GLM or REG_MULTINOMIAL, any penalty (l1, l2 or elasticnet): predictors the penalty skips (glmnet penalty.factor 0); no penalty refuses it.", "items": enumStringField(c.Numeric, "")},
 				"bounds": map[string]any{
 					"type":        "object",
 					"description": "REG_OLS only: {nonnegative: [predictors]} constrains those slopes >= 0; a binding bound nulls the inference (resample bootstrap for replicate SEs). Refused with a penalty, selection or robust covariance.",
@@ -1153,11 +1153,13 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 					"type":        "object",
 					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator (REG_MULTINOMIAL: hc0, hc1, cluster); omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
 					"properties": map[string]any{
-						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1), hac (Newey-West)."),
+						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1; two-way with cluster2), hac (Newey-West; per entity with entity), driscoll_kraay (panel: period-summed scores, Newey-West over the periods)."),
 						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
-						"order_by": map[string]any{"type": "string", "description": "type hac: date, datetime or numeric field ordering the series, unique per row."},
+						"cluster2": map[string]any{"type": "string", "description": "type cluster, beside cluster: a second cluster field for two-way clustering (Cameron-Gelbach-Miller V1 + V2 - V12; REG_OLS df = min(clusters) - 1). REG_OLS / REG_GLM / REG_BAYES_LINEAR only."},
+						"order_by": map[string]any{"type": "string", "description": "types hac / driscoll_kraay: date, datetime or numeric field ordering the series; unique per row (per entity with entity)."},
+						"entity":   map[string]any{"type": "string", "description": "types hac / driscoll_kraay: categorical, unsigned-integer, date, datetime or packed_bool field naming the panel entity (hac: per-entity Newey-West); an entity may not repeat an order_by value."},
 						"lags": map[string]any{
-							"description": "type hac: truncation lag, a non-negative integer or \"auto\" (default) = floor(4*(n/100)^(2/9)).",
+							"description": "types hac / driscoll_kraay: truncation lag, a non-negative integer or \"auto\" (default) = floor(4*(n/100)^(2/9)), n the rows (plain hac) or the distinct order_by periods.",
 							"oneOf":       []any{map[string]any{"type": "integer", "minimum": 0}, map[string]any{"const": "auto"}},
 						},
 					},
@@ -1166,11 +1168,12 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				},
 				"margins": map[string]any{
 					"type":        "object",
-					"description": "REG_OLS / REG_GLM / REG_MULTINOMIAL or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance; {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection, resample or bounds, and over a derived predictor.",
+					"description": "REG_OLS / REG_GLM / REG_MULTINOMIAL or a model declaring margins (per level on a categorical response, keys \"<level>:<term>\"): report marginal effects (margins) with delta-method SEs on the fit's covariance (under resample, each replicate re-estimates them: replicate SEs); {} = average marginal effects of every predictor on the response scale. Refused beside penalty, selection or bounds, and over a derived predictor.",
 					"properties": map[string]any{
-						"type":  enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
-						"terms": map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
-						"scale": enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+						"type":   enumStringField(types.AllMarginsTypes(), "ame (default): average marginal effect over the fitted rows; mem: at the predictor means."),
+						"terms":  map[string]any{"type": "array", "description": "Predictors to report (each a listed predictor, once); omit for all.", "items": enumStringField(c.Numeric, "")},
+						"scale":  enumStringField(types.AllMarginsScales(), "response (default): d mean / dx; link: d eta / dx (the coefficient)."),
+						"binary": enumStringField(types.AllMarginsBinary(), "slope (default); contrast: a predictor whose fitted values are all 0/1 reports mu(1) - mu(0), listed in contrasts."),
 					},
 					"additionalProperties": false,
 				},
@@ -2064,14 +2067,14 @@ func compareSchema() map[string]any {
 	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS, both REG_GLM on one family and link, both REG_MULTINOMIAL (equal reference; df = (K-1) per added predictor, lrt = anova.multinom) or both one model declaring comparisons (REG_ORDINAL: equal params.levels; lrt = anova.polr, wald chi-square, no f). Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
+		"description": "Nested-model comparisons, each run once after the fits (no record data): is the full fit better than the restricted one? The restricted fit's predictors (and intercept) must all be the full fit's, the two fit requests equal but for the regression's predictors, intercept and reporting knobs (same rows), both REG_OLS, both REG_GLM on one family and link, both REG_MULTINOMIAL (equal reference; df = (K-1) per added predictor, lrt = anova.multinom) or both one model declaring comparisons (REG_ORDINAL: equal params.levels; lrt = anova.polr, wald chi-square, no f); two SEM fits (one MAT_SEM matrix each, the requests equal but for params.model, group_equal, group_partial and the reporting and solver params) compare by lrt only, the chi-square difference (Satorra-Bentler 2001 scaled under wlsmv). Results are returned under the response `comparisons`, in order: the statistic, df, p_value, the tested terms and each fit's residual df and deviance.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"name":       map[string]any{"type": "string", "description": "The comparison's name, unique among the comparisons."},
 				"restricted": map[string]any{"type": "string", "description": "The `fits` entry name of the smaller model (the null: the full model's extra coefficients are zero)."},
 				"full":       map[string]any{"type": "string", "description": "The `fits` entry name of the larger model."},
-				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical or robust). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise (f refused on REG_MULTINOMIAL and on a declared model such as REG_ORDINAL). f and lrt are refused under a probability weight (use wald)."),
+				"test":       enumStringField(tests, "f: the F test on the deviance change over the full fit's estimated dispersion (REG_OLS, gamma); lrt: the likelihood-ratio (deviance) test; wald: the Wald test of the extra coefficients on the full fit's own covariance (classical, robust, or under resample the replicate covariance on chi-square). Omit for R's anova default: f on REG_OLS and gamma, lrt otherwise (f refused on REG_MULTINOMIAL and on a declared model such as REG_ORDINAL). f and lrt are refused under a probability weight (use wald)."),
 				"multiplicity": multiplicitySchema(
 					"This comparison's multiple-comparison correction; omit to inherit the batch's. The only family is `compose` (the default): the comparisons pool with every compose-family member of the batch.",
 					[]types.MultiplicityFamily{types.MultiplicityFamilyCompose}, true),

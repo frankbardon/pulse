@@ -64,7 +64,7 @@ var (
 		Means: "The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).",
 	}
 	regMarginsCommon = []string{
-		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is not the discrete difference between its two levels.",
+		"Each effect is a slope: the change for a small change in the predictor, other predictors held fixed. For a 0/1 predictor it is the discrete difference between its two levels only under binary contrast, which lists such terms in margins.contrasts.",
 		regCoefCausal,
 		"A multiplicity block corrects these p-values as a family of their own, apart from the coefficients'.",
 	}
@@ -100,7 +100,7 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			"It is the classic standard error, which assumes residuals of constant spread, unless the request's covariance names a robust one.",
 		Caveats: []string{
 			"Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; " +
-				"covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.",
+				"covariance hc3 guards the first, cluster (rows grouped by a field), hac (a series in time) or driscoll_kraay (a panel) the second, and p_values, the intervals and vcov follow it.",
 			"Null on every coefficient of an l1 or elasticnet fit: the penalty picks the predictors from the data, so no analytical standard error is valid " +
 				"(advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED); request resample for replicate ones. An l2 fit's is the closed-form ridge sandwich.",
 			"Null on every coefficient of a bounds fit whose non-negativity constraint binds (a coefficient held at 0): the constrained estimator has no classical standard error " +
@@ -123,7 +123,7 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 ), regConfLevel, descriptor.Interpretation{
 	Field: "df",
 	Means: "Residual degrees of freedom the intervals' critical value reads: n - p - 1, with sum_weights or n_eff in place of n on a weighted fit, so it can be fractional; " +
-		"under covariance cluster, the number of clusters minus 1.",
+		"under covariance cluster, the number of clusters minus 1 (two-way: the smaller of the two counts, minus 1).",
 	Caveats: []string{
 		"Null when it is 0 or below: too few rows (or too small an effective sample) for the predictors, and every bound is then null too.",
 	},
@@ -190,13 +190,13 @@ func regMargins(means string, caveats ...string) []descriptor.Interpretation {
 		},
 		{
 			Field: "margins.std_errors.*",
-			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+			Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 		},
 		{
 			Field:  "margins.p_values.*",
 			Shared: SharedPValue,
 			Caveats: []string{
-				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal).",
+				"The p-value and interval use the coefficient table's distribution (Student t on df where the coefficients read one, else normal; under resample its replicate rules).",
 			},
 		},
 	}
@@ -272,7 +272,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors " +
 				"need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.",
 			"Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), " +
-				"cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.",
+				"cluster (rows grouped by a field), hac (a series in time) or driscoll_kraay (a panel); p_values, the intervals and vcov follow it, still Wald z.",
 			"On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient " +
 				"(the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.",
 		},
@@ -466,7 +466,7 @@ var interpRegMultinomialMargins = []descriptor.Interpretation{
 	},
 	{
 		Field: "margins.std_errors.*",
-		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance).",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 	},
 	{
 		Field:   "margins.p_values.*",
@@ -562,7 +562,7 @@ var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 			"With many rows it is close to the posterior standard deviation.",
 		Caveats: []string{
 			"It is a posterior spread, not a frequentist standard error, and no p-value is built from it.",
-			"Under a robust covariance (hc0-hc3, cluster, hac) it is instead the scale of Muller's sandwich posterior, a normal centred on the same " +
+			"Under a robust covariance (hc0-hc3, cluster, hac, driscoll_kraay) it is instead the scale of Muller's sandwich posterior, a normal centred on the same " +
 				"posterior mean whose spread is the sandwich, not the model's: the posterior covariance is REPLACED, so the model's own uncertainty no longer enters.",
 		},
 	},
@@ -818,7 +818,7 @@ var interpRegOrdinalMargins = []descriptor.Interpretation{
 	},
 	{
 		Field: "margins.std_errors.*",
-		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance).",
+		Means: "The effect's delta-method standard error, on the fit's own coefficient and threshold covariance (classical, or the request's robust covariance); under resample (margins.inference) its replicate standard error.",
 	},
 	{
 		Field:   "margins.p_values.*",

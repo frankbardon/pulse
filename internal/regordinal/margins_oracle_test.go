@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -48,6 +49,10 @@ type marginsOracleCase struct {
 	At          []float64   `json:"at"`
 	MEEstimates []float64   `json:"me_estimates"`
 	MEStdErrors []float64   `json:"me_std_errors"`
+	// Binary / Contrasts: binary contrast and the 0/1 terms it reports
+	// as P_k(1) − P_k(0) (U69 #641).
+	Binary    string   `json:"binary"`
+	Contrasts []string `json:"contrasts"`
 }
 
 // loadMarginsOracle reads margins.json's ordinal cases, checking its
@@ -76,7 +81,7 @@ func loadMarginsOracle(t *testing.T) []marginsOracleCase {
 	if err := json.Unmarshal(body, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.RVersion != "R version 4.6.1 (2026-06-24)" || doc.Packages["MASS"] != "7.3.66" || doc.Packages["marginaleffects"] != "1.0.0" || len(doc.Cases) != 10 {
+	if doc.RVersion != "R version 4.6.1 (2026-06-24)" || doc.Packages["MASS"] != "7.3.66" || doc.Packages["marginaleffects"] != "1.0.0" || len(doc.Cases) != 15 {
 		t.Fatalf("margins.json records R %q, packages %v, %d ordinal cases", doc.RVersion, doc.Packages, len(doc.Cases))
 	}
 	return doc.Cases
@@ -115,7 +120,7 @@ func (r marginsRecord) Weight() (float64, bool) {
 func fitMargins(t *testing.T, c marginsOracleCase) extend.MarginsOutput {
 	t.Helper()
 	spec := &types.RegressionSpec{Type: Name, Target: "y", Predictors: c.Terms,
-		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale}}
+		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale, Binary: c.Binary}}
 	if c.Link != LinkLogit {
 		spec.Params = json.RawMessage(`{"link":"` + c.Link + `"}`)
 	}
@@ -136,9 +141,13 @@ func fitMargins(t *testing.T, c marginsOracleCase) extend.MarginsOutput {
 	if _, err := m.Fit(marginsRows{c}); err != nil {
 		t.Fatalf("%s: Fit: %v", c.Name, err)
 	}
-	out, err := m.Margins(extend.MarginsRequest{Type: spec.Margins.EffectiveType(), Scale: spec.Margins.EffectiveScale(), Terms: c.Terms})
+	out, err := m.Margins(extend.MarginsRequest{Type: spec.Margins.EffectiveType(), Scale: spec.Margins.EffectiveScale(), Terms: c.Terms,
+		Binary: spec.Margins.EffectiveBinary()})
 	if err != nil {
 		t.Fatalf("%s: Margins: %v", c.Name, err)
+	}
+	if !slices.Equal(out.Contrasts, c.Contrasts) {
+		t.Fatalf("%s: contrasts %v, R %v", c.Name, out.Contrasts, c.Contrasts)
 	}
 	return out
 }
@@ -198,8 +207,8 @@ func TestOrdinalMarginsOracle_Marginaleffects(t *testing.T) {
 			}
 		}
 	}
-	if n != 8 {
-		t.Fatalf("%d cases carry a marginaleffects cross-check, want 8", n)
+	if n != 12 {
+		t.Fatalf("%d cases carry a marginaleffects cross-check, want 12", n)
 	}
 	t.Logf("ordinal margins vs marginaleffects: estimate %.3g, std_error %.3g", worstEst, worstSE)
 }

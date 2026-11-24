@@ -1,0 +1,126 @@
+{
+  "_meta": {
+    "name": "mmm_panel_covariance",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "ols",
+      "window-operator",
+      "time-series",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_OLS",
+      "WIN_DISTRIBUTED_LAG"
+    ],
+    "description": "Panel-robust standard errors on a media-mix regression: four channels are adstocked per market (WIN_DISTRIBUTED_LAG, geometric decay 0.5, ordered by week) and REG_OLS fits sales on them plus price and promo over the market x week panel with covariance type driscoll_kraay — each week's scores summed across markets, then Newey-West over the weeks (lags auto over the 104 periods) — so a shock that hits both markets in a week and serial correlation within a market both widen the standard errors; the coefficients do not move. A plain hac on week is refused here (a week holds two rows); hac with entity gives per-market Newey-West, and cluster with cluster2 two-way clustering when both dimensions have many levels. The echo reports the periods, the resolved lag and the entities.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "mmm_weekly.pulse",
+    "data_dir": ".data"
+  },
+  "windows": [
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "tv",
+      "label": "tv_ad",
+      "partition_by": [
+        "market"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "params": {
+        "kernel": "geometric",
+        "decay": 0.5,
+        "max_lag": 13,
+        "normalize": false
+      }
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "radio",
+      "label": "radio_ad",
+      "partition_by": [
+        "market"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "params": {
+        "kernel": "geometric",
+        "decay": 0.5,
+        "max_lag": 13,
+        "normalize": false
+      }
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "search",
+      "label": "search_ad",
+      "partition_by": [
+        "market"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "params": {
+        "kernel": "geometric",
+        "decay": 0.5,
+        "max_lag": 13,
+        "normalize": false
+      }
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "social",
+      "label": "social_ad",
+      "partition_by": [
+        "market"
+      ],
+      "order_by": [
+        {
+          "field": "week"
+        }
+      ],
+      "params": {
+        "kernel": "geometric",
+        "decay": 0.5,
+        "max_lag": 13,
+        "normalize": false
+      }
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_OLS",
+      "name": "mmm_dk",
+      "target": "sales",
+      "predictors": [
+        "tv_ad",
+        "radio_ad",
+        "search_ad",
+        "social_ad",
+        "price",
+        "promo"
+      ],
+      "covariance": {
+        "type": "driscoll_kraay",
+        "order_by": "week",
+        "entity": "market"
+      }
+    }
+  ],
+  "return": {
+    "precision": 4
+  }
+}

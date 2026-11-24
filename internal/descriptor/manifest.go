@@ -387,6 +387,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	m.Extensions.Regressions = extensionRegressionMetas(snap, on(featWeighting))
 	hideRegressionSlotParams(m, inst)
 	hideSEMSurfaces(m.Matrices, inst)
+	hideRefitFeatureParams(m.Components.Attributes, inst)
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
 	}

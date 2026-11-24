@@ -403,6 +403,40 @@ func assertRegsExpanded(t *testing.T, row regParityOp, got, want *types.Response
 		}
 		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol, row.zeroFloor, skip)
 	}
+	assertPenalizedInverseParity(t, row, got, want)
+}
+
+// assertPenalizedInverseParity holds a penalized fit's in-memory
+// regularized inverse (RegressionResult.PenalizedInverse — never on
+// the wire, so the wire walk above cannot see it; regression-depth-2
+// E1-S4) to the same parity: on the inference basis w* it is the
+// rep() expansion's under kind frequency and scale-free under kind
+// probability, so a bound fit's leverage is too. Present on both sides
+// exactly for a penalized REG_OLS / REG_GLM row.
+func assertPenalizedInverseParity(t *testing.T, row regParityOp, got, want *types.Response) {
+	t.Helper()
+	if row.reg == nil {
+		return
+	}
+	for i := range want.Regressions {
+		w, g := want.Regressions[i].PenalizedInverse, got.Regressions[i].PenalizedInverse
+		carries := row.reg.Penalty != "" && (row.reg.Type == types.REG_OLS || row.reg.Type == types.REG_GLM)
+		if (w != nil) != carries || (g != nil) != carries {
+			t.Errorf("result %d: penalized_inverse present %v / %v, want %v", i, g != nil, w != nil, carries)
+			continue
+		}
+		if !carries {
+			continue
+		}
+		var gv, wv any
+		if err := json.Unmarshal(mustMarshal(t, g), &gv); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(mustMarshal(t, w), &wv); err != nil {
+			t.Fatal(err)
+		}
+		compareRegWire(t, fmt.Sprintf("result %d.penalized_inverse", i), gv, wv, 1, row.tol, row.zeroFloor, nil)
+	}
 }
 
 // assertRegsScaled: weights × c under kind probability answer the same
@@ -427,6 +461,7 @@ func assertRegsScaled(t *testing.T, row regParityOp, got, want *types.Response) 
 		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol, row.zeroFloor,
 			map[string]bool{"sum_weights": true, "converged_iters": true})
 	}
+	assertPenalizedInverseParity(t, row, got, want)
 }
 
 // compareRegWire walks two wire values: numbers within relative tol of

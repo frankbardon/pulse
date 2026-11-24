@@ -101,6 +101,21 @@ type SEMFit struct {
 	NearestPD     bool
 	MinEigenvalue float64
 
+	// Chi2 is the fit's model test statistic against the saturated model
+	// as MAT_SEM reports it (its chi2 scalar: lavaan's standard test on a
+	// lavaan-convention fit — N·F under ML, the DWLS discrepancy under an
+	// ordinal estimator — semopy's on a semopy-convention one), TraceUG a
+	// WLSMV fit's tr(UΓ) (lavaan's trace.UGamma; 0 under every other
+	// estimator) and Means whether the fitted model carries a mean
+	// structure (a `~ 1` line or params.meanstructure; always grouped).
+	// They are what a nested comparison of two SEM fits reads
+	// (internal/regcompare ComputeSEM) — run-time figures of a batch's
+	// own fit: a SEM fit file stores none of them, so a loaded fit holds
+	// zeros (no comparison reads a loaded model).
+	Chi2    float64
+	TraceUG float64
+	Means   bool
+
 	// Groups are the fit's groups in level order (one, Level "",
 	// ungrouped).
 	Groups []SEMGroup

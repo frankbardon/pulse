@@ -59,6 +59,14 @@ type FitParams struct {
 	// unless Carryover is false (channel columns as given).
 	Carryover *bool       `json:"carryover,omitempty"`
 	Order     *ScoreOrder `json:"order,omitempty"`
+	// Family and Link are ATTR_REG_LEVERAGE's refit keys (regression-
+	// depth-2 E1-S2, #677): a family refits a REG_GLM of that family and
+	// link (the canonical one when Link is empty) instead of OLS, and
+	// the leverage reads its final IRLS working weights. Refit only —
+	// beside Fit they are slot_fields (CheckFitReference); CheckRefit
+	// judges them.
+	Family string `json:"family,omitempty"`
+	Link   string `json:"link,omitempty"`
 }
 
 // The ATTR_REG_RESIDUAL residual kinds (FitParams.Kind).
@@ -156,8 +164,8 @@ func FitReference(typ types.AttributeType, a *types.Attribute) (string, bool) {
 }
 
 // DecodeFitParams decodes a regression attribute slot's params as its
-// params.fit form reads them: ATTR_REG_FITTED / ATTR_REG_LEVERAGE
-// {fit}, ATTR_REG_RESIDUAL {fit, kind}, ATTR_REG_INFLUENCE {fit,
+// params.fit form reads them: ATTR_REG_FITTED {fit}, ATTR_REG_LEVERAGE
+// {fit, family, link}, ATTR_REG_RESIDUAL {fit, kind}, ATTR_REG_INFLUENCE {fit,
 // measure}. Absent (or null) is the zero FitParams (the OLS refit);
 // anything but an object of the type's keys is PULSE_MODEL_SCORE_INVALID
 // reason params_invalid. ATTR_REG_INFLUENCE's measure is judged by
@@ -188,8 +196,19 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 				"params must be an object {fit, measure, carryover, order}: "+err.Error(), nil)
 		}
 		return FitParams{Fit: p.Fit, Measure: p.Measure, Carryover: p.Carryover, Order: p.Order}, nil
+	case types.ATTR_REG_LEVERAGE:
+		var p leverageParams
+		paramread.Declare(paramread.Attribute, string(attr), &p)
+		if empty {
+			return FitParams{}, nil
+		}
+		if err := paramread.DecodeStrict(paramread.Attribute, string(attr), raw, &p); err != nil {
+			return FitParams{}, scoreInvalidFor(attr, "", ReasonParamsInvalid,
+				"params must be an object {fit, carryover, order, family, link}: "+err.Error(), nil)
+		}
+		return FitParams{Fit: p.Fit, Carryover: p.Carryover, Order: p.Order, Family: p.Family, Link: p.Link}, nil
 	}
-	// ATTR_REG_FITTED and ATTR_REG_LEVERAGE read {fit, carryover, order}.
+	// ATTR_REG_FITTED reads {fit, carryover, order}.
 	var p fittedCarryParams
 	paramread.Declare(paramread.Attribute, string(attr), &p)
 	if empty {
@@ -202,12 +221,22 @@ func DecodeFitParams(attr types.AttributeType, raw []byte) (FitParams, *errors.C
 	return FitParams{Fit: p.Fit, Carryover: p.Carryover, Order: p.Order}, nil
 }
 
-// fittedCarryParams is ATTR_REG_FITTED's / ATTR_REG_LEVERAGE's params
+// fittedCarryParams is ATTR_REG_FITTED's params
 // block: the bound fit and the adstock carry-over keys (FitCarries).
 type fittedCarryParams struct {
 	Fit       string      `json:"fit"`
 	Carryover *bool       `json:"carryover,omitempty"`
 	Order     *ScoreOrder `json:"order,omitempty"`
+}
+
+// leverageParams is ATTR_REG_LEVERAGE's params block: the bound fit
+// and its carry-over keys, or the refit's GLM family and link.
+type leverageParams struct {
+	Fit       string      `json:"fit"`
+	Carryover *bool       `json:"carryover,omitempty"`
+	Order     *ScoreOrder `json:"order,omitempty"`
+	Family    string      `json:"family,omitempty"`
+	Link      string      `json:"link,omitempty"`
 }
 
 // residualParams is ATTR_REG_RESIDUAL's params block.
@@ -309,6 +338,10 @@ func CheckFitReference(attr *types.Attribute, cat Catalog, scorable ScorableFunc
 	if attr.Field != "" || attr.Target != "" || len(attr.Predictors) > 0 || attr.Penalty != "" || attr.Alpha != 0 || attr.L1Ratio != 0 {
 		return p, Signature{}, scoreInvalidFor(t, p.Fit, ReasonSlotFields,
 			"with params.fit takes no field, target, predictors, penalty, alpha or l1_ratio — the bound fit supplies them; drop them, or drop params.fit to refit OLS on the slot's own fields", nil)
+	}
+	if p.Family != "" || p.Link != "" {
+		return p, Signature{}, scoreInvalidFor(t, p.Fit, ReasonSlotFields,
+			"with params.fit takes no params.family or params.link — the bound fit carries its own family and link; drop them, or drop params.fit to refit a GLM on the slot's own fields", nil)
 	}
 	if p.Fit == "" {
 		return p, Signature{}, scoreInvalidFor(t, "", ReasonFitMissing, "params.fit is empty; name a bound model (a `fits` or `models` entry)", nil)

@@ -23,7 +23,9 @@ import (
 // gamma inverse / log and the negative binomial, plus a
 // frequency-weighted pair equal to the rep() expansion; and the external
 // cross-check, pinned marginaleffects 1.0.0 avg_slopes /
-// slopes(newdata = mean), whose numerical derivatives agree to ~1e-8.
+// slopes(newdata = mean), whose numerical derivatives agree to ~1e-8
+// (avg_comparisons-style 1 − 0 contrasts on a 0/1 term under binary
+// contrast, U69 #641).
 // Pulse runs tol 1e-13.
 
 // marginsOracleTol is the analytic oracle's bound; marginsMETol the
@@ -55,9 +57,12 @@ type marginsCase struct {
 	At           []float64   `json:"at"`
 	MEEstimates  []float64   `json:"me_estimates"`
 	MEStdErrors  []float64   `json:"me_std_errors"`
-	// MEBinaryTerms are the 0/1 columns marginaleffects reports as a
-	// discrete 1 − 0 contrast, not a slope: no cross-check for them.
-	MEBinaryTerms []string `json:"me_binary_terms"`
+	// Binary is the block's binary treatment ("contrast", else absent)
+	// and Contrasts the 0/1 terms it reports as μ(1) − μ(0) (U69 #641) —
+	// what marginaleffects reports for such a column, so the cross-check
+	// covers them too.
+	Binary    string   `json:"binary"`
+	Contrasts []string `json:"contrasts"`
 	// Raw is a derived case's source columns per row ([z, g index]):
 	// x1 = log1p(z), x2 = (g == 1) (TestMargins_DerivedPredictorsMatchR).
 	Raw [][]float64 `json:"raw"`
@@ -88,7 +93,7 @@ func loadMargins(t *testing.T) []marginsCase {
 		t.Fatalf("decode margins.json: %v", err)
 	}
 	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["MASS"] != "7.3.66" || doc.Packages["sandwich"] != "3.1.3" ||
-		doc.Packages["marginaleffects"] != "1.0.0" || doc.Packages["Matrix"] != "1.7.6" || len(doc.Cases) != 18 {
+		doc.Packages["marginaleffects"] != "1.0.0" || doc.Packages["Matrix"] != "1.7.6" || len(doc.Cases) != 30 {
 		t.Fatalf("margins.json: R %q, packages %v, %d cases", doc.RVersion, doc.Packages, len(doc.Cases))
 	}
 	return doc.Cases
@@ -114,7 +119,7 @@ func (c marginsCase) records() []Record {
 
 func (c marginsCase) spec() *types.RegressionSpec {
 	s := &types.RegressionSpec{Type: types.REG_GLM, Family: c.Family, Link: c.Link, Target: "y", Predictors: []string{"x1", "x2"},
-		Tol: 1e-13, MaxIters: 500, Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale}}
+		Tol: 1e-13, MaxIters: 500, Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale, Binary: c.Binary}}
 	if c.Model == "lm" {
 		s.Type, s.Family, s.Link, s.Tol, s.MaxIters = types.REG_OLS, "", "", 0, 0
 	}
@@ -163,6 +168,9 @@ func TestReferenceOracle_MarginsMatchR(t *testing.T) {
 			if mg.Type != c.Type || mg.Scale != c.Scale || mg.ConfLevel != 0.95 || len(mg.Terms) != 2 || mg.Terms[0] != "x1" || mg.Terms[1] != "x2" {
 				t.Fatalf("echo %+v", mg)
 			}
+			if mg.Binary != c.Binary || !slices.Equal(mg.Contrasts, c.Contrasts) {
+				t.Fatalf("binary %q contrasts %v, R %q %v", mg.Binary, mg.Contrasts, c.Binary, c.Contrasts)
+			}
 			for i, k := range mg.Terms {
 				w.near(t, "estimate["+k+"]", mg.Estimates[k], c.Estimates[i])
 				w.near(t, "std_error["+k+"]", mg.StdErrors[k], c.StdErrors[i])
@@ -204,9 +212,6 @@ func TestReferenceOracle_MarginsMatchMarginaleffects(t *testing.T) {
 			mg := c.fit(t).Margins
 			worstEst, worstSE := 0.0, 0.0
 			for i, k := range mg.Terms {
-				if slices.Contains(c.MEBinaryTerms, k) {
-					continue
-				}
 				for _, p := range []struct {
 					what      string
 					got, want float64

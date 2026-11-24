@@ -144,10 +144,15 @@ func CheckPair(family, link string) *errors.CodedError {
 //     (details.requires "family negative_binomial"), another value
 //     ("dispersion fixed or estimated"), and with θ estimated — Theta
 //     absent — too ("theta"): glm.nb's φ is 1.
-//   - negative_binomial refuses a penalty (details.requires
-//     "unpenalized"), a selection ("no_selection") and a resample
-//     ("no_resample"): their refit drivers hold the family's θ fixed, so
-//     an estimated θ would go unrefit and a fixed one is unoracled.
+//   - negative_binomial takes a penalty with θ estimated or fixed (U69
+//     E3-S1, #638: θ is re-estimated around the penalized fit,
+//     mpath::glmregNB), but not beside dispersion "estimated"
+//     (details.requires "unpenalized": φ̂ = Pearson χ²/df reads the
+//     residual df, undefined for a penalized fit). A selection and a
+//     resample run too (U69 E3-S2): every selection candidate and every
+//     jackknife / bootstrap replicate re-estimates θ on its own rows
+//     (or holds the fixed θ), MASS stepAIC on glm.nb and a glm.nb
+//     replicate loop.
 //
 // An extension or model regression's theta is the shared-slot table's
 // (ExtensionRegressionSlotRefusal), never this rule's; an unknown family
@@ -203,20 +208,43 @@ func CheckTheta(spec *types.RegressionSpec) *errors.CodedError {
 			)
 		}
 	}
-	refuse := func(knob, requires, value string) *errors.CodedError {
+	if spec.Penalty != "" && spec.Dispersion == types.NegBinDispersionEstimated {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM negative_binomial does not support "+knob+" (its refit holds θ fixed, so an estimated θ is never refit); fit without "+knob+", or fit family poisson with a robust covariance",
-			map[string]any{knob: value, "type": t, "family": spec.Family, "requires": requires},
+			"REG_GLM negative_binomial dispersion estimated reads the residual degrees of freedom, undefined for a penalized fit; drop the penalty, or set dispersion fixed",
+			map[string]any{"penalty": spec.Penalty, "dispersion": spec.Dispersion, "type": t, "family": spec.Family, "requires": "unpenalized"},
 		)
 	}
-	switch {
-	case spec.Penalty != "":
-		return refuse("penalty", "unpenalized", spec.Penalty)
-	case spec.Selection != "":
-		return refuse("selection", "no_selection", spec.Selection)
-	case spec.Resample != "":
-		return refuse("resample", "no_resample", spec.Resample)
-	}
 	return nil
+}
+
+// CheckRefitFamily is the rule over an ATTR_REG_LEVERAGE refit's
+// params.family / params.link (regression-depth-2 E1-S2, #677; read with
+// model.RefitFamily), run after model.CheckRefit by the attribute
+// factory (internal/processing) and predict's field-reference pass
+// alike: a family is one of Families (FamilyRefusal), a link one of its
+// links (CheckPair) — REG_GLM's own codes —, a link needs a family, and
+// the refit's own spec rule runs (CheckTheta). Every penalty is taken
+// (regression-depth-2 E1-S4; on negative_binomial since E3-S1, θ
+// re-estimated by the refit's full fit): the refit's hat reads the
+// penalized IRLS's regularized inverse. Nil for the OLS refit (both
+// empty).
+func CheckRefitFamily(attr types.AttributeType, family, link, penalty string) *errors.CodedError {
+	if family == "" {
+		if link != "" {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				string(attr)+" params.link selects the link of a GLM refit and needs params.family; set params.family, or drop params.link to refit OLS",
+				map[string]any{"attribute": string(attr), "link": link, "requires": "family"})
+		}
+		return nil
+	}
+	if !KnownFamily(family) {
+		return FamilyRefusal(family)
+	}
+	if cerr := CheckPair(family, link); cerr != nil {
+		return cerr
+	}
+	// The refit's own spec rule (the factory's ValidateRegression), so
+	// predict judges a negative_binomial refit as the runtime does.
+	return CheckTheta(&types.RegressionSpec{Type: types.REG_GLM, Family: family, Link: link, Penalty: penalty})
 }

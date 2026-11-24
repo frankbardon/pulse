@@ -42,6 +42,12 @@ import (
 // avg_slopes / slopes(type = "probs") on multinom is the oracle
 // (gen_margins.R).
 //
+// binary contrast (U69 #641): a 0/1 term reports, per category,
+// π_c(x_j=1) − π_c(x_j=0) (other predictors as observed under ame, at x̄
+// under mem), gradient Σw·[x1_a·π_c(x1)(δ_cl − π_l(x1)) −
+// x0_a·π_c(x0)(δ_cl − π_l(x0))]/Σw in β_la; on the link scale the
+// log-odds contrast is the coefficient (multinomialContrast).
+//
 // Term tests, per predictor j over its K − 1 coefficients b_j (one per
 // non-reference block): the Wald χ² b_jᵀ·V_jj⁻¹·b_j on the fit's
 // covariance, and the likelihood-ratio χ² — the deviance of the refit
@@ -71,6 +77,7 @@ func (e *multinomialEngine) multinomialMargins(pr *multinomialProblem, beta []fl
 			out.At[p] = xbar[j+1]
 		}
 	}
+	out.Contrasts = contrastTerms(spec, terms, designBinary(pr.x, q))
 	if out.Scale == types.MarginsScaleLink {
 		for _, c := range pr.nonRef {
 			out.Outcomes = append(out.Outcomes, pr.cats[c])
@@ -173,12 +180,87 @@ func (e *multinomialEngine) multinomialMargins(pr *multinomialProblem, beta []fl
 			}
 		}
 	}
+	for t, name := range terms {
+		if slices.Contains(out.Contrasts, name) {
+			est[t], jac[t] = multinomialContrast(pr, beta, xbar, cols[t])
+		}
+	}
 	for c, cat := range pr.cats {
 		for t, name := range terms {
 			setMargin(out, regmargins.Key(cat, name), est[t][c], math.Sqrt(quadForm(v, jac[t][c])), inf)
 		}
 	}
 	return out
+}
+
+// multinomialContrast is the response-scale discrete contrast of design
+// column a0 (0/1) of a converged fit pr at beta, per category
+// (est[c] = π_c(x_a0=1) − π_c(x_a0=0)) with its gradient in β (jac[c],
+// the coefficient keys' order): averaged over the fitted rows with their
+// prior weights, or at the single point xbar when non-nil (mem). A pure
+// function of its arguments.
+func multinomialContrast(pr *multinomialProblem, beta, xbar []float64, a0 int) ([]float64, [][]float64) {
+	q, kk, d, nc := pr.q, len(pr.nonRef), pr.dim(), len(pr.cats)
+	est := make([]float64, nc)
+	jac := make([][]float64, nc)
+	for c := range jac {
+		jac[c] = make([]float64, d)
+	}
+	eta := make([]float64, nc)
+	pi := make([]float64, nc)
+	pt := make([]float64, q)
+	// side adds sign·w·π_c(pt) to est and its gradient to jac, at the
+	// point pt.
+	side := func(sign, w float64) {
+		for c := range eta {
+			eta[c] = 0
+		}
+		for k, c := range pr.nonRef {
+			b := beta[k*q : (k+1)*q]
+			eta[c] = LinearPredictor(b[0], b[1:], pt[1:])
+		}
+		multinomialSoftmax(eta, pi)
+		sw := float64(sign * w)
+		for c := 0; c < nc; c++ {
+			wpc := float64(sw * pi[c])
+			est[c] += wpc
+			row := jac[c]
+			for l := 0; l < kk; l++ {
+				delta := 0.0
+				if pr.nonRef[l] == c {
+					delta = 1
+				}
+				g := float64(wpc * (delta - pi[pr.nonRef[l]]))
+				base := l * q
+				for a := 0; a < q; a++ {
+					row[base+a] += float64(g * pt[a])
+				}
+			}
+		}
+	}
+	add := func(x []float64, w float64) {
+		copy(pt, x)
+		pt[a0] = 1
+		side(1, w)
+		pt[a0] = 0
+		side(-1, w)
+	}
+	if xbar != nil {
+		add(xbar, 1)
+		return est, jac
+	}
+	sw := 0.0
+	for i := 0; i < pr.n; i++ {
+		add(pr.x[i*q:(i+1)*q], pr.prior[i])
+		sw += pr.prior[i]
+	}
+	for c := range est {
+		est[c] /= sw
+		for a := range jac[c] {
+			jac[c][a] /= sw
+		}
+	}
+	return est, jac
 }
 
 // quadForm is J·V·Jᵀ for a row gradient j, clamped at 0.

@@ -393,7 +393,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addAllKnown(model.ModelRegressionFieldInputs(r))
 		if c := r.Covariance; c != nil {
 			addKnown(c.Cluster)
+			addKnown(c.Cluster2)
 			addKnown(c.OrderBy)
+			addKnown(c.Entity)
 		}
 		addKnown(r.JackknifeBy)
 		if o := r.Order; o != nil {

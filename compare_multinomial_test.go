@@ -192,7 +192,8 @@ func TestCompare_MultinomialPredictMatchesRuntime(t *testing.T) {
 // TestCompare_MultinomialResampleKeepsDeviances: under a delete-a-group
 // jackknife the base fit — never a replicate — offers the figures, so
 // the likelihood ratio is byte-identical to the unresampled one; a Wald
-// test beside resample is refused no_resample.
+// test beside resample runs on χ² over the replicate covariance (U69
+// #642).
 func TestCompare_MultinomialResampleKeepsDeviances(t *testing.T) {
 	t.Parallel()
 
@@ -222,10 +223,13 @@ func TestCompare_MultinomialResampleKeepsDeviances(t *testing.T) {
 	if resampled := run(jack(cmpMultinomial("", "x1")), jack(cmpMultinomial("", "x1", "x2"))); resampled != plain {
 		t.Fatalf("resampled %s, plain %s", resampled, plain)
 	}
-	_, err := p.Compose(ctx, cmpBatch(mnCohort, map[string]*types.RegressionSpec{
+	resp, err := p.Compose(ctx, cmpBatch(mnCohort, map[string]*types.RegressionSpec{
 		"m0": jack(cmpMultinomial("", "x1")), "m1": jack(cmpMultinomial("", "x1", "x2"))},
 		types.FitComparisonSpec{Name: "c", Restricted: "m0", Full: "m1", Test: types.ComparisonTestWald}))
-	if ce := requireCoded(t, err, errors.PULSE_COMPARISON_INVALID); ce.Details["requires"] != "no_resample" {
-		t.Fatalf("wald under resample: %v", ce.Details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := resp.Comparisons[0]; w.Error != nil || w.Distribution != types.ComparisonDistributionChiSquare {
+		t.Fatalf("wald under resample: %+v", w)
 	}
 }

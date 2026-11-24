@@ -257,11 +257,14 @@ func TestGLMNegBin_BoundFitMatchesR(t *testing.T) {
 
 // TestGLMNegBin_PredictMatchesRuntime: every negative binomial refusal —
 // theta off the family (REG_GLM poisson, REG_OLS), theta ≤ 0, a
-// penalty, selection or resample on the family, and dispersion off the
-// family, with θ estimated or of an unknown value — is the same
-// PROCESSING_CONFIG code, message and details.requires at predict and
-// at run; a valid request (θ estimated or fixed, φ fixed or estimated
-// with a fixed θ, classical or robust covariance, weighted) passes predict and runs.
+// penalty beside an estimated
+// dispersion, and dispersion off the family, with θ estimated or of an
+// unknown value — is the same PROCESSING_CONFIG code, message and
+// details.requires at predict and at run; a valid request (θ estimated
+// or fixed, φ fixed or estimated with a fixed θ, classical or robust
+// covariance, weighted, penalized with θ estimated or fixed — U69
+// E3-S1 —, under selection or resample with θ re-estimated per refit —
+// U69 E3-S2) passes predict and runs.
 func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -280,8 +283,17 @@ func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 		"fixed φ=1": func(r *types.RegressionSpec) { r.Theta, r.Dispersion = 2, types.NegBinDispersionFixed },
 		"sqrt":      func(r *types.RegressionSpec) { r.Link = "sqrt" },
 		"robust":    func(r *types.RegressionSpec) { r.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC3} },
+		"l2":        func(r *types.RegressionSpec) { r.Penalty, r.Alpha = "l2", 0.1 },
+		"l1 θ fixed": func(r *types.RegressionSpec) {
+			r.Penalty, r.Alpha, r.Theta, r.Dispersion = "l1", 0.05, 2, types.NegBinDispersionFixed
+		},
 		"weighted": func(r *types.RegressionSpec) {
 			r.Weight = types.SlotWeightOf(types.WeightSpec{Field: "x1", Kind: types.WeightKindProbability})
+		},
+		"selection": func(r *types.RegressionSpec) { r.Selection, r.Criterion = "backward", "aic" },
+		"jackknife": func(r *types.RegressionSpec) { r.Resample = "jackknife" },
+		"bootstrap θ fixed": func(r *types.RegressionSpec) {
+			r.Resample, r.BootstrapIters, r.RNGSeed, r.Theta = "bootstrap", 20, 7, 2
 		},
 	} {
 		pr, err := p.Predict(ctx, req(edit))
@@ -307,9 +319,9 @@ func TestGLMNegBin_PredictMatchesRuntime(t *testing.T) {
 		{"theta on poisson", func(r *types.RegressionSpec) { r.Family, r.Theta = "poisson", 2 }, "family negative_binomial"},
 		{"theta on REG_OLS", func(r *types.RegressionSpec) { r.Type, r.Family, r.Theta = types.REG_OLS, "", 2 }, "family negative_binomial"},
 		{"negative theta", func(r *types.RegressionSpec) { r.Theta = -1 }, "theta > 0"},
-		{"penalty", func(r *types.RegressionSpec) { r.Penalty, r.Alpha = "l2", 0.1 }, "unpenalized"},
-		{"selection", func(r *types.RegressionSpec) { r.Selection, r.Criterion = "forward", "aic" }, "no_selection"},
-		{"resample", func(r *types.RegressionSpec) { r.Resample = "jackknife" }, "no_resample"},
+		{"penalty beside φ̂", func(r *types.RegressionSpec) {
+			r.Penalty, r.Alpha, r.Theta, r.Dispersion = "l2", 0.1, 2, types.NegBinDispersionEstimated
+		}, "unpenalized"},
 		{"dispersion on poisson", func(r *types.RegressionSpec) { r.Family, r.Dispersion = "poisson", types.NegBinDispersionEstimated }, "family negative_binomial"},
 		{"dispersion on REG_OLS", func(r *types.RegressionSpec) {
 			r.Type, r.Family, r.Dispersion = types.REG_OLS, "", types.NegBinDispersionFixed

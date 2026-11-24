@@ -293,7 +293,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 25
+	const want = 26
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

@@ -392,11 +392,10 @@ const (
 	ATTR_REG_RESIDUAL AttributeType = "ATTR_REG_RESIDUAL"
 
 	// ATTR_REG_LEVERAGE emits the per-row hat-matrix diagonal
-	// hᵢᵢ = xᵢ · (XᵀX)⁻¹ · xᵢᵀ for each filter-passing record. Restricted
-	// to unpenalized OLS — penalized leverage uses a different formula
-	// (involving the regularized resolvent) and GLM leverage requires the
-	// IRLS weight matrix; both deferred to Phase 9. Specs with any
-	// Penalty set are rejected at factory time with PROCESSING_CONFIG.
+	// hᵢᵢ = xᵢ · (XᵀX)⁻¹ · xᵢᵀ for each filter-passing record of the OLS
+	// refit. A penalized refit reads the ridge hat xᵢ(XᵀX + Σw·α·P)⁻¹xᵢᵀ
+	// (l2) or the hat over the active set {j : βⱼ ≠ 0} (l1; elasticnet
+	// with its α·(1 − l1_ratio) ridge term).
 	ATTR_REG_LEVERAGE AttributeType = "ATTR_REG_LEVERAGE"
 
 	// ATTR_REG_INFLUENCE emits a per-row influence measure of an
@@ -1380,11 +1379,11 @@ type Attribute struct {
 	Predictors []string `json:"predictors,omitempty"`
 
 	// Penalty selects the OLS regularization scheme for ATTR_REG_FITTED /
-	// ATTR_REG_RESIDUAL. One of "" (unpenalized), "l1" (lasso), "l2"
-	// (ridge), or "elasticnet". ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE
+	// ATTR_REG_RESIDUAL / ATTR_REG_LEVERAGE. One of "" (unpenalized),
+	// "l1" (lasso), "l2" (ridge), or "elasticnet". ATTR_REG_INFLUENCE
 	// (and ATTR_REG_RESIDUAL's standardized / studentized kinds) reject
-	// any non-empty Penalty (penalized leverage and GLM leverage are
-	// deferred to a later phase).
+	// any non-empty Penalty: they read the refit's residual variance,
+	// which a penalized fit does not define.
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for the regression-attribute

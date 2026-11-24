@@ -35,14 +35,14 @@ The two paths can report a different `chi2` for one covariance model: compare on
 
 - `meanstructure: true` frees every observed intercept and fixes every latent mean to 0. An observed exogenous variable's mean (a pure predictor) is fixed to its sample mean (lavaan's `fixed.x`) and hidden from the table, as its variance is.
 - `x ~ 1` frees an intercept, `x ~ 0*1` fixes it, `x ~ a*1` labels it (equal across every `a*1`). `f ~ 1` frees a latent mean.
-- To identify a free latent mean, fix its marker indicator's intercept: `f ~ 1` plus `x1 ~ 0*1`.
-- A `~ 1` line switches the mean structure on whatever `meanstructure` says.
+- To identify a free latent mean, fix its marker's intercept: `f ~ 1` plus `x1 ~ 0*1`.
+- A `~ 1` line switches the mean structure on regardless of `meanstructure`.
 
 ## Reading the outputs
 
 - `auxiliary.estimates` gains `x ~1` rows: intercepts for observed variables, means for latents. `std_estimate` is the estimate over the variable's model-implied SD.
-- `auxiliary.implied_means` (μ(θ̂)) and `observed_means` (the listwise sample means) carry one `mean` column per member. Their gap is the mean misfit.
-- `ci_lower` / `ci_upper` are Wald intervals, 95% by default (estimate ± 1.96 SE; another level: [`sem-bootstrap`](sem-bootstrap.md)). They are `null` on a fixed row.
+- `auxiliary.implied_means` (μ(θ̂)) and `observed_means` (listwise sample means) carry a `mean` column per member. Their gap: mean misfit.
+- `ci_lower` / `ci_upper`: Wald intervals, 95% by default (estimate ± 1.96 SE; other levels: [`sem-bootstrap`](sem-bootstrap.md)); `null` on a fixed row.
 
 ## Multi-group fits
 
@@ -77,6 +77,7 @@ The two paths can report a different `chi2` for one covariance model: compare on
 - [`op-mat-sem`](op-mat-sem.md)
 - [`sem-bootstrap`](sem-bootstrap.md) — bootstrap standard errors and percentile intervals.
 - [`sem-defined-parameters`](sem-defined-parameters.md) — `:=` indirect and contribution effects.
+- [`sem-comparison`](sem-comparison.md) — a step vs the last (`compare`).
 - [`op-attr-sem-score`](op-attr-sem-score.md), [`sem-fits`](sem-fits.md) — per-row latent scores (regression / Bartlett; inline, compose or saved fit) for group means and regressions.
 - [`multivariate-design`](multivariate-design.md) — which operator answers which question.
 - [`matrix-results`](matrix-results.md) — slot, encodings, refusals.

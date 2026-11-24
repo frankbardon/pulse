@@ -313,6 +313,7 @@ skills/panel-n-sources.md
 skills/predict-advisories.md
 skills/process-chain.md
 skills/regression-collinearity.md
+skills/regression-comparison-batteries.md
 skills/regression-comparison.md
 skills/regression-inference.md
 skills/regression-influence.md
@@ -320,6 +321,7 @@ skills/regression-margins.md
 skills/regression-model-options.md
 skills/regression-modeling.md
 skills/regression-order.md
+skills/regression-panel-covariance.md
 skills/regression-row-scores.md
 skills/regression-spec.md
 skills/request-envelope.md
@@ -328,6 +330,7 @@ skills/request-templating.md
 skills/response-components.md
 skills/response-shaping.md
 skills/sem-bootstrap.md
+skills/sem-comparison.md
 skills/sem-defined-parameters.md
 skills/sem-fits.md
 skills/sem-groups.md

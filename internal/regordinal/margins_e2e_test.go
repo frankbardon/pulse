@@ -23,7 +23,7 @@ const marginsE2ERel = 1e-9
 // marginsCaseSpec is the slot the golden margins case describes.
 func marginsCaseSpec(c regordinal.MarginsOracleCase) *types.RegressionSpec {
 	s := &types.RegressionSpec{Type: types.REG_ORDINAL, Name: "ord", Target: "y", Predictors: c.Terms,
-		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale}}
+		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale, Binary: c.Binary}}
 	if c.Link != regordinal.LinkLogit {
 		s.Params = json.RawMessage(`{"link":"` + c.Link + `"}`)
 	}
@@ -54,7 +54,7 @@ func TestRegOrdinal_MarginsMatchREndToEnd(t *testing.T) {
 			t.Fatalf("%s: no margins block", c.Name)
 		}
 		if !slices.Equal(mg.Outcomes, c.Outcomes) || !slices.Equal(mg.Terms, c.Terms) || mg.Type != c.Type || mg.Scale != c.Scale ||
-			mg.ConfLevel != 0.95 || mg.DF != 0 {
+			mg.ConfLevel != 0.95 || mg.DF != 0 || mg.Binary != c.Binary || !slices.Equal(mg.Contrasts, c.Contrasts) {
 			t.Fatalf("%s: echo %+v", c.Name, mg)
 		}
 		if len(mg.Estimates) != len(c.Estimates) {

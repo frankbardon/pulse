@@ -155,11 +155,13 @@ func TestOLSInfluence_MatchesStatsmodels(t *testing.T) {
 }
 
 // TestOLSInfluence_RefusalsMatchPredict: each refusal of the
-// design-reading refit slots — a penalty (leverage, influence, the
-// studentized kinds), an unknown measure or refit kind, a probability
-// weight on a per-observation figure, a studentized kind over a bound
-// fit — is the same code and message from Process (or Compose) and
-// Predict (or PredictCompose). Leverage keeps either weight kind.
+// design-reading refit slots — a penalty (influence, the studentized
+// kinds), an unknown measure or refit kind, a probability weight on a
+// per-observation figure, a studentized kind over a bound fit — is the
+// same code and message from Process (or Compose) and Predict (or
+// PredictCompose). Leverage keeps either weight kind and, since
+// regression-depth-2 E1-S2 (#677), every penalty: Process runs it and
+// Predict judges it valid.
 func TestOLSInfluence_RefusalsMatchPredict(t *testing.T) {
 	t.Parallel()
 
@@ -175,7 +177,6 @@ func TestOLSInfluence_RefusalsMatchPredict(t *testing.T) {
 		code   errors.Code
 	}{
 		{"influence penalty", nil, penal(influenceAttr(types.ATTR_REG_INFLUENCE, "a", "")), errors.PROCESSING_CONFIG},
-		{"leverage penalty", nil, penal(influenceAttr(types.ATTR_REG_LEVERAGE, "a", "")), errors.PROCESSING_CONFIG},
 		{"standardized penalty", nil, penal(influenceAttr(types.ATTR_REG_RESIDUAL, "a", `{"kind":"standardized"}`)), errors.PROCESSING_CONFIG},
 		{"studentized penalty", nil, penal(influenceAttr(types.ATTR_REG_RESIDUAL, "a", `{"kind":"studentized"}`)), errors.PROCESSING_CONFIG},
 		{"unknown measure", nil, influenceAttr(types.ATTR_REG_INFLUENCE, "a", `{"measure":"covratio"}`), errors.PROCESSING_CONFIG},
@@ -199,6 +200,25 @@ func TestOLSInfluence_RefusalsMatchPredict(t *testing.T) {
 			}
 			if pr.Valid || !matched {
 				t.Errorf("predict (valid %v) errors %+v do not carry the runtime refusal %s %q", pr.Valid, pr.Errors, ce.Code, ce.Message)
+			}
+		})
+	}
+	for _, pen := range []string{"l1", "l2", "elasticnet"} {
+		t.Run("penalized leverage "+pen, func(t *testing.T) {
+			a := influenceAttr(types.ATTR_REG_LEVERAGE, "h", "")
+			a.Penalty, a.Alpha = pen, 0.05
+			if pen == "elasticnet" {
+				a.L1Ratio = 0.5
+			}
+			if _, err := p.Process(ctx, influenceRequest(nil, a)); err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			pr, err := p.Predict(ctx, influenceRequest(nil, a))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !pr.Valid || len(pr.Errors) > 0 {
+				t.Errorf("predict valid %v errors %+v, want the runtime's acceptance", pr.Valid, pr.Errors)
 			}
 		})
 	}

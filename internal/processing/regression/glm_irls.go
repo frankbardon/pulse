@@ -2,6 +2,7 @@ package regression
 
 import (
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/linalg"
@@ -479,10 +480,12 @@ func relativeChange(next, prev []float64) float64 {
 // predictor's coefficient keeps growing) or NO_CONVERGE.
 func (pr *irlsProblem) failure(reason string, beta []float64, history [][]float64, eta []float64, iters, maxIters int, tol float64) error {
 	fam, n, p := pr.Family, len(pr.Y), pr.K-1
-	// A penalised estimate is finite even on separated data, so a
-	// penalised fit that stops short is never SEPARATION.
-	_, penalised := pr.Penalty.(*glmPenalty)
-	if fam.Name == "binomial" && beta != nil && !penalised {
+	// A penalised coefficient is finite even on separated data, so a
+	// penalised fit that stops short is SEPARATION only through an
+	// `unpenalized` predictor (penalty factor 0) that keeps growing —
+	// nothing bounds it; with every predictor penalised, never.
+	pen, penalised := pr.Penalty.(*glmPenalty)
+	if fam.Name == "binomial" && beta != nil && (!penalised || pen.pen != nil) {
 		boundary := 0
 		// μ at the last ACCEPTED β (eta), never a rejected candidate.
 		for _, e := range eta {
@@ -490,7 +493,11 @@ func (pr *irlsProblem) failure(reason string, beta []float64, history [][]float6
 				boundary++
 			}
 		}
-		if growing := growingPredictors(history, pr.K); boundary > 0 && len(growing) > 0 {
+		growing := growingPredictors(history, pr.K)
+		if penalised {
+			growing = slices.DeleteFunc(growing, pen.penalized)
+		}
+		if boundary > 0 && len(growing) > 0 {
 			names := make([]string, len(growing))
 			for i, j := range growing {
 				names[i] = pr.columnName(j)

@@ -18,7 +18,7 @@ Every param is a FLAT top-level key of the regression entry (manifest `slot: tru
 Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at predict and at runtime alike:
 
 - a `penalty` on a gamma GLM, or `alpha` / `l1_ratio` without a `penalty`;
-- `theta` off a `negative_binomial` GLM, `dispersion` off it or without `theta`, and its `penalty` / `selection` / `resample` (`details.requires`);
+- `theta` off a `negative_binomial` GLM, `dispersion` off it, without `theta` or `estimated` beside `penalty` (`details.requires`);
 - `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on the Bayesian fit;
 - `resample` / `selection` on the Bayesian fit (credible intervals already convey uncertainty).
 
@@ -31,7 +31,7 @@ Shared keys:
 
 ## Penalty
 
-`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM binomial / poisson; multinomial, [`op-reg-multinomial`](op-reg-multinomial.md)) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
+`penalty` `l2` / `l1` / `elasticnet` (OLS; GLM but gamma; multinomial, [`op-reg-multinomial`](op-reg-multinomial.md)) uses glmnet's `standardize=FALSE` objective: raw predictor units, intercept unpenalized. The GLM minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁], N* = Σw.
 
 - `alpha` — strength, `> 0` (glmnet `lambda`), required with a `penalty`. `l1_ratio` — the mix, `0<r<1`, `elasticnet` only.
 - Raw units: scale predictors upstream to penalize them alike.

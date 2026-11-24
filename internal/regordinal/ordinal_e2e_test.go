@@ -530,8 +530,7 @@ func TestRegOrdinal_RefusalsPredictMatchRuntime(t *testing.T) {
 	}{
 		"penalty": {`,"penalty":"l2","alpha":0.1`, perr.PROCESSING_CONFIG, "penalty"},
 		// margins runs (U68 E4-S1) under the built-ins' shape and fit
-		// rules: resample stays refused (no_resample, U69 #639).
-		"margins_resample":  {`,"margins":{},"resample":"jackknife"`, perr.PROCESSING_CONFIG, "margins"},
+		// rules; a resample re-estimates them per replicate (U69 #639).
 		"margins_selection": {`,"margins":{},"selection":"forward","criterion":"aic"`, perr.PROCESSING_CONFIG, "margins"},
 		"margins_type":      {`,"margins":{"type":"avg"}`, perr.PROCESSING_CONFIG, "margins"},
 		"margins_terms":     {`,"margins":{"terms":["x3"]}`, perr.PROCESSING_CONFIG, "margins"},

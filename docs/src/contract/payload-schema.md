@@ -1053,13 +1053,20 @@ the additive `omitempty` `RegressionSpec` string `dispersion`
 `summary.glm`). Every other family leaves `theta` and `theta_std_err`
 absent.
 An additive `omitempty` `RegressionSpec` object `margins` (`{type,
-terms, scale}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
+terms, scale, binary}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
 model declaring `Margins`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
 (`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
+under `binary: "contrast"` (U69 #641) the additive `omitempty` string
+`binary` echo and string array `contrasts` (the 0/1 terms reported as
+μ(1) − μ(0); absent under `slope`, the default, byte-identical),
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
 `p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
 `conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
+the additive `omitempty` string `inference` (U69 #639: `"resample"`
+when the regression's `resample` made the standard errors the effects'
+replicate spread — Wald z / percentile p, normal intervals, no `df`;
+absent on the delta method, byte-identical),
 and — gated on `capability:multiplicity` like the coefficient twins —
 `p_adjusted` / `significant_adjusted` and a `multiplicity`
 (`AppliedMultiplicity`, `family: "margins"`) echo: under the
@@ -1167,11 +1174,21 @@ manifest row lists the model's `output_schema` (`key`, `json_type`,
 ## Regression robust covariance
 
 `RegressionSpec` takes an additive `covariance` object `{type, cluster,
-order_by, lags}` and `RegressionResult` an additive `omitempty`
-`covariance` echo `{type, cluster, clusters, order_by, lags}`
-(`format_version` stays `"1.1"`). `type` is the `CovarianceType` enum
-(`classical`, `hc0`, `hc1`, `hc2`, `hc3`, `cluster`, `hac`); `lags` is a
-non-negative integer or `"auto"`. Absent or `classical` is
+cluster2, order_by, entity, lags}` and `RegressionResult` an additive `omitempty`
+`covariance` echo `{type, cluster, clusters, cluster2, clusters2,
+order_by, lags, entity, entities, periods}` (`format_version` stays `"1.1"`). `type` is the
+`CovarianceType` enum (`classical`, `hc0`, `hc1`, `hc2`, `hc3`,
+`cluster`, `hac`, `driscoll_kraay`); `lags` is a non-negative integer or
+`"auto"`. `entity` (U69 #401, types `hac` and `driscoll_kraay`) names a
+panel's entity field: `hac` + `entity` is per-entity Newey–West,
+`driscoll_kraay` sums the scores per `order_by` period; the echo then
+adds `periods` (distinct `order_by` values) and, with an entity,
+`entity` / `entities`. A plain `hac` echo carries none of the three.
+`cluster2` (U69 #401, type `cluster`) makes it two-way
+(Cameron–Gelbach–Miller); the echo adds `cluster2` / `clusters2`, an
+OLS `df` is min(G₁, G₂) − 1, and a negative two-way variance leaves its
+`std_errors` / `p_values` / interval entries `null` beside the negative
+`vcov` diagonal. A one-way echo carries neither key. Absent or `classical` is
 byte-identical to a request without the block and echoes nothing. Any
 other type on `REG_OLS` or `REG_GLM` replaces the estimator behind
 `std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` (so
@@ -1195,9 +1212,11 @@ scalar ε, Λ₀ = ε·I; byte-identical to the former float field, absent or
 coefficient, intercept first like `prior_mu`: Λ₀ = diag; 0 is a flat
 prior). A wrong length or a negative entry is `PROCESSING_CONFIG` in
 predict and at runtime. `RegressionSpec.unpenalized` is an additive
-`omitempty` array of predictor names the `REG_OLS` ridge (`penalty`
-`l2`) penalty skips (glmnet `penalty.factor` 0); every other penalty or
-type refuses it `PROCESSING_CONFIG`, predict and runtime alike.
+`omitempty` array of predictor names the penalty skips (glmnet
+`penalty.factor` 0) on `REG_OLS`, `REG_GLM` and `REG_MULTINOMIAL`, any
+`penalty` kind (U69 E1-S1 lifted the `REG_OLS` ridge-only rule); no
+`penalty`, or any other type, refuses it `PROCESSING_CONFIG`, predict
+and runtime alike.
 `format_version` stays `"1.1"`; neither is echoed on the result.
 
 `RegressionSpec.bounds` (`REG_OLS`) is an additive `omitempty` object
@@ -1875,24 +1894,50 @@ knobs, an unsupported fit or test under `requires`). Results land in
 `p_value`, `n_obs`, `restricted_df_residual`, `full_df_residual`,
 `restricted_deviance`, `full_deviance`, `dispersion` (F / LR on a
 deviance), `restricted_two_log_lik` / `full_two_log_lik` (a θ-estimated
-negative binomial's LR), `p_adjusted` / `significant_adjusted` /
-`multiplicity` — pinned outside the Compose-level `return` (always
+negative binomial's LR), `scaling_factor` (a WLSMV SEM pair's
+Satorra–Bentler difference factor), `p_adjusted` /
+`significant_adjusted` / `multiplicity` — pinned outside the Compose-level `return` (always
 emitted, never rounded); an undefined figure is `null`, key kept. A
 comparison whose fit failed on its data, or whose fits used different
 row counts (`PULSE_COMPARISON_ROWS_DIFFER`), keeps `{name, restricted,
 full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
 (`slot_kind` `comparisons`). Both slots are gated by
 `capability:compose_compare` (a dependency on `capability:compose_fits`
-and `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`). On
+and `MAT_SEM`, `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`).
+Two SEM fits (U69 #643) compare by the chi-square difference: `test`
+`lrt` only, `terms` empty, `df` the df difference, the per-fit
+`*_df_residual` / `*_deviance` each fit's model df and χ²;
+`scaling_factor` is present only on two `wlsmv` fits (null where the
+difference factor is negative). Their refusals add `kind_mismatch`,
+`test_unsupported`, `same_model` and `observed_differ`; once run a
+pair fails alone on `df_not_positive` / `conventions_differ`
+(`PULSE_COMPARISON_INVALID`) or `rows_differ`
+(`PULSE_COMPARISON_ROWS_DIFFER`). On
 `REG_MULTINOMIAL` the `terms` are the added predictors and `df` counts
 their K − 1 `"<level>:<term>"` coefficients each, (K − 1)·len(`terms`),
 and each fit's residual df is (K − 1)·N* − rank (`anova.multinom`).
 Two declared or multinomial fits whose non-tested terms (ordinal
 thresholds, multinomial categories) differ once fitted fail the
 comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` `reason:
-terms_differ`. `pulse_predict` with `composed` lists the
+terms_differ`. A side may bind from the sweep (`from_sweep`, U69 #643):
+the entry is judged against the fit request of every sweep slot that
+could win — refused when every slot refuses, else valid — and the run
+judges the winning slot again; a refusal there keeps `{name,
+restricted, full, test, error}` with `PULSE_COMPARISON_INVALID`
+(`details.sweep_slot` / `sweep_label` name the winner) and warns
+`PULSE_SLOT_FAILED`. `pulse_predict` with `composed` lists the
 entries as `compare [{name, restricted, full, test, distribution,
-terms}]` on the predict result (not payload-reachable). The figures a
+terms, unresolved}]` on the predict result (not payload-reachable);
+`unresolved {slots, refused [{slot, label, reason}], varies}` is present
+only on a sweep-bound entry whose slots disagree. Two vector fits
+compare member-wise (U69 #643): each restricted battery member j is one
+row of `members`, an array of `FitComparisonMember {member, statistic,
+p_value, restricted_deviance, full_deviance, dispersion, p_adjusted,
+significant_adjusted, multiplicity}` — lm(j ~ restricted others)
+against lm(j ~ full others), read off the full fit's co-moment; `terms`
+are the tested members, the single-pair `statistic`, `p_value` and
+`*_deviance` are `null`, every row is one member of the multiplicity
+family, and the predict summary lists the rows' `members`. The figures a
 comparison reads off each fit beyond its wire result (its residual
 deviance, the Pearson dispersion, the covariance its standard errors
 read) travel through an internal capture on the fit's run, never a

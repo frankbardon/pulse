@@ -48,14 +48,14 @@ type RowInfluence struct {
 
 // InfluenceForRow computes the influence figures of one observation
 // with predictors x and residual e = y − ŷ, from an unpenalized fit
-// that carries its centered-Gram inverse (FitForAttribute with
+// that carries its hat design (FitForAttribute with
 // needLeverage) and RSS / DF. Every figure is NaN when fit lacks them.
 // It is InfluenceFigures at the Gaussian identity: the Pearson residual
 // is e, φ = s² = RSS/df estimated, s = +1.
 func InfluenceForRow(fit *AttributeFit, x []float64, e float64) RowInfluence {
 	nan := math.NaN()
 	out := RowInfluence{Leverage: nan, Standardized: nan, Studentized: nan, Cooks: nan, DFFITS: nan, StandardizedDeviance: nan}
-	if fit == nil || fit.GramInverse == nil || fit.NObs == 0 {
+	if fit == nil || fit.design == nil || fit.NObs == 0 {
 		return out
 	}
 	h := LeverageForRow(fit, x, 1)

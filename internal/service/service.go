@@ -1393,7 +1393,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// regcompare.Check at the same point); every fit a comparison reads
 	// then runs with a capture its engine offers its figures to
 	// (cmpFigs, carried on the fit pass's ctx below).
-	cmpPlans, err := s.compareRefusal(composed)
+	cmpPlans, err := s.compareRefusal(composed, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -1539,7 +1539,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	fitWarnings = append(fitWarnings, pfWarnings...)
 	// The nested-model comparisons read the finished fits only
 	// (runComposeCompare).
-	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs)
+	comparisons, cmpWarnings, err := s.runComposeCompare(cmpPlans, fitResults, cmpFigs, composed, ext)
 	if err != nil {
 		return nil, err
 	}

@@ -245,6 +245,12 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
+	// A battery comparison's per-member rows carry the same twins.
+	reflect.TypeOf(types.FitComparisonMember{}): {
+		multiplicitySlotGate,
+		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
+		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
+	},
 	// The sampled sweep's own keys; the random / lhs mode VALUES ride
 	// the same capability (nestedSweepSamplingRefusal, the SweepMode
 	// enum).

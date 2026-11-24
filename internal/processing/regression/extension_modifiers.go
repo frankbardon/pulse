@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
@@ -64,7 +65,7 @@ func RunExtensionModifiers(
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
 ) (*types.RegressionResult, error) {
-	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch)
+	return RunExtensionModifiersReplicates(ctx, spec, pValues, records, fit, fit, missingDeviance, mismatch, nil)
 }
 
 // RunExtensionModifiersReplicates is RunExtensionModifiers with the
@@ -73,7 +74,10 @@ func RunExtensionModifiers(
 // through fit, and only the replicates — whose outputs are discarded,
 // only their coefficients read — through replicate, so a model can skip
 // work a replicate's figures never reach (REG_ORDINAL's Brant and
-// nominal tests).
+// nominal tests). figures, when non-nil, is the relay of the base fit's
+// comparison figures (HoldFigures: the caller hands its hold to the base
+// fit), released with the replicate covariance over the base fit's
+// coefficient keys.
 func RunExtensionModifiersReplicates(
 	ctx context.Context,
 	spec *types.RegressionSpec,
@@ -82,6 +86,7 @@ func RunExtensionModifiersReplicates(
 	fit, replicate ExtensionFit,
 	missingDeviance func() error,
 	mismatch func(base, got []string) error,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
 		kept := make([]Record, 0, len(records))
@@ -113,7 +118,7 @@ func RunExtensionModifiersReplicates(
 	if spec.Resample == "" {
 		return base, nil
 	}
-	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch)
+	return extensionResample(ctx, spec, pValues, records, active, base, keys, replicate, mismatch, figures)
 }
 
 // extensionFatal reports whether a refit error must stop a modifier
@@ -158,43 +163,44 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 }
 
 // extensionResample replaces base's uncertainty figures with the
-// replicate ones.
-func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues bool, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error) (*types.RegressionResult, error) {
+// replicate ones. A margins block (the model's own, or REG_MULTINOMIAL's)
+// is re-estimated on every replicate — the refit attaches it like the
+// base fit's — and its inference replaced by the replicate SE and
+// percentile p of the effects (resampleMargins, U69 #639).
+func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues bool, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error, figures *ResampledFigures) (*types.RegressionResult, error) {
 	q := len(keys)
-	rep := func(recs []Record) ([]float64, error) {
+	marginKeys := regmargins.ResultKeys(base.Margins)
+	rep := func(recs []Record) (replicate, error) {
 		res, got, err := fit(recs, active)
 		if err != nil {
-			return nil, err
+			return replicate{}, err
 		}
 		if !sameKeySet(keys, got) {
-			return nil, mismatch(keys, got)
+			return replicate{}, mismatch(keys, got)
 		}
 		row := make([]float64, q)
 		for j, k := range keys {
 			row[j] = res.Coefficients[k]
 		}
-		return row, nil
+		return replicate{coef: row, derived: marginEstimates(res.Margins, marginKeys)}, nil
 	}
 	rows := jackknifeRows(spec, records, active)
 	var (
-		se, bootP []float64
-		cov       [][]float64
-		err       error
+		run *replicateRun
+		err error
 	)
 	out := *base
 	switch spec.Resample {
 	case "jackknife":
 		if spec.JackknifeGroups != 0 || spec.JackknifeBy != "" {
-			var g int
-			se, cov, g, err = groupedJackknifeCore(ctx, spec, records, active, rows, q, rep)
-			out.JackknifeGroups = g
+			if run, err = groupedJackknifeCore(ctx, spec, records, active, rows, q, rep); err == nil {
+				out.JackknifeGroups = run.groups
+			}
 		} else {
-			se, cov, err = jackknifeCore(ctx, spec, rows, q, rep)
+			run, err = jackknifeCore(ctx, spec, rows, q, rep)
 		}
 	case "bootstrap":
-		var run *bootstrapRun
 		if run, err = bootstrapCore(ctx, spec, rows, active, q, rep, extensionFatal); err == nil {
-			se, cov, bootP = run.se, run.cov, run.p
 			run.echo(&out)
 		}
 	default:
@@ -203,6 +209,7 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 	if err != nil {
 		return nil, err
 	}
+	se, cov, bootP := run.se, run.cov, run.p
 	out.StdErrors = make(map[string]float64, q)
 	out.Statistics = make(map[string]float64, q)
 	out.PValues = make(map[string]float64, q)
@@ -229,7 +236,30 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 	if spec.Vcov && base.Vcov != nil {
 		AttachVcovKeys(&out, keys, cov)
 	}
+	out.Margins = resampleMargins(base.Margins, run, resolvedConfLevel(spec))
+	figures.release(keys, run)
 	return &out, nil
+}
+
+// marginEstimates is a replicate fit's effect estimates in keys order
+// (the base fit's regmargins.ResultKeys): nil when keys is empty (no
+// margins block), NaN on a key the replicate's block lacks.
+func marginEstimates(mg *types.RegressionMarginsResult, keys []string) []float64 {
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]float64, len(keys))
+	for i, k := range keys {
+		v, ok := math.NaN(), false
+		if mg != nil {
+			v, ok = mg.Estimates[k]
+		}
+		if !ok {
+			v = math.NaN()
+		}
+		out[i] = v
+	}
+	return out
 }
 
 // waldZ is estimate / se, NaN where the ratio is undefined (a zero or

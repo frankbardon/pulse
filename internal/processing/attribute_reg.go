@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/reglink"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -161,8 +162,8 @@ func (m *mapRecord) NumericValue(name string) (float64, bool) {
 // attribute spec. The factory has already validated the spec shape;
 // this just packages the fields for the regression.FitForAttribute
 // entry point.
-func makeRegressionSpec(attr *types.Attribute) *types.RegressionSpec {
-	return &types.RegressionSpec{
+func makeRegressionSpec(attr *types.Attribute, glm refitGLM) *types.RegressionSpec {
+	spec := &types.RegressionSpec{
 		Type:       types.REG_OLS,
 		Target:     attr.Target,
 		Predictors: append([]string(nil), attr.Predictors...),
@@ -173,11 +174,32 @@ func makeRegressionSpec(attr *types.Attribute) *types.RegressionSpec {
 		// refit is weighted with the regression's own kinds.
 		Weight: attr.Weight,
 	}
+	if glm != nil {
+		glm(attr, spec)
+	}
+	return spec
+}
+
+// refitGLM retypes a refit spec from the slot's params (nil: the OLS
+// refit as built).
+type refitGLM func(*types.Attribute, *types.RegressionSpec)
+
+// leverageGLMRefit is ATTR_REG_LEVERAGE's alone: params.family refits a
+// REG_GLM of that family and link (model.CheckRefit and
+// reglink.CheckRefitFamily judged them). Only the leverage factory
+// passes it, so the other three refits never reach the GLM engine; and
+// on an instance whose feature profile hides REG_GLM the keys are
+// refused as unknown before any factory runs
+// (model.RefitFeatureParams, regression-depth-2 E1-S4).
+func leverageGLMRefit(attr *types.Attribute, spec *types.RegressionSpec) {
+	if family, link := model.RefitFamily(attr.Type, attr); family != "" {
+		spec.Type, spec.Family, spec.Link = types.REG_GLM, family, link
+	}
 }
 
 // newRegressionAttribute is the shared factory body. The three
 // per-type factories below dispatch into this with their kind.
-func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind regressionAttributeKind) (AttributeComputer, error) {
+func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind regressionAttributeKind, glm refitGLM) (AttributeComputer, error) {
 	if attr == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"regression attribute requires a non-nil spec")
@@ -196,6 +218,11 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	// field-reference pass (model.CheckRefit).
 	if cerr := model.CheckRefit(attr.Type, attr); cerr != nil {
 		return nil, cerr
+	}
+	if family, link := model.RefitFamily(attr.Type, attr); family != "" || link != "" {
+		if cerr := reglink.CheckRefitFamily(attr.Type, family, link, attr.Penalty); cerr != nil {
+			return nil, cerr
+		}
 	}
 	if attr.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -236,10 +263,11 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 		}
 	}
 
-	// A slot reading the refit's design is OLS-unpenalized only
-	// (model.CheckRefit refused a penalty above). Penalized leverage uses
-	// a different formula (involving the regularized resolvent) and GLM
-	// leverage requires the IRLS weight matrix; both deferred.
+	// A slot reading the refit's residual variance (influence, the
+	// standardized / studentized kinds) is unpenalized only
+	// (model.CheckRefit refused a penalty above); ATTR_REG_LEVERAGE reads
+	// the penalized refit's own hat (regression.FitForAttribute: the
+	// ridge hat, the l1 / elasticnet active-set hat).
 	var residualKind, measure string
 	switch kind {
 	case regAttrResidual:
@@ -263,7 +291,7 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 
 	// Validate Penalty / Alpha / L1Ratio coupling through the same
 	// validator the engine uses, so the rules stay in sync.
-	spec := makeRegressionSpec(attr)
+	spec := makeRegressionSpec(attr, glm)
 	if err := regression.ValidateRegression(spec); err != nil {
 		return nil, err
 	}
@@ -294,19 +322,19 @@ func regressionAcceptsType(ft encoding.FieldType) bool {
 // are the registry-facing factories. They thread the kind into the
 // shared constructor.
 func newRegFittedAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
-	return newRegressionAttribute(attr, schema, regAttrFitted)
+	return newRegressionAttribute(attr, schema, regAttrFitted, nil)
 }
 
 func newRegResidualAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
-	return newRegressionAttribute(attr, schema, regAttrResidual)
+	return newRegressionAttribute(attr, schema, regAttrResidual, nil)
 }
 
 func newRegLeverageAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
-	return newRegressionAttribute(attr, schema, regAttrLeverage)
+	return newRegressionAttribute(attr, schema, regAttrLeverage, leverageGLMRefit)
 }
 
 func newRegInfluenceAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
-	return newRegressionAttribute(attr, schema, regAttrInfluence)
+	return newRegressionAttribute(attr, schema, regAttrInfluence, nil)
 }
 
 // needsDesign reports whether the slot reads the refit's centered-Gram

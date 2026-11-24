@@ -325,6 +325,18 @@ inputs, so the `TestReferenceOracle_*` tests in
 `test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
 operator at relative `1e-10`.
 
+`scripts/reference/gen_test_anova_rm_mixed.R` (sourced last by
+`gen_reference.R`, its own seed, and runnable on its own) writes
+`test_anova_rm_mixed.json` for `TEST_ANOVA_RM` `incomplete: "mixed"`:
+the REML fit of `y ~ cond + (1 | subj)` and the Satterthwaite F / df /
+p computed in closed form on the dense matrices (the REML root bisected
+by `uniroot` at `tol = 1e-15`, the observed Hessian, lmerTest's
+`contestMD` ddf rule), with `lmerTest::anova`'s own figures — which
+carry its optimiser's and `numDeriv`'s error — kept as `r_lmertest_*`
+(the script stops beyond `1e-4`). The balanced case also records the
+classic `aov` F. `TestReferenceOracle_AnovaRMMixed` holds the operator
+to the golden at `1e-8` and to lmerTest at `1e-4`.
+
 `scripts/reference/gen_post_tests.R` (sourced after it, reusing its
 helpers) writes `test_post_nulls.json`: one case per post-test family
 whose rows hold nulls (`null` where R reads `NA`), the R figures at R's
@@ -443,6 +455,71 @@ p-values, Wald-t intervals, and the influence measures on the bare
 `TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
 and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
 
+`scripts/reference/gen_glm_nb_penalty.R` writes `glm_nb_penalty.json`:
+the penalized negative binomial (U69 #638) as `mpath::glmregNB` fits it
+— l2 / l1 / elasticnet, `unpenalized` predictors, frequency weights, θ
+re-estimated by `theta.ml` around the penalized fit or fixed. Scaling:
+with `standardize = FALSE` mpath minimizes −Σw·loglik + λ·P (not divided
+by Σw) and rescales `penalty.factor` to sum to nvars as glmnet does, so
+Pulse's `alpha` is mpath's `lambda = alpha·N*·Σpf/nvars` and `l1_ratio`
+its `alpha`. `thresh` 1e-14, `maxit` 1e6 and `maxit.theta` 1000 push both
+loops past mpath's defaults; its alternation then stops on |Δℓ|/d1 +
+|Δθ| < 1e-8. Each case is self-checked against the KKT conditions of
+glmnet's objective (written out in the script) at relative 1e-9 and,
+with θ estimated, against `theta.ml` at mpath's means. It pins
+coefficients, θ, the l2 penalized-Fisher sandwich SEs and SE(θ), the
+NB deviance and, unweighted, the penalized hat. Run it alone under a
+library holding mpath (the pin table below); mpath compiles Fortran, so
+install it with the `FLIBS` workaround.
+`TestRegGLM_NegBinPenaltyMatchesMpath` and
+`TestRegGLM_NegBinPenaltyLeverage` (`internal/processing/regression`)
+hold it at relative `1e-8` (mpath's stopping error: worst 1.1e-9, on θ).
+
+`scripts/reference/gen_glm_nb_refit.R` writes `glm_nb_refit.json`: the
+negative binomial under `selection` and `resample` (U69 #638), θ
+re-estimated inside every candidate and replicate at the joint MLE (the
+`gen_glm_nb.R` fixed-point push) or fixed. Selection runs are MASS
+`stepAIC` on `glm.nb` (its `addterm.negbin` / `dropterm.negbin` refit
+each move exactly), self-checked against an exact greedy on Pulse's
+score −2ℓ + k·(rank + 1); a fixed θ is pinned to that exact greedy
+alone, because `step` and `stepAIC` on a `glm` rank moves by a one-step
+approximation (on this fixture `step` accepts a move that raises the
+exact AIC). Resample cases are base-R replicate loops recording
+coefficients, θ̂ and the ame / mem effects; a bootstrap draws until 40
+index sets refit cleanly and records them. MASS 7.3-66 + jsonlite, R
+4.6.1 only. `TestReferenceOracle_GLMNegBinSelectionMatchesStepAIC` and
+`TestReferenceOracle_GLMNegBinResampleMatchesR`
+(`internal/processing/regression`) hold it at relative `1e-7` (`1e-6` on
+the SEs).
+
+`scripts/reference/gen_robust_vcov_panel.R` writes
+`robust_vcov_panel.json`: the panel series covariance (U69 #401) —
+per-entity Newey–West (`covariance` hac + `entity`) and Driscoll–Kraay
+(`driscoll_kraay`) on `REG_OLS`, binomial-logit / poisson-log `REG_GLM`
+and `REG_BAYES_LINEAR`, unweighted, frequency- and probability-weighted,
+at a fixed lag 3 and `"auto"`, over a six-geo × fourteen-week panel with
+six cells dropped (unbalanced, interior gaps: a lag counts periods). The
+closed form is self-checked against `sandwich::vcovPL(aggregate = FALSE
+/ TRUE)` and, on unweighted OLS, `plm::vcovNW` / `vcovSCC(type = "HC1")`
+on the pooling fit; weighted fits against vcovPL on the w*-weighted fit
+(`adjust = FALSE`, × N*/(N* − k)); Bayes at prior precision 0 against
+vcovPL on `lm`. Run it alone under a library holding plm (the pin table
+below; `R_LIBS=<lib> Rscript scripts/reference/gen_robust_vcov_panel.R
+internal/processing/testdata/reference`, then the hash footer).
+`TestRegressionCovariancePanel_MatchesROracle` (`internal/service`)
+holds it at relative `1e-10`. Its `cluster2_cases` (U69 E4-S2) are
+two-way clustering on the same rows (no new draws; a `month` column,
+(week − 1) %/% 4 + 1, joins them): cluster geo + cluster2 week or month,
+self-checked against `sandwich::vcovCL(cluster = ~geo + b, type =
+"HC1")` (data-frame and formula forms, `lmtest::coeftest` p on
+min(G₁, G₂) − 1 df), weighted fits against vcovCL HC0 on the w*-weighted
+fit × (N* − 1)/(N* − k), frequency OLS against the `rep()` expansion,
+Bayes at prior precision 0 against vcovCL on `lm`. A negative two-way
+variance (few clusters) is written with `null` standard errors, p-values
+and intervals (`negative_variances` counts them);
+`TestRegressionCovariancePanel_TwoWayMatchesROracle` holds them at
+`1e-10`.
+
 `scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
 log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
 (`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
@@ -466,8 +543,15 @@ frequency-weighted `ame` / `mem` pair asserted equal to its
 `rep()`-expanded fit, and a derived-predictor case (`logit_ame_derived`:
 a pre-computed `log1p(z)` column and a 0/1 dummy, with the raw `z` / `g`
 recorded so the root test builds them through `FEAT_LOG` /
-`FEAT_ONE_HOT`; `marginaleffects` reports the dummy as a 1 − 0 contrast,
-flagged `me_binary_terms`, so its cross-check skips that term). The primary figures are analytic closed forms in
+`FEAT_ONE_HOT`, under `binary: "contrast"` so the dummy reports its 1 − 0
+contrast, as `marginaleffects` does). Every case carries `binary` /
+`contrasts` under `binary: "contrast"` (U69 #641): a 0/1 term's
+μ(1) − μ(0) with its gradient checked against a central difference, and
+a block of `_contrast` cases drawn last under `set.seed(20261123)` — lm,
+logit (ame / mem / link / HC3), probit, poisson (+ cluster), gamma log,
+negative binomial, a frequency-weighted pair, and the ordinal and
+multinomial blocks' contrast cases — each cross-checked against
+`marginaleffects`' own 1 − 0 contrast of the 0/1 column. The primary figures are analytic closed forms in
 base R at the fit's fixed point (glm refitted from its optimum; the
 negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
 does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method
@@ -513,7 +597,98 @@ insight 1.7.0, marginaleffects 1.0.0> Rscript
 scripts/reference/gen_margins.R internal/processing/testdata/reference`,
 then append the hash footer as the Makefile's `reference` target does.
 A rerun moves the existing cases by a few ulps (well inside every
-tolerance).
+tolerance). On a Homebrew R whose `Makeconf` `FLIBS` names a stale gcc
+target directory (`aarch64-apple-darwin<N>` that no longer exists), the
+`Matrix` 1.7-6 source build fails to link (`library 'emutls_w' not
+found`); point `R_MAKEVARS_USER` at a file overriding `FLIBS` with the
+installed gcc's directory (`ls /opt/homebrew/opt/gcc/lib/gcc/current/gcc/`)
+for that one install rather than editing `Makeconf`.
+
+`scripts/reference/gen_margins_resample.R` writes `margins_resample.json`:
+marginal effects under `resample` (U69 #639) as manual base-R replicate
+loops — each replicate refits `lm` / `glm` on its rows and recomputes
+the effect itself (ame, mem, the 0/1 contrast) — on `lm` and the logit,
+probit and poisson `glm`: the leave-one-out, delete-a-cluster and
+frequency-weighted jackknife (√((g − 1)/g·Σ(θ₍ₖ₎ − θ̄)²), Wald z p) and a
+bootstrap whose index sets are R's own (`sample.int` under
+`set.seed(20261124)`, recorded as `samples`; sample SD, percentile p
+floored at 1/B), the interval Wald normal; a replicate that warns stops
+the script. Base R + jsonlite only, so it regenerates without the
+`marginaleffects` library: `Rscript scripts/reference/gen_margins_resample.R
+internal/processing/testdata/reference`, then append the hash footer.
+Sourced last by `gen_reference.R`. `TestReferenceOracle_MarginsResampleMatchesR`
+(`internal/processing/regression`) holds it at `1e-7` relative (the
+bootstrap through Pulse's replicate hook over the recorded index sets).
+
+`scripts/reference/gen_compare_resample.R` writes `compare_resample.json`:
+the Compose Wald comparison over a resampled fit (U69 #642) as manual
+base-R replicate loops of the FULL model — each replicate refits `lm` /
+`glm` on its rows — on `lm` and the logit, poisson and gamma log `glm`:
+the leave-one-out and delete-a-cluster jackknife (V = (g − 1)/g·Σ(b₍ₖ₎ −
+b̄)(b₍ₖ₎ − b̄)ᵀ) and a bootstrap whose index sets are R's own
+(`sample.int` under `set.seed(20261125)`, recorded as `samples`; V the
+B − 1 sample covariance); the statistic and p-value are
+`car::linearHypothesis(m1, vcov. = V, test = "Chisq")` on the tested
+terms, checked in the script against b_Sᵀ V_SS⁻¹ b_S. Needs `car` 3.1-5
+(the pin above) + jsonlite: `Rscript scripts/reference/gen_compare_resample.R
+internal/processing/testdata/reference`, then append the hash footer.
+Sourced last by `gen_reference.R`. `TestReferenceOracle_CompareResampleMatchesR`
+(`internal/processing/regression`) holds the covariance, statistic and
+p-value at `1e-9` relative (`1e-6` on the gamma log link, whose IRLS
+converges linearly; the bootstrap through Pulse's replicate hook and
+figures relay over the recorded index sets).
+
+`scripts/reference/gen_compare_sweep.R` writes `compare_sweep.json`: the
+Compose nested-model comparison over sweep-bound fits (U69 #643). Each
+case is a sweep over the row window `id <= hi` whose body holds the
+restricted and full models; R fits the full model on every candidate
+window, ranks the windows by the same figure (the residual standard
+error, or a coefficient; the script stops unless the winner leads the
+runner-up clearly) and compares the winning pair: `anova(m0, m1)` on
+`lm`, `anova(m0, m1, test = "LRT")` on a poisson `glm`,
+`lmtest::waldtest(m0, m1, test = "Chisq")` on a logit — each statistic
+checked in the script against its closed form. Needs `lmtest` 0.9-40
+(the `gen_nested.R` pin) + jsonlite: `Rscript
+scripts/reference/gen_compare_sweep.R internal/processing/testdata/reference`,
+then append the hash footer. Sourced last by `gen_reference.R`.
+`TestReferenceOracle_CompareSweepMatchesR` (`internal/service`) holds the
+winner slot, statistic, df, p-value, deviances and residual dfs at
+`1e-10` relative.
+
+`scripts/reference/gen_compare_vector.R` writes `compare_vector.json`:
+the Compose nested-model comparison of two vector fits (U69 #643,
+member-wise). Each case names a restricted and a full battery over the
+same rows; per restricted member j R fits `lm(j ~ restricted others)`
+and `lm(j ~ full others)` and compares them with `anova(m0, m1)` (f),
+`anova(m0, m1, test = "Chisq")` (lrt) or `lmtest::waldtest(m0, m1)`
+(wald) — each statistic checked in the script against its closed form;
+the frequency-weighted case expands each row `w` times. Needs `lmtest`
+0.9-40 (the `gen_nested.R` pin) + jsonlite, nothing new: `Rscript
+scripts/reference/gen_compare_vector.R internal/processing/testdata/reference`,
+then append the hash footer. Sourced near the end of `gen_reference.R`.
+`TestReferenceOracle_CompareVectorMatchesR` (`internal/service`) holds
+every member row's statistic, p-value, deviances and dispersion and the
+df / residual dfs at `1e-10` relative.
+
+`scripts/reference/gen_sem_compare.R` writes `sem_compare.json`: the
+Compose nested-model comparison of two SEM fits (U69 #643) on the
+brand survey (`internal/sem/testdata/brand_data.csv`, read relative to
+the repository root, so run the script from there) — a dropped
+structural path and the metric / scalar invariance steps across the
+waves under ML, a fixed factor covariance under DWLS and WLSMV, and
+WLSMV threshold + loading invariance against the configural fit.
+`lavaan::lavTestLRT(m0, m1)` is the plain chi-square difference (ML,
+DWLS); under WLSMV each fit carries `test = c("scaled.shifted",
+"satorra.bentler")` and `lavTestLRT(m0, m1, method =
+"satorra.bentler.2001", test = "satorra.bentler")` is the scaled
+difference over the fits' `trace.UGamma` / df scaling factors. The
+script re-derives each statistic from the two fits' test slots and
+stops unless `lavTestLRT` agrees at 1e-9. Needs lavaan 0.7.3 +
+jsonlite; no random draw. Sourced last by `gen_reference.R`.
+`TestReferenceOracle_CompareSEMMatchesR` (`internal/integration`) holds
+each fit's χ² and df, the statistic, scaling factor and p-value at
+`1e-8` relative under ML and `1e-6` under the ordinal estimators (the
+two-step fit's optimizer stop).
 
 `scripts/reference/gen_vif.R` writes `vif.json`: the variance
 inflation factors a regression reports (`collinearity`) — `car::vif`'s
@@ -680,11 +855,17 @@ b₀ + ½(RSS + ΔᵀΛ₀Δ); the quadratic form cancels μ₀ᵀΛ₀μ₀ aga
 reference, since `solve()` loses digits there), plain and
 frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
 (`TestReferenceOracle_RegBayesPrecisionVectorMatchesR`, `1e-10`). The
-`ridge_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
+`*_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
 `penalty.factor` 0 on the `unpenalized` predictors and λ′·Σpf / p
-(undoing glmnet's rescaling of the factors to sum to p), cross-checked
-against the closed form G + N*·α·diag(pf)
-(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`).
+(undoing glmnet's rescaling of the factors to sum to p) — the ridge
+ones cross-checked against the closed form G + N*·α·diag(pf)
+(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`), the
+lasso / elastic-net ones (U69 E1-S1) KKT-checked with the factors
+(`TestReferenceOracle_LassoUnpenalizedMatchesGlmnet`, `1e-10`). The
+`*_unpenalized*` cases of `glm_penalty.json` do the same for `REG_GLM`
+on every penalty kind, binomial and poisson, with λ = alpha·Σpf / p and
+the l2 sandwich over H = A + N*·α·(1 − l1_ratio)·diag(0, pf)
+(`TestRegGLM_PenaltyMatchesGlmnet`, `1e-10`).
 `scripts/reference/gen_ols_nnls.R` writes `ols_nnls.json`: `REG_OLS`
 `bounds.nonnegative` — least squares with the named slopes ≥ 0 — by
 `nnls::nnls` on the centred, √w-scaled design (the intercept profiled
@@ -811,8 +992,11 @@ is the whole list in one place.
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
 | `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`), marginal effects (`gen_margins.R`), the nested-model Wald test (`gen_nested.R`), the `REG_ORDINAL` sandwich cross-check (`gen_ordinal.R`) |
 | `marginaleffects` | 1.0.0 | marginal-effects cross-check (`gen_margins.R`); from the Posit binary repo, with its imports `insight` 1.7.0, `data.table` 1.18.6.1, `generics` 0.1.4 and `Matrix` 1.7-6 (pinned; see the `Matrix` row; the golden records each) |
+| `lavaan` | 0.7.3 | `MAT_SEM` / `ATTR_SEM_SCORE` reference fits (`internal/sem/testdata/gen_lavaan.sh`, its own runner, each fixture recording the release) and the SEM nested comparison (`gen_sem_compare.R`: `lavTestLRT`, standard and `satorra.bentler.2001`); with its imports `pbivnorm` 0.6.0, `quadprog` 1.5.8, `numDeriv` 2016.8-1.1, `mnormt` 2.1.2 and `MASS` (the row above) — the versions the goldens were generated with; the scripts check lavaan's alone |
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
+| `mpath` | 0.4-2.28 | penalized `REG_GLM` negative binomial (`gen_glm_nb_penalty.R`: `glmregNB`); with its imports `pscl` 1.5.9, `bst` 0.3-24, `WeightSVM` 1.7-16 and `doParallel` 1.0.17 (pinned, recorded in the golden); compiles Fortran, so install it with the workaround below |
+| `plm` | 2.6-7 | panel covariance cross-check (`gen_robust_vcov_panel.R`: `vcovNW`, `vcovSCC` on a pooling `plm`); with its imports `bdsmatrix` 1.3-7, `collapse` 2.1.9, `maxLik` 1.6-10 and `miscTools` 0.6-30 (pinned, recorded in the golden; `collapse` compiles C/C++); `zoo`, `nlme`, `Formula`, `Rdpack`, `lmtest` resolve from the rows above or the R build |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`) and `REG_MULTINOMIAL` (`gen_multinomial_penalty.R`); thresh / maxit through `control` |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
@@ -821,6 +1005,8 @@ is the whole list in one place.
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
 | `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) and `REG_MMM_HILL` (`gen_mmm_hill.R`, `make reference`; `gen_mmm_hill_adstock.R`, `make reference-mmm-hill-adstock`; on Linux it installs from the Posit noble binary repo); links gfortran, so install it with the workaround below |
 | `nloptr` | 2.2.1 | `optimize.Minimize`, `NLOPT_LD_SLSQP` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) |
+| `lme4` | 2.0-6 | `TEST_ANOVA_RM` `incomplete: "mixed"` (`gen_test_anova_rm_mixed.R`: `lmer(y ~ cond + (1 \| subj), REML = TRUE)`, the cross-check fit) |
+| `lmerTest` | 3.2-1 | `TEST_ANOVA_RM` `incomplete: "mixed"` (`gen_test_anova_rm_mixed.R`: `anova(m, ddf = "Satterthwaite")`, kept as `r_lmertest_*` beside the closed-form REML / Satterthwaite golden; pure R, installs from CRAN source), with its import `numDeriv` 2016.8-1.1 |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance
@@ -841,7 +1027,11 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
-            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26")
+            Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26",
+            pscl = "1.5.9", bst = "0.3-24", WeightSVM = "1.7-16", doParallel = "1.0.17",
+            mpath = "0.4-2.28", bdsmatrix = "1.3-7", collapse = "2.1.9",
+            miscTools = "0.6-30", maxLik = "1.6-10", plm = "2.6-7",
+            numDeriv = "2016.8-1.1", lme4 = "2.0-6", lmerTest = "3.2-1")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

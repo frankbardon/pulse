@@ -140,7 +140,9 @@ func RegressionReads(reg *types.RegressionSpec) []string {
 	}
 	if c := reg.Covariance; c != nil {
 		add(c.Cluster)
+		add(c.Cluster2)
 		add(c.OrderBy)
+		add(c.Entity)
 	}
 	add(reg.JackknifeBy)
 	if o := reg.Order; o != nil {

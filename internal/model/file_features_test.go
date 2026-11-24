@@ -3,6 +3,8 @@ package model
 import (
 	"bytes"
 	"encoding/json"
+	stderrors "errors"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -30,13 +32,13 @@ func wantFeatures(t *testing.T, got *File, data []byte, want ...string) {
 	}
 }
 
-// TestModelFile_FeatureRegistry: the registry names the eight sections
+// TestModelFile_FeatureRegistry: the registry names the nine sections
 // in the order the writer lists them, and each governs a real document
 // key of File — the one entry a new section adds.
 func TestModelFile_FeatureRegistry(t *testing.T) {
 	t.Parallel()
 
-	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeatureTheta, FeatureSweepAxes, FeatureAdstock, FeatureSaturation, FeatureCategories}
+	want := []string{FeatureRobustCovariance, FeatureOutputs, FeatureDispersion, FeaturePenalizedInverse, FeatureTheta, FeatureSweepAxes, FeatureAdstock, FeatureSaturation, FeatureCategories}
 	if got := FileFeatures(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FileFeatures() = %v, want %v", got, want)
 	}
@@ -119,6 +121,8 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 		{"outputs+sweep_axes", extResult, []string{FeatureOutputs, FeatureSweepAxes}, axes, nil},
 		{"outputs+adstock", hillFit, []string{FeatureOutputs, FeatureAdstock}, nil, adstock},
 		{"outputs+sweep_axes+adstock", hillFit, []string{FeatureOutputs, FeatureSweepAxes, FeatureAdstock}, axes, adstock},
+		{"penalized_inverse", penalizedFit, []string{FeaturePenalizedInverse}, nil, nil},
+		{"penalized_inverse+sweep_axes", penalizedFit, []string{FeaturePenalizedInverse, FeatureSweepAxes}, axes, nil},
 		{"categories", multinomialFit, []string{FeatureCategories}, nil, nil},
 		{"sweep_axes+categories", multinomialFit, []string{FeatureSweepAxes, FeatureCategories}, axes, nil},
 	}
@@ -146,6 +150,17 @@ func TestModelFile_FeatureCombinationsRoundTrip(t *testing.T) {
 			if res.Vcov != nil {
 				for i := range res.Vcov.Values {
 					sameFloats(t, "vcov", r.Vcov.Values[i], res.Vcov.Values[i])
+				}
+			}
+			if (r.PenalizedInverse == nil) != (res.PenalizedInverse == nil) {
+				t.Fatalf("penalized_inverse %v, want %v", r.PenalizedInverse, res.PenalizedInverse)
+			}
+			if res.PenalizedInverse != nil {
+				if !reflect.DeepEqual(r.PenalizedInverse.RowKeys, res.PenalizedInverse.RowKeys) {
+					t.Errorf("penalized_inverse keys %v, want %v", r.PenalizedInverse.RowKeys, res.PenalizedInverse.RowKeys)
+				}
+				for i := range res.PenalizedInverse.Values {
+					sameFloats(t, "penalized_inverse", r.PenalizedInverse.Values[i], res.PenalizedInverse.Values[i])
 				}
 			}
 			if !reflect.DeepEqual(r.Covariance, res.Covariance) {
@@ -242,5 +257,72 @@ func TestDecodeFile_UnknownFeature(t *testing.T) {
 		ce.Details["version"] != 1 || ce.Details["path"] != "new"+FileSuffix ||
 		!reflect.DeepEqual(ce.Details["supported_features"], FileFeatures()) {
 		t.Fatalf("details %v", ce.Details)
+	}
+}
+
+// penalizedFit is a lasso REG_OLS fit carrying its regularized inverse
+// over the intercept and its one active predictor (regression-depth-2
+// E1-S4): b is zeroed, so it is no key.
+func penalizedFit() (*types.RegressionSpec, *types.RegressionResult) {
+	spec, res := fullFit()
+	spec.Vcov, spec.Penalty, spec.Alpha = false, "l1", 0.1
+	res.Vcov, res.Penalty, res.Alpha = nil, "l1", 0.1
+	res.Coefficients["b"] = 0
+	res.PenalizedInverse = &types.MatrixValues{
+		Kind: types.MatrixKindSquareSymmetric, Encoding: types.MatrixEncodingFull,
+		RowKeys: []string{InterceptKey, "a"}, ColumnKeys: []string{InterceptKey, "a"},
+		Values: [][]float64{{0.1 + 0.2, math.Copysign(0, -1)}, {math.Copysign(0, -1), math.NaN()}},
+	}
+	return spec, res
+}
+
+// TestDecodeFile_PenalizedInverseRefusals: the penalized_inverse
+// section's rule — a penalized REG_OLS / REG_GLM fit's square matrix
+// keyed (intercept) then predictors — refuses every other shape
+// PULSE_MODEL_FILE_INVALID reason schema, naming the section.
+func TestDecodeFile_PenalizedInverseRefusals(t *testing.T) {
+	t.Parallel()
+
+	spec, res := penalizedFit()
+	f, err := NewFile("m", spec, res, Provenance{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		edit func(f *File)
+	}{
+		{"unpenalized", func(f *File) { f.Penalty = "" }},
+		{"bayes", func(f *File) { f.Type = types.REG_BAYES_LINEAR }},
+		{"ragged", func(f *File) { f.PenalizedInverse.Values[1] = f.PenalizedInverse.Values[1][:1] }},
+		{"columns differ", func(f *File) { f.PenalizedInverse.ColumnKeys = []string{InterceptKey, "b"} }},
+		{"no intercept first", func(f *File) {
+			f.PenalizedInverse.RowKeys, f.PenalizedInverse.ColumnKeys = []string{"a", InterceptKey}, []string{"a", InterceptKey}
+		}},
+		{"foreign key", func(f *File) {
+			f.PenalizedInverse.RowKeys, f.PenalizedInverse.ColumnKeys = []string{InterceptKey, "z"}, []string{InterceptKey, "z"}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := f.Encode()
+			if err != nil {
+				t.Fatal(err)
+			}
+			g, err := DecodeFile("m"+FileSuffix, data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.edit(g)
+			bad, err := json.Marshal(g)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = DecodeFile("m"+FileSuffix, bad)
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MODEL_FILE_INVALID || ce.Details["reason"] != "schema" || !strings.Contains(ce.Message, "penalized_inverse") {
+				t.Fatalf("DecodeFile err = %v, want PULSE_MODEL_FILE_INVALID schema naming penalized_inverse", err)
+			}
+		})
 	}
 }

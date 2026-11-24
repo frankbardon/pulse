@@ -34,6 +34,35 @@ func TestCheck(t *testing.T) {
 		{"cluster", ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g"}), "", ""},
 		{"hac auto", ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t"}), "", ""},
 		{"hac 0", ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Lags: types.LagsOf(0)}), "", ""},
+		// Panel series (U69 #401): hac + entity is per-entity Newey–West,
+		// driscoll_kraay sums the scores per period; both need order_by,
+		// entity is optional, and entity / order_by / lags stay off the
+		// other types.
+		{"hac entity", ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Entity: "geo"}), "", ""},
+		{"dk", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t"}), "", ""},
+		{"dk entity lags", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t", Entity: "geo", Lags: types.LagsOf(3)}), "", ""},
+		{"glm dk", with(ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_GLM }), "", ""},
+		{"bayes hac entity", with(ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Entity: "geo"}), func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "", ""},
+		{"dk without order_by", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, Entity: "geo"}), errors.PROCESSING_CONFIG, ""},
+		{"entity on hc1", ols(&types.RegressionCovariance{Type: types.CovarianceHC1, Entity: "geo"}), errors.PROCESSING_CONFIG, ""},
+		{"entity on cluster", ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Entity: "geo"}), errors.PROCESSING_CONFIG, ""},
+		{"entity is order_by", ols(&types.RegressionCovariance{Type: types.CovarianceHAC, OrderBy: "t", Entity: "t"}), errors.PROCESSING_CONFIG, ""},
+		{"cluster on dk", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t", Cluster: "g"}), errors.PROCESSING_CONFIG, ""},
+		{"dk negative lags", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t", Lags: types.LagsOf(-1)}), errors.PROCESSING_CONFIG, ""},
+		{"multinomial dk", with(ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"dk + ridge", with(ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t"}), func(s *types.RegressionSpec) { s.Penalty = "l2" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonPenalty},
+		// Two-way cluster (U69 #401): cluster2 beside cluster on the three
+		// full-estimator types; off type cluster, naming cluster again,
+		// on REG_MULTINOMIAL (which keeps one-way cluster) refused.
+		{"two-way", ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}), "", ""},
+		{"glm two-way", with(ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_GLM }), "", ""},
+		{"bayes two-way", with(ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "", ""},
+		{"cluster2 without cluster", ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster2: "t"}), errors.PROCESSING_CONFIG, ""},
+		{"cluster2 on hc1", ols(&types.RegressionCovariance{Type: types.CovarianceHC1, Cluster2: "t"}), errors.PROCESSING_CONFIG, ""},
+		{"cluster2 on dk", ols(&types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t", Cluster2: "g"}), errors.PROCESSING_CONFIG, ""},
+		{"cluster2 is cluster", ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "g"}), errors.PROCESSING_CONFIG, ""},
+		{"multinomial two-way", with(ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}), func(s *types.RegressionSpec) { s.Type = types.REG_MULTINOMIAL }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonType},
+		{"two-way + ridge", with(ols(&types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g", Cluster2: "t"}), func(s *types.RegressionSpec) { s.Penalty = "l2" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonPenalty},
 		{"empty type", ols(&types.RegressionCovariance{}), errors.PROCESSING_CONFIG, ""},
 		{"unknown type", ols(&types.RegressionCovariance{Type: "hc5"}), errors.PROCESSING_CONFIG, ""},
 		{"cluster without field", ols(&types.RegressionCovariance{Type: types.CovarianceCluster}), errors.PROCESSING_CONFIG, ""},
@@ -101,8 +130,35 @@ func TestDataRefusals(t *testing.T) {
 	if e := TooFewClusters(spec, 1); e.Code != errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED || e.Details["reason"] != ReasonClusters || e.Details["clusters"] != 1 {
 		t.Errorf("TooFewClusters = %+v", e)
 	}
+	if e := TooFewClustersOf(spec, "t", 1); e.Details["cluster"] != "t" || e.Details["reason"] != ReasonClusters {
+		t.Errorf("TooFewClustersOf = %+v", e)
+	}
 	if e := OrderTies(spec, 7); e.Details["reason"] != ReasonOrderTies || e.Details["value"] != 7.0 || e.Details["order_by"] != "t" {
 		t.Errorf("OrderTies = %+v", e)
+	}
+	panel := &types.RegressionSpec{Type: types.REG_GLM, Covariance: &types.RegressionCovariance{Type: types.CovarianceDriscollKraay, OrderBy: "t", Entity: "geo"}}
+	e := EntityOrderTies(panel, "north", 3)
+	if e.Code != errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED || e.Details["reason"] != ReasonOrderTies || e.Details["entity"] != "geo" ||
+		e.Details["entity_value"] != "north" || e.Details["value"] != 3.0 || e.Details["covariance_type"] != "driscoll_kraay" {
+		t.Errorf("EntityOrderTies = %+v", e)
+	}
+}
+
+// TestCheckDeclared_RefusesTwoWay: an extension model's declared
+// cluster is one-way — a declaration names covariance types, not the
+// two-way form — so cluster2 beside it is the type refusal, while the
+// one-way block passes.
+func TestCheckDeclared_RefusesTwoWay(t *testing.T) {
+	t.Parallel()
+
+	spec := &types.RegressionSpec{Type: "REG_ACME_FIT", Covariance: &types.RegressionCovariance{Type: types.CovarianceCluster, Cluster: "g"}}
+	if e := CheckDeclared(spec); e != nil {
+		t.Fatalf("one-way declared cluster refused: %v", e)
+	}
+	spec.Covariance.Cluster2 = "t"
+	e := CheckDeclared(spec)
+	if e == nil || e.Code != errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED || e.Details["reason"] != ReasonType || e.Details["cluster2"] != "t" {
+		t.Errorf("declared two-way = %+v, want VCOV_UNSUPPORTED reason type naming cluster2", e)
 	}
 }
 

@@ -1250,13 +1250,16 @@ const (
 	// found at least one subject missing one or more conditions.
 	// Default behavior is to drop the incomplete subject(s) and surface
 	// the count as a warning; configurable to error under strict mode.
+	// TEST_ANOVA_RM params.incomplete "mixed" keeps them instead.
 	PULSE_TEST_SUBJECT_MISSING Code = "PULSE_TEST_SUBJECT_MISSING"
 
 	// PULSE_TEST_BALANCED_DESIGN_REQUIRED indicates a repeated-measures
-	// test observed unequal cell counts across the condition × subject
-	// grid. Type II / III sums-of-squares decompositions for the
-	// unbalanced case are not implemented yet; the test fails rather
-	// than reporting a biased balanced-design F.
+	// test (TEST_ANOVA_RM) saw a second observation for one subject ×
+	// condition cell: the test takes one observation per subject per
+	// condition, and refuses (details subject / condition) rather than
+	// overwrite or average. A data-dependent refusal: the slot fails
+	// alone. A subject MISSING a condition is PULSE_TEST_SUBJECT_MISSING
+	// (or params.incomplete "mixed").
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
 
 	// PULSE_TEST_TUKEY_REQUIRES_K_GE_3 indicates a Tukey HSD request on
@@ -1911,7 +1914,9 @@ const (
 	// PULSE_COMPARISON_INVALID indicates a ComposedRequest `compare`
 	// entry (a nested-model comparison of two `fits`) that cannot run:
 	// a missing or repeated name, a fit name that is missing, unknown,
-	// not a request-bound regression fit, or the same on both sides; fits
+	// not a regression fit (nor two vector fits), or the same on both
+	// sides; two vector fits whose batteries do not list their members
+	// ("members_unlisted") or are not nested member-wise; fits
 	// that are not both REG_OLS, both REG_GLM, both REG_MULTINOMIAL or
 	// both one model declaring Compare (REG_ORDINAL, an embedder's); an
 	// unknown test; terms that are not nested; declared fits whose
@@ -1921,9 +1926,13 @@ const (
 	// or a fit or test the comparison does not support (reason
 	// "requires", with "requires" naming the condition). Refused
 	// identically by predict and the runtime before any fit or slot
-	// runs. Details carry "compare" (the 0-based entry index), "name",
-	// "reason" and, where they apply, "field", "value", "valid",
-	// "available", "missing", "keys", "requires" and "alternative".
+	// runs — a side bound from the sweep (`from_sweep`) when every sweep
+	// slot refuses; the winning slot is judged again after the rank, and
+	// a refusal there fails the comparison alone (its result's error,
+	// details "sweep_slot" / "sweep_label"). Details carry "compare" (the
+	// 0-based entry index), "name", "reason" and, where they apply,
+	// "field", "value", "valid", "available", "missing", "keys",
+	// "requires" and "alternative".
 	PULSE_COMPARISON_INVALID Code = "PULSE_COMPARISON_INVALID"
 
 	// PULSE_POSTFIT_INVALID indicates a ComposedRequest `post_fit` entry
@@ -2000,7 +2009,8 @@ const (
 	// lower / upper bound without exactly one predictor term
 	// ("bound_terms"); a leverage / influence / standardized /
 	// studentized params.fit slot over a fit without the design it reads
-	// ("params_invalid" with "requires": vcov, dispersion, unweighted,
+	// ("params_invalid" with "requires": vcov, dispersion, unweighted —
+	// a probability-weighted fit, permanently; a frequency weight reads —
 	// classical_covariance, unpenalized, no_selection, no_resample,
 	// unconstrained, intercept; "type_unsupported" on a type other than
 	// REG_OLS / REG_GLM). Refused identically by predict and the

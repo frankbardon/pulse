@@ -2,6 +2,7 @@ package regression
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -56,5 +57,39 @@ func TestBootstrapSeed_CarryoverSeedNeutral(t *testing.T) {
 	if deriveBootstrapSeed(spec(types.REG_OLS, `{"carryover":true}`), records, predictorNames(2)) ==
 		deriveBootstrapSeed(spec(types.REG_OLS, `{}`), records, predictorNames(2)) {
 		t.Error("carryover dropped from a REG_OLS seed")
+	}
+}
+
+// TestBootstrapSeed_VcovSeedNeutral (U69 E2-S4): at rng_seed 0 `vcov`
+// derives the seed leaving it out derives — it reads the replicates,
+// never draws them — so a bootstrap and a jackknife_groups assignment
+// resample the same rows with or without it: the standard errors and
+// p-values are bit-identical, and the vcov's diagonal is SE².
+func TestBootstrapSeed_VcovSeedNeutral(t *testing.T) {
+	t.Parallel()
+
+	records := makeLinearRecords(t, 40, []float64{1.5, -0.8}, 0.3, 0.4, 11)
+	for _, mod := range []func(*types.RegressionSpec){
+		func(s *types.RegressionSpec) { s.Resample, s.BootstrapIters = "bootstrap", 120 },
+		func(s *types.RegressionSpec) { s.Resample, s.JackknifeGroups = "jackknife", 7 },
+	} {
+		bare := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2)}
+		mod(bare)
+		withVcov := *bare
+		withVcov.Vcov = true
+		if a, b := deriveBootstrapSeed(bare, records, bare.Predictors), deriveBootstrapSeed(&withVcov, records, withVcov.Predictors); a != b {
+			t.Fatalf("%s: vcov moved the seed: %d vs %d", bare.Resample, a, b)
+		}
+		r0, r1 := runOLSWithModifier(t, bare, records), runOLSWithModifier(t, &withVcov, records)
+		if r1.Vcov == nil || r0.Vcov != nil {
+			t.Fatalf("%s: vcov emitted %v / %v", bare.Resample, r0.Vcov != nil, r1.Vcov != nil)
+		}
+		for _, k := range []string{InterceptKey, "x1", "x2"} {
+			if math.Float64bits(r0.StdErrors[k]) != math.Float64bits(r1.StdErrors[k]) ||
+				math.Float64bits(r0.PValues[k]) != math.Float64bits(r1.PValues[k]) {
+				t.Errorf("%s %s: SE %v / %v, p %v / %v with and without vcov", bare.Resample, k,
+					r0.StdErrors[k], r1.StdErrors[k], r0.PValues[k], r1.PValues[k])
+			}
+		}
 	}
 }

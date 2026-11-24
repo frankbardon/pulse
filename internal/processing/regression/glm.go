@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/internal/regmargins"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -76,8 +77,9 @@ const (
 
 // newGLMEngine validates the REG_GLM spec and constructs an engine; a
 // spec with a Resample / Selection modifier gets the modifier wrapper.
-// A penalty (l2 / l1 / elasticnet, binomial and poisson) rides the same
-// IRLS loop (glm_penalty.go).
+// A penalty (l2 / l1 / elasticnet, binomial, poisson and negative
+// binomial — θ re-estimated around it, U69 E3-S1) rides the same IRLS
+// loop (glm_penalty.go).
 func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, error) {
 	if spec.Type != types.REG_GLM {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -207,7 +209,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		WantWeights: e.spec.Collinearity != nil && e.spec.Collinearity.EffectiveBasis() == types.CollinearityBasisModel,
 	}
 	// A penalty's N* is Σw* (n unweighted): glmnet's −loglik/N*.
-	pen := newGLMPenalty(e.spec, sum(prior))
+	pen := newGLMPenalty(e.spec, e.spec.Predictors, sum(prior))
 	if pen != nil {
 		pr.Penalty = pen
 	}
@@ -232,7 +234,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		return nil, err
 	}
 	if pen != nil {
-		res, err := e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
+		res, err := e.penalizedResult(pen, nb, sol, yVec, prior, sumW, sumWSq, rw)
 		if err == nil && e.spec.Collinearity != nil {
 			// basis predictors only (internal/collinearity refuses the
 			// model basis beside a penalty): the prior-weighted design.
@@ -370,7 +372,8 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 			if e.spec.Margins.EffectiveType() == types.MarginsMEM {
 				at = designMeans(xRows, prior, p+1)[1:]
 			}
-			res.Margins = coefficientMargins(e.spec, res, inf, at)
+			res.Margins = coefficientMargins(e.spec, res, inf, at,
+				contrastTerms(e.spec, regmargins.Terms(e.spec), designBinary(xRows, p+1)))
 		default:
 			res.Margins = glmMargins(e.spec, e.family, xRows, prior, eta, beta, coefCov(), inf)
 		}
@@ -477,7 +480,13 @@ func (e *glmEngine) nullDeviance(yVec, prior []float64, deviance float64) (float
 // though the sandwich is still formed so a collapsed information matrix
 // refuses exactly as before. Deviance, null deviance and
 // pseudo-R² are the unpenalised figures at the penalised estimate.
-func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, prior []float64, sumW, sumWSq float64, rw rowWeights) (*types.RegressionResult, error) {
+//
+// A negative binomial (nb non-nil; U69 E3-S1, #638) reports its θ — re-
+// estimated around the penalized fit by fitNegBin's alternation, or the
+// fixed θ — and the alternation's IRLS iterations summed; SE(θ̂) =
+// 1/√I(θ̂) at the penalized means under l2, NaN under l1 / elasticnet
+// (no inference after data-driven selection, as the coefficients).
+func (e *glmEngine) penalizedResult(pen *glmPenalty, nb *negBinFit, sol *irlsSolution, yVec, prior []float64, sumW, sumWSq float64, rw rowWeights) (*types.RegressionResult, error) {
 	predictors := e.spec.Predictors
 	k := len(predictors) + 1
 	active, cov, ok := pen.covariance(k, sol.Gram, sol.Beta)
@@ -536,7 +545,22 @@ func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, pr
 		NObs:           len(yVec),
 		ConvergedIters: sol.Iters,
 	}
+	if nb != nil {
+		attachNegBin(res, nb)
+		if nb.estimated && pen.approximateSE() {
+			res.ThetaStdErr = math.NaN()
+		}
+	}
 	rw.note(res, sumW, sumWSq)
+	if carriesPenalizedInverse(e.spec) {
+		// The regularized inverse a bound fit's leverage reads (E1-S4).
+		hatActive, hatInv := pen.hatInverse(k, sol.Gram, sol.Beta)
+		cols := make([]int, 0, len(hatActive)-1)
+		for _, j := range hatActive[1:] {
+			cols = append(cols, j-1)
+		}
+		res.PenalizedInverse = penalizedInverseMatrix(predictors, cols, hatInv)
+	}
 	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
 	if e.spec.Vcov && !pen.approximateSE() {
 		attachVcov(res, predictors, cov)

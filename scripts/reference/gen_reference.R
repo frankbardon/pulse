@@ -611,3 +611,77 @@ source(file.path(script_dir, "gen_multinomial_penalty.R"), local = FALSE)
 # partial proportional-odds fit, ordinal::nominal_test); MASS 7.3-66 +
 # sandwich 3.1-3 + brant 0.3.0 + ordinal 2026.7-26 + jsonlite. Seeded RNG.
 source(file.path(script_dir, "gen_ordinal.R"), local = FALSE)
+
+# The TEST_ANOVA_RM params.incomplete "mixed" golden (U69 E6-S1, #678:
+# test_anova_rm_mixed.json: REML y ~ cond + (1 | subj) on every observed
+# cell, the closed-form REML optimum and Satterthwaite F / df / p that
+# lmerTest::anova approximates, lmerTest's own figures beside); lme4
+# 2.0-6 + lmerTest 3.2-1 + numDeriv 2016.8-1.1 + jsonlite. Its own seed,
+# sourced after the rest, so no other golden moves.
+source(file.path(script_dir, "gen_test_anova_rm_mixed.R"), local = FALSE)
+
+# The resampled marginal-effects golden (U69 #639:
+# margins_resample.json: base-R replicate loops of the ame / mem / 0/1
+# contrast on lm and the logit / probit / poisson glm — leave-one-out,
+# delete-a-cluster and frequency-weighted jackknife, a bootstrap over
+# its own recorded index sets); base stats + jsonlite. Its own seed,
+# sourced after the rest, so no other golden moves.
+source(file.path(script_dir, "gen_margins_resample.R"), local = FALSE)
+
+# The resampled Wald-comparison golden (U69 #642: compare_resample.json:
+# base-R replicate loops of the full lm / logit / poisson / gamma glm —
+# leave-one-out and delete-a-cluster jackknife, a bootstrap over its own
+# recorded index sets — and car::linearHypothesis over the replicate
+# covariance); car 3.1-5 + base stats + jsonlite. Its own seed, sourced
+# last, so no other golden moves.
+source(file.path(script_dir, "gen_compare_resample.R"), local = FALSE)
+
+# The penalized negative binomial golden (U69 E3-S1, #638:
+# glm_nb_penalty.json: mpath::glmregNB — l2 / l1 / elasticnet,
+# unpenalized predictors, frequency weights, theta re-estimated by
+# theta.ml around the penalized fit or fixed — KKT-checked against
+# glmnet's standardize = FALSE objective); mpath 0.4-2.28 + glmnet 5.1 +
+# MASS 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
+# moves.
+source(file.path(script_dir, "gen_glm_nb_penalty.R"), local = FALSE)
+
+# The negative binomial under selection and resample golden (U69 E3-S2,
+# #638: glm_nb_refit.json: MASS::stepAIC on glm.nb — theta re-estimated
+# per candidate — beside an exact greedy for a fixed theta, and base-R
+# replicate loops of glm.nb — leave-one-out, delete-a-cluster and
+# frequency-weighted jackknife, a bootstrap over its own recorded index
+# sets, ame / mem effects — theta re-estimated per replicate); MASS
+# 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
+# moves.
+source(file.path(script_dir, "gen_glm_nb_refit.R"), local = FALSE)
+
+# The panel series covariance golden (U69 E4-S1, #401:
+# robust_vcov_panel.json: per-entity Newey-West (covariance hac +
+# entity) and Driscoll-Kraay on REG_OLS / REG_GLM / REG_BAYES_LINEAR
+# against sandwich::vcovPL, cross-checked by plm::vcovNW / vcovSCC);
+# sandwich 3.1-3 + plm 2.6-7 + jsonlite. Its own seed, sourced last, so
+# no other golden moves.
+source(file.path(script_dir, "gen_robust_vcov_panel.R"), local = FALSE)
+
+# The sweep-bound comparison golden (U69 E5-S1, #643: compare_sweep.json:
+# a sweep over the row window id <= hi ranked by the full model's
+# figure, R picking the same winner, then anova(m0, m1) on lm,
+# anova(test = "LRT") on a poisson glm and lmtest::waldtest on a logit
+# over the winning rows); lmtest 0.9-40 + base stats + jsonlite. Its own
+# seed, sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_compare_sweep.R"), local = FALSE)
+
+# The vector-fit comparison golden (U69 E5-S2, #643: compare_vector.json:
+# member-wise nesting of two batteries — per restricted member j,
+# anova(lm(j ~ restricted others), lm(j ~ full others)), its Chisq form
+# and lmtest::waldtest, one case under a frequency weight as the row
+# expansion); lmtest 0.9-40 + base stats + jsonlite. Its own seed,
+# sourced after the rest, so no other golden moves.
+source(file.path(script_dir, "gen_compare_vector.R"), local = FALSE)
+
+# The SEM-pair comparison golden (U69 E5-S3, #643: sem_compare.json:
+# lavaan::lavTestLRT on two MAT_SEM fits of the brand survey — the plain
+# chi-square difference under ML / DWLS, the Satorra-Bentler (2001)
+# scaled difference under WLSMV); lavaan 0.7.3 + jsonlite. No random
+# draw, sourced last, so no other golden moves.
+source(file.path(script_dir, "gen_sem_compare.R"), local = FALSE)

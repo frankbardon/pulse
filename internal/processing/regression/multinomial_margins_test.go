@@ -53,6 +53,10 @@ type mnMarginsCase struct {
 	At                 []float64   `json:"at"`
 	MEEstimates        []float64   `json:"me_estimates"`
 	MEStdErrors        []float64   `json:"me_std_errors"`
+	// Binary / Contrasts: binary contrast and the 0/1 terms it reports
+	// as π_c(1) − π_c(0) (U69 #641).
+	Binary    string   `json:"binary"`
+	Contrasts []string `json:"contrasts"`
 }
 
 // loadMultinomialMargins reads margins.json's multinomial cases,
@@ -81,7 +85,7 @@ func loadMultinomialMargins(t *testing.T) []mnMarginsCase {
 		t.Fatalf("decode margins.json: %v", err)
 	}
 	if !strings.HasPrefix(doc.RVersion, "R version 4.6.1") || doc.Packages["nnet"] != "7.3.21" ||
-		doc.Packages["marginaleffects"] != "1.0.0" || len(doc.Cases) != 11 {
+		doc.Packages["marginaleffects"] != "1.0.0" || len(doc.Cases) != 16 {
 		t.Fatalf("margins.json: R %q, packages %v, %d multinomial cases", doc.RVersion, doc.Packages, len(doc.Cases))
 	}
 	return doc.Cases
@@ -89,7 +93,7 @@ func loadMultinomialMargins(t *testing.T) []mnMarginsCase {
 
 func (c mnMarginsCase) spec() *types.RegressionSpec {
 	s := &types.RegressionSpec{Type: types.REG_MULTINOMIAL, Target: "y", Predictors: []string{"x1", "x2"},
-		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale}}
+		Margins: &types.RegressionMargins{Type: c.Type, Scale: c.Scale, Binary: c.Binary}}
 	if c.ReferenceRequested {
 		s.Reference = c.Reference
 	}
@@ -142,6 +146,9 @@ func TestMultinomialMarginsOracle_ClosedForms(t *testing.T) {
 		mg := c.fit(t).Margins
 		if !slices.Equal(mg.Outcomes, c.Outcomes) || !slices.Equal(mg.Terms, c.Terms) || mg.Type != c.Type || mg.Scale != c.Scale || mg.DF != 0 || mg.ConfLevel != 0.95 {
 			t.Fatalf("%s: outcomes %v terms %v type %s scale %s df %v, R %v %v", c.Name, mg.Outcomes, mg.Terms, mg.Type, mg.Scale, mg.DF, c.Outcomes, c.Terms)
+		}
+		if mg.Binary != c.Binary || !slices.Equal(mg.Contrasts, c.Contrasts) {
+			t.Fatalf("%s: binary %q contrasts %v, R %q %v", c.Name, mg.Binary, mg.Contrasts, c.Binary, c.Contrasts)
 		}
 		keys := regmargins.ResultKeys(mg)
 		if len(keys) != len(c.Estimates) || len(mg.Estimates) != len(keys) {
@@ -204,8 +211,8 @@ func TestMultinomialMarginsOracle_Marginaleffects(t *testing.T) {
 			}
 		}
 	}
-	if n != 8 {
-		t.Fatalf("%d cases carry a marginaleffects cross-check, want 8", n)
+	if n != 12 {
+		t.Fatalf("%d cases carry a marginaleffects cross-check, want 12", n)
 	}
 	t.Logf("multinomial margins vs marginaleffects: estimate %.3g, std_error %.3g", worstEst, worstSE)
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/reglink"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,7 +34,8 @@ type modifierEngine struct {
 	finalized bool
 	// figures, when set (OfferingFigures), is handed to the inner
 	// full-data engine (finalizeOnPredictors), whose figures are the
-	// fit's: a resample replaces only the standard errors.
+	// fit's — under a resample through a hold (HoldFigures) that swaps
+	// in the replicate covariance the standard errors read.
 	figures func(*model.RegressionFigures)
 }
 
@@ -145,16 +148,20 @@ func (e *modifierEngine) FitBufferedContext(ctx context.Context, records []Recor
 		// Resample reuses the selected predictor subset.
 		activePredictors = out.SelectedFeatures
 		// Pre-populate baseResult for the resample driver.
-		return e.runResampleWith(ctx, records, activePredictors, out)
+		return e.runResampleWith(ctx, records, activePredictors, out, nil)
 	}
 
-	// No selection: just resample around the inner fit.
+	// No selection: just resample around the inner fit. A comparison's
+	// figures offer is held through the base fit and released with the
+	// replicate covariance (compare_resample.go).
 	if e.spec.Resample != "" {
+		var relay *ResampledFigures
+		e.figures, relay = HoldFigures(e.spec, e.figures)
 		baseResult, err := e.finalizeOnPredictors(records, activePredictors)
 		if err != nil {
 			return nil, err
 		}
-		return e.runResampleWith(ctx, records, activePredictors, baseResult)
+		return e.runResampleWith(ctx, records, activePredictors, baseResult, relay)
 	}
 
 	// No modifier; finalize as the unmodified inner engine would.
@@ -164,15 +171,23 @@ func (e *modifierEngine) FitBufferedContext(ctx context.Context, records []Recor
 // runResampleWith dispatches the Resample driver around a baseResult.
 // activePredictors is the predictor universe the resample operates on
 // (post-selection or original spec). baseResult carries the point
-// estimate (β); the resample replaces only StdErrors / PValues.
+// estimate (β); the resample replaces only StdErrors / PValues. figures,
+// when non-nil, holds the base fit's comparison figures until the run's
+// replicate covariance replaces theirs (nil under selection, which no
+// comparison reads).
 func (e *modifierEngine) runResampleWith(
 	ctx context.Context,
 	records []Record,
 	activePredictors []string,
 	baseResult *types.RegressionResult,
+	figures *ResampledFigures,
 ) (*types.RegressionResult, error) {
 	innerFitter, pValueFn := e.makeResampleFitter(activePredictors)
-	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), pValueFn)
+	// A margins block is re-estimated on every replicate refit
+	// (margins_resample.go) — the base fit's block names the terms and
+	// the contrasts.
+	derive := withThetaDerive(e.spec, marginsDerive(e.spec, e.family == "GLM", e.glmFam, activePredictors, baseResult.Margins))
+	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), derive, pValueFn, figures)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +207,25 @@ func (e *modifierEngine) runResampleWith(
 // its dispersion (glmFamily.EstimatesDispersion).
 func (e *modifierEngine) makeCriterionFn() func(*refitResult, int) float64 {
 	wantBIC := e.spec.Criterion == "bic"
+	if e.family == "GLM" && e.glmFam.Name == reglink.NegativeBinomial {
+		// The negative binomial scores each candidate by its own
+		// log-likelihood at its own θ (re-estimated per candidate, U69
+		// E3-S2): −2ℓ + (2 | log N*)·df, df counting θ when estimated
+		// (MASS glm.nb's AIC; stepAIC's extractAIC.negbin omits that
+		// constant +2, so the path is the same). Deviances at different
+		// θ are not comparable, so deviance + 2k would mis-rank them.
+		return func(fit *refitResult, k0 int) float64 {
+			ll, df := glmLogLik(fit.Family, fit.Y, fit.Mu, fit.Prior, fit.Deviance, k0+1, fit.Theta, fit.ThetaEstimated)
+			nStar := float64(len(fit.Y))
+			if fit.Prior != nil {
+				nStar = sum(fit.Prior)
+			}
+			if wantBIC {
+				return float64(-2*ll) + float64(detmath.Log(nStar)*float64(df))
+			}
+			return float64(-2*ll) + float64(2*df)
+		}
+	}
 	if e.family == "GLM" && e.glmFam.EstimatesDispersion {
 		// The family hook: an estimated dispersion (gamma) scores by the
 		// full log-likelihood with φ counted, R's AIC(glm) / BIC(glm)
@@ -293,6 +327,17 @@ func (e *modifierEngine) makeFinalizeFn() func([]Record, []string) (*types.Regre
 // copied with Resample / Selection / Criterion blanked so the inner
 // engine doesn't re-enter modifierEngine via the registry.
 func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string) (*types.RegressionResult, error) {
+	res, err := e.finalizeOnPredictorsInner(records, active)
+	if res != nil {
+		// A resampled or selected fit carries no regularized inverse
+		// (carriesPenalizedInverse): the inner engine's blanked spec
+		// would attach one no bound leverage reads.
+		res.PenalizedInverse = nil
+	}
+	return res, err
+}
+
+func (e *modifierEngine) finalizeOnPredictorsInner(records []Record, active []string) (*types.RegressionResult, error) {
 	inner := *e.spec
 	inner.Predictors = active
 	inner.Resample = ""
@@ -432,11 +477,20 @@ func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.Regressio
 		PseudoR2:     0,
 		NObs:         fit.N,
 	}
+	fam := e.glmFam
+	if fit.Family.Name != "" {
+		// A negative binomial's θ (U69 E3-S2): θ̂ of the intercept-only
+		// model (glm.nb(y ~ 1)) or the fixed θ; SE(θ̂) when estimated.
+		fam = fit.Family
+		res.Theta = fit.Theta
+		if fit.ThetaEstimated {
+			res.ThetaStdErr = fit.ThetaSE
+		}
+	}
 	if e.spec.Penalty == "" && fit.Y != nil && !newRowWeights(e.spec).weighted() {
 		// The intercept-only glm's logLik / AIC (loglik.go); selection
-		// refuses a weight and the negative binomial (θ), so the fit is
-		// unweighted on a fixed-dispersion or gamma family.
-		ll, df := glmLogLik(e.glmFam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, 0, false)
+		// refuses a weight, so the fit is unweighted.
+		ll, df := glmLogLik(fam, fit.Y, fit.Mu, fit.Prior, fit.Deviance, 1, fit.Theta, fit.ThetaEstimated)
 		attachLogLik(res, ll, df)
 	}
 	return res, nil
