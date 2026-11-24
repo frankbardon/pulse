@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749]
 branch: v1-release
 ---
 
@@ -206,3 +206,19 @@ Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO
 
 - [x] **#736** — **A fidelity `shape` for a `date` field.** A date twin's month volume is regenerated from `month_weights` but the report does not measure it; make `synth.TimeShapeFidelity.HourTVD` optional (`omitempty` pointer) so a date field can report `weekday_tvd` / `month_tvd` alone. Public-API golden moves; do it before the v1 freeze. *Done in U76 (E6-S4): `HourTVD` is a `*float64` (`omitempty`); a `date` entry carries `weekday_tvd` / `month_tvd` on the UTC clock, datetime reports byte-identical.*
 - [x] **#738** — **A request form for `pulse sample`.** The CLI takes only `--input`, so sampling a cohort union is library / MCP only; add a `--request` JSON form (as `facet` / `lookup` accept `request.union`) or record the limit as permanent in `docs/src/cli/flags.md`. *Done in U76 (E6-S6): `pulse api sample --request FILE|-` takes a whole `SampleRequest` (a `union` included) through the strict decoder; `--count` / `--labels` layer on top, `--input` beside it is a usage error (exit 2).*
+
+## Carried follow-ups (filed 2026-11-24)
+
+Recorded only in shipped efforts' notes and PR bodies; checked against the code and filed under this unit. Full text in [`TODO.md`](../TODO.md) §15; tick there when delivered.
+
+- [ ] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze.
+- [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
+- [ ] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document.
+- [ ] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks.
+- [ ] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect.
+- [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
+- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations.
+- [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
+- [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
+- [ ] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze.
+- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing.
