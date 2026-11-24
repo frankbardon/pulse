@@ -68,7 +68,7 @@ Every `type` is an operator constant from `pulse_manifest` `components.<category
 
 ## Slot-key gotchas
 
-Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`.
+Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`; a null entry (`[null]`) → `PROCESSING_CONFIG` `{slot, index}`.
 
 | Wrong | Right |
 |---|---|
@@ -79,11 +79,11 @@ Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`.
 | `output` | `outputs` |
 | `request` (Compose top-level) | `requests` |
 
-Per-operator slot: `type`, `field`, `label`, optional `params` (keys per operator: its atomic skill).
+Per-operator slot: `type`, `field`, `label`, optional `params` (keys: its atomic skill).
 
 ## Smart defaults
 
-When a slot names `field` but omits `type`, the engine infers from schema type. Predict reports filled slots under `data.defaults_applied`.
+A slot naming `field` without `type` gets one from the schema type. Predict reports filled slots under `data.defaults_applied`.
 
 | Field type | Default agg | Default grouper |
 |---|---|---|
@@ -101,12 +101,10 @@ A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); n
 
 ## Streamability
 
-`pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string`.
+`pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string` (authoritative).
 
-- **Streams:** online aggregators (manifest `streamable: true`), ungrouped or under a streamable grouper; row-local attributes; whole-cohort-statistic attributes (z-scores and the like) in two passes.
+- **Streams:** online aggregators (manifest `streamable: true`), ungrouped or under a streamable grouper; row-local attributes; whole-cohort-statistic attributes (z-scores) in two passes.
 - **Buffers:** order-statistic aggregators (median, percentile); percentile-rank attributes; groupers with `streamable: false`; windows; decimal aggregations; two-pass attributes combined with features or groups; tier-2 post tests.
-
-`streamable_reasons` is authoritative.
 
 ## Time zones
 

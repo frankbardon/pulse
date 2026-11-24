@@ -1061,7 +1061,9 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 //     use, descx.RefusalAt).
 //
 // valid_keys and suggestions range over the offending root's VISIBLE
-// keys only. Then — on every instance — a set materialize-only `output`
+// keys only. Ahead of all of it — on every instance — a null entry in
+// an operator list is PROCESSING_CONFIG {slot, index}
+// (nilEntryGate). Then — on every instance — a set materialize-only `output`
 // (the Request, a Compose slot or fit, a chain stage) is
 // PULSE_MATERIALIZE_OUTPUT_ONLY (outputSlotRefusal; MaterializeSlotGate
 // skips it). Then — on every instance, scoped or not — every slot's
@@ -1081,12 +1083,18 @@ func MaterializeSlotGate(req *types.Request, inst *InstanceSnapshot) error {
 	return slotRefusal(req, inst, true)
 }
 
-// slotRefusal runs the hidden-slot gate (scoped instances only), then —
+// slotRefusal runs the null-entry gate (nilEntryGate), then the
+// hidden-slot gate (scoped instances only), then —
 // unless the caller is a materialize run — the materialize-only
 // `output` refusal (PULSE_MATERIALIZE_OUTPUT_ONLY), then the params
 // allowlist. A hidden `output` is refused as an unknown field before
 // the materialize-only rule, as any hidden slot is.
 func slotRefusal(v any, inst *InstanceSnapshot, allowOutput bool) error {
+	// A null operator-list entry first: every later walk reads the
+	// entries (nilEntryGate).
+	if err := nilEntryGate(v); err != nil {
+		return err
+	}
 	if inst.Scoped() {
 		if err := scopedSlotRefusal(v, inst); err != nil {
 			return err
