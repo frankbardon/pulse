@@ -100,7 +100,7 @@ var interpRegOLS = slices.Concat([]descriptor.Interpretation{
 			"It is the classic standard error, which assumes residuals of constant spread, unless the request's covariance names a robust one.",
 		Caveats: []string{
 			"Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; " +
-				"covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.",
+				"covariance hc3 guards the first, cluster (rows grouped by a field), hac (a series in time) or driscoll_kraay (a panel) the second, and p_values, the intervals and vcov follow it.",
 			"Null on every coefficient of an l1 or elasticnet fit: the penalty picks the predictors from the data, so no analytical standard error is valid " +
 				"(advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED); request resample for replicate ones. An l2 fit's is the closed-form ridge sandwich.",
 			"Null on every coefficient of a bounds fit whose non-negativity constraint binds (a coefficient held at 0): the constrained estimator has no classical standard error " +
@@ -272,7 +272,7 @@ var interpRegGLM = slices.Concat([]descriptor.Interpretation{
 			"The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors " +
 				"need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.",
 			"Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), " +
-				"cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.",
+				"cluster (rows grouped by a field), hac (a series in time) or driscoll_kraay (a panel); p_values, the intervals and vcov follow it, still Wald z.",
 			"On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient " +
 				"(the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.",
 		},
@@ -562,7 +562,7 @@ var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 			"With many rows it is close to the posterior standard deviation.",
 		Caveats: []string{
 			"It is a posterior spread, not a frequentist standard error, and no p-value is built from it.",
-			"Under a robust covariance (hc0-hc3, cluster, hac) it is instead the scale of Muller's sandwich posterior, a normal centred on the same " +
+			"Under a robust covariance (hc0-hc3, cluster, hac, driscoll_kraay) it is instead the scale of Muller's sandwich posterior, a normal centred on the same " +
 				"posterior mean whose spread is the sandwich, not the model's: the posterior covariance is REPLACED, so the model's own uncertainty no longer enters.",
 		},
 	},

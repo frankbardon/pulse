@@ -2,6 +2,7 @@ package regression
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -32,7 +33,20 @@ import (
 //     add before the product); meat Γ₀ + Σ_{l=1..L} (1 − l/(L+1))·(Γ_l +
 //     Γ_lᵀ), Γ_l = Σ_t u_t·u_{t−l}ᵀ over the rows in order_by order,
 //     scaled N*/(N* − k) — R's sandwich::NeweyWest(prewhite = FALSE,
-//     adjust = TRUE) unweighted.
+//     adjust = TRUE) unweighted;
+//   - hac + entity (per-entity Newey–West): the periods are the distinct
+//     order_by values over every fitted row, ranked 0..T−1; each entity
+//     is its own series and Γ_l = Σ_entities Σ u_{e,t}·u_{e,t−l}ᵀ pairs
+//     an entity's rows exactly l periods apart (a period the entity
+//     lacks leaves no pair), the same Bartlett weights and scale, L
+//     auto over T — sandwich::vcovPL(aggregate = FALSE) / plm::vcovNW;
+//   - driscoll_kraay: S_t = Σ_{i in period t} w*·g_i summed across
+//     entities, then the hac meat over the T periods S_0..S_{T−1} in
+//     order, L auto over T, scaled N*/(N* − k) —
+//     sandwich::vcovPL(aggregate = TRUE) / plm::vcovSCC.
+//
+// Under an entity (hac or driscoll_kraay) an entity repeating an
+// order_by value is refused (regcov.EntityOrderTies).
 
 // sandwichRow is one fitted row's input to the sandwich.
 type sandwichRow struct {
@@ -44,8 +58,10 @@ type sandwichRow struct {
 	lev float64
 	// cluster is the row's cluster key (type cluster).
 	cluster string
-	// order is the row's order_by value (type hac).
+	// order is the row's order_by value (types hac, driscoll_kraay).
 	order float64
+	// entity is the row's panel entity key (covariance.entity).
+	entity string
 }
 
 // sandwichFit is the robust covariance and what the result echoes.
@@ -112,7 +128,15 @@ func sandwich(spec *types.RegressionSpec, bread [][]float64, rows []sandwichRow,
 		adj = gf / (gf - 1) * ((nStar - 1) / (nStar - kf))
 		fit.df, fit.hasDF = gf-1, true
 		fit.info.Cluster, fit.info.Clusters = c.Cluster, g
-	case types.CovarianceHAC:
+	case types.CovarianceHAC, types.CovarianceDriscollKraay:
+		if c.Type == types.CovarianceDriscollKraay || c.Entity != "" {
+			meat, err := panelMeat(spec, rows, k, fit.info)
+			if err != nil {
+				return nil, err
+			}
+			fit.v = sandwichProduct(bread, meat, nStar/(nStar-kf))
+			return fit, nil
+		}
 		ordered := append([]sandwichRow(nil), rows...)
 		sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].order < ordered[j].order })
 		for t := 1; t < len(ordered); t++ {
@@ -151,6 +175,122 @@ func sandwich(spec *types.RegressionSpec, bread [][]float64, rows []sandwichRow,
 	}
 	fit.v = sandwichProduct(bread, meat, adj)
 	return fit, nil
+}
+
+// panelMeat is the meat of a panel series estimator — hac with an
+// entity (per-entity Newey–West) or driscoll_kraay — and fills info's
+// echo (order_by, the resolved lag, the period count, the entity and
+// its level count). The periods are the distinct order_by values over
+// every row, ranked in order; a lag counts periods. Refuses an entity
+// repeating an order_by value.
+func panelMeat(spec *types.RegressionSpec, rows []sandwichRow, k int, info *types.RegressionCovarianceResult) ([][]float64, error) {
+	c := spec.Covariance
+	// Every row in (entity, order) order: the entity series are
+	// contiguous runs, the ties adjacent, and the summation order is a
+	// function of the data, never of the row order.
+	ordered := append([]sandwichRow(nil), rows...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].entity != ordered[j].entity {
+			return ordered[i].entity < ordered[j].entity
+		}
+		return ordered[i].order < ordered[j].order
+	})
+	entities := 0
+	for t := range ordered {
+		if t == 0 || ordered[t].entity != ordered[t-1].entity {
+			entities++
+			continue
+		}
+		if c.Entity != "" && ordered[t].order == ordered[t-1].order {
+			return nil, regcov.EntityOrderTies(spec, entityLabel(ordered[t].entity), ordered[t].order)
+		}
+	}
+	// The periods: distinct order values ascending, and each row's rank.
+	values := make([]float64, len(ordered))
+	for i, r := range ordered {
+		values[i] = r.order
+	}
+	sort.Float64s(values)
+	values = slices.Compact(values)
+	periods := len(values)
+	rank := func(v float64) int { return sort.SearchFloat64s(values, v) }
+
+	lags, fixed := c.Lags.Value()
+	if !fixed {
+		lags = types.AutoHACLags(periods)
+	}
+	bartlett := func(l int) float64 { return 1 - float64(l)/float64(lags+1) }
+	score := func(r sandwichRow) []float64 {
+		u := make([]float64, k)
+		for j := range u {
+			u[j] = r.weight * r.score[j]
+		}
+		return u
+	}
+
+	meat := newSquare(k)
+	if c.Type == types.CovarianceDriscollKraay {
+		// S_t: the period's scores summed across entities, in the
+		// (entity, order) order fixed above.
+		s := make([][]float64, periods)
+		for t := range s {
+			s[t] = make([]float64, k)
+		}
+		for _, r := range ordered {
+			st := s[rank(r.order)]
+			for j := range st {
+				st[j] += float64(r.weight * r.score[j])
+			}
+		}
+		for t := range s {
+			addOuter(meat, s[t], s[t], 1)
+		}
+		for l := 1; l <= lags && l < periods; l++ {
+			bw := bartlett(l)
+			for t := l; t < periods; t++ {
+				addOuter(meat, s[t], s[t-l], bw)
+				addOuter(meat, s[t-l], s[t], bw)
+			}
+		}
+	} else {
+		// Per-entity Newey–West: within each entity's run, pair rows
+		// whose period ranks are 1..lags apart.
+		for start := 0; start < len(ordered); {
+			end := start + 1
+			for end < len(ordered) && ordered[end].entity == ordered[start].entity {
+				end++
+			}
+			run := ordered[start:end]
+			u := make([][]float64, len(run))
+			rk := make([]int, len(run))
+			for i, r := range run {
+				u[i], rk[i] = score(r), rank(r.order)
+			}
+			for b := range run {
+				addOuter(meat, u[b], u[b], 1)
+				for a := b - 1; a >= 0 && rk[b]-rk[a] <= lags; a-- {
+					bw := bartlett(rk[b] - rk[a])
+					addOuter(meat, u[b], u[a], bw)
+					addOuter(meat, u[a], u[b], bw)
+				}
+			}
+			start = end
+		}
+	}
+	info.OrderBy, info.Lags, info.Periods = c.OrderBy, &lags, periods
+	if c.Entity != "" {
+		info.Entity, info.Entities = c.Entity, entities
+	}
+	return meat, nil
+}
+
+// entityLabel is an entity key as a refusal names it: clusterKey's
+// label or number without its kind prefix.
+func entityLabel(key string) string {
+	if len(key) > 2 && (key[:2] == "s:" || key[:2] == "n:") {
+		return key[2:]
+	}
+	return key
 }
 
 // hcOmega is the hc-type weight on a row's squared score: 1 for hc0 /
@@ -240,4 +380,5 @@ func robustStdErrors(v [][]float64) []float64 {
 type robustRowKey struct {
 	cluster string
 	order   float64
+	entity  string
 }

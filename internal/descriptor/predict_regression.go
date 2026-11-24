@@ -370,7 +370,8 @@ func routedRegression(reg *types.RegressionSpec, inst *InstanceSnapshot) *types.
 // checkCovarianceFields type-checks a robust covariance's field
 // references against schema: a cluster field is categorical or an
 // unsigned integer (its levels are the clusters), an order_by field is
-// a date, datetime or analytics-numeric field. An unknown name is the
+// a date, datetime or analytics-numeric field, an entity field one of
+// the order.partition key types (regorder.PartitionFieldType). An unknown name is the
 // field-reference rule's refusal (FieldRefRefusals) and a derived
 // column is untyped, so only a schema field is checked.
 func checkCovarianceFields(env *descriptor.Envelope, reg *types.RegressionSpec, schema *encoding.Schema) {
@@ -390,6 +391,15 @@ func checkCovarianceFields(env *descriptor.Envelope, reg *types.RegressionSpec, 
 				string(errors.SERVICE_VALIDATION),
 				"regression covariance order_by field "+c.OrderBy+" is not a date, datetime or numeric field (got "+f.Type.String()+")",
 				map[string]any{"field": c.OrderBy, "type": f.Type.String(), "regression": string(reg.Type)},
+			)
+		}
+	}
+	if c.Entity != "" {
+		if f := schema.Field(c.Entity); f != nil && !regorder.PartitionFieldType(f.Type) {
+			env.AddError(
+				string(errors.SERVICE_VALIDATION),
+				"regression covariance entity field "+c.Entity+" is not a categorical, unsigned integer, date, datetime or packed_bool field (got "+f.Type.String()+")",
+				map[string]any{"field": c.Entity, "type": f.Type.String(), "regression": string(reg.Type)},
 			)
 		}
 	}

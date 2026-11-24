@@ -8875,7 +8875,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance.",
+            "description": "{type, cluster, order_by, entity, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row — per entity with entity; lags an integer or \"auto\"), driscoll_kraay (period-summed scores over order_by). Forces the buffered path; echoes as covariance.",
             "slot": true
           },
           {
@@ -9180,7 +9180,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "description": "{type, cluster, order_by, entity, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row — per entity with entity; lags an integer or \"auto\"), driscoll_kraay (period-summed scores over order_by). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
             "slot": true
           },
           {
@@ -10247,7 +10247,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "description": "{type, cluster, order_by, entity, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋; with entity, per-entity Newey–West over the order_by periods), driscoll_kraay (panel: scores summed per order_by period, Newey–West over the periods). An entity may not repeat an order_by value. Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
             "slot": true
           },
           {
@@ -10465,7 +10465,7 @@
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster. A top-level key of the regression entry.",
+            "description": "{type, cluster, order_by, entity, lags}: the covariance estimator the model computes; declared types: classical, hc0, hc1, cluster. A top-level key of the regression entry.",
             "slot": true
           },
           {
@@ -15646,6 +15646,10 @@
       {
         "name": "regression-order",
         "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-panel-covariance",
+        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
       },
       {
         "name": "regression-row-scores",
@@ -22145,4 +22149,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e1921330ae7a0e18bc363080a8727dd3ad3af6b10b007017e20d80428aaac944
+// golden-hash: 30ddb4fb52bc0e801884ded2998cfb3e1960f1114c0f2b315a6d3d5463fcf9ea

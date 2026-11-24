@@ -79,7 +79,7 @@ Ordinary least squares with optional regularization.
 | `bounds`      | no       | `{nonnegative: [predictors]}`: those slopes are constrained `>= 0` (non-negative least squares); see "Non-negative slopes" below. |
 | `intercept`   | no       | `true` (default) fits the intercept. `false` fits through the origin; see "Solver and intercept" below. |
 | `solver`      | no       | `qr` (default) or `normal`; see "Solver and intercept" below. |
-| `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
+| `covariance`  | no       | `{type, cluster, order_by, entity, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1), `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`; with `entity`, per-entity Newey–West over the `order_by` periods) or `driscoll_kraay` (panel: scores summed per period, Newey–West over the periods). See [Panel-robust covariance](#panel-robust-covariance). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 | `margins`     | no       | `{type, terms, scale, binary}`: marginal effects — on OLS every one is its coefficient, with its SE, t and interval; streams. See [Marginal effects](#marginal-effects-margins). |
 | `collinearity` | no     | `{basis, groups}`: each term's variance inflation factor and tolerance (generalized VIF for a group of columns), off the weighted predictor moments the fit streams. See [Variance inflation factors](#variance-inflation-factors-collinearity). |
 
@@ -221,6 +221,39 @@ spec without one (`PROCESSING_CONFIG`, `reason: order_required`).
 is its deprecated alias (the same fit and seed; both set must agree,
 `time_alias_conflict`) — and on a geo panel needs `partition` =
 `params.geo`. Rides `capability:regression_order`.
+
+### Panel-robust covariance
+
+A panel is entities (geos, stores) observed over shared periods. A plain
+`hac` reads one series and refuses a repeated `order_by`
+(`order_by_ties`), so two panel estimators read the panel instead, on
+`REG_OLS`, `REG_GLM` and `REG_BAYES_LINEAR` (U69 #401):
+
+- **Per-entity Newey–West** — `{"type": "hac", "order_by": "week",
+  "entity": "geo"}`: each entity is its own series; the Bartlett meat
+  pairs an entity's rows `l` periods apart (weight 1 − l/(L+1)) and
+  never pairs two entities.
+- **Driscoll–Kraay** — `{"type": "driscoll_kraay", "order_by": "week"}`:
+  the scores u = w*·g of one period are summed across entities, then the
+  Newey–West meat runs over the period sums — robust to a shock that
+  hits every entity in a week as well as to serial correlation.
+
+The periods are the distinct `order_by` values over the fitted rows; a
+lag counts periods, not rows (an entity missing week 5 pairs its weeks 4
+and 6 at lag 2). `lags` `"auto"` is ⌊4(T/100)^(2/9)⌋ over the T periods.
+Both scale by N*/(N* − k); OLS stays t on N* − k, GLM Wald z, Bayes the
+Müller sandwich posterior. `entity` takes the `order.partition` key
+types (categorical, unsigned integer, date, datetime, packed_bool); it is
+optional under `driscoll_kraay`. An entity repeating an `order_by` value
+is refused at run time (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`,
+`order_by_ties`, with `entity_value`) — predict cannot see it; the shape
+rules (`driscoll_kraay` without `order_by`, `entity` on another type or
+naming the `order_by` field) are `PROCESSING_CONFIG` in predict and at
+run time. The echo adds `periods` and, with an entity, `entity` /
+`entities`. Oracle: `sandwich::vcovPL(aggregate = FALSE / TRUE)`,
+cross-checked by `plm::vcovNW` / `vcovSCC(type = "HC1")`
+(`scripts/reference/gen_robust_vcov_panel.R`); `"auto"` equals vcovPL's
+`lag = "NW1994"` (plm's default lag differs — pass `lags`).
 
 ### Nested-model comparison (Compose `compare`)
 

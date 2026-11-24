@@ -79,4 +79,4 @@ See `## Contract`; null / NaN / ±Inf drops the row.
 ## See
 
 - `pulse_examples_search tags=[ols]`
-- Skills: `regression-spec`, `regression-modeling`, `regression-margins`, `regression-model-options`, `regression-inference`, `op-reg-mod-resample`, `op-reg-mod-selection`
+- Skills: `regression-spec`, `regression-modeling`, `regression-margins`, `regression-model-options`, `regression-inference`, `regression-panel-covariance`, `op-reg-mod-resample`, `op-reg-mod-selection`

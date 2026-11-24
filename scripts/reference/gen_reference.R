@@ -654,3 +654,11 @@ source(file.path(script_dir, "gen_glm_nb_penalty.R"), local = FALSE)
 # 7.3-66 + jsonlite. Its own seed, sourced last, so no other golden
 # moves.
 source(file.path(script_dir, "gen_glm_nb_refit.R"), local = FALSE)
+
+# The panel series covariance golden (U69 E4-S1, #401:
+# robust_vcov_panel.json: per-entity Newey-West (covariance hac +
+# entity) and Driscoll-Kraay on REG_OLS / REG_GLM / REG_BAYES_LINEAR
+# against sandwich::vcovPL, cross-checked by plm::vcovNW / vcovSCC);
+# sandwich 3.1-3 + plm 2.6-7 + jsonlite. Its own seed, sourced last, so
+# no other golden moves.
+source(file.path(script_dir, "gen_robust_vcov_panel.R"), local = FALSE)

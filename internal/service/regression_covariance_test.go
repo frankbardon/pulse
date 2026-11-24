@@ -409,7 +409,7 @@ func TestRegressionCovariance_PredictBuffered(t *testing.T) {
 			switch typ {
 			case types.CovarianceCluster:
 				cov.Cluster = "region"
-			case types.CovarianceHAC:
+			case types.CovarianceHAC, types.CovarianceDriscollKraay:
 				cov.OrderBy = "week"
 			}
 			spec := &types.RegressionSpec{Name: "fit", Type: regType, Target: "y", Predictors: robustPredictors, Covariance: cov}

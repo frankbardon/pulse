@@ -948,7 +948,7 @@ func (b *schemaBuilder) matrixValuesDef(t reflect.Type) any {
 // non-negative integer or "auto" (absent reads as "auto").
 func covarianceLagsDef() any {
 	return map[string]any{
-		"description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+		"description": "Bartlett truncation lag (covariance types hac and driscoll_kraay): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows (plain hac) or its distinct order_by periods (hac with an entity, driscoll_kraay).",
 		"oneOf": []any{
 			map[string]any{"type": "integer", "minimum": 0},
 			map[string]any{"const": "auto"},

@@ -617,7 +617,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			})
 		}
 		if c := reg.Covariance; c != nil {
-			for _, f := range []string{c.Cluster, c.OrderBy} {
+			for _, f := range []string{c.Cluster, c.OrderBy, c.Entity} {
 				if f == "" {
 					continue
 				}
@@ -1555,7 +1555,7 @@ func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
 }
 
 // checkRegression is check for a name a regression slot reads per
-// record (target, predictors, covariance cluster / order_by,
+// record (target, predictors, covariance cluster / order_by / entity,
 // jackknife_by), which may also be a window label of the request. Over
 // the record rows (vectors.WindowsOverRecords) the engine copies the
 // label onto each record before the fit, so it is a column; elsewhere

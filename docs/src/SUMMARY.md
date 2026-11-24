@@ -332,6 +332,7 @@
     - [regression-model-options](guide/skills/regression-model-options.md)
     - [regression-modeling](guide/skills/regression-modeling.md)
     - [regression-order](guide/skills/regression-order.md)
+    - [regression-panel-covariance](guide/skills/regression-panel-covariance.md)
     - [regression-row-scores](guide/skills/regression-row-scores.md)
     - [regression-spec](guide/skills/regression-spec.md)
     - [request-envelope](guide/skills/request-envelope.md)

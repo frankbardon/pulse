@@ -1203,7 +1203,7 @@
       "type": "object"
     },
     "CovarianceLags": {
-      "description": "Newey-West truncation lag (covariance type hac): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows.",
+      "description": "Bartlett truncation lag (covariance types hac and driscoll_kraay): a non-negative integer, or \"auto\" (also the meaning when absent) for floor(4*(n/100)^(2/9)) over the fit's n rows (plain hac) or its distinct order_by periods (hac with an entity, driscoll_kraay).",
       "oneOf": [
         {
           "minimum": 0,
@@ -1218,6 +1218,7 @@
       "enum": [
         "classical",
         "cluster",
+        "driscoll_kraay",
         "hac",
         "hc0",
         "hc1",
@@ -5717,6 +5718,9 @@
         "cluster": {
           "type": "string"
         },
+        "entity": {
+          "type": "string"
+        },
         "lags": {
           "$ref": "#/$defs/CovarianceLags"
         },
@@ -5741,11 +5745,20 @@
         "clusters": {
           "type": "integer"
         },
+        "entities": {
+          "type": "integer"
+        },
+        "entity": {
+          "type": "string"
+        },
         "lags": {
           "type": "integer"
         },
         "order_by": {
           "type": "string"
+        },
+        "periods": {
+          "type": "integer"
         },
         "type": {
           "$ref": "#/$defs/CovarianceType"
@@ -8592,4 +8605,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 12cbc31e1648ebd5b721a384b6bcc5866c6e16d45d0488f9cc43b73995e0d184
+// golden-hash: 52ec81cbef2e86513ef12df189f1da737478d5505f8d9e4bb92bb5436448a9b1

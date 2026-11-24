@@ -516,6 +516,10 @@
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
+        "name": "regression-panel-covariance",
+        "description": "Panel-robust standard errors on a regression over entities × periods (geo × week, store × day) — per-entity Newey–West (covariance hac + entity) and Driscoll–Kraay (covariance driscoll_kraay), how periods and lags are counted on an unbalanced panel, the entity rules, the echo and the refusals, against R sandwich::vcovPL and plm. Topical design; the other estimators live in regression-inference."
+      },
+      {
         "name": "regression-row-scores",
         "description": "Per-row regression columns — the two-pass refit the fitted, residual, leverage and influence attributes run (studentized residuals, Cook's distance, DFFITS), scoring a bound fit with params.fit instead (its leverage and influence from the fit's vcov and dispersion), the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, an ordinal fit's per-level columns, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
       },
@@ -927,4 +931,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 770bc708d1534fc7787664f2443d7630eb484fbf65ff335cc9729f8c4f3476e4
+// golden-hash: 9086942a1d957994ca089e2e0bed3c38396a66289a962140d6e74bd972cb26a4

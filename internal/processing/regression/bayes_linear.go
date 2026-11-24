@@ -218,7 +218,7 @@ func (e *bayesLinearEngine) fitRow(rec Record) (x []float64, y, w float64, ok bo
 		x[i] = v
 	}
 	if e.robust {
-		if _, _, ok := robustRowKeys(e.spec, rec); !ok {
+		if _, ok := robustRowKeys(e.spec, rec); !ok {
 			return nil, 0, 0, false
 		}
 	}

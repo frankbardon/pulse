@@ -394,6 +394,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		if c := r.Covariance; c != nil {
 			addKnown(c.Cluster)
 			addKnown(c.OrderBy)
+			addKnown(c.Entity)
 		}
 		addKnown(r.JackknifeBy)
 		if o := r.Order; o != nil {

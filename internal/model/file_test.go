@@ -227,6 +227,9 @@ func TestModelFile_RobustCovarianceRoundTrip(t *testing.T) {
 		{Type: types.CovarianceHC3},
 		{Type: types.CovarianceCluster, Cluster: "region", Clusters: 8},
 		{Type: types.CovarianceHAC, OrderBy: "week", Lags: &lags},
+		// The panel echoes (U69 #401) ride the same section.
+		{Type: types.CovarianceHAC, OrderBy: "week", Lags: &lags, Entity: "geo", Entities: 6, Periods: 14},
+		{Type: types.CovarianceDriscollKraay, OrderBy: "week", Lags: &lags, Periods: 14},
 	}
 	for _, typ := range []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR} {
 		for _, echo := range echoes {

@@ -36,9 +36,16 @@ const (
 	// ReasonClusters: fewer than two clusters reached the fit.
 	ReasonClusters = "clusters"
 	// ReasonOrderTies: two fitted rows share an order_by value, so the
-	// rows are not one series.
+	// rows are not one series — under an entity, two rows of the SAME
+	// entity share it.
 	ReasonOrderTies = "order_by_ties"
 )
+
+// panelType reports whether t is a covariance type that read a series order
+// (order_by, lags) and accept a panel entity (entity).
+func panelType(t types.CovarianceType) bool {
+	return t == types.CovarianceHAC || t == types.CovarianceDriscollKraay
+}
 
 // robustTypes are the regression types that take a robust covariance,
 // each with the robust estimators it computes (nil: every one):
@@ -46,8 +53,8 @@ const (
 // REG_BAYES_LINEAR (Müller's sandwich posterior) and REG_MULTINOMIAL
 // (the score sandwich over its K − 1 blocks, U68 E3-S1: hc0 / hc1 /
 // cluster — hc2 / hc3 need a row leverage the multinomial's
-// block-structured hat matrix has no scalar form of, hac a series
-// order, as REG_ORDINAL).
+// block-structured hat matrix has no scalar form of, hac /
+// driscoll_kraay a series order, as REG_ORDINAL).
 var robustTypes = map[types.RegressionType][]types.CovarianceType{
 	types.REG_OLS:          nil,
 	types.REG_GLM:          nil,
@@ -80,8 +87,9 @@ func supports(t types.RegressionType, ct types.CovarianceType) bool {
 //
 //   - PROCESSING_CONFIG for a malformed block: an unknown or empty type,
 //     cluster without a cluster field (or a cluster field on another
-//     type), hac without order_by (or order_by / lags on another type),
-//     a negative lags;
+//     type), hac / driscoll_kraay without order_by (or order_by / lags /
+//     entity on another type), an entity naming order_by, a negative
+//     lags;
 //   - PROCESSING_REGRESSION_VCOV_UNSUPPORTED for a robust type the fit
 //     cannot honour: details.reason type, penalty, resample, selection
 //     or bounds.
@@ -110,7 +118,7 @@ func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 	if !slices.Contains(types.AllCovarianceTypes(), c.Type) {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			string(spec.Type)+" covariance.type must be one of classical, hc0, hc1, hc2, hc3, cluster, hac; got \""+string(c.Type)+"\"",
+			string(spec.Type)+" covariance.type must be one of "+strings.Join(typeNames(types.AllCovarianceTypes()), ", ")+"; got \""+string(c.Type)+"\"",
 			map[string]any{"covariance_type": string(c.Type), "type": string(spec.Type)},
 		)
 	}
@@ -128,7 +136,7 @@ func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 			names = append(names, string(ct))
 		}
 		return Unsupported(spec, ReasonType, map[string]any{"supported": names},
-			"covariance "+string(c.Type)+" is not computed by "+string(spec.Type)+" (it computes "+strings.Join(names, ", ")+"; hc2 / hc3 need a per-row leverage and hac a series order); use one of those or drop covariance")
+			"covariance "+string(c.Type)+" is not computed by "+string(spec.Type)+" (it computes "+strings.Join(names, ", ")+"; hc2 / hc3 need a per-row leverage, hac / driscoll_kraay a series order); use one of those or drop covariance")
 	case !robustType:
 		return unsupported(spec, ReasonType, string(spec.Type))
 	case spec.Penalty != "":
@@ -156,12 +164,16 @@ func checkShape(spec *types.RegressionSpec, c *types.RegressionCovariance) *erro
 		return config("covariance type cluster requires covariance.cluster (the field whose levels are the clusters)", map[string]any{})
 	case c.Type != types.CovarianceCluster && c.Cluster != "":
 		return config("covariance.cluster is read only by covariance type cluster", map[string]any{"cluster": c.Cluster})
-	case c.Type == types.CovarianceHAC && c.OrderBy == "":
-		return config("covariance type hac requires covariance.order_by (the field that orders the series)", map[string]any{})
-	case c.Type != types.CovarianceHAC && c.OrderBy != "":
-		return config("covariance.order_by is read only by covariance type hac", map[string]any{"order_by": c.OrderBy})
-	case c.Type != types.CovarianceHAC && !c.Lags.IsZero():
-		return config("covariance.lags is read only by covariance type hac", map[string]any{})
+	case panelType(c.Type) && c.OrderBy == "":
+		return config("covariance type "+string(c.Type)+" requires covariance.order_by (the field that orders the series)", map[string]any{})
+	case !panelType(c.Type) && c.OrderBy != "":
+		return config("covariance.order_by is read only by covariance types hac and driscoll_kraay", map[string]any{"order_by": c.OrderBy})
+	case !panelType(c.Type) && !c.Lags.IsZero():
+		return config("covariance.lags is read only by covariance types hac and driscoll_kraay", map[string]any{})
+	case !panelType(c.Type) && c.Entity != "":
+		return config("covariance.entity is read only by covariance types hac and driscoll_kraay", map[string]any{"entity": c.Entity})
+	case c.Entity != "" && c.Entity == c.OrderBy:
+		return config("covariance.entity names covariance.order_by "+c.OrderBy+"; the entity is the field that splits the rows into series (a market), not the one that orders them", map[string]any{"entity": c.Entity})
 	}
 	if n, ok := c.Lags.Value(); ok && n < 0 {
 		return config("covariance.lags must be a non-negative integer or \"auto\"", map[string]any{"lags": n})
@@ -203,4 +215,24 @@ func TooFewClusters(spec *types.RegressionSpec, g int) *errors.CodedError {
 func OrderTies(spec *types.RegressionSpec, value float64) *errors.CodedError {
 	return Unsupported(spec, ReasonOrderTies, map[string]any{"order_by": spec.Covariance.OrderBy, "value": value},
 		"covariance hac reads one series: order_by "+spec.Covariance.OrderBy+" repeats a value across fitted rows")
+}
+
+// EntityOrderTies is the engine's refusal of a panel fit (hac or
+// driscoll_kraay with covariance.entity) in which one entity repeats an
+// order_by value: each entity contributes at most one row per period.
+// entity is the entity's level as the engine keys it (a label or a
+// number, never the internal prefix).
+func EntityOrderTies(spec *types.RegressionSpec, entity string, value float64) *errors.CodedError {
+	c := spec.Covariance
+	return Unsupported(spec, ReasonOrderTies, map[string]any{"order_by": c.OrderBy, "value": value, "entity": c.Entity, "entity_value": entity},
+		"covariance "+string(c.Type)+" reads one row per entity per period: entity "+entity+" of "+c.Entity+" repeats order_by "+c.OrderBy+" value "+strconv.FormatFloat(value, 'g', -1, 64))
+}
+
+// typeNames spells covariance types as strings.
+func typeNames(ts []types.CovarianceType) []string {
+	out := make([]string, len(ts))
+	for i, t := range ts {
+		out[i] = string(t)
+	}
+	return out
 }

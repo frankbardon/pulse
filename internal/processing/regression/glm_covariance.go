@@ -70,6 +70,7 @@ func (e *glmEngine) glmSandwich(xRows, y, eta, mu, prior []float64, keys []robus
 			lev:     dmu * dmu / v * quad,
 			cluster: keys[i].cluster,
 			order:   keys[i].order,
+			entity:  keys[i].entity,
 		}
 	}
 	fit, err := sandwich(e.spec, bread, rows, nStar)
@@ -86,7 +87,6 @@ func robustKeyReader(spec *types.RegressionSpec) func(Record) (robustRowKey, boo
 		return nil
 	}
 	return func(rec Record) (robustRowKey, bool) {
-		c, o, ok := robustRowKeys(spec, rec)
-		return robustRowKey{cluster: c, order: o}, ok
+		return robustRowKeys(spec, rec)
 	}
 }

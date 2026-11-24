@@ -181,7 +181,7 @@ func (e *olsEngine) fitRow(rec Record) (x []float64, y, w float64, ok bool) {
 		x[i] = v
 	}
 	if e.robust {
-		if _, _, ok := e.robustKeys(rec); !ok {
+		if _, ok := e.robustKeys(rec); !ok {
 			return nil, 0, 0, false
 		}
 	}

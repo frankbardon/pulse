@@ -492,6 +492,23 @@ index sets refit cleanly and records them. MASS 7.3-66 + jsonlite, R
 (`internal/processing/regression`) hold it at relative `1e-7` (`1e-6` on
 the SEs).
 
+`scripts/reference/gen_robust_vcov_panel.R` writes
+`robust_vcov_panel.json`: the panel series covariance (U69 #401) —
+per-entity Newey–West (`covariance` hac + `entity`) and Driscoll–Kraay
+(`driscoll_kraay`) on `REG_OLS`, binomial-logit / poisson-log `REG_GLM`
+and `REG_BAYES_LINEAR`, unweighted, frequency- and probability-weighted,
+at a fixed lag 3 and `"auto"`, over a six-geo × fourteen-week panel with
+six cells dropped (unbalanced, interior gaps: a lag counts periods). The
+closed form is self-checked against `sandwich::vcovPL(aggregate = FALSE
+/ TRUE)` and, on unweighted OLS, `plm::vcovNW` / `vcovSCC(type = "HC1")`
+on the pooling fit; weighted fits against vcovPL on the w*-weighted fit
+(`adjust = FALSE`, × N*/(N* − k)); Bayes at prior precision 0 against
+vcovPL on `lm`. Run it alone under a library holding plm (the pin table
+below; `R_LIBS=<lib> Rscript scripts/reference/gen_robust_vcov_panel.R
+internal/processing/testdata/reference`, then the hash footer).
+`TestRegressionCovariancePanel_MatchesROracle` (`internal/service`)
+holds it at relative `1e-10`.
+
 `scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
 log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
 (`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
@@ -915,6 +932,7 @@ is the whole list in one place.
 | `lmtest` | 0.9-40 | robust covariance tests; nested-model `waldtest` / `lrtest` (`gen_nested.R`, with `zoo` 1.9-1) |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `mpath` | 0.4-2.28 | penalized `REG_GLM` negative binomial (`gen_glm_nb_penalty.R`: `glmregNB`); with its imports `pscl` 1.5.9, `bst` 0.3-24, `WeightSVM` 1.7-16 and `doParallel` 1.0.17 (pinned, recorded in the golden); compiles Fortran, so install it with the workaround below |
+| `plm` | 2.6-7 | panel covariance cross-check (`gen_robust_vcov_panel.R`: `vcovNW`, `vcovSCC` on a pooling `plm`); with its imports `bdsmatrix` 1.3-7, `collapse` 2.1.9, `maxLik` 1.6-10 and `miscTools` 0.6-30 (pinned, recorded in the golden; `collapse` compiles C/C++); `zoo`, `nlme`, `Formula`, `Rdpack`, `lmtest` resolve from the rows above or the R build |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`) and `REG_MULTINOMIAL` (`gen_multinomial_penalty.R`); thresh / maxit through `control` |
 | `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
@@ -947,7 +965,8 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
             glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
             Hmisc = "5.3-0", MASS = "7.3-66", ucminf = "1.2.3", ordinal = "2026.7-26",
             pscl = "1.5.9", bst = "0.3-24", WeightSVM = "1.7-16", doParallel = "1.0.17",
-            mpath = "0.4-2.28")
+            mpath = "0.4-2.28", bdsmatrix = "1.3-7", collapse = "2.1.9",
+            miscTools = "0.6-30", maxLik = "1.6-10", plm = "2.6-7")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

@@ -5659,6 +5659,7 @@ pulse/types: type ComposedResponse field Warnings []*pulse/types.ResponseWarning
 pulse/types: type ComposedResponse method (ComposedResponse) MarshalJSON() ([]byte, error)
 pulse/types: const CovarianceClassical pulse/types.CovarianceType = "classical"
 pulse/types: const CovarianceCluster pulse/types.CovarianceType = "cluster"
+pulse/types: const CovarianceDriscollKraay pulse/types.CovarianceType = "driscoll_kraay"
 pulse/types: const CovarianceHAC pulse/types.CovarianceType = "hac"
 pulse/types: const CovarianceHC0 pulse/types.CovarianceType = "hc0"
 pulse/types: const CovarianceHC1 pulse/types.CovarianceType = "hc1"
@@ -6644,6 +6645,7 @@ pulse/types: type RegressionCollinearityResult field Tolerance map[string]float6
 pulse/types: type RegressionCollinearityResult field VIF map[string]float64 "json:\"vif\""
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
+pulse/types: type RegressionCovariance field Entity string "json:\"entity,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
 pulse/types: type RegressionCovariance field OrderBy string "json:\"order_by,omitempty\""
 pulse/types: type RegressionCovariance field Type pulse/types.CovarianceType "json:\"type\""
@@ -6652,8 +6654,11 @@ pulse/types: type RegressionCovariance method (*RegressionCovariance) Robust() b
 pulse/types: type RegressionCovarianceResult struct
 pulse/types: type RegressionCovarianceResult field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters,omitempty\""
+pulse/types: type RegressionCovarianceResult field Entities int "json:\"entities,omitempty\""
+pulse/types: type RegressionCovarianceResult field Entity string "json:\"entity,omitempty\""
 pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
 pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
+pulse/types: type RegressionCovarianceResult field Periods int "json:\"periods,omitempty\""
 pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
 pulse/types: type RegressionExponentiated struct
 pulse/types: type RegressionExponentiated field CILower map[string]float64 "json:\"ci_lower,omitempty\""
@@ -7188,4 +7193,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f509845b1325119ac5b5545a051f3a11cf3a1f6aa447572162e19de79f6bb970
+// golden-hash: 4bcbb38c075d5ac03e4507d06db7124d7bac727323723105ece330bd53a91faf
