@@ -1,6 +1,6 @@
 ---
 name: regression-comparison-batteries
-description: Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows, multiplicity and the refusals. Topical design; regression-fit comparisons live in regression-comparison.
+description: Nested comparison of two Compose vector fits (batteries) member by member — each restricted member regressed on the other restricted members against the other full members, one F / likelihood-ratio / Wald row per member read exactly from the co-moment, R's per-member anova(lm); the nesting and same-rows rules, weights, the rows and the refusals. Topical design; regression-fit comparisons live in regression-comparison.
 type: guide
 kind: design
 applies_to: compose, predict
