@@ -277,11 +277,27 @@ type enumParam struct {
 	Consts []string // Go constant identifiers spelling the values
 }
 
-// paramEnums reads the operator's capability declaration
-// (internal/descriptor/capabilities_*.go) by AST: every Param literal
-// with EnumValues inside the literal whose Name is the operator, plus
-// those of same-package helpers that literal references.
+// capParam is one param an operator's capability declares.
+type capParam struct {
+	Name string
+	Type string // the Type literal ("enum", "any", …)
+	Path string
+	Line int
+	Desc string // the Description's string literals, concatenated
+}
+
+// paramEnums is the enum subset of the operator's capability params.
 func (r *repo) paramEnums(op operator) []enumParam {
+	eps, _ := r.capParams(op)
+	return eps
+}
+
+// capParams reads the operator's capability declaration
+// (internal/descriptor/capabilities_*.go) by AST: every Param literal
+// inside the literal whose Name is the operator, plus those of
+// same-package helpers that literal references — the enum ones resolved
+// to their values, and every one (enum or not) as the param index.
+func (r *repo) capParams(op operator) ([]enumParam, []capParam) {
 	const capDir = "internal/descriptor"
 	tops := map[string]ast.Node{} // package-level decl name -> node
 	type capFile struct {
@@ -335,7 +351,9 @@ func (r *repo) paramEnums(op operator) []enumParam {
 		return found
 	}
 	var out []enumParam
+	var all []capParam
 	seen := map[string]bool{}
+	seenAll := map[string]bool{}
 	nodeFile := func(n ast.Node) capFile {
 		for _, f := range files {
 			if n.Pos() >= f.g.file.Pos() && n.Pos() < f.g.file.End() {
@@ -354,8 +372,9 @@ func (r *repo) paramEnums(op operator) []enumParam {
 		ast.Inspect(n, func(x ast.Node) bool {
 			switch x := x.(type) {
 			case *ast.CompositeLit:
-				var pname string
-				var enum ast.Expr
+				var pname, ptype string
+				var enum, desc ast.Expr
+				namePos := token.NoPos
 				for _, e := range x.Elts {
 					kv, ok := e.(*ast.KeyValueExpr)
 					if !ok {
@@ -369,10 +388,21 @@ func (r *repo) paramEnums(op operator) []enumParam {
 					case "Name":
 						if bl, ok := kv.Value.(*ast.BasicLit); ok {
 							pname, _ = strconv.Unquote(bl.Value)
+							namePos = bl.Pos()
+						}
+					case "Type":
+						if bl, ok := kv.Value.(*ast.BasicLit); ok {
+							ptype, _ = strconv.Unquote(bl.Value)
 						}
 					case "EnumValues":
 						enum = kv.Value
+					case "Description":
+						desc = kv.Value
 					}
+				}
+				if pname != "" && desc != nil && !seenAll[pname] && !names[pname] && isParamLit(x) {
+					seenAll[pname] = true
+					all = append(all, capParam{Name: pname, Type: ptype, Path: f.p, Line: r.fset.Position(namePos).Line, Desc: stringLits(desc)})
 				}
 				if enum != nil && pname != "" && !seen[pname] {
 					seen[pname] = true
@@ -411,6 +441,22 @@ func (r *repo) paramEnums(op operator) []enumParam {
 				}
 				return true
 			}
+			// a capability built by a helper handed the operator
+			// (comparisonCapability(types.ATTR_VEC_DISTANCE))
+			if ce, ok := n.(*ast.CallExpr); ok {
+				if id, ok := ce.Fun.(*ast.Ident); ok {
+					if d, ok := tops[id.Name]; ok {
+						if _, isFunc := d.(*ast.FuncDecl); isFunc {
+							for _, arg := range ce.Args {
+								if namesOp(arg) {
+									collect(d, 1)
+									break
+								}
+							}
+						}
+					}
+				}
+			}
 			cl, ok := n.(*ast.CompositeLit)
 			if !ok {
 				return true
@@ -427,7 +473,37 @@ func (r *repo) paramEnums(op operator) []enumParam {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Param < out[j].Param })
-	return out
+	sort.Slice(all, func(i, j int) bool { return all[i].Name < all[j].Name })
+	return out, all
+}
+
+// isParamLit reports a descriptor.Param literal (or an elided element
+// of a []descriptor.Param).
+func isParamLit(cl *ast.CompositeLit) bool {
+	switch t := cl.Type.(type) {
+	case nil:
+		return true
+	case *ast.SelectorExpr:
+		return t.Sel.Name == "Param"
+	case *ast.Ident:
+		return t.Name == "Param"
+	}
+	return false
+}
+
+// stringLits concatenates the string literals of an expression (a
+// Description built with + joins its pieces).
+func stringLits(e ast.Expr) string {
+	var b strings.Builder
+	ast.Inspect(e, func(n ast.Node) bool {
+		if bl, ok := n.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+			if v, err := strconv.Unquote(bl.Value); err == nil {
+				b.WriteString(v)
+			}
+		}
+		return true
+	})
+	return b.String()
 }
 
 // resolveEnum fills an enum param's values and the constants spelling

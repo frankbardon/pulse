@@ -32,6 +32,10 @@
 //     request spec struct (types.RegressionSpec) reaches without naming
 //     an operator: refusal pipelines, field-list derivers, code tables,
 //     vocabulary registrars, strict-input families, capability lists;
+//   - op also lists what the operator reaches through what it declares
+//     or calls (deps.go): every capability param with its decoders and
+//     forms, the shared primitives its own files call, and — for a
+//     linalg/metric consumer — every metric-registry consumer site;
 //   - slot sites are go/types-resolved references to the types.Request /
 //     types.ComposedRequest / types.Response field (a request name not
 //     on Request falls back to ComposedRequest; an item-level key such

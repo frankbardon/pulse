@@ -109,6 +109,22 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 	if sec, ok := r.paramEnumSection(op); ok {
 		rep.Sections = append(rep.Sections, sec)
 	}
+	if sec, ok := r.paramIndexSection(op, paths); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
+	var depGates []Gate
+	if sec, gates, ok := r.primitiveSection(op, paths, listed); ok {
+		rep.Sections = append(rep.Sections, sec)
+		depGates = append(depGates, gates...)
+	}
+	if r.isMetricConsumer(op) {
+		if sec, gates, ok := r.metricConsumerSection(); ok {
+			rep.Sections = append(rep.Sections, sec)
+			depGates = append(depGates, gates...)
+		}
+	} else if r.categoryConsumesMetrics(c) {
+		rep.Omitted = append(rep.Omitted, "metric consumers not listed: "+op.Name+" consumes no linalg/metric metric — if it starts to, run `sites new-op "+c.Name+"` for the consumer sites")
+	}
 	derived, notes := r.derivedSection(a, idx, listed)
 	if len(derived.Sites) > 0 {
 		rep.Sections = append(rep.Sections, derived)
@@ -161,6 +177,7 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Gates = append(rep.Gates, Gate{Why: "test helpers that name " + op.Name + " (rerun their package)", Package: d,
 			Command: goTestCmd(d, nil) + "   # helpers: " + strings.Join(dedupe(hs), ", ")})
 	}
+	rep.Gates = append(rep.Gates, depGates...)
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
 	sort.Strings(codeDirs)

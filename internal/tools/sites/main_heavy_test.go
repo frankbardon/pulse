@@ -614,3 +614,79 @@ func TestSlotReport_ComposeLevel(t *testing.T) {
 		}
 	}
 }
+
+// TestOpReport_ReachedThroughDeps pins the sites an operator reaches
+// through what it declares or calls (#715, #453a, #453b): the shared
+// series engines, the primitives its own files call, every capability
+// param with its decoders and forms, and the metric-registry consumers.
+func TestOpReport_ReachedThroughDeps(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	build := func(op string) *Report {
+		t.Helper()
+		rep, err := opReport(r, op, options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rep
+	}
+	// #715: the params.field / partition_by engines
+	for _, op := range []string{"OVERLAY_FORMULA", "OVERLAY_T_VS_PRIOR"} {
+		rep := build(op)
+		for _, p := range []string{"internal/seriesfield/seriesfield.go", "internal/seriespartition/seriespartition.go"} {
+			if findSite(rep, p) == nil {
+				t.Errorf("op %s lacks the series engine %s", op, p)
+			}
+		}
+	}
+	rep := build("OVERLAY_SYMMETRY")
+	if _, ok := symbolNote(siteIn(rep, "primitives", "internal/statdist/binomial.go"), "func BinomialTwoSidedP"); !ok {
+		t.Error("OVERLAY_SYMMETRY: statdist.BinomialTwoSidedP not a shared primitive")
+	}
+	if !gateTests(rep)["TestBinomialTwoSidedP_ClosedForms"] {
+		t.Error("OVERLAY_SYMMETRY: the statdist tests are not rerun")
+	}
+
+	// #453a: a non-enum param, its forms and their decoders
+	rep = build("ATTR_VEC_DISTANCE")
+	note, _ := symbolNote(siteIn(rep, "params", "internal/descriptor/capabilities_attributes.go"), "params.reference")
+	for _, form := range []string{"centroid", "population", "record"} {
+		if !strings.Contains(note, form) {
+			t.Errorf("params.reference note %q lacks form %s", note, form)
+		}
+	}
+	if note, _ := symbolNote(siteIn(rep, "params", "internal/vectors/compare.go"), "func comparisonReference"); !strings.Contains(note, `form {"centroid"}`) {
+		t.Errorf("comparisonReference note %q: the centroid form decoder is not attributed", note)
+	}
+	// #453b: every metric-registry consumer site
+	for _, w := range []struct{ path, sym string }{
+		{"linalg/metric/metric.go", "var consumerForms"},
+		{"linalg/metric/metric.go", "func Consumers"},
+		{"internal/descriptor/capabilities_matrix.go", "func metricCapabilities"},
+		{"internal/descriptor/manifest.go", "func assembleManifest"},
+		{"internal/vectors/compare.go", "func ComparisonConsumer"},
+		{"internal/processing/grouper_kmeans.go", "var kmeansMetric"},
+	} {
+		if _, ok := symbolNote(siteIn(rep, "metric-consumers", w.path), w.sym); !ok {
+			t.Errorf("metric consumers lack %s · %s", w.path, w.sym)
+		}
+	}
+	// a non-consumer prints a pointer, a new operator the full list
+	rep = build("ATTR_ZSCORE")
+	for _, s := range rep.Sections {
+		if s.Class == "metric-consumers" {
+			t.Error("ATTR_ZSCORE (no metric) lists the metric consumers")
+		}
+	}
+	if !strings.Contains(strings.Join(rep.Omitted, "\n"), "metric consumers not listed") {
+		t.Errorf("ATTR_ZSCORE omitted %v: no pointer to the consumer sites", rep.Omitted)
+	}
+	rep, err := newOpReport(r, "attribute", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if siteIn(rep, "metric-consumers", "internal/descriptor/manifest.go") == nil {
+		t.Error("new-op attribute lacks the metric consumer sites")
+	}
+}

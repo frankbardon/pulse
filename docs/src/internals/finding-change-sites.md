@@ -63,6 +63,21 @@ from the ones that do:
 - **R oracle fixtures** — the `internal/processing/testdata/reference/`
   JSON its tests read by name, and the `scripts/reference/` scripts
   that write them (`make reference`).
+- **Param index** — every param its capability declares (not only the
+  enums, and through helpers such as `comparisonCapability`), the
+  struct fields that decode it in the files naming the operator, and
+  the decoders of each form its description spells as an object key
+  (`params.reference` `{"centroid": …}`, `{"population": …}`).
+- **Shared primitives** — the module functions the files named for it
+  call in other packages (`internal/statdist.BinomialTwoSidedP`,
+  `internal/seriespartition.Partition`), with the tests of those
+  packages that call them as gates.
+- **Metric consumers** — for a `linalg/metric` consumer (a
+  `metric.Consumer*` constant spells it): the registry's consumer
+  tables, every use of the consumer API, and the callers of functions
+  taking a `metric.Consumer` (`assembleManifest`). `new-op` prints the
+  list for a category with a consumer; a non-consumer's `op` report
+  points there.
 - **Test tables** — test-file `var` tables naming it (a probe table, a
   parity case list) that need a row for a sibling or a new value.
 - Under **Gates to rerun**, the benchmarks of its packages and the

@@ -162,6 +162,13 @@ func newOpReport(r *repo, catName string, opts options) (*Report, error) {
 	if sec, ok := r.specSection(def); ok {
 		rep.Sections = append(rep.Sections, sec)
 	}
+	if r.categoryConsumesMetrics(c) {
+		if sec, gates, ok := r.metricConsumerSection(); ok {
+			sec.Title += " (only if the new operator consumes a metric)"
+			rep.Sections = append(rep.Sections, sec)
+			defer func() { rep.Gates = append(rep.Gates, gates...) }()
+		}
+	}
 	rep.Gates = append(rep.Gates, gatesFromDirs(fmt.Sprintf("table-driven tests naming >= %d%% of the category — add a row for the new operator", int(mostThreshold*100)), tableTests)...)
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
