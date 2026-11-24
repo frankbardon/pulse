@@ -5,7 +5,7 @@ title: "Pulse v1.0.0 is released with a written stability promise"
 track: API & release
 size: S
 status: not-started
-depends_on: [U32]
+depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
 todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738]
@@ -16,7 +16,7 @@ branch: v1-release
 
 **Outcome:** Pulse v1.0.0 is released with a written stability promise.
 
-**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md) · **Soft:** all other units · **Unblocks:** —
+**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
 
 ## Summary
 
@@ -66,7 +66,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 
 **Out of scope**
 - New features
-- Documentation work (U32)
+- Documentation work (U32, U32b, U32c)
 
 ## Epics & stories
 

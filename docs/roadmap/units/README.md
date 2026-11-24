@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **81 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **83 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -71,8 +71,10 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U29 | [vector-field-types](U29-vector-field-types.md): Cohorts can store fixed-length numeric vectors natively | Vector & matrix | L | U16, U27 | 151, 152, 153, 154, 155 |
 | U30 | [matrix-extensions-hardening](U30-matrix-extensions-hardening.md): Embedders can add their own matrix operators, and the matrix stack is proven at scale | Vector & matrix | XL | U25, U28, U29 | 156, 157, 158, 270, 402, 403, 406, 408, 411, 415, 420, 423, 424, 425, 426, 449 |
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103, 250, 251, 252, 269, 377 |
-| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79 | 159–167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 465, 472–474, 478, 504, 505, 527, 556–558, 560, 666, 667, 706, 715, 737 |
-| U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168–171, 173–179, 206, 220, 224, 228, 232–234, 311, 464, 469, 497, 506–508, 526, 588–593, 660–665, 723, 735, 736, 738 |
+| U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79 | 159, 160, 161, 165, 238, 239, 257, 268, 412, 413, 435, 453, 463, 465, 472–474, 478, 527, 556, 558, 560, 706, 715, 737 |
+| U32b | [docs-content](U32b-docs-content.md): Every surface a reader or agent reads is accurate, current, complete and concise, and the docs baselines are empty | API & release | L | U32 | 162–164, 371, 504, 505, 557, 666, 667 |
+| U32c | [docs-validation](U32c-docs-validation.md): An agent and a fresh reader succeed from the docs alone, and the findings are closed and signed off | API & release | M | U32b | 166, 167 |
+| U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32, U32b, U32c | 168–171, 173–179, 206, 220, 224, 228, 232–234, 311, 464, 469, 497, 506–508, 526, 588–593, 660–665, 723, 735, 736, 738 |
 | U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | M | U02b | 194, 195, 196, 197, 216, 230, 374, 409, 451, 459 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | XL | U02c (soft) | 198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448, 475, 476 |
 | U36 | [reference-oracles](U36-reference-oracles.md): Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number | Statistical integrity | L | U08 | 202, 203, 204, 205, 266, 271, 294, 405, 410, 414, 477 |
@@ -158,6 +160,8 @@ graph TD
   U30["U30 matrix-extensions-hardening"]
   U31["U31 guidance-guides"]
   U32["U32 docs-audit"]
+  U32b["U32b docs-content"]
+  U32c["U32c docs-validation"]
   U33["U33 v1-release"]
   U34["U34 extension-validation"]
   U35["U35 predict-runtime-parity"]
@@ -262,7 +266,11 @@ graph TD
   U23 --> U32
   U30 --> U32
   U31 --> U32
+  U32 --> U32b
+  U32b --> U32c
   U32 --> U33
+  U32b --> U33
+  U32c --> U33
   U02b --> U34
   U34 --> U32
   U02c -.-> U35
@@ -400,7 +408,7 @@ graph TD
 - **U28 matrix-overlays:** Decide the correspondence-analysis payload shape (open question in vm6)
 - **U31 guidance-guides:** done without a human reader — the plain-language review ran as an automated critical non-statistician read in E3-S2 (findings in that commit body); `FEAT_POLY` gets no materialise plan (owner decision); the follow-ups #504 / #505 went to U32
 - **U38 skill-sync:** done. Decided by the owner: topical `## See` sections build stem and tag edges like atomic ones; `## Components` optional for agg / group / filter / mat; recommend drafts keep asking for `interval` (`draftAsksParams`); `GROUP_DATE` refuses a non-date-family field (behaviour break). Tiers frozen at the measured provisional values; the non-positive `interval` question went to U33 (#506)
-- **U32 docs-audit:** Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
+- **U32c docs-validation:** Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
 - **U35 predict-runtime-parity:** multi-entry `Groups` — execute every group or refuse (#200)
 - **U36 reference-oracles:** Shapiro–Francia at n < 5 (refuse or exact method); how an infinite statistic is encoded
 - **U37 shell-completion:** whether completion respects a feature profile; library helper vs internal CLI glue; where field-taking flags find their cohort
