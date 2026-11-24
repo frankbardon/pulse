@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean linkcheck-external vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -389,5 +389,12 @@ docs-serve:
 
 docs-clean:
 	rm -rf docs/book
+
+# linkcheck-external HEAD-checks every http(s) link in docs/src/** and the
+# repo-root *.md files (GET when a server refuses HEAD) and lists each
+# broken URL with where it appears. It needs the network, so it is manual
+# only and never runs in CI; internal links are TestDocsLinksResolve's job.
+linkcheck-external:
+	$(GO) run ./internal/tools/linkcheck
 
 .DEFAULT_GOAL := build

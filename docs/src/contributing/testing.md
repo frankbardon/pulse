@@ -81,6 +81,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
+| `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Known breaks sit in the shrink-only allowlist `internal/doccheck/allowlists/links.txt`; `make linkcheck-external` checks http(s) links by hand |
 
 ## Running a subset of gates locally
 
