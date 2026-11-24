@@ -28,7 +28,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 ## Format invariants (role reminders; CLAUDE.md is canonical)
 
-- Header version is a function of schema content (`0x02` iff a parent group or vector), never a flag; `ReadSchema` takes the version `ReadHeader` returned.
+- Header version is a function of schema content (`0x02` iff a parent group, a vector or a default zone field — `Schema.RequiredFormatVersion`), never a flag; `ReadSchema` takes the version `ReadHeader` returned.
 - `date` is epoch DAYS (`int32`), `datetime` epoch SECONDS (`int64`) — never interchangeable. Size `vec_*` fields by `Schema.FieldWidth`, never the type.
 - `set_*` empty mask is "no selection", distinct from null; wide sets are REFUSED by the `uint64` value API, never truncated. `decimal128` / `set_*` / `vec_*` nulls ride the bitmap only.
 - Shard archives: strict cohesion at insert, set fields widen, every rewrite atomic with a mandatory warning; width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.

@@ -19,7 +19,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 ## Context discovery
 
 1. `Makefile` — the `.PHONY` line is the target list (`build`, `test`, `smoke`, `lint`, `sites`, `reference`, `docs`, `dist`, …).
-2. `.github/workflows/ci.yml` + `docs.yml` — CI matrix and check names. Current required contexts: `lint`, `test (1.26)`.
+2. `.github/workflows/ci.yml` + `docs.yml` — CI matrix and check names. The required check runs are listed in `docs/src/contributing/local-ci.md` (branch protection section).
 3. `CLAUDE.md` "Build / Env" section — every `PULSE_*` env var must appear there (`TestClaudeMdMentionsAllEnvVars`).
 4. `go.mod` for dependency pins.
 5. `.env` auto-loaded at repo root (gitignored).
@@ -30,7 +30,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - Hermetic testing via `fs.NewMemMap()`. CI must not depend on `PULSE_DATA_DIR` for unit tests.
 - `make lint` = `fmt-check` (gofmt) + `go vet` + staticcheck; CI's `lint` job runs it, and it must pass before any push. Do not add new lint config without discussion.
 - Non-skippable CI gates have name prefixes — when you add a new prefix-matched gate, add it to CLAUDE.md "Non-Skippable CI Gates" list too.
-- Branch protection on `main` requires `lint` + `test (1.26)` checks (configured by `flow-backfill`). Do not rename without updating branch protection contexts.
+- Branch protection on `main` requires the check runs listed in `docs/src/contributing/local-ci.md`. Do not rename a job or shard id without updating branch protection contexts.
 
 ## Same-PR rules
 
