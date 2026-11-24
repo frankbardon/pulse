@@ -68,7 +68,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestEnvVarsDocumented`                 | Every `PULSE_*` env var has a row in [Options → Environment variables](../library/options.md#environment-variables) |
 | `TestUpdateDemandTableCovers`           | The Update Demand reference covers every registered component category |
 | `TestPerPackageCoverageFloors`          | The floor table `.github/coverage-floors.txt` is sound (real package dirs, 0..100, no duplicate); `make cover` / CI `coverage` measure against it |
-| `TestNoOrbitReferences`, `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
+| `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |

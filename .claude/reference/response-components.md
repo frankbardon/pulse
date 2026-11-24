@@ -2,33 +2,28 @@
 
 **How to load.** This file is an INDEX: the preamble below plus a section map. Load it, then ONLY the per-topic slice(s) under `.claude/reference/response-components/` your change touches; find one with `grep -l '<identifier>' .claude/reference/response-components/*.md`. A section-qualified pointer at this file resolves through the section map.
 
-Relocated verbatim from CLAUDE.md (section `### Response.Components`). CLAUDE.md keeps the always-load half inline — the `Components *ResponseComponents` shape (the `Aggregations` / `Groupers` / `Crosstab` / `Filterers` / `Run` / `Matrices` / `Attributes` bullets), the universal floor `{n, n_null}`, the `Response.Metadata` naming-collision note, and the per-operator `ComponentsSchemas` projection. Everything below is the long form it points at.
+**The shape.** Every `Response` carries an optional `Components *ResponseComponents` (additive `omitempty`; `format_version` stays `"1.1"`) that mirrors the request:
 
-Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-only surface), `CrosstabSpec.Cells` (multi-measure crosstabs), either execution arm's accumulation of it, the `row_margin_aggregations` / `column_margin_aggregations` / `grand_total_aggregations` figures, the Components opt-out knobs, or the Compose per-slot Components surface — CLAUDE.md's Update Demand table names this file as a required companion for those triggers.
+- `Aggregations []AggregationComponents` — one per aggregator slot: the universal floor `{n, n_null}` plus an operator-specific `Operator map[string]any` keyed by the manifest schema. Grouped: a cohort-wide floor plus per-row `Groups`.
+- `Groupers []GrouperComponents` — floor `{total_n, n_null}` plus the operator's bucket layout; `fit: "within"` adds per-refit `buckets`.
+- `Crosstab *CrosstabComponents` — `CellCounts[r][c]`, `CellComponents[r][c]`, the row / column / grand-total margin counterparts and axis-key components, coordinate-for-coordinate with `MatrixPayload`. Auxiliary `margin_aggregations` figures and multi-measure `Measures` extend it (slices below). A record reaches an auxiliary margin only if it reached a CELL.
+- `Filterers []FiltererComponents` — `{n_in, n_out, n_null_input}` on every filterer.
+- `Run *RunComponents` — `total_records`, `filtered_records`, `null_records`, `shard_count`, `partial_cohort_reason`. It coexists with `Response.Metadata`: `Metadata` keeps the non-numerical run facts (the cohort file name), `Run` the typed counters.
+- `Matrices []MatrixComponents` — floor `{n, n_null, n_listwise_dropped}`, pairwise `{min_pair_n, max_pair_n}`, the weighted floor keys and an operator map.
+- `Attributes []AttributeComponents` — per attribute slot that declares a `ComponentSchema`, keyed by `label` + `type`.
 
-`format_version` does NOT move for anything described here. `Response.Components` is additive `omitempty` throughout; the auxiliary margin figures, the opt-out and the Compose per-layer `Warnings` slot are all additive, and a request that declares none of them is byte-identical to the pre-slot wire form.
+Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators,Groupers,Filterers,Matrices,Attributes}`, each with a mergeability class (`Mergeable` / `Partial` / `None`); streaming chunks emit running state only for mergeable operators. Weighted slots add the `omitempty` floor keys `sum_weights`, `n_eff` and `n_weight_invalid`; `n` / `n_null` stay raw counts.
 
-## Contents
+Load it before changing `Response.Components`, a per-operator `ComponentSchema`, `CrosstabSpec.MarginAggregations` (auxiliary margins) or `CrosstabSpec.Cells` (multi-measure crosstabs) on either execution arm, the Components opt-out knobs, the compute plan, or the Compose per-slot surface.
 
-1. Auxiliary crosstab margin aggregations (`crosstab.margin_aggregations`) — the admission rule, `present` semantics, the display-flag gate, and the allocation/emission gap
-   - Multi-measure crosstabs (`crosstab.cells`, U47 E2-S2) — per-measure computation, the MEASURE row fold, `matrix.measures` / `components.crosstab.measures`, pairwise-only overlays
-2. Opt-out (`DisableComponents`, `--no-components`)
-3. Compose surface (v1.1) and the Compose `--json` envelope
-4. Implementation notes displaced from the skill pack
-5. Undefined figures on the wire (NaN / ±Inf → `null`)
-6. Matrix components (`Components.Matrices`, U16)
-7. Per-group aggregation components (`aggregations[*].groups`)
-   - Grouper refit buckets (`groupers[*].buckets`, U66 E5-S2) — per-refit figures of a `params.fit: "within"` position, the degenerate-refit rule
-8. Attribute components (`Components.Attributes`, U27 E2-S4)
-9. Run-time warnings in the envelope and the stream (U44 E2-S5)
-10. Per-slot failures (`types.SlotError`, `PULSE_SLOT_FAILED`, failed Compose fits + their readers + `PULSE_FIT_UNAVAILABLE`, U49 E1-S2 / E1-S3 / E1-S4)
+`format_version` does not move for anything described here: every slot is additive `omitempty`, and a request that declares none of them is byte-identical.
 
-**Skill homes (U10 split).** The LLM-facing prose for this surface lives in these skills: `skills/response-components.md` (floor, five sub-blocks, opt-out, manifest declaration, mergeability classes), `skills/crosstab-margin-aggregations.md` (the auxiliary figures, the admission rule, `present`, the display gate), `skills/crosstab-measures.md` (multi-measure crosstabs) and `skills/streaming-and-watching.md` (per-chunk Components by mergeability class). Contributor-only detail that used to sit in those skills is in section 4 below and in `.claude/reference/execution-modes.md` (parallel reducers, the Welford overlay parity reads).
+LLM-facing prose: `skills/response-components.md`, `skills/crosstab-margin-aggregations.md`, `skills/crosstab-measures.md`, `skills/streaming-and-watching.md` (per-chunk Components by mergeability class). Parallel reducers: `.claude/reference/execution-modes.md`.
 
 ## Section map
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
-| `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations; Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan (U18); Compose surface (v1.1); Compose envelope (relocated from CLAUDE.md "Output Format Contract" at U18 E1-S1); Sweep (U40); Banner (U47 #326); Fits (U42; vector fits U30 E2-S2); Optimize (U60); Post-fit (U71 E3-S1) |
-| `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; One rule for every JSON payload: a non-finite float (NaN, +Inf, -Inf) is written as JSO…; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion (U44 E2-S5); Streams; Per-slot failures |
+| `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations (the admission rule, `present`, display gate, allocation vs emission); Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan; Compose surface (v1.1); Compose envelope; Slot label echo; Sweep; Banner; Fits; Batch warnings; Optimize; Post-fit |
+| `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion; Streams; Per-slot failures (incl. Compose fits and readers of a failed fit) |
 | `response-components/matrix-group-attribute.md` | Matrix components; Per-group aggregation components; Grouper refit buckets; Attribute components |

@@ -1,71 +1,33 @@
 # Synthetic data — conditional pair capture, per-numeric models, and structural rules
 
-**How to load.** This file is an INDEX: the preamble below plus a section map. Load it, then ONLY the per-topic slice(s) under `.claude/reference/synthetic-data/` your change touches; find one with `grep -l '<identifier>' .claude/reference/synthetic-data/*.md`. A section-qualified pointer at this file resolves through the section map.
+**How to load.** This file is an INDEX: the preamble below plus a slice map. Load it, then ONLY the slice(s) under `.claude/reference/synthetic-data/` your change touches; find one with `grep -l '<identifier>' .claude/reference/synthetic-data/*.md`. A section-qualified pointer at this file resolves through its slices.
 
-Relocated verbatim from CLAUDE.md (the former section `## Synthetic data: conditional pair capture and per-numeric models`; CLAUDE.md now keeps a short `## Synthetic data` pointer here). This is the binding contract for every `synth/` surface: profile capture, `SpecFromProfile` translation, generation, structural rules and the fidelity report. Load it before changing any of them — CLAUDE.md's Update Demand table names this file as a required companion.
+The binding contract for every `synth/` surface: profile capture, `SpecFromProfile` translation, generation, structural rules and the fidelity report. Load it before changing any of them.
 
-`format_version` does NOT move for anything described here: `synth.Profile` / `synth.Spec` / `synth.FidelityReport` live in `synth/` (aliases over `internal/synth/`), not `types/`, so they are unreachable from `internal/descriptor.BuildPayloadSchema` and `descriptor/testdata/payload-schema.json` is untouched. Only the manifest golden moves, and only when an error code is added.
+**Every failure recorded here was SILENT**: the run succeeded and a number was quietly wrong. Each rule in the slices carries the one-line reason it exists; do not relax a rule without reading that reason. Recurring lessons, stated once:
 
-**Skill homes (U10 split).** The LLM-facing prose is split into budget-sized skills, all `requires: [capability:synth]`. `skills/synthetic-data.md` is the ENTRY skill (modes, spec shape, distribution registry, the determinism rule, a question → skill table) and routes to: `synth-profile-capture` (capture sections, `SpecFromProfile` reconstruction, categorical joint generation), `synth-marginals` (boolean + small-integer arms), `synth-set-fields` (set profiling, wide-rung mask reads, set generation), `synth-correlations` (the value-scale copula), `synth-conflicts` (claim order), `synth-fidelity-report` (tagged top-up + report sections), `synth-disclosure-report` (the `disclosure` section), `synth-datetime` (zoned local-time draw, DST, the conversion stage) and `synth-determinism` (seed, capture map-order and float-fusion rules, the `lookup()` identity). `skills/synth-models.md` is likewise the ENTRY skill for `--fit-models` (capture + wire shape, the latent-scale rule, what models retire) and routes to `synth-model-selection` (top-K collapse, variance floor, thin-level shrinkage), `synth-model-draw` (composed draw, catch-all firing term, latent-scale effects), `synth-shape-fit` (`--fit-shape` capture + shape-fitted targets accepting conditioning), `synth-residual-correlations` (capture + correlated draw), `synth-model-recovery` (`models` section) and `synth-residual-recovery` (`model_residual_correlations` section). `skills/synth-structural-rules.md` is the ENTRY skill for `rules[]` / `constraints[]` (the five slots, declaration order, why the pass runs LAST) and routes to `synth-rule-expressions` (`constraints[]`, the row env, the coercion matrix, pre-rounding), `synth-cross-row` (`row()` / `lag()`, accepted-row order, panel reset), `synth-rule-draws` (`uniform()` / `bernoulli()` streams, `"output": false` helpers), `synth-rule-nulls` (`null_together`, `owns_nulls`), `synth-rule-validation` (eager codes, `lookup()` tables, non-nullable refusal, never-fired), `synth-rule-claims` (the priority-0 pre-claim), `synth-rules-from-profile` (`--rules` / `--emit-spec` + the `--suggest-rules` detector table) and `synth-rule-detectors` (per-detector rules, emitted order). When a paragraph below says "Detail: `skills/<stem>.md`", edit the stem it names, not the entry skill.
+- **Derive, never transcribe.** A predicate, type set or flag that can be computed from the schema, the field spec or the code's own enum must be — hand-kept lists and wire flags drift silently.
+- **Cover every writer.** A fix to how one stage writes a field type must reach every stage that can write it (own sampler, conditional pair, model, copula), or the others stay wrong with no signal.
+- **Abandon, never truncate.** When a capture exceeds its cap it records nothing for that field and says so; a partial view presents an arbitrary subset as the structure.
+- **An unrecognised case is ATTENTION, never a benign default.** A `default:` arm that guesses is how features have silently stopped working.
+- **Byte determinism per `(spec, seed)` on every architecture.** Products feeding adds are `float64(a*b)`; transcendentals and variates go through `linalg/detmath`; RNG consumption depends only on the spec; new stages that need draws use their own counter-based stream.
+- **Absent = byte-identical.** Every new section, slot and flag is additive `omitempty`; a document or spec that does not use it produces the bytes it did before.
 
-## Contents
+`format_version` does NOT move for anything here: `synth.Profile` / `synth.Spec` / `synth.FidelityReport` live in `synth/` (aliases over `internal/synth/`), not `types/`, so they are unreachable from `internal/descriptor.BuildPayloadSchema` and `descriptor/testdata/payload-schema.json` is untouched. Only the manifest golden moves, and only when an error code is added.
 
-Paragraph order below is the file's order; each entry is that paragraph's bold lead-in.
+**Skill homes.** The LLM-facing prose lives in budget-sized skills, all `requires: [capability:synth]`. Three ENTRY skills route to per-topic skills: `skills/synthetic-data.md` (modes, spec shape, distribution registry, determinism), `skills/synth-models.md` (`--fit-models` and everything model-related) and `skills/synth-structural-rules.md` (`rules[]` / `constraints[]`). Each entry skill's routing table names its per-topic stems; when a slice says "Detail: `skills/<stem>.md`", edit that stem, not the entry skill.
 
-1. Conditional pair capture (`pulse profile create --conditional`)
-2. Thin-pair warning (generic mechanism)
-3. Per-numeric linear models (`models` profile section)
-4. Predictor selection is automatic, absolute, and has no user-facing override
-5. Thin LEVELS inside an admitted predictor are SHRUNK, never dropped and never refused
-6. `models` retires the numeric-target conditional arms, PER TARGET
-7. Generation: the composed model draw
-8. Shape-fitted numerics accept conditioning
-9. Float fusion: capture and generation are architecture-independent by CONSTRUCTION, not by luck
-10. Boolean marginals: a `packed_bool` reconstructs as `bernoulli`, never as a clamped normal
-11. Small-integer marginals: a `u4`/`u8`/`u16`/`u32`/`u64` reconstructs from its own per-level HISTOGRAM (`discrete`), never as a clamped normal
-12. Correlation reconstruction
-13. Residual correlation capture (`--residual-correlations`)
-14. The correlated residual draw (`Spec.ResidualCorrelations`)
-15. Model recovery in the fidelity report (`FidelityReport.Models`)
-16. Residual-correlation recovery + the numeric-arm disjointness (`FidelityReport.ModelResidualCorrelations`)
-17. The terminal warning summary (`internal/synth.GroupWarnings`)
-18. Utility against the SOURCE, and effect sizes beside every marginal p-value (`FidelityReport.Utility`, `FieldFidelity.EffectSize`)
-19. Structural rules (`Spec.Rules`, additive + `omitempty`)
-20. The rule pass runs LAST, and that placement IS the semantics
-21. `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own draw rather than applying the residual
-22. A rule that DETERMINES a field pre-claims it at priority 0
-23. `set_expr` and THE COERCION MATRIX
-24. `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins
-25. A rule that NEVER FIRES is reported, as an ATTENTION kind
-26. `constant` is normalised to the field's row shape
-27. The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`)
-28. Detecting structural rules from the data (`profile create --suggest-rules`)
-29. Co-missing blocks and always-null columns (the second `--suggest-rules` detector)
-30. Exact dependencies (the third `--suggest-rules` detector)
-31. Detection is calibrated against the motivating cohort, and the candidate file closes the loop
-32. Wide set columns are captured member-for-member, and the mask read is the whole risk
-33. Run-continuation is a row-ORDER measurement that rides the scan, and shard archives profile as one stream
-34. Vector fields are ONE joint draw, never dim independent scalars
-35. Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG
-36. A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a stage, not a sampler detail
-37. Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never a number
-38. Rule draws read a counter-based stream per call site, never the generation RNG; a helper field is drawn but never written
-39. A contested pair target goes to the strongest association, and the options of one set field depend on each other
-40. A synthetic-only twin drops the source rows from the FILE, never from the report; profile-path constraints are the spec's own
-41. A twin's closeness to real records is MEASURED, never guaranteed: the disclosure section reads the tagged cohort, its own seeded stream and the instance memory limit
-42. A rule's `lookup()` tables are an INPUT of the run: the table name is a literal, every referenced table's content digest folds into the spec's identity, and a null key is a miss, never the drawn value
+## Slice map
 
-## Section map
-
-| Slice | Sections and bold leads, in file order |
+| Slice | Covers |
 |---|---|
-| `synthetic-data/capture-and-models.md` | The contract; Thin-pair warning (generic mechanism); Per-numeric linear models (`models` profile section); Predictor selection is automatic, absolute, and has no user-facing override; Thin LEVELS inside an admitted predictor are SHRUNK, never dropped and never refused; `models` retires the numeric-target conditional arms, PER TARGET; Generation: the composed model draw; Shape-fitted numerics accept conditioning; Float fusion: capture and generation are architecture-independent by CONSTRUCTION, not… |
-| `synthetic-data/marginals-and-correlation.md` | Boolean marginals: a `packed_bool` reconstructs as `bernoulli`, never as a clamped normal; Small-integer marginals: a `u4`/`u8`/`u16`/`u32`/`u64` reconstructs from its own per-le…; Correlation reconstruction; Residual correlation capture (`--residual-correlations`) |
-| `synthetic-data/residuals-and-fidelity.md` | The correlated residual draw (`Spec.ResidualCorrelations`); Model recovery in the fidelity report (`FidelityReport.Models`); Residual-correlation recovery + the numeric-arm disjointness (`FidelityReport.ModelResi…; The terminal warning summary (`internal/synth.GroupWarnings`); Utility against the SOURCE, and effect sizes beside every marginal p-value (`FidelityReport.Utility`, … |
-| `synthetic-data/structural-rules.md` | Structural rules (`Spec.Rules`, additive + `omitempty`); The rule pass runs LAST, and that placement IS the semantics; `owns_nulls`: a rule can be the field's ONLY source of absence, and it ZEROES the own d…; A rule that DETERMINES a field pre-claims it at priority 0; `set_expr` and THE COERCION MATRIX |
-| `synthetic-data/rules-reporting-and-suggest.md` | `null_together` NULLS A BLOCK AS ONE DECISION, and the FIRST named field wins; A rule that NEVER FIRES is reported, as an ATTENTION kind; `constant` is normalised to the field's row shape; The profile-derived spec is inspectable and modifiable (`--emit-spec` / `--rules`); Detecting structural rules from the data (`profile create --suggest-rules`) |
-| `synthetic-data/rule-detection.md` | Co-missing blocks and always-null columns (the second `--suggest-rules` detector); Exact dependencies (the third `--suggest-rules` detector); Detection is calibrated against the motivating cohort, and the candidate file closes th… |
-| `synthetic-data/sets-order-and-vectors.md` | Wide set columns are captured member-for-member, and the mask read is the whole risk; Run-continuation is a row-ORDER measurement that rides the scan, and shard archives pro…; Vector fields are ONE joint draw, never dim independent scalars |
-| `synthetic-data/cross-row-time-and-draws.md` | Cross-row expressions (`row()`, `lag()`) read ACCEPTED-row order, and consume no RNG; A `datetime` field is drawn in LOCAL time and stored as the UTC instant; the conversion is a st…; Time effects read a date-family field on ITS clock, and a profiled `datetime` is a marginal, never…; Rule draws read a counter-based stream per call site, never the generation RNG; a helper fiel…; A contested pair target goes to the strongest association, and the options of one set field d…; A synthetic-only twin drops the source rows from the FILE, never from the report; profile-pa… |
-| `synthetic-data/disclosure.md` | A twin's closeness to real records is MEASURED, never guaranteed: the disclosure section reads… |
-| `synthetic-data/rule-lookup.md` | A rule's `lookup()` tables are an INPUT of the run: the table name is a literal, every referenced table's content digest folds… |
+| `synthetic-data/capture-and-models.md` | conditional pair capture, the thin-pair warning, the `models` section, predictor selection, thin-level shrinkage, per-target retirement of numeric pairs, the composed model draw, shape-fitted conditioning, float fusion |
+| `synthetic-data/marginals-and-correlation.md` | boolean (`bernoulli`, probit capture) and small-integer (`discrete`) marginals, correlation reconstruction and unmeasured entries, residual correlation capture |
+| `synthetic-data/residuals-and-fidelity.md` | the correlated residual draw, model and residual-correlation recovery, the terminal warning summary, utility against the source, effect sizes and per-type marginal scoring |
+| `synthetic-data/structural-rules.md` | `Spec.Rules` and eager validation, the rule pass running last, `owns_nulls`, priority-0 claims, `set_expr` and the coercion matrix, the row environment's functions |
+| `synthetic-data/rules-reporting-and-suggest.md` | `null_together`, never-firing rules, `constant` normalisation, `--emit-spec` / `--rules`, the `--suggest-rules` gating detector |
+| `synthetic-data/rule-detection.md` | the co-missing and dependency detectors, emitted order, calibration |
+| `synthetic-data/sets-order-and-vectors.md` | wide set capture, run-continuation and shard archives, vector fields |
+| `synthetic-data/cross-row-time-and-draws.md` | `row()` / `lag()`, local-time datetimes and time effects, the capture clock, rule draws and helper fields, pair arbitration and the noise floor, synthetic-only twins |
+| `synthetic-data/disclosure.md` | the fidelity report's `disclosure` section |
+| `synthetic-data/rule-lookup.md` | `lookup()` in rule expressions and the spec's identity |
