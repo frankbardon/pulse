@@ -1,22 +1,26 @@
-# Weighting — weighted descriptive and inferential figures (U11, U12)
+# Weighting — weighted descriptive and inferential figures
 
-**How to load.** This file is an INDEX: the preamble below plus a section map. Load it, then ONLY the per-topic slice(s) under `.claude/reference/weighting/` your change touches; find one with `grep -l '<identifier>' .claude/reference/weighting/*.md`. A section-qualified pointer at this file resolves through the section map.
+**How to load.** This file is an INDEX: the preamble below plus a slice map. Load it, then ONLY the slice(s) under `.claude/reference/weighting/` your change touches; find one with `grep -l '<identifier>' .claude/reference/weighting/*.md`. A section-qualified pointer at this file resolves through its slices.
 
-Long form of the row-weighting contract. CLAUDE.md keeps only a pointer (Reference Docs index), the Update Demand row and the Components floor note in "Output Format Contract". **Load this file before touching ANY weight surface**: `types.Request.Weight`, a per-slot `weight`, `pulse.Options.DefaultWeight`, the resolver, the validation pass, an operator's weight classification or its manifest `weight_kinds`, a refusal, a weighted inferential formula (tests, regressions, CI bounds, scores, quantile buckets, overlays), the `sum_weights` / `n_eff` / `n_weight_invalid` floor keys, `PULSE_WEIGHT_LOW_NEFF`, the extension `WeightAware` contract, the SPSS weight suggestion, or the `capability:weighting` feature.
+The row-weighting contract. Load it before touching ANY weight surface: `types.Request.Weight`, a per-slot `weight`, `pulse.Options.DefaultWeight`, the resolver or validation pass, an operator's weight class or manifest `weight_kinds`, a refusal, a weighted inferential formula, the `sum_weights` / `n_eff` / `n_weight_invalid` floor keys, `PULSE_WEIGHT_LOW_NEFF`, the extension `WeightAware` contract, the SPSS weight suggestion, `Pulse.Rake`, or `capability:weighting`. Agent-facing summary: `skills/weighting.md`; user guide: `docs/src/library/weighting.md`. When code and this file disagree, the change that moved the code fixes this file in the same PR.
 
-**Status: shipped (U11, weighting-descriptive E1–E5).** Every section describes code that exists; nothing here is planned. Story provenance (E1-S2 surface and resolution; E1-S3 threading, validation, the core aggregators and the floor; E2-S1 shape and E2-S2 counting aggregators plus the decimal128 refusal; E2-S3 the refusals and the grouper opt-out; E2-S4 the reference fixtures; E3-S1 / E3-S2 the two crosstab arms; E3-S3 the overlays; E4-S1 the extension contract; E4-S2 the feature gate; E4-S3 the SPSS suggestion) is kept in the section texts. **Status: shipped (U12, weighting-inferential E1–E6)** — the kind dimension (`weight_kinds`, frequency-only, permanent refusals with a reason), weighted tests (E1 moment and count tests, E2 rank / exact tests), weighted-host overlays (E3), regressions and regression attributes (E4), CI bounds, z / t scores and quantile buckets (E5); "Classification by family" is the one-table summary, "Weighted inference" the formulas, "Refusal rules" what is left. Agent-facing summary: `skills/weighting.md`; user guide: `docs/src/library/weighting.md`; embedder release notes: `docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md` (Changes from U11, Changes from U12); statistics review: `docs/roadmap/reviews/U12-weighting-review.md`. When code and this file disagree, the change that moved the code owes the fix here in the same PR.
+Three rules hold everywhere:
+
+- **Null ≠ absent.** An absent slot `weight` inherits; `null` opts the slot out.
+- **A class flips only with its computation.** An operator becomes weight-aware in the change that lands its weighted form — earlier, it would silently run unweighted.
+- **Predict ≡ runtime.** One resolver (`ResolveWeights`) decides every slot for both, so refusals match code, message and details.
 
 `format_version` stays `"1.1"` for every weight surface: each addition is additive `omitempty` / `omitzero`, and a request that carries no weight produces byte-identical output.
 
-## Section map
+## Slice map
 
-| Slice | Sections and bold leads, in file order |
+| Slice | Covers |
 |---|---|
-| `weighting/surface-and-classification.md` | Surface; Null ≠ absent; Weight field type; Weight field existence; Resolution order; Threading; Design (E1-S3): the resolved weight rides the aggregator's SPEC; Validation; Classification by family |
-| `weighting/aggregators-and-crosstab.md` | Aggregator classification; The table is `internal/weighting.aggregatorClasses`; Weight kinds (U12 E1-S1); Manifest `weight_kinds` (U12 E1-S1); Core formulas (E1-S3); Weighted percentile / median (Hmisc `wtd.quantile`, E2-S1; `weightedQuantileAggregator`…; Weighted mode / mode count (E2-S1; `weightedModeAggregator`); Weighted skewness / kurtosis (E2-S1; `weightedMomentAggregator`); `AGG_WEIGHTED_MEAN`; Weighted counting aggregators (E2-S2; `internal/processing/aggregator_weighted_counts.g…; decimal128 (E2-S2); Crosstab; Shipped (E3-S1 buffered arm; E3-S2 fused-arm parity) |
-| `weighting/refusals-and-inference.md` | Refusal rules; As of U12 (E6-S1 consolidation); Grouper slot weight (decision, U11 E2-S3); Not weightable (not a refusal code); Weighted inference; The one rule (U12 E1-S2, reused by every later story); What it is and is not; n_eff output keys; Guidance (`.claude/reference/guided-analysis.md`) |
-| `weighting/inference-multivariate.md` | Weighted inference (continued): z / t scores and quantile buckets, the formula total, CUPED, multivariate tests, fitted scores (incl. the SEM score), CI aggregators, matrix operators, gates |
-| `weighting/overlays.md` | Overlays |
-| `weighting/exactness-and-fixtures.md` | Floor keys; Operation-order exactness rule; Test slots (weighting-inferential E1-S4, `internal/service/weight_tests_parity_test.go`); Regression slots (weighting-inferential E4-S3, `internal/service/weight_regs_parity_tes…; Score attributes and quantile groupers (weighting-inferential E5-S2); Reference fixtures; Oracle policy (U11 + U12); Shipped (E2-S4); Significance tests (weighting-inferential E1-S4); Regressions and regression attributes (weighting-inferential E4-S3); Scores and quantile buckets (weighting-inferential E5-S2); Probability quantiles are Hmisc's |
-| `weighting/rake.md` | Surface; The solver (`internal/rake`); Output weights are PROBABILITY weights; Efficiency report; Writing; Oracle; Gates |
-| `weighting/extensions-and-codes.md` | Extension contract; Shipped (E4-S1); SPSS suggestion; Feature profile; Shipped (E4-S2); Error codes |
+| `weighting/surface-and-classification.md` | the request / slot / option surface, null ≠ absent, weight field type and existence, resolution order, threading (the weight rides the spec), validation and the invalid-rows warning, classification by family |
+| `weighting/aggregators-and-crosstab.md` | weighted meaning of each aggregator, weight kinds and manifest `weight_kinds`, weighted quantiles (Hmisc, integer snap), mode, moments, counting aggregators, the decimal128 refusal, both crosstab arms |
+| `weighting/refusals-and-inference.md` | refusal rules and details, overlay / Compose / facet weighting, the one rule (N*, w*), minimum-n floors, what Kish is and is not, n_eff output keys, tests and regressions incl. JK1 and influence |
+| `weighting/inference-multivariate.md` | scores and quantile buckets, the formula total, CUPED, multivariate tests, fitted scores, the low-n_eff warning, CI aggregators, matrix operators |
+| `weighting/overlays.md` | mean / contingency / proportion overlays on a weighted host, `n_source`, components-disabled hosts, the weighted two-means host |
+| `weighting/exactness-and-fixtures.md` | floor keys, the operation-order exactness rule and parity gates, the reference-fixture oracle policy |
+| `weighting/rake.md` | `Pulse.Rake`: computing rim / cell weights into a new cohort |
+| `weighting/extensions-and-codes.md` | extension `WeightAware` contract, SPSS suggestion, feature profile, error codes |

@@ -10,9 +10,9 @@ import "github.com/frankbardon/pulse/encoding"
 // dictionary entries the data actually carries — calibrated against
 // the measured peak heap (runtime.MemStats.HeapAlloc high-water mark,
 // garbage between GC cycles included) of buildWideCohort runs: see
-// internal/service TestMemoryEstimate_Calibration and the "Resource
-// limits" paragraph of .claude/reference/predict-inspect.md for the
-// figures.
+// internal/service TestMemoryEstimate_Calibration for the figures, and
+// .claude/reference/predict-inspect/limits.md (The memory estimate) for
+// the model.
 
 // MemoryArm is the execution arm a request runs on, which decides the
 // shape of its resident state.

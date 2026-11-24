@@ -1,76 +1,29 @@
-# Byte layout — wide-set word order, sidecar files, SPSS fidelity, and projected decode
+# Byte layout — the `.pulse` format, shard archives, sidecar files, SPSS fidelity, projected decode
 
-**How to load.** This file is an INDEX: the preamble below plus a section map. Load it, then ONLY the per-topic slice(s) under `.claude/reference/byte-layout/` your change touches; find one with `grep -l '<identifier>' .claude/reference/byte-layout/*.md`. `.claude/reference/byte-layout/history.md` is superseded wording — do NOT load it by default. A section-qualified pointer at this file resolves through the section map.
+**How to load.** This file is an INDEX: the summary below plus a section map. Load it, then ONLY the slice(s) under `.claude/reference/byte-layout/` your change touches; find one with `grep -l '<identifier>' .claude/reference/byte-layout/*.md`. `byte-layout/long-form-and-model-files.md` holds the format essentials (header, schema block, bitmap, field types, shard archive variant) — load it for ANY format, field-type or archive change. `byte-layout/history.md` is superseded wording; do not load it.
 
-Relocated verbatim from CLAUDE.md (section `### Byte-layout invariants`). CLAUDE.md keeps the always-load half inline, compressed — the 9-byte header, the schema block, the dictionary blocks, the record data, the per-record null bitmap, a one-line parent-group summary, the 22 field types and a two-line shard archive variant; the detail those lines dropped is the last paragraph below ("The always-load half, long form"). Everything below is the long form it points at: the wide-set word order (the one genuine `.pulse` payload rule here), the three sidecar files that sit BESIDE a `.pulse` cohort and are not `.pulse` layouts, the SPSS fidelity model in both directions, the default-on projected buffered decode, the standalone regression model file (`.pulse-model.json`), the standalone vector-fit population file (`.pulse-population.json`) and the standalone SEM fit file (`.pulse-sem.json`).
+Load this reference before changing the `.pulse` format, a field type, the shard-archive layout, any sidecar file (point-lookup index and manifest, SPSS metadata sidecar, append journal, Bloom files), an SPSS surface, the model / population / SEM files, the mmap read path or an atomic rewrite, or the projection contract. A `.pulse` format change is irreversible on user data, and most failures recorded here were SILENT — the file opened and a value was quietly wrong.
 
-Load it before changing any of them, or the mmap read path / an atomic rewrite's rename (`byte-layout/mmap-and-rewrites.md`) — CLAUDE.md's Update Demand table names this file as a required companion for a `.pulse` file-format change, a registered field type, shard archive layout, the sidecar point-lookup index or its manifest, a registered I/O format (SPSS in particular), and the projection contract.
+## Summary — the rules every format change must respect
 
-`format_version` does NOT move for anything described here: none of these surfaces is payload-reachable (`io.PredictReport`, `descriptor.InspectResult`, the sidecar documents and the index format all sit outside `types/`), so `descriptor/testdata/payload-schema.json` is untouched. The sidecar index MANIFEST carries its OWN `format_version` (`"1"`), independent of both `encoding.FormatVersion` and `IndexFormatVersion`.
-
-## Contents
-
-Paragraph order below is the file's order; each entry is that paragraph's bold lead-in.
-
-1. Format version — `0x01` / `0x02`
-2. Parent groups — the `0x02` group descriptor
-3. Global-constant elision — opt-in, full-pass detection
-4. Import-time group declaration — `--group` / `ImportJob.Groups`
-5. Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`
-6. Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup`
-7. Cohort default zone — the ZONE section (U75 #480)
-8. Row-at-a-time builder — `Pulse.NewCohortBuilder`
-9. Materialized derived columns — `Pulse.Materialize`
-10. Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3)
-11. Wide-set word order — `set_u128` / `set_u256`
-12. Vector fields — `vec_f32` / `vec_f64` and the VECTORS section
-13. Temporal word sign — `date` int32 / `datetime` int64
-14. Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet)
-15. Shard set-width auto-widen
-16. Shard archives with parent groups — `0x02` shards
-17. Sidecar point-lookup index
-18. Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestSuffix`)
-19. Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage
-20. SPSS metadata sidecar
-21. SPSS derived columns
-22. SPSS export
-23. SPSS convert carries the source through
-24. Export predict is target-aware
-25. Projected buffered decode
-26. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
-27. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR`
-28. Model file — `.pulse-model.json` (`model_format_version` 1 + `features`)
-29. Population file — `.pulse-population.json` (`population_format_version` 1)
-30. SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3)
-31. CLAUDE.md's sidecar contract sentence, pre-compression
-32. The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (relocated at U18 E1-S1)
-33. SPSS type hints — `@PulseType` (cohort-reshape E6-S2)
-34. Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4)
-35. Memory-mapped reads — platforms (U77 E2-S1)
-36. Pulse's own mappings never block its rewrites
-37. A view another reader holds — the recorded decision (U77 E2-S1, owner decision #4)
-38. Archive key-range prune — `key_min` / `key_max` (U73 #493)
-39. Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493)
-40. Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498)
-41. Shard add tail append — in place (U73 #492)
-42. Append journal — `<archive>.append` (U73 E2-S2)
-43. Dead bytes — superseded copies, the rewrite fallback, `--rewrite` (U73 E2-S3)
-44. Per-shard distinct counts — the `_schema.pulse` DIST trailer (U73 #500)
-45. Archive Bloom set — `<archive>.<keyhash>.blooms` (U73 #721)
+- **Header:** 9 bytes, magic `PULSE\x00\x00\x00` + version ∈ `{0x01, 0x02}`; `ReadHeader` returns the version and every `ReadSchema(r, version)` must be handed it. `0x02` iff the schema declares a parent group, a vector or a default zone field; otherwise `0x01`, byte-identically. `0x01` is readable forever.
+- **Rows:** fixed-width, stride a pure function of the schema, every width summed from `Schema.FieldWidth` (never a type-only size). Optional trailing null bitmap, `ceil(field_count/8)` bytes, field `i` → byte `i/8` bit `i%8`, `1` = null. Parent groups make byte sizes PHYSICAL while every field index stays LOGICAL.
+- **Shard archive:** an uncompressed Zip64 container (magic `PK\x03\x04`) holding the reserved `_schema.pulse` plus ≤ 65535 shards (more is `PULSE_SHARD_COUNT_LIMIT`). Sets widen across shards; nullability and the zone default never do. An ordinary `shard add` appends in place, journalled in `<archive>.append`; every other mutation is an atomic staged rewrite, and an unasked rewrite MANDATORY-warns. `.pulse.zst` is transport-only — every read refuses it.
+- **`format_version` does NOT move** for anything here: none of these surfaces is payload-reachable. Each sidecar document carries its OWN version axis (the index manifest's `"1"`, the `.idx` `0x03`, the Bloom files, the DIST trailer, the model / population / SEM file versions) — bump only the axis you change.
 
 ## Section map
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
-| `byte-layout/format-and-groups.md` | The contract; Format version — `0x01` / `0x02`; Parent groups — the `0x02` group descriptor; Global-constant elision — opt-in, full-pass detection; Import-time group declaration — `--group` / `ImportJob.Groups`; Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`; Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup`; Cohort default zone — the ZONE section (U75 #480) |
-| `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected` (cohort-reshape E1-S3); Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
-| `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS… |
-| `byte-layout/archive-index.md` | Archive point-lookup index (U51 #359) — one sidecar per shard + the archive manifest's coverage; Archive key-range prune — `key_min` / `key_max` (U73 #493); Archive Bloom prune — the per-shard `.bloom` sidecar (U73 #493); Archive distinct-key estimate — the per-shard `hll` sketch (U73 #498); Archive Bloom set — `<archive>.<keyhash>.blooms` (U73 #721) |
-| `byte-layout/archive-append.md` | Shard add tail append — in place (U73 #492): the appended entries and directory, Zip64, which adds rewrite instead, concurrent readers, `PULSE_SHARD_APPEND_REFUSED`, failure rollback, index upkeep from the in-memory twin; Append journal — `<archive>.append` (U73 E2-S2): the crash marker, `PULSE_SHARD_APPEND_INCOMPLETE`, `RepairShardArchive` / `shard verify --repair`, `PULSE_SHARD_REPAIR_REFUSED`, `PULSE_SHARD_APPEND_ROLLED_BACK`; Dead bytes — superseded copies, the rewrite fallback, `--rewrite` (U73 E2-S3): the gap measure, `PULSE_SHARD_DEAD_BYTES_RECLAIMED`, `AddShardOptions.Rewrite`, verify's `dead_schema_copies` / `dead_bytes`; Per-shard distinct counts — the `_schema.pulse` DIST trailer (U73 #500): wire layout, statuses, reader API, fresh vs carried per writer, knobs, memory |
-| `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran… |
-| `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, sidecar skip, collisions, the populations directory) |
-| `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType` (cohort-reshape E6-S2); Set rungs, vector elements and inexact u64 (cohort-reshape E6-S4) |
-| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1 + `features`) |
+| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (Header; Schema block; Dictionary blocks; Record data; Per-record null bitmap; Parent groups; Field types; A dictionary code is valid only inside its dictionary); Shard archive variant; Model file — `.pulse-model.json` (`model_format_version` 1 + `features`) |
+| `byte-layout/format-and-groups.md` | Format version — `0x01` / `0x02`; Parent groups — the `0x02` group descriptor; Global-constant elision; Import-time group declaration — `--group` / `ImportJob.Groups`; Per-group viability gate — `PULSE_GROUP_TOO_NARROW` / `PULSE_DEDUP_LOW_RATIO` / `--strict`; Retro-dedup — `pulse dedup` / `Pulse.Dedup` / `pulse_dedup`; Cohort default zone — the ZONE section |
+| `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Projected SPSS carry — `SidecarCarry.WriteProjected`; Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
+| `byte-layout/shards-and-index.md` | Shard set-width auto-widen; The archive rewrite contract; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (keyable types, exact `u64` keys) |
+| `byte-layout/archive-index.md` | Archive point-lookup index — one sidecar per shard + the archive manifest's coverage (and upkeep on add / remove); Archive key-range prune — `key_min` / `key_max`; Archive Bloom prune — the per-shard `.bloom` sidecar (the Bloom record layout); Archive Bloom set — `<archive>.<keyhash>.blooms`; Archive distinct-key estimate — the per-shard `hll` sketch |
+| `byte-layout/archive-append.md` | Shard add tail append — in place (the appended bytes equal `zip.Writer`'s; Zip64; which adds rewrite instead; concurrent readers; `PULSE_SHARD_APPEND_REFUSED`); Append journal — `<archive>.append` (`PULSE_SHARD_APPEND_INCOMPLETE`, repair, `PULSE_SHARD_APPEND_ROLLED_BACK`); Dead bytes — superseded copies, the rewrite fallback, `--rewrite`; Per-shard distinct counts — the `_schema.pulse` DIST trailer |
+| `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` |
+| `byte-layout/spss-type-hints.md` | SPSS type hints — `@PulseType`; Set rungs, vector elements and inexact u64 |
+| `byte-layout/table-directories.md` | Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR` / `PULSE_LOOKUP_TABLES_DIR` (file formats, declared axes, the exclusion, collisions); Populations directory |
 | `byte-layout/population-and-sem-files.md` | Population file — `.pulse-population.json` (`population_format_version` 1); SEM fit file — `.pulse-sem.json` (`sem_format_version` 1, 2 or 3) |
-| `byte-layout/mmap-and-rewrites.md` | Memory-mapped reads — platforms (U77 E2-S1); Pulse's own mappings never block its rewrites; A view another reader holds — the recorded decision (U77 E2-S1, owner decision #4) |
-| `byte-layout/history.md` (not loaded by default) | CLAUDE.md's sidecar contract sentence, pre-compression (relocated verbatim at weighting…; Contract: `.claude/reference/byte-layout.md` — load it before touching any of these. No… |
+| `byte-layout/mmap-and-rewrites.md` | Memory-mapped reads — platforms; Pulse's own mappings never block its rewrites; A view another reader holds — the recorded decision |
+| `byte-layout/history.md` (not loaded by default) | Superseded wording, kept for archaeology |

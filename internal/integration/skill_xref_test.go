@@ -26,8 +26,7 @@ import (
 // on. Cross-references had no such gate and the class kept recurring.
 //
 // The gate lives in the root package because shape (b) reads CLAUDE.md and
-// .claude/reference/*.md, the established pattern of TestClaudeMdMentionsAllEnvVars
-// and friends; shape (a) resolves through the skills package's embedded FS, so it
+// .claude/reference/*.md; shape (a) resolves through the skills package's embedded FS, so it
 // asserts what skills.Get() actually answers rather than what is on disk.
 func TestSkillsCoverAllCrossReferences(t *testing.T) {
 	t.Parallel()

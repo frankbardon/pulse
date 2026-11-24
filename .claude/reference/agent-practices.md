@@ -14,12 +14,12 @@ Each rule's reason comes from a failure this repo already shipped.
 ## Sites first
 
 - Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: it derives the checklist, gates and goldens from code; a hand grep misses sites that do not name the identifier.*
-- Use grep only to fill gaps, and grep the operator / kind name across the root parity tests and leaf packages even when the tool is clean: it missed `internal/seriesfield`, `internal/seriespartition`, `overlayhost/series_spec_refusal.go`, `vectors.ExprSlots` (via `vecPair`) and the attribute merge suite in `extensions_parity_categories_test.go`. Report missed sites in your hand-back.
+- Use grep only to fill gaps, and grep the operator / kind name across the root parity tests and leaf packages even when the tool is clean: it has missed shared-rule leaf packages and root parity suites before. Report missed sites in your hand-back.
 - The tool finds sites; the slices it lists under "Read before editing" say what each must contain.
 
 ## TDD and falsification
 
-- Tests go in the same commit as the implementation, with no exceptions. *Why: CLAUDE.md "What NOT to Do". An untested change gets merged and never gets its test.*
+- Tests go in the same commit as the implementation, with no exceptions. *Why: an untested change gets merged and never gets its test.*
 - Prove each key new test can fail: revert one production line, confirm the test fails, restore it. *Why: about half of past work packages had a test that passed whether or not the code was right.*
 - Never use `t.Skip` and never disable a gate to get green. Report the failing gate with its name and an error excerpt.
 
@@ -76,6 +76,6 @@ Other agents may share the checkout and git index.
 
 ## CLAUDE.md budget
 
-- `CLAUDE.md` must stay at or under 40,000 bytes (`TestClaudeMdSizeBudget`). To fit new content, move long prose into the per-area slice and leave a one-line pointer. Never raise the ceiling. *Why: CLAUDE.md is loaded on every turn of every session.*
+- CLAUDE.md is not an Update Demand companion. Contract detail goes in the per-area reference slice, the skill or the book; edit CLAUDE.md only when a rule every session needs changes. It stays under `TestClaudeMdSizeBudget`'s ceiling, which is never raised. *Why: CLAUDE.md is loaded on every turn of every session.*
 - Reference indexes and slices have their own ceilings (`reference_docs_test.go`), and an unsplit reference file carries the slice ceiling. A file or slice that grows past it is split (again), and the new slice is named in its index.
 - Every `.claude/reference/...` path or section pointer you write must resolve (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).

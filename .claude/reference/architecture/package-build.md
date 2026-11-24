@@ -1,6 +1,6 @@
 # Architecture — how the narrowed packages are built, the `linalg` split, CLI
 
-Per-topic slice of the architecture reference (how the narrowed packages are built, the `linalg` split, CLI; split out of `architecture/packages.md` at predict-extension-parity-2 E6-S1, which keeps the package tree). Index (preamble + section map): `.claude/reference/architecture.md` — load it first, then only the slice(s) your change touches.
+Per-topic slice of the architecture reference (how the narrowed packages are built, the `linalg` split, CLI). Index (rules + section map): `.claude/reference/architecture.md` — load it first, then only the slice(s) your change touches.
 
 ## How the narrowed packages are built
 
@@ -12,7 +12,7 @@ Three techniques, chosen per package:
 
 **Reading package-qualified names.** Because each internal twin keeps its public package's NAME, contributor prose spelling `encoding.X`, `descriptor.X`, `synth.X` or `io.X` may mean the internal twin (`synth.AllDistributions`, `descriptor.BuildManifest`, `encoding.SidecarIndexPath` are all internal). Embedder-facing prose (`docs/src/library/`, README, the skill pack) names only spellings an external module can import; `internal/apigolden/testdata/public_api.txt` is the arbiter.
 
-**Root aliases.** Facade-returned types from internal packages keep their `pulse.X` spelling as aliases (`ComposeOptions`, `Row`, `RowIter`, the shard and index result types, `ImportSpec` / `ImportResult` / `ImportEntry` / `ImportSidecar`, `Example` / `ExampleSummary`, `SkillMetadata`, `Template*` / `RenderedTemplate`, `CohesionWarning`, `GroupIndexHeadroom`, `SidecarIndex`, …). `DateRangeSpec`, `MemberSet` and `LoadMemberSetResult` are root-NATIVE types, not aliases. `pulse.go` also re-exports `types.Request` / `Response` / `ComposedRequest` and `synth.Spec` / `Result` / `Options` / `Profile` / `ProfileOptions`.
+**Root aliases.** A facade-returned type from an internal package keeps a `pulse.X` spelling as a type alias (`type X = internal.X`), so an embedder never imports `internal/`; `pulse.go` also re-exports the common `types` and `synth` request / result types. A few root types are NATIVE, not aliases. The API golden shows which is which (an alias line expands its target).
 
 **The `io` import boundary.** Nothing under `internal/io/**` or `internal/iocore` may import the public `io` — its factory (`io.NewReader`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, typed `io.Format` constants, `FormatFromPath`) imports every adapter, so the reverse edge is a cycle. Adapters import `internal/iocore` for contracts and `internal/io` for jobs. `internal/iocore` itself is a leaf reaching only the `.pulse` codec (`encoding`, `internal/encoding`, `internal/encodingbridge`, `internal/temporal`), `errors` and `types` — plus the stdlib-only `internal/returnplan`, which rides in through `types`. Gated by `TestIOImportBoundary*` (`internal/iocore/boundary_test.go`); when an adapter moves, move its path in `belowFacade` with it.
 
@@ -26,4 +26,4 @@ Three techniques, chosen per package:
 
 ## CLI
 
-CLI commands map 1:1 to manifest commands — the list is in CLAUDE.md "Architecture". `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.
+CLI commands map 1:1 to manifest commands: `buildApp()` in `cmd/pulse/` defines the leaf tree, `pulse manifest --json` lists `commands`, and every leaf needs a `commandBindings` entry in `internal/descriptor/features.go` (`TestCommandBindings_Complete`). The leaf index for humans is `docs/src/cli/flags.md`. `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.

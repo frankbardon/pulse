@@ -1,20 +1,25 @@
 # Predict / Inspect — the no-execute contracts
 
-**How to load.** This file is an INDEX: the preamble below plus a section map. Load it, then ONLY the per-topic slice(s) under `.claude/reference/predict-inspect/` your change touches; find one with `grep -l '<identifier>' .claude/reference/predict-inspect/*.md`. `.claude/reference/predict-inspect/history.md` is superseded wording — do NOT load it by default. A section-qualified pointer at this file resolves through the section map.
+**How to load.** This file is an INDEX: the summary below plus a section map. Load it, then ONLY the slice(s) under `.claude/reference/predict-inspect/` your change touches; find one with `grep -l '<identifier>' .claude/reference/predict-inspect/*.md`. `predict-inspect/history.md` is superseded wording; do not load it. Debugging procedure: `docs/src/internals/debugging-predict.md`.
 
-Relocated from CLAUDE.md (section `### Predict / Inspect contracts`). CLAUDE.md keeps the always-load half inline — the structural import ban, the no-record inspect rule (header + schema + sidecar metadata), the streamability mirror, and the fact that `CountRecords` is header-fast. Everything below is the long form it points at.
+Load it before changing `internal/descriptor/predict.go`, `internal/descriptor/inspect.go`, any predict root (`PredictCompose` / `Facet` / `Chain` / `Materialize`), `Pulse.Inspect` / `InspectEnvelope`, `pulse_inspect` / `pulse_predict`, the `pulse cohort inspect` leaf, or `pulse.CountRecords`.
 
-**Load it before changing `internal/descriptor/predict.go`, `internal/descriptor/inspect.go`, `Pulse.Inspect` / `Pulse.InspectEnvelope`, `mcp.InspectOut` / `HandleInspect`, the `pulse cohort inspect` leaf, or `pulse.CountRecords`.** All four surfaces answer the same question over the same bytes and the failure mode they share is SILENT: a floored or truncated count is indistinguishable on the wire from an honest one.
+## Summary — the rules that bind every change
 
-`format_version` does NOT move for anything described here — `descriptor.InspectResult` is not payload-reachable and `descriptor/testdata/payload-schema.json` is untouched. Only the manifest golden moves, and only for the tool description.
+- **Import ban.** `internal/descriptor/predict.go` must not import `internal/service/` or `internal/processing/` (`TestPredictNoExecutionImports`). Shared knowledge lives in no-execute leaf packages both sides import.
+- **Parity.** Wherever predict and the runtime judge the same thing, both call the same function, in the runtime's entry order, raising the runtime's code, message and details. Every such rule has a parity gate; a rule added to one side alone fails it. Predict stricter than a correct runtime is a predict bug.
+- **No record is read.** Predict and inspect read header + schema (+ sidecar metadata and saved model files); counts derive from file length or archive headers. An archive is read by random access, never whole.
+- **Truncated tails are visible only through an envelope.** `Pulse.Inspect` drops warnings; surfaces that must show a truncated tail use `InspectEnvelope`. `CountRecords` floors SILENTLY, deliberately — never make it error. The floor division exists once (`encoding.Schema.RecordCountForPayload`).
+- **Advisories are never warnings,** never escalated by Strict, never change execution.
+- `format_version` does not move for anything here: `descriptor.PredictResult` / `InspectResult` are not payload-reachable (`descriptor.Advisory` is an ungated payload root). The API golden moves for new result fields.
 
 ## Section map
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
-| `predict-inspect/inspect-and-roots.md` | Inspect — the envelope is the only way to see a truncated tail; `Pulse.Inspect` returns the RESULT only and drops `env.Warnings` on the floor; Every `pulse cohort inspect` mode reads through the facade; `pulse_inspect` carries the warnings too; Byte-level inspect and predict live on the instance; Predicting the non-Request roots; Suggested weight — sidecar metadata, never records; Inspect — parent groups are header-only too; Inspect — vector fields are header-only too; CountRecords — one floor division, two observability contracts; The single-file floor division exists ONCE, at `encoding.Schema.RecordCountForPayload`,…; The arms differ in OBSERVABILITY and only there, deliberately |
-| `predict-inspect/predict.md` | Predict; `PredictResult.Sizes`; `ComposeSlotPredict.Sizes`; `PredictResult.PostWindow`; `Pulse.ClassifyPostWindow(ctx, req, schema)`; Field references are one rule, not a predict-only check; Field-type acceptance is gated table-wide; Literal `lookup()` / `range_label()` calls are judged statically; Saved files are the one non-cohort read predict makes (`models`, `populations`) |
-| `predict-inspect/limits.md` | Limit findings; `PredictResult.LimitFindings` (+ the Compose, chain and facet roots); The memory estimate (`MaxEstimatedMemory`, U19 E2-S3) |
-| `predict-inspect/advisories.md` | Advisories; `PredictResult.Advisories`; Import predict is not descriptor predict |
-| `predict-inspect/compose-compare.md` | Nested-model comparisons (U65 E3-S3) — the `regcompare` rule at predict, the summary, sweep-bound and SEM pairs |
-| `predict-inspect/history.md` (not loaded by default) | The CLAUDE.md Inspect bullet, pre-compression (relocated verbatim at weighting-descriptive E1-S1) |
+| `predict-inspect/inspect-and-roots.md` | Inspect — the envelope is the only way to see a truncated tail; Byte-level inspect and predict live on the instance; Predicting the non-Request roots (Options, Strict and EchoRequest, Compose slots, CLI and MCP, Materialize, Sweeps, Banners, Optimize blocks, Nested-model comparisons, Item fan-out); Suggested weight — sidecar metadata, never records; Inspect — parent groups are header-only too; Inspect — vector fields are header-only too; CountRecords — one floor division, two observability contracts |
+| `predict-inspect/predict.md` | Predict (Streamable, CrosstabFusable, TimeZones, Weights, PValues, Matrices); `PredictResult.Sizes`; `ComposeSlotPredict.Sizes`; Field references are one rule, not a predict-only check; Field-type acceptance is gated table-wide; Literal `lookup()` / `range_label()` calls are judged statically; `PredictResult.PostWindow`; `Pulse.ClassifyPostWindow(ctx, req, schema)`; Saved files are the one non-cohort read predict makes (`models`, `populations`) |
+| `predict-inspect/limits.md` | Limit findings; `PredictResult.LimitFindings` (+ the Compose, chain and facet roots); The memory estimate (`MaxEstimatedMemory`) |
+| `predict-inspect/advisories.md` | Advisories; `PredictResult.Advisories`; the codes; Import predict is not descriptor predict |
+| `predict-inspect/compose-compare.md` | Nested-model comparisons — the `regcompare` rule at predict, the summary, sweep-bound, vector and SEM pairs |
+| `predict-inspect/history.md` (not loaded by default) | Superseded wording, kept for archaeology |

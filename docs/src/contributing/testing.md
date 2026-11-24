@@ -3,8 +3,6 @@
 **Audience:** contributors writing tests, regenerating goldens, or
 trying to figure out which CI gate to run locally before pushing.
 
-> **From CLAUDE.md, Non-Skippable CI Gates and The Update Demand.**
-
 ## Style
 
 - Table-driven tests are the default. Put cases in a `[]struct{...}`
@@ -55,24 +53,22 @@ One file stays at the root: `feature_parity_mcp_bridge_test.go`. It imports
 `mcp/gosdk` and shares an in-package harness, so moving it would create an
 import cycle. `TestRootTestGraphExcludesCLI` checks both packages.
 
-## Non-skippable CI gates
+## Structural gates
 
 These tests guard structural invariants. If one of them fails, the
-underlying conventions (not the test) are what need re-thinking.
-Their full names appear in CLAUDE.md so the
-`TestClaudeMdMentionsAllNonSkippableGates` self-check can find them.
+underlying conventions (not the test) are what need re-thinking. What
+each checks in detail: `.claude/reference/update-demand/gates.md`.
 
 | Gate | Guards |
 |---|---|
 | `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `internal/processing/` |
 | `TestDescriptorNoFmtSprintf`            | `descriptor/` + `internal/descriptor/` never build JSON via `fmt.Sprintf` |
 | `TestGoldensNotHandEdited`              | `descriptor/testdata/*` hashes match the generator |
-| `TestClaudeMdMentionsFormatVersion`     | CLAUDE.md references the current envelope `format_version` |
-| `TestClaudeMdMentionsAllEnvVars`        | Every `PULSE_*` env var has a CLAUDE.md row |
-| `TestClaudeMdMentionsAllNonSkippableGates` | This very table is the source — CLAUDE.md must list every gate by name |
-| `TestUpdateDemandTableCovers`           | The Update Demand table covers every registered component category |
+| `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdSizeBudget` | CLAUDE.md names the current `format_version` and stays under its size ceiling |
+| `TestEnvVarsDocumented`                 | Every `PULSE_*` env var has a row in [Options → Environment variables](../library/options.md#environment-variables) |
+| `TestUpdateDemandTableCovers`           | The Update Demand reference covers every registered component category |
 | `TestPerPackageCoverageFloors`          | The floor table `.github/coverage-floors.txt` is sound (real package dirs, 0..100, no duplicate); `make cover` / CI `coverage` measure against it |
-| `TestNoOrbitReferences`, `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
+| `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
@@ -85,9 +81,6 @@ Their full names appear in CLAUDE.md so the
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 
-(See `CLAUDE.md` "Non-Skippable CI Gates" for the full prose; this table is the
-quick-reference.)
-
 ## Running a subset of gates locally
 
 ```bash
@@ -97,8 +90,8 @@ go test ./descriptor/ ./internal/descriptor/ -run 'TestPredictNoExecution|TestDe
 # Skill coverage gates
 go test ./internal/skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
 
-# CLAUDE.md gates
-go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUpdateDemandTable'
+# Doc gates
+go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestEnvVars|TestUpdateDemandTable|TestComponentsContract'
 
 # Predecessor-reference scrub
 go test ./types/ ./errors/ -run TestNoOrbit
@@ -119,8 +112,5 @@ Never hand-edit a golden file — the gate will catch you.
 
 ## Adding a new gate
 
-If your change introduces a structural invariant, add a test for it
-under the same naming convention (`TestX`), and add it to the table in
-`CLAUDE.md` so `TestClaudeMdMentionsAllNonSkippableGates` recognises
-it. The [Update Demand](../internals/update-demand.md) lists this as a
-trigger row.
+If your change introduces a structural invariant, add a test for it and
+a row in the table above.

@@ -37,13 +37,13 @@ See [CLAUDE.md](CLAUDE.md) for the full set of conventions and contracts.
 
 ## The Update Demand
 
-Any change to code, configuration, file format, or public surface MUST update the corresponding skill file(s) and `CLAUDE.md` in the same PR. The Update Demand table in `CLAUDE.md` lists every trigger and its enforcing CI gate. Do not defer doc updates to a follow-up PR.
+Any change to code, configuration, file format, or public surface updates its companions — skill files, capability declarations, docs and goldens — in the same PR. [The Update Demand](docs/src/internals/update-demand.md) explains how to find them. Do not defer doc updates to a follow-up PR.
 
 ## Pull Request Guidelines
 
 - Keep PRs focused — one feature or fix per PR
 - Include tests for new functionality (TDD: tests first)
-- Update skill files and `CLAUDE.md` per the Update Demand
+- Update skill files and docs per the Update Demand
 - Run `make test && make lint` before submitting
 - Fill out the PR template
 

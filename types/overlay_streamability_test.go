@@ -9,8 +9,7 @@ import "testing"
 // constant to AllOverlayKinds() in overlay.go, AND adding an expected
 // row here.
 //
-// Joins the TestStreamability_*Known family listed under CLAUDE.md
-// "Non-Skippable CI Gates". A missing row, a stale row, or a divergent
+// Joins the TestStreamability_*Known family. A missing row, a stale row, or a divergent
 // value all fail the gate so the table cannot silently drift.
 func TestStreamability_OverlaysKnown(t *testing.T) {
 	t.Parallel()
