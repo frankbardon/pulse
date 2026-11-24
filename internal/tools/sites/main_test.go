@@ -215,6 +215,7 @@ func TestManualPathsExist(t *testing.T) {
 	}
 	all = append(all, slotManual...)
 	all = append(all, slotManualResponse...)
+	all = append(all, slotManualCompose...)
 	for _, p := range all {
 		if _, err := os.Stat(path.Join(r.root, p)); err != nil {
 			t.Errorf("manual path %s: %v", p, err)

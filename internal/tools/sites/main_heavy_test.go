@@ -537,3 +537,80 @@ func TestSpecSites_Regression(t *testing.T) {
 		})
 	}
 }
+
+// TestSlotReport_ComposeLevel pins the Compose-level slot sites (#560,
+// #706): `slot request <name>` falls back to types.ComposedRequest and
+// lists the walkers, Explain, MCP bind, strict-acceptance families,
+// example profiles, limits-parity lists and the shared ResultCatalog.
+func TestSlotReport_ComposeLevel(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	common := []struct{ class, path, sym string }{
+		{"descriptor", "internal/descriptor/request_slots.go", "func setSlots"},
+		{"compose", "internal/cli/strict_acceptance_test.go", "func strictAcceptanceRows"},
+		{"compose", "examples/profiles/read-only-analyst.json", ""},
+		{"compose", "internal/service/limits_parity_test.go", "func parityCases"},
+		{"compose", "internal/descriptor/compose_optimize.go", "func ResultCatalog"},
+	}
+	for _, slot := range []string{"sweep", "optimize", "base", "banner", "fits", "post_fit"} {
+		t.Run(slot, func(t *testing.T) {
+			rep, err := slotReport(r, "request", slot, options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Target != "ComposedRequest."+slot {
+				t.Fatalf("target %q, want the ComposedRequest field", rep.Target)
+			}
+			for _, w := range common {
+				if _, ok := symbolNote(siteIn(rep, w.class, w.path), w.sym); !ok {
+					t.Errorf("%s section lacks %s · %q", w.class, w.path, w.sym)
+				}
+			}
+			if !contains(rep.Manual, ".claude/reference/update-demand/compose.md") {
+				t.Errorf("manual lacks the compose update-demand slice: %v", rep.Manual)
+			}
+		})
+	}
+	// the compose form, plus the sweep-specific walker, Explain and MCP sites
+	rep, err := slotReport(r, "compose", "sweep", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []struct{ path, sym string }{
+		{"internal/descriptor/request_reads.go", "func (readsWalker) compose"},
+		{"internal/mcp/return_default.go", ""},
+		{"internal/mcp/bind.go", ""},
+		{"internal/guide/explain_results.go", ""},
+	} {
+		s := findSite(rep, w.path)
+		if s == nil || w.sym != "" && !hasSymbol(s, w.sym) {
+			t.Errorf("compose sweep lacks %s · %q", w.path, w.sym)
+		}
+	}
+	if !gateTests(rep)["TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey"] {
+		t.Error("the strict-acceptance gate is not rerun")
+	}
+	// an item-level key resolves to every struct declaring it
+	rep, err = slotReport(r, "request", "for_each", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findSite(rep, "internal/template/for_each.go") == nil || len(rep.Summary) < 3 {
+		t.Errorf("for_each: summary %v, template site missing", rep.Summary)
+	}
+	// a NEW compose slot gets the ComposedRequest walker template
+	rep, err = slotReport(r, "compose", "not_a_slot_yet", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []struct{ path, sym string }{
+		{"types/types.go", "type ComposedRequest"},
+		{"internal/descriptor/request_slots.go", "func setSlots"},
+		{"internal/mcp/bind.go", "func buildComposeSchemaWithExtensions"},
+	} {
+		if !hasSymbol(findSite(rep, w.path), w.sym) {
+			t.Errorf("new compose slot template lacks %s · %q", w.path, w.sym)
+		}
+	}
+}

@@ -34,6 +34,12 @@ var slotManual = []string{
 
 var slotManualResponse = []string{udComps, refComps}
 
+// slotManualCompose is the extra reading for a Compose-level slot.
+var slotManualCompose = []string{
+	".claude/reference/update-demand/compose.md",
+	".claude/reference/execution-modes/compose.md",
+}
+
 // slotRef is one go/types-resolved reference to a field of the slot
 // struct (selector or composite-literal key).
 type slotRef struct {
@@ -48,6 +54,7 @@ type typedTree struct {
 	fset  *token.FileSet
 	files map[string]*ast.File // repo-relative path -> AST
 	refs  []slotRef
+	calls []sharedCall
 }
 
 type listPkg struct {
@@ -92,6 +99,19 @@ type typedModule struct {
 	fset  *token.FileSet
 	files map[string]*ast.File
 	refs  map[string][]slotRef
+	// calls are the runtime's (internal/service) calls into
+	// internal/descriptor functions handed a types struct or one of its
+	// fields, keyed by that struct: the predict ≡ runtime shared
+	// derivations (descx.ResultCatalog(composed.Requests, …)).
+	calls map[string][]sharedCall
+}
+
+// sharedCall is one runtime call into a descriptor function.
+type sharedCall struct {
+	Callee string // descriptor function name
+	Arg    string // the struct field handed over ("" = the whole struct)
+	Path   string // caller file
+	Off    int
 }
 
 // typeCheck returns the module's references to fields of the named
@@ -103,7 +123,7 @@ func (r *repo) typeCheck(structName string) (*typedTree, error) {
 	if r.typedErr != nil {
 		return nil, r.typedErr
 	}
-	return &typedTree{fset: r.typed.fset, files: r.typed.files, refs: r.typed.refs[structName]}, nil
+	return &typedTree{fset: r.typed.fset, files: r.typed.files, refs: r.typed.refs[structName], calls: r.typed.calls[structName]}, nil
 }
 
 // typeCheckAll type-checks every module package (with its in-package and
@@ -124,7 +144,7 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 			mine = append(mine, p)
 		}
 	}
-	t := &typedModule{fset: token.NewFileSet(), files: map[string]*ast.File{}, refs: map[string][]slotRef{}}
+	t := &typedModule{fset: token.NewFileSet(), files: map[string]*ast.File{}, refs: map[string][]slotRef{}, calls: map[string][]sharedCall{}}
 	parse := func(dir string, names []string) []*ast.File {
 		var out []*ast.File
 		for _, n := range names {
@@ -199,14 +219,19 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 		return os.Open(f)
 	})
 	for _, u := range units {
-		info := &types.Info{Selections: map[*ast.SelectorExpr]*types.Selection{}, Types: map[ast.Expr]types.TypeAndValue{}}
+		info := &types.Info{Selections: map[*ast.SelectorExpr]*types.Selection{}, Types: map[ast.Expr]types.TypeAndValue{}, Uses: map[*ast.Ident]types.Object{}}
 		conf := types.Config{Importer: imp, Error: func(error) {}, FakeImportC: true}
 		_, _ = conf.Check(u.path, t.fset, u.files, info)
 		for _, f := range u.files {
 			rel := t.fset.File(f.Pos()).Name()
 			base := t.fset.File(f.Pos()).Base()
+			runtime := strings.HasPrefix(rel, "internal/service/") && !strings.HasSuffix(rel, "_test.go")
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch n := n.(type) {
+				case *ast.CallExpr:
+					if runtime {
+						recordSharedCall(t, info, n, rel, base)
+					}
 				case *ast.SelectorExpr:
 					sel := info.Selections[n]
 					if sel == nil || sel.Kind() != types.FieldVal {
@@ -237,6 +262,43 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 		}
 	}
 	return t, nil
+}
+
+const descriptorPkg = modulePath + "/internal/descriptor"
+
+// recordSharedCall records a call to an internal/descriptor function
+// under every types struct an argument is (or is a field of).
+func recordSharedCall(t *typedModule, info *types.Info, ce *ast.CallExpr, rel string, base int) {
+	sel, ok := ce.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	fn, ok := info.Uses[sel.Sel].(*types.Func)
+	if !ok || fn.Pkg() == nil || fn.Pkg().Path() != descriptorPkg {
+		return
+	}
+	if sig, ok := fn.Type().(*types.Signature); !ok || sig.Recv() != nil {
+		return
+	}
+	type key struct{ name, field string }
+	seen := map[key]bool{}
+	for _, a := range ce.Args {
+		var keys []key
+		if as, ok := a.(*ast.SelectorExpr); ok {
+			if s := info.Selections[as]; s != nil && s.Kind() == types.FieldVal {
+				keys = append(keys, key{owner(s), s.Obj().Name()})
+			}
+		}
+		if tv, ok := info.Types[a]; ok {
+			keys = append(keys, key{namedIn(tv.Type), ""})
+		}
+		for _, k := range keys {
+			if k.name != "" && !seen[k] {
+				seen[k] = true
+				t.calls[k.name] = append(t.calls[k.name], sharedCall{Callee: fn.Name(), Arg: k.field, Path: rel, Off: int(ce.Pos()) - base})
+			}
+		}
+	}
 }
 
 // owner names the types-package struct declaring a selected field,
@@ -327,48 +389,152 @@ func (r *repo) structFields(structName string) ([]structField, error) {
 	return nil, fmt.Errorf("struct types.%s not found", structName)
 }
 
-func slotReport(r *repo, which, name string, opts options) (*Report, error) {
-	var structName string
+// slotOwner is one declared field a slot name resolves to.
+type slotOwner struct {
+	Struct string
+	Field  structField
+}
+
+// slotRoots are the structs a slot root names, searched in order: a
+// `request` slot not on types.Request is looked up on
+// types.ComposedRequest (the Compose-level slots: sweep, base, fits, …).
+func slotRoots(which string) ([]string, error) {
 	switch strings.ToLower(which) {
 	case "request", "req":
-		structName = "Request"
+		return []string{"Request", "ComposedRequest"}, nil
+	case "compose", "composed":
+		return []string{"ComposedRequest"}, nil
 	case "response", "resp":
-		structName = "Response"
-	default:
-		return nil, fmt.Errorf("slot root must be request or response, got %q", which)
+		return []string{"Response"}, nil
 	}
-	fields, err := r.structFields(structName)
+	return nil, fmt.Errorf("slot root must be request, compose or response, got %q", which)
+}
+
+// resolveSlot maps a slot name to the root struct whose per-slot walkers
+// apply and the declared field(s) it names: a field of a root struct
+// first; else every field of that name on a types struct reachable from
+// the roots (an item-level key such as `for_each`, root ""); else no
+// owner — a NEW slot on the first root.
+func (r *repo) resolveSlot(which, name string) (string, []slotOwner, error) {
+	roots, err := slotRoots(which)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	var field *structField
-	for i, f := range fields {
-		if strings.EqualFold(f.Name, name) || f.JSON == name {
-			field = &fields[i]
+	match := func(f structField) bool { return strings.EqualFold(f.Name, name) || f.JSON == name }
+	for _, rt := range roots {
+		fields, err := r.structFields(rt)
+		if err != nil {
+			return "", nil, err
+		}
+		var hit *structField
+		for i := range fields {
+			if match(fields[i]) {
+				hit = &fields[i]
+			}
+		}
+		if hit != nil {
+			return rt, []slotOwner{{rt, *hit}}, nil
 		}
 	}
-	tt, err := r.typeCheck(structName)
+	ti := r.typesIndex()
+	seen := map[string]bool{}
+	queue := append([]string{}, roots...)
+	for _, rt := range roots {
+		seen[rt] = true
+	}
+	var nested []string
+	for len(queue) > 0 {
+		s := queue[0]
+		queue = queue[1:]
+		for _, f := range ti.structs[s] {
+			t := baseType(f.Type)
+			if _, ok := ti.structs[t]; ok && !seen[t] {
+				seen[t] = true
+				nested = append(nested, t)
+				queue = append(queue, t)
+			}
+		}
+	}
+	sort.Strings(nested)
+	var owners []slotOwner
+	for _, s := range nested {
+		fields, err := r.structFields(s)
+		if err != nil {
+			continue
+		}
+		for _, f := range fields {
+			if match(f) {
+				owners = append(owners, slotOwner{s, f})
+			}
+		}
+	}
+	if len(owners) > 0 {
+		return "", owners, nil
+	}
+	return roots[0], nil, nil
+}
+
+func slotReport(r *repo, which, name string, opts options) (*Report, error) {
+	root, owners, err := r.resolveSlot(which, name)
 	if err != nil {
 		return nil, err
 	}
-	rep := &Report{Mode: "slot", Target: structName + "." + name}
+	var fields []structField // the root's fields (per-slot walkers)
+	if root != "" {
+		if fields, err = r.structFields(root); err != nil {
+			return nil, err
+		}
+	}
+	viewOf := root
+	if viewOf == "" {
+		viewOf = owners[0].Struct
+	}
+	tt, err := r.typeCheck(viewOf)
+	if err != nil {
+		return nil, err
+	}
+	rep := &Report{Mode: "slot", Target: name}
+	if root != "" {
+		rep.Target = root + "." + name
+	}
+	ownsRef := map[string]bool{} // Struct\x00Field of every owner
+	for _, o := range owners {
+		ownsRef[o.Struct+"\x00"+o.Field.Name] = true
+	}
 
-	// per-slot walkers: declarations referencing many of the struct's fields
+	// per-slot walkers: declarations referencing many of the root's fields
 	type declKey struct{ path, sym string }
 	declFields := map[declKey]map[string]bool{}
 	declLines := map[declKey][]int{}
-	for _, ref := range tt.refs {
-		g := r.parse(ref.Path)
-		if g == nil {
-			continue
+	refsOf := map[string][]slotRef{} // struct -> refs
+	if root != "" {
+		refsOf[root] = tt.refs
+	}
+	for _, o := range owners {
+		if _, ok := refsOf[o.Struct]; !ok {
+			v, err := r.typeCheck(o.Struct)
+			if err != nil {
+				return nil, err
+			}
+			refsOf[o.Struct] = v.refs
 		}
-		k := declKey{ref.Path, g.symbolAt(ref.Off)}
-		if declFields[k] == nil {
-			declFields[k] = map[string]bool{}
-		}
-		declFields[k][ref.Field] = true
-		if field != nil && ref.Field == field.Name {
-			declLines[k] = append(declLines[k], r.fset.Position(token.Pos(g.base+ref.Off)).Line)
+	}
+	for st, refs := range refsOf {
+		for _, ref := range refs {
+			g := r.parse(ref.Path)
+			if g == nil {
+				continue
+			}
+			k := declKey{ref.Path, g.symbolAt(ref.Off)}
+			if st == root {
+				if declFields[k] == nil {
+					declFields[k] = map[string]bool{}
+				}
+				declFields[k][ref.Field] = true
+			}
+			if ownsRef[st+"\x00"+ref.Field] {
+				declLines[k] = append(declLines[k], r.fset.Position(token.Pos(g.base+ref.Off)).Line)
+			}
 		}
 	}
 	// string-literal slot-name tables ("matrices", "vectors", … listed
@@ -381,6 +547,9 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		}
 	}
 	for p, f := range tt.files {
+		if len(tagOf) == 0 {
+			break
+		}
 		g := r.parse(p)
 		if g == nil {
 			continue
@@ -471,21 +640,28 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		byClass[cl] = sites
 	}
 
-	if field == nil {
+	jsonNames := map[string]bool{}
+	if len(owners) == 0 {
 		rep.Summary = []string{
-			fmt.Sprintf("no field %q on types.%s — NEW slot template: add the field to types.%s, then extend every per-slot walker below", name, structName, structName),
-			fmt.Sprintf("walkers = declarations referencing >= %d of the %d %s fields (go/types-resolved field use or json-name string literal)", walkerMin, len(fields), structName),
+			fmt.Sprintf("no field %q on types.%s — NEW slot template: add the field to types.%s, then extend every per-slot walker below", name, root, root),
+			fmt.Sprintf("walkers = declarations referencing >= %d of the %d %s fields (go/types-resolved field use or json-name string literal)", walkerMin, len(fields), root),
 		}
-		addSym(fields[0].Path, "type "+structName, []int{fields[0].Line}, "declare the field + json tag (omitempty: additive wire)")
+		addSym(fields[0].Path, "type "+root, []int{fields[0].Line}, "declare the field + json tag (omitempty: additive wire)")
 		regenPaths = append(regenPaths, "descriptor/testdata/payload-schema.json", "internal/apigolden/testdata/public_api.txt")
 		for _, k := range walkers {
 			addSym(k.path, k.sym, nil, fmt.Sprintf("[%d/%d fields]", len(declFields[k]), len(fields)))
 		}
 	} else {
-		rep.Summary = []string{
-			fmt.Sprintf("types.%s.%s %s `json:\"%s\"` — %s L%d", structName, field.Name, field.Type, field.JSON, field.Path, field.Line),
-			"Go references are go/types-resolved (promotions included); string literals equal to the json name and Markdown mentions are textual",
+		for _, o := range owners {
+			rep.Summary = append(rep.Summary, fmt.Sprintf("types.%s.%s %s `json:\"%s\"` — %s L%d", o.Struct, o.Field.Name, o.Field.Type, o.Field.JSON, o.Field.Path, o.Field.Line))
+			if o.Field.JSON != "" && o.Field.JSON != "-" {
+				jsonNames[o.Field.JSON] = true
+			}
 		}
+		if root == "" {
+			rep.Summary = append(rep.Summary, fmt.Sprintf("an item-level key: declared on %d types struct(s) reachable from the %s root; no per-slot walker applies", len(owners), which))
+		}
+		rep.Summary = append(rep.Summary, "Go references are go/types-resolved (promotions included); string literals equal to the json name and Markdown mentions are textual")
 		var keys []declKey
 		for k := range declLines {
 			keys = append(keys, k)
@@ -501,14 +677,14 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 			sort.Ints(ls)
 			addSym(k.path, k.sym, dedupeInts(ls), "")
 		}
-		// string literals equal to the json name
-		if field.JSON != "" && field.JSON != "-" {
-			lit := strconv.Quote(field.JSON)
-			var paths []string
-			for p := range tt.files {
-				paths = append(paths, p)
-			}
-			sort.Strings(paths)
+		var paths []string
+		for p := range tt.files {
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+		// string literals equal to a json name
+		for _, j := range sortedKeys(jsonNames) {
+			lit := strconv.Quote(j)
 			for _, p := range paths {
 				f := tt.files[p]
 				base := tt.fset.File(f.Pos()).Base()
@@ -539,35 +715,40 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 			}
 		}
 		// prose + goldens: "Request.Field" spelled out
-		qual := structName + "." + field.Name
-		for _, p := range r.files {
-			if strings.HasSuffix(p, ".go") {
-				continue
-			}
-			src := r.read(p)
-			if src == nil || !bytes.Contains(src, []byte(qual)) {
-				continue
-			}
-			var hs []hit
-			for off := 0; ; {
-				i := bytes.Index(src[off:], []byte(qual))
-				if i < 0 {
-					break
+		var quals []string
+		for _, o := range owners {
+			quals = append(quals, o.Struct+"."+o.Field.Name)
+		}
+		for _, qual := range quals {
+			for _, p := range r.files {
+				if strings.HasSuffix(p, ".go") {
+					continue
 				}
-				at := off + i
-				end := at + len(qual)
-				if (at == 0 || !isWord(src[at-1])) && (end == len(src) || !isWord(src[end])) {
-					hs = append(hs, hit{Path: p, Off: at, Line: bytes.Count(src[:at], []byte("\n")) + 1})
+				src := r.read(p)
+				if src == nil || !bytes.Contains(src, []byte(qual)) {
+					continue
 				}
-				off = end
-			}
-			for _, s := range r.resolve(p, hs) {
-				addSym(p, s.Name, s.Lines, "")
+				var hs []hit
+				for off := 0; ; {
+					i := bytes.Index(src[off:], []byte(qual))
+					if i < 0 {
+						break
+					}
+					at := off + i
+					end := at + len(qual)
+					if (at == 0 || !isWord(src[at-1])) && (end == len(src) || !isWord(src[end])) {
+						hs = append(hs, hit{Path: p, Off: at, Line: bytes.Count(src[:at], []byte("\n")) + 1})
+					}
+					off = end
+				}
+				for _, s := range r.resolve(p, hs) {
+					addSym(p, s.Name, s.Lines, "")
+				}
 			}
 		}
-		// update-demand rows naming the json name in backticks
-		if field.JSON != "" {
-			tick := "`" + field.JSON + "`"
+		for _, j := range sortedKeys(jsonNames) {
+			// update-demand rows naming the json name in backticks
+			tick := "`" + j + "`"
 			for _, p := range r.files {
 				if !strings.HasPrefix(p, ".claude/reference/update-demand") {
 					continue
@@ -575,7 +756,7 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 				src := r.read(p)
 				var hs []hit
 				for i, line := range strings.Split(string(src), "\n") {
-					if strings.HasPrefix(line, "|") && strings.Contains(line, tick) && !strings.Contains(line, qual) {
+					if strings.HasPrefix(line, "|") && strings.Contains(line, tick) && !containsAny(line, quals) {
 						hs = append(hs, hit{Path: p, Line: i + 1})
 					}
 				}
@@ -583,20 +764,21 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 					addSym(p, s.Name, s.Lines, "table row names "+tick)
 				}
 			}
-		}
-		// goldens carrying the json name as a key
-		for _, g := range []string{"descriptor/testdata/payload-schema.json", "descriptor/testdata/manifest.json"} {
-			if src := r.read(g); src != nil && bytes.Contains(src, []byte(strconv.Quote(field.JSON)+":")) && !contains(regenPaths, g) {
-				regenPaths = append(regenPaths, g)
+			// goldens carrying the json name as a key
+			for _, g := range []string{"descriptor/testdata/payload-schema.json", "descriptor/testdata/manifest.json"} {
+				if src := r.read(g); src != nil && bytes.Contains(src, []byte(strconv.Quote(j)+":")) && !contains(regenPaths, g) {
+					regenPaths = append(regenPaths, g)
+				}
 			}
 		}
 	}
-	if field != nil {
+	if len(owners) > 0 && root != "" {
 		// walkers that skip this slot: candidates for a missing site
+		fname := owners[0].Field.Name
 		for _, k := range walkers {
-			if !declFields[k][field.Name] && classify(k.path) != "test" && !listed[k.path+"\x00"+k.sym] {
+			if !declFields[k][fname] && classify(k.path) != "test" && !listed[k.path+"\x00"+k.sym] {
 				rep.Warnings = append(rep.Warnings, fmt.Sprintf("per-slot walker does not reference %s (check): %s · %s [%d/%d fields]",
-					field.Name, k.path, k.sym, len(declFields[k]), len(fields)))
+					fname, k.path, k.sym, len(declFields[k]), len(fields)))
 			}
 		}
 	}
@@ -605,21 +787,54 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		sort.Slice(sites, func(i, j int) bool { return sites[i].Path < sites[j].Path })
 	}
 	rep.Sections = sectionsFrom(byClass)
+	var composeGates []Gate
+	if root == "ComposedRequest" {
+		key := name
+		if len(owners) > 0 {
+			key = owners[0].Field.JSON
+		}
+		if sec, ok := r.composeSection(key, len(owners) == 0, tt.calls); ok {
+			rep.Sections = append(rep.Sections, sec)
+			composeGates = r.sectionTestGates("tests that read the compose-section test tables", sec)
+		}
+	}
 	why := "tests that reference the slot (go/types-resolved or by json name)"
-	if field == nil {
+	if len(owners) == 0 {
 		why = "tests that exercise the per-slot walkers (add a case for the new slot)"
 	}
 	rep.Gates = append(rep.Gates, gatesFromDirs(why, testsByDir)...)
+	rep.Gates = append(rep.Gates, composeGates...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
-	if field == nil {
+	if len(owners) == 0 {
 		rep.Gates = append(rep.Gates, r.namedGates("payload contract gates", "TestPayloadSchemaGolden", "TestPublicAPIGolden", "TestUpdateDemandTableCovers")...)
 	}
 	rep.Regenerate = r.regens(regenPaths)
 	rep.Manual = append([]string{}, slotManual...)
-	if structName == "Response" {
+	switch root {
+	case "Response":
 		rep.Manual = append(rep.Manual, slotManualResponse...)
+	case "ComposedRequest":
+		rep.Manual = append(rep.Manual, slotManualCompose...)
 	}
 	return rep, nil
+}
+
+func containsAny(s string, subs []string) bool {
+	for _, x := range subs {
+		if strings.Contains(s, x) {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedKeys(m map[string]bool) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (r *repo) namedGates(why string, names ...string) []Gate {

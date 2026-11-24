@@ -18,6 +18,7 @@ make sites ARGS="op MAT_PCA"              # an existing operator
 make sites ARGS="new-op overlay"          # a NEW operator of a category
 make sites ARGS="slot request matrices"   # a Request / Response slot (Go or json name)
 make sites ARGS="slot request my_new_slot"  # unknown name = new-slot template
+make sites ARGS="slot compose sweep"      # a Compose-level slot (ComposedRequest)
 make sites ARGS="categories"              # categories and their operators
 # or: go run ./internal/tools/sites [--json] [--all] <mode> ...
 ```
@@ -94,6 +95,27 @@ of site is found by its shape:
   `capability:regression_*` features (`examples/profiles/*.json`,
   `features.go`, the feature-profile docs).
 
+`slot request <name>` falls back to `types.ComposedRequest` when the
+name is not a `types.Request` field (`sweep`, `base`, `fits`, `banner`,
+`optimize`, `post_fit`); `slot compose <name>` asks for it directly.
+A name declared on neither root but on structs reachable from it (an
+item-level key such as `for_each`) reports every declaring field. A
+Compose-level slot also prints **Compose sites**, each found by shape:
+
+- **Strict-input family tables** — declarations listing at least five
+  `"composed.<slot>[.<key>]"` literals (`strictAcceptanceRows`), with
+  the Test functions that read them as gates.
+- **Capability lists** — files naming at least five
+  `capability:compose_*` features (example profiles, `features.go`,
+  skills, the feature-profile docs).
+- **Limits-parity site lists** — test declarations naming two or more
+  `"compose"` / `"compose (<arm>)"` runtime sites (`parityCases`).
+- **Shared derivations** — `internal/descriptor` functions the runtime
+  (`internal/service`) calls with a `ComposedRequest` or one of its
+  fields (`ResultCatalog`, `ResolveComposeReturn`): change predict and
+  runtime together.
+- **Key carriers** — skills and examples holding the slot's json key.
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in but this one does not.
 `slot` warns about **per-slot walkers** (functions that reference many
@@ -138,7 +160,7 @@ Nothing in the site list is hand-maintained:
   a site list; the tool's tests pin each rule on a fixture tree and the
   regression sites on the real one.
 - **Slot sites** are `go/types`-resolved references to the
-  `types.Request` / `types.Response` field (selectors, promoted fields
+  `types.Request` / `types.ComposedRequest` / `types.Response` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against
   `go list -export` data), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand

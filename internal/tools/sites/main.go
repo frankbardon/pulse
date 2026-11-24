@@ -6,6 +6,7 @@
 //	go run ./internal/tools/sites op MAT_PCA          # an existing operator
 //	go run ./internal/tools/sites new-op overlay      # a NEW operator of a category
 //	go run ./internal/tools/sites slot request matrices
+//	go run ./internal/tools/sites slot compose sweep    # a ComposedRequest slot
 //	go run ./internal/tools/sites categories          # list categories + operators
 //	make sites ARGS="op OVERLAY_MARKOV"
 //
@@ -32,8 +33,11 @@
 //     an operator: refusal pipelines, field-list derivers, code tables,
 //     vocabulary registrars, strict-input families, capability lists;
 //   - slot sites are go/types-resolved references to the types.Request /
-//     types.Response field, plus its wire-name string literals and the
-//     update-demand rows that name it.
+//     types.ComposedRequest / types.Response field (a request name not
+//     on Request falls back to ComposedRequest; an item-level key such
+//     as for_each to every reachable struct declaring it), plus its
+//     wire-name string literals and the update-demand rows that name
+//     it; a Compose-level slot adds the compose sites (compose.go).
 //
 // Only the inherently manual part — which contract to read — is a
 // table (categoryTable.Manual / slotManual), and its paths are pinned
@@ -56,7 +60,8 @@ const usage = `usage: sites [--json] [--all] [--root DIR] <mode> ...
 modes:
   op <TYPE>                       sites of an existing operator (AGG_SUM, MAT_PCA, OVERLAY_MARKOV, normal)
   new-op <category>               template checklist for a NEW operator of a category
-  slot <request|response> <name> sites of a Request/Response slot (Go field or json name; unknown = new-slot template)
+  slot <request|compose|response> <name>
+                                  sites of a Request/ComposedRequest/Response slot (Go field or json name; unknown = new-slot template)
   categories                      list categories and their operators`
 
 type options struct {
