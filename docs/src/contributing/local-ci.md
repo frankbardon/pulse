@@ -234,7 +234,7 @@ the sum:
 | `build` | `make build`, `make smoke` |
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...` (no coverage), plus `citest heavy-check` |
 | `coverage-fast (1)`, `coverage-fast (2)` | the fast tier again with `-coverpkg="$(citest cover-pkgs)" -coverprofile`, split in two by `citest cover-shard` |
-| `test-heavy (1)` … `test-heavy (6)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
+| `test-heavy (1)` … `test-heavy (8)`, `test-heavy (catchall)` | the heavy tier, one shard per job |
 | `test-windows (1)`, `test-windows (2)` | the fast tier on `windows-latest`, split by package (`citest fast-run`); no build cache |
 | `test-macos` | the fast tier on `macos-latest` (arm64) |
 | `smoke-windows`, `smoke-macos` | the `build` job per OS: build `cmd/pulse`, then the embedder smoke module |
