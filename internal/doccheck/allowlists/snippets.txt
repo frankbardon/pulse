@@ -1,3 +1,4 @@
 # TestDocsSnippetsRun baseline: runnable json request blocks in docs/src that are untagged or fail on their fixture.
 # Format: path<TAB>json:<block hash><TAB>reason. Shrink-only: fix or tag a block, then delete its line.
 # A generated docs/src/guide page is fixed in internal/docgen or the skill it renders.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

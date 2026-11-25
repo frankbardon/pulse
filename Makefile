@@ -408,7 +408,7 @@ docs-clean:
 # running, `go test -list` must find every DOC_CHECKS name in
 # DOC_CHECK_PKGS, so a renamed or moved check fails here instead of
 # silently matching nothing.
-DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestCLIReferenceCurrent|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
+DOC_CHECKS=TestDocsBaselinesEmpty|TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestCLIReferenceCurrent|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
 DOC_CHECK_PKGS=. ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
 
 doc-checks:

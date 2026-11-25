@@ -1,2 +1,3 @@
 # TestCliHelpMatchesFlagsDoc baseline: CLI leaves / flags vs docs/src/cli/reference.md (generated, per leaf) and flags named on docs/src/cli/flags.md.
 # Format: path<TAB>entry<TAB>reason. Shrink-only: fix the page (or run `make docs`), then delete the line.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

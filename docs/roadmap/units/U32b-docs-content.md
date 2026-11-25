@@ -54,17 +54,18 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 
 ## Baseline burn-down
 
-The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U32's close (entries, header lines excluded). E1 takes each to zero:
+The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U32's close (entries, header lines excluded). Every one is now at zero, and `TestDocsBaselinesEmpty` keeps it there:
 
-| Check | Allowlist | Entries |
-|---|---|---|
-| `TestDocsLinksResolve` | `links.txt` | 6 |
-| `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 |
-| `TestDocsSnippetsRun` | `snippets.txt` | 31 (12 on generated skill pages, #763) |
-| `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 |
-| `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) |
-| `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 |
-| `TestNoRemovedNamesInDocs` | `removed-names.txt` | 1 (#762) |
+| Check | Allowlist | Entries at U32's close | Now |
+|---|---|---|---|
+| `TestDocsLinksResolve` | `links.txt` | 6 | 0 (done) |
+| `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 | 0 (done) |
+| `TestDocsSnippetsRun` | `snippets.txt` | 31 (12 on generated skill pages, #763) | 0 (done) |
+| `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 | 0 (done) |
+| `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) | 0 (done; the gaps E1-S1's stricter rule added burned too) |
+| `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 | 0 (done) |
+| `TestNoRemovedNamesInDocs` | `removed-names.txt` | 1 (#762) | 0 (done) |
+| `TestNoRemovedNamesInPromptsAndReference` (heavy, added in E1-S2) | `removed-names-prompts.txt` | — | 0 (done) |
 
 How the lists work: `docs/src/contributing/doc-checks.md`.
 

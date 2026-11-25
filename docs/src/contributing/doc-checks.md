@@ -26,6 +26,7 @@ test, so a renamed or moved check cannot drop out silently.
 
 | Check | Tier | Package | Allowlist |
 |---|---|---|---|
+| `TestDocsBaselinesEmpty` | fast | `internal/integration` | every list: each must be empty |
 | `TestDocsLinksResolve` | fast | `internal/integration` | `links.txt` |
 | `TestDocsSnippetsRun` | fast | `internal/integration` | `snippets.txt` |
 | `TestDocsSnippetsCompile` | heavy | `internal/integration` | `snippets-go.txt` |
@@ -48,17 +49,15 @@ three when you do.
 
 ## Allowlists
 
-Each allowlist is a file under `internal/doccheck/allowlists/`, one
-entry per line: `path<TAB>entry<TAB>reason`. The lists hold the
-violations that existed when the check landed. They only shrink:
+Each check reads one file under `internal/doccheck/allowlists/`
+(`path<TAB>entry<TAB>reason` per line, `#` lines are headers). Every
+list is empty, and `TestDocsBaselinesEmpty` keeps it so: a list with
+any entry fails it. A doc check that finds a problem is fixed in the
+docs, the skill or the generator, never baselined. A new check commits
+its own list with header lines only.
 
-- A new violation that the list does not name fails the check. Fix it.
-  Never add it to the list.
-- An entry that no longer violates fails as stale. When you fix one,
-  delete its line in the same change.
-
-The content work in the U32b unit (`docs/roadmap/units/U32b-docs-content.md`)
-empties every list.
+The lists still reconcile in both directions: a violation the list does
+not name fails, and an entry that no longer violates fails as stale.
 
 ## Snippet tags
 

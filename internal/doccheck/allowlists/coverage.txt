@@ -1,2 +1,3 @@
 # TestDocsCoverageNoGaps baseline: required coverage cells that are empty (docs/src/contract/coverage.md).
 # Format: <row kind><TAB><identifier> <surface><TAB>reason. Shrink-only: document the identifier, run `make docs`, then delete its line.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

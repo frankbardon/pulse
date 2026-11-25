@@ -1,2 +1,3 @@
 # TestDocsLinksResolve baseline: broken internal links in docs/src/** and repo-root *.md.
 # Format: path<TAB>link target<TAB>reason. Shrink-only: fix a link, then delete its line.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

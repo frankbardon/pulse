@@ -1,2 +1,3 @@
 # TestNoRemovedNamesInPromptsAndReference baseline (heavy, mcp/gosdk): MCP prompt text and ExportReference output naming a removed spelling (denylist: doccheck.RemovedNames).
 # Format: path<TAB>name<TAB>reason (path = "prompt <name>" or "reference <file>"). Shrink-only: rewrite the mention, then delete its line.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.
