@@ -107,7 +107,10 @@ Buffered-decode field projection is **on by default** and
 output-transparent: the engine decodes only the source fields the
 request actually reads, so the result payload is byte-identical to a
 full decode — just faster and lighter per record (measured ~7× on a
-narrow projection of a wide cohort). `--no-project` (or
+narrow projection of a wide cohort). The gain depends on the schema: it
+grows with the share of record bytes the request skips, so a narrow
+cohort gains little (a 15-field, 53-byte retail cohort measured no
+difference), and a request reading most fields gains nothing. `--no-project` (or
 `pulse.Options{DisableProjection: true}`) forces a full-record decode;
 use it only for debugging or when you need every field materialised.
 `pulse.Options.ProjectBufferedFields` is retained but deprecated (a

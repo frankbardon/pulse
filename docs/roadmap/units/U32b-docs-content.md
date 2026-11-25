@@ -34,7 +34,7 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [ ] **#162** (11. Documentation audit) Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/`
 - [ ] **#163** (11. Documentation audit) Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary
 - [x] **#164** (11. Documentation audit) Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping)
-- [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent; the showcase READMEs are re-verified after the units that simplify them land
+- [x] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent; the showcase READMEs are re-verified after the units that simplify them land
 - [x] **#504** (Handed on from U31) The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it
 - [x] **#505** (Handed on from U31) `skills/session-bootstrap.md` does not mention the CLI `pulse examples search --intent`; the skill sits at its topical budget. Make room and add the line, or record why the CLI flag needs no bootstrap mention
 - [x] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill
@@ -42,7 +42,7 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [x] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy; mirrored as a `STABILITY.md` MCP row
 - [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
 - [x] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
-- [ ] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
+- [x] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
 - [x] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
 - [x] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
 - [x] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling

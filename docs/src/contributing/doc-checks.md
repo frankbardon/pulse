@@ -40,6 +40,7 @@ test, so a renamed or moved check cannot drop out silently.
 | `TestSkillExampleTagPointersResolve` | fast | `internal/descriptor` | none |
 | `TestDocsGeneratedCurrent` | fast | root | none: run `make docs` |
 | `TestInstallDocAssetNamesMatchRelease` | fast | `internal/integration` | none |
+| `TestDocsExampleTagTableMatchesCanonicalTags` | fast | `internal/integration` | none |
 
 The `docs` job also fails when `mdbook build` prints a `WARN` or `ERROR`
 line, so keep the build warning-free. CI pins mdBook to 0.5.4, the

@@ -47,19 +47,21 @@ its result); both ride search and get results. Its request sets
 
 ## Searching the library
 
-Three filter dimensions, all optional and combined with AND:
+Four filters, all optional and combined with AND:
 
 | Filter | Behaviour |
 |---|---|
-| `query` | Case-insensitive substring across the example's name, description, and operator list |
+| `query` | Plain words. One word is a case-insensitive substring of the name, description or operators; several words must each match a whole word of the name, description, operators, intents or tags. Operator aliases and intent phrasings match too, then near-miss spellings when nothing matches literally |
+| `intent` | An intent-taxonomy ID the example must declare (`pulse skills show intents` lists them); an unknown one is `PULSE_RECOMMEND_INTENT_UNKNOWN` |
 | `tags` | An example must carry **every** requested tag |
-| `category` | Exact match against the example's directory (`aggregations`, `attributes`, `features`, `filterers`, `groupers`, `regression`, `tests`, `windows`) |
+| `category` | Exact match against the example's directory; the manifest's `example_categories` lists them |
 
 ### CLI
 
 ```sh
 pulse examples search --query welch                       # find Welch-related examples
 pulse examples search --tag time-series --tag tier-2-test # AND tag filter
+pulse examples search --intent compare_groups            # examples serving one intent
 pulse examples search --category tests --json             # JSON envelope
 pulse examples show t_test_one_sample                     # print runnable JSON
 pulse examples show t_test_one_sample --json              # full record (with _meta)
@@ -97,17 +99,19 @@ if ok {
 
 ## Tag taxonomy
 
-Tags are curated and validated by a CI gate (`TestExamples_TagsFromTaxonomy`).
-The taxonomy spans four dimensions:
+Tags are curated in `internal/examples.CanonicalTags` and validated by a
+CI gate (`TestExamples_TagsFromTaxonomy`); the table below is held to that
+list by `TestDocsExampleTagTableMatchesCanonicalTags`.
 
 | Dimension | Tags |
 |---|---|
-| Domain / use case | `time-series`, `cohort-analysis`, `experiment-analysis`, `correlation-analysis`, `comparison`, `before-after`, `top-n`, `distribution-shape`, `cross-tabulation`, `proportion-analysis`, `trend-detection`, `outlier-detection`, `cardinality-analysis`, `data-quality`, `geo-analysis`, `financial`, `feature-engineering` |
+| Domain / use case | `time-series`, `cohort-analysis`, `experiment-analysis`, `correlation-analysis`, `comparison`, `before-after`, `top-n`, `distribution-shape`, `cross-tabulation`, `proportion-analysis`, `trend-detection`, `outlier-detection`, `cardinality-analysis`, `data-quality`, `financial`, `feature-engineering` |
 | Statistical method | `hypothesis-test`, `t-test`, `parametric`, `nonparametric`, `paired`, `one-sample`, `two-sample`, `k-sample`, `repeated-measures`, `post-hoc`, `normality-test`, `homogeneity-test`, `exact-test` |
-| Regression / modeling | `regression`, `ecological`, `ols`, `glm`, `logistic`, `bayesian`, `regularization`, `ridge`, `lasso`, `elasticnet`, `polynomial`, `resampling`, `jackknife`, `selection`, `stepwise` |
+| Regression / modeling | `regression`, `ecological`, `ols`, `glm`, `logistic`, `bayesian`, `ordinal`, `regularization`, `ridge`, `lasso`, `elasticnet`, `polynomial`, `resampling`, `jackknife`, `selection`, `stepwise`, `multinomial` |
 | Pipeline machinery | `tier-1-test`, `tier-2-test`, `composed`, `pre-filter`, `feature-pipeline`, `window-operator`, `streaming-friendly`, `buffered-pipeline` |
 | Matrices and multivariate tests | `matrix`, `covariance`, `multivariate` |
 | Risk / edge | `leakage-risk`, `small-sample` |
+| Discovery / facet | `facet` |
 | Cohort shape | `sharded`, `anchor` |
 | Result decoration | `overlay`, `byte-equal-test`, `compose`, `optimize`, `crosstab`, `welch`, `welford-triple`, `z` |
 

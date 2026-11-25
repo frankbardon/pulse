@@ -378,43 +378,45 @@ func exampleHasAllTags(ex *Example, want []string) bool {
 // CanonicalTags is the curated taxonomy every annotated example must
 // draw from. Kept here (rather than embedded in a separate file) so the
 // validation gate can compare directly without round-tripping through a
-// disk asset.
+// disk asset. The tag table in docs/src/examples/library.md lists the
+// same tags under the same group comments
+// (TestDocsExampleTagTableMatchesCanonicalTags).
 var CanonicalTags = []string{
-	// Domain / use case (16)
+	// Domain / use case
 	"time-series", "cohort-analysis", "experiment-analysis", "correlation-analysis",
 	"comparison", "before-after", "top-n", "distribution-shape", "cross-tabulation",
 	"proportion-analysis", "trend-detection", "outlier-detection", "cardinality-analysis",
 	"data-quality", "financial", "feature-engineering",
 
-	// Statistical method (11)
+	// Statistical method
 	"hypothesis-test", "t-test", "parametric", "nonparametric", "paired", "one-sample",
 	"two-sample", "k-sample", "repeated-measures", "post-hoc",
 	"normality-test", "homogeneity-test", "exact-test",
 
-	// Regression / modeling (16)
+	// Regression / modeling
 	"regression", "ecological",
 	"ols", "glm", "logistic", "bayesian", "ordinal",
 	"regularization", "ridge", "lasso", "elasticnet",
 	"polynomial", "resampling", "jackknife", "selection", "stepwise",
 	"multinomial",
 
-	// Pipeline machinery (8)
+	// Pipeline machinery
 	"tier-1-test", "tier-2-test", "composed", "pre-filter", "feature-pipeline",
 	"window-operator", "streaming-friendly", "buffered-pipeline",
 
-	// Matrices and multivariate tests (3)
+	// Matrices and multivariate tests
 	"matrix", "covariance", "multivariate",
 
-	// Risk / edge (2)
+	// Risk / edge
 	"leakage-risk", "small-sample",
 
-	// Discovery / facet (1)
+	// Discovery / facet
 	"facet",
 
-	// Cohort shape (2)
+	// Cohort shape
 	"sharded", "anchor",
 
-	// Result decoration (6)
+	// Result decoration
 	"overlay",
 	"byte-equal-test",
 	"compose",

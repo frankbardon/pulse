@@ -456,7 +456,10 @@ imports only — a fixed offset `+HH:MM` / `-HH:MM`. Repeatable
 `CLI_INPUT` when `col` is not a column, or is not `datetime` (a `date` is
 a calendar day and has no zone). The bare form skips `date` columns. A
 value carrying its own `Z` or offset names that instant and ignores the
-zone. Without `--source-tz` the cohort is byte-identical to before.
+zone. Without `--source-tz` the cohort is byte-identical to before. The
+offset form is import-only: a request `time_zone` or slot `tz` refuses
+`+05:00` with `PULSE_TIMEZONE_UNKNOWN` (spell it `Etc/GMT-5` there; see
+[Time Zones](../library/time-zones.md)).
 
 `--source-tz-field col` reads each ROW's zone from column `col` (same
 spellings, `±HH:MM` included): every naive `datetime` column not named by a
