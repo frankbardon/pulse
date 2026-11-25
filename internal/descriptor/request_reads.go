@@ -41,6 +41,7 @@ import (
 	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/requestroot"
 	"github.com/frankbardon/pulse/internal/sweep"
 )
 
@@ -218,17 +219,10 @@ func RequestReads(doc []byte, root descriptor.ReadsRoot, inst *InstanceSnapshot)
 // defaultReadsIndex is the unscoped built-in index, for a nil instance.
 var defaultReadsIndex = sync.OnceValue(func() readsIndex { return buildReadsIndex(nil) })
 
+// detectReadsRoot names a document's root by the one shared root rule
+// (internal/requestroot), whose kinds spell descriptor.ReadsRoot's.
 func detectReadsRoot(top map[string]any) descriptor.ReadsRoot {
-	has := func(k string) bool { _, ok := top[k]; return ok }
-	switch {
-	case has("stages"):
-		return descriptor.ReadsRootChain
-	case has("requests"), has("sweep"), has("banner"), has("fits"), has("optimize"), has("base"):
-		return descriptor.ReadsRootComposed
-	case has("fields"):
-		return descriptor.ReadsRootFacet
-	}
-	return descriptor.ReadsRootRequest
+	return descriptor.ReadsRoot(requestroot.Of(top))
 }
 
 // seg is one JSON path step: a key, or an array index (idx >= 0).

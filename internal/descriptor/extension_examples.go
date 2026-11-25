@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/frankbardon/pulse/internal/requestroot"
 	"github.com/frankbardon/pulse/internal/skills"
 	"github.com/frankbardon/pulse/types"
 )
@@ -242,16 +243,16 @@ func checkExtensionExampleBody(m examples.Meta, body json.RawMessage) error {
 }
 
 // exampleRequestRoot picks the request root a body decodes as, by its
-// top-level keys (the structural detectors' root rule).
+// top-level keys (the shared root rule, internal/requestroot).
 func exampleRequestRoot(body json.RawMessage) (string, any) {
 	var top map[string]json.RawMessage
 	_ = json.Unmarshal(body, &top)
-	switch {
-	case top["requests"] != nil:
+	switch requestroot.Of(top) {
+	case requestroot.Composed:
 		return "compose", &types.ComposedRequest{}
-	case top["stages"] != nil:
+	case requestroot.Chain:
 		return "process_chain", &types.ChainRequest{}
-	case top["fields"] != nil:
+	case requestroot.Facet:
 		return "facet", &types.FacetRequest{}
 	}
 	return "process", &types.Request{}

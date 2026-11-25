@@ -28,6 +28,9 @@ type docSnippet struct {
 	fence doccheck.Fence
 	info  doccheck.SnippetInfo
 	root  doccheck.RootKind // json request roots only
+	// decodeErr is a json request root's strict-decode failure: its keys
+	// mark it as a root, its body does not decode as one.
+	decodeErr error
 }
 
 func (s docSnippet) violation(msg string) doccheck.Violation {
@@ -65,8 +68,9 @@ func snippetFixtureCohorts(t *testing.T) map[string]bool {
 }
 
 // collectDocSnippets scans every docs/src page (the generated guide
-// included) for json and go blocks. A json block is kept only when it
-// strict-decodes as a request root; a go block only when tagged compile.
+// included) for json and go blocks. A json block is kept only when it is
+// a request root (doccheck.RequestRoot: by its keys, or by decoding as
+// one); a go block only when tagged compile.
 func collectDocSnippets(t *testing.T, fsys afero.Fs) []docSnippet {
 	t.Helper()
 	var out []docSnippet
@@ -82,11 +86,11 @@ func collectDocSnippets(t *testing.T, fsys afero.Fs) []docSnippet {
 			s := docSnippet{path: filepath.ToSlash(p), fence: f, info: doccheck.ParseSnippetInfo(f.Info)}
 			switch {
 			case s.info.Lang == "json":
-				root, ok := doccheck.RequestRoot([]byte(f.Body))
+				root, ok, decodeErr := doccheck.RequestRoot([]byte(f.Body))
 				if !ok {
 					continue
 				}
-				s.root = root
+				s.root, s.decodeErr = root, decodeErr
 			case s.info.Lang == "go" && s.info.Compile:
 			default:
 				continue
@@ -103,14 +107,17 @@ func collectDocSnippets(t *testing.T, fsys afero.Fs) []docSnippet {
 }
 
 // TestDocsSnippetsRun runs the book's request examples. Every fenced json
-// block in docs/src (the generated guide included) that strict-decodes as
-// a request root (Request, ComposedRequest, ChainRequest, FacetRequest)
-// runs against the shared example fixture cohorts: its predict must be
-// valid and its process must return no error; the output is not
-// asserted. Blocks that are not request roots are skipped silently.
-// Info-string tags:
+// block in docs/src (the generated guide included) that is a request root
+// (Request, ComposedRequest, ChainRequest, FacetRequest; the root rule is
+// doccheck.RequestRoot) runs against the shared example fixture cohorts:
+// its predict must be valid and its process must return no error; the
+// output is not asserted. A block whose keys mark it as a request root (a
+// cohort object, or requests / base / sweep) but which fails the strict
+// decode is a violation naming the decode error. Blocks that are not
+// request roots — responses, fragments, `...`-elided or commented JSON
+// (`jsonc` blocks are never read) — are skipped. Info-string tags:
 //
-//   - `json norun` opts a block out;
+//   - `json norun` opts a block out of the decode and the run;
 //   - `json cohort=<name>[,<name>…]` names the fixture cohorts
 //     (internal/examples/fixtures/<name>.csv) the block runs on: every
 //     cohort reference is pointed at them, and a filename that is not one
@@ -151,6 +158,10 @@ func checkDocSnippets(t *testing.T, snippets []docSnippet, fixtures map[string]b
 	run := newSnippetRunner(t)
 	for _, s := range snippets {
 		if s.info.Lang != "json" || s.info.NoRun {
+			continue
+		}
+		if s.decodeErr != nil {
+			vs = append(vs, s.violation(fmt.Sprintf("its keys make it a %s request root, but it does not strict-decode as one: %v", s.root, s.decodeErr)))
 			continue
 		}
 		if len(s.info.Cohorts) == 0 {
@@ -315,4 +326,32 @@ func entriesText(es []*descriptor.EnvelopeEntry) string {
 		return "no error entries"
 	}
 	return strings.Join(parts, "; ")
+}
+
+// TestDocsSnippetsDecodeFailureIsViolation: a block whose keys make it a
+// request root but which fails the strict decode is collected and
+// reported with the decode error — never skipped — while a response, a
+// fragment and a `jsonc` block are skipped and a `norun` root is exempt.
+func TestDocsSnippetsDecodeFailureIsViolation(t *testing.T) {
+	t.Parallel()
+
+	page := "# Page\n\n" +
+		"```json cohort=survey\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n\n" +
+		"```json\n{\"format_version\": \"1.1\", \"data\": [], \"errors\": [], \"warnings\": []}\n```\n\n" +
+		"```json\n{\"type\": \"AGG_SUM\", \"field\": \"amount\"}\n```\n\n" +
+		"```jsonc\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n\n" +
+		"```json norun\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n"
+	mem := afero.NewMemMapFs()
+	if err := afero.WriteFile(mem, filepath.Join(doccheck.BookRoot, "page.md"), []byte(page), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snippets := collectDocSnippets(t, mem)
+	if len(snippets) != 2 {
+		t.Fatalf("collected %d snippets, want the two request roots (the json and json norun misspelled blocks): %+v", len(snippets), snippets)
+	}
+	vs := checkDocSnippets(t, snippets, map[string]bool{"survey": true})
+	if len(vs) != 1 || vs[0].Path != filepath.ToSlash(filepath.Join(doccheck.BookRoot, "page.md")) ||
+		!strings.Contains(vs[0].Message, "line 3") || !strings.Contains(vs[0].Message, "agregations") {
+		t.Fatalf("violations = %+v, want one at line 3 naming the decode error (agregations)", vs)
+	}
 }

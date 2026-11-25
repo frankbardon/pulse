@@ -22,6 +22,7 @@ docs/src/internals/extension-points.md	json:9ecc79f03891	baseline (U32a): runnab
 docs/src/library/cohort-union.md	json:80148841544d	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
 docs/src/library/cohort-union.md	json:c26fff9031fd	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
 docs/src/library/cohort-union.md	json:ca370ab6c233	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
+docs/src/library/compose-banner.md	json:e54f2ed6768a	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
 docs/src/library/compose-sweeps.md	json:32aa6e030bf8	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
 docs/src/library/compose-sweeps.md	json:6b6a3e00bcfa	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
 docs/src/library/compose-sweeps.md	json:aed45c28273d	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun

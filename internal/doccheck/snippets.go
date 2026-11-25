@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/frankbardon/pulse/internal/requestroot"
 	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
@@ -141,39 +142,71 @@ const (
 	RootFacet    RootKind = "facet"
 )
 
-// RequestRoot reports which request root a json snippet strictly decodes
-// as, and false when it is not a request root at all (a response, a
-// fragment, a schema, a non-object, malformed or commented JSON) — the
-// runner skips those silently. The root is chosen by its root keys, as
-// the example library chooses it, then strict-decoded; an empty object is
-// not a request.
-func RequestRoot(body []byte) (RootKind, bool) {
+// RequestRoot reports the request root a json snippet is. The root kind
+// is read off the top-level keys by the shared root rule
+// (internal/requestroot, the one the request read maps use). A block is a
+// request root when either
+//
+//   - its keys say so: it carries a cohort object (every Request,
+//     ChainRequest and FacetRequest names its cohort at the root) or a
+//     compose anchor (requests, base, sweep) — such a block that fails the
+//     strict decode is returned with the decode error, so a misspelled
+//     slot is a violation, never a silent skip; or
+//   - it strict-decodes as its root (a request written without its cohort
+//     to show one slot).
+//
+// Anything else — a response, a slot fragment, a schema, a non-object, an
+// empty object, malformed or `...`-elided JSON — is not a request root
+// (false), and the runner skips it.
+func RequestRoot(body []byte) (RootKind, bool, error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(body, &top); err != nil || len(top) == 0 {
-		return "", false
+		return "", false, nil
 	}
 	if len(top) == 1 {
 		if _, onlyMeta := top["_meta"]; onlyMeta {
-			return "", false
+			return "", false, nil
 		}
 	}
-	has := func(k string) bool { _, ok := top[k]; return ok }
 	var kind RootKind
 	var out any
-	switch {
-	case has("requests") || has("sweep"):
+	switch requestroot.Of(top) {
+	case requestroot.Composed:
 		kind, out = RootComposed, new(types.ComposedRequest)
-	case has("stages"):
+	case requestroot.Chain:
 		kind, out = RootChain, new(types.ChainRequest)
-	case has("fields"):
+	case requestroot.Facet:
 		kind, out = RootFacet, new(types.FacetRequest)
 	default:
 		kind, out = RootRequest, new(types.Request)
 	}
-	if err := strictjson.DecodeInto(body, out, strictjson.Options{AllowMeta: true}); err != nil {
-		return "", false
+	err := strictjson.DecodeInto(body, out, strictjson.Options{AllowMeta: true})
+	if err == nil {
+		return kind, true, nil
 	}
-	return kind, true
+	if anchoredRoot(top) {
+		return kind, true, err
+	}
+	return "", false, nil
+}
+
+// composeAnchors are the compose root keys only a ComposedRequest carries
+// at its root (a ComposedResponse also has fits and banner).
+var composeAnchors = []string{"requests", "base", "sweep"}
+
+// anchoredRoot reports whether a top-level object's keys mark it as a
+// request root regardless of whether it decodes: a cohort object, or a
+// compose anchor.
+func anchoredRoot(top map[string]json.RawMessage) bool {
+	if c, ok := top["cohort"]; ok && bytes.HasPrefix(bytes.TrimSpace(c), []byte("{")) {
+		return true
+	}
+	for _, k := range composeAnchors {
+		if _, ok := top[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // SnippetKey is the allowlist entry naming a snippet: its language and a

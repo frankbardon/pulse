@@ -3,6 +3,7 @@ package doccheck
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -61,28 +62,45 @@ func TestParseSnippetInfo(t *testing.T) {
 func TestRequestRoot(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name string
-		body string
-		want RootKind
-		ok   bool
+		name    string
+		body    string
+		want    RootKind
+		ok      bool
+		wantErr string // a root that fails the strict decode: its error names this
 	}{
-		{"request", `{"cohort": {"filename": "a.pulse"}, "aggregations": [{"type": "AGG_COUNT"}]}`, RootRequest, true},
-		{"request with meta", `{"_meta": {"name": "x"}, "cohort": {"filename": "a.pulse"}}`, RootRequest, true},
-		{"compose", `{"requests": [{"label": "a", "cohort": {"filename": "a.pulse"}}]}`, RootComposed, true},
-		{"chain", `{"cohort": {"filename": "a.pulse"}, "stages": [{}]}`, RootChain, true},
-		{"facet", `{"cohort": {"filename": "a.pulse"}, "fields": ["region"]}`, RootFacet, true},
-		{"response envelope", `{"format_version": "1.1", "data": [], "errors": [], "warnings": []}`, "", false},
-		{"slot fragment", `{"type": "AGG_SUM", "field": "amount"}`, "", false},
-		{"misspelled slot", `{"cohort": {"filename": "a.pulse"}, "agregations": []}`, "", false},
-		{"elided", `{"cohort": {...}}`, "", false},
-		{"empty object", `{}`, "", false},
-		{"meta only", `{"_meta": {}}`, "", false},
-		{"array", `[1, 2]`, "", false},
+		{name: "request", body: `{"cohort": {"filename": "a.pulse"}, "aggregations": [{"type": "AGG_COUNT"}]}`, want: RootRequest, ok: true},
+		{name: "request with meta", body: `{"_meta": {"name": "x"}, "cohort": {"filename": "a.pulse"}}`, want: RootRequest, ok: true},
+		{name: "request fragment without cohort decodes", body: `{"regressions": []}`, want: RootRequest, ok: true},
+		{name: "compose", body: `{"requests": [{"label": "a", "cohort": {"filename": "a.pulse"}}]}`, want: RootComposed, ok: true},
+		{name: "compose by banner", body: `{"banner": {"request": {"cohort": {"filename": "a.pulse"}}, "sections": [{"label": "all"}]}}`, want: RootComposed, ok: true},
+		{name: "compose by base", body: `{"base": {"cohort": {"filename": "a.pulse"}}}`, want: RootComposed, ok: true},
+		{name: "chain", body: `{"cohort": {"filename": "a.pulse"}, "stages": [{}]}`, want: RootChain, ok: true},
+		{name: "facet", body: `{"cohort": {"filename": "a.pulse"}, "fields": ["region"]}`, want: RootFacet, ok: true},
+		{name: "misspelled slot", body: `{"cohort": {"filename": "a.pulse"}, "agregations": []}`, want: RootRequest, ok: true, wantErr: "agregations"},
+		{name: "misspelled compose slot", body: `{"base": {"cohort": {"filename": "a.pulse"}}, "bannr": {}}`, want: RootComposed, ok: true, wantErr: "bannr"},
+		{name: "misspelled facet slot", body: `{"cohort": {"filename": "a.pulse"}, "fields": ["region"], "filtrs": []}`, want: RootFacet, ok: true, wantErr: "filtrs"},
+		{name: "response envelope", body: `{"format_version": "1.1", "data": [], "errors": [], "warnings": []}`},
+		{name: "compose response", body: `{"banner": {"sections": []}, "fits": {"m": {}}, "responses": []}`},
+		{name: "chain response", body: `{"stages": [{"data": []}], "final": {"data": []}}`},
+		{name: "sidecar naming its cohort file", body: `{"kind": "pulse.index-manifest", "cohort": "sales.pulse", "indexes": []}`},
+		{name: "slot fragment", body: `{"type": "AGG_SUM", "field": "amount"}`},
+		{name: "elided", body: `{"cohort": {...}}`},
+		{name: "commented", body: "{\"cohort\": {\"filename\": \"a.pulse\"} // the cohort\n}"},
+		{name: "empty object", body: `{}`},
+		{name: "meta only", body: `{"_meta": {}}`},
+		{name: "array", body: `[1, 2]`},
 	}
 	for _, c := range cases {
-		got, ok := RequestRoot([]byte(c.body))
+		got, ok, err := RequestRoot([]byte(c.body))
 		if got != c.want || ok != c.ok {
-			t.Errorf("%s: RequestRoot = (%q, %v), want (%q, %v)", c.name, got, ok, c.want, c.ok)
+			t.Errorf("%s: RequestRoot = (%q, %v, %v), want (%q, %v)", c.name, got, ok, err, c.want, c.ok)
+			continue
+		}
+		switch {
+		case c.wantErr == "" && err != nil:
+			t.Errorf("%s: unexpected decode error %v", c.name, err)
+		case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
+			t.Errorf("%s: decode error %v, want one naming %q", c.name, err, c.wantErr)
 		}
 	}
 }

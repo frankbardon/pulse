@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/internal/requestroot"
 	"github.com/frankbardon/pulse/internal/strictjson"
 	"github.com/frankbardon/pulse/types"
 )
@@ -44,20 +45,20 @@ func TestExamples_DecodeStrictly(t *testing.T) {
 }
 
 // exampleRoot returns a pointer to the request root an example body
-// decodes into, read off its root keys.
+// decodes into, read off its root keys by the shared root rule
+// (internal/requestroot).
 func exampleRoot(t *testing.T, p string, data []byte) any {
 	t.Helper()
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(data, &top); err != nil {
 		t.Fatalf("%s: %v", p, err)
 	}
-	has := func(k string) bool { _, ok := top[k]; return ok }
-	switch {
-	case has("requests") || has("sweep"):
+	switch requestroot.Of(top) {
+	case requestroot.Composed:
 		return new(types.ComposedRequest)
-	case has("stages"):
+	case requestroot.Chain:
 		return new(types.ChainRequest)
-	case has("fields"):
+	case requestroot.Facet:
 		return new(types.FacetRequest)
 	}
 	return new(types.Request)

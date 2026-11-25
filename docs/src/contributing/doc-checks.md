@@ -54,13 +54,20 @@ empties every list.
 ## Snippet tags
 
 `TestDocsSnippetsRun` runs every fenced `json` block in `docs/src/**`
-that decodes as a request, on the example fixture cohorts. Its result
-is not asserted. The tag goes after the fence's language:
+that is a request, on the example fixture cohorts. Its result is not
+asserted. A block is a request when its keys say so (a `cohort` object,
+or `requests`, `base` or `sweep`) or when it decodes as one. Which
+request (single, compose, chain or facet) comes from the same key rule
+the engine's read maps use (`internal/requestroot`). A block whose keys
+say request but which does not decode, say a misspelled slot, fails
+with the decode error. Responses, slot fragments and JSON elided with
+`...` are skipped. A `jsonc` block is never read: its
+comments are not strict JSON. The tag goes after the fence's language:
 
 | Fence | Meaning |
 |---|---|
 | `json cohort=<name>[,<name>…]` | run on these `internal/examples/fixtures` cohorts |
-| `json norun` | skip this block (a fragment, a response, an error example) |
+| `json norun` | skip this block: no decode, no run (a deliberately wrong request, an error example) |
 | `go compile` | the block must build (`TestDocsSnippetsCompile`, heavy tier) |
 
 A runnable request with no `cohort=` tag fails the check. A `go` block
