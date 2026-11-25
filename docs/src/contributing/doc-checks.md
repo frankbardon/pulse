@@ -19,7 +19,10 @@ make linkcheck-external   # http(s) links; needs the network, manual only
 `make doc-checks` is what CI's `docs` job runs after `mdbook build docs`.
 The same tests also run in `make test`. The heavy ones run in
 `make test-heavy`. To add a fast doc check, add its name to `DOC_CHECKS`
-in the `Makefile`.
+in the `Makefile`, and its package to `DOC_CHECK_PKGS` if it is new.
+Before running anything, `make doc-checks` lists the tests with
+`go test -list` and fails when a `DOC_CHECKS` name matches no fast-tier
+test, so a renamed or moved check cannot drop out silently.
 
 | Check | Tier | Package | Allowlist |
 |---|---|---|---|
@@ -35,7 +38,11 @@ in the `Makefile`.
 | `TestDocsGeneratedCurrent` | fast | root | none: run `make docs` |
 
 The `docs` job also fails when `mdbook build` prints a `WARN` or `ERROR`
-line, so keep the build warning-free.
+line, so keep the build warning-free. CI pins mdBook to 0.5.4, the
+release the warning match, the heading-slug rule the link check mirrors
+and the search-index size were checked against. Bump the pin in
+`.github/workflows/ci.yml` and `docs.yml` on purpose, and re-check those
+three when you do.
 
 ## Allowlists
 

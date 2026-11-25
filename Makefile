@@ -400,11 +400,22 @@ docs-clean:
 # also run in `make test`); CI's `docs` job runs it after the mdBook
 # build. The heavy ones (TestDocsSnippetsCompile, the served-text sweep)
 # stay in `make test-heavy`. A new fast doc check is added to DOC_CHECKS.
-# docs/src/contributing/doc-checks.md lists what each one holds.
+# docs/src/contributing/doc-checks.md lists what each one holds. Before
+# running, `go test -list` must find every DOC_CHECKS name in
+# DOC_CHECK_PKGS, so a renamed or moved check fails here instead of
+# silently matching nothing.
 DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
+DOC_CHECK_PKGS=. ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
 
 doc-checks:
-	$(DOCS_GUIDE_ENV) $(GO) test -count=1 -run '^($(DOC_CHECKS))$$' . ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
+	@listed=$$($(GO) test -list '^($(DOC_CHECKS))$$' $(DOC_CHECK_PKGS)) || { echo "$$listed"; exit 1; }; \
+	missing=; for n in $$(echo '$(DOC_CHECKS)' | tr '|' ' '); do \
+		echo "$$listed" | grep -qx "$$n" || missing="$$missing $$n"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "doc-checks: DOC_CHECKS names no fast-tier test in DOC_CHECK_PKGS:$$missing (renamed, moved or heavy? fix the Makefile)"; exit 1; \
+	fi
+	$(DOCS_GUIDE_ENV) $(GO) test -count=1 -run '^($(DOC_CHECKS))$$' $(DOC_CHECK_PKGS)
 	$(GO) test -count=1 ./internal/doccheck
 
 # linkcheck-external HEAD-checks every http(s) link in docs/src/** and the

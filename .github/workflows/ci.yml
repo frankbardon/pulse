@@ -176,8 +176,11 @@ jobs:
 
       - name: Install mdBook
         uses: peaceiris/actions-mdbook@v2
+        # Pinned: the WARN/ERROR grep, the heading-slug rule the link
+        # check mirrors and the search-index size were verified on this
+        # release (docs/src/contributing/doc-checks.md). Bump it on purpose.
         with:
-          mdbook-version: "latest"
+          mdbook-version: "0.5.4"
 
       # pipefail keeps mdbook's exit status; a WARN or ERROR line fails
       # the step even when mdbook exits 0.
