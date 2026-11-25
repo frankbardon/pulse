@@ -19,7 +19,7 @@ Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds c
 - `family` — which p-values correct together (below).
 - `alpha` — overlay significance level in (0, 1), default `0.05`. A test's block refuses `alpha` (reads its own).
 
-It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` spec<!-- feature: capability:matrices -->, each correlation `matrices[]` spec (implies `params.inference`)<!-- /feature -->, each `regressions[]` spec, the Compose `ComposedRequest` and its overlay specs, and engine-wide as `Options.DefaultMultiplicity`. Each key falls through on its own: slot → request → `ComposedRequest` → engine default → none.
+It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` spec<!-- feature: capability:matrices -->, each correlation `matrices[]` spec (implies `params.inference`)<!-- /feature -->, each `regressions[]` spec,<!-- feature: capability:compose --> the Compose `ComposedRequest` and its overlay specs,<!-- /feature --> and engine-wide as `Options.DefaultMultiplicity`. Each key falls through on its own: slot → request<!-- feature: capability:compose --> → `ComposedRequest`<!-- /feature --> → engine default → none.
 
 ## Families
 
@@ -28,10 +28,10 @@ It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` 
 | `layer` | one overlay layer | overlays (default) |
 | `row` / `column` | one row / column of one layer's matrix | overlays whose payload is a MATRIX |
 | `request` | the request's tests (one per test × group), post-tests (one per partition), `request`-family overlays and member regression coefficients | tests and regressions (default), request overlays |
-| `compose` | every `compose` member over all slots and Compose-host layers | inside Compose only |
+<!-- feature: capability:compose -->| `compose` | every `compose` member over all slots and Compose-host layers | inside Compose only |<!-- /feature -->
 <!-- feature: capability:matrices -->| `matrix` | one matrix result's distinct pairs (upper triangle, m = k(k − 1)/2), per bucket | matrix specs (default) |<!-- /feature -->
 
-Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test<!-- feature: capability:matrices -->, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values<!-- /feature -->, an unknown or repeated regression `coefficients` name, a non-`none` method on a p-value-free regression (<!-- feature: REG_BAYES_LINEAR -->`REG_BAYES_LINEAR`, <!-- /feature -->a custom one lacking a `multiplicity` slot). An INHERITED family a surface does not offer falls back to its default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
+Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-matrix kind,<!-- feature: capability:compose --> `compose` outside Compose, `request` on a Compose-host overlay,<!-- /feature --><!-- feature: capability:facet --> anything but `layer` / `row` / `column` on a facet overlay,<!-- /feature --> `alpha` on a test<!-- feature: capability:matrices -->, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values<!-- /feature -->, an unknown or repeated regression `coefficients` name, a non-`none` method on a p-value-free regression (<!-- feature: REG_BAYES_LINEAR -->`REG_BAYES_LINEAR`, <!-- /feature -->a custom one lacking a `multiplicity` slot). An INHERITED family a surface does not offer falls back to its default; only an explicit one is refused. Members of one `request`<!-- feature: capability:compose --> / `compose`<!-- /feature --> family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
 
 ## Outputs (all additive)
 
@@ -51,9 +51,9 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 ## Where it runs
 
 - Process: every arm (streaming, crosstab, join, shard, decode).
-- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; each fan-out target layer is its own `layer`; `--stream` rows carry no corrections; a failed slot errors the batch.
-- ProcessChain: per stage, never across stages; whole-chain overlays take no block.
-- Facet: each overlay layer alone.
+<!-- feature: capability:compose -->- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; each fan-out target layer is its own `layer`; `--stream` rows carry no corrections; a failed slot errors the batch.<!-- /feature -->
+<!-- feature: capability:process_chain -->- ProcessChain: per stage, never across stages; whole-chain overlays take no block.<!-- /feature -->
+<!-- feature: capability:facet -->- Facet: each overlay layer alone.<!-- /feature -->
 - Extension tests, and extension overlays declaring `EmitsPValues`, join like built-ins.
 <!-- feature: capability:matrices -->- An extension matrix operator joins only if it declares the auxiliary key of its p-values; it then joins under any block (no `params.inference`), and its twins are `<key>_adjusted` / `significant_adjusted`.<!-- /feature -->
 
@@ -66,7 +66,7 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 ## Choosing
 
-Few planned tests, false positives costly: `holm`. Screening many cells / pairs: `bh`. Odd dependence: `by`. Match the question: `row` for "does any group differ from the rest", `layer` for one table, `request` / `compose` for one claim over many tests.
+Few planned tests, false positives costly: `holm`. Screening many cells / pairs: `bh`. Odd dependence: `by`. Match the question: `row` for "does any group differ from the rest", `layer` for one table, `request`<!-- feature: capability:compose --> / `compose`<!-- /feature --> for one claim over many tests.
 
 ## See
 

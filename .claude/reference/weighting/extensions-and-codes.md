@@ -25,7 +25,7 @@ Inspect reads the SPSS metadata sidecar (header-only — never records) and surf
 `capability:weighting` is a request-slot capability (`features.go`, `requestSlotCapabilities`). Hidden:
 
 - the request-root `weight` and EVERY per-slot `weight` (inside Compose requests and chain stages too) are `PULSE_REQUEST_UNKNOWN_FIELD`, an explicit `null` included; a nested one carries `details.path` and `valid_keys` (`nestedWeightRefusal`, `internal/descriptor/request_slots.go`);
-- payload schema, MCP tool schemas, manifest `weight_aware` / `weight_kinds` / weighted floor keys, predict `weights` and `suggested_weight` are absent;
+- payload schema, MCP tool schemas, manifest `weight_aware` / `weight_kinds` / weighted floor keys (and every operator's own weighted-slot-only key, `WeightedSlotOnlyKey`), predict `weights` and `suggested_weight` are absent;
 - `Options.DefaultWeight` fails `pulse.New` with `PULSE_FEATURE_PROFILE_DEPENDENCY` — refused rather than ignored, because an ignored default would silently change every figure the instance promised to weight;
 - `AGG_WEIGHTED_MEAN.params.weight_field` stays ungated (deliberate asymmetry, `TestHiddenWeighting_WeightedMeanParamUngated`): it is the operator's own parameter.
 

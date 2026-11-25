@@ -182,36 +182,6 @@
                 "name": "sum",
                 "type": "float64",
                 "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
-              },
-              {
-                "name": "sum_weighted",
-                "type": "float64",
-                "description": "Weighted slots only: Σw·x over the contributing rows.",
-                "optional": true
-              },
-              {
-                "name": "weighted_mean",
-                "type": "float64",
-                "description": "Weighted slots only: Σw·x / Σw (the scalar).",
-                "optional": true
-              },
-              {
-                "name": "m2_weighted",
-                "type": "float64",
-                "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
-                "optional": true
-              },
-              {
-                "name": "sum_weights_sq",
-                "type": "float64",
-                "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
-                "optional": true
-              },
-              {
-                "name": "weighted_variance",
-                "type": "float64",
-                "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
-                "optional": true
               }
             ],
             "mergeability": "mergeable"
@@ -1067,7 +1037,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `overlays`, `regression`, `tests`, `windows`).\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_facet",
@@ -1083,11 +1053,11 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
-        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_FIELD_TYPE_UNSUPPORTED, etc.) plus the normalized request, streamability flag, and the defaults the engine applied; the coded `errors` / `warnings` behind a `valid: false` ride beside the result at the root. Cheap: it reads only the cohort header + schema. To predict another request shape, send exactly one alternative root alone; its verdict comes back under the same key beside `errors` / `warnings`, and a root beside any other key is SERVICE_VALIDATION. `facet` takes a pulse_facet_schema body."
+        "description": "CALL BEFORE STORING OR EXECUTING A HAND-AUTHORED OR GENERATED REQUEST. Validate a processing request against a cohort schema without executing. Returns the same diagnostics execution would emit on shape error (PULSE_REQUEST_UNKNOWN_FIELD, PULSE_FIELD_TYPE_UNSUPPORTED, etc.) plus the normalized request, streamability flag, and the defaults the engine applied; the coded `errors` / `warnings` behind a `valid: false` ride beside the result at the root. Cheap: it reads only the cohort header + schema. To predict a pulse_facet_schema body, send it alone under `facet` (beside any other key it is SERVICE_VALIDATION); its verdict comes back under `facet` beside `errors` / `warnings`."
       },
       {
         "name": "pulse_process",
@@ -2079,36 +2049,6 @@
               "name": "sum",
               "type": "float64",
               "description": "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."
-            },
-            {
-              "name": "sum_weighted",
-              "type": "float64",
-              "description": "Weighted slots only: Σw·x over the contributing rows.",
-              "optional": true
-            },
-            {
-              "name": "weighted_mean",
-              "type": "float64",
-              "description": "Weighted slots only: Σw·x / Σw (the scalar).",
-              "optional": true
-            },
-            {
-              "name": "m2_weighted",
-              "type": "float64",
-              "description": "Weighted slots only: Σw(x − mean)², the weighted second central moment.",
-              "optional": true
-            },
-            {
-              "name": "sum_weights_sq",
-              "type": "float64",
-              "description": "Weighted slots only: Σw², the Kish n_eff denominator.",
-              "optional": true
-            },
-            {
-              "name": "weighted_variance",
-              "type": "float64",
-              "description": "Weighted slots only: m2_weighted / (Σw − 1), the frequency-weights sample variance; null (NaN) when Σw ≤ 1.",
-              "optional": true
             }
           ],
           "mergeability": "mergeable"
@@ -2547,4 +2487,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 26cc0972801133041e88359b210d54a1fb0be165e892db20b9e129b8819e3c7d
+// golden-hash: 9eabe9f0bd5bc9a668f901bd77bdf821c2ee5d15b564dacb8d148f4de14a4868

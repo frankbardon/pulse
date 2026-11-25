@@ -157,7 +157,7 @@ func contractIndex() map[string]contractFacts {
 func buildContractIndex() map[string]contractFacts {
 	idx := map[string]contractFacts{}
 	unweightedAgg := map[string][]descriptor.ComponentKey{}
-	for _, op := range aggregatorCapabilityTable() {
+	for _, op := range unweightedAggregatorTable() {
 		unweightedAgg[op.Name] = op.ComponentSchema.Keys
 	}
 	addOps := func(ops []descriptor.Operator, unweighted map[string][]descriptor.ComponentKey) {

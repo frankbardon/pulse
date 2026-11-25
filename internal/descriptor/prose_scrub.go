@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // ProseScrub is one instance's prose scrub, exported for the surfaces
@@ -14,9 +16,13 @@ import (
 // redactProse), not a second implementation: the same hidden-token set,
 // the same whole-token match and the same sentence drop. Build it once
 // per registration with NewProseScrub; the zero value (and a scrub over
-// a nil / unscoped instance) returns every input unchanged.
+// a nil / unscoped instance) returns every input unchanged, save that
+// Text always strips feature-fence markers.
 type ProseScrub struct {
 	hidden map[string]struct{}
+	// keep is the feature-fence predicate (the instance's Enabled); nil
+	// keeps every fence (an unscoped instance or the zero value).
+	keep func(string) bool
 }
 
 // NewProseScrub captures inst's hidden-token set: every hidden operator
@@ -24,7 +30,26 @@ type ProseScrub struct {
 // offer, and the wire tokens of every hidden slot-owning capability
 // (slotTokens in features.go).
 func NewProseScrub(inst *InstanceSnapshot) ProseScrub {
-	return ProseScrub{hidden: hiddenProseNames(inst)}
+	p := ProseScrub{hidden: hiddenProseNames(inst)}
+	if inst.Scoped() {
+		p.keep = inst.Enabled
+	}
+	return p
+}
+
+// RenderProseFences renders the feature fences of a hand-written prose
+// string that is not a skill body — an MCP tool description
+// (internal/mcp/toolmeta) — for an instance: a fence is kept iff keep
+// reports every name it lists visible (keep == nil keeps every fence),
+// and every marker is stripped, with the skill renderer's grammar
+// (skills.RenderFences). A malformed string (unreachable for the tool
+// table: TestToolDescriptionFences_Valid) is returned as is.
+func RenderProseFences(s string, keep func(string) bool) string {
+	out, err := skills.RenderFences(s, keep)
+	if err != nil {
+		return s
+	}
+	return out
 }
 
 // Active reports whether the scrub can change anything (the instance
@@ -37,8 +62,12 @@ func (p ProseScrub) Active() bool { return len(p.hidden) > 0 }
 // left empty (or holding only a list / heading marker) is dropped, the
 // rest of an ordered list a dropped item belonged to is renumbered, and
 // the blank-line runs a drop leaves behind collapse to one. A string
-// that mentions no hidden token is returned unchanged.
+// that mentions no hidden token is returned unchanged. Feature fences
+// (a tool description may carry them) are rendered for the instance
+// FIRST, so a fenced clause about a hidden feature goes alone and the
+// sentence around it stays.
 func (p ProseScrub) Text(s string) string {
+	s = RenderProseFences(s, p.keep)
 	if !p.Active() || !mentionsHidden(s, p.hidden) {
 		return s
 	}

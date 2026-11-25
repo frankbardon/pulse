@@ -279,6 +279,41 @@ func TestRender_ComponentsPage(t *testing.T) {
 	if strings.Contains(unweighted, "weighted-floor") || namesToken(unweighted, "n_weight_invalid") {
 		t.Error("weighting hidden but components.md documents the weighted floor keys")
 	}
+	// An operator's own weighted-only keys go too (#238): no slot of a
+	// weighting-hidden instance can be weighted. AGG_WEIGHTED_MEAN keeps
+	// its same-named keys (its weight_field is ungated).
+	block := func(page, op string) string {
+		start := strings.Index(page, `<a id="op-`+strings.ToLower(op)+`"></a>`)
+		if start < 0 {
+			return ""
+		}
+		rest := page[start+1:]
+		if end := strings.Index(rest, `<a id="`); end >= 0 {
+			rest = rest[:end]
+		}
+		return rest
+	}
+	for _, c := range []struct {
+		op   string
+		keys []string
+	}{
+		{"AGG_AVERAGE", []string{"sum_weighted", "weighted_mean", "m2_weighted", "sum_weights_sq", "weighted_variance"}},
+		{"AGG_AUC", []string{"se_note"}},
+	} {
+		fullBlock, unwBlock := block(page, c.op), block(unweighted, c.op)
+		if unwBlock == "" {
+			t.Fatalf("weighting hidden: components.md has no %s block", c.op)
+		}
+		for _, key := range c.keys {
+			row := "| `" + key + "` |"
+			if !strings.Contains(fullBlock, row) {
+				t.Errorf("components.md: %s's weighted-only key %s missing from the full page", c.op, key)
+			}
+			if strings.Contains(unwBlock, row) {
+				t.Errorf("weighting hidden but components.md lists %s's weighted-only key %s", c.op, key)
+			}
+		}
+	}
 }
 
 const (

@@ -52,6 +52,11 @@ var exampleCapabilityDetectors = []exampleCapabilityDetector{
 	// is the weighting surface (AGG_WEIGHTED_MEAN's params.weight_field
 	// is a different key and stays ungated).
 	{featWeighting, func(_ ontologyExample, body any) bool { return jsonHasKey(body, "weight") }},
+	// A `multiplicity` OBJECT at any depth (a request, test, layer,
+	// Compose or slot-spec block) is the correction surface:
+	// capability:multiplicity. pulse_lookup's string-valued duplicate-key
+	// `multiplicity` is a different slot and never fires.
+	{featMultiplicity, func(_ ontologyExample, body any) bool { return jsonHasObjectKey(body, "multiplicity") }},
 	{featFacet, func(ex ontologyExample, _ any) bool {
 		return ex.Category == "facet" || slices.Contains(ex.Tags, "facet")
 	}},
@@ -75,6 +80,29 @@ func crosstabHasKey(body any, key string) bool {
 	case []any:
 		for _, c := range t {
 			if crosstabHasKey(c, key) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// jsonHasObjectKey reports whether any object at any depth carries key
+// with an object value.
+func jsonHasObjectKey(body any, key string) bool {
+	switch t := body.(type) {
+	case map[string]any:
+		if _, ok := t[key].(map[string]any); ok {
+			return true
+		}
+		for _, c := range t {
+			if jsonHasObjectKey(c, key) {
+				return true
+			}
+		}
+	case []any:
+		for _, c := range t {
+			if jsonHasObjectKey(c, key) {
 				return true
 			}
 		}

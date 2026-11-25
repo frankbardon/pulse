@@ -81,6 +81,10 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 			{Name: "st", Capabilities: []string{featStream}, Description: "Unlike TEST_T, uses TEST_WELCH.", Operators: []string{"TEST_WELCH"}},
 			// a nested `stages` key is not a chain root
 			{Name: "nested", Body: json.RawMessage(`{"x":{"stages":[]}}`)},
+			// a multiplicity block at any depth is the correction surface
+			{Name: "mult", Body: json.RawMessage(`{"crosstab":{"layers":[{"multiplicity":{"method":"holm"}}]}}`)},
+			// pulse_lookup's string-valued multiplicity is another slot
+			{Name: "lookupMult", Body: json.RawMessage(`{"key":{"id":1},"multiplicity":"first"}`)},
 		},
 	}
 	g := buildOntology(fx)
@@ -99,6 +103,7 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		ontoEdge(opID("OVERLAY_INDEX_VS_POP"), ex("ov"), descriptor.OntologyEdgeExemplifiedBy),
 		ontoEdge(ex("st"), featStream, req),
 		ontoEdge(ex("st"), opID("TEST_T"), descriptor.OntologyEdgeRoutesTo),
+		ontoEdge(ex("mult"), featMultiplicity, req),
 	} {
 		if !hasEdge(g, e) {
 			t.Errorf("missing %+v", e)
@@ -113,6 +118,9 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 			t.Errorf("%s: crosstab_cells detected without a crosstab cells key", n)
 		}
 	}
+	if hasEdge(g, ontoEdge(ex("lookupMult"), featMultiplicity, req)) {
+		t.Error("a string-valued multiplicity (pulse_lookup) requires capability:multiplicity")
+	}
 	if out := g.Out(ex("nested"), ""); len(out) != 0 {
 		t.Errorf("nested stages produced edges %v", out)
 	}
@@ -124,6 +132,8 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		ontoEdge(opID("OVERLAY_INDEX_VS_POP"), ex("facet-index-vs-pop"), descriptor.OntologyEdgeExemplifiedBy),
 		// detected from the body; the example declares no _meta.capabilities
 		ontoEdge(ex("crosstab_measures_as_stub_rows"), featCrosstabCells, req),
+		// detected from the body's layer multiplicity block (#238)
+		ontoEdge(ex("crosstab-pairwise-letters"), featMultiplicity, req),
 	} {
 		if !hasEdge(base, e) {
 			t.Errorf("base missing %+v", e)
