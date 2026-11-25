@@ -87,6 +87,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestDocsCoverageCurrent`               | The generated coverage matrix `docs/src/contract/coverage.md` matches a fresh build from its sources of truth (public API dump, CLI tree, manifest, MCP registrations, env vars, `Options` / Request / Response fields); lives in `internal/cli` (only it may walk the CLI tree); regenerate with `make docs` |
 | `TestDocsCoverageNoGaps`                | No required coverage cell (per row kind: mdBook, skill pack, GoDoc, CLI help; verbatim mention) is empty unless the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` names it |
 | `TestDocCoverageNotImportedByDescriptor` | The no-execute descriptor packages (`internal/descriptor`, `descriptor/`) never import the coverage generator `internal/doccoverage` |
+| `TestFacadeExamplesPresent`             | The pinned runnable GoDoc task examples (`facadeExamples` in `facade_examples_test.go`: root `example_*_test.go`, `observe`, `mcpserve`) all exist and carry a checked `// Output:` (compile-only ones are named); an unpinned example in those packages fails too, so the set only grows |
 
 ## Running a subset of gates locally
 

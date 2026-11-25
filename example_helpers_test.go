@@ -35,6 +35,11 @@ var exampleRows = []pulse.CohortRow{
 	{uint64(6), "north", "web", uint64(25)},
 }
 
+// exampleCSV is the same six orders as CSV text, for the import example.
+const exampleCSV = "id,region,channel,amount\n" +
+	"1,north,web,10\n2,south,store,20\n3,north,store,5\n" +
+	"4,east,web,15\n5,south,web,30\n6,north,web,25\n"
+
 // newExampleEngine returns an engine over a fresh in-memory filesystem
 // holding the tiny cohort at "sales.pulse". It panics on failure: the
 // fixture is fixed, so a failure is a bug in the example itself.
