@@ -2566,8 +2566,10 @@ const (
 	// too large for a positive within-person correlation).
 	//
 	// Buffered: the inferential family policy (OVERLAY_T_VS_REF).
-	OverlayKindTVsPrior     OverlayKind = "OVERLAY_T_VS_PRIOR"
-	OverlayKindZVsPrior     OverlayKind = "OVERLAY_Z_VS_PRIOR"
+	OverlayKindTVsPrior OverlayKind = "OVERLAY_T_VS_PRIOR"
+	// OverlayKindZVsPrior is the large-sample z counterpart of OverlayKindTVsPrior.
+	OverlayKindZVsPrior OverlayKind = "OVERLAY_Z_VS_PRIOR"
+	// OverlayKindPropZVsPrior tests each period's share against the period before (two-proportion z).
 	OverlayKindPropZVsPrior OverlayKind = "OVERLAY_PROP_Z_VS_PRIOR"
 
 	// OverlayKindRank is the COMPOSE-host per-cell rank of each target

@@ -21,7 +21,9 @@ package types
 type LabelMode string
 
 const (
+	// LabelModeReplace rewrites the value in place with its label (the default).
 	LabelModeReplace LabelMode = "replace"
+	// LabelModeAugment keeps the value and adds a "<field>_label" column.
 	LabelModeAugment LabelMode = "augment"
 )
 

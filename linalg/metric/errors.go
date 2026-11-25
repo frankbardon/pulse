@@ -24,6 +24,7 @@ type LengthMismatchError struct {
 	Left, Right int
 }
 
+// Error reports both lengths.
 func (e *LengthMismatchError) Error() string {
 	return fmt.Sprintf("metric: vector length mismatch: %d vs %d", e.Left, e.Right)
 }
@@ -55,6 +56,7 @@ type DomainError struct {
 	Reason string
 }
 
+// Error names the metric, the element, its value and the reason.
 func (e *DomainError) Error() string {
 	return fmt.Sprintf("metric: %s: element %d (%v) outside the domain: %s", e.Metric, e.Index, e.Value, e.Reason)
 }
@@ -85,6 +87,7 @@ type StatsError struct {
 	Reason string
 }
 
+// Error names the metric, the statistic, the reason and the entry.
 func (e *StatsError) Error() string {
 	return fmt.Sprintf("metric: %s: fitted %s: %s (entry %d)", e.Metric, e.Stat, e.Reason, e.Index)
 }

@@ -18,22 +18,38 @@ import (
 type AggregationType string
 
 const (
-	AGG_COUNT          AggregationType = "AGG_COUNT"
-	AGG_SUM            AggregationType = "AGG_SUM"
-	AGG_AVERAGE        AggregationType = "AGG_AVERAGE"
-	AGG_MIN            AggregationType = "AGG_MIN"
-	AGG_MAX            AggregationType = "AGG_MAX"
-	AGG_STDDEV         AggregationType = "AGG_STDDEV"
-	AGG_RANGE          AggregationType = "AGG_RANGE"
-	AGG_MODE_COUNT     AggregationType = "AGG_MODE_COUNT"
-	AGG_ZSCORE         AggregationType = "AGG_ZSCORE"
-	AGG_MEDIAN         AggregationType = "AGG_MEDIAN"
-	AGG_VARIANCE       AggregationType = "AGG_VARIANCE"
-	AGG_MODE           AggregationType = "AGG_MODE"
-	AGG_SKEWNESS       AggregationType = "AGG_SKEWNESS"
-	AGG_KURTOSIS       AggregationType = "AGG_KURTOSIS"
+	// AGG_COUNT counts the records where the field is non-null.
+	AGG_COUNT AggregationType = "AGG_COUNT"
+	// AGG_SUM sums a numeric field.
+	AGG_SUM AggregationType = "AGG_SUM"
+	// AGG_AVERAGE is the arithmetic mean of a numeric field.
+	AGG_AVERAGE AggregationType = "AGG_AVERAGE"
+	// AGG_MIN is the smallest non-null value of the field.
+	AGG_MIN AggregationType = "AGG_MIN"
+	// AGG_MAX is the largest non-null value of the field.
+	AGG_MAX AggregationType = "AGG_MAX"
+	// AGG_STDDEV is the standard deviation (population by default, sample with params.ddof 1).
+	AGG_STDDEV AggregationType = "AGG_STDDEV"
+	// AGG_RANGE is the spread of the field, max minus min.
+	AGG_RANGE AggregationType = "AGG_RANGE"
+	// AGG_MODE_COUNT is the modal count: how many rows hold the most common value.
+	AGG_MODE_COUNT AggregationType = "AGG_MODE_COUNT"
+	// AGG_ZSCORE is a mean-centred, standard-deviation-scaled summary of the field.
+	AGG_ZSCORE AggregationType = "AGG_ZSCORE"
+	// AGG_MEDIAN is the 50th percentile of the field. Buffered: it sorts every value.
+	AGG_MEDIAN AggregationType = "AGG_MEDIAN"
+	// AGG_VARIANCE is the variance (population by default, sample with params.ddof 1).
+	AGG_VARIANCE AggregationType = "AGG_VARIANCE"
+	// AGG_MODE is the most frequent value of the field; a tie goes to the smallest value.
+	AGG_MODE AggregationType = "AGG_MODE"
+	// AGG_SKEWNESS is the population skewness g1 (m3 / m2^1.5).
+	AGG_SKEWNESS AggregationType = "AGG_SKEWNESS"
+	// AGG_KURTOSIS is the population excess kurtosis g2 (m4 / m2^2 − 3).
+	AGG_KURTOSIS AggregationType = "AGG_KURTOSIS"
+	// AGG_DISTINCT_COUNT counts the distinct non-null values of the field.
 	AGG_DISTINCT_COUNT AggregationType = "AGG_DISTINCT_COUNT"
-	AGG_PERCENTILE     AggregationType = "AGG_PERCENTILE"
+	// AGG_PERCENTILE is a configurable percentile of the field (params.percentile). Buffered: it sorts every value.
+	AGG_PERCENTILE AggregationType = "AGG_PERCENTILE"
 
 	// AGG_FREQUENCY counts the non-null rows whose field equals one
 	// chosen value. Params: `value` (string or number, required),
@@ -87,8 +103,10 @@ const (
 	// side skips the row. Weighted: Σw·loss / Σw. Streamable + mergeable
 	// (additive sums).
 	AGG_MAPE AggregationType = "AGG_MAPE"
+	// AGG_RMSE is the root mean squared prediction error (see AGG_MAPE).
 	AGG_RMSE AggregationType = "AGG_RMSE"
-	AGG_MAE  AggregationType = "AGG_MAE"
+	// AGG_MAE is the mean absolute prediction error (see AGG_MAPE).
+	AGG_MAE AggregationType = "AGG_MAE"
 
 	// AGG_AUC is the area under the ROC curve of a score against a
 	// binary outcome: Field is the score, params.outcome the 0/1 (or
@@ -108,6 +126,7 @@ const (
 	// mergeable. The "bootstrap" method is reserved for a buffered
 	// follow-up — returns PROCESSING_CONFIG today.
 	AGG_CI_LOWER AggregationType = "AGG_CI_LOWER"
+	// AGG_CI_UPPER is the upper bound of the same interval as AGG_CI_LOWER.
 	AGG_CI_UPPER AggregationType = "AGG_CI_UPPER"
 
 	// AGG_WELFORD emits the streaming Welford-Pébaÿ triple — running
@@ -178,8 +197,10 @@ const (
 	// columns Sort, windows, post-tests, series overlays and a later
 	// chain stage read; the bare label stays refused.
 	AGG_VEC_MEAN AggregationType = "AGG_VEC_MEAN"
-	AGG_VEC_SUM  AggregationType = "AGG_VEC_SUM"
-	AGG_VEC_SD   AggregationType = "AGG_VEC_SD"
+	// AGG_VEC_SUM is the per-member total of a vector (see AGG_VEC_MEAN).
+	AGG_VEC_SUM AggregationType = "AGG_VEC_SUM"
+	// AGG_VEC_SD is the per-member sample standard deviation of a vector (see AGG_VEC_MEAN).
+	AGG_VEC_SD AggregationType = "AGG_VEC_SD"
 
 	// AGG_CONSTANT emits one typed constant, the same in every row,
 	// group, crosstab cell and margin — in place of a single-value
@@ -222,9 +243,13 @@ func AllAggregationTypes() []AggregationType {
 type FiltererType string
 
 const (
-	FILTER_INCLUDE    FiltererType = "FILTER_INCLUDE"
-	FILTER_EXCLUDE    FiltererType = "FILTER_EXCLUDE"
-	FILTER_RANGE      FiltererType = "FILTER_RANGE"
+	// FILTER_INCLUDE keeps the records whose field value is in Values.
+	FILTER_INCLUDE FiltererType = "FILTER_INCLUDE"
+	// FILTER_EXCLUDE drops the records whose field value is in Values.
+	FILTER_EXCLUDE FiltererType = "FILTER_EXCLUDE"
+	// FILTER_RANGE keeps the records whose numeric value lies in [low, high], both ends inclusive.
+	FILTER_RANGE FiltererType = "FILTER_RANGE"
+	// FILTER_EXPRESSION keeps the records for which an expression over the record's fields is truthy.
 	FILTER_EXPRESSION FiltererType = "FILTER_EXPRESSION"
 
 	// FILTER_NULL keeps or drops records based on null state of a field.
@@ -302,11 +327,16 @@ func AllFiltererTypes() []FiltererType {
 type GroupType string
 
 const (
+	// GROUP_CATEGORY groups records by exact field value, the usual grouper for a categorical field.
 	GROUP_CATEGORY GroupType = "GROUP_CATEGORY"
-	GROUP_ROUNDED  GroupType = "GROUP_ROUNDED"
-	GROUP_RANGE    GroupType = "GROUP_RANGE"
+	// GROUP_ROUNDED groups by each value rounded down to a multiple of Interval.
+	GROUP_ROUNDED GroupType = "GROUP_ROUNDED"
+	// GROUP_RANGE groups numeric values into half-open ranges [a, b) of width Interval.
+	GROUP_RANGE GroupType = "GROUP_RANGE"
+	// GROUP_QUANTILE groups records into N equal-population quantile buckets (quartiles, deciles, …).
 	GROUP_QUANTILE GroupType = "GROUP_QUANTILE"
-	GROUP_DATE     GroupType = "GROUP_DATE"
+	// GROUP_DATE groups a date or datetime field by a calendar component, hour to year.
+	GROUP_DATE GroupType = "GROUP_DATE"
 
 	// GROUP_DATE_RANGES buckets each date row by a validated set of
 	// labeled date ranges (inline {label, start, end} specs). The bucket
@@ -366,12 +396,18 @@ func AllGroupTypes() []GroupType {
 type AttributeType string
 
 const (
-	ATTR_ZSCORE     AttributeType = "ATTR_ZSCORE"
-	ATTR_TSCORE     AttributeType = "ATTR_TSCORE"
+	// ATTR_ZSCORE adds each row's z-score, (value − mean) / stddev, as a column.
+	ATTR_ZSCORE AttributeType = "ATTR_ZSCORE"
+	// ATTR_TSCORE adds each row's T-score, the z-score rescaled to mean 50 and stddev 10.
+	ATTR_TSCORE AttributeType = "ATTR_TSCORE"
+	// ATTR_NORMALIZED adds each row's min-max normalized value, in [0, 1].
 	ATTR_NORMALIZED AttributeType = "ATTR_NORMALIZED"
-	ATTR_FORMULA    AttributeType = "ATTR_FORMULA"
+	// ATTR_FORMULA adds a column computed per row by an expression over the record's fields.
+	ATTR_FORMULA AttributeType = "ATTR_FORMULA"
+	// ATTR_PERCENTILE adds each row's percentile rank in the filtered value set. Buffered.
 	ATTR_PERCENTILE AttributeType = "ATTR_PERCENTILE"
-	ATTR_DATE_PART  AttributeType = "ATTR_DATE_PART"
+	// ATTR_DATE_PART adds a calendar component (year, month, hour, iso_weekday, …) of a date or datetime field.
+	ATTR_DATE_PART AttributeType = "ATTR_DATE_PART"
 
 	// ATTR_REG_FITTED emits the per-row fitted value ŷᵢ = Xᵢ · β + β₀ for
 	// each filter-passing record, using a regression fit computed in a
@@ -568,19 +604,33 @@ func AllAttributeTypes() []AttributeType {
 type WindowType string
 
 const (
-	WIN_LAG             WindowType = "WIN_LAG"
-	WIN_LEAD            WindowType = "WIN_LEAD"
-	WIN_ROW_NUMBER      WindowType = "WIN_ROW_NUMBER"
-	WIN_RANK            WindowType = "WIN_RANK"
-	WIN_DENSE_RANK      WindowType = "WIN_DENSE_RANK"
-	WIN_RUNNING_SUM     WindowType = "WIN_RUNNING_SUM"
-	WIN_RUNNING_AVG     WindowType = "WIN_RUNNING_AVG"
-	WIN_MOVING_AVG      WindowType = "WIN_MOVING_AVG"
-	WIN_EWMA            WindowType = "WIN_EWMA"
-	WIN_PCT_CHANGE      WindowType = "WIN_PCT_CHANGE"
-	WIN_DELTA           WindowType = "WIN_DELTA"
-	WIN_SHARE           WindowType = "WIN_SHARE"
-	WIN_LIFT            WindowType = "WIN_LIFT"
+	// WIN_LAG reads the field N rows earlier in the ordered partition.
+	WIN_LAG WindowType = "WIN_LAG"
+	// WIN_LEAD reads the field N rows later in the ordered partition.
+	WIN_LEAD WindowType = "WIN_LEAD"
+	// WIN_ROW_NUMBER is the 1-based row index within the ordered partition.
+	WIN_ROW_NUMBER WindowType = "WIN_ROW_NUMBER"
+	// WIN_RANK ranks rows with gaps after ties (1, 2, 2, 4).
+	WIN_RANK WindowType = "WIN_RANK"
+	// WIN_DENSE_RANK ranks rows with no gaps after ties (1, 2, 2, 3).
+	WIN_DENSE_RANK WindowType = "WIN_DENSE_RANK"
+	// WIN_RUNNING_SUM is the running total of the field over the frame.
+	WIN_RUNNING_SUM WindowType = "WIN_RUNNING_SUM"
+	// WIN_RUNNING_AVG is the running average of the field over the frame.
+	WIN_RUNNING_AVG WindowType = "WIN_RUNNING_AVG"
+	// WIN_MOVING_AVG is the moving average of the field over a frame bounded at both ends.
+	WIN_MOVING_AVG WindowType = "WIN_MOVING_AVG"
+	// WIN_EWMA is the exponentially weighted moving average, s_i = alpha·x_i + (1 − alpha)·s_{i−1}.
+	WIN_EWMA WindowType = "WIN_EWMA"
+	// WIN_PCT_CHANGE is the fractional change (0.05 = 5%) against the row `periods` positions earlier.
+	WIN_PCT_CHANGE WindowType = "WIN_PCT_CHANGE"
+	// WIN_DELTA is the difference against the row `periods` positions earlier.
+	WIN_DELTA WindowType = "WIN_DELTA"
+	// WIN_SHARE is each row's share of its partition total, or with cumulative the running share.
+	WIN_SHARE WindowType = "WIN_SHARE"
+	// WIN_LIFT is the field's share over a base column's share, (x/Σx)/(b/Σb); cumulative gives a gains table.
+	WIN_LIFT WindowType = "WIN_LIFT"
+	// WIN_DISTRIBUTED_LAG convolves a finite lag kernel over the ordered partition: carry-over, such as media adstock.
 	WIN_DISTRIBUTED_LAG WindowType = "WIN_DISTRIBUTED_LAG"
 	// WIN_FORMULA evaluates params.expression on each row over the
 	// row's columns and every earlier window's output.
@@ -613,15 +663,24 @@ func AllWindowTypes() []WindowType {
 type FeatureType string
 
 const (
-	FEAT_LOG              FeatureType = "FEAT_LOG"
-	FEAT_SQRT             FeatureType = "FEAT_SQRT"
-	FEAT_BUCKETIZE        FeatureType = "FEAT_BUCKETIZE"
-	FEAT_ONE_HOT          FeatureType = "FEAT_ONE_HOT"
-	FEAT_DATE_FEATURES    FeatureType = "FEAT_DATE_FEATURES"
+	// FEAT_LOG emits log1p(x) of a numeric field.
+	FEAT_LOG FeatureType = "FEAT_LOG"
+	// FEAT_SQRT emits sqrt(x) of a numeric field.
+	FEAT_SQRT FeatureType = "FEAT_SQRT"
+	// FEAT_BUCKETIZE bins a numeric field into ordered buckets, by explicit boundaries or equal-population quantiles.
+	FEAT_BUCKETIZE FeatureType = "FEAT_BUCKETIZE"
+	// FEAT_ONE_HOT emits one 0/1 column per level of a categorical or packed_bool field.
+	FEAT_ONE_HOT FeatureType = "FEAT_ONE_HOT"
+	// FEAT_DATE_FEATURES expands a date or datetime field into year, month, day, weekday and quarter columns.
+	FEAT_DATE_FEATURES FeatureType = "FEAT_DATE_FEATURES"
+	// FEAT_FREQUENCY_ENCODE replaces each categorical value with its relative frequency in the cohort.
 	FEAT_FREQUENCY_ENCODE FeatureType = "FEAT_FREQUENCY_ENCODE"
-	FEAT_TARGET_ENCODE    FeatureType = "FEAT_TARGET_ENCODE"
+	// FEAT_TARGET_ENCODE replaces each categorical value with the smoothed mean of a target over the training rows.
+	FEAT_TARGET_ENCODE FeatureType = "FEAT_TARGET_ENCODE"
+	// FEAT_TRAIN_TEST_SPLIT emits a deterministic split column: 0 train, 1 validation, 2 test.
 	FEAT_TRAIN_TEST_SPLIT FeatureType = "FEAT_TRAIN_TEST_SPLIT"
-	FEAT_POLY             FeatureType = "FEAT_POLY"
+	// FEAT_POLY emits x^2 … x^degree of a numeric field, the basis of a polynomial regression.
+	FEAT_POLY FeatureType = "FEAT_POLY"
 )
 
 // AllFeatureTypes returns every defined feature type in alphabetical order.

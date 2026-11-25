@@ -465,9 +465,12 @@ const (
 type AttributeEmitType string
 
 const (
+	// AttributeEmitFloat64 declares a float64 column (the default).
 	AttributeEmitFloat64 AttributeEmitType = "float64"
-	AttributeEmitBool    AttributeEmitType = "bool"
-	AttributeEmitString  AttributeEmitType = "string"
+	// AttributeEmitBool declares a boolean column.
+	AttributeEmitBool AttributeEmitType = "bool"
+	// AttributeEmitString declares a string column.
+	AttributeEmitString AttributeEmitType = "string"
 )
 
 // AttributeDictionarySource names the input whose dictionary an
@@ -841,7 +844,9 @@ type FeatureRegistration struct {
 type TestTier string
 
 const (
-	TestTierRow  TestTier = "tier1"
+	// TestTierRow is a tier-1 test: RowFactory, folded per row in the aggregation pass.
+	TestTierRow TestTier = "tier1"
+	// TestTierPost is a tier-2 post-test: PostFactory, run on the result rows after windows.
 	TestTierPost TestTier = "tier2"
 )
 

@@ -34,7 +34,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2856 | 84 |
+| [Go API symbols](#go-api-symbols) | 2856 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -60,9 +60,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.AggregatorRegistration` | yes |  | yes |
 | `pulse.AttributeComponentsFunc` | yes |  | yes |
 | `pulse.AttributeDictionarySource` | yes |  | yes |
-| `pulse.AttributeEmitBool` |  |  | **gap** |
-| `pulse.AttributeEmitFloat64` | yes |  | **gap** |
-| `pulse.AttributeEmitString` |  |  | **gap** |
+| `pulse.AttributeEmitBool` |  |  | yes |
+| `pulse.AttributeEmitFloat64` | yes |  | yes |
+| `pulse.AttributeEmitString` |  |  | yes |
 | `pulse.AttributeEmitType` |  |  | yes |
 | `pulse.AttributeMode` |  |  | yes |
 | `pulse.AttributeModeBuffered` |  |  | yes |
@@ -430,8 +430,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.TemplateVariable` |  |  | yes |
 | `pulse.TestRegistration` | yes |  | yes |
 | `pulse.TestTier` |  |  | yes |
-| `pulse.TestTierPost` | yes |  | **gap** |
-| `pulse.TestTierRow` | yes |  | **gap** |
+| `pulse.TestTierPost` | yes |  | yes |
+| `pulse.TestTierRow` | yes |  | yes |
 | `pulse.Unlimited` | yes |  | yes |
 | `pulse.VerifyIndexResult` |  |  | yes |
 | `pulse.VerifyResult` |  |  | yes |
@@ -491,16 +491,16 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.ExplainRequestRoots` |  |  | yes |
 | `descriptor.ExplainResult` |  |  | yes |
 | `descriptor.ExplainRoot` |  |  | yes |
-| `descriptor.ExplainRootChain` |  |  | **gap** |
+| `descriptor.ExplainRootChain` |  |  | yes |
 | `descriptor.ExplainRootChainResponse` |  |  | yes |
-| `descriptor.ExplainRootComposed` |  |  | **gap** |
+| `descriptor.ExplainRootComposed` |  |  | yes |
 | `descriptor.ExplainRootComposedResponse` |  |  | yes |
-| `descriptor.ExplainRootFacet` |  |  | **gap** |
+| `descriptor.ExplainRootFacet` |  |  | yes |
 | `descriptor.ExplainRootFacetResult` |  |  | yes |
 | `descriptor.ExplainRootOperator` |  |  | yes |
-| `descriptor.ExplainRootRequest` |  |  | **gap** |
+| `descriptor.ExplainRootRequest` |  |  | yes |
 | `descriptor.ExplainRootResponse` |  |  | yes |
-| `descriptor.ExplainRootSample` |  |  | **gap** |
+| `descriptor.ExplainRootSample` |  |  | yes |
 | `descriptor.ExplainStep` |  |  | yes |
 | `descriptor.ExplainTerse` |  |  | yes |
 | `descriptor.ExportCapability` |  |  | yes |
@@ -656,14 +656,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.VectorFitSummary` |  |  | yes |
 | `descriptor.VectorKindMeta` |  |  | yes |
 | `descriptor.Verdict` |  |  | yes |
-| `descriptor.VerdictDescriptive` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfAssociation` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfDifference` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfEffect` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfAssociation` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfDifference` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfEffect` |  |  | **gap** |
-| `descriptor.VerdictNotComputable` |  |  | **gap** |
+| `descriptor.VerdictDescriptive` |  |  | yes |
+| `descriptor.VerdictEvidenceOfAssociation` |  |  | yes |
+| `descriptor.VerdictEvidenceOfDifference` |  |  | yes |
+| `descriptor.VerdictEvidenceOfEffect` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfAssociation` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfDifference` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfEffect` |  |  | yes |
+| `descriptor.VerdictNotComputable` |  |  | yes |
 | `descriptor.Verdicts` |  |  | yes |
 | `descriptor.WeightSourceNone` |  |  | yes |
 | `descriptor.WeightSourceOptions` |  |  | yes |
@@ -1784,7 +1784,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Domain` |  |  | yes |
 | `metric.DomainBinary` |  |  | yes |
 | `metric.DomainError` | yes |  | yes |
-| `metric.DomainError.Error` |  |  | **gap** |
+| `metric.DomainError.Error` |  |  | yes |
 | `metric.DomainError.Is` |  |  | yes |
 | `metric.DomainNonNegative` |  |  | yes |
 | `metric.DomainReal` |  |  | yes |
@@ -1804,7 +1804,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Kind` |  |  | yes |
 | `metric.Kinds` |  |  | yes |
 | `metric.LengthMismatchError` | yes |  | yes |
-| `metric.LengthMismatchError.Error` |  |  | **gap** |
+| `metric.LengthMismatchError.Error` |  |  | yes |
 | `metric.LengthMismatchError.Is` |  |  | yes |
 | `metric.Lookup` |  |  | yes |
 | `metric.Measure` |  |  | yes |
@@ -1844,7 +1844,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Similarity` | yes |  | yes |
 | `metric.Stats` | yes |  | yes |
 | `metric.StatsError` |  |  | yes |
-| `metric.StatsError.Error` |  |  | **gap** |
+| `metric.StatsError.Error` |  |  | yes |
 | `metric.StatsError.Is` |  |  | yes |
 
 ### Go API symbols pulse/mcmc
@@ -2215,51 +2215,51 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | Identifier | mdBook | Skill pack | GoDoc |
 |---|---|---|---|
 | `types.AGG_AUC` |  |  | yes |
-| `types.AGG_AVERAGE` | yes |  | **gap** |
+| `types.AGG_AVERAGE` | yes |  | yes |
 | `types.AGG_CI_LOWER` |  |  | yes |
-| `types.AGG_CI_UPPER` |  |  | **gap** |
+| `types.AGG_CI_UPPER` |  |  | yes |
 | `types.AGG_CONSTANT` |  |  | yes |
-| `types.AGG_COUNT` |  |  | **gap** |
-| `types.AGG_DISTINCT_COUNT` |  |  | **gap** |
+| `types.AGG_COUNT` |  |  | yes |
+| `types.AGG_DISTINCT_COUNT` |  |  | yes |
 | `types.AGG_DISTINCT_SUM` |  |  | yes |
 | `types.AGG_FREQUENCY` |  |  | yes |
-| `types.AGG_KURTOSIS` |  |  | **gap** |
-| `types.AGG_MAE` |  |  | **gap** |
+| `types.AGG_KURTOSIS` |  |  | yes |
+| `types.AGG_MAE` |  |  | yes |
 | `types.AGG_MAPE` |  |  | yes |
-| `types.AGG_MAX` |  |  | **gap** |
-| `types.AGG_MEDIAN` |  |  | **gap** |
-| `types.AGG_MIN` |  |  | **gap** |
-| `types.AGG_MODE` |  |  | **gap** |
-| `types.AGG_MODE_COUNT` |  |  | **gap** |
+| `types.AGG_MAX` |  |  | yes |
+| `types.AGG_MEDIAN` |  |  | yes |
+| `types.AGG_MIN` |  |  | yes |
+| `types.AGG_MODE` |  |  | yes |
+| `types.AGG_MODE_COUNT` |  |  | yes |
 | `types.AGG_NULL_COUNT` |  |  | yes |
-| `types.AGG_PERCENTILE` |  |  | **gap** |
-| `types.AGG_RANGE` |  |  | **gap** |
+| `types.AGG_PERCENTILE` |  |  | yes |
+| `types.AGG_RANGE` |  |  | yes |
 | `types.AGG_RATIO` |  |  | yes |
-| `types.AGG_RMSE` |  |  | **gap** |
+| `types.AGG_RMSE` |  |  | yes |
 | `types.AGG_SET_CARDINALITY_AVG` |  |  | yes |
 | `types.AGG_SET_CARDINALITY_SUM` |  |  | yes |
 | `types.AGG_SET_DISTINCT_VALUES` |  |  | yes |
 | `types.AGG_SET_FREQUENCY` |  |  | yes |
 | `types.AGG_SET_INTERSECTION` |  |  | yes |
 | `types.AGG_SET_UNION` |  |  | yes |
-| `types.AGG_SKEWNESS` |  |  | **gap** |
-| `types.AGG_STDDEV` |  |  | **gap** |
-| `types.AGG_SUM` |  |  | **gap** |
-| `types.AGG_VARIANCE` |  |  | **gap** |
+| `types.AGG_SKEWNESS` |  |  | yes |
+| `types.AGG_STDDEV` |  |  | yes |
+| `types.AGG_SUM` |  |  | yes |
+| `types.AGG_VARIANCE` |  |  | yes |
 | `types.AGG_VEC_MEAN` |  |  | yes |
-| `types.AGG_VEC_SD` |  |  | **gap** |
-| `types.AGG_VEC_SUM` |  |  | **gap** |
+| `types.AGG_VEC_SD` |  |  | yes |
+| `types.AGG_VEC_SUM` |  |  | yes |
 | `types.AGG_WEIGHTED_MEAN` |  |  | yes |
 | `types.AGG_WELFORD` |  |  | yes |
-| `types.AGG_ZSCORE` |  |  | **gap** |
+| `types.AGG_ZSCORE` |  |  | yes |
 | `types.ATTR_CODE_IN` |  |  | yes |
-| `types.ATTR_DATE_PART` |  |  | **gap** |
+| `types.ATTR_DATE_PART` |  |  | yes |
 | `types.ATTR_FACTOR_SCORE` |  |  | yes |
-| `types.ATTR_FORMULA` | yes |  | **gap** |
+| `types.ATTR_FORMULA` | yes |  | yes |
 | `types.ATTR_MAHALANOBIS` |  |  | yes |
-| `types.ATTR_NORMALIZED` |  |  | **gap** |
+| `types.ATTR_NORMALIZED` |  |  | yes |
 | `types.ATTR_PC_SCORE` |  |  | yes |
-| `types.ATTR_PERCENTILE` |  |  | **gap** |
+| `types.ATTR_PERCENTILE` |  |  | yes |
 | `types.ATTR_PREVIOUS_STATE` |  |  | yes |
 | `types.ATTR_PROFILE_SIMILARITY` |  |  | yes |
 | `types.ATTR_REG_FITTED` |  |  | yes |
@@ -2271,9 +2271,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ATTR_SEM_SCORE` |  |  | yes |
 | `types.ATTR_SET_HAS` |  |  | yes |
 | `types.ATTR_SET_POPCOUNT` |  |  | yes |
-| `types.ATTR_TSCORE` |  |  | **gap** |
+| `types.ATTR_TSCORE` |  |  | yes |
 | `types.ATTR_VEC_DISTANCE` |  |  | yes |
-| `types.ATTR_ZSCORE` |  |  | **gap** |
+| `types.ATTR_ZSCORE` |  |  | yes |
 | `types.Advisory` |  |  | yes |
 | `types.Aggregation` | yes | yes | yes |
 | `types.AggregationComponents` |  |  | yes |
@@ -2451,22 +2451,22 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.DefaultProfileBins` |  |  | yes |
 | `types.DefaultUnionSourceField` | yes |  | yes |
 | `types.ExtensionGroupFanOutFunc` |  |  | yes |
-| `types.FEAT_BUCKETIZE` |  |  | **gap** |
-| `types.FEAT_DATE_FEATURES` |  |  | **gap** |
-| `types.FEAT_FREQUENCY_ENCODE` |  |  | **gap** |
-| `types.FEAT_LOG` | yes |  | **gap** |
-| `types.FEAT_ONE_HOT` |  |  | **gap** |
-| `types.FEAT_POLY` |  |  | **gap** |
-| `types.FEAT_SQRT` |  |  | **gap** |
-| `types.FEAT_TARGET_ENCODE` |  |  | **gap** |
-| `types.FEAT_TRAIN_TEST_SPLIT` |  |  | **gap** |
+| `types.FEAT_BUCKETIZE` |  |  | yes |
+| `types.FEAT_DATE_FEATURES` |  |  | yes |
+| `types.FEAT_FREQUENCY_ENCODE` |  |  | yes |
+| `types.FEAT_LOG` | yes |  | yes |
+| `types.FEAT_ONE_HOT` |  |  | yes |
+| `types.FEAT_POLY` |  |  | yes |
+| `types.FEAT_SQRT` |  |  | yes |
+| `types.FEAT_TARGET_ENCODE` |  |  | yes |
+| `types.FEAT_TRAIN_TEST_SPLIT` |  |  | yes |
 | `types.FILTER_DATE_RANGES` |  |  | yes |
-| `types.FILTER_EXCLUDE` |  |  | **gap** |
-| `types.FILTER_EXPRESSION` |  |  | **gap** |
+| `types.FILTER_EXCLUDE` |  |  | yes |
+| `types.FILTER_EXPRESSION` |  |  | yes |
 | `types.FILTER_FALSE` |  |  | yes |
-| `types.FILTER_INCLUDE` | yes |  | **gap** |
+| `types.FILTER_INCLUDE` | yes |  | yes |
 | `types.FILTER_NULL` | yes |  | yes |
-| `types.FILTER_RANGE` | yes |  | **gap** |
+| `types.FILTER_RANGE` | yes |  | yes |
 | `types.FILTER_SET_CONTAINS_ALL` |  |  | yes |
 | `types.FILTER_SET_CONTAINS_ANY` |  |  | yes |
 | `types.FILTER_SET_CONTAINS_NONE` |  |  | yes |
@@ -2506,14 +2506,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ForEach` |  |  | yes |
 | `types.FormulaNamespace` |  |  | yes |
 | `types.FrameSpec` | yes |  | yes |
-| `types.GROUP_CATEGORY` |  |  | **gap** |
-| `types.GROUP_DATE` |  |  | **gap** |
+| `types.GROUP_CATEGORY` |  |  | yes |
+| `types.GROUP_DATE` |  |  | yes |
 | `types.GROUP_DATE_RANGES` |  |  | yes |
 | `types.GROUP_KMEANS` |  |  | yes |
 | `types.GROUP_NUMERIC_RANGES` |  |  | yes |
-| `types.GROUP_QUANTILE` |  |  | **gap** |
-| `types.GROUP_RANGE` |  |  | **gap** |
-| `types.GROUP_ROUNDED` |  |  | **gap** |
+| `types.GROUP_QUANTILE` |  |  | yes |
+| `types.GROUP_RANGE` |  |  | yes |
+| `types.GROUP_ROUNDED` |  |  | yes |
 | `types.GROUP_SET_PER_ELEMENT` |  |  | yes |
 | `types.GROUP_SET_VALUE` |  |  | yes |
 | `types.Group` | yes |  | yes |
@@ -2534,8 +2534,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.LabelBinding.AugmentFieldName` |  |  | yes |
 | `types.LabelBinding.LabelModeOrDefault` |  |  | yes |
 | `types.LabelMode` |  |  | yes |
-| `types.LabelModeAugment` |  |  | **gap** |
-| `types.LabelModeReplace` |  |  | **gap** |
+| `types.LabelModeAugment` |  |  | yes |
+| `types.LabelModeReplace` |  |  | yes |
 | `types.LagsAuto` |  |  | yes |
 | `types.LagsOf` |  |  | yes |
 | `types.LookupKey` |  |  | yes |
@@ -2717,7 +2717,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.OverlayKindPanelIndexVsRef` |  |  | yes |
 | `types.OverlayKindPropZCell` |  |  | yes |
 | `types.OverlayKindPropZPanel` |  |  | yes |
-| `types.OverlayKindPropZVsPrior` |  |  | **gap** |
+| `types.OverlayKindPropZVsPrior` |  |  | yes |
 | `types.OverlayKindRake` |  |  | yes |
 | `types.OverlayKindRank` |  |  | yes |
 | `types.OverlayKindRetention` |  |  | yes |
@@ -2735,7 +2735,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.OverlayKindZScoreVsPop` |  |  | yes |
 | `types.OverlayKindZScoreVsRolling` |  |  | yes |
 | `types.OverlayKindZScoreVsTotal` |  |  | yes |
-| `types.OverlayKindZVsPrior` |  |  | **gap** |
+| `types.OverlayKindZVsPrior` |  |  | yes |
 | `types.OverlayKindZVsRef` |  |  | yes |
 | `types.OverlayLayer` |  |  | yes |
 | `types.OverlayLayer.MarshalJSON` |  |  | yes |
@@ -2972,21 +2972,21 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.VectorStandardize` |  |  | yes |
 | `types.VectorStandardizeZScore` |  |  | yes |
 | `types.VersionResponse` |  |  | yes |
-| `types.WIN_DELTA` |  |  | **gap** |
-| `types.WIN_DENSE_RANK` |  |  | **gap** |
-| `types.WIN_DISTRIBUTED_LAG` |  |  | **gap** |
-| `types.WIN_EWMA` |  |  | **gap** |
+| `types.WIN_DELTA` |  |  | yes |
+| `types.WIN_DENSE_RANK` |  |  | yes |
+| `types.WIN_DISTRIBUTED_LAG` |  |  | yes |
+| `types.WIN_EWMA` |  |  | yes |
 | `types.WIN_FORMULA` |  |  | yes |
-| `types.WIN_LAG` | yes |  | **gap** |
-| `types.WIN_LEAD` |  |  | **gap** |
-| `types.WIN_LIFT` |  |  | **gap** |
-| `types.WIN_MOVING_AVG` |  |  | **gap** |
-| `types.WIN_PCT_CHANGE` |  |  | **gap** |
-| `types.WIN_RANK` |  |  | **gap** |
-| `types.WIN_ROW_NUMBER` |  |  | **gap** |
-| `types.WIN_RUNNING_AVG` |  |  | **gap** |
-| `types.WIN_RUNNING_SUM` | yes |  | **gap** |
-| `types.WIN_SHARE` |  |  | **gap** |
+| `types.WIN_LAG` | yes |  | yes |
+| `types.WIN_LEAD` |  |  | yes |
+| `types.WIN_LIFT` |  |  | yes |
+| `types.WIN_MOVING_AVG` |  |  | yes |
+| `types.WIN_PCT_CHANGE` |  |  | yes |
+| `types.WIN_RANK` |  |  | yes |
+| `types.WIN_ROW_NUMBER` |  |  | yes |
+| `types.WIN_RUNNING_AVG` |  |  | yes |
+| `types.WIN_RUNNING_SUM` | yes |  | yes |
+| `types.WIN_SHARE` |  |  | yes |
 | `types.WeightKind` |  |  | yes |
 | `types.WeightKindFrequency` | yes |  | yes |
 | `types.WeightKindProbability` |  |  | yes |

@@ -43,11 +43,16 @@ const (
 type ExplainRoot string
 
 const (
-	ExplainRootRequest  ExplainRoot = "request"
+	// ExplainRootRequest is a Process Request.
+	ExplainRootRequest ExplainRoot = "request"
+	// ExplainRootComposed is a ComposedRequest.
 	ExplainRootComposed ExplainRoot = "composed"
-	ExplainRootChain    ExplainRoot = "chain"
-	ExplainRootFacet    ExplainRoot = "facet"
-	ExplainRootSample   ExplainRoot = "sample"
+	// ExplainRootChain is a ChainRequest.
+	ExplainRootChain ExplainRoot = "chain"
+	// ExplainRootFacet is a FacetRequest.
+	ExplainRootFacet ExplainRoot = "facet"
+	// ExplainRootSample is a SampleRequest; it has no response mode.
+	ExplainRootSample ExplainRoot = "sample"
 	// ExplainRootResponse is response mode over a Process Response.
 	ExplainRootResponse ExplainRoot = "response"
 	// ExplainRootComposedResponse is response mode over a Compose
@@ -204,14 +209,22 @@ type ExplainStep struct {
 type Verdict string
 
 const (
-	VerdictEvidenceOfDifference    Verdict = "evidence_of_difference"
-	VerdictNoEvidenceOfDifference  Verdict = "no_evidence_of_difference"
-	VerdictEvidenceOfAssociation   Verdict = "evidence_of_association"
+	// VerdictEvidenceOfDifference reads a significant comparison of groups.
+	VerdictEvidenceOfDifference Verdict = "evidence_of_difference"
+	// VerdictNoEvidenceOfDifference reads a non-significant comparison of groups.
+	VerdictNoEvidenceOfDifference Verdict = "no_evidence_of_difference"
+	// VerdictEvidenceOfAssociation reads a significant association between variables.
+	VerdictEvidenceOfAssociation Verdict = "evidence_of_association"
+	// VerdictNoEvidenceOfAssociation reads a non-significant association.
 	VerdictNoEvidenceOfAssociation Verdict = "no_evidence_of_association"
-	VerdictEvidenceOfEffect        Verdict = "evidence_of_effect"
-	VerdictNoEvidenceOfEffect      Verdict = "no_evidence_of_effect"
-	VerdictDescriptive             Verdict = "descriptive"
-	VerdictNotComputable           Verdict = "not_computable"
+	// VerdictEvidenceOfEffect reads a significant model effect, such as a coefficient.
+	VerdictEvidenceOfEffect Verdict = "evidence_of_effect"
+	// VerdictNoEvidenceOfEffect reads a non-significant model effect.
+	VerdictNoEvidenceOfEffect Verdict = "no_evidence_of_effect"
+	// VerdictDescriptive marks a figure with no test behind it.
+	VerdictDescriptive Verdict = "descriptive"
+	// VerdictNotComputable marks a statistic the data could not support.
+	VerdictNotComputable Verdict = "not_computable"
 )
 
 // Verdicts returns the closed verdict set in declaration order.
