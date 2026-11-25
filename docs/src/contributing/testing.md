@@ -89,6 +89,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestDocsCoverageNoGaps`                | No required coverage cell (per row kind: mdBook, skill pack, GoDoc, CLI help; verbatim mention) is empty unless the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` names it |
 | `TestDocCoverageNotImportedByDescriptor` | The no-execute descriptor packages (`internal/descriptor`, `descriptor/`) never import the coverage generator `internal/doccoverage` |
 | `TestProfileServedTextNoHiddenFeature` | Heavy. Under every single-feature-hidden feature profile, no served text (manifest, MCP tools / prompts / resources, skills, examples, `docs export` tree) names a hidden operator, hidden feature's MCP tool or hidden slot token, and no core tool description loses a sentence to the prose scrub (its clause is feature-fenced). Shrink-only allowlist `internal/doccheck/allowlists/served-text.txt` (empty) |
+| `docs` CI job (not a Go test)          | `mdbook build docs` prints no `WARN` / `ERROR` line (this catches a broken page and a search index past mdBook's 10 MB warning), then `make doc-checks` runs the fast doc checks |
 | `TestFacadeExamplesPresent`             | The pinned runnable GoDoc task examples (`facadeExamples` in `facade_examples_test.go`: root `example_*_test.go`, `observe`, `mcpserve`) all exist and carry a checked `// Output:` (compile-only ones are named); an unpinned example in those packages fails too, so the set only grows |
 
 ## Running a subset of gates locally

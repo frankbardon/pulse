@@ -508,6 +508,8 @@ make lint     # gofmt check (fmt-check) + go vet + staticcheck (make staticcheck
 make cover    # both tiers with coverage; fails on a package below its .github/coverage-floors.txt floor
 make vulncheck  # pinned govulncheck over ./..., GOOS=linux then GOOS=windows (needs network)
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
+make doc-checks  # fast documentation checks (links, snippets, CLI flags page, removed names, coverage matrix); CI's docs job
+make linkcheck-external  # HEAD-check every http(s) link in the docs (network, manual only)
 make dist     # 6-platform release archives (binary + completions/) + checksums.txt in ./dist (VERSION=v1.2.3)
 make sites ARGS="op MAT_PCA"  # change-site checklist (op / new-op / slot) for contributors
 make clean    # Remove artifacts

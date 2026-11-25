@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean linkcheck-external vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean doc-checks linkcheck-external vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -395,6 +395,17 @@ docs-serve:
 
 docs-clean:
 	rm -rf docs/book
+
+# doc-checks runs the fast-tier documentation checks on their own (they
+# also run in `make test`); CI's `docs` job runs it after the mdBook
+# build. The heavy ones (TestDocsSnippetsCompile, the served-text sweep)
+# stay in `make test-heavy`. A new fast doc check is added to DOC_CHECKS.
+# docs/src/contributing/doc-checks.md lists what each one holds.
+DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
+
+doc-checks:
+	$(DOCS_GUIDE_ENV) $(GO) test -count=1 -run '^($(DOC_CHECKS))$$' . ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
+	$(GO) test -count=1 ./internal/doccheck
 
 # linkcheck-external HEAD-checks every http(s) link in docs/src/** and the
 # repo-root *.md files (GET when a server refuses HEAD) and lists each

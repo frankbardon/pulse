@@ -39,7 +39,7 @@ Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-a
 
 **CI jobs that are not Go tests.**
 
-- `docs` job (`.github/workflows/ci.yml`) runs `mdbook build docs`, so a broken SUMMARY splice or generated page fails before merge.
+- `docs` job (`.github/workflows/ci.yml`) runs `mdbook build docs` and fails on any mdBook `WARN` / `ERROR` line, so a broken SUMMARY splice, a generated page or a search index past mdBook's 10 MB warning fails before merge; then `make doc-checks` (the fast doc checks, named in the Makefile's `DOC_CHECKS`; a new fast doc check joins it). The generated guide and coverage page are out of the search index (`docs/book.toml` `[output.html.search.chapter]`); fix a size warning by excluding generated pages or trimming, never by dropping the check.
 - `Embedder smoke module` step: `make smoke` builds, vets and tests `internal/embeddersmoke/`, a separate Go module that embeds Pulse through the exported surface only. Root `./...` never descends into it, so `make test` / `make lint` do not see it; when a public API changes spelling, or a migration-guide row lands, update the module in the same PR. `TestSmokeModuleImportAllowlist` fails on a non-stdlib import outside its allowlist.
 - `apidiff` job (dispatch only): diffs the exported API against the latest `v*` tag. Advisory until a stable `v1.0.0` exists; after that it fails on any incompatible change unless the PR carries the `api-break-ok` label.
 
