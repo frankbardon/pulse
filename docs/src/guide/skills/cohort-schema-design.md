@@ -55,15 +55,15 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 
 `set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 22 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
 
-`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which read a `datetime` on its local calendar day ([`time-zones`](time-zones.md)). Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which read a `datetime` on its local calendar day ([`time-zones`](time-zones.md)). Sub-second timestamps: `u64` microseconds. Detail: [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
 
 ## Selection heuristics
 
-Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32` (import inference picks `f64` unless `--float f32`); scores or wide dynamic range → `f64`. Money → `decimal128` (see [`financial-cohorts`](financial-cohorts.md)). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`.
+Counts / IDs → smallest unsigned width that fits the max. Measurements → `f32` (import inference picks `f64` unless `--float f32`); scores or wide dynamic range → `f64`. Money → `decimal128` (see [`financial-cohorts`](financial-cohorts.md)). Booleans → `packed_bool`; small ordinals (Likert, grades) → `u4`. Strings → always categorical, width by distinct cardinality. Multi-select → `set_*`, smallest width whose cap covers the distinct labels — the width is paid by every record, and above 256 labels there is no set type at all. Sometimes-missing → pick the base type, then `Nullable: true`. Arrow / Parquet keep each width-declaring column's type ([`import-schema-rows`](import-schema-rows.md)).
 
 ## Bit-packed runs
 
-`u4` and `packed_bool` report `ByteSize() == 0` and share bytes with adjacent packed fields. Place packed fields together for optimal layout. Reordering can change byte offsets even when types are unchanged.
+`u4` and `packed_bool` report `ByteSize() == 0` and share bytes with adjacent packed fields. Keep packed fields adjacent; reordering moves byte offsets.
 
 ## Field descriptions
 

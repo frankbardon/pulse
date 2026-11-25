@@ -29,6 +29,7 @@ The same rules hold for every import path: CLI `pulse import <fmt>` / `import au
 - Widths: a value past the sampled width promotes the field to the narrowest type holding it — never a dropped row — with one `width_warnings` entry (`PULSE_IMPORT_WIDTH_PROMOTED`: `field`, `from`, `to`, `source_row`; [`cohort-width-overflow`](cohort-width-overflow.md)).
 - A blank categorical cell: `csv` / `tsv` / `excel` read it as NULL (one spelling for both — a documented gap that always collapses toward null); `ndjson` / `jsonarray` / `arrow` / `parquet` carry their own null channel, so `""` is an empty-string VALUE and only `null` is null. A blank numeric or date cell is null everywhere.
 - SPSS is schema-authoritative: inference and the sampling knobs are skipped, `promoted_fields` stays empty.
+- Arrow / Parquet pin each column whose type declares a width — unsigned int, float32/64, bool, date, timestamp, `decimal128` (precision/scale) — to that type: never promoted, an overflow is a row error. Signed ints, strings, dictionaries and lists infer; nullability is inferred; `column_type_overrides` beats a pin.
 - A field description over 1000 bytes is `PULSE_IMPORT_DESCRIPTION_TOO_LONG`; an empty, sub-10-character or generic one ("n/a", "tbd", "unknown", "field", "data", "value", "column") warns `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (an error under `--strict`).
 
 ## Row failures

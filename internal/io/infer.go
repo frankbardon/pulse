@@ -88,6 +88,12 @@ type InferOptions struct {
 	// heuristic runs on a fold's presence marker — and is nullable when
 	// a sampled row's vector is null.
 	vectors map[string]resolvedVector
+
+	// pins are the source-declared column types (DeclaredTypeReader,
+	// import_pins.go); a ColumnTypeOverrides entry wins over a pin. Each takes
+	// its declared type, precision and scale outright, and is nullable
+	// when a sampled cell is null.
+	pins map[string]encoding.Field
 }
 
 // InferenceResult bundles the inference output. The Delimiters map is
@@ -201,6 +207,9 @@ func InferSchemaWithOptions(reader Reader, opts InferOptions) (*InferenceResult,
 			var ov forcedColumn
 			ov, colWarnings, err = applyTypeOverride(colName, samples[i], override)
 			ft, nullable, delim, precision, scale = ov.Type, ov.Nullable, ov.Delim, ov.Precision, ov.Scale
+		} else if pin, pinned := opts.pins[colName]; pinned {
+			ft, precision, scale = pin.Type, pin.Precision, pin.Scale
+			nullable = sampleHasNull(samples[i])
 		} else {
 			ft, nullable, delim, colWarnings, err = inferColumnTypeWithOpts(colName, samples[i], minPct, floatType)
 		}

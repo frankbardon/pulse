@@ -475,8 +475,23 @@ func (r *Reader) Reset() error {
 	return nil
 }
 
+// DeclaredColumnTypes implements iocore.DeclaredTypeReader: the columns
+// whose Arrow type declares a width (DeclaresWidth), at the type
+// InferPulseSchema maps them to. Import keeps those types and never
+// widens them; every other column is inferred.
+func (r *Reader) DeclaredColumnTypes() (map[string]encoding.Field, error) {
+	s, err := r.InferPulseSchema()
+	if err != nil {
+		return nil, err
+	}
+	return DeclaredColumns(r.arrowSc, s), nil
+}
+
+var _ iocore.DeclaredTypeReader = (*Reader)(nil)
+
 // InferPulseSchema builds a Pulse schema from the Arrow file's schema using
-// the shared TypeToPulse mapping.
+// the shared TypeToPulse mapping. Import consumes only its pinned columns,
+// through DeclaredColumnTypes.
 func (r *Reader) InferPulseSchema() (*encoding.Schema, error) {
 	if err := r.init(); err != nil {
 		return nil, err

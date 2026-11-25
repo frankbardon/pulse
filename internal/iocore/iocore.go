@@ -105,8 +105,9 @@ type SchemaAwareWriter interface {
 // SchemaAwareReader is an optional extension of Reader for sources that
 // already carry an authoritative schema — a source-side dictionary that
 // declares each column's type, nullability and category set as fact
-// rather than as a guess (SPSS `.sav`, and in principle Parquet /
-// Arrow). ImportJob.Run and ImportJob.Predict type-assert this
+// rather than as a guess (SPSS `.sav` is the one implementer; Arrow and
+// Parquet declare only some columns' widths and implement the narrower
+// DeclaredTypeReader instead). ImportJob.Run and ImportJob.Predict type-assert this
 // interface and, when it yields a schema, skip internal/io/infer.go entirely:
 // no row sampling, no per-column type voting, no delimiter probing.
 // Readers that do not implement SchemaAwareReader take the unchanged
@@ -245,6 +246,35 @@ type SchemaAwareReader interface {
 	// PulseSchema returns the authoritative .pulse schema for this
 	// source, or (nil, nil) to decline and fall back to inference.
 	PulseSchema() (*encoding.Schema, error)
+}
+
+// DeclaredTypeReader is an optional extension of Reader for sources that
+// declare SOME columns' storage widths but not a whole schema — Arrow and
+// Parquet. Inference still runs, but a declared ("pinned") column skips the
+// type heuristics: it takes the declared Type (and Precision / Scale for
+// decimal128) outright and never widens, so an out-of-range value is a
+// per-row PULSE_IMPORT_ROW_ERROR, never PULSE_IMPORT_WIDTH_PROMOTED.
+// Everything else stays inference's: nullability (from the sample, with
+// out-of-sample null promotion), dictionaries, set delimiters and every
+// column the method leaves out.
+//
+// A user's ColumnTypeOverrides entry beats a pin for its column; an
+// explicit Schema or a SchemaAwareReader schema makes pins inert. A
+// declared column folded into a vector is the fold's, not the pin's.
+// ConvertJob consults the same hook, so a convert and an import of one
+// source agree on every pinned type.
+//
+// Arrow / Parquet pin only types that declare a real width: unsigned
+// integers, float32 / float64, boolean, date32 / date64, timestamp and
+// decimal128 (precision / scale). Signed integers (Pulse has no signed
+// integer type), strings, binary, dictionary and list columns are left to
+// inference.
+type DeclaredTypeReader interface {
+	Reader
+	// DeclaredColumnTypes returns the pinned columns keyed by header
+	// name. Only Type, Precision and Scale are read; Nullable and the
+	// layout slots are ignored. A nil map pins nothing.
+	DeclaredColumnTypes() (map[string]encoding.Field, error)
 }
 
 // The null cell, and why a categorical needs a channel the text has not

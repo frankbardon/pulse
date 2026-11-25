@@ -620,7 +620,7 @@ is reachable from an external module.
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes
 on each column's type in `internal/io/infer.go` — a guess made from
 stringified cells. A format that carries its own dictionary (SPSS
-`.sav`; in principle Parquet and Arrow) should not be guessed at.
+`.sav`) should not be guessed at.
 Such a reader implements the optional `io.SchemaAwareReader`:
 
 ```go
@@ -707,6 +707,24 @@ registering an extension on `FormatFromPath` immediately makes
 re-inferred types from the text the reader rendered would throw the
 source dictionary away through a command the registration itself
 created.
+
+### Declared widths: `DeclaredTypeReader`
+
+A format that types SOME columns but not the whole schema (Arrow,
+Parquet) implements `internal/iocore`'s `DeclaredTypeReader` instead:
+`DeclaredColumnTypes() (map[string]encoding.Field, error)` names the
+pinned columns by header name with their `Type` (plus `Precision` /
+`Scale` for `decimal128`). Inference still runs, but a pinned column
+skips the type vote and is never widened, so a value it cannot hold is
+a per-row `PULSE_IMPORT_ROW_ERROR`, never `PULSE_IMPORT_WIDTH_PROMOTED`.
+Nullability, dictionaries, set delimiters and every unpinned column stay
+inference's; a `ColumnTypeOverrides` entry beats a pin; an explicit or
+authoritative schema makes pins inert; `ConvertJob` reads the same pins.
+Pin only types that declare a real width — Arrow / Parquet pin unsigned
+integers, `float32` / `float64`, boolean, `date32` / `date64`, timestamp
+and `decimal128` (`internal/io/arrow` `DeclaresWidth`), and leave signed
+integers, strings, binary, dictionaries and lists to inference. The
+shared path is `internal/io/import_pins.go`.
 
 ### Non-fatal diagnostics: `io.SourceWarningEmitter`
 

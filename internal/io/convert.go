@@ -77,6 +77,14 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	// authoritative schema is not inference-originated, so it never promotes:
 	// a null in a field the source declares non-nullable stays a row error.
 	inferredSchema := !authoritative && j.Schema == nil
+	// Source-declared widths pin their columns, as on import (import_pins.go).
+	var pins map[string]encoding.Field
+	if inferredSchema {
+		var err error
+		if pins, err = declaredPins(j.Source); err != nil {
+			return nil, err
+		}
+	}
 
 	// A caller-authored schema is matched to the source's columns by
 	// NAME, on a copy — the resolver ImportJob runs (explicit_schema.go).
@@ -99,7 +107,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, inferWarnings, err = j.inferSchema()
+		schema, inferWarnings, err = j.inferSchema(pins)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +123,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	// widenable marks the fields the row pass may promote past their
 	// sample-inferred width — every field of an inferred schema, none of
 	// a declared one. See import_widen.go.
-	widenable := widenableFields(schema, inferredSchema, nil)
+	widenable := widenableFields(schema, inferredSchema, nil, pins)
 	var widened []widening
 
 	// Source-zone options are judged against the resolved schema before
@@ -466,13 +474,20 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	inferredSchema := schema == nil
+	var pins map[string]encoding.Field
+	if inferredSchema {
+		var err error
+		if pins, err = declaredPins(j.Source); err != nil {
+			return nil, err
+		}
+	}
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
 		if !ok {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, warnings, err = j.inferSchema()
+		schema, warnings, err = j.inferSchema(pins)
 		if err != nil {
 			return nil, err
 		}
@@ -501,7 +516,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 	}
 
 	// Run's label-binding refusals, on the same schema and terms.
-	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil)); err != nil {
+	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil, pins)); err != nil {
 		return nil, err
 	}
 
@@ -577,10 +592,10 @@ func refuseConvertVectors(schema *encoding.Schema) error {
 // shape resolveSourceZones judges, so the two verbs share one set of
 // refusals.
 // inferSchema runs the inference pass with the job's sampling and
-// float-width knobs — the one call Run and Predict share, so a predicted
-// convert infers the schema Run writes.
-func (j *ConvertJob) inferSchema() (*encoding.Schema, []InferenceWarning, error) {
-	res, err := InferSchemaWithOptions(j.Source, InferOptions{SampleRows: j.SampleRows, FloatWidth: j.FloatWidth})
+// float-width knobs and the source's pins — the one call Run and Predict
+// share, so a predicted convert infers the schema Run writes.
+func (j *ConvertJob) inferSchema(pins map[string]encoding.Field) (*encoding.Schema, []InferenceWarning, error) {
+	res, err := InferSchemaWithOptions(j.Source, InferOptions{SampleRows: j.SampleRows, FloatWidth: j.FloatWidth, pins: pins})
 	if err != nil {
 		return nil, nil, err
 	}

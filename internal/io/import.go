@@ -82,6 +82,11 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	if err := refuseOverridesWithoutInference(j.ColumnTypeOverrides, j.Schema != nil, authoritative); err != nil {
 		return nil, err
 	}
+	// Source-declared widths pin their columns (import_pins.go).
+	pins, err := j.declaredPins(inferredSchema)
+	if err != nil {
+		return nil, err
+	}
 
 	// A user-authored schema's descriptions are checked before the row
 	// pass with the schema writer's own code — the check the cohort
@@ -114,6 +119,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
 			vectors:             fold.inferVectorColumns(),
+			pins:                pins,
 		})
 		if err != nil {
 			return nil, err
@@ -171,7 +177,7 @@ func (j *ImportJob) Run(ctx context.Context) (*ImportReport, error) {
 	// and a --strict refusal is deferred to that re-run when a declared
 	// member is widenable — the pre-pass verdict may not be the final one.
 	gate := j.dedupGate()
-	widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+	widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides, pins)
 	specs, groupViews, groupWarns, rescreen, err := j.screenGroups(schema, widenable)
 	if err != nil {
 		return nil, err
@@ -528,6 +534,10 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	if err := refuseOverridesWithoutInference(j.ColumnTypeOverrides, j.Schema != nil, authoritative); err != nil {
 		return nil, err
 	}
+	pins, err := j.declaredPins(inferredSchema)
+	if err != nil {
+		return nil, err
+	}
 
 	// The same by-name resolution Run performs, so a predict refuses
 	// exactly what the import would and reports the resolved columns.
@@ -556,6 +566,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			FloatWidth:          j.FloatWidth,
 			ColumnTypeOverrides: j.ColumnTypeOverrides,
 			vectors:             fold.inferVectorColumns(),
+			pins:                pins,
 		})
 		if err != nil {
 			return nil, err
@@ -596,7 +607,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 			}
 			return DefaultSetDelimiter
 		}
-		widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides)
+		widenable := widenableFields(schema, inferredSchema, j.ColumnTypeOverrides, pins)
 		if err := j.predictMeasured(ctx, schema, inferredSchema, widenable, delimFor, zones, report); err != nil {
 			return nil, err
 		}

@@ -330,9 +330,10 @@ below), and by that same range test, so a value f32 merely rounds
 for every value already read. Each promoted field draws one `PULSE_IMPORT_WIDTH_PROMOTED`
 warning (`field`, `from`, `to`, `source_row`) in the envelope `warnings`
 and `data.width_warnings` (the same key on `import auto` /
-`pulse_import`). A `--schema` or an authoritative source schema (SPSS,
-Arrow, Parquet) never promotes: its overflow stays a
-`PULSE_IMPORT_ROW_ERROR`. A `column_type_overrides` column never promotes
+`pulse_import`). A `--schema`, an SPSS schema, or an Arrow / Parquet
+column whose type declares a width (unsigned int, float, bool, date,
+timestamp, `decimal128`; signed ints, strings, dictionaries and lists
+infer) never promotes: its overflow stays a `PULSE_IMPORT_ROW_ERROR`. A `column_type_overrides` column never promotes
 either, and any value it cannot hold refuses the whole import with
 `PULSE_IMPORT_OVERRIDE_INVALID`. So does a non-number, a
 non-integer in a `u64` column, a non-boolean in a `packed_bool` column
