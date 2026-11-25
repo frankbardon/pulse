@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/doccheck"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -42,6 +44,11 @@ import (
 // a request's, a Compose batch's or a chain's), folded as the runtime
 // folds them (ExtensionRegistry.WithParams); a name the fence does not
 // declare fails (exprenv.ParamsRefusal), never a fixture-wide default.
+//
+// An example inside a fence tagged `cohort=<name>` (the cohort
+// TestDocsSnippetsRun runs it on) compiles against that fixture
+// cohort's own schema (internal/examples/fixtures), not docExprSchema:
+// the snippet runner and this check then agree on every field's type.
 func TestExprDocExamples_Compile(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +66,11 @@ func TestExprDocExamples_Compile(t *testing.T) {
 		t.Fatal(verr)
 	}
 	for _, ex := range exprs {
+		exSchema, exVecs, lacks := schema, vecs, "docExprSchema lacks (refs %v); add it"
+		if ex.cohort != "" {
+			exSchema = docFixtureSchema(t, ex.cohort)
+			exVecs, lacks = nil, "fixture cohort "+ex.cohort+" lacks (refs %v)"
+		}
 		exReg := reg
 		if uses, _ := exprenv.ReadParams(ex.src); len(uses.Names) > 0 {
 			params, ce := exprenv.NormalizeParams(ex.params)
@@ -66,7 +78,7 @@ func TestExprDocExamples_Compile(t *testing.T) {
 				t.Errorf("%s: the params declared beside %q are invalid: %v", ex.where, ex.src, ce)
 				continue
 			}
-			if ce := exprenv.ParamsRefusal(ex.src, params, schema.Field(exprenv.ParamsName) != nil); ce != nil {
+			if ce := exprenv.ParamsRefusal(ex.src, params, exSchema.Field(exprenv.ParamsName) != nil); ce != nil {
 				t.Errorf("%s: documented expression %q reads a param its example does not declare: %v", ex.where, ex.src, ce)
 				continue
 			}
@@ -79,13 +91,13 @@ func TestExprDocExamples_Compile(t *testing.T) {
 		// declaration-only placeholders type-check exactly like the real ones.
 		bound := exReg.exprBound()
 		bound.Coef, bound.SweepAxis = exprenv.Placeholder, exprenv.Placeholder
-		p, err := newExprProgram(ex.src, exprenv.SiteFormula, schema, vecs, exReg.ReferenceVectors, bound.Options())
+		p, err := newExprProgram(ex.src, exprenv.SiteFormula, exSchema, exVecs, exReg.ReferenceVectors, bound.Options())
 		if err != nil {
 			t.Errorf("%s: documented expression %q does not compile: %v", ex.where, ex.src, err)
 			continue
 		}
 		if p.typed.Load() == nil {
-			t.Errorf("%s: documented expression %q names a field docExprSchema lacks (refs %v); add it",
+			t.Errorf("%s: documented expression %q names a field "+lacks,
 				ex.where, ex.src, p.refs)
 		}
 	}
@@ -115,8 +127,6 @@ func docExprSchema() *encoding.Schema {
 		cat("brand", "Apple", "Samsung", "Other"),
 		cat("study", "s1", "s2"),
 		cat("panel", "a", "b"),
-		// sem-groups.md: a categorical wave reads as its label string.
-		cat("wave_name", "wave1", "wave2", "wave3"),
 		{Name: "wave_date", Type: encoding.FieldTypeDate, Nullable: true},
 		{Name: "order_day", Type: encoding.FieldTypeDate, Nullable: true},
 		{Name: "signup_day", Type: encoding.FieldTypeDate, Nullable: true},
@@ -150,6 +160,68 @@ type docExpr struct {
 	// params are the `params` objects declared in the expression's own
 	// fenced block, merged (nil outside a fence or with none).
 	params map[string]any
+	// cohort is the default fixture cohort of the expression's fence
+	// (its `cohort=<name>[,...]` tag; "" when untagged).
+	cohort string
+}
+
+// docFixtureSchema builds the schema of fixture cohort name from
+// internal/examples/fixtures/schemas/<name>.json, with every
+// categorical / set dictionary read from the column values of
+// <name>.csv (a set cell is `|`-separated). Every field is nullable,
+// as in docExprSchema.
+func docFixtureSchema(t *testing.T, name string) *encoding.Schema {
+	t.Helper()
+	dir := filepath.Join("..", "..", "internal", "examples", "fixtures")
+	raw, err := os.ReadFile(filepath.Join(dir, "schemas", name+".json"))
+	if err != nil {
+		t.Fatalf("fence cohort=%s: %v", name, err)
+	}
+	var decl []struct{ Name, Type string }
+	if err := json.Unmarshal(raw, &decl); err != nil {
+		t.Fatalf("fixture schema %s: %v", name, err)
+	}
+	f, err := os.Open(filepath.Join(dir, name+".csv"))
+	if err != nil {
+		t.Fatalf("fence cohort=%s: %v", name, err)
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil || len(rows) == 0 {
+		t.Fatalf("fixture csv %s: %v", name, err)
+	}
+	col := map[string]int{}
+	for i, h := range rows[0] {
+		col[h] = i
+	}
+	schema := &encoding.Schema{}
+	for _, d := range decl {
+		ft, ok := encoding.ParseFieldType(d.Type)
+		if !ok {
+			t.Fatalf("fixture schema %s: field %s has unknown type %q", name, d.Name, d.Type)
+		}
+		field := encoding.Field{Name: d.Name, Type: ft, Nullable: true}
+		if ft.IsCategorical() || ft.IsSet() {
+			field.Dictionary = encoding.NewDictionary()
+			ci, ok := col[d.Name]
+			if !ok {
+				t.Fatalf("fixture csv %s lacks column %s", name, d.Name)
+			}
+			for _, row := range rows[1:] {
+				labels := []string{row[ci]}
+				if ft.IsSet() {
+					labels = strings.Split(row[ci], "|")
+				}
+				for _, l := range labels {
+					if l != "" {
+						_, _ = field.Dictionary.Add(l)
+					}
+				}
+			}
+		}
+		schema.Fields = append(schema.Fields, field)
+	}
+	return schema
 }
 
 // docParamsRe is a one-line `"params": {...}` object, the fallback for
@@ -318,12 +390,12 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 
 	seen := map[string]bool{}
 	var out []docExpr
-	add := func(where, src string, params map[string]any) {
+	add := func(where, src string, params map[string]any, cohort string) {
 		if src == "" || seen[src] {
 			return
 		}
 		seen[src] = true
-		out = append(out, docExpr{where: where, src: src, params: params})
+		out = append(out, docExpr{where: where, src: src, params: params, cohort: cohort})
 	}
 	for _, path := range files {
 		raw, err := os.ReadFile(path)
@@ -332,8 +404,10 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 		}
 		text := string(raw)
 		lines := strings.Split(text, "\n")
-		// lineParams[i]: the params declared in line i's fenced block.
+		// lineParams[i]: the params declared in line i's fenced block;
+		// lineCohort[i]: that fence's default fixture cohort.
 		lineParams := make([]map[string]any, len(lines))
+		lineCohort := make([]string, len(lines))
 		for i := 0; i < len(lines); i++ {
 			if !strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
 				continue
@@ -342,10 +416,13 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 			for end < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[end]), "```") {
 				end++
 			}
-			if params := fenceParams(strings.Join(lines[i+1:min(end, len(lines))], "\n")); params != nil {
-				for j := i + 1; j < end; j++ {
-					lineParams[j] = params
-				}
+			params := fenceParams(strings.Join(lines[i+1:min(end, len(lines))], "\n"))
+			cohort := ""
+			if si := doccheck.ParseSnippetInfo(strings.TrimPrefix(strings.TrimSpace(lines[i]), "```")); len(si.Cohorts) > 0 {
+				cohort = si.Cohorts[0]
+			}
+			for j := i + 1; j < min(end, len(lines)); j++ {
+				lineParams[j], lineCohort[j] = params, cohort
 			}
 			i = end
 		}
@@ -357,7 +434,7 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 					t.Errorf("%s: undecodable JSON expression %s: %v", where, m[1], err)
 					continue
 				}
-				add(where, s, lineParams[i])
+				add(where, s, lineParams[i], lineCohort[i])
 			}
 			if m := docGoExprRe.FindStringSubmatch(line); m != nil {
 				s, err := strconv.Unquote(m[1])
@@ -365,7 +442,7 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 					t.Errorf("%s: undecodable Go expression %s: %v", where, m[1], err)
 					continue
 				}
-				add(where, s, lineParams[i])
+				add(where, s, lineParams[i], lineCohort[i])
 			}
 		}
 		// Built-in calls are harvested only from the expression hosts'
@@ -375,7 +452,7 @@ func harvestDocExpressions(t *testing.T) []docExpr {
 		for _, m := range docInlineCodeRe.FindAllStringSubmatch(docFenceRe.ReplaceAllString(text, ""), -1) {
 			span := strings.TrimSpace(m[1])
 			if docSetCallRe.MatchString(span) || (exprHost && docBuiltinCallRe.MatchString(span)) || docInLabelRe.MatchString(span) || docModRe.MatchString(span) {
-				add(path, span, nil)
+				add(path, span, nil, "")
 			}
 		}
 	}
@@ -429,13 +506,13 @@ func TestExprDocExamples_HarvestsBuiltinCalls(t *testing.T) {
 func TestExprDocExamples_HarvestsFenceParams(t *testing.T) {
 	t.Parallel()
 
-	const src = "panel == params.from_wave && age >= params.min_age"
+	const src = "region == params.region && age >= params.min_age"
 	for _, ex := range harvestDocExpressions(t) {
 		if ex.src != src {
 			continue
 		}
-		if _, ok := ex.params["from_wave"]; !ok {
-			t.Fatalf("%s: harvested params %v lack from_wave", ex.where, ex.params)
+		if _, ok := ex.params["region"]; !ok {
+			t.Fatalf("%s: harvested params %v lack region", ex.where, ex.params)
 		}
 		if _, ok := ex.params["min_age"]; !ok {
 			t.Fatalf("%s: harvested params %v lack min_age", ex.where, ex.params)
@@ -443,6 +520,29 @@ func TestExprDocExamples_HarvestsFenceParams(t *testing.T) {
 		return
 	}
 	t.Fatalf("request-params example %q was not harvested", src)
+}
+
+// TestExprDocExamples_HarvestsFenceCohort guards the cohort harvest:
+// sem-groups' wave-pair attribute sits in a `cohort=brand_survey` fence
+// and compiles against that fixture, whose categorical wave reads as a
+// label string (docExprSchema's wave is numeric).
+func TestExprDocExamples_HarvestsFenceCohort(t *testing.T) {
+	t.Parallel()
+
+	const src = "wave == params.to_wave ? 2 : (wave == params.from_wave ? 1 : 0)"
+	for _, ex := range harvestDocExpressions(t) {
+		if ex.src != src {
+			continue
+		}
+		if ex.cohort != "brand_survey" {
+			t.Fatalf("%s: harvested cohort %q, want brand_survey", ex.where, ex.cohort)
+		}
+		if f := docFixtureSchema(t, ex.cohort).Field("wave"); f == nil || !f.Type.IsCategorical() || f.Dictionary.Count() != 2 {
+			t.Fatalf("brand_survey fixture schema: wave = %+v, want a two-label categorical", f)
+		}
+		return
+	}
+	t.Fatalf("sem-groups example %q was not harvested", src)
 }
 
 // TestExprDocExamples_FenceParamsResolveMarkers guards the marker arm
