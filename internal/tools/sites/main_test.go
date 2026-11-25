@@ -33,7 +33,7 @@ func reportFiles(rep *Report) map[string]bool {
 	out := map[string]bool{}
 	for _, s := range rep.Sections {
 		switch s.Class {
-		case "enumerators", "derived", "param-enums", "oracle", "spec", "params", "primitives", "metric-consumers", "compose":
+		case "enumerators", "derived", "param-enums", "oracle", "spec", "params", "primitives", "metric-consumers", "compose", "floors", "generator-cases":
 			continue // derived from the named sites; they need not name the operator
 		}
 		for _, site := range s.Sites {

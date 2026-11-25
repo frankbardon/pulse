@@ -805,6 +805,7 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, gatesFromDirs(why, testsByDir)...)
 	rep.Gates = append(rep.Gates, composeGates...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
+	r.wholeRepo(rep, classes, listed)
 	if len(owners) == 0 {
 		rep.Gates = append(rep.Gates, r.namedGates("payload contract gates", "TestPayloadSchemaGolden", "TestPublicAPIGolden", "TestUpdateDemandTableCovers")...)
 	}

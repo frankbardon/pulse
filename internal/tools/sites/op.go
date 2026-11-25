@@ -158,6 +158,10 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Sections = append(rep.Sections, sec)
 	}
 
+	if sec, ok := r.generatorSection(paths, files); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
+
 	// Category-norm sites (most operators land there) this one lacks.
 	var missing []string
 	for n, ops := range a.fileOps {
@@ -187,6 +191,7 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, depGates...)
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
+	r.wholeRepo(rep, classes, listed)
 	sort.Strings(codeDirs)
 	rep.Gates = append(rep.Gates, r.benchGates(codeDirs)...)
 	rep.Regenerate = r.regens(regenPaths)

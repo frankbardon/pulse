@@ -137,6 +137,25 @@ Compose-level slot also prints **Compose sites**, each found by shape:
   runtime together.
 - **Key carriers** — skills and examples holding the slot's json key.
 
+Every report also prints what reaches the change without naming it:
+
+- **Whole-repo runners** (under Gates to rerun, when an example is a
+  site, and always for `new-op`) — tests that run every example: a
+  `Test` function that calls `internal/examples`' `All`, or lists the
+  `internal/examples` tree (`Walk`, `Glob`, `ReadDir` with no named
+  file), directly or through a helper in its package's tests
+  (`TestLimitsDefaultsNeverTripGoldens`, `TestExamples_RunEndToEnd`).
+- **Call-site floors** (`op`, `slot`) — a `Test` function that walks
+  the tree, parses Go source and holds a module function's name as a
+  string literal checks every call of that function
+  (`TestReadSchemaCallersThreadHeaderVersion` holds `"ReadSchema"`). A
+  site file calling it lists the call and the floor as a gate.
+- **Shared generators** (`op`) — every hit in a fixture generator
+  script (`.py` / `.R` under `testdata/` or `scripts/`) is attributed
+  to its case-table entry: the row key (`("t_split", …)`), the
+  `case == "ov_symmetry"` branch above it, or the first quoted key of
+  the block a comment heads, prefixed with the enclosing function.
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in, outside Go comments, but
 this one does not (a doc comment walking per-operator special cases is
@@ -208,10 +227,16 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   function — shows up only through the **Enumerators** section (callers
   of the registry function) or the category gates. Read the
   update-demand slice for the contract.
-- Whole-repo runners and floors that never name the operator or slot
-  (the every-example runner, a `ReadSchema` call-site floor) are not
-  listed; grep for them when your change reaches examples or a read
-  path.
+- Whole-repo runners and call-site floors are found by shape (below):
+  an every-example runner that enumerates the library some other way
+  (say through the facade's search), or a floor test that matches its
+  callee by something other than a string literal, is missed.
+- A floor is matched by file: a site file that calls the floor's
+  callee anywhere lists it, even when the call sits in a declaration
+  your change does not touch.
+- Per-case attribution reads a generator script's layout (row keys,
+  `case == "…"` branches, comment-headed blocks); a case table of
+  another shape is reported as the enclosing function or `(top level)`.
 - Predicate callers are matched by function name; a name with more than
   80 call sites is reported in the footer instead of expanded.
 - Contributor recipes describe a category in general and rarely name

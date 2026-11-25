@@ -41,7 +41,11 @@
 //     on Request falls back to ComposedRequest; an item-level key such
 //     as for_each to every reachable struct declaring it), plus its
 //     wire-name string literals and the update-demand rows that name
-//     it; a Compose-level slot adds the compose sites (compose.go).
+//     it; a Compose-level slot adds the compose sites (compose.go);
+//   - whole-repo runners and floors (runners.go) are found by shape: the
+//     tests that run every example (for a change with an example site),
+//     the call-site floors of a function a site file calls, and the
+//     case-table entry of each hit in a shared fixture generator.
 //
 // Only the inherently manual part — which contract to read — is a
 // table (categoryTable.Manual / slotManual), and its paths are pinned

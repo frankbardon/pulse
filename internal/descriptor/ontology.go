@@ -550,7 +550,7 @@ func seeTagsMatch(searches []seeTagSearch, have []string) bool {
 
 // seeTags parses every `tags=[…]` list out of a See span — the one
 // parser the ontology, the profiled See render, embedder-skill
-// validation and TestSkillSeeExampleTagsResolve share. Quotes around a
+// validation and TestSkillExampleTagPointersResolve share. Quotes around a
 // tag (`tags=["time-series"]`) are author formatting and stripped; an
 // entry may offer `a|b` alternatives; a span may hold several lists.
 // ok is false when the span holds no non-empty list.
