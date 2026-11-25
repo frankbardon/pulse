@@ -16,7 +16,7 @@ The `op-test-<name>` Params tables keep one short row per option; the contract t
 A numeric pre-period column `x`, one pass: θ = slope of `Field` on `x` pooled over both groups, and `diff`, its CI, the statistic, p, `mean` / `variance` and `cohens_d` read the adjusted `Field − θ(x − x̄)` — equal to the two-step (θ first, then the test on the adjusted column).
 
 - `Details` add `diff_unadjusted`, `theta`, `covariate_mean`, `variance_reduction` (1 − SE²adjusted / SE²raw; with `theta` `null` when `x` is constant) and `n_covariate_dropped` (null-covariate rows, dropped listwise).
-- Composes with `reference`. Weighted (both kinds) it is the weighted two-step: θ and x̄ on the weights, each group's N*. Grouped, θ is per group.
+- Composes with `reference`.<!-- feature: capability:weighting --> Weighted (both kinds) it is the weighted two-step: θ and x̄ on the weights, each group's N*.<!-- /feature --> Grouped, θ is per group.
 - Needs `SplitBy`; without it, non-numeric, or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too). The same code on any test that has no covariate form.
 
 <!-- feature: ATTR_FORMULA -->

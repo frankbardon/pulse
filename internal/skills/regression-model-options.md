@@ -29,7 +29,7 @@ The penalty skips the listed predictors (glmnet `penalty.factor` 0: never shrunk
 
 ## `bounds.nonnegative` (NNLS)
 
-Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes stay free; weighted fits work).
+Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes stay free<!-- feature: capability:weighting -->; weighted fits work<!-- /feature -->).
 
 - No bound binds: the fit is plain OLS, bit for bit.
 - A bound binds: coefficients (held ones exactly 0), `R2`, `AdjR2` and `ResidualStdErr` stand, but `StdErrors`, `PValues`, intervals and `Vcov` entries are `null` and the result carries `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`details.suggested` = `resample: bootstrap`). A bootstrap refits the bounded model per replicate and gives intervals.
@@ -45,7 +45,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 A regression may name a same-request window label. Adstock each channel (a window, `partition_by` market, `order_by` week), saturate with `hill(x, half, shape)` in a post-window attribute, then fit OLS with `bounds.nonnegative` on the saturated channels and a `holdout` on the last weeks — one request, no materialize.<!-- feature: capability:compose_sweep, capability:regression_holdout --> Sweep the decay with a `$var` and `rank` on `regressions.<name>.holdout.rmse` (`compose-sweeps`).<!-- /feature -->
 
 <!-- feature: REG_MMM_HILL -->- Joint fit: `REG_MMM_HILL` (`op-reg-mmm-hill`) fits each channel's β and Hill `k`, `s` together, no `hill()` attribute.<!-- /feature --><!-- feature: REG_MMM_BAYES --> `REG_MMM_BAYES` (`op-reg-mmm-bayes`) adds decay and ROI intervals.<!-- /feature --><!-- feature: REG_MMM_HILL, WIN_DISTRIBUTED_LAG, capability:compose_sweep_sampling, capability:compose_optimize --> Decay sweep, fit, `optimize`: `mmm-workflow`.<!-- /feature -->
-- Windows-over-records shape only (no `groups` / `aggregations` / `crosstab`): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
+- Windows-over-records shape only (no `groups` / `aggregations`<!-- feature: capability:crosstab --> / `crosstab`<!-- /feature -->): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
 - A lag's first rows are `null`: guard a formula with `lag ?? 0` or `x == nil ? nil : …`, else `PROCESSING_RUNTIME`. Null / NaN / ±Inf rows drop listwise.
 
 ## `holdout` (out-of-sample)

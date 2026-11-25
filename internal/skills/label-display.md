@@ -49,7 +49,7 @@ A `LabelBinding` pairs a field with a table and mode:
 
 **Augment** — raw value preserved; sibling `"<field>_label"` column added. A schema field or output column (default names included) named `<field>_label` ⇒ `PULSE_LABEL_FIELD_COLLISION`, predict included.
 
-**Integer codes.** A `u4`–`u32` field binds too, keyed by its codes' decimal spellings (`"1"`, `"7"`; else `PULSE_LABEL_KEY_INVALID`). On a response it is augment-only (`replace` ⇒ `PULSE_LABEL_REPLACE_NUMERIC`): the number stays, `<field>_label` is added: group keys, sample cells, long crosstab rows, every chain / compose stage; a facet counts it per code (no KS overlay). A matrix axis lacks one: `PULSE_LABEL_NOT_APPLIED`. Floats, `u64`, dates: `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
+**Integer codes.** A `u4`–`u32` field binds too, keyed by its codes' decimal spellings (`"1"`, `"7"`; else `PULSE_LABEL_KEY_INVALID`). On a response it is augment-only (`replace` ⇒ `PULSE_LABEL_REPLACE_NUMERIC`): the number stays, `<field>_label` is added: group keys<!-- feature: capability:sample -->, sample cells<!-- /feature --><!-- feature: capability:crosstab -->, long crosstab rows<!-- /feature -->, every stage / slot<!-- feature: capability:facet -->; a facet counts it per code (no KS overlay)<!-- /feature --><!-- feature: capability:matrices -->. A matrix axis lacks one: `PULSE_LABEL_NOT_APPLIED`<!-- /feature -->. Floats, `u64`, dates: `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
 ## Surface coverage
 

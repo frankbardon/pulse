@@ -19,7 +19,7 @@ A per-row weight column makes each row count as `w` rows in a weight-aware figur
 | per-slot `weight` | `"wt"`, `{field, kind}` or `null` | aggregations (crosstab `cell`, `margin_aggregations[i]`), `tests`, `post_tests`, regressions, attributes, overlays, `groups`, crosstab axes. Windows have none |
 | `pulse.Options.DefaultWeight` | `*types.WeightSpec` | instance default; never reaches facets; a facet overlay `weight` is refused |
 
-**`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. Compose and chain have no top weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).
+**`null` ≠ absent.** Absent inherits; `"weight": null` opts that ONE slot out. A batch root has no top weight. The field must be `u4`…`u64`, `f32` or `f64`; else `PROCESSING_CONFIG` (unknown name `SERVICE_VALIDATION`).
 
 ## Kinds
 

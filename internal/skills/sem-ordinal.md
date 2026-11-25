@@ -26,7 +26,9 @@ requires: [MAT_SEM, capability:sem_ordinal]
 - Each ordered member's categories are its distinct observed values in ascending order. A value no row holds is no category. Store ratings as integers or floats; a `packed_bool` member needs a vector with `coerce: "binary"`.
 - At most 32 categories per ordered member. More is a continuous measure: the slot fails with `PULSE_MATRIX_TOO_MANY_CATEGORIES`. Fit it as numeric, or recode it.
 - An ordered member must be an indicator or an outcome, never a predictor of something else.
+<!-- feature: capability:weighting -->
 - Frequency weights are supported. A probability weight is `PULSE_WEIGHT_UNSUPPORTED`.
+<!-- /feature -->
 
 ## How it fits
 
@@ -64,7 +66,7 @@ requires: [MAT_SEM, capability:sem_ordinal]
 <!-- feature: ATTR_SEM_SCORE -->
 ## Scores
 
-- `ATTR_SEM_SCORE` scores an ordinal fit (inline, a Compose `fits` entry, a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
+- `ATTR_SEM_SCORE` scores an ordinal fit (inline, a bound fit or a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
 - A row is coded by the fit's categories: a value the fit never saw scores null (`PULSE_SEM_SCORE_LEVEL_UNSEEN`, reason `category_unseen`). A null member scores null (lavaan skips it instead). An observed mediator is scored as lavaan does.
 <!-- /feature -->
 

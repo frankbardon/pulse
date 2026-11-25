@@ -55,7 +55,9 @@ The manifest `join` block (`max_joins_per_request`, `kinds`, `spill_bytes`, `lim
 - **Inner only.** `"left"` / `"outer"` / `"anti"` ⇒ `PULSE_JOIN_KIND_NOT_IMPLEMENTED`. An unmatched left row is dropped — it reaches no group, cell or count.
 - **A null key never matches**, not even a null: a row null on ANY key field, either side, joins nothing and drops like an unmatched row.
 - **No spill.** The right side materialises fully in RAM, `O(right_records)`. Put the SMALLER cohort on the right; the build side is always `right` (no automatic swap). A right side over the instance's `max_join_build_rows` limit — or a join whose memory estimate passes a set `max_estimated_memory` — is refused `PULSE_LIMIT_EXCEEDED` before any record decodes; `pulse_predict` reports it as a `certain` `limit_findings` entry. `pulse_inspect` reports each side's `record_count` without reading records.
+<!-- feature: capability:crosstab -->
 - **Crosstab honours the join.** `Request.Crosstab` crosstabs the JOINED rows — axes and cell may name `as`-prefixed fields; unmatched left rows reach no cell or margin; always buffered.
+<!-- /feature -->
 - **No shard-parallel join.** A shard-archive left side runs serial on a joined request.
 
 ## OnPair key type compatibility

@@ -57,7 +57,7 @@ The written dictionary is the source's labels in code order, each replaced, firs
                        {"label": "senior", "start": 65}]}}
 ```
 
-- Exactly one of inline `ranges` or `range_table` (a registered range table of the column's kind); the same ranges either way write identical columns.
+- Inline `ranges`<!-- feature: capability:range_tables --> or `range_table` (a registered range table of the column's kind), exactly one; the same ranges either way write identical columns<!-- /feature -->.
 - The range groupers' rules: numbers are half-open `[start, end)` (18 is `adult`), compared exactly; dates are ISO strings, inclusive on both ends; a `datetime` buckets by its local day in `time_zone`. An omitted or `null` bound is open.
 - The dictionary is the labels in DECLARED order (sort the ranges as you want them listed), every label present; the narrowest rung holding them.
 - A null stays null. A value outside every range (or a NaN) fails `PULSE_MATERIALIZE_CAST_FAILED` (`reason` `no_range`) unless `on_cast_error: "null"` on a nullable column. Predict lists that risk when the ranges leave a gap or the column is a float.

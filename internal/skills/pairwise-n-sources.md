@@ -19,7 +19,9 @@ Every mode reads `Response.Components.Crosstab`, so a components-disabled host i
 The question is: **what does one observation mean here?**
 
 - Omit `n_source` → the cell's BASE, the figure its share is of: the cell itself under `normalize: none`, else the normalise denominator (column / row / grand margin, or the `normalize_level` / `normalize_within` one), always the admitted one: its record count, or weighted its N* (`sum_weights` frequency, Kish `n_eff` probability).
+<!-- feature: capability:weighting -->
 - Weighted host (any weight source) → omit `n_source`, or `row_margin_n` / `column_margin_n` for a DISPLAYED margin's N*. Unweighted counts (`cell_n_unweighted`, `n_within`, every distinct mode) are `PROCESSING_CONFIG`; `cell_weight_sum` / `cell_value_weighted` stand under frequency only.
+<!-- /feature -->
 - The pair compares slices of a wider population (the share of a region WITHIN an issuer) → `n_within`, holding the first `n_within_depth`+1 dims fixed.
 - Several records per respondent and n must be respondents → a DISTINCT mode (below).
 
@@ -59,9 +61,11 @@ Two shapes are ACCEPTED: a fan-out grouper at depth `<= n_within_depth` (inside 
 
 Proportion-input kinds only. `cell_value_pct` reads the cell ÷100, `cell_value` as 0..1. Omitted: `cell_value` on a normalised host, else `cell_value_pct`. `PULSE_OVERLAY_PARAM_MISSING`: an explicit `cell_value_pct` on a normalised host, or the omitted default over an unnormalised built-in cell that is no count or sum (a mean; `cell_type`). A leg outside `[0,1]` skips its pair as `PULSE_STATS_SKIP_PROPORTION_INVALID` (one `PULSE_OVERLAY_REF_ZERO` warning per reason). Over a count cell, normalize first.
 
+<!-- feature: OVERLAY_PROP_Z_PANEL -->
 ## Compose-host panel
 
-The multi-slot panel overlay reads the same distinct-KEY quantity under the same admission rule and null rules, but under its OWN mode spellings — none of `row_margin_n`, `n_within`, `n_within_distinct` is accepted there — and it refuses the whole spec when two slots name different admitted aggregators<!-- feature: OVERLAY_PROP_Z_PANEL --> (`op-overlay-prop-z-panel`)<!-- /feature -->.
+The multi-slot panel overlay reads the same distinct-KEY quantity under the same admission rule and null rules, but under its OWN mode spellings — none of `row_margin_n`, `n_within`, `n_within_distinct` is accepted there — and it refuses the whole spec when two slots name different admitted aggregators (`op-overlay-prop-z-panel`).
+<!-- /feature -->
 
 ## See
 

@@ -22,8 +22,8 @@ Order: **preset, then `include` adds, then `exclude` removes — exclude wins.**
 Presets (closed enum; the manifest `return_presets` lists each one's paths, narrowed to this instance):
 
 - `full` — the identity.
-- `standard` — label, data, warnings, metadata, whole crosstab / overlays, trimmed tests and regressions; no `components`.<!-- feature: capability:matrices --> Matrix `auxiliary` only where a spec asked for inference (`p`, `ci_*`, adjusted twins; pairwise `n` beside `p`).<!-- /feature -->
-- `minimal` — the PRIMARY RESULT only: `label`, `data`, `warnings`, crosstab matrix, matrix primaries, test statistic and p-value, regression coefficients. No `metadata`, no `components`.
+- `standard` — label, data, warnings, metadata,<!-- feature: capability:crosstab --> whole crosstab /<!-- /feature --> overlays, trimmed tests and regressions; no `components`.<!-- feature: capability:matrices --> Matrix `auxiliary` only where a spec asked for inference (`p`, `ci_*`, adjusted twins; pairwise `n` beside `p`).<!-- /feature -->
+- `minimal` — the PRIMARY RESULT only: `label`, `data`, `warnings`,<!-- feature: capability:crosstab --> crosstab matrix,<!-- /feature --> matrix primaries, test statistic and p-value, regression coefficients. No `metadata`, no `components`.
 
 ## Path grammar
 
@@ -33,7 +33,7 @@ A key holding `.` `[` `]` `*` (an element column) is a QUOTED segment: `data[*].
 
 ## Errors
 
-- `PULSE_RETURN_INVALID` — unknown preset, precision outside 1–17, malformed path, naming `returned`, or a non-overlay path in a Compose-level block.
+- `PULSE_RETURN_INVALID` — unknown preset, precision outside 1–17, malformed path, naming `returned`<!-- feature: capability:compose -->, or a non-overlay path in a Compose-level block<!-- /feature -->.
 - `PULSE_RETURN_PATH_UNKNOWN` — a path this instance's Response does not carry (a hidden feature's path counts).
 - `PULSE_RETURN_PATH_UNMATCHED` — WARNING, buffered runs only: an include through an open map matched nothing in the executed response. Never raised on streams; predict lists the includes that may go unmatched as `unresolved_includes`.
 
@@ -60,8 +60,10 @@ An excluded `components` part (aggregations incl. `groups`, groupers, filterers,
 ## Surfaces
 
 - Process: shapes the one response.
+<!-- feature: capability:compose -->
 - Compose: each slot's `return` (else the instance default) shapes `responses[i]`; `ComposedRequest.return` shapes top-level overlays only (`overlays…` paths), `responses` stays whole.
-- Chain: each stage has its own `return`, applied AFTER the whole chain, so a stage excluding `data` still feeds the next stage; `final` follows the last stage.
+<!-- /feature -->
+<!-- feature: capability:process_chain -->- Chain: each stage has its own `return`, applied AFTER the whole chain, so a stage excluding `data` still feeds the next stage; `final` follows the last stage.<!-- /feature -->
 - Streaming (CLI `--stream`, library iterator): rows carry only selected columns, `returned` rides the terminal chunk only, excluding `data` emits no rows; no `PULSE_RETURN_PATH_UNMATCHED` (predict `unresolved_includes` instead). MCP has no streaming. Details: `streaming-and-watching`.
 
 ## See

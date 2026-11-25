@@ -40,7 +40,8 @@ A `datetime` stores whole seconds since the epoch, naive UTC. Synthetic ones: [`
 A `datetime` is read on its LOCAL calendar day in every mode (process, stream, compose, parallel, shards, crosstab, join, chain, facet); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
 
 - `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` (`hour_of_day`: `HH`) local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
-- Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
+- Range literals are LOCAL calendar days in the slot's zone.
+- `RangeTables` carry no zone: the slot's zone applies.
 - Filter-to-file zones `FILTER_DATE_RANGES` like `Process`; the zone keys the output name.
 - `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. `iso_weekday` / `dow` are ISO (Monday = 1), ignoring `week_start`.
 - Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point (filter-to-file: `FilterToFileRequest.TimeZone`); they take no slot `tz` ([`calendar-formulas`](calendar-formulas.md)).

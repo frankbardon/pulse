@@ -30,7 +30,7 @@ An unexpanded array is `PROCESSING_CONFIG`, reason `array_valued`, as:
 
 - a crosstab cell or margin aggregation without `element`;
 - a Sort key, a window input or a post-test input;
-- the value an overlay scores (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]` — an unscored array beside it runs);
+- the value an overlay scores (request, Compose, whole-chain: `params.field` where the kind honours it, else `aggregations[0]` — an unscored array beside it runs);
 - a chain stage feeding another stage.
 
 ## `element` (crosstab)

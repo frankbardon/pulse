@@ -15,7 +15,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 |---|---|---|---|
 | 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skills index, extensions, capability blocks |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
-| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
+| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `intent` + `tags` + `category` (CLI `pulse examples search --intent`)<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
 | 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via `session-skill-routing`. Runnable JSON comes from examples, NOT skills |
 | 6 | `pulse_predict` (bare request<!-- feature: capability:compose -->, or `composed`<!-- /feature --><!-- feature: capability:facet -->, or `facet`<!-- /feature --><!-- feature: capability:process_chain -->, or `chain`<!-- /feature -->) | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
@@ -58,7 +58,7 @@ Roots auto-loaded at `pulse.New`:
 - `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render (`RenderTemplate` / `RenderTemplateRequest`), then predict.<!-- feature: capability:templates --> See `request-templating`.<!-- /feature -->
 
-A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is benchmark-only.
+A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`.
 
 Managed imports (`PULSE_IMPORTS_DIR`) keep each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `zone_field`, `--vector` folds); a handle never changes zone — re-import with `overwrite: true`. See `time-zones`.
 

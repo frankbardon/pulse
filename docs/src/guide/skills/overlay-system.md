@@ -71,11 +71,11 @@ The carrying request decides the host, the host the legal kinds (an ungrouped or
 
 A cell-VALUE reader (MATRIX, Compose slot) over a code cell (`AGG_MODE` of a categorical) ⇒ `PROCESSING_CONFIG` `categorical_code`.
 
-Extension kinds (`extensions.overlays`): a handler per host (Matrix, Series, Compose), buffered, never chain or facet; weighted only if `weight_aware`.
+Extension kinds (`extensions.overlays`): a handler per host (Matrix, Series, Compose), buffered, not chain, not facet; weighted only if `weight_aware`.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the layer that raised it (a fan-out target's); a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
+`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On a batch-root host it rides the layer that raised it (a fan-out target's); a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
 
 ## Multiplicity
 

@@ -17,7 +17,7 @@ requires: [MAT_SEM, capability:sem_groups]
 - A cohort field: categorical (levels in dictionary order), `packed_bool` (`0`, `1`) or `u4` / `u8` (the values that hold rows, ascending).
 - A column the request computes — an attribute, feature or window label: a **derived group**. A cohort field of the same name wins. The column must hold a number per row (else `group_field_type`)<!-- feature: ATTR_PREVIOUS_STATE, ATTR_FORMULA -->: an `ATTR_PREVIOUS_STATE` over a categorical keeps the category — derive an integer from it with an `ATTR_FORMULA`<!-- /feature -->.
 - A null value, or NaN, drops the row listwise (`n_listwise_dropped`).
-- Refused as for any group: request `groups` / `crosstab` (`group_with_groups`), a member, a standardizing vector, `params.fit`.
+- Refused as for any group: request `groups`<!-- feature: capability:crosstab --> / `crosstab`<!-- /feature --> (`group_with_groups`), a member, a standardizing vector, `params.fit`.
 
 ## Declared levels
 

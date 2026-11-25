@@ -38,13 +38,13 @@ A `frequency` weight in force on the slot weights it: Σw·expr, the expanded-ro
 A `total` formula is **two-pass**, like the z-score attribute: a pre-pass sums, the main pass scores.
 
 - It streams alone and buffers beside groups or features.
-- `ShardWorkers` / `DecodeWorkers` run it two-phase (a parallel pre-pass per layer — one more when a `total()` argument reads another total — same bits), grouped or not, unless there is a crosstab.
+- `ShardWorkers` / `DecodeWorkers` run it two-phase (a parallel pre-pass per layer — one more when a `total()` argument reads another total — same bits), grouped or not<!-- feature: capability:crosstab -->, unless there is a crosstab<!-- /feature -->.
 - `ProcessChain` runs it two-phase on every stage too (same bits); beside a non-mergeable slot the stage is refused (`PULSE_CHAIN_NOT_MERGEABLE`).
 - Predict adds one `PULSE_ADVISORY_EXTRA_PASS` per such formula (`added_scans`; `predict-advisories`).
 
 ## Refusals
 
-- `total()` in an expression filter or an overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; an overlay formula reads its `total` variable instead<!-- feature: OVERLAY_FORMULA --> (`overlay-formula-namespace`)<!-- /feature -->.
+- `total()` in an expression filter or an overlay formula<!-- feature: capability:compose --> (Compose host too)<!-- /feature --> → `PULSE_FORMULA_TOTAL_SITE`; an overlay formula reads its `total` variable instead<!-- feature: OVERLAY_FORMULA --> (`overlay-formula-namespace`)<!-- /feature -->.
 - Nested → `PULSE_FORMULA_TOTAL_NESTED`; arity ≠ 1 → `PULSE_FORMULA_TOTAL_ARITY`.
 - An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.
 

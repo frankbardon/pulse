@@ -42,9 +42,9 @@ requires: [capability:params]
 - A cohort field, derived column or vector NAMED `params`, while the request reads `params.` → `PULSE_PARAMS_FIELD_COLLISION`. That column stays readable as bare `params` or `$env["params"]`.
 - A bare `params` is never a parameter read.
 
-## Compose and chains
+## Batch roots
 
-A top-level `params` on a Compose batch or a process chain merges into EVERY sub-request (slots, fits, chain stages); a sub-request's own key wins. A Compose-level formula overlay reads the top-level params. `--echo-request` shows the merged view. Same on the CLI `api` leaves and the MCP tools.
+A top-level `params` on a batch root<!-- feature: capability:compose --> (Compose)<!-- /feature --><!-- feature: capability:process_chain --> (process chain)<!-- /feature --> merges into EVERY sub-request (slots, fits, stages); a sub-request's own key wins.<!-- feature: capability:compose --> A Compose-level formula overlay reads the top-level params.<!-- /feature --> `--echo-request` shows the merged view. Same on the CLI `api` leaves and the MCP tools.
 <!-- feature: capability:compose_sweep -->
 A sweep axis `"target": "params.x"` writes each slot's axis value into its `params.x` (declared, or overriding the body's and the batch's) — no placeholder needed. A `{"$var"}` marker naming a targeted axis, or standing at `params.x`, is refused `axis_target_conflict`; the `"params": {"x": {"$var": "x"}}` route still works. An item `for_each` cannot target params (`target_unsupported`).
 <!-- /feature -->

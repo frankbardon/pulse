@@ -32,15 +32,17 @@ A row score reads one vector — exactly one of `vector`<!-- feature: capability
 Each fits once, then scores every row; a score is an ordinary field (average it by group, use it as a regression predictor):
 
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`.<!-- feature: ATTR_SEM_SCORE --> `ATTR_SEM_SCORE` reads a SEM fit instead (`sem-fits`).<!-- /feature -->
+- `fit` — a bound vector fit's name, scored against instead of fitting: <!-- feature: capability:compose_fits -->a compose `fits` entry over one matrix or fitted-attribute battery (`compose-fits`), or <!-- /feature -->a loaded `populations` entry. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`.<!-- feature: ATTR_SEM_SCORE --> `ATTR_SEM_SCORE` reads a SEM fit instead (`sem-fits`).<!-- /feature -->
 - `missing` — `listwise` only.
+<!-- feature: capability:weighting -->
 - `weight` — fits only (N* = Σw or n_eff; the Mahalanobis covariance is M2*/(N* − 1)); a zero-weight row is scored, not fitted.
+<!-- /feature -->
 
 Execution and failure:
 
 - The fit is cohort-wide, never per group. With `fit_on`, groupers or features force buffered — two-pass, never merged.
 - With `fit` the score is row-local: one pass, streams beside groupers and features, and merges (shards, chain stages) with the same scores. A fitted distance metric is the exception: it streams, but never merges (shards run serially; a chain stage refuses it).
-- A compose fit that failed on its data: every score null + `PULSE_FIT_UNAVAILABLE`.
+<!-- feature: capability:compose_fits -->- A compose fit that failed on its data: every score null + `PULSE_FIT_UNAVAILABLE`.<!-- /feature -->
 - A singular fit or N* ≤ p: every score null + a `PULSE_MATRIX_SINGULAR` / `PULSE_MATRIX_INSUFFICIENT_N` warning.
 
 <!-- feature: capability:matrices -->
@@ -65,7 +67,7 @@ Execution and failure:
 
 - `min_valid` (default 1) — the fewest complete pairs; below it the row is null. A distance's sums rescale by p / p_observed.
 - A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation (`hellinger`, `aitchison`) nulls the row and warns `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate. Components count them: `n_reference_missing`, `n_domain_invalid`.
-- Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a failed compose fit (population or `fit`) nulls every row + `PULSE_FIT_UNAVAILABLE`.
+- Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`<!-- feature: capability:compose_fits -->; a failed compose fit (population or `fit`) nulls every row + `PULSE_FIT_UNAVAILABLE`<!-- /feature -->.
 - A record member its cohort lacks → `PULSE_VECTOR_REFERENCE_MISMATCH` (`record_members_absent`); lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
 
 Execution:

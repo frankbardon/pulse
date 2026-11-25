@@ -32,7 +32,9 @@ Pick by the question, then let each operator's guidance name its alternatives. `
 
 - **Unit** — every row, each distinct key, or one particular value's rows?
 - **Shape** — skewed or extreme values favour an order statistic over a mean.
+<!-- feature: capability:weighting -->
 - **Weights** — rows carrying weights need a weighted form.
+<!-- /feature -->
 - **Uncertainty** — need spread or an interval, not just a centre? Pick the Welford triple or CI bounds, which also feed tests.
 
 ## Chaining

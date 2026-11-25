@@ -14,7 +14,7 @@ requires: [capability:compose]
 
 ## When to compose
 
-- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts (a grid: [`compose-sweeps`](compose-sweeps.md)) (banners: [`compose-banner`](compose-banner.md)).
+- **Several independent questions in one call** — a summary and a breakdown or a crosstab of one survey, or one request over several cohorts (a grid: [`compose-sweeps`](compose-sweeps.md)) (banners: [`compose-banner`](compose-banner.md)).
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
 - **One model, many slots** — fit once, every slot reads it by name ([`compose-fits`](compose-fits.md)).
 
@@ -48,7 +48,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 {
   "responses": [
     {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
-    {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
+    {"data": [...], "metadata": {...}}
   ],
   "overlays": [ /* one OverlayLayer per Compose overlay spec; key omitted when there are none */ ]
 }
@@ -56,7 +56,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 ## Slot labels
 
-Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
+Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots: set them explicitly when an overlay refers to a slot.
 
 Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs.
 
@@ -88,4 +88,4 @@ Every slot's `components` is emitted independently (the universal floor plus eac
 
 ## See
 
-[`response-components`](response-components.md) (per-slot components shape) · [`overlay-system`](overlay-system.md) (overlay hosts and resolution) · [`streaming-and-watching`](streaming-and-watching.md) (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold) · [`process-chain`](process-chain.md) (when slots depend on each other).
+[`response-components`](response-components.md) (per-slot components shape) · [`overlay-system`](overlay-system.md) (overlay hosts and resolution) · [`compose-optimize`](compose-optimize.md) (best inputs from fitted models) · [`streaming-and-watching`](streaming-and-watching.md) (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold) · [`process-chain`](process-chain.md) (when slots depend on each other).

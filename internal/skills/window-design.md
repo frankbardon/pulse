@@ -13,7 +13,7 @@ covers: [WIN, windows]
 
 ## Slot position
 
-Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Windows run AFTER aggregation on the post-aggregate row set; with empty `groups` and `aggregations` they see one row per filtered record: the full record plus window columns. A group, aggregation or crosstab reading a window label runs them first, over the records: `windows-first`.
+Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Windows run AFTER aggregation on the post-aggregate row set; with empty `groups` and `aggregations` they see one row per filtered record: the full record plus window columns. A group, aggregation<!-- feature: capability:crosstab --> or crosstab<!-- /feature --> reading a window label runs them first, over the records: `windows-first`.
 
 Entry shape:
 

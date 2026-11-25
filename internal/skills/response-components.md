@@ -21,19 +21,23 @@ Engine-filled: every slot carries it, even a floor-only operator.
 | `AggregationComponents` | `n`, `n_null` |
 | `GrouperComponents` | `total_n`, `n_null` |
 | `FiltererComponents` | `n_in`, `n_out`, `n_null_input` |
+<!-- feature: capability:crosstab -->
 | crosstab cell (`CellComponents[r][c]`) | `n`, `n_null` |
+<!-- /feature -->
 
-<!-- feature: capability:weighting -->Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. <!-- /feature -->An aggregator's `n` counts NON-NULL inputs (a paired-input slot: of `field` alone); a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
+<!-- feature: capability:weighting -->Weighted slots (cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. <!-- /feature -->An aggregator's `n` counts NON-NULL inputs (a paired-input slot: of `field` alone); a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
 ## Sub-blocks
 
-`ResponseComponents` = `aggregations` · `groupers` · `crosstab` · `filterers` · `run`<!-- feature: capability:matrices --> · `matrices`<!-- /feature --> · `attributes` — every slot `omitempty`.
+`ResponseComponents` = `aggregations` · `groupers`<!-- feature: capability:crosstab --> · `crosstab`<!-- /feature --> · `filterers` · `run`<!-- feature: capability:matrices --> · `matrices`<!-- /feature --> · `attributes` — every slot `omitempty`.
 
 | Block | Cardinality · identity | Carries |
 |---|---|---|
 | `aggregations` | one per `Request.Aggregations`, declared order · `label` | floor + `operator`; grouped: cohort-wide floor + `groups` (below) |
 | `groupers` | one per `Request.Groups`, declared order · `field` (+ `label` when a field repeats) | floor + `operator` (bucket edges, dictionary mappings, `buckets`) |
+<!-- feature: capability:crosstab -->
 | `crosstab` | only when the Request carried `crosstab` | cell / margin / axis-key components (below) |
+<!-- /feature -->
 | `filterers` | one per `Request.Filterers`, declared order · `label` | floor only |
 | `run` | always on a successful run | `total_records` (pre-filter), `filtered_records`, `null_records`, `shard_count` (0 = single file), `partial_cohort_reason` (a shard failed to open) |
 <!-- feature: capability:matrices -->
@@ -41,18 +45,20 @@ Engine-filled: every slot carries it, even a floor-only operator.
 <!-- /feature -->
 | `attributes` | one per attribute slot whose operator declares a schema · `label` + `type`, NOT index | `n` / `n_null` (present / null outputs) + `operator`; cohort-wide, never per bucket |
 
-- **Grouped runs** (`Request.Groups`, no crosstab): each `aggregations[i]` carries the COHORT-WIDE floor (all filter-passing records, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream: terminal chunk only.
+- **Grouped runs** (`Request.Groups`<!-- feature: capability:crosstab -->, no crosstab<!-- /feature -->): each `aggregations[i]` carries the COHORT-WIDE floor (all filter-passing records, no `operator`) and `groups[]` — one `{group_key, n, n_null, weighted floor, operator}` per `Data` row, in `Data` order (`sort` included), equal to an ungrouped run over that bucket. A stream: terminal chunk only.
 - Several `groups`: `group_key` is the tuple; one `groupers` entry per slot. A `fit: "within"` slot adds `buckets`: one `{group_key, total_n, n_null, operator}` per refit (failed: `error`).
 - A fan-out grouper's bucket sum may EXCEED `total_n`.
 - `run` coexists with `Response.Metadata` (`Metadata.TotalRows == Run.TotalRecords`), which keeps non-numerical facts.
 
+<!-- feature: capability:crosstab -->
 ## Crosstab block
 
-Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis keys); an empty cell's `CellComponents[r][c]` is `nil`.<!-- feature: capability:crosstab --> Indexing: `crosstab-guide`.<!-- /feature -->
+Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis keys); an empty cell's `CellComponents[r][c]` is `nil`. Indexing: `crosstab-guide`.
 
 **`CellCounts[r][c]` is a RECORD count; the floor's `n` counts NON-NULL observations — `CellCounts[r][c] == n + n_null`.** Never read it as the sample size (raw under a weight; Σw is `sum_weights`); same on every margin.
 
-**A record reaches a margin only if it reached a CELL** (both axis keys resolved): a null or empty set, or an `include`-excluded key, is in no margin or denominator. Auxiliary figures sit BESIDE the margin components and also drop a null cell field<!-- feature: capability:crosstab -->: `crosstab-margin-aggregations`<!-- /feature -->. A vector `element` cell: its member's floor and `element_*`.
+**A record reaches a margin only if it reached a CELL** (both axis keys resolved): a null or empty set, or an `include`-excluded key, is in no margin or denominator. Auxiliary figures sit BESIDE the margin components and also drop a null cell field: `crosstab-margin-aggregations`. A vector `element` cell: its member's floor and `element_*`.
+<!-- /feature -->
 
 ## Opting out
 
@@ -62,7 +68,7 @@ Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis 
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process`<!-- feature: capability:process_chain --> / `process-chain`<!-- /feature --><!-- feature: capability:compose --> / `compose`<!-- /feature -->; request JSON `"disable_components"` wins over it |
 
-Disabled ⇒ `Response.Components` is `nil` (byte-identical, work skipped); tolerate `nil`. Compose: per `requests[i]`. MCP never surfaces the knob.
+Disabled ⇒ `Response.Components` is `nil` (byte-identical, work skipped); tolerate `nil`.<!-- feature: capability:compose --> Compose: per `requests[i]`.<!-- /feature --> MCP never surfaces the knob.
 
 ## Manifest declaration
 

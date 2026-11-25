@@ -27,7 +27,7 @@ Shared keys:
 - `conf_level` — `CILower` / `CIUpper` coverage, `0<c<1`, default 0.95 ([`regression-inference`](regression-inference.md)). The Bayesian fit's `credible_level` sets `CredibleIntervals`; the two intervals are equal when `conf_level` is unset.
 - `name` — the result alias, and the saved model's name (default: the `save` file's stem).
 - `save` — writes the finished fit as a model file (`.pulse-model.json`, [`compose-fits`](compose-fits.md)).
-- `multiplicity` `{method, family, alpha, coefficients}` (OLS, GLM) — the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + an echo beside the raw `PValues`, which never move ([`multiplicity-correction`](multiplicity-correction.md)). The Bayesian fit has no p-values: any method but `none` is `PULSE_MULTIPLICITY_INVALID`, predict too.
+- `multiplicity` `{method, family, alpha, coefficients}` (OLS, GLM) — the member coefficients' p-values join a request-wide or batch-wide family; adds `PAdjusted` / `SignificantAdjusted` + an echo beside the raw `PValues`, which never move ([`multiplicity-correction`](multiplicity-correction.md)). The Bayesian fit has no p-values: any method but `none` is `PULSE_MULTIPLICITY_INVALID`, predict too.
 
 ## Penalty
 

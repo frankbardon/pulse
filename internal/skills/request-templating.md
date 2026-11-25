@@ -19,7 +19,7 @@ Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` (`request-params`).
 
 ## File shape
 
-`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request | composed | chain | facet | sample` (lowercase) picks the strict-decode root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, **not** runnable as-is.
+`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request`<!-- feature: capability:compose --> | `composed`<!-- /feature --><!-- feature: capability:process_chain --> | `chain`<!-- /feature --><!-- feature: capability:facet --> | `facet`<!-- /feature --><!-- feature: capability:sample --> | `sample`<!-- /feature --> (lowercase) picks the strict-decode root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, **not** runnable as-is.
 
 ## Substitution — three forms
 

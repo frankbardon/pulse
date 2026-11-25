@@ -56,7 +56,7 @@ Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinit
 
 ## Aggregations on decimal fields
 
-An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict and the runtime refuse every other built-in with ONE `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` error (never a warning), at every aggregation slot — crosstab cell and margin aggregations included. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
+An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict and the runtime refuse every other built-in with ONE `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` error (never a warning), at every aggregation slot<!-- feature: capability:crosstab --> — crosstab cell and margin aggregations included<!-- /feature -->. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
 
 | Kind | Result |
 |---|---|

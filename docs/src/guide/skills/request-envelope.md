@@ -90,7 +90,7 @@ A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); n
 
 ## Time zones
 
-`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (a batch root: per inner `Request`). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
 Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → cohort `zone_field` → `Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
 

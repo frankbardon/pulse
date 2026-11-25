@@ -30,7 +30,9 @@ requires: [MAT_SEM, capability:sem_bootstrap]
 ## Refusals
 
 - Fewer than 10 successful replicates fail the slot alone: `PULSE_MATRIX_NOT_CONVERGED`, `details.reason` `bootstrap_too_few`.
+<!-- feature: capability:weighting -->
 - Any weight, a frequency weight included, is `PULSE_WEIGHT_UNSUPPORTED`: a weighted bootstrap has no standard form.
+<!-- /feature -->
 - `params.fit` cannot bind a bootstrapped slot (it reads no rows).
 - `bootstrap_iters` or `rng_seed` without `resample` is `bad_params`. `ci_level` alone sets the Wald interval of any lavaan-convention fit, and is `bad_params` on a semopy-convention one.
 - `bootstrap_iters` has no instance limit, as a regression's has not. `Options.Limits.RequestTimeout` stops a long run between replicates.

@@ -30,7 +30,7 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 ## The fit request
 
-- `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment)<!-- feature: MAT_SEM -->; one `MAT_SEM` entry is a **SEM fit** (`sem-fits`)<!-- /feature -->.
+- `request` is an ordinary request, no `groups`<!-- feature: capability:crosstab --> / `crosstab`<!-- /feature -->, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment)<!-- feature: MAT_SEM -->; one `MAT_SEM` entry is a **SEM fit** (`sem-fits`)<!-- /feature -->.
 <!-- feature: capability:compose_sweep_bind -->
 - `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep (`compose-sweep-bind`).
 <!-- /feature -->
@@ -63,7 +63,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 <!-- feature: capability:models -->
 ## Loading
 
-`models: [{name, path}]` on any request (slot, fit request, process, chain stage, facet, filter-to-file) loads a saved model (a `.pulse-sem.json`: a SEM fit) under `name` into the same namespace; `populations: [{name, path}]` (not on facet) loads a population file as a vector fit, read by `params.fit` and matched by label. A loaded name reads like the fit that saved it, on any cohort with its columns (a saved sweep fit: `sweep_axis()` too). Files load before anything runs. Refusals (`details.model` / `details.population`): `PULSE_MODEL_REF_INVALID`, `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, `PULSE_MODEL_NAME_COLLISION` (`details.sources`).
+`models: [{name, path}]` on any request root (a slot, a fit request, a process request, any root that reads a cohort) loads a saved model (a `.pulse-sem.json`: a SEM fit) under `name` into the same namespace; `populations: [{name, path}]` (not on every root) loads a population file as a vector fit, read by `params.fit` and matched by label. A loaded name reads like the fit that saved it, on any cohort with its columns (a saved sweep fit: `sweep_axis()` too). Files load before anything runs. Refusals (`details.model` / `details.population`): `PULSE_MODEL_REF_INVALID`, `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, `PULSE_MODEL_NAME_COLLISION` (`details.sources`).
 
 Registered populations (`PULSE_POPULATIONS_DIR` or the embedder; manifest `extensions.populations`) are bound in every request already: reference one with `params.fit`. Reusing its name in an entry or fit is `PULSE_MODEL_NAME_COLLISION`.
 <!-- /feature -->

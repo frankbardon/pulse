@@ -19,7 +19,7 @@ UTC, `Etc/UTC` and absent are byte-identical to the pre-zone output.
 
 ## Per-row zones
 
-When each record has its own zone, name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
+When each record has its own zone, name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features`<!-- feature: capability:crosstab --> (and crosstab axes)<!-- /feature -->, or request-wide `time_zone_field` on `Request`<!-- feature: capability:facet --> / `FacetRequest`<!-- /feature -->. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
 
 A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked on write and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). Such a cohort is format `0x02` (older builds refuse it). `inspect` shows it as `zone_field`.
 
@@ -43,13 +43,16 @@ A `datetime` stores whole seconds since the epoch, naive UTC.<!-- feature: capab
 
 ## Local-day semantics
 
-A `datetime` is read on its LOCAL calendar day in every mode (process, stream, compose, parallel, shards, crosstab, join, chain, facet); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
+A `datetime` is read on its LOCAL calendar day in every mode (process<!-- feature: capability:stream -->, stream<!-- /feature --><!-- feature: capability:compose -->, compose<!-- /feature -->, parallel, shards<!-- feature: capability:crosstab -->, crosstab<!-- /feature --><!-- feature: capability:joins -->, join<!-- /feature --><!-- feature: capability:process_chain -->, chain<!-- /feature --><!-- feature: capability:facet -->, facet<!-- /feature -->); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
 
 <!-- feature: GROUP_DATE -->
 - `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` (`hour_of_day`: `HH`) local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
 <!-- /feature -->
 <!-- feature: GROUP_DATE_RANGES, FILTER_DATE_RANGES -->
-- Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
+- Range literals are LOCAL calendar days in the slot's zone.
+<!-- /feature -->
+<!-- feature: GROUP_DATE_RANGES, FILTER_DATE_RANGES, capability:range_tables -->
+- `RangeTables` carry no zone: the slot's zone applies.
 <!-- /feature -->
 <!-- feature: FILTER_DATE_RANGES -->
 - Filter-to-file zones `FILTER_DATE_RANGES` like `Process`; the zone keys the output name.

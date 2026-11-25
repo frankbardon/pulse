@@ -77,7 +77,9 @@ Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`; a nu
 | `filters` | `filterers` |
 | `tests_post` | `post_tests` |
 | `output` | `outputs` |
+<!-- feature: capability:compose -->
 | `request` (Compose top-level) | `requests` |
+<!-- /feature -->
 
 Per-operator slot: `type`, `field`, `label`, optional `params` (keys: its atomic skill).
 
@@ -97,7 +99,7 @@ A slot naming `field` without `type` gets one from the schema type. Predict repo
 | `date`, `datetime` (truncated) | (explicit only) | `GROUP_DATE` (`"day"`) |
 <!-- /feature -->
 
-A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); never overridden, never across categories. Disable: `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
+A `type` defaults only on `groups`, `aggregations`<!-- feature: capability:crosstab -->, crosstab axes and cell(s)<!-- /feature -->; never overridden, never across categories. Disable: `pulse.Options{DisableDefaults: true}` / `--no-defaults`.
 
 ## Streamability
 
@@ -108,7 +110,7 @@ A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); n
 
 ## Time zones
 
-`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` (or per-row `time_zone_field`) sits on `Request`<!-- feature: capability:facet --> and `FacetRequest`<!-- /feature --> (a batch root: per inner `Request`). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
 Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → cohort `zone_field` → `Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
 

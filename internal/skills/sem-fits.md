@@ -40,7 +40,7 @@ A **SEM fit** is a Compose `fits` entry (`compose-fits`) whose request holds exa
 - aligns its members to the fit's labels BY LABEL (`PULSE_VECTOR_REFERENCE_MISMATCH` when they differ);
 - reads each row's group from the fit's `group` field, matched by level LABEL, so a fit taken on one cohort scores any cohort holding the members and the field (a computed group: the scoring request computes it, else `fit_group_field`); a level the fit has no parameters for scores null with `PULSE_SEM_SCORE_LEVEL_UNSEEN`;
 - scores every row to the bit of the inline fit with the same knobs over the same fit rows;
-- is row-local: it streams beside groupers and features, fuses into a crosstab, and merges across shards and chain stages (the inline form is two-pass and buffers there).
+- is row-local: it streams beside groupers and features,<!-- feature: capability:crosstab --> fuses into a crosstab,<!-- /feature --> and merges across shards and chain stages (the inline form is two-pass and buffers there).
 
 The inline fit's warnings carry over: too few fit rows or negative degrees of freedom null every score; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning.
 

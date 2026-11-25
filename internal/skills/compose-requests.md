@@ -14,13 +14,13 @@ requires: [capability:compose]
 
 ## When to compose
 
-- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts<!-- feature: capability:compose_sweep --> (a grid: `compose-sweeps`)<!-- /feature --><!-- feature: capability:compose_banner --> (banners: `compose-banner`)<!-- /feature -->.
+- **Several independent questions in one call** — a summary and a breakdown<!-- feature: capability:crosstab --> or a crosstab<!-- /feature --> of one survey, or one request over several cohorts<!-- feature: capability:compose_sweep --> (a grid: `compose-sweeps`)<!-- /feature --><!-- feature: capability:compose_banner --> (banners: `compose-banner`)<!-- /feature -->.
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
 <!-- feature: capability:compose_fits -->
 - **One model, many slots** — fit once, every slot reads it by name (`compose-fits`).
 <!-- /feature -->
 
-Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->. Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
+<!-- feature: capability:process_chain -->Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain (`process-chain`). <!-- /feature -->Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
 
 <!-- feature: capability:params -->
 Top-level `params` merge into every slot and fit: `request-params`.
@@ -54,7 +54,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 {
   "responses": [
     {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
-    {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
+    {"data": [...], "metadata": {...}}
   ],
   "overlays": [ /* one OverlayLayer per Compose overlay spec; key omitted when there are none */ ]
 }
@@ -62,7 +62,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 ## Slot labels
 
-Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
+Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots: set them explicitly when an overlay refers to a slot.
 
 Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs.
 
@@ -96,4 +96,4 @@ Every slot's `components` is emitted independently (the universal floor plus eac
 
 ## See
 
-`response-components` (per-slot components shape) · `overlay-system` (overlay hosts and resolution) · `streaming-and-watching` (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold)<!-- feature: capability:process_chain --> · `process-chain` (when slots depend on each other)<!-- /feature -->.
+`response-components` (per-slot components shape) · `overlay-system` (overlay hosts and resolution) · `compose-optimize` (best inputs from fitted models) · `streaming-and-watching` (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold)<!-- feature: capability:process_chain --> · `process-chain` (when slots depend on each other)<!-- /feature -->.

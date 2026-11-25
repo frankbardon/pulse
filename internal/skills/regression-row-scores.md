@@ -28,7 +28,9 @@ Model coefficients come from a regression slot (`regression-modeling`); these at
 
 - `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` are top-level keys, not `params`; `field` is unread. `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 - Two-pass: each slot runs its own OLS fit in the prepass (no sharing).
+<!-- feature: capability:weighting -->
 - A weight follows OLS's kinds (a WLS refit); the residual stays the raw y − ŷ.
+<!-- /feature -->
 - Penalized residuals are bias-shrunk: diagnose unpenalized.
 
 <!-- feature: ATTR_REG_RESIDUAL -->
@@ -38,16 +40,22 @@ Model coefficients come from a regression slot (`regression-modeling`); these at
 **Design-reading figures** (leverage, influence, the studentized kinds) read the hat and σ:
 
 - Unpenalized only (`PROCESSING_CONFIG`); leverage takes any penalty (`regression-influence`).
+<!-- feature: capability:weighting -->
 - A frequency weight is w identical observations: influence and studentized figures are ONE copy's (h/w, df = Σw − p − 1). Leverage stays the record's summed h.
+<!-- /feature -->
+<!-- feature: capability:weighting -->
 - A probability weight refuses the per-observation figures (`PULSE_WEIGHT_UNSUPPORTED`); leverage takes either kind.
+<!-- /feature -->
 - Null outside the fit and where undefined (df ≤ 1, h ≥ 1).
 
 ## Scoring a bound fit
 
-`params.fit` names a bound fit (a compose `fits` entry or a loaded `models` entry) instead of refitting — always on the predict attribute<!-- feature: ATTR_REG_PREDICT --> (`ATTR_REG_PREDICT`)<!-- /feature -->, optionally on the other four:
+`params.fit` names a bound fit (<!-- feature: capability:compose_fits -->a compose `fits` entry or <!-- /feature -->a loaded `models` entry) instead of refitting — always on the predict attribute<!-- feature: ATTR_REG_PREDICT --> (`ATTR_REG_PREDICT`)<!-- /feature -->, optionally on the other four:
 
 - Row-local: one pass; it fits nothing. The score equals the bound model's bit for bit.
+<!-- feature: capability:weighting -->
 - The row weight is ignored (the fit's own applied when it ran).
+<!-- /feature -->
 - Fitted reads the fit's score (a GLM: its fitted mean); residual reads y − score, y the fit's target.
 - Refusals, predict identically: an unknown name `PULSE_MODEL_UNKNOWN`; a refit field beside it `slot_fields`; a registered model without a scorer `no_scorer`.
 - A fit that failed on its data: every row null + `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; strict mode fails the batch with the fit's code.

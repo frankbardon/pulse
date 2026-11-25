@@ -35,7 +35,7 @@ The first member is canonical. Field names, types, vector dims and categorical w
 
 ## Where a union is read
 
-The request's own root, on every surface that reads one cohort: process and its stream, each Compose slot, a process chain's root (stage 0's source), the rich facet, sample (CLI: `pulse api sample --request`), materialize (the source field is written as a column), point lookup (always a scan — a union never reads a sidecar index) and a join's LEFT side. Predict sizes it from member headers alone: `record_count` is the members' total, `union` lists each member's count. `manifest.union.surfaces` lists the instance's surfaces.
+The request's own root, on every surface that reads one cohort: process and its stream, each Compose slot, a process chain's root (stage 0's source), the rich facet, sample (CLI: `pulse api sample --request`), materialize (the source field is written as a column), point lookup (always a scan — a union never reads a sidecar index), a join's LEFT side. Predict sizes it from member headers alone: `record_count` is the members' total, `union` lists each member's count. `manifest.union.surfaces` lists the instance's surfaces.
 
 Records arrive member by member in declared order, so an order-sensitive result (a window, a sample) follows that order unless you sort.
 

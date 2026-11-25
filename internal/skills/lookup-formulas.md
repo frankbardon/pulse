@@ -9,7 +9,7 @@ covers: [expression, formula, lookup, range_label, LookupTables, RangeTables, ra
 
 # Lookup formulas
 
-Part of the expression surface; entry skill `expression-language`. Two request-bound functions read the instance's registered tables per row — in the formula attribute (Materialize's included), the expression filter, a `total()` argument, a Compose optimize objective and an overlay formula. Neither reads a cohort, and neither is the sidecar-index point lookup.
+Part of the expression surface; entry skill `expression-language`. Two request-bound functions read the instance's registered tables per row — in the formula attribute<!-- feature: capability:materialize --> (Materialize's included)<!-- /feature -->, the expression filter, a `total()` argument<!-- feature: capability:compose_optimize -->, a Compose optimize objective<!-- /feature --> and an overlay formula. Neither reads a cohort, and neither is the sidecar-index point lookup.
 
 ## lookup
 

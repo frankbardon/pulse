@@ -18,7 +18,7 @@ Pipeline order: `features → filterers → attributes → groups → aggregatio
 - Filterers see source fields only — never an attribute label.
 - Groupers / aggregators / windows CAN reference an attribute label as `field`.
 <!-- feature: ATTR_FORMULA, ATTR_REG_PREDICT -->
-- **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Other window readers (`total()` too): `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`). Beside groups / aggregations / crosstab it moves only when one of them reads a window or post-window label (`windows-first`); else materialize. A lag's first rows are null: guard with `?? 0`.
+- **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Other window readers (`total()` too): `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`). Beside groups and aggregations it moves only when one of them reads a window or post-window label (`windows-first`); else materialize. A lag's first rows are null: guard with `?? 0`.
 <!-- /feature -->
 
 Entry shape: `{type, field?, label, params?, expression?}`; `label` is the new column. `target`, `predictors`, `penalty`, `alpha`, `l1_ratio` on a non-refit attribute (extensions too) → `PROCESSING_CONFIG`.
@@ -36,7 +36,7 @@ Decide what the new column must say about a row, then pick from the manifest `co
 ## Composition rules
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
-2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one. To stage a value across requests, use Compose / ProcessChain.
+2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one.<!-- feature: capability:process_chain --> To stage a value across requests, use a process chain.<!-- /feature -->
 3. **Two-pass attributes** — scoring a row against the column or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row; no full buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
 5. **Null inputs propagate.** Null source → null output (`n_null`); a 0/1 membership flag reads `0`. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.

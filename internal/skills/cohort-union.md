@@ -37,7 +37,7 @@ The first member is canonical. Field names, types, vector dims and categorical w
 
 ## Where a union is read
 
-The request's own root, on every surface that reads one cohort: process and its stream, each Compose slot, a process chain's root (stage 0's source), the rich facet, sample (CLI: `pulse api sample --request`), materialize (the source field is written as a column), point lookup (always a scan — a union never reads a sidecar index) and a join's LEFT side. Predict sizes it from member headers alone: `record_count` is the members' total, `union` lists each member's count. `manifest.union.surfaces` lists the instance's surfaces.
+The request's own root, on every surface that reads one cohort: process<!-- feature: capability:stream --> and its stream<!-- /feature --><!-- feature: capability:compose -->, each Compose slot<!-- /feature --><!-- feature: capability:process_chain -->, a process chain's root (stage 0's source)<!-- /feature --><!-- feature: capability:facet -->, the rich facet<!-- /feature --><!-- feature: capability:sample -->, sample (CLI: `pulse api sample --request`)<!-- /feature --><!-- feature: capability:materialize -->, materialize (the source field is written as a column)<!-- /feature --><!-- feature: capability:lookup -->, point lookup (always a scan — a union never reads a sidecar index)<!-- /feature --><!-- feature: capability:joins -->, a join's LEFT side<!-- /feature -->. Predict sizes it from member headers alone: `record_count` is the members' total, `union` lists each member's count. `manifest.union.surfaces` lists the instance's surfaces.
 
 Records arrive member by member in declared order, so an order-sensitive result (a window, a sample) follows that order unless you sort.
 
@@ -56,7 +56,7 @@ Predict and the run refuse the same request with the same code; validate with `p
 
 ## Real vs synthetic twin
 
-Two files, one slot: union the source and the twin, group by the source field, and read both sides in one response. A test or crosstab over the source field compares the two distributions directly — what a Compose of one slot per cohort could only approximate with overlays.
+Two files, one slot: union the source and the twin, group by the source field, and read both sides in one response. A test<!-- feature: capability:crosstab --> or crosstab<!-- /feature --> over the source field compares the two distributions directly — what a Compose of one slot per cohort could only approximate with overlays.
 
 <!-- feature: capability:synth -->
 **Inside the secure zone, prefer the tagged output.** `synth from-profile` without `--synthetic-only` writes ONE cohort holding the source rows and the generated rows, told apart by the `_synthetic` boolean column. Group or split by `_synthetic` for the same comparison with no union at all — the fidelity report is built on exactly that. That cohort contains real rows: it never leaves the zone. The union is the recipe once the twin is a separate, shareable file (an analyst re-running checks against a twin; governance comparing the shared twin with the source it came from).
@@ -66,7 +66,9 @@ Two files, one slot: union the source and the twin, group by the source field, a
 
 - `union` replaces `cohort`; never send both.
 - The source field is a field of the request: name it in `groups` / `filterers` exactly as `union_source_field` spells it.
+<!-- feature: capability:weighting -->
 - Weights resolve on the merged schema: every member needs the weight field.
+<!-- /feature -->
 - A point lookup over a union scans every member; build no index for it.
 - Union members cannot be unions; list every cohort in the one union.
 
