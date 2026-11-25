@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -384,8 +383,8 @@ func TestForEach_StoredTemplate(t *testing.T) {
 
 	fsys := afero.NewMemMapFs()
 	copyCohort(t, fsys)
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "adstock.json"), []byte(`{
+	dir := "/templates"
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "adstock.json"), []byte(`{
 		"target": "request",
 		"variables": [
 			{"name": "metric", "type": "field", "required": true},
@@ -434,8 +433,8 @@ func TestForEach_StoredTemplate(t *testing.T) {
 		}
 	}
 
-	bad := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bad, "clash.json"), []byte(`{
+	bad := "/templates-clash"
+	if err := afero.WriteFile(fsys, filepath.Join(bad, "clash.json"), []byte(`{
 		"target": "request",
 		"variables": [{"name": "decay", "type": "number", "default": 0.5}],
 		"body": {"cohort": {"filename": "s.pulse"}, "windows": [

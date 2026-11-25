@@ -175,15 +175,15 @@ func TestTemplateExprSplice_ExtensionStoreRescan(t *testing.T) {
 
 	bad := spliceDoc("request", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": "{{w}}"}}]}`)
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "bad.json", bad)
-	if _, err := template.NewStoreWith([]string{dir}, extOpts); !perr.HasCode(err, perr.PULSE_TEMPLATE_EXPR_SPLICE) {
+	if _, err := template.NewStoreWith(tfs, []string{dir}, extOpts); !perr.HasCode(err, perr.PULSE_TEMPLATE_EXPR_SPLICE) {
 		t.Fatalf("NewStoreWith = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
 	}
 
-	dir = t.TempDir()
+	dir = memDir(t)
 	writeFile(t, dir, "good.json", spliceDoc("request", `{"aggregations": [{"type": "AGG_ACME_X", "params": {"scale": 2}}]}`))
-	s, err := template.NewStoreWith([]string{dir}, extOpts)
+	s, err := template.NewStoreWith(tfs, []string{dir}, extOpts)
 	if err != nil {
 		t.Fatalf("NewStoreWith = %v", err)
 	}

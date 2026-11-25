@@ -1,7 +1,6 @@
 package template_test
 
 import (
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -9,6 +8,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/spf13/afero"
 )
 
 // This file is the per-file degradation contract: what the store does when
@@ -43,7 +43,7 @@ const brokenJSON = `{"target": "request", "body": {`
 // store's size+mtime identity pair happened to move.
 func breakFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := afero.WriteFile(tfs, path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
 	touch(t, path, time.Second)
@@ -94,7 +94,7 @@ func TestStore_BreakageAfterStartupIsPerFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := memDir(t)
 			path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 			writeFile(t, dir, "sibling.json", validTemplate("sibling"))
 
@@ -165,7 +165,7 @@ func TestStore_BreakageAfterStartupIsPerFile(t *testing.T) {
 func TestStore_BrokenFileRepairsOnNextReload(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	writeFile(t, dir, "sibling.json", validTemplate("sibling"))
 
@@ -234,7 +234,7 @@ func TestStore_BrokenFileRepairsOnNextReload(t *testing.T) {
 func TestStore_MalformedOnFirstAppearanceHasNoLastGood(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "healthy.json", validTemplate("healthy"))
 
 	s := newStore(t, dir)
@@ -309,7 +309,7 @@ func TestStore_MalformedOnFirstAppearanceHasNoLastGood(t *testing.T) {
 func TestStore_BreakageIsScopedToOneNameAcrossManySiblings(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	names := []string{
 		"alpha", "beta", "finance/cost", "finance/revenue", "gamma",
 		"deep/nested/margin", "delta", "epsilon", "zeta", "eta",
@@ -365,7 +365,7 @@ func TestStore_BreakageIsScopedToOneNameAcrossManySiblings(t *testing.T) {
 func TestStore_BrokenFileShadowedByAHealthyOverride(t *testing.T) {
 	t.Parallel()
 
-	high, low := t.TempDir(), t.TempDir()
+	high, low := memDir(t), memDir(t)
 	highPath := writeFile(t, high, "shared.json", validTemplate("from high"))
 	lowPath := writeFile(t, low, "shared.json", validTemplate("from low"))
 
@@ -442,7 +442,7 @@ func TestStore_BrokenFileShadowedByAHealthyOverride(t *testing.T) {
 func TestStore_BrokenFileDeletedStopsBeingReported(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "keeper.json", validTemplate("keeper"))
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 
@@ -454,7 +454,7 @@ func TestStore_BrokenFileDeletedStopsBeingReported(t *testing.T) {
 		t.Fatal("Summary(revenue).Broken = false, want true after the break")
 	}
 
-	if err := os.Remove(path); err != nil {
+	if err := tfs.Remove(path); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
 	reload(t, s)
@@ -482,23 +482,20 @@ func TestStore_BrokenFileDeletedStopsBeingReported(t *testing.T) {
 func TestStore_UnreadableFileDegradesLikeABrokenOne(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	writeFile(t, dir, "sibling.json", validTemplate("sibling"))
 
-	s := newStore(t, dir)
+	fsys := newDenyReadFs()
+	s, err := template.NewStore(fsys, []string{dir})
+	if err != nil {
+		t.Fatalf("NewStore() = %v, want nil error", err)
+	}
 
 	// The content changes so the store must re-read it, and only then
 	// discovers it cannot.
 	breakFile(t, path, validTemplate("edited but unreadable"))
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("Chmod: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	if _, err := os.ReadFile(path); err == nil {
-		// skip-audit(#675): kept — environment skip: a superuser (or a filesystem without POSIX permissions) can read a 0o000 file, so the unreadable-file path cannot be produced
-		t.Skip("this user bypasses file permissions; the unreadable-file path is untestable here")
-	}
+	fsys.deny(path)
 
 	if err := s.Reload(); err != nil {
 		t.Fatalf("Reload() = %v, want nil — one unreadable file is one file's problem", err)
@@ -534,7 +531,7 @@ func TestStore_UnreadableFileDegradesLikeABrokenOne(t *testing.T) {
 func TestStore_ConcurrentRenderDuringBrokenRescan(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "stable.json", validTemplate("stable"))
 	victim := writeFile(t, dir, "victim.json", validTemplate("victim original"))
 
@@ -600,9 +597,9 @@ func TestStore_ConcurrentRenderDuringBrokenRescan(t *testing.T) {
 			defer wg.Done()
 			for i := range iterations {
 				if (g+i)%2 == 0 {
-					_ = os.WriteFile(victim, []byte(brokenJSON), 0o644)
+					_ = afero.WriteFile(tfs, victim, []byte(brokenJSON), 0o644)
 				} else {
-					_ = os.WriteFile(victim, []byte(validTemplate("victim repaired")), 0o644)
+					_ = afero.WriteFile(tfs, victim, []byte(validTemplate("victim repaired")), 0o644)
 				}
 				if err := s.Reload(); err != nil {
 					errs <- err
@@ -626,11 +623,11 @@ func TestStore_ConcurrentRenderDuringBrokenRescan(t *testing.T) {
 func TestStore_ConstructionStaysFailFast(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "healthy.json", validTemplate("healthy"))
 	path := writeFile(t, dir, "broken.json", brokenJSON)
 
-	got, err := template.NewStore([]string{dir})
+	got, err := template.NewStore(tfs, []string{dir})
 	if err == nil {
 		t.Fatalf("NewStore() = %v, want construction to fail on a malformed file", got)
 	}
@@ -653,7 +650,7 @@ func TestStore_ConstructionStaysFailFast(t *testing.T) {
 func TestStore_UnnameableFileIsSkippedAfterStartup(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("original"))
 
 	s := newStore(t, dir)
@@ -675,7 +672,7 @@ func TestStore_UnnameableFileIsSkippedAfterStartup(t *testing.T) {
 	}
 
 	// Construction is still the strict path for the same file.
-	if _, err := template.NewStore([]string{dir}); !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
+	if _, err := template.NewStore(tfs, []string{dir}); !perr.HasCode(err, perr.PULSE_TEMPLATE_INVALID) {
 		t.Errorf("NewStore() = %v, want PULSE_TEMPLATE_INVALID for a file with no derivable name", err)
 	}
 }

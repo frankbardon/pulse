@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -24,27 +25,52 @@ func tmplDoc(description string) string {
 }`
 }
 
-// writeTmpl writes content at dir/rel, creating parent directories, and
-// returns the full path.
+// tmplFS is the in-memory filesystem the template tests keep their
+// template directories on. The store reads through Options.FS when one is
+// supplied, so these tests stay off the host; each takes its own directory
+// from tmplDir, which keeps parallel tests apart on the one Fs.
+var tmplFS = afero.NewMemMapFs()
+
+// tmplDirSeq numbers tmplDir directories so every call is a fresh root.
+var tmplDirSeq atomic.Uint64
+
+// tmplDir creates and returns a fresh, empty template root on tmplFS.
+func tmplDir(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(string(filepath.Separator)+"templates", strconv.FormatUint(tmplDirSeq.Add(1), 10))
+	if err := tmplFS.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s): %v", dir, err)
+	}
+	return dir
+}
+
+// writeTmpl writes content at dir/rel on tmplFS, creating parent
+// directories, and returns the full path.
 func writeTmpl(t *testing.T, dir, rel, content string) string {
 	t.Helper()
+	return writeTmplOn(t, tmplFS, dir, rel, content)
+}
+
+// writeTmplOn is writeTmpl onto an explicit filesystem — the engine's own
+// Options.FS when a test also keeps cohorts there.
+func writeTmplOn(t *testing.T, fsys afero.Fs, dir, rel, content string) string {
+	t.Helper()
 	path := filepath.Join(dir, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := fsys.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%s): %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := afero.WriteFile(fsys, path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
 	return path
 }
 
-// newPulse builds a Pulse over a hermetic in-memory cohort filesystem with
-// the supplied template configuration, failing the test on error. The
-// cohort FS is irrelevant here — template directories are real OS paths by
-// design (config-dir loading is the sanctioned afero exception).
+// newPulse builds a Pulse over tmplFS with the supplied template
+// configuration, failing the test on error. Template roots are paths on
+// that same Fs: the store reads through Options.FS.
 func newPulse(t *testing.T, opts Options) *Pulse {
 	t.Helper()
-	opts.FS = afero.NewMemMapFs()
+	opts.FS = tmplFS
 	p, err := New(opts)
 	if err != nil {
 		t.Fatalf("New(%+v) = %v, want nil error", opts, err)
@@ -166,7 +192,7 @@ func TestNew_NoTemplateDirsIsSilentNoOp(t *testing.T) {
 func TestNew_TemplateDirsFromOption(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "finance/revenue.json", tmplDoc("from option"))
 
 	p := newPulse(t, Options{TemplateDirs: []string{dir}})
@@ -180,13 +206,68 @@ func TestNew_TemplateDirsFromOption(t *testing.T) {
 	}
 }
 
+// TestNew_TemplateDirsReadThroughOptionsFS is the embedder contract: with
+// Options.FS supplied, template roots are paths on that filesystem. A
+// template that exists only in memory loads and lists; its path is absent
+// from the host.
+func TestNew_TemplateDirsReadThroughOptionsFS(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	dir := filepath.Join(string(filepath.Separator)+"pulse-mem-only", "templates")
+	writeTmplOn(t, fsys, dir, "finance/revenue.json", tmplDoc("in memory"))
+	if _, err := os.Stat(dir); err == nil {
+		t.Fatalf("%s exists on the host; the test needs a path only the in-memory Fs has", dir)
+	}
+
+	p, err := New(Options{FS: fsys, TemplateDirs: []string{dir}})
+	if err != nil {
+		t.Fatalf("New = %v, want the in-memory template loaded", err)
+	}
+	tmpl, err := p.GetTemplate("finance/revenue")
+	if err != nil {
+		t.Fatalf("GetTemplate(finance/revenue) = %v", err)
+	}
+	if tmpl.Description != "in memory" {
+		t.Fatalf("Description = %q, want %q", tmpl.Description, "in memory")
+	}
+	if listed := p.ListTemplates(); len(listed) != 1 || listed[0].Path != filepath.Join(dir, "finance", "revenue.json") {
+		t.Fatalf("ListTemplates() = %+v, want the one in-memory template", listed)
+	}
+}
+
+// TestNew_TemplateDirsHostFsWithoutFS is the CLI / MCP shape: with no
+// Options.FS the instance Fs is rooted at DataDir, yet template roots stay
+// host paths — absolute, outside the data directory — read from the host
+// filesystem.
+func TestNew_TemplateDirsHostFsWithoutFS(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "host.json"), []byte(tmplDoc("on host")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := New(Options{DataDir: t.TempDir(), TemplateDirs: []string{dir}})
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	tmpl, err := p.GetTemplate("host")
+	if err != nil {
+		t.Fatalf("GetTemplate(host) = %v, want the host template", err)
+	}
+	if tmpl.Description != "on host" {
+		t.Fatalf("Description = %q, want %q", tmpl.Description, "on host")
+	}
+}
+
 // TestNew_TemplateDirsFromEnv covers the environment fallback, including
 // the multi-root form: one variable carrying several roots separated by
 // the host path-list separator, in precedence order.
 func TestNew_TemplateDirsFromEnv(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	first := t.TempDir()
-	second := t.TempDir()
+	first := tmplDir(t)
+	second := tmplDir(t)
 	writeTmpl(t, first, "a.json", tmplDoc("first root"))
 	writeTmpl(t, second, "b.json", tmplDoc("second root"))
 
@@ -210,8 +291,8 @@ func TestNew_TemplateDirsFromEnv(t *testing.T) {
 // template that exists only under the env root stays unreachable.
 func TestNew_TemplateDirsOptionShadowsEnv(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	optDir := t.TempDir()
-	envDir := t.TempDir()
+	optDir := tmplDir(t)
+	envDir := tmplDir(t)
 	writeTmpl(t, optDir, "wanted.json", tmplDoc("option root"))
 	writeTmpl(t, envDir, "unwanted.json", tmplDoc("env root"))
 
@@ -232,8 +313,8 @@ func TestNew_TemplateDirsOptionShadowsEnv(t *testing.T) {
 // configured roots resolves to the FIRST root's document.
 func TestNew_TemplateDirsPrecedenceEndToEnd(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	high := t.TempDir()
-	low := t.TempDir()
+	high := tmplDir(t)
+	low := tmplDir(t)
 	writeTmpl(t, high, "shared.json", tmplDoc("high precedence"))
 	writeTmpl(t, low, "shared.json", tmplDoc("low precedence"))
 
@@ -279,11 +360,11 @@ func TestNew_TemplateDirsPrecedenceEndToEnd(t *testing.T) {
 func TestNew_TemplateDirShapes(t *testing.T) {
 	t.Parallel()
 
-	present := t.TempDir()
+	present := tmplDir(t)
 	writeTmpl(t, present, "ok.json", tmplDoc("present"))
 
-	fileRoot := filepath.Join(t.TempDir(), "not-a-dir")
-	if err := os.WriteFile(fileRoot, []byte("{}"), 0o644); err != nil {
+	fileRoot := filepath.Join(tmplDir(t), "not-a-dir")
+	if err := afero.WriteFile(tmplFS, fileRoot, []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -296,11 +377,11 @@ func TestNew_TemplateDirShapes(t *testing.T) {
 	}{
 		{
 			name: "missing root is skipped without error",
-			dirs: []string{filepath.Join(t.TempDir(), "absent")},
+			dirs: []string{filepath.Join(tmplDir(t), "absent")},
 		},
 		{
 			name: "missing root alongside a present one still loads the present one",
-			dirs: []string{filepath.Join(t.TempDir(), "absent"), present},
+			dirs: []string{filepath.Join(tmplDir(t), "absent"), present},
 		},
 		{
 			name:          "root that is a regular file is an error",
@@ -312,7 +393,7 @@ func TestNew_TemplateDirShapes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := New(Options{FS: afero.NewMemMapFs(), TemplateDirs: tc.dirs})
+			_, err := New(Options{FS: tmplFS, TemplateDirs: tc.dirs})
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("New = nil error, want a failure")
@@ -354,10 +435,10 @@ func TestNew_MalformedTemplateFailsNew(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := tmplDir(t)
 			path := writeTmpl(t, dir, tc.rel, tc.content)
 
-			_, err := New(Options{FS: afero.NewMemMapFs(), TemplateDirs: []string{dir}})
+			_, err := New(Options{FS: tmplFS, TemplateDirs: []string{dir}})
 			if err == nil {
 				t.Fatal("New = nil error, want the malformed template to fail startup")
 			}

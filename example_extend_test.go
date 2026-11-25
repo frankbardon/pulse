@@ -8,14 +8,13 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // spread is a custom aggregator written against the public extend
@@ -71,25 +70,21 @@ func ExampleExtensions() {
 
 // Render a stored request template with variables, then run the typed
 // request it decodes into. Templates are JSON files under
-// Options.TemplateDirs, read from the host filesystem.
+// Options.TemplateDirs, read through Options.FS — here the same in-memory
+// filesystem that holds the cohort.
 func ExamplePulse_RenderTemplate() {
-	dir, err := os.MkdirTemp("", "pulse-templates")
-	if err != nil {
-		fmt.Println("error:", err)
-		return
-	}
-	defer os.RemoveAll(dir)
+	fsys := afero.NewMemMapFs()
 	doc := `{"target": "request",
   "variables": [{"name": "metric", "type": "field", "required": true}],
   "body": {"cohort": {"filename": "sales.pulse"},
     "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
     "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}, "label": "total"}]}}`
-	if err := os.WriteFile(filepath.Join(dir, "total_by_region.json"), []byte(doc), 0o644); err != nil {
+	if err := afero.WriteFile(fsys, "/templates/total_by_region.json", []byte(doc), 0o644); err != nil {
 		fmt.Println("error:", err)
 		return
 	}
 
-	p, _ := newExampleEngine(pulse.Options{TemplateDirs: []string{dir}})
+	p, _ := newExampleEngine(pulse.Options{FS: fsys, TemplateDirs: []string{"/templates"}})
 	rendered, err := p.RenderTemplate("total_by_region", map[string]any{"metric": "amount"})
 	if err != nil {
 		fmt.Println("error:", err)

@@ -73,14 +73,14 @@ func TestListTemplates(t *testing.T) {
 	})
 
 	t.Run("configured but empty root lists nothing", func(t *testing.T) {
-		p := newPulse(t, Options{TemplateDirs: []string{t.TempDir()}})
+		p := newPulse(t, Options{TemplateDirs: []string{tmplDir(t)}})
 		if got := p.ListTemplates(); len(got) != 0 {
 			t.Fatalf("ListTemplates() = %v, want empty", got)
 		}
 	})
 
 	t.Run("sorted by name regardless of discovery order", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "zulu.json", tmplDoc("z"))
 		writeTmpl(t, dir, "alpha.json", tmplDoc("a"))
 		writeTmpl(t, dir, "finance/revenue.json", tmplDoc("r"))
@@ -100,7 +100,7 @@ func TestListTemplates(t *testing.T) {
 	})
 
 	t.Run("summary projects the declaration a caller builds a form from", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		path := writeTmpl(t, dir, "finance/revenue.json", tmplDoc("Revenue by region"))
 
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
@@ -131,8 +131,8 @@ func TestListTemplates(t *testing.T) {
 	})
 
 	t.Run("shadowed entries surface on the winner rather than as their own row", func(t *testing.T) {
-		high := t.TempDir()
-		low := t.TempDir()
+		high := tmplDir(t)
+		low := tmplDir(t)
 		winner := writeTmpl(t, high, "shared.json", tmplDoc("high precedence"))
 		loser := writeTmpl(t, low, "shared.json", tmplDoc("low precedence"))
 
@@ -152,8 +152,8 @@ func TestListTemplates(t *testing.T) {
 	})
 
 	t.Run("every listed entry is fetchable", func(t *testing.T) {
-		high := t.TempDir()
-		low := t.TempDir()
+		high := tmplDir(t)
+		low := tmplDir(t)
 		writeTmpl(t, high, "shared.json", tmplDoc("high"))
 		writeTmpl(t, low, "shared.json", tmplDoc("low"))
 		writeTmpl(t, low, "only-low.json", tmplDoc("only low"))
@@ -173,7 +173,7 @@ func TestListTemplates(t *testing.T) {
 // miss is PULSE_TEMPLATE_NOT_FOUND naming what was asked for.
 func TestGetTemplate(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "finance/revenue.json", tmplDoc("Revenue by region"))
 
 	t.Run("known name returns the full declaration", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestRenderTemplate(t *testing.T) {
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				dir := t.TempDir()
+				dir := tmplDir(t)
 				writeTmpl(t, dir, "t.json", facadeDoc(tc.name, tc.target, tc.body))
 				p := newPulse(t, Options{TemplateDirs: []string{dir}})
 
@@ -293,7 +293,7 @@ func TestRenderTemplate(t *testing.T) {
 	})
 
 	t.Run("substituted values reach the typed request", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "t.json", facadeDoc("request", "request", requestBody))
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
 
@@ -325,7 +325,7 @@ func TestRenderTemplate(t *testing.T) {
 func TestRenderTemplateRequest(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
 	t.Run("returns the typed request directly", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "finance/revenue.json", facadeDoc("revenue", "request", requestBody))
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
 
@@ -379,7 +379,7 @@ func TestRenderTemplateRequest(t *testing.T) {
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				dir := t.TempDir()
+				dir := tmplDir(t)
 				// The variable is declared but unused by these bodies;
 				// supplying it keeps the required-variable rule satisfied so
 				// the ONLY fault under test is the target mismatch.
@@ -416,7 +416,7 @@ func TestRenderTemplateRequest(t *testing.T) {
 	})
 
 	t.Run("misses are coded", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "known.json", facadeDoc("known", "request", requestBody))
 
 		tests := []struct {
@@ -490,7 +490,7 @@ func TestRenderTemplate_VariableFaultsPropagateCoded(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "vars.json", doc)
 	p := newPulse(t, Options{TemplateDirs: []string{dir}})
 
@@ -521,7 +521,7 @@ func TestRenderTemplate_VariableFaultsPropagateCoded(t *testing.T) {
 func TestRenderTemplateRequest_RenderInvalidPropagates(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "typo.json", `{
   "target": "request",
   "body": {"cohort": {"filename": "sales.pulse"}, "aggregation": []}
@@ -588,8 +588,10 @@ func TestRenderTemplateRequest_EndToEnd(t *testing.T) {
 	// The template names its cohort, groups by a caller-chosen dimension,
 	// and sums a caller-chosen metric. Both markers are exercised: the
 	// {"$var": …} object form and the {{name}} string form.
-	dir := t.TempDir()
-	writeTmpl(t, dir, "finance/revenue.json", `{
+	// The template sits on the same in-memory Fs as the cohort: the store
+	// reads through Options.FS.
+	dir := "/templates"
+	writeTmplOn(t, memFs, dir, "finance/revenue.json", `{
   "description": "Total metric by dimension",
   "target": "request",
   "variables": [

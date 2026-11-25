@@ -1,7 +1,6 @@
 package pulse
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +8,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/spf13/afero"
 )
 
 // touchTmpl pushes a template file's modification time forward, so a
@@ -17,12 +17,12 @@ import (
 // not depend on which of the two happened to move.
 func touchTmpl(t *testing.T, path string) {
 	t.Helper()
-	info, err := os.Stat(path)
+	info, err := tmplFS.Stat(path)
 	if err != nil {
 		t.Fatalf("Stat(%s): %v", path, err)
 	}
 	at := info.ModTime().Add(time.Second)
-	if err := os.Chtimes(path, at, at); err != nil {
+	if err := tmplFS.Chtimes(path, at, at); err != nil {
 		t.Fatalf("Chtimes(%s): %v", path, err)
 	}
 }
@@ -51,7 +51,7 @@ func renderedDescription(t *testing.T, p *Pulse, name string) string {
 func TestReloadTemplates(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
 	t.Run("a file added after New becomes renderable", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
@@ -91,7 +91,7 @@ func TestReloadTemplates(t *testing.T) {
 	})
 
 	t.Run("a modified file renders its new content", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		path := writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
@@ -108,7 +108,7 @@ func TestReloadTemplates(t *testing.T) {
   "body": {"cohort": {"filename": "other.pulse"},
     "aggregations": [{"type": "AGG_MEAN", "field": {"$var": "metric"}}]}
 }`
-		if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
+		if err := afero.WriteFile(tmplFS, path, []byte(edited), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
 		touchTmpl(t, path)
@@ -133,7 +133,7 @@ func TestReloadTemplates(t *testing.T) {
 	})
 
 	t.Run("a deleted file stops resolving", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		path := writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 		writeTmpl(t, dir, "keeper.json", tmplDoc("still here"))
 
@@ -142,7 +142,7 @@ func TestReloadTemplates(t *testing.T) {
 			t.Fatalf("GetTemplate(revenue).Description = %q, want %q", got, "original")
 		}
 
-		if err := os.Remove(path); err != nil {
+		if err := tmplFS.Remove(path); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		if err := p.ReloadTemplates(); err != nil {
@@ -162,7 +162,7 @@ func TestReloadTemplates(t *testing.T) {
 	})
 
 	t.Run("shadowing is re-resolved across roots", func(t *testing.T) {
-		high, low := t.TempDir(), t.TempDir()
+		high, low := tmplDir(t), tmplDir(t)
 		writeTmpl(t, low, "shared.json", tmplDoc("from low"))
 
 		p := newPulse(t, Options{TemplateDirs: []string{high, low}})
@@ -178,7 +178,7 @@ func TestReloadTemplates(t *testing.T) {
 			t.Fatalf("GetTemplate(shared).Description = %q, want %q — an override dropped into the higher-precedence root must start winning", got, "from high")
 		}
 
-		if err := os.Remove(override); err != nil {
+		if err := tmplFS.Remove(override); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		if err := p.ReloadTemplates(); err != nil {
@@ -205,14 +205,14 @@ func TestReloadTemplates(t *testing.T) {
 
 		// A configured but empty root is the same story: nothing to walk,
 		// nothing to fail.
-		q := newPulse(t, Options{TemplateDirs: []string{t.TempDir()}})
+		q := newPulse(t, Options{TemplateDirs: []string{tmplDir(t)}})
 		if err := q.ReloadTemplates(); err != nil {
 			t.Errorf("ReloadTemplates() over an empty root = %v, want nil", err)
 		}
 	})
 
 	t.Run("a malformed file appearing later is listed broken, not returned as an error", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 
 		p := newPulse(t, Options{TemplateDirs: []string{dir}})
@@ -264,7 +264,7 @@ func TestReloadTemplates(t *testing.T) {
 	})
 
 	t.Run("a template that breaks after New keeps rendering its last-good content", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := tmplDir(t)
 		path := writeTmpl(t, dir, "revenue.json", facadeDoc("original", "request", requestBody))
 		writeTmpl(t, dir, "sibling.json", tmplDoc("sibling"))
 
@@ -279,7 +279,7 @@ func TestReloadTemplates(t *testing.T) {
 		}
 
 		// The file is broken mid-edit.
-		if err := os.WriteFile(path, []byte(`{"target": "request", "body": {`), 0o644); err != nil {
+		if err := afero.WriteFile(tmplFS, path, []byte(`{"target": "request", "body": {`), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
 		touchTmpl(t, path)
@@ -308,7 +308,7 @@ func TestReloadTemplates(t *testing.T) {
   "body": {"cohort": {"filename": "other.pulse"},
     "aggregations": [{"type": "AGG_MEAN", "field": {"$var": "metric"}}]}
 }`
-		if err := os.WriteFile(path, []byte(repaired), 0o644); err != nil {
+		if err := afero.WriteFile(tmplFS, path, []byte(repaired), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
 		touchTmpl(t, path)
@@ -331,7 +331,7 @@ func TestReloadTemplates(t *testing.T) {
 	})
 
 	t.Run("a directory removed wholesale degrades to not-found", func(t *testing.T) {
-		root := t.TempDir()
+		root := tmplDir(t)
 		dir := filepath.Join(root, "templates")
 		writeTmpl(t, dir, "revenue.json", tmplDoc("original"))
 
@@ -340,7 +340,7 @@ func TestReloadTemplates(t *testing.T) {
 			t.Fatalf("GetTemplate(revenue).Description = %q, want %q", got, "original")
 		}
 
-		if err := os.RemoveAll(dir); err != nil {
+		if err := tmplFS.RemoveAll(dir); err != nil {
 			t.Fatalf("RemoveAll: %v", err)
 		}
 		// A root that has gone missing is an absent layer, not a fault —

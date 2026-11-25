@@ -3,9 +3,10 @@ package integration_test
 import (
 	"encoding/json"
 	stderrors "errors"
-	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -35,15 +36,33 @@ func spliceTemplate(t *testing.T, body *types.Request) string {
 ], "body": ` + string(raw) + `}`
 }
 
+// templateFS holds this file's template directories: the store reads
+// template roots through Options.FS, so the engine and the fixtures share
+// it. Each test takes its own root from templateDir.
+var templateFS = afero.NewMemMapFs()
+
+var templateDirSeq atomic.Uint64
+
+// templateDir creates and returns a fresh, empty template root on
+// templateFS.
+func templateDir(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(string(filepath.Separator)+"templates", strconv.FormatUint(templateDirSeq.Add(1), 10))
+	if err := templateFS.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 func writeTemplateFile(t *testing.T, dir, name, doc string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(doc), 0o644); err != nil {
+	if err := afero.WriteFile(templateFS, filepath.Join(dir, name), []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func newTemplatePulse(ext pulse.Extensions, dir string, fp *pulse.FeatureProfile) (*pulse.Pulse, error) {
-	return pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: ext, TemplateDirs: []string{dir}, FeatureProfile: fp})
+	return pulse.New(pulse.Options{FS: templateFS, Extensions: ext, TemplateDirs: []string{dir}, FeatureProfile: fp})
 }
 
 // TestTemplateExprSplice_ExtensionParamEveryCategory: per extension
@@ -59,7 +78,7 @@ func TestTemplateExprSplice_ExtensionParamEveryCategory(t *testing.T) {
 		t.Run(tc.category, func(t *testing.T) {
 			t.Parallel()
 
-			dir := t.TempDir()
+			dir := templateDir(t)
 			writeTemplateFile(t, dir, "bad.json", spliceTemplate(t, tc.request(nil, json.RawMessage(`{"scale":"params.k * {{w}}"}`))))
 			_, err := newTemplatePulse(ext, dir, nil)
 			var ce *perr.CodedError
@@ -78,7 +97,7 @@ func TestTemplateExprSplice_ExtensionParamEveryCategory(t *testing.T) {
 				}
 			}
 
-			dir = t.TempDir()
+			dir = templateDir(t)
 			writeTemplateFile(t, dir, "ok.json", spliceTemplate(t, tc.request(nil, json.RawMessage(`{"scale":2,"tag":"t_{{t}}"}`))))
 			p, err := newTemplatePulse(ext, dir, nil)
 			if err != nil {
@@ -103,7 +122,7 @@ func TestTemplateExprSplice_ExtensionParamReload(t *testing.T) {
 	t.Parallel()
 
 	agg := strictCases()[0]
-	dir := t.TempDir()
+	dir := templateDir(t)
 	p, err := newTemplatePulse(onlyCategory(exprExtensions(&paramCapture{}), "aggregator"), dir, nil)
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
@@ -136,7 +155,7 @@ func TestTemplateExprSplice_ExtensionParamHidden(t *testing.T) {
 	t.Parallel()
 
 	agg := strictCases()[0]
-	dir := t.TempDir()
+	dir := templateDir(t)
 	writeTemplateFile(t, dir, "bad.json", spliceTemplate(t, agg.request(nil, json.RawMessage(`{"scale":"{{w}}"}`))))
 	ext := onlyCategory(exprExtensions(&paramCapture{}), "aggregator")
 	if _, err := newTemplatePulse(ext, dir, nil); !perr.HasCode(err, perr.PULSE_TEMPLATE_EXPR_SPLICE) {
@@ -164,7 +183,7 @@ func TestTemplateExprSplice_ExtensionTemplatedType(t *testing.T) {
   {"name": "op", "type": "string", "default": "AGG_ACME_STRICT"}
 ], "body": {"aggregations": [{"type": "{{op}}", "field": "score", "label": "v", "params": ` + params + `}]}}`
 	}
-	dir := t.TempDir()
+	dir := templateDir(t)
 	writeTemplateFile(t, dir, "bad.json", doc(`{"scale": "params.k * {{w}}"}`))
 	_, err := newTemplatePulse(ext, dir, nil)
 	var ce *perr.CodedError
@@ -175,7 +194,7 @@ func TestTemplateExprSplice_ExtensionTemplatedType(t *testing.T) {
 		t.Fatalf("details %v, want slot extension_param, type_templated, variable w", ce.Details)
 	}
 
-	dir = t.TempDir()
+	dir = templateDir(t)
 	writeTemplateFile(t, dir, "ok.json", doc(`{"scale": 2, "tag": "t_{{w}}"}`))
 	p, err := newTemplatePulse(ext, dir, nil)
 	if err != nil {

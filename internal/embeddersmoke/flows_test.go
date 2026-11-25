@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	stderrors "errors"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -27,11 +26,13 @@ import (
 
 const salesCSV = "region,amount\nnorth,10\nsouth,20\nnorth,5\n"
 
-// newEngine builds an engine over a fresh MemMap fs.
+// newEngine builds an engine over opts.FS, a fresh MemMap fs when unset.
 func newEngine(t *testing.T, opts pulse.Options) (*pulse.Pulse, afero.Fs) {
 	t.Helper()
-	fs := afero.NewMemMapFs()
-	opts.FS = fs
+	if opts.FS == nil {
+		opts.FS = afero.NewMemMapFs()
+	}
+	fs := opts.FS
 	opts.DisablePanicRecovery = true // an engine panic crashes the test, never a recovered error
 	p, err := pulse.New(opts)
 	if err != nil {
@@ -815,18 +816,20 @@ func contains(xs []string, want string) bool {
 	return false
 }
 
-// TestTemplateConstants loads one template from disk and matches its
-// target and variable type against the root constants.
+// TestTemplateConstants loads one template from the engine's in-memory
+// fs (template roots are paths on Options.FS) and matches its target and
+// variable type against the root constants.
 func TestTemplateConstants(t *testing.T) {
-	dir := t.TempDir()
+	fs := afero.NewMemMapFs()
+	dir := "/templates"
 	doc := `{"target": "request",
   "variables": [{"name": "metric", "type": "field", "required": true}],
   "body": {"cohort": {"filename": "sales.pulse"},
     "aggregations": [{"type": "AGG_SUM", "field": {"$var": "metric"}}]}}`
-	if err := os.WriteFile(filepath.Join(dir, "revenue.json"), []byte(doc), 0o644); err != nil {
+	if err := afero.WriteFile(fs, filepath.Join(dir, "revenue.json"), []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, _ := newEngine(t, pulse.Options{TemplateDirs: []string{dir}})
+	p, _ := newEngine(t, pulse.Options{FS: fs, TemplateDirs: []string{dir}})
 	tpl, err := p.GetTemplate("revenue")
 	if err != nil {
 		t.Fatalf("GetTemplate: %v", err)

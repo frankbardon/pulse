@@ -101,8 +101,10 @@ func buildMatSource(t *testing.T, p *Pulse, path string, opts CohortBuilderOptio
 
 func matPulse(t *testing.T, opts Options) (*Pulse, afero.Fs) {
 	t.Helper()
-	fsys := afero.NewMemMapFs()
-	opts.FS = fsys
+	if opts.FS == nil {
+		opts.FS = afero.NewMemMapFs()
+	}
+	fsys := opts.FS
 	p, err := New(opts)
 	if err != nil {
 		t.Fatal(err)

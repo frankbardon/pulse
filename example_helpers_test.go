@@ -40,12 +40,15 @@ const exampleCSV = "id,region,channel,amount\n" +
 	"1,north,web,10\n2,south,store,20\n3,north,store,5\n" +
 	"4,east,web,15\n5,south,web,30\n6,north,web,25\n"
 
-// newExampleEngine returns an engine over a fresh in-memory filesystem
-// holding the tiny cohort at "sales.pulse". It panics on failure: the
-// fixture is fixed, so a failure is a bug in the example itself.
+// newExampleEngine returns an engine over opts.FS — a fresh in-memory
+// filesystem when unset — holding the tiny cohort at "sales.pulse". It
+// panics on failure: the fixture is fixed, so a failure is a bug in the
+// example itself.
 func newExampleEngine(opts pulse.Options) (*pulse.Pulse, afero.Fs) {
-	fsys := afero.NewMemMapFs()
-	opts.FS = fsys
+	if opts.FS == nil {
+		opts.FS = afero.NewMemMapFs()
+	}
+	fsys := opts.FS
 	p, err := pulse.New(opts)
 	if err != nil {
 		panic(fmt.Sprintf("pulse.New: %v", err))

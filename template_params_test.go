@@ -50,8 +50,8 @@ func TestTemplateExprSplice_ParamsAcceptancePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	writeTmpl(t, dir, "panel/wave-filter.json", string(example))
+	dir := "/templates"
+	writeTmplOn(t, memFs, dir, "panel/wave-filter.json", string(example))
 	p, err := New(Options{FS: memFs, TemplateDirs: []string{dir}})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -87,12 +87,12 @@ func TestTemplateExprSplice_ParamsAcceptancePath(t *testing.T) {
 func TestTemplateExprSplice_RefusedAtNew(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "panel/spliced.json", `{"target": "request",
   "variables": [{"name": "from_wave", "type": "number", "required": true}],
   "body": {"cohort": {"filename": "panel.pulse"},
     "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave == {{from_wave}}"}]}}`)
-	_, err := New(Options{FS: afero.NewMemMapFs(), TemplateDirs: []string{dir}})
+	_, err := New(Options{FS: tmplFS, TemplateDirs: []string{dir}})
 	ce := codedErr(t, err, perr.PULSE_TEMPLATE_EXPR_SPLICE)
 	if ce.Details["slot"] != "expression" || ce.Details[perr.DetailVariable] != "from_wave" {
 		t.Errorf("details %+v, want the expression slot and the spliced variable", ce.Details)

@@ -70,7 +70,7 @@ func recsWith(recs []logRec, msg string) []logRec {
 func TestStore_LogsReloadOutcomes(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	path := writeFile(t, dir, "revenue.json", validTemplate("original"))
 	s := newStore(t, dir)
 	h := &recHandler{}
@@ -140,7 +140,7 @@ func TestStore_NilLoggerSilent(t *testing.T) {
 	slog.SetDefault(slog.New(h))
 	defer slog.SetDefault(prev)
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("original"))
 	s := newStore(t, dir)
 	s.SetLogger(nil)
