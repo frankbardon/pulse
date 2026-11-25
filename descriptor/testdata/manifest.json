@@ -16108,7 +16108,7 @@
         "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
-    "examples_count": 282,
+    "examples_count": 283,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -22158,4 +22158,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9ddc46095d17cb6f9dd8937a3bee9b128414e07ccd8834e7d4190bdd7cbb3659
+// golden-hash: b21b06ba06ea17e7431b91b9169e98c2358624c7cd9256d9d40aa1656c8fa3bb

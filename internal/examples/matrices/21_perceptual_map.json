@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "name": "perceptual_map",
+    "category": "matrices",
+    "description": "A perceptual map of five brands from six 1-7 ratings on brand_ratings.pulse, in one buffered request. Two ATTR_PC_SCORE attributes give every row its coordinate pair (map_x = component 1, map_y = component 2, fitted on the request's own rows; no loadings are passed in). MAT_PCA over the same ratings returns the loadings that name the two axes and the cumulative share of variation the flat picture keeps. MAT_DISTANCE over map_x and map_y with between: GROUP_CATEGORY brand returns the brand x brand distance grid on the map, and its auxiliary.centroids are each brand's map position (the brand's mean score on each axis). A second MAT_DISTANCE over the six standardized ratings themselves is the check: it holds the distances the flat picture approximates. Component signs follow MAT_PCA's rule (each eigenvector's largest-magnitude loading positive); flip an axis freely when plotting.",
+    "question": "Which brands do customers see as alike, and what separates them?",
+    "interpretation": "Two axes carry most of the picture. The first is premium versus budget: quality and premium load one way, value the other. The second is modern versus traditional: modern and innovative against heritage. The four outer brands sit one to a quadrant with the fifth near the middle. The closest pairs share a side of the price axis, the two premium brands and the two budget ones, so price separates customers' views more than style does; brands on opposite corners are the furthest apart. The distance grid over the six ratings themselves ranks those corner pairs the same way, so the flat picture does not mislead here. The middle brand is about equally close to all four and owns no position of its own. Distances between centres carry no p-value, so treat a small gap as no gap until a test says otherwise.",
+    "intents": [
+      "segment",
+      "compare_groups"
+    ],
+    "operators": [
+      "ATTR_PC_SCORE",
+      "GROUP_CATEGORY",
+      "MAT_DISTANCE",
+      "MAT_PCA"
+    ],
+    "tags": [
+      "matrix",
+      "multivariate",
+      "feature-engineering",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "brand_ratings.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_PC_SCORE",
+      "label": "map_x",
+      "fields": ["quality", "premium", "value", "modern", "innovative", "heritage"],
+      "params": {"component": 1}
+    },
+    {
+      "type": "ATTR_PC_SCORE",
+      "label": "map_y",
+      "fields": ["quality", "premium", "value", "modern", "innovative", "heritage"],
+      "params": {"component": 2}
+    }
+  ],
+  "matrices": [
+    {
+      "type": "MAT_PCA",
+      "name": "axes",
+      "fields": ["quality", "premium", "value", "modern", "innovative", "heritage"],
+      "params": {"components": 2}
+    },
+    {
+      "type": "MAT_DISTANCE",
+      "name": "brand_distance",
+      "fields": ["map_x", "map_y"],
+      "params": {
+        "between": {"type": "GROUP_CATEGORY", "field": "brand"}
+      }
+    },
+    {
+      "type": "MAT_DISTANCE",
+      "name": "rating_distance",
+      "fields": ["quality", "premium", "value", "modern", "innovative", "heritage"],
+      "params": {
+        "between": {"type": "GROUP_CATEGORY", "field": "brand"},
+        "standardize": true
+      }
+    }
+  ],
+  "return": {
+    "precision": 4
+  }
+}

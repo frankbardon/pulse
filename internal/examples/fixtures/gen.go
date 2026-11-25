@@ -91,6 +91,7 @@ func Generate(brandSpec []byte) ([]File, error) {
 	g.add("subscribers.csv", func(w *csv.Writer) error { return writeSubscribers(w, 48) })
 	g.add("battery.csv", func(w *csv.Writer) error { return writeBattery(w, newStream(2), 300) })
 	g.add("intake.csv", func(w *csv.Writer) error { return writeIntake(w, newStream(3), 300) })
+	g.add("brand_ratings.csv", func(w *csv.Writer) error { return writeBrandRatings(w, newStream(4), 600) })
 	// The weekly media-mix cohort draws nothing from a source: it is the
 	// mmmfixture rows verbatim, so the decay-sweep example and the
 	// acceptance suites read the same data.
@@ -475,6 +476,57 @@ func writeBattery(w *csv.Writer, r *rand.Rand, n int) error {
 				}
 			}
 			row = append(row, itoa(rating))
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeBrandRatings produces the perceptual-map cohort: n respondents,
+// each rating one of five brands (cycling by row, n/5 per brand) on six
+// 1-7 items. Two latent axes are planted: premium (quality and premium
+// load positively, value negatively) and modern (modern and innovative
+// positively, heritage negatively). Each brand sits at a fixed
+// (premium, modern) position — brand_a premium-modern, brand_b
+// premium-traditional, brand_c budget-modern, brand_d
+// budget-traditional, brand_e in the middle — and every respondent's
+// latent pair is that position plus unit noise, so the first two
+// principal components of the ratings recover the two axes and the
+// brand centroids on them form the corners of a square around brand_e.
+//
+// Fields:
+//
+//	id                         — u32, 1..n
+//	brand                      — categorical, brand_a .. brand_e
+//	quality .. heritage        — u8 ratings 1..7
+func writeBrandRatings(w *csv.Writer, r *rand.Rand, n int) error {
+	header := []string{"id", "brand", "quality", "premium", "value", "modern", "innovative", "heritage"}
+	if err := w.Write(header); err != nil {
+		return err
+	}
+	brands := [5]string{"brand_a", "brand_b", "brand_c", "brand_d", "brand_e"}
+	// (premium, modern) position of each brand, in latent SD units. The
+	// premium spread is twice the modern one, so the two components
+	// have well-separated eigenvalues and come out as the two planted
+	// axes rather than a rotation of them.
+	positions := [5][2]float64{{1.4, 0.7}, {1.4, -0.7}, {-1.4, 0.7}, {-1.4, -0.7}, {0, 0}}
+	// Loadings on (premium, modern).
+	loadings := [6][2]float64{
+		{0.80, 0.00}, {0.85, 0.00}, {-0.60, 0.00},
+		{0.00, 0.65}, {0.00, 0.60}, {0.00, -0.55},
+	}
+	for i := range n {
+		b := i % len(brands)
+		premium := positions[b][0] + float64(0.7*detmath.NormFloat64(r))
+		modern := positions[b][1] + float64(0.7*detmath.NormFloat64(r))
+		row := []string{itoa(i + 1), brands[b]}
+		for _, l := range loadings {
+			item := float64(l[0]*premium) + float64(l[1]*modern) + float64(0.6*detmath.NormFloat64(r))
+			rating := math.Round(4 + float64(1.1*item))
+			rating = math.Max(1, math.Min(7, rating))
+			row = append(row, itoa(int(rating)))
 		}
 		if err := w.Write(row); err != nil {
 			return err

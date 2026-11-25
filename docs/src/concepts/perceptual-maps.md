@@ -13,13 +13,19 @@ Pulse does not draw the picture; it computes the coordinates and the distances b
 
 ## How to build one in Pulse
 
-A map is built from pieces you already know, in three steps:
+A map is built from pieces you already know, in three steps, and all three fit in one request:
 
-1. **Find the axes.** Run a [principal component analysis](pca.md) over the rating items. Keep the first two components and read the loadings to name them. The loadings also place the rating items themselves on the map: items with similar loadings point the same way.
-2. **Place each row.** Add `ATTR_PC_SCORE` for component 1 and again for component 2, giving every row a coordinate pair.
-3. **Place each item (brand, product, segment).** Group the rows by it and average the two score fields. The group averages are that item's map position.
+1. **Find the axes.** Run a [principal component analysis](pca.md) (`MAT_PCA`) over the rating items. Keep the first two components and read the loadings to name them. The loadings also place the rating items themselves on the map: items with similar loadings point the same way.
+2. **Place each row.** Add `ATTR_PC_SCORE` for component 1 and again for component 2, giving every row a coordinate pair. By default each fits itself on the request's rows, so no loadings are passed in, and its sign and order match `MAT_PCA`'s.
+3. **Place each item (brand, product, segment).** Ask `MAT_DISTANCE` over the two score fields with `params.between` grouping by the item. Its `auxiliary.centroids` are each item's mean scores, which is its map position, and its `primary` grid holds the distances between those centres.
 
-To check what the picture shows, ask `MAT_DISTANCE` for the grid of distances between the group centres, over the same fields. The grid is exact; the two-axis picture is a flattened view of it and always loses some information. See [distance versus similarity](distance-vs-similarity.md) for the choice of metric.
+The two-axis picture is a flattened view of the ratings and always loses some information. To check what it shows, run a second `MAT_DISTANCE` with the same `between` over the rating items themselves (with `standardize`): that grid is exact. See [distance versus similarity](distance-vs-similarity.md) for the choice of metric.
+
+The story below maps five brands from six ratings (`pulse examples show perceptual_map` prints the request). The first component is premium versus budget, the second modern versus traditional; `brand_distance` gives the map grid and the centroids, `rating_distance` the check.
+
+```json
+{{#include ../../../internal/examples/testdata/stories/perceptual_map.json}}
+```
 
 ## How to read it
 

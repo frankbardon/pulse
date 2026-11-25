@@ -1,0 +1,10 @@
+[
+  {"name": "id", "type": "u32", "description": "Respondent identifier (1..N), one row per completed brand rating"},
+  {"name": "brand", "type": "categorical_u8", "description": "Brand the respondent rated: brand_a .. brand_e, cycling by row, an equal number of respondents each"},
+  {"name": "quality", "type": "u8", "description": "Rating 1-7: the brand makes high-quality products. Loads on the premium axis"},
+  {"name": "premium", "type": "u8", "description": "Rating 1-7: the brand feels premium. Loads on the premium axis"},
+  {"name": "value", "type": "u8", "description": "Rating 1-7: the brand is good value for money. Loads negatively on the premium axis (budget brands rate high)"},
+  {"name": "modern", "type": "u8", "description": "Rating 1-7: the brand feels modern. Loads on the modern axis"},
+  {"name": "innovative", "type": "u8", "description": "Rating 1-7: the brand brings out new ideas. Loads on the modern axis"},
+  {"name": "heritage", "type": "u8", "description": "Rating 1-7: the brand has a long tradition. Loads negatively on the modern axis (traditional brands rate high)"}
+]
