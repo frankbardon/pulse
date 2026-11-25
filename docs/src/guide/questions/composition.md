@@ -71,7 +71,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `crosstab_row_normalize_conversion_rate`; `pulse examples show crosstab_row_normalize_conversion_rate` prints it):
 
-```json
+```json cohort=experiment
 {
   "cohort": {
     "filename": "experiment.pulse",

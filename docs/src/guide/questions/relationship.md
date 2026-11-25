@@ -80,7 +80,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `pearson_correlation`; `pulse examples show pearson_correlation` prints it):
 
-```json
+```json cohort=experiment
 {
   "aggregations": [
     {

@@ -69,7 +69,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `agg_missing_by_channel`; `pulse examples show agg_missing_by_channel` prints it):
 
-```json
+```json cohort=intake
 {
   "aggregations": [
     {

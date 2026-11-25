@@ -90,7 +90,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `paired_t_before_after`; `pulse examples show paired_t_before_after` prints it):
 
-```json
+```json cohort=experiment
 {
   "cohort": {
     "filename": "experiment.pulse",

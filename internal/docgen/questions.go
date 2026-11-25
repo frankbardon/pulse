@@ -332,7 +332,9 @@ func (g *gen) writeStory(b *strings.Builder, s guideStoryOf) {
 	b.WriteString(s.ex.Name)
 	b.WriteString("`; `pulse examples show ")
 	b.WriteString(s.ex.Name)
-	b.WriteString("` prints it):\n\n```json\n")
+	b.WriteString("` prints it):\n\n```json")
+	b.WriteString(storyCohortTag(s.ex.Body))
+	b.WriteString("\n")
 	var pretty bytes.Buffer
 	if err := json.Indent(&pretty, s.ex.Body, "", "  "); err != nil {
 		pretty.Reset()
@@ -494,4 +496,52 @@ func (g *gen) writeNextSteps(b *strings.Builder, qg questionGuide, guides []ques
 		cli = append(cli, "`pulse explain --response FILE` reads a result back in plain words.")
 	}
 	writeList(b, "From the command line", cli)
+}
+
+// storyCohortTag is the ` cohort=<name>[,<name>…]` info-string tag of a
+// story request's fence: the example fixture cohorts its cohort
+// references read (the filename stems, in a deterministic walk order), so
+// TestDocsSnippetsRun runs the rendered request on the fixtures every
+// example runs on. A body naming no cohort gets no tag.
+func storyCohortTag(body []byte) string {
+	var root any
+	if err := json.Unmarshal(body, &root); err != nil {
+		return ""
+	}
+	var stems []string
+	seen := map[string]bool{}
+	var walk func(v any)
+	walk = func(v any) {
+		switch t := v.(type) {
+		case map[string]any:
+			keys := make([]string, 0, len(t))
+			for k := range t {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				if ref, ok := t[k].(map[string]any); ok && k == "cohort" {
+					name, _ := ref["filename"].(string)
+					if i := strings.Index(name, "#"); i >= 0 {
+						name = name[:i]
+					}
+					name = strings.TrimSuffix(name, ".pulse")
+					if name != "" && !seen[name] {
+						seen[name] = true
+						stems = append(stems, name)
+					}
+				}
+				walk(t[k])
+			}
+		case []any:
+			for _, c := range t {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	if len(stems) == 0 {
+		return ""
+	}
+	return " cohort=" + strings.Join(stems, ",")
 }

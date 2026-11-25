@@ -1,0 +1,2 @@
+# TestDocsSnippetsCompile baseline: `go compile` blocks in docs/src that do not build.
+# Format: path<TAB>go:<block hash><TAB>reason. Shrink-only: fix a block, then delete its line.

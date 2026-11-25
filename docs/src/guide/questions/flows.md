@@ -42,7 +42,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `crosstab-retention`; `pulse examples show crosstab-retention` prints it):
 
-```json
+```json cohort=tier_migrations
 {
   "cohort": {
     "filename": "tier_migrations.pulse",

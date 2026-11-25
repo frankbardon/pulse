@@ -1,6 +1,7 @@
 package docgen_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -118,6 +119,45 @@ func TestRender_GuidePickListsServingOperators(t *testing.T) {
 		if n := strings.Count(pick, "| [`"); n != len(ops) {
 			t.Errorf("%s: decision list has %d rows, want %d", in.ID, n, len(ops))
 		}
+	}
+}
+
+// TestRender_StoryRequestCohortTag: every story's request fence carries
+// the `cohort=<stem>` snippet tag naming the fixture its example reads,
+// so TestDocsSnippetsRun runs the rendered request.
+func TestRender_StoryRequestCohortTag(t *testing.T) {
+	t.Parallel()
+
+	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	tagged := 0
+	for _, name := range examples.Stories() {
+		ex, _ := examples.Get(name)
+		var body struct {
+			Cohort *struct {
+				Filename string `json:"filename"`
+			} `json:"cohort"`
+		}
+		if err := json.Unmarshal(ex.Body, &body); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if body.Cohort == nil || body.Cohort.Filename == "" {
+			continue
+		}
+		page := files["questions/"+ex.Intents[0]+".md"]
+		i := strings.Index(page, "`pulse examples show "+name+"`")
+		if i < 0 {
+			continue // not this guide's story; TestRender_StoryEmbedEqualsGolden owns placement
+		}
+		want := "```json cohort=" + strings.TrimSuffix(body.Cohort.Filename, ".pulse") + "\n"
+		rest := page[i:]
+		if j := strings.Index(rest, "```"); j < 0 || !strings.HasPrefix(rest[j:], want) {
+			t.Errorf("%s: request fence does not open with %q", name, strings.TrimSpace(want))
+			continue
+		}
+		tagged++
+	}
+	if tagged == 0 {
+		t.Fatal("no story request fence checked: vacuous")
 	}
 }
 
