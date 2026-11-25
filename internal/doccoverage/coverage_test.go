@@ -241,3 +241,47 @@ func TestAPIRowsGoDoc(t *testing.T) {
 		}
 	}
 }
+
+func TestCLIRowsAndHelp(t *testing.T) {
+	t.Parallel()
+	rows, help := cliRowsAndHelp(CLISurface{
+		Commands: []CLICommand{
+			{Path: "pulse", Runnable: true, Usage: "root"},
+			{Path: "pulse cohort", Usage: "group"},
+			{Path: "pulse cohort info", Runnable: true, Usage: "Show info", Text: []string{"long text"}},
+			{Path: "pulse bare", Runnable: true},
+		},
+		Flags: []CLIFlag{
+			{Names: []string{"input", "i"}, Usage: "file", Help: "--input value, -i value  file [$PULSE_INPUT]"},
+			{Names: []string{"input"}, Usage: ""}, // a second mount without usage
+			{Names: []string{"json"}, Usage: "JSON"},
+			{Names: []string{"out"}}, // the bare mount comes first
+			{Names: []string{"out"}, Usage: "output"},
+		},
+	})
+	got := map[string]bool{}
+	for _, r := range rows {
+		got[r.Kind+" "+r.ID] = r.Help
+	}
+	want := map[string]bool{
+		"cli-leaf pulse cohort info": true,
+		"cli-leaf pulse bare":        false, // no usage
+		"cli-flag --input":           false, // one mount lacks usage
+		"cli-flag -i":                true,
+		"cli-flag --json":            true,
+		"cli-flag --out":             false, // a later mount's usage does not cover the bare one
+	}
+	if len(got) != len(want) {
+		t.Errorf("rows = %v, want %v (the root and non-runnable groups are no leaves)", got, want)
+	}
+	for k, w := range want {
+		if g, ok := got[k]; !ok || g != w {
+			t.Errorf("%s: Help = %v (present %v), want %v", k, g, ok, w)
+		}
+	}
+	for _, frag := range []string{"Show info", "long text", "[$PULSE_INPUT]"} {
+		if !strings.Contains(help, frag) {
+			t.Errorf("help corpus lacks %q", frag)
+		}
+	}
+}

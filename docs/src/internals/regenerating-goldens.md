@@ -99,10 +99,10 @@ make docs
 `PULSE_FEATURE_PROFILE` cleared (so a local `.env` cannot change the
 output), then `go run ./internal/tools/docsummary`, which splices the
 export's `SUMMARY.md` into the book's (title line dropped, paths
-prefixed `guide/`), then `go run ./internal/tools/doccoverage`, which
-rewrites the [documentation coverage matrix](../contract/coverage.md)
-(`docs/src/contract/coverage.md`, held current by
-`TestDocsCoverageCurrent`) — and then `mdbook build docs`. On a current tree it
+prefixed `guide/`), then `go test ./internal/cli -run
+TestDocsCoverageCurrent -args -update-coverage`, which rewrites the
+[documentation coverage matrix](../contract/coverage.md)
+(`docs/src/contract/coverage.md`; the same test holds it current) — and then `mdbook build docs`. On a current tree it
 changes nothing. `go test . -run TestDocsGeneratedCurrent -update`
 rewrites the same files without building the book.
 

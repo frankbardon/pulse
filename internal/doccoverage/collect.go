@@ -2,7 +2,6 @@ package doccoverage
 
 import (
 	"context"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,11 +11,9 @@ import (
 	"sync"
 
 	"github.com/spf13/afero"
-	cli "github.com/urfave/cli/v3"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
-	pcli "github.com/frankbardon/pulse/internal/cli"
 	"github.com/frankbardon/pulse/internal/doccheck"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 )
@@ -26,7 +23,7 @@ import (
 // default instance — no feature profile, no table or template directory —
 // so the caller clears those environment variables first, exactly as
 // `make docs` does for the Analysis Guide.
-func Collect(fsys afero.Fs) (Inputs, error) {
+func Collect(fsys afero.Fs, cliTree CLISurface) (Inputs, error) {
 	var in Inputs
 
 	f, err := fsys.Open(APIDumpPath)
@@ -44,7 +41,7 @@ func Collect(fsys afero.Fs) (Inputs, error) {
 	}
 	in.Rows = append(in.Rows, rows...)
 
-	cliRows, help := cliRowsAndHelp(pcli.App())
+	cliRows, help := cliRowsAndHelp(cliTree)
 	in.Rows = append(in.Rows, cliRows...)
 	in.Help = help
 
@@ -78,44 +75,59 @@ func Collect(fsys afero.Fs) (Inputs, error) {
 	return in, err
 }
 
-// cliRowsAndHelp walks the tree after urfave's setup (one --help run, so
-// the framework's help flag and completion command are mounted as the
-// binary mounts them) and returns the leaf and flag rows plus the help
-// corpus.
-func cliRowsAndHelp(root *cli.Command) ([]Row, string) {
-	root.Writer, root.ErrWriter = io.Discard, io.Discard
-	_ = root.Run(context.Background(), []string{root.Name, "--help"})
+// CLISurface is the CLI command tree as data. The caller that owns the
+// tree (internal/cli's tests) flattens it, so this package never imports
+// the CLI framework: its import graph stays inside the observability and
+// test-graph boundaries.
+type CLISurface struct {
+	Commands []CLICommand
+	Flags    []CLIFlag
+}
 
+// CLICommand is one command in the tree, root included.
+type CLICommand struct {
+	// Path is the full invocation path ("pulse cohort info").
+	Path string
+	// Runnable marks a leaf a user can run (a non-nil Action); the root
+	// is never a leaf row.
+	Runnable bool
+	// Usage is the one-line usage text.
+	Usage string
+	// Text is every other help string the command prints (usage text,
+	// description, args usage).
+	Text []string
+}
+
+// CLIFlag is one flag mount: the names a user can type, its usage text and
+// its rendered help line (env-var sources included).
+type CLIFlag struct {
+	Names []string
+	Usage string
+	Help  string
+}
+
+// cliRowsAndHelp turns the surface into leaf and flag rows plus the help
+// corpus. A flag name's help cell needs usage text on every mount.
+func cliRowsAndHelp(s CLISurface) ([]Row, string) {
 	var rows []Row
 	var help strings.Builder
-	flagUsage := map[string]bool{} // name -> every mount carries usage
-	var visit func(path []string, c *cli.Command)
-	visit = func(p []string, c *cli.Command) {
-		for _, s := range []string{c.Usage, c.UsageText, c.Description, c.ArgsUsage} {
-			help.WriteString(s + "\n")
+	for _, c := range s.Commands {
+		help.WriteString(c.Usage + "\n")
+		for _, t := range c.Text {
+			help.WriteString(t + "\n")
 		}
-		if len(p) > 1 && c.Action != nil {
-			rows = append(rows, Row{Kind: KindCLILeaf, ID: strings.Join(p, " "), Help: strings.TrimSpace(c.Usage) != ""})
-		}
-		for _, f := range c.Flags {
-			help.WriteString(f.String() + "\n")
-			usage := ""
-			if u, ok := f.(interface{ GetUsage() string }); ok {
-				usage = u.GetUsage()
-			}
-			for _, n := range f.Names() {
-				prev, seen := flagUsage[n]
-				flagUsage[n] = (prev || !seen) && strings.TrimSpace(usage) != ""
-			}
-		}
-		for _, sub := range c.Commands {
-			if sub.Name == "help" {
-				continue
-			}
-			visit(append(append([]string(nil), p...), sub.Name), sub)
+		if c.Runnable && strings.Contains(c.Path, " ") {
+			rows = append(rows, Row{Kind: KindCLILeaf, ID: c.Path, Help: strings.TrimSpace(c.Usage) != ""})
 		}
 	}
-	visit([]string{root.Name}, root)
+	flagUsage := map[string]bool{}
+	for _, f := range s.Flags {
+		help.WriteString(f.Help + "\n")
+		for _, n := range f.Names {
+			prev, seen := flagUsage[n]
+			flagUsage[n] = (prev || !seen) && strings.TrimSpace(f.Usage) != ""
+		}
+	}
 	for n, ok := range flagUsage {
 		id := "--" + n
 		if len(n) == 1 {

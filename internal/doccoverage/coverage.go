@@ -8,7 +8,9 @@
 // and resource registrations, the PULSE_* environment variables the Go
 // source reads, the Options fields and the Request / Response slots. Columns
 // are the surfaces a reader finds documentation in: the mdBook (docs/src),
-// the served skill pack, GoDoc and CLI help. Each row kind declares which
+// the served skill pack, GoDoc and CLI help. The CLI tree arrives as data
+// (CLISurface) from internal/cli's tests, which own the gates and the
+// regeneration (`make docs` runs them with -update-coverage). Each row kind declares which
 // columns it requires; a required cell that is empty is a gap, and
 // TestDocsCoverageNoGaps fails on a gap its shrink-only allowlist
 // (internal/doccheck/allowlists/coverage.txt) does not name.
@@ -16,8 +18,9 @@
 // Mentions are verbatim: an identifier counts as documented in the book or
 // the skill pack when its exact spelling appears there as a whole token.
 //
-// Import ceiling: this package builds a default *pulse.Pulse and walks the
-// CLI tree, so it sits above the engine. It is documentation tooling: no
+// Import ceiling: this package builds a default *pulse.Pulse, so it sits
+// above the engine, but it never imports the CLI framework or internal/cli
+// (TestRootTestGraphExcludesCLI, TestObservabilityVendorImportBoundaryModule). It is documentation tooling: no
 // no-execute package (internal/descriptor, descriptor/) may import it
 // (TestDocCoverageNotImportedByDescriptor).
 package doccoverage
@@ -111,7 +114,7 @@ func Kinds() []Kind {
 		{ID: KindResponseSlot, Title: "Response slots", Source: "the `types.Response` fields in `public_api.txt`",
 			Spelling: "the JSON key", Needs: [numSurfaces]Need{r, o, r, n}},
 		{ID: KindCLILeaf, Title: "CLI leaves", Source: "every runnable command in the tree `internal/cli.App` builds",
-			Spelling: "the full invocation path (`pulse cohort info`)", Needs: [numSurfaces]Need{r, o, n, r}},
+			Spelling: "the full invocation path (`pulse cohort inspect`)", Needs: [numSurfaces]Need{r, o, n, r}},
 		{ID: KindCLIFlag, Title: "CLI flags", Source: "every flag name (aliases included) mounted anywhere in that tree",
 			Spelling: "`--name`, or `-x` for a one-letter name", Needs: [numSurfaces]Need{r, o, n, r}},
 		{ID: KindMCPTool, Title: "MCP tools", Source: "the default instance's manifest `mcp_tools`",
@@ -393,18 +396,20 @@ func cellText(c Cell, n Need) string {
 	}
 }
 
-// Generate collects from the module tree at fsys and renders the page.
-func Generate(fsys afero.Fs) ([]byte, error) {
-	m, err := BuildFrom(fsys)
+// Generate collects from the module tree at fsys and the CLI surface and
+// renders the page.
+func Generate(fsys afero.Fs, cliTree CLISurface) ([]byte, error) {
+	m, err := BuildFrom(fsys, cliTree)
 	if err != nil {
 		return nil, err
 	}
 	return m.Render(), nil
 }
 
-// BuildFrom collects from the module tree at fsys and builds the matrix.
-func BuildFrom(fsys afero.Fs) (*Matrix, error) {
-	in, err := Collect(fsys)
+// BuildFrom collects from the module tree at fsys and the CLI surface and
+// builds the matrix.
+func BuildFrom(fsys afero.Fs, cliTree CLISurface) (*Matrix, error) {
+	in, err := Collect(fsys, cliTree)
 	if err != nil {
 		return nil, err
 	}

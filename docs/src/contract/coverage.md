@@ -19,7 +19,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | Options fields | the `pulse.Options` fields in `public_api.txt` | the Go field name (`DataDir`) | required | optional | required | — |
 | Request slots | the `types.Request` fields in `public_api.txt` | the JSON key (`group_by`) | required | required | required | — |
 | Response slots | the `types.Response` fields in `public_api.txt` | the JSON key | required | optional | required | — |
-| CLI leaves | every runnable command in the tree `internal/cli.App` builds | the full invocation path (`pulse cohort info`) | required | optional | — | required |
+| CLI leaves | every runnable command in the tree `internal/cli.App` builds | the full invocation path (`pulse cohort inspect`) | required | optional | — | required |
 | CLI flags | every flag name (aliases included) mounted anywhere in that tree | `--name`, or `-x` for a one-letter name | required | optional | — | required |
 | MCP tools | the default instance's manifest `mcp_tools` | the tool name | required | required | — | — |
 | MCP prompts | `gosdk.RegisteredPrompts()` | the prompt name | required | optional | — | — |
