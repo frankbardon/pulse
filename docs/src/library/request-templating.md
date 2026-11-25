@@ -115,7 +115,7 @@ resp, err := p.Process(ctx, req)
 
 The rendered request is:
 
-```json
+```json cohort=orders
 {
   "label": "total revenue",
   "cohort": {"filename": "sales.pulse"},

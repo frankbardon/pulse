@@ -34,7 +34,7 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label`
 
 `string`, `number`, `integer` (`1.0` yes, `1.5` no), `boolean`, `field` (a string), `enum` (+`values`, case-sensitive), `list` (+`items`, scalar only — no nesting), `date`, `period`.
 
-- **`date`**: only `YYYY-MM-DD` (`03/04/2024` is ambiguous).
+- **`date`**: only `YYYY-MM-DD`.
 - **`period`**: exactly one of `ranges` or `table`, mirroring the labeled date-range operators' `Params` shape; unknown keys in it or in a `{label,start,end}` range are rejected.
 
 ## Worked example
@@ -56,7 +56,7 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label`
 
 `RenderTemplateRequest("finance/revenue", map[string]any{"metric":"revenue"})` →
 
-```json
+```json norun placeholder
 {"label":"total revenue","cohort":{"filename":"sales.pulse"},
 "aggregations":[{"type":"<aggregator>","field":"revenue"}],
 "groups":[{"type":"<binning grouper>","field":"revenue","interval":10}]}

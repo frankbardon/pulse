@@ -119,7 +119,7 @@ lift). Each `data.responses[i]` is a full `Response` carrying its
 slot's final `label` (the caller's, or the synthesized `request_<i+1>`;
 kept by every `return` preset), so per-slot
 `data.responses[i].components` follows the same additive contract as
-[`api process`](api-process.md#-json). `data.overlays[i]` carries the
+[`api process`](api-process.md#--json). `data.overlays[i]` carries the
 post-fold Compose-host overlay layer plus its per-layer
 `warnings[]` diagnostics (`OverlayWarning{code, message, details}`);
 the slot is `omitempty` so overlay-free Compose responses are

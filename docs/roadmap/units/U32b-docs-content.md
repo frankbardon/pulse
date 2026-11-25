@@ -46,8 +46,8 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [x] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
 - [ ] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
 - [x] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling
-- [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
-- [ ] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
+- [x] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
+- [x] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
 - [x] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
 - [x] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
 - [x] **#766** (11. Documentation audit) The removed-name scan matches qualified `io.` entries whole-word only, so the `pio.` alias spelling slips through

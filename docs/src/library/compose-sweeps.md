@@ -12,7 +12,7 @@ same overlay fold, serial or parallel. The same payload works through
 `pulse api predict-compose`, `pulse_compose` and `pulse_predict`
 (`composed`). It is gated by `capability:compose_sweep`.
 
-```json
+```json cohort=experiment
 {
   "sweep": {
     "axes": [
@@ -22,7 +22,7 @@ same overlay fold, serial or parallel. The same payload works through
     "mode": "grid",
     "label": "{{region}}_{{cut}}",
     "request": {
-      "cohort": {"filename": "sales.pulse"},
+      "cohort": {"filename": "experiment.pulse"},
       "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": [{"$var": "region"}]}],
       "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "rev_{{cut}}"}]
     }
@@ -44,7 +44,7 @@ To search a continuous space without enumerating a grid, set `mode` to
 `random` or `lhs`, a `samples` count, and give every axis a `range`
 instead of `values`:
 
-```json
+```json norun elided-request
 {"sweep": {"mode": "lhs", "samples": 64, "rng_seed": 7,
   "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.9}},
            {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}}],
@@ -103,7 +103,7 @@ from the ranked values of the rounds before, so most of the budget lands
 near the best region. Use it to find an optimum of one ranked number;
 use `lhs` / `random` to map the whole space evenly.
 
-```json
+```json norun elided-request
 {"sweep": {"mode": "bo", "budget": 40, "bo": {"n_init": 8, "batch": 2},
   "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.95}},
            {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}},

@@ -117,7 +117,8 @@ func collectDocSnippets(t *testing.T, fsys afero.Fs) []docSnippet {
 // request roots — responses, fragments, `...`-elided or commented JSON
 // (`jsonc` blocks are never read) — are skipped. Info-string tags:
 //
-//   - `json norun` opts a block out of the decode and the run;
+//   - `json norun <reason>` opts a block out of the decode and the run;
+//     the reason (one word) is required;
 //   - `json cohort=<name>[,<name>…]` names the fixture cohorts
 //     (internal/examples/fixtures/<name>.csv) the block runs on: every
 //     cohort reference is pointed at them, and a filename that is not one
@@ -157,7 +158,13 @@ func checkDocSnippets(t *testing.T, snippets []docSnippet, fixtures map[string]b
 	var vs []doccheck.Violation
 	run := newSnippetRunner(t)
 	for _, s := range snippets {
-		if s.info.Lang != "json" || s.info.NoRun {
+		if s.info.Lang != "json" {
+			continue
+		}
+		if s.info.NoRun {
+			if s.info.NoRunReason == "" {
+				vs = append(vs, s.violation("a `json norun` block names no reason — tag it `json norun <reason>` (one word: fragment, extension-operator, elided-request, …) or make it run with `cohort=`"))
+			}
 			continue
 		}
 		if s.decodeErr != nil {
@@ -165,7 +172,7 @@ func checkDocSnippets(t *testing.T, snippets []docSnippet, fixtures map[string]b
 			continue
 		}
 		if len(s.info.Cohorts) == 0 {
-			vs = append(vs, s.violation(fmt.Sprintf("a runnable %s has no cohort= tag — tag the fence `json cohort=<fixture>` (internal/examples/fixtures) or `json norun`", s.root)))
+			vs = append(vs, s.violation(fmt.Sprintf("a runnable %s has no cohort= tag — tag the fence `json cohort=<fixture>` (internal/examples/fixtures) or `json norun <reason>`", s.root)))
 			continue
 		}
 		unknown := ""
@@ -340,7 +347,7 @@ func TestDocsSnippetsDecodeFailureIsViolation(t *testing.T) {
 		"```json\n{\"format_version\": \"1.1\", \"data\": [], \"errors\": [], \"warnings\": []}\n```\n\n" +
 		"```json\n{\"type\": \"AGG_SUM\", \"field\": \"amount\"}\n```\n\n" +
 		"```jsonc\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n\n" +
-		"```json norun\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n"
+		"```json norun error-example\n{\"cohort\": {\"filename\": \"survey.pulse\"}, \"agregations\": []}\n```\n"
 	mem := afero.NewMemMapFs()
 	if err := afero.WriteFile(mem, filepath.Join(doccheck.BookRoot, "page.md"), []byte(page), 0o644); err != nil {
 		t.Fatal(err)
@@ -353,5 +360,28 @@ func TestDocsSnippetsDecodeFailureIsViolation(t *testing.T) {
 	if len(vs) != 1 || vs[0].Path != filepath.ToSlash(filepath.Join(doccheck.BookRoot, "page.md")) ||
 		!strings.Contains(vs[0].Message, "line 3") || !strings.Contains(vs[0].Message, "agregations") {
 		t.Fatalf("violations = %+v, want one at line 3 naming the decode error (agregations)", vs)
+	}
+}
+
+// TestDocsSnippetsNoRunNeedsReason pins the reason rule: a `json norun`
+// request root with no reason word is a violation, one with a reason is
+// exempt.
+func TestDocsSnippetsNoRunNeedsReason(t *testing.T) {
+	t.Parallel()
+
+	page := "# Page\n\n" +
+		"```json norun\n{\"cohort\": {\"filename\": \"survey.pulse\"}}\n```\n\n" +
+		"```json norun fragment\n{\"cohort\": {\"filename\": \"survey.pulse\"}}\n```\n"
+	mem := afero.NewMemMapFs()
+	if err := afero.WriteFile(mem, filepath.Join(doccheck.BookRoot, "page.md"), []byte(page), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snippets := collectDocSnippets(t, mem)
+	if len(snippets) != 2 {
+		t.Fatalf("collected %d snippets, want 2: %+v", len(snippets), snippets)
+	}
+	vs := checkDocSnippets(t, snippets, map[string]bool{"survey": true})
+	if len(vs) != 1 || !strings.Contains(vs[0].Message, "line 3") || !strings.Contains(vs[0].Message, "names no reason") {
+		t.Fatalf("violations = %+v, want one at line 3 naming the missing reason", vs)
 	}
 }

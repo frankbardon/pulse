@@ -25,20 +25,20 @@ first that applies:
 3. the engine default, `pulse.Options.DefaultWeight`;
 4. none.
 
-```json
+```json cohort=experiment
 {
-  "cohort": {"filename": "survey.pulse"},
-  "weight": {"field": "wt", "kind": "probability"},
+  "cohort": {"filename": "experiment.pulse"},
+  "weight": {"field": "session_minutes", "kind": "probability"},
   "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
   "aggregations": [
     {"type": "AGG_COUNT", "field": "id", "label": "weighted_n"},
     {"type": "AGG_COUNT", "field": "id", "label": "respondents", "weight": null},
-    {"type": "AGG_AVERAGE", "field": "spend", "label": "mean_spend"}
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "mean_revenue"}
   ]
 }
 ```
 
-Here `weighted_n` and `mean_spend` are weighted and `respondents` is
+Here `weighted_n` and `mean_revenue` are weighted and `respondents` is
 the raw count of respondents.
 
 A per-slot `weight` is a field name (`"wt"`), a `{field, kind}` object
@@ -324,9 +324,10 @@ standard survey table shows a weighted figure beside an unweighted
 base, and an auxiliary margin aggregation that opts out gives you
 that base:
 
-```json
+```json cohort=experiment
 {
-  "weight": {"field": "wt"},
+  "cohort": {"filename": "experiment.pulse"},
+  "weight": {"field": "session_minutes"},
   "crosstab": {
     "rows":    [{"type": "GROUP_CATEGORY", "field": "region"}],
     "columns": [{"type": "GROUP_CATEGORY", "field": "segment"}],

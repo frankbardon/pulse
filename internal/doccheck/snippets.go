@@ -92,6 +92,10 @@ type SnippetInfo struct {
 	Lang string
 	// NoRun is the `norun` word: a json block the snippet runner skips.
 	NoRun bool
+	// NoRunReason is the word after `norun` saying why the block cannot
+	// run (`fragment`, `extension-operator`, …); TestDocsSnippetsRun
+	// refuses a `norun` without one.
+	NoRunReason string
 	// Compile is the `compile` word: a go block the runner compiles.
 	Compile bool
 	// Cohorts are the fixture cohort names of a `cohort=<name>[,<name>…]`
@@ -120,10 +124,13 @@ func ParseSnippetInfo(info string) SnippetInfo {
 			}
 		}
 	}
-	for _, w := range words[1:] {
+	for i, w := range words[1:] {
 		switch w {
 		case "norun":
 			si.NoRun = true
+			if i+2 < len(words) && !strings.Contains(words[i+2], "=") && words[i+2] != "compile" {
+				si.NoRunReason = words[i+2]
+			}
 		case "compile":
 			si.Compile = true
 		}

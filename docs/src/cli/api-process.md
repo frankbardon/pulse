@@ -45,9 +45,9 @@ to run it.
 The request file is a [`types.Request`](../library/overview.md)
 serialised to JSON. Minimal example:
 
-```json
+```json cohort=orders
 {
-  "cohort": {"filename": "sales.pulse"},
+  "cohort": {"filename": "orders.pulse"},
   "aggregations": [
     {"type": "AGG_SUM", "field": "revenue", "label": "total_revenue"}
   ]
@@ -59,18 +59,18 @@ The full request grammar is one JSON object whose top-level keys mirror
 `groups`, `aggregations`, `windows`, `sort`, `tests`, `post_tests`,
 `outputs`. A canonical filter-group-aggregate example:
 
-```json
+```json cohort=experiment
 {
-  "cohort": {"filename": "data.pulse"},
+  "cohort": {"filename": "experiment.pulse"},
   "filterers": [
-    {"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}
+    {"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}
   ],
   "groups": [
     {"type": "GROUP_CATEGORY", "field": "region"}
   ],
   "aggregations": [
-    {"type": "AGG_COUNT",   "field": "id",    "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "score", "label": "mean_score"}
+    {"type": "AGG_COUNT",   "field": "id",      "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "mean_revenue"}
   ],
   "outputs": [{"format": "json"}]
 }

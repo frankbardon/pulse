@@ -76,10 +76,11 @@ comments are not strict JSON. The tag goes after the fence's language:
 | Fence | Meaning |
 |---|---|
 | `json cohort=<name>[,<name>…]` | run on these `internal/examples/fixtures` cohorts |
-| `json norun` | skip this block: no decode, no run (a deliberately wrong request, an error example) |
+| `json norun <reason>` | skip this block: no decode, no run. The reason is one word saying why it cannot run: `fragment` (one slot, not a whole request), `extension-operator` (names an operator the fixtures' instance does not register), `elided-request`, `placeholder`, … A `norun` with no reason fails |
 | `go compile` | the block must build (`TestDocsSnippetsCompile`, heavy tier) |
 
-A runnable request with no `cohort=` tag fails the check. A `go` block
+A runnable request with no `cohort=` tag fails the check. Prefer
+making a block run (point it at a fixture's fields) over `norun`. A `go` block
 without `compile` is never built. A Go block without a package clause
 gets `package snippet`, so it must carry its own imports.
 

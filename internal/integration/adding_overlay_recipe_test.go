@@ -24,7 +24,7 @@ func TestAddingOverlayRecipe_RequestRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := regexp.MustCompile("(?s)```json\n(.*?)```").FindSubmatch(doc)
+	m := regexp.MustCompile("(?s)```json[^\n]*\n(.*?)```").FindSubmatch(doc)
 	if m == nil {
 		t.Fatal("recipe has no json request block")
 	}

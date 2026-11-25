@@ -1,8 +1,2 @@
 # TestDocsLinksResolve baseline: broken internal links in docs/src/** and repo-root *.md.
 # Format: path<TAB>link target<TAB>reason. Shrink-only: fix a link, then delete its line.
-docs/src/cli/api-compose.md	api-process.md#-json	baseline (U32a): stale anchor; U32b fixes the link
-docs/src/cli/flags.md	api-process.md#-json	baseline (U32a): stale anchor; U32b fixes the link
-docs/src/cli/mcp.md	#--no-cohort-scan	baseline (U32a): stale anchor; U32b fixes the link
-docs/src/contributing/local-ci.md	testing.md#non-skippable-ci-gates	baseline (U32a): stale anchor; U32b fixes the link
-docs/src/contributing/pr-process.md	testing.md#non-skippable-ci-gates	baseline (U32a): stale anchor; U32b fixes the link
-docs/src/library/response-shaping.md	../cli/mcp.md#--return	baseline (U32a): stale anchor; U32b fixes the link

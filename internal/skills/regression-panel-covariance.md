@@ -18,9 +18,10 @@ A panel is many entities (geos, stores, users) observed over the same periods. A
 | Rows correlated within a geo AND within a week, no lag structure | `{"type": "cluster", "cluster": "geo", "cluster2": "week"}` |
 
 <!-- feature: REG_OLS -->
-```json
-{"regressions": [{"type": "REG_OLS", "target": "sales", "predictors": ["spend", "price"],
-  "covariance": {"type": "driscoll_kraay", "order_by": "week", "entity": "geo", "lags": 3}}]}
+```json cohort=mmm_weekly
+{"cohort": {"filename": "mmm_weekly.pulse"},
+ "regressions": [{"type": "REG_OLS", "target": "sales", "predictors": ["tv", "price"],
+  "covariance": {"type": "driscoll_kraay", "order_by": "week", "entity": "market", "lags": 3}}]}
 ```
 <!-- /feature -->
 

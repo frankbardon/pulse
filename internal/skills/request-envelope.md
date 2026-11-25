@@ -40,7 +40,7 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 | sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 <!-- /feature -->
 
-Each operation's MCP tool: manifest `mcp_tools`.
+MCP tool per operation: manifest `mcp_tools`.
 
 <!-- feature: capability:weighting -->
 Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See `weighting`.
@@ -51,14 +51,14 @@ Slot order is pipeline order: `features → filterers → attributes → groups 
 ## Canonical process Request
 
 <!-- feature: FILTER_INCLUDE, GROUP_CATEGORY, AGG_COUNT, AGG_SUM -->
-```json
+```json cohort=experiment
 {
   "cohort": {"filename": "sales.pulse"},
-  "filterers":    [{"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}],
-  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}],
+  "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id",      "label": "n"},
-    {"type": "AGG_SUM",   "field": "revenue", "label": "revenue"}
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
   ]
 }
 ```

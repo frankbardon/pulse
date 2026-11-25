@@ -15,7 +15,7 @@ For this walkthrough we'll assume a file called `sales.csv` with columns
 like:
 
 ```csv
-order_id,region,product,units,revenue,sold_on
+id,region,product,units,revenue,sold_on
 1,west,widget,3,29.97,2024-01-04
 2,east,gadget,1,19.99,2024-01-04
 3,west,widget,7,69.93,2024-01-05
@@ -75,12 +75,12 @@ The envelope is documented in [`pulse cohort inspect`](../cli/cohort-inspect.md)
 
 Pulse separates validation from execution. Write a tiny request file:
 
-```json
+```json cohort=experiment
 {
   "cohort": {"filename": "sales.pulse"},
   "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "order_id", "label": "orders"},
+    {"type": "AGG_COUNT", "field": "id", "label": "orders"},
     {"type": "AGG_SUM", "field": "revenue", "label": "total_revenue"}
   ]
 }

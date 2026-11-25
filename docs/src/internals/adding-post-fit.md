@@ -197,7 +197,7 @@ The example is a Compose body plus the `_meta` block; its `operators` tag
 names the post-fit operator beside the built-ins the body uses, and its
 `capabilities` declare the Compose features no structural detector sees:
 
-```json
+```json norun extension-operator
 {
   "_meta": {
     "name": "acme-mroi-grid",

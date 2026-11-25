@@ -15,13 +15,13 @@ resp, err := p.Process(ctx, &pulse.Request{
 		{Cohort: &types.Cohort{Filename: "wave2.pulse"}, Label: "2025"},
 	},
 	Groups:       []*types.Group{{Field: types.DefaultUnionSourceField}}, // "_source"
-	Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "spend"}},
+	Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "income"}},
 })
 ```
 
 The same request as JSON (`pulse api process`, MCP `pulse_process`):
 
-```json
+```json cohort=customers
 {
   "union": [
     {"cohort": {"filename": "wave1.pulse"}, "label": "2024"},
@@ -29,7 +29,7 @@ The same request as JSON (`pulse api process`, MCP `pulse_process`):
   ],
   "union_source_field": "wave",
   "groups": [{"field": "wave"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 
@@ -93,11 +93,11 @@ from-profile --source customers.pulse` (without `--synthetic-only`)
 writes one cohort holding the source rows and the generated rows,
 marked by the boolean `_synthetic` column. Group or split by it:
 
-```json
+```json norun needs-synth-tagged-cohort
 {
   "cohort": {"filename": "customers_tagged.pulse"},
   "groups": [{"field": "_synthetic"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 
@@ -109,14 +109,14 @@ zone.
 own file (`--synthetic-only`), union it with the source and group by the
 source field:
 
-```json
+```json cohort=customers
 {
   "union": [
     {"cohort": {"filename": "customers.pulse"}, "label": "source"},
     {"cohort": {"filename": "twin.pulse"}, "label": "twin"}
   ],
   "groups": [{"field": "_source"}, {"field": "region"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 

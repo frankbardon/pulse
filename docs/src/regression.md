@@ -440,16 +440,17 @@ Requires `Criterion ∈ {"aic", "bic"}`.
 
 ### Polynomial regression — `FEAT_POLY` + `REG_OLS`
 
-Polynomial regression is linear in the coefficients; the non-linearity lives in the feature space. Use `FEAT_POLY` upstream to materialize `x_2`, `x_3`, …, `x_<degree>` derived columns, then list them alongside the original `x` in `predictors`:
+Polynomial regression is linear in the coefficients; the non-linearity lives in the feature space. Use `FEAT_POLY` upstream to materialize `<label>_2`, `<label>_3`, …, `<label>_<degree>` derived columns, then list them alongside the original field in `predictors`:
 
-```json
+```json cohort=mmm_weekly
 {
+  "cohort": {"filename": "mmm_weekly.pulse"},
   "features": [
-    {"type": "FEAT_POLY", "field": "x", "label": "x", "params": {"degree": 3}}
+    {"type": "FEAT_POLY", "field": "tv", "label": "tv", "params": {"degree": 3}}
   ],
   "regressions": [
-    {"type": "REG_OLS", "name": "polyfit", "target": "y",
-     "predictors": ["x", "x_2", "x_3"]}
+    {"type": "REG_OLS", "name": "polyfit", "target": "sales",
+     "predictors": ["tv", "tv_2", "tv_3"]}
   ]
 }
 ```

@@ -9,9 +9,9 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads. Absent `return` (or `preset: full`) the response is byte-identical and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`); with `composed`, per slot as `slots[*].sizes`, a `label` section first.
+`return` trims a response to what the caller reads. Absent `return` (or `preset: full`) the response is byte-identical (same hash). Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`); with `composed`, per slot as `slots[*].sizes`, a `label` section first.
 
-```json
+```json norun fragment
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
 ```
 

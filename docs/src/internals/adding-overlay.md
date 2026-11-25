@@ -172,7 +172,7 @@ under either weight kind.
 
 ## 6. Use it
 
-```json
+```json norun extension-operator
 {
   "cohort": {"filename": "sales.pulse"},
   "crosstab": {

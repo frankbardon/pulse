@@ -24,11 +24,12 @@ Present exactly where `std_errors` is: lasso / elastic net (multinomial: any pen
 
 ## Covariance
 
-Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to get the coefficient covariance and its correlation. Off by default (absent, byte-identical).
+Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) for the coefficient covariance and correlation. Absent: off, byte-identical.
 
 <!-- feature: REG_OLS -->
-```json
-{"regressions": [{"type": "REG_OLS", "target": "mpg", "predictors": ["wt", "hp"], "vcov": true}]}
+```json cohort=mmm_weekly
+{"cohort": {"filename": "mmm_weekly.pulse"},
+ "regressions": [{"type": "REG_OLS", "target": "sales", "predictors": ["tv", "price"], "vcov": true}]}
 ```
 <!-- /feature -->
 
@@ -44,7 +45,6 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 | Ridge (`l2`) | the sandwich estimator (GLM: H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·α·D) |
 | GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson, negative binomial at θ̂), gamma's Pearson χ²/df estimate |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
-
 | Resample `jackknife` | (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete-group refits (g = n leave-one-out) |
 | Resample `bootstrap` | sample covariance (B−1 divisor) of the successful replicates; seeded = deterministic |
 | Selection | the engine's matrix from the final refit on the selected predictors |
@@ -98,13 +98,13 @@ Predict refuses identically, before any fit.
 - `regression-comparison` — nested-model F / LR / Wald tests of two fits.
 <!-- /feature -->
 <!-- feature: REG_OLS -->
-- `op-reg-ols` — the `vcov` Param for OLS and ridge.
+- `op-reg-ols` — its `vcov` Param (OLS, ridge).
 <!-- /feature -->
 <!-- feature: REG_GLM -->
-- `op-reg-glm` — the `vcov` Param for GLM.
+- `op-reg-glm` — its `vcov` Param.
 <!-- /feature -->
 <!-- feature: REG_BAYES_LINEAR -->
-- `op-reg-bayes-linear` — the `vcov` Param for the Bayesian linear model.
+- `op-reg-bayes-linear` — its `vcov` Param.
 <!-- /feature -->
 <!-- feature: capability:weighting -->
 - `weighting` — the N* basis.

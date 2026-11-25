@@ -26,20 +26,20 @@ Tables live on `pulse.Options.Extensions.LabelTables`:
 LabelTables: map[string]pulse.LabelTable{
     "country_names": {Description: "ISO → name",
         Rows: map[string]string{"US": "United States", "CA": "Canada"}},
-    // Function-driven for external stores:
+    // Function-driven (external stores):
     "icd_descriptions": {Lookup: func(k string)(string,bool,error){...}},
 }
 ```
 
-Or `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (stem = table name), flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic and disk-loaded tables can't share a name.
+Or `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (stem = table name), flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic and disk tables can't share a name.
 
 Pulse's own `*.spss.json` / `*.meta.json` / `*.indexes.json` sidecars are skipped; **any other unparseable `*.json` fails `pulse.New`**. `PULSE_RANGE_TABLES_DIR` alike.
 
 ### 2. Attach a binding
 
-Each `LabelBinding` pairs a field with a table and mode:
+A `LabelBinding` pairs a field with a table and mode:
 
-```json
+```json norun fragment
 {"labels":[{"field":"country","table":"country_names","mode":"replace"}]}
 ```
 

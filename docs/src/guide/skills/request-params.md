@@ -12,10 +12,11 @@ requires: [capability:params]
 
 `"params": {...}` on a request declares constants; an expression reads one as `params.name` (or `params["name"]`). Change the value, never the expression text: no string splicing, no quoting bugs, one expression shape per question.
 
-```json
+```json cohort=customers
 {
-  "params": {"from_wave": "a", "min_age": 30},
-  "filterers": [{"type": "FILTER_EXPRESSION", "expression": "panel == params.from_wave && age >= params.min_age"}]
+  "cohort": {"filename": "customers.pulse"},
+  "params": {"region": "north", "min_age": 30},
+  "filterers": [{"type": "FILTER_EXPRESSION", "expression": "region == params.region && age >= params.min_age"}]
 }
 ```
 

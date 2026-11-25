@@ -11,9 +11,10 @@ covers: [margins, marginal effects, average marginal effect, AME, MEM, dydx, slo
 
 A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports how much the expected outcome moves per unit of a predictor, in outcome units (probability points, counts), with a standard error (Stata `margins, dydx(*)`; R `marginaleffects::avg_slopes`).
 
-```json
-{"regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
-  "predictors": ["tenure", "spend"], "margins": {}}]}
+```json cohort=subscribers
+{"cohort": {"filename": "subscribers.pulse"},
+ "regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
+  "predictors": ["late_payment"], "margins": {}}]}
 ```
 
 `"margins": {}` = every predictor, `ame`, response scale. Absent = no block, byte-identical.
@@ -52,7 +53,7 @@ One effect per fitted category and term on P(Y = category): π_k·(β_kj − Σ_
 
 ## Execution
 
-OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted rows after IRLS. Identical across decode / shard worker counts.
+OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted rows after IRLS.
 
 ## Refusals
 

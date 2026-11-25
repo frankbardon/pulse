@@ -74,7 +74,7 @@ always arrays (never null) so JSON consumers can index without
 nullable-check overhead. `request` is opt-in (`--echo-request`, on the
 leaves the [flags by name](reference.md#flags-by-name) index lists); `data.components` is the
 additive `Response.Components` slot documented per leaf — see
-[`api process` → `--json`](api-process.md#-json).
+[`api process` → `--json`](api-process.md#--json).
 
 ## Exit status
 

@@ -13,14 +13,14 @@ requires: [capability:union]
 A `union` reads several cohorts — waves, regions, before / after, a real cohort and its synthetic twin — as ONE record stream, in place of `cohort`. Every record carries its member's label in a virtual categorical field, so one slot groups, filters, tests or regresses across cohorts instead of one slot per cohort.
 
 <!-- feature: AGG_AVERAGE -->
-```json
+```json cohort=customers
 {
   "union": [
     {"cohort": {"filename": "customers.pulse"}, "label": "source"},
     {"cohort": {"filename": "twin.pulse"}, "label": "twin"}
   ],
   "groups": [{"field": "_source"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 <!-- /feature -->

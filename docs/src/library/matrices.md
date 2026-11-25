@@ -634,6 +634,7 @@ axis (a scalar) can carry it:
   "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
            {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
   "request": {"cohort": {"filename": "brand_survey.pulse"},
+    "vectors": [{"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}],
     "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "brand",
       "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
                  "group": "wave", "group_equal": "{{eq}}"}}]}}}
@@ -854,7 +855,7 @@ p, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
 A request names it like a built-in, and the engine-owned params work
 unchanged:
 
-```json norun
+```json norun extension-operator
 {
   "cohort": {"filename": "training_data.pulse"},
   "matrices": [

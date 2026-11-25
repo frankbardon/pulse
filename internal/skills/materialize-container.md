@@ -12,7 +12,7 @@ requires: [capability:materialize, capability:materialize_output]
 
 The `output` block's container keys shape the FILE a materialize run writes, not its columns. They combine with `columns` / `exclude`, or stand alone — an `output` holding only them keeps every column, so a request with no derived column is a pure copy into the new container.
 
-```json
+```json norun fragment
 {"output": {"shards": {"max_records": 500000}, "elide_constants": true}}
 ```
 

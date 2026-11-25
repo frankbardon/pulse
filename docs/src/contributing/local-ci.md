@@ -177,7 +177,7 @@ go test ./internal/skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent
 ```
 
 The specific gates this batch includes are listed in [Testing
-Conventions → Non-skippable CI gates](testing.md#non-skippable-ci-gates).
+Conventions → Structural gates](testing.md#structural-gates).
 
 ## Predecessor-reference scrub
 
@@ -557,12 +557,14 @@ form the check parses.
 
 ## CLAUDE.md hygiene gates
 
-`CLAUDE.md` is itself a tested artefact. Every `PULSE_*` env var
-named in Go source must appear there; every non-skippable gate must
-be listed; the current `format_version` must be mentioned:
+`CLAUDE.md` is itself a tested artefact: it must name the current
+`format_version` and stay under its size ceiling. Every `PULSE_*` env
+var named in Go source must have a row in the
+[Options → Environment variables](../library/options.md#environment-variables)
+table (`TestEnvVarsDocumented`):
 
 ```bash
-go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUpdateDemandTable'
+go test ./internal/integration/ -run 'TestClaudeMd|TestUpdateDemandTable|TestEnvVarsDocumented'
 ```
 
 ## Per-change quick reference
@@ -580,6 +582,5 @@ go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUp
 | Any exported identifier in a public package, or a root alias's target | `go test -tags heavy ./internal/apigolden/` (then `-update` only if the change is intended) + `make smoke` |
 | A package move under `internal/io/**` / `internal/iocore` | `go test ./internal/iocore/ -run TestIOImportBoundary` |
 
-The full set is documented in [Testing Conventions → Non-skippable
-CI gates](testing.md#non-skippable-ci-gates) and enumerated by name
-in [`CLAUDE.md`](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md).
+The full set is listed in [Testing Conventions → Structural
+gates](testing.md#structural-gates).

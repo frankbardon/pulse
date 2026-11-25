@@ -36,8 +36,8 @@ the cliff-notes are:
 | CLI leaf (added or flag added) | `make docs` (regenerates `docs/src/cli/reference.md`) + `skills/session-bootstrap.md` if user-facing |
 | `--json` envelope change | `CLAUDE.md` "Output Format Contract" |
 | `.pulse` file format change | `CLAUDE.md` "Byte-layout invariants" + `.claude/reference/byte-layout.md` + `skills/cohort-schema-design.md` |
-| New environment variable | `CLAUDE.md` "Build / Env" + `skills/session-bootstrap.md` |
-| New non-skippable CI gate | List it by name in `CLAUDE.md` |
+| New environment variable | The "Environment variables" table in `docs/src/library/options.md` + `skills/session-bootstrap.md` |
+| New structural gate | A row in [Testing → Structural gates](testing.md#structural-gates) + its `update-demand/gates*.md` slice |
 
 If you find yourself wanting to defer the doc update to a follow-up
 PR, stop. The follow-up PR will not happen, and the next contributor
@@ -91,8 +91,8 @@ gates locally](testing.md#running-a-subset-of-gates-locally).
 
 ## 6. Review and CI
 
-CI runs the full suite (both test tiers) plus the non-skippable gates listed in
-[Testing → Non-skippable CI gates](testing.md#non-skippable-ci-gates).
+CI runs the full suite (both test tiers) plus the structural gates listed in
+[Testing → Structural gates](testing.md#structural-gates).
 A failing gate means a structural invariant is broken, not a flaky
 test; fix the root cause rather than retrying.
 

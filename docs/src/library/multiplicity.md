@@ -6,12 +6,13 @@ reader can tell a real hit from one the number of tests made likely.
 Raw `p_value` / `reject_null` never change, and a request with no block
 (the default) is byte-identical to before; `format_version` stays `"1.1"`.
 
-```json
+```json cohort=experiment
 {
-  "cohort": {"filename": "survey.pulse"},
+  "cohort": {"filename": "experiment.pulse"},
   "tests": [
-    {"type": "TEST_T", "field": "score", "split_by": "arm"},
-    {"type": "TEST_PROP_Z", "field": "converted", "split_by": "arm"}
+    {"type": "TEST_T", "field": "revenue", "split_by": "treatment"},
+    {"type": "TEST_PROP_Z", "field": "converted", "split_by": "treatment",
+     "params": {"success": "yes"}}
   ],
   "multiplicity": {"method": "holm"}
 }

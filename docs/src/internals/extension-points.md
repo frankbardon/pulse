@@ -2926,7 +2926,7 @@ Each file is a request body plus the `_meta` block every built-in
 example carries; `_meta` is stripped before the body is served, so the
 body hands straight to `Process` / `Predict`:
 
-```json
+```json norun extension-operator
 {
   "_meta": {
     "name": "acme-trimmed-revenue",

@@ -259,7 +259,7 @@ Restart the client. The Pulse tools (`pulse_manifest`, `pulse_inspect`,
 `pulse_skills_list`, `pulse_skills_get`) and resources
 (`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource
 list. The per-cohort `pulse://*.pulse` entries come from the startup
-scan — see [`--no-cohort-scan`](#--no-cohort-scan).
+scan — see [`--no-cohort-scan`](#no-cohort-scan).
 
 ## Wiring it into Claude Code
 
