@@ -45,7 +45,7 @@ func RakeCommand() *cli.Command {
 			&cli.FloatFlag{Name: "tol", Usage: "Convergence tolerance on the largest achieved-vs-target share gap (default 1e-6)"},
 			&cli.FloatFlag{Name: "total", Usage: "Normalise every group's weights to sum to this value (default: the group's record count, mean weight 1)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic; its now-stale sidecars are listed, never rebuilt) and an existing source column named --weight-field"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

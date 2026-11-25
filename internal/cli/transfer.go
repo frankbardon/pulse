@@ -21,7 +21,7 @@ func exportTransferCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort or shard archive", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output transfer artifact path (conventionally <input>.zst); overwritten"},
 			&cli.IntFlag{Name: "level", Usage: "zstd level 1..22 (1-2 fastest, 3-5 default, 6-9 better, 10-22 best)", Value: iio.DefaultTransferLevel},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -46,7 +46,7 @@ func importTransferCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse.zst transfer artifact", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse path (must not exist unless --overwrite)", Required: true},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing output cohort"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			job := &pio.TransferImportJob{FS: afero.NewOsFs(), Source: cmd.String("input"), Output: cmd.String("output"), Overwrite: cmd.Bool("overwrite")}

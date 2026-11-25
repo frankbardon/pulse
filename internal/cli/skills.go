@@ -25,7 +25,7 @@ func skillsListCmd() *cli.Command {
 		Name:  "list",
 		Usage: "List all available skills",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

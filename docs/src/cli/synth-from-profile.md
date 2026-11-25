@@ -36,7 +36,7 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 
 | Flag | Alias | Type | Default | Purpose |
 |---|---|---|---|---|
-| `--profile` | `-p` | string | (required) | Profile JSON path |
+| `--profile` | `-p` | string | (required) | Profile JSON file to synthesize from (as written by pulse profile create) |
 | `--source`  |      | string | (required) | Source `.pulse` cohort the profile was captured from — copied into the output unless `--synthetic-only`, never opened for write |
 | `--output`  | `-o` | string | (required) | Output `.pulse` file path — must be a distinct path from `--source` |
 | `--rows`    |      | int    | (required) | Number of **new** rows to generate |

@@ -33,7 +33,7 @@ func errorsLookupCmd() *cli.Command {
 		Usage:     "Print metadata (Message + Fixups) for one error code",
 		ArgsUsage: "CODE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -63,7 +63,7 @@ func errorsListCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "domain", Usage: "Restrict to a single domain (" + commaList(errors.AllDomains()) + "); case-insensitive"},
 			&cli.StringFlag{Name: "query", Usage: "Case-insensitive substring search across descriptions and fixup hints"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			domain := cmd.String("domain")

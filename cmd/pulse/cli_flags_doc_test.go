@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 
+	pcli "github.com/frankbardon/pulse/internal/cli"
+
 	"github.com/frankbardon/pulse/internal/doccheck"
 )
 
@@ -53,7 +55,7 @@ func treeFlagNames() map[string][]string {
 	}
 	root := completionTree()
 	add(root.Name, root.Flags)
-	walkCompletionTree(root, func(path []string, _, c *cli.Command) {
+	pcli.WalkCommands(root, func(path []string, _, c *cli.Command) {
 		add(strings.Join(path, " "), c.Flags)
 	})
 	return out

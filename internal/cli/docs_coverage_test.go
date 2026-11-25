@@ -2,9 +2,7 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"flag"
-	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -35,29 +33,19 @@ var docsCoverageEnv = []string{"PULSE_LABEL_TABLES_DIR", "PULSE_RANGE_TABLES_DIR
 // so the framework's help flag and completion command are mounted as the
 // binary mounts them). urfave's help commands are skipped.
 func coverageSurface(root *cli.Command) doccoverage.CLISurface {
-	root.Writer, root.ErrWriter = io.Discard, io.Discard
-	_ = root.Run(context.Background(), []string{root.Name, "--help"})
+	SetUpTree(root)
 	var s doccoverage.CLISurface
-	var visit func(path []string, c *cli.Command)
-	visit = func(path []string, c *cli.Command) {
+	visit := func(path []string, c *cli.Command) {
 		s.Commands = append(s.Commands, doccoverage.CLICommand{
 			Path: strings.Join(path, " "), Runnable: c.Action != nil, Usage: c.Usage,
 			Text: []string{c.UsageText, c.Description, c.ArgsUsage},
 		})
 		for _, f := range c.Flags {
-			usage := ""
-			if u, ok := f.(interface{ GetUsage() string }); ok {
-				usage = u.GetUsage()
-			}
-			s.Flags = append(s.Flags, doccoverage.CLIFlag{Names: f.Names(), Usage: usage, Help: f.String()})
-		}
-		for _, sub := range c.Commands {
-			if sub.Name != "help" {
-				visit(append(append([]string(nil), path...), sub.Name), sub)
-			}
+			s.Flags = append(s.Flags, doccoverage.CLIFlag{Names: f.Names(), Usage: DescribeFlag(f).Usage, Help: f.String()})
 		}
 	}
 	visit([]string{root.Name}, root)
+	WalkCommands(root, func(path []string, _, c *cli.Command) { visit(path, c) })
 	return s
 }
 

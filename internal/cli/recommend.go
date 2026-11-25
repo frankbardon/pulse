@@ -26,7 +26,7 @@ func RecommendCommand() *cli.Command {
 			&cli.StringSliceFlag{Name: "field", Usage: "A field hint (needs --cohort): pins the field to the first role of the intent it fits. Repeatable"},
 			&cli.StringFlag{Name: "level", Usage: "Rank operators at this level first: " + orList(descriptor.Levels())},
 			&cli.IntFlag{Name: "top", Usage: "Maximum recommendations returned (0 = the default, 10); sets RecommendRequest.Limit"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

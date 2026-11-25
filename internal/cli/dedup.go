@@ -35,11 +35,11 @@ func DedupCommand() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag. An already-grouped cohort is regrouped from scratch"},
 			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Write the deduplicated cohort to this NEW path (must not exist) and leave the input untouched; default rewrites the input in place"},
-			&cli.BoolFlag{Name: "elide-constants", Usage: "Also store fields holding one value on every record once in the schema block"},
+			&cli.BoolFlag{Name: "elide-constants", Usage: elideConstantsUsage},
 			&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) as errors: nothing is written"},
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups over the cohort's records and print each measured candidate with a ready-to-paste --group value. Alone it writes nothing"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

@@ -33,7 +33,7 @@ func WidenCommand() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
 			&cli.StringFlag{Name: "field", Aliases: []string{"f"}, Usage: "Name of the set column to widen", Required: true},
 			&cli.StringFlag{Name: "to", Usage: "Target set type: " + orList(pulse.WidenSetFieldTargets()) + ". Must be WIDER than the column's current rung", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

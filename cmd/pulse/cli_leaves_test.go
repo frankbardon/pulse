@@ -61,6 +61,8 @@ import (
 
 	cli "github.com/urfave/cli/v3"
 
+	pcli "github.com/frankbardon/pulse/internal/cli"
+
 	"github.com/frankbardon/pulse/internal/doccoverage"
 )
 
@@ -68,10 +70,10 @@ import (
 // sorted, in `pulse <group> <leaf>` form. The tree is the one the binary
 // runs AFTER urfave/cli's setup (completionTree), so the framework-mounted
 // `pulse completion <shell>` leaves count too; urfave's `help` commands do
-// not (walkCompletionTree skips them).
+// not (pcli.WalkCommands skips them).
 func cliLeaves() []string {
 	var out []string
-	walkCompletionTree(completionTree(), func(path []string, _, c *cli.Command) {
+	pcli.WalkCommands(completionTree(), func(path []string, _, c *cli.Command) {
 		if c.Action != nil {
 			out = append(out, strings.Join(path, " "))
 		}

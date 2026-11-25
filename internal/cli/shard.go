@@ -39,7 +39,7 @@ func shardCreateCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{Name: "include", Aliases: []string{"i"}, Usage: "Single-file .pulse shard to include (repeatable)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -100,7 +100,7 @@ func shardAddCmd() *cli.Command {
 		Usage:     "Append a shard to an existing archive",
 		ArgsUsage: "ARCHIVE SHARD",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "rewrite", Usage: "Rewrite the whole archive (staged file + rename) instead of appending in place; never opens the archive for writing and reclaims dead bytes"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -168,7 +168,7 @@ func shardRemoveCmd() *cli.Command {
 		Usage:     "Remove a shard from an archive by basename",
 		ArgsUsage: "ARCHIVE BASENAME",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -219,7 +219,7 @@ func shardListCmd() *cli.Command {
 		Usage:     "List shards inside an archive",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -265,7 +265,7 @@ func shardCompactCmd() *cli.Command {
 		Usage:     "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -304,7 +304,7 @@ func shardVerifyCmd() *cli.Command {
 		Usage:     "Re-validate every shard's header + cohesion against the canonical schema",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "repair", Usage: "First roll back an interrupted in-place shard add (truncate to the journalled length, remove the journal); refuses when the journal does not match the archive"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

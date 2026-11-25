@@ -68,7 +68,7 @@ func ExplainCommand() *cli.Command {
 				" (" + string(descriptor.ExplainRootRequest) + " is a process request; " + string(descriptor.ExplainRootSample) + " takes --request only)"},
 			&cli.StringFlag{Name: "detail", Usage: "One of " + orList(descriptor.ExplainDetails()) + ": " + string(descriptor.ExplainTerse) + " (default) is the summary and structured parts; " +
 				string(descriptor.ExplainFull) + " adds narrative sentences, glossary refs, follow-ups and assumptions"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

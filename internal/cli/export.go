@@ -18,12 +18,12 @@ import (
 // one.
 func exportFlags() []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-		&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
+		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path", Required: true},
+		&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Path of the exported file to write (host OS path)", Required: true},
 		&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
 		&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: " + labelBindingGrammar + ". Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 		&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
-		&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+		&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 	}
 }
 
@@ -284,7 +284,7 @@ func exportPredictCmd() *cli.Command {
 		Name:  "predict",
 		Usage: "Validate an export without writing output",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path", Required: true},
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format to validate against (" + commaList(pio.Formats()) + "). Omit to validate the source cohort only, with no target-format check."},
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
@@ -292,7 +292,7 @@ func exportPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
 			&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
 			&cli.StringSliceFlag{Name: "labels", Usage: predictLabelsFlagUsage},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")

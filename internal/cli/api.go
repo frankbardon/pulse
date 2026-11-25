@@ -44,7 +44,7 @@ func apiProcessCmd() *cli.Command {
 		Usage: "Execute a processing request against a cohort",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {\"warnings\":[...]} line"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
@@ -150,8 +150,8 @@ func apiProcessChainCmd() *cli.Command {
 		Usage: "Execute a source-rooted linear chain of mergeable processing stages",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Chain request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ChainRequest on the envelope under \"request\". Each stage's Request reflects the per-stage post-defaults form captured during execution."},
 			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-stage Response. Wire form is byte-identical to the pre-Components baseline."},
 		},
@@ -204,7 +204,7 @@ func apiComposeCmd() *cli.Command {
 		Usage: "Execute multiple processing requests in batch",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile, \"sweep_trace\" under an adaptive mode); optimize blocks end with one {\"optimizations\":[...]} line"},
 			&cli.BoolFlag{Name: "stream-fits", Usage: "Under --stream, end the stream with one {\"fits\":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
@@ -284,10 +284,10 @@ func apiSampleCmd() *cli.Command {
 		Name:  "sample",
 		Usage: "Return sample rows from a cohort",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path (required unless --request)"},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (required unless --request)"},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full SampleRequest JSON file, or - for stdin (cohort or union, union_source_field, n, labels); in place of --input. --count and --labels layer on top of the file"},
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample (with --request: overrides the file's n, the default when it has none)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
@@ -470,7 +470,7 @@ func apiFacetCmd() *cli.Command {
 		Name:  "facet",
 		Usage: "Return distinct values for a field in a cohort, or a rich multi-field summary",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path"},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
 			&cli.StringSliceFlag{Name: "field", Aliases: []string{"f"}, Usage: "Field name to facet (repeat for multiple)"},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (overrides flags)"},
 			&cli.IntFlag{Name: "top-k", Usage: "Cap discrete values per field"},
@@ -480,8 +480,8 @@ func apiFacetCmd() *cli.Command {
 			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
 			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable."},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved FacetRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -629,7 +629,7 @@ func apiPredictCmd() *cli.Command {
 		Usage: "Validate a request against a cohort without executing",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat warnings as errors"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized request on the envelope under \"request\" (distinct from PredictResult.Request, which echoes the raw input)."},
 		},
@@ -736,7 +736,7 @@ func apiLookupCmd() *cli.Command {
 			&cli.StringFlag{Name: "return", Usage: "Comma-separated field names to project into the result row(s); omit for every schema field"},
 			&cli.StringFlag{Name: "mode", Usage: lookupModeFlagUsage},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full LookupRequest JSON file (flags layer on top of the file)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved LookupRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -796,7 +796,7 @@ func apiMaterializeCmd() *cli.Command {
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic); its now-stale sidecars are listed, never rebuilt"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning; with --predict, promote every predict warning into an error"},
 			&cli.BoolFlag{Name: "predict", Usage: "Validate without executing: print the output schema the run would write, every static refusal and the data-dependent risks, reading the source's header and schema only; nothing is written"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")

@@ -38,8 +38,8 @@ func importAutoCmd() *cli.Command {
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (" + commaList(append(pio.Formats(), pio.FormatPulse)) + ")"},
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
-			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},
-			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage + " (ignored for non-SPSS)"},
+			&cli.StringFlag{Name: "sheet", Usage: sheetUsage},
+			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing managed handle"},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path (as on 'import <format> --schema'; refused on a .pulse source)"},
 			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
@@ -48,7 +48,7 @@ func importAutoCmd() *cli.Command {
 			&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group, as on 'import <format> --group': KEY[,KEY...]:MEMBER[,MEMBER...] or MEMBER[,MEMBER...]. Repeatable, one group per flag; judged at the default ratio floor, findings reported as warnings (writes format 0x02)"},
 			&cli.StringSliceFlag{Name: "vector", Usage: vectorFlagUsage},
 			&cli.StringSliceFlag{Name: "vector-kind", Usage: vectorKindFlagUsage},
-			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		}, sourceZoneCLIFlags()...),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -197,7 +197,7 @@ func importsListCmd() *cli.Command {
 		Name:  "list",
 		Usage: "List managed-import handles and their TTL status",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -237,7 +237,7 @@ func importDropCmd() *cli.Command {
 		Usage:     "Remove a managed-import handle from the pool",
 		ArgsUsage: "HANDLE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Emit the JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
