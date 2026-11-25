@@ -374,7 +374,10 @@ reference-mcmc:
 # docgen:summary lines, then builds the book. The export runs with the
 # table/template directory env vars cleared so a developer's .env cannot
 # perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
-# tree is stale. Recipe: docs/src/internals/regenerating-goldens.md.
+# tree is stale. It then regenerates the documentation coverage matrix
+# (docs/src/contract/coverage.md, internal/doccoverage) after the guide, so
+# the matrix sees the fresh guide; TestDocsCoverageCurrent fails when it is
+# stale. Recipe: docs/src/internals/regenerating-goldens.md.
 DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_LOOKUP_TABLES_DIR -u PULSE_POPULATIONS_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
 
 docs: docs-generate
@@ -383,6 +386,7 @@ docs: docs-generate
 docs-generate:
 	$(DOCS_GUIDE_ENV) $(GO) run ./cmd/pulse docs export --out docs/src/guide
 	$(GO) run ./internal/tools/docsummary -book docs/src/SUMMARY.md -fragment docs/src/guide/SUMMARY.md -prefix guide/
+	$(DOCS_GUIDE_ENV) $(GO) run ./internal/tools/doccoverage -out docs/src/contract/coverage.md
 
 docs-serve:
 	mdbook serve docs --open

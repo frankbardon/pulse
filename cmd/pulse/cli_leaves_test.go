@@ -60,6 +60,8 @@ import (
 	"testing"
 
 	cli "github.com/urfave/cli/v3"
+
+	"github.com/frankbardon/pulse/internal/doccoverage"
 )
 
 // cliLeaves returns every runnable command path in the binary's command tree,
@@ -91,6 +93,11 @@ func docCorpus(t *testing.T, roots ...string) string {
 				return err
 			}
 			if d.IsDir() || !strings.HasSuffix(p, ".md") {
+				return nil
+			}
+			// The generated coverage matrix names every leaf; counting it
+			// would make this gate vacuous.
+			if filepath.ToSlash(p) == "../../"+doccoverage.PagePath {
 				return nil
 			}
 			data, err := os.ReadFile(p)

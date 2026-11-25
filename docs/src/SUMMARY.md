@@ -529,6 +529,7 @@
 # Payload Contract
 
 - [JSON Schema](contract/payload-schema.md)
+- [Documentation Coverage](contract/coverage.md)
 
 # Examples Library
 
