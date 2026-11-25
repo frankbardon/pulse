@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/spf13/afero"
 )
 
 // envTemplatesDir is the environment variable consulted when
@@ -64,13 +65,25 @@ func resolveTemplateDirs(opts *Options) []string {
 // refuses a `{{token}}` in one of them PULSE_TEMPLATE_EXPR_SPLICE, at
 // startup and on every rescan, as in a built-in expression slot.
 //
-// Like the label- and range-table loaders, this deliberately reads through
-// the os package rather than afero. Template directories are process
-// configuration, not cohort data.
+// The store reads through templateFs(opts): the embedder's Options.FS when
+// one is supplied, so an embedder on an in-memory filesystem keeps its
+// templates there, and the host filesystem otherwise.
 func loadTemplateStore(opts *Options, exprParams map[string][]string) (*template.Store, error) {
 	dirs := resolveTemplateDirs(opts)
 	if len(dirs) == 0 {
 		return nil, nil
 	}
-	return template.NewStoreWith(dirs, template.ValidateOptions{ExprParams: exprParams})
+	return template.NewStoreWith(templateFs(opts), dirs, template.ValidateOptions{ExprParams: exprParams})
+}
+
+// templateFs is the filesystem template roots are paths on. A supplied
+// Options.FS is used as-is. Without one the instance filesystem is rooted
+// at the data directory, and template roots are process configuration —
+// host paths, absolute or relative to the working directory, that need
+// not sit under DataDir — so the store reads the host filesystem.
+func templateFs(opts *Options) afero.Fs {
+	if opts.FS != nil {
+		return opts.FS
+	}
+	return afero.NewOsFs()
 }

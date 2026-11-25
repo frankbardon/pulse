@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -195,16 +194,17 @@ func TestFacetParams_FeatureProfileGate(t *testing.T) {
 func TestFacetParams_TemplateVar(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	fsys := afero.NewMemMapFs()
+	dir := "/templates"
 	doc := `{"target": "facet",
   "variables": [{"name": "wave", "type": "integer", "required": true}],
   "body": {"cohort": {"filename": "params.pulse"}, "fields": ["region"],
     "params": {"wave": {"$var": "wave"}},
     "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave == params.wave"}]}}`
-	if err := os.WriteFile(filepath.Join(dir, "by_wave.json"), []byte(doc), 0o644); err != nil {
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "by_wave.json"), []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p := openParams(t, pulse.Options{TemplateDirs: []string{dir}})
+	p := openParams(t, pulse.Options{FS: fsys, TemplateDirs: []string{dir}})
 	r, err := p.RenderTemplate("by_wave", map[string]any{"wave": 4})
 	if err != nil {
 		t.Fatalf("RenderTemplate: %v", err)

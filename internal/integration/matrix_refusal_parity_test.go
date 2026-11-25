@@ -350,10 +350,7 @@ func TestCrosstab_MatricesDoNotPerturb(t *testing.T) {
 			reg := svc.Extensions()
 			ran, fused := 0, 0
 			for _, c := range fusionParityCorpus() {
-				// nil_grouper: the buffered crosstab arm dereferences a nil
-				// axis slot (a pre-existing panic in PartitionByAxis,
-				// unrelated to matrices) — the fusion half still covers it.
-				if c.req.Crosstab == nil || c.name == "nil_grouper" {
+				if c.req.Crosstab == nil {
 					continue
 				}
 				base := cloneFusionRequest(t, c.req)

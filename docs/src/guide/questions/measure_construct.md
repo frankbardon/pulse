@@ -52,7 +52,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `scale_reliability`; `pulse examples show scale_reliability` prints it):
 
-```json
+```json cohort=battery
 {
   "cohort": {
     "filename": "battery.pulse",

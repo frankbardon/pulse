@@ -178,8 +178,10 @@ func TestGuidanceExemptions_GatesBite(t *testing.T) {
 	})
 }
 
-// TestGuidanceExemptions_Ledger: the lookup intent's exemptions and
-// simulate's example exemption are permanent and justified, and nothing else is — a new permanent
+// TestGuidanceExemptions_Ledger: the lookup intent's exemptions,
+// simulate's example exemption and the optimize block's two glossary
+// terms (read off a capability, never an operator's Purpose) are
+// permanent and justified, and nothing else is — a new permanent
 // exemption is a deliberate edit of this test.
 func TestGuidanceExemptions_Ledger(t *testing.T) {
 	t.Parallel()
@@ -196,7 +198,10 @@ func TestGuidanceExemptions_Ledger(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]bool{"intent-declarers/" + IntentLookup: true, "intent-example/" + IntentLookup: true, "intent-example/" + IntentSimulate: true}
+	want := map[string]bool{
+		"intent-declarers/" + IntentLookup: true, "intent-example/" + IntentLookup: true, "intent-example/" + IntentSimulate: true,
+		"glossary-orphan/marginal-return": true, "glossary-orphan/shadow-price": true,
+	}
 	if !maps.Equal(permanent, want) {
 		t.Errorf("permanent exemptions = %v, want exactly %v", slices.Sorted(maps.Keys(permanent)), slices.Sorted(maps.Keys(want)))
 	}

@@ -50,7 +50,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `group_kmeans`; `pulse examples show group_kmeans` prints it):
 
-```json
+```json cohort=customers
 {
   "aggregations": [
     {

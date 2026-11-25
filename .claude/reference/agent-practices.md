@@ -14,7 +14,7 @@ Each rule's reason comes from a failure this repo already shipped.
 ## Sites first
 
 - Before grepping, run the `sites` tool for the operator, slot or category you are changing: `make sites ARGS="op <TYPE>"`, `ARGS="new-op <category>"`, `ARGS="slot <request|response> <name>"` or `ARGS="categories"` (also `go run ./internal/tools/sites [--json] …`). Recipe: `docs/src/internals/finding-change-sites.md`. *Why: it derives the checklist, gates and goldens from code; a hand grep misses sites that do not name the identifier.*
-- Use grep only to fill gaps, and grep the operator / kind name across the root parity tests and leaf packages even when the tool is clean: it has missed shared-rule leaf packages and root parity suites before. Report missed sites in your hand-back.
+- Use grep only to fill gaps: the tool still misses whole-repo runners and floors (an every-example runner, a call-site floor) and parity suites that never name the operator, so grep the operator / kind name across the root parity tests even when it is clean. Report missed sites in your hand-back.
 - The tool finds sites; the slices it lists under "Read before editing" say what each must contain.
 
 ## TDD and falsification

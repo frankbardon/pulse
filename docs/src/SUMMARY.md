@@ -529,6 +529,7 @@
 # Payload Contract
 
 - [JSON Schema](contract/payload-schema.md)
+- [Documentation Coverage](contract/coverage.md)
 
 # Examples Library
 
@@ -581,5 +582,6 @@
 - [Style Guide](contributing/style.md)
 - [Testing Conventions](contributing/testing.md)
 - [Running CI Gates Locally](contributing/local-ci.md)
+- [Documentation Checks](contributing/doc-checks.md)
 - [Porting Workflow](contributing/porting-workflow.md)
 - [Pull Request Process](contributing/pr-process.md)

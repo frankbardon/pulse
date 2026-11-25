@@ -97,7 +97,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `t_test_two_sample`; `pulse examples show t_test_two_sample` prints it):
 
-```json
+```json cohort=experiment
 {
   "aggregations": [
     {

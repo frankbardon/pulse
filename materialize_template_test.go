@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/examples"
+	"github.com/spf13/afero"
 )
 
 // reshapeRecipe is the stored reshape request the docs teach: the cohort
@@ -43,9 +44,9 @@ const reshapeRecipe = `{
 func TestMaterializeTemplate_RendersAndMaterializesPerCohort(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeTmpl(t, dir, "reshape/handoff.json", reshapeRecipe)
-	p, _ := matPulse(t, Options{TemplateDirs: []string{dir}})
+	fsys := afero.NewMemMapFs()
+	writeTmplOn(t, fsys, "/templates", "reshape/handoff.json", reshapeRecipe)
+	p, _ := matPulse(t, Options{FS: fsys, TemplateDirs: []string{"/templates"}})
 	buildMatSource(t, p, "wave1.pulse", CohortBuilderOptions{})
 	buildMatSource(t, p, "wave2.pulse", CohortBuilderOptions{})
 	ctx := context.Background()
@@ -89,9 +90,9 @@ func TestMaterializeTemplate_RendersAndMaterializesPerCohort(t *testing.T) {
 func TestMaterializeTemplate_OutputIsMaterializeOnly(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeTmpl(t, dir, "reshape/handoff.json", reshapeRecipe)
-	p, _ := matPulse(t, Options{TemplateDirs: []string{dir}})
+	fsys := afero.NewMemMapFs()
+	writeTmplOn(t, fsys, "/templates", "reshape/handoff.json", reshapeRecipe)
+	p, _ := matPulse(t, Options{FS: fsys, TemplateDirs: []string{"/templates"}})
 	buildMatSource(t, p, "wave1.pulse", CohortBuilderOptions{})
 	req, err := p.RenderTemplateRequest("reshape/handoff", map[string]any{"cohort": "wave1.pulse"})
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/spf13/afero"
 )
 
 // validTemplate builds a minimal well-formed template document carrying the
@@ -34,10 +35,10 @@ func quote(s string) string { return `"` + s + `"` }
 func writeFile(t *testing.T, dir, rel, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := tfs.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll(%s): %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := afero.WriteFile(tfs, path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
 	return path
@@ -46,7 +47,7 @@ func writeFile(t *testing.T, dir, rel, content string) string {
 // newStore builds a store over dirs and fails the test on error.
 func newStore(t *testing.T, dirs ...string) *template.Store {
 	t.Helper()
-	s, err := template.NewStore(dirs)
+	s, err := template.NewStore(tfs, dirs)
 	if err != nil {
 		t.Fatalf("NewStore(%v) = %v, want nil error", dirs, err)
 	}
@@ -70,7 +71,7 @@ func listedNames(s *template.Store) []string {
 func TestNewStore_NameIsPathRelative(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	fixtures := []string{
 		"revenue.json",
 		"finance/revenue.json",
@@ -118,7 +119,7 @@ func TestNewStore_NameIsPathRelative(t *testing.T) {
 func TestNewStore_NamesUseForwardSlashes(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "finance/quarterly/revenue.json", validTemplate("nested"))
 
 	s := newStore(t, dir)
@@ -148,14 +149,14 @@ func TestNewStore_NamesUseForwardSlashes(t *testing.T) {
 func TestNewStore_SkipsNonJSONAndDirectories(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("kept"))
 	writeFile(t, dir, "README.md", "# not a template")
 	writeFile(t, dir, "notes.txt", "definitely not JSON")
 	writeFile(t, dir, ".DS_Store", "\x00\x01")
 	writeFile(t, dir, "revenue.json.swp", "garbage")
 	writeFile(t, dir, "sub/README.md", "# also not a template")
-	if err := os.MkdirAll(filepath.Join(dir, "empty", "deeper"), 0o755); err != nil {
+	if err := tfs.MkdirAll(filepath.Join(dir, "empty", "deeper"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
@@ -174,8 +175,8 @@ func TestNewStore_SkipsNonJSONAndDirectories(t *testing.T) {
 func TestNewStore_FirstDirectoryWins(t *testing.T) {
 	t.Parallel()
 
-	first := t.TempDir()
-	second := t.TempDir()
+	first := memDir(t)
+	second := memDir(t)
 	firstPath := writeFile(t, first, "shared.json", validTemplate("from first"))
 	secondPath := writeFile(t, second, "shared.json", validTemplate("from second"))
 	writeFile(t, second, "only-second.json", validTemplate("second only"))
@@ -255,7 +256,7 @@ func summaryFor(s *template.Store, name string) (template.Summary, bool) {
 func TestNewStore_ThreeRootsShadowInOrder(t *testing.T) {
 	t.Parallel()
 
-	a, b, c := t.TempDir(), t.TempDir(), t.TempDir()
+	a, b, c := memDir(t), memDir(t), memDir(t)
 	pa := writeFile(t, a, "shared.json", validTemplate("a"))
 	pb := writeFile(t, b, "shared.json", validTemplate("b"))
 	pc := writeFile(t, c, "shared.json", validTemplate("c"))
@@ -296,7 +297,7 @@ func TestNewStore_ThreeRootsShadowInOrder(t *testing.T) {
 func TestNewStore_DuplicateNameWithinOneRootIsImpossible(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "x.json", validTemplate("file x"))
 	writeFile(t, dir, "x/y.json", validTemplate("nested under x"))
 	writeFile(t, dir, "x.json.json", validTemplate("doubled extension"))
@@ -383,13 +384,13 @@ func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := memDir(t)
 			// A healthy sibling proves the failure is attributed to the
 			// offending file rather than to "something in this directory".
 			writeFile(t, dir, "healthy.json", validTemplate("fine"))
 			path := writeFile(t, dir, tt.rel, tt.content)
 
-			s, err := template.NewStore([]string{dir})
+			s, err := template.NewStore(tfs, []string{dir})
 			if err == nil {
 				t.Fatalf("NewStore() = %v, want %s for %s", s, tt.wantCode, path)
 			}
@@ -432,10 +433,10 @@ func TestNewStore_EmptyDerivedNameIsInvalid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := memDir(t)
 			path := writeFile(t, dir, tt.rel, validTemplate("unnameable"))
 
-			_, err := template.NewStore([]string{dir})
+			_, err := template.NewStore(tfs, []string{dir})
 			if err == nil {
 				t.Fatal("NewStore() = nil error, want PULSE_TEMPLATE_INVALID for a file with no derivable name")
 			}
@@ -456,18 +457,12 @@ func TestNewStore_EmptyDerivedNameIsInvalid(t *testing.T) {
 func TestNewStore_UnreadableFileIsAFilesystemFault(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	path := writeFile(t, dir, "revenue.json", validTemplate("unreadable"))
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("Chmod: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	if _, err := os.ReadFile(path); err == nil {
-		// skip-audit(#675): kept — environment skip: a superuser (or a filesystem without POSIX permissions) can read a 0o000 file, so the unreadable-file path cannot be produced
-		t.Skip("this user bypasses file permissions; the unreadable-file path is untestable here")
-	}
+	fsys := newDenyReadFs()
+	fsys.deny(path)
 
-	_, err := template.NewStore([]string{dir})
+	_, err := template.NewStore(fsys, []string{dir})
 	if err == nil {
 		t.Fatal("NewStore() = nil error, want a filesystem fault for an unreadable template file")
 	}
@@ -491,7 +486,7 @@ func TestNewStore_UnreadableFileIsAFilesystemFault(t *testing.T) {
 func TestNewStore_SameRootListedTwice(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	path := writeFile(t, dir, "revenue.json", validTemplate("only copy"))
 
 	s := newStore(t, dir, dir)
@@ -523,7 +518,7 @@ func TestNewStore_DocumentNameMustMatchPath(t *testing.T) {
 	body := `"body":{"cohort":{"filename":"s.pulse"}}`
 
 	t.Run("agreeing name is accepted", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := memDir(t)
 		writeFile(t, dir, "finance/revenue.json", `{"name":"finance/revenue","target":"request",`+body+`}`)
 
 		s := newStore(t, dir)
@@ -537,10 +532,10 @@ func TestNewStore_DocumentNameMustMatchPath(t *testing.T) {
 	})
 
 	t.Run("disagreeing name is rejected", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := memDir(t)
 		path := writeFile(t, dir, "finance/revenue.json", `{"name":"something-else","target":"request",`+body+`}`)
 
-		_, err := template.NewStore([]string{dir})
+		_, err := template.NewStore(tfs, []string{dir})
 		if err == nil {
 			t.Fatal("NewStore() = nil error, want PULSE_TEMPLATE_INVALID for a name/path disagreement")
 		}
@@ -560,7 +555,7 @@ func TestNewStore_DocumentNameMustMatchPath(t *testing.T) {
 func TestStore_GetUnknownName(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("kept"))
 	s := newStore(t, dir)
 
@@ -593,7 +588,7 @@ func TestStore_GetUnknownName(t *testing.T) {
 func TestStore_ListIsSortedByName(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	for _, rel := range []string{"zeta.json", "alpha.json", "mid/beta.json", "mid/alpha.json"} {
 		writeFile(t, dir, rel, validTemplate(rel))
 	}
@@ -633,11 +628,11 @@ func TestStore_ListIsSortedByName(t *testing.T) {
 func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	present := t.TempDir()
+	present := memDir(t)
 	writeFile(t, present, "revenue.json", validTemplate("kept"))
 
-	file := filepath.Join(t.TempDir(), "not-a-dir")
-	if err := os.WriteFile(file, []byte("{}"), 0o644); err != nil {
+	file := filepath.Join(memDir(t), "not-a-dir")
+	if err := afero.WriteFile(tfs, file, []byte("{}"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -652,7 +647,7 @@ func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 	})
 
 	t.Run("missing directory is skipped", func(t *testing.T) {
-		missing := filepath.Join(t.TempDir(), "does", "not", "exist")
+		missing := filepath.Join(memDir(t), "does", "not", "exist")
 		s := newStore(t, missing, present)
 		if got := listedNames(s); len(got) != 1 || got[0] != "revenue" {
 			t.Errorf("List() = %v, want [revenue]", got)
@@ -667,7 +662,7 @@ func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 	})
 
 	t.Run("regular file is an error", func(t *testing.T) {
-		_, err := template.NewStore([]string{file})
+		_, err := template.NewStore(tfs, []string{file})
 		if err == nil {
 			t.Fatal("NewStore() = nil error, want an error for a configured path that is not a directory")
 		}
@@ -683,10 +678,10 @@ func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 func TestNewStore_DirsIsDefensiveCopy(t *testing.T) {
 	t.Parallel()
 
-	first, second := t.TempDir(), t.TempDir()
+	first, second := memDir(t), memDir(t)
 	dirs := []string{first, second}
 
-	s, err := template.NewStore(dirs)
+	s, err := template.NewStore(tfs, dirs)
 	if err != nil {
 		t.Fatalf("NewStore() = %v", err)
 	}
@@ -699,6 +694,67 @@ func TestNewStore_DirsIsDefensiveCopy(t *testing.T) {
 	got[1] = "mutated-by-reader"
 	if again := s.Dirs(); again[1] != second {
 		t.Errorf("Dirs() is not a defensive copy: got %q after caller mutation", again[1])
+	}
+}
+
+// TestNewStore_ReadsThroughGivenFs is the filesystem contract: the store
+// walks, stats and reads only through the afero.Fs it is handed. A
+// template that exists solely on an in-memory filesystem loads, renders
+// and hot-reloads; the same path is absent from the host.
+func TestNewStore_ReadsThroughGivenFs(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	dir := filepath.Join(string(filepath.Separator)+"pulse-mem-only", "templates")
+	path := filepath.Join(dir, "finance", "revenue.json")
+	if err := fsys.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := afero.WriteFile(fsys, path, []byte(validTemplate("in memory")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if _, err := os.Stat(dir); err == nil {
+		t.Fatalf("%s exists on the host; the test needs a path only the in-memory Fs has", dir)
+	}
+
+	s, err := template.NewStore(fsys, []string{dir})
+	if err != nil {
+		t.Fatalf("NewStore(memfs) = %v, want the in-memory template loaded", err)
+	}
+	got, err := s.Get("finance/revenue")
+	if err != nil {
+		t.Fatalf("Get(finance/revenue) = %v", err)
+	}
+	if got.Description != "in memory" {
+		t.Errorf("Description = %q, want %q", got.Description, "in memory")
+	}
+
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "added.json"), []byte(validTemplate("added")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := s.Reload(); err != nil {
+		t.Fatalf("Reload() = %v", err)
+	}
+	if _, err := s.Get("added"); err != nil {
+		t.Errorf("Get(added) after Reload = %v, want the new in-memory template", err)
+	}
+}
+
+// TestNewStore_NilFsIsHostFilesystem pins the default: a nil Fs reads the
+// host filesystem, which is what the CLI and MCP server configure.
+func TestNewStore_NilFsIsHostFilesystem(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "host.json"), []byte(validTemplate("on host")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	s, err := template.NewStore(nil, []string{dir})
+	if err != nil {
+		t.Fatalf("NewStore(nil fs) = %v", err)
+	}
+	if got, err := s.Get("host"); err != nil || got.Description != "on host" {
+		t.Fatalf("Get(host) = %v, %v; want the host template", got, err)
 	}
 }
 
@@ -730,7 +786,7 @@ func TestStore_NilIsUsable(t *testing.T) {
 func TestStore_ConcurrentLookup(t *testing.T) {
 	t.Parallel()
 
-	first, second := t.TempDir(), t.TempDir()
+	first, second := memDir(t), memDir(t)
 	writeFile(t, first, "shared.json", validTemplate("from first"))
 	writeFile(t, second, "shared.json", validTemplate("from second"))
 	writeFile(t, second, "finance/other.json", validTemplate("other"))

@@ -1,9 +1,38 @@
 package descriptor
 
 import (
+	"regexp"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/weighting"
 )
+
+// weightedSlotOnlyLead is the description lead every weighted-only
+// component key opens with ("Weighted slots only:", "Weighted slots of
+// kind probability only:", "AGG_VEC_SD, weighted slot only:").
+var weightedSlotOnlyLead = regexp.MustCompile(`^(?:[A-Z][A-Z0-9_]*, )?[Ww]eighted slots?(?: of kind [a-z]+)? only:`)
+
+// WeightedSlotOnlyKey reports whether k is emitted only on a weighted
+// slot — an optional key whose description opens with the weighted-only
+// lead (the weighted floor keys and an operator's own weighted moments
+// such as AGG_AVERAGE's sum_weighted). A capability:weighting-hidden
+// instance can weight no slot, so the surfaces describing its
+// components (the generated Components page, an op skill's Contract)
+// leave these keys out (TestWeightedSlotOnlyKey).
+func WeightedSlotOnlyKey(k descriptor.ComponentKey) bool {
+	return k.Optional && weightedSlotOnlyLead.MatchString(k.Description)
+}
+
+// withoutWeightedSlotOnly returns keys minus the weighted-only ones.
+func withoutWeightedSlotOnly(keys []descriptor.ComponentKey) []descriptor.ComponentKey {
+	var out []descriptor.ComponentKey
+	for _, k := range keys {
+		if !WeightedSlotOnlyKey(k) {
+			out = append(out, k)
+		}
+	}
+	return out
+}
 
 // weightFloorKeys are the universal-floor keys a WEIGHTED aggregator
 // slot adds beside {n, n_null}. All three are optional: the

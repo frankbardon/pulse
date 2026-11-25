@@ -73,13 +73,14 @@
 3 ./internal/service TestStrideSites_ParallelDecodeSplitsOnPhysicalRecords
 3 ./internal/service TestWeightUnityParity
 
-# shard 4 (17 s local): ., ./internal/integration, ./internal/sem
+# shard 4 (17 s local, plus ~80 s for TestProfileServedTextNoHiddenFeature alone): ., ./internal/integration, ./internal/sem
 4 ./internal/integration TestExtensionRegressionInvariance_Heavy
 4 ./internal/integration TestExtensions_DeclaredMarginCellFusesCrosstab
 4 ./internal/integration TestFilterToFile_DateRangesMatchesProcess
 4 ./internal/integration TestKMeansInvariance_Heavy
 4 . TestPanicRecovery_PoolRepanics
 4 . TestProfileInvisibilityParity
+4 . TestProfileServedTextNoHiddenFeature
 4 ./internal/integration TestSEMInvariance_Heavy
 4 ./internal/integration TestSEM_BootstrapDerivedSeed
 4 ./internal/integration TestSEM_OrdinalBootstrapDeterministic

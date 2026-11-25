@@ -3,6 +3,7 @@ package gosdk_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -187,8 +188,9 @@ func TestRegister_ProseScrubKeepsEnabledProse(t *testing.T) {
 }
 
 // TestRegister_ProseProfileFreeUnchanged pins that a profile-free
-// server's tool descriptions are the toolmeta text verbatim and its
-// prompt bodies keep every tool name.
+// server's tool descriptions are the toolmeta text verbatim (every
+// feature fence kept, its markers stripped) and its prompt bodies keep
+// every tool name.
 func TestRegister_ProseProfileFreeUnchanged(t *testing.T) {
 	t.Parallel()
 
@@ -200,10 +202,10 @@ func TestRegister_ProseProfileFreeUnchanged(t *testing.T) {
 	}
 	want := map[string]string{}
 	for _, m := range toolmeta.Meta() {
-		want[m.Name] = m.Description
+		want[m.Name] = descx.RenderProseFences(m.Description, nil)
 	}
 	for _, tool := range tools.Tools {
-		if tool.Description != want[tool.Name] {
+		if tool.Description != want[tool.Name] || strings.Contains(tool.Description, "<!--") {
 			t.Errorf("profile-free %s description changed", tool.Name)
 		}
 	}
@@ -302,4 +304,91 @@ func TestRegister_ProseNamesNoHiddenSlotToken(t *testing.T) {
 		t.Fatalf("inspect: %v", err)
 	}
 	check("rebound")
+}
+
+// allFeaturesExcept is every built-in feature but the named ones and
+// each feature left with an unsatisfiable dependency group once they go
+// — the largest valid profile hiding them.
+func allFeaturesExcept(drop ...string) []string {
+	gone := map[string]bool{}
+	for _, d := range drop {
+		gone[d] = true
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, f := range descx.Features() {
+			if gone[f.Name] {
+				continue
+			}
+			for _, group := range f.DependsOn {
+				if !slices.ContainsFunc(group, func(n string) bool { return !gone[n] }) {
+					gone[f.Name], changed = true, true
+					break
+				}
+			}
+		}
+	}
+	var out []string
+	for _, n := range descx.FeatureNames() {
+		if !gone[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// TestRegister_ToolDescriptionFences (#238, #257): a tool description's
+// feature fence drops only its clause, so the sentence around it stays.
+// With capability:matrices hidden, pulse_examples_search keeps its
+// Filters sentence and pulse_manifest its Carries sentence, neither
+// naming a matrix token; with compose, facet and process_chain all
+// hidden, pulse_predict says nothing about an alternative root.
+func TestRegister_ToolDescriptionFences(t *testing.T) {
+	t.Parallel()
+
+	descs := func(fp *pulse.FeatureProfile) map[string]string {
+		c, cancel := profiledServer(t, afero.NewMemMapFs(), fp, gosdk.Config{Version: "9.9.9", DisableCohortScan: true})
+		defer cancel()
+		tools, err := c.ListTools(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("ListTools: %v", err)
+		}
+		out := map[string]string{}
+		for _, tool := range tools.Tools {
+			out[tool.Name] = tool.Description
+		}
+		return out
+	}
+
+	full := descs(nil)
+	noMat := descs(&pulse.FeatureProfile{Features: allFeaturesExcept("capability:matrices")})
+	for _, c := range []struct{ tool, keep string }{
+		{toolmeta.ToolExamplesSearch, "Filters, all optional and ANDed"},
+		{toolmeta.ToolManifest, "Carries per-operator params"},
+	} {
+		if !strings.Contains(full[c.tool], c.keep) || !strings.Contains(full[c.tool], "`matrices`") {
+			t.Fatalf("premise: the full %s names `matrices` beside %q", c.tool, c.keep)
+		}
+		got := noMat[c.tool]
+		if !strings.Contains(got, c.keep) {
+			t.Errorf("matrices hidden: %s lost the sentence %q:\n%s", c.tool, c.keep, got)
+		}
+		if strings.Contains(got, "`matrices`") || strings.Contains(got, "`vectors`") || strings.Contains(got, "<!--") {
+			t.Errorf("matrices hidden: %s still names a matrix token:\n%s", c.tool, got)
+		}
+	}
+
+	if !strings.Contains(full[toolmeta.ToolPredict], "alone under") {
+		t.Fatal("premise: the full pulse_predict description explains the alternative roots")
+	}
+	noRoots := descs(&pulse.FeatureProfile{Features: allFeaturesExcept("capability:compose", "capability:facet", "capability:process_chain")})
+	got := noRoots[toolmeta.ToolPredict]
+	if got == "" {
+		t.Fatal("pulse_predict not mounted")
+	}
+	for _, s := range []string{"alone", "SERVICE_VALIDATION", "`composed`", "`facet`", "`chain`"} {
+		if strings.Contains(got, s) {
+			t.Errorf("compose, facet and process_chain hidden: pulse_predict still says %q:\n%s", s, got)
+		}
+	}
 }

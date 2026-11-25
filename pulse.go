@@ -572,6 +572,10 @@ type Options struct {
 	// does not exist is skipped (an absent optional layer is not a
 	// fault); a root that exists but is not a directory is an error.
 	//
+	// Roots are paths on FS when FS is set — an embedder on an in-memory
+	// filesystem keeps its templates there — and host paths otherwise,
+	// read from the OS filesystem whatever DataDir says.
+	//
 	// Honoured before PULSE_TEMPLATES_DIR — the programmatic value wins,
 	// and the env var (roots separated by os.PathListSeparator) is
 	// consulted only when this slice is empty. The store is built

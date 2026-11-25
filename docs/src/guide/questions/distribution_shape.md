@@ -77,7 +77,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `shape_moments`; `pulse examples show shape_moments` prints it):
 
-```json
+```json cohort=customers
 {
   "aggregations": [
     {

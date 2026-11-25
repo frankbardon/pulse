@@ -20,3 +20,15 @@ additional-js = ["mermaid.min.js", "mermaid-init.js"]
 enable = true
 limit-results = 30
 boost-hierarchy = 2
+# Index results by h1 / h2 section (mdBook's default is h3): h3 text stays
+# searchable under its h2, and the index stays well under 10 MB.
+heading-split-level = 2
+
+# The generated Analysis Guide (docs/src/guide, `make docs`) and the
+# generated coverage matrix stay out of the search index: they mirror
+# the skill pack and the manifest, and indexed they pushed the index
+# past 23 MB. Measured without them: about 9.2 MB.
+# docs/src/contributing/doc-checks.md ("Search index") records the size.
+[output.html.search.chapter]
+"guide" = { enable = false }
+"contract/coverage.md" = { enable = false }

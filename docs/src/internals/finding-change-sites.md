@@ -18,6 +18,7 @@ make sites ARGS="op MAT_PCA"              # an existing operator
 make sites ARGS="new-op overlay"          # a NEW operator of a category
 make sites ARGS="slot request matrices"   # a Request / Response slot (Go or json name)
 make sites ARGS="slot request my_new_slot"  # unknown name = new-slot template
+make sites ARGS="slot compose sweep"      # a Compose-level slot (ComposedRequest)
 make sites ARGS="categories"              # categories and their operators
 # or: go run ./internal/tools/sites [--json] [--all] <mode> ...
 ```
@@ -60,8 +61,29 @@ from the ones that do:
   (`*Bytes`, `estimate*`, `*memory*`) declared in its files with their
   callers (`AccumulatorBytes` → `matrixMemory`).
 - **R oracle fixtures** — the `internal/processing/testdata/reference/`
-  JSON its tests read by name, and the `scripts/reference/` scripts
-  that write them (`make reference`).
+  JSON its tests open (a string literal that is the fixture's name or
+  path), and the `scripts/reference/` scripts that write them
+  (`write_golden("<stem>", …)` or `<stem>.json`; a driver such as
+  `gen_reference.R` that `source()`s a writer is listed as one). In a
+  shared test only the table row or map entry around the operator's
+  mention counts, so a sibling's fixture stays the sibling's; the tests
+  of its shared primitives count too (`binomial.json` through
+  `internal/statdist`).
+- **Param index** — every param its capability declares (not only the
+  enums, and through helpers such as `comparisonCapability`), the
+  struct fields that decode it in the files naming the operator, and
+  the decoders of each form its description spells as an object key
+  (`params.reference` `{"centroid": …}`, `{"population": …}`).
+- **Shared primitives** — the module functions the files named for it
+  call in other packages (`internal/statdist.BinomialTwoSidedP`,
+  `internal/seriespartition.Partition`), with the tests of those
+  packages that call them as gates.
+- **Metric consumers** — for a `linalg/metric` consumer (a
+  `metric.Consumer*` constant spells it): the registry's consumer
+  tables, every use of the consumer API, and the callers of functions
+  taking a `metric.Consumer` (`assembleManifest`). `new-op` prints the
+  list for a category with a consumer; a non-consumer's `op` report
+  points there.
 - **Test tables** — test-file `var` tables naming it (a probe table, a
   parity case list) that need a row for a sibling or a new value.
 - Under **Gates to rerun**, the benchmarks of its packages and the
@@ -94,8 +116,37 @@ of site is found by its shape:
   `capability:regression_*` features (`examples/profiles/*.json`,
   `features.go`, the feature-profile docs).
 
+`slot request <name>` falls back to `types.ComposedRequest` when the
+name is not a `types.Request` field (`sweep`, `base`, `fits`, `banner`,
+`optimize`, `post_fit`); `slot compose <name>` asks for it directly.
+A name declared on neither root but on structs reachable from it (an
+item-level key such as `for_each`) reports every declaring field. A
+Compose-level slot also prints **Compose sites**, each found by shape:
+
+- **Strict-input family tables** — declarations listing at least five
+  `"composed.<slot>[.<key>]"` literals (`strictAcceptanceRows`), with
+  the Test functions that read them as gates.
+- **Capability lists** — files naming at least five
+  `capability:compose_*` features (example profiles, `features.go`,
+  skills, the feature-profile docs).
+- **Limits-parity site lists** — test declarations naming two or more
+  `"compose"` / `"compose (<arm>)"` runtime sites (`parityCases`).
+- **Shared derivations** — `internal/descriptor` functions the runtime
+  (`internal/service`) calls with a `ComposedRequest` or one of its
+  fields (`ResultCatalog`, `ResolveComposeReturn`): change predict and
+  runtime together.
+- **Key carriers** — skills and examples holding the slot's json key.
+
 `op` also warns about **category-norm sites missing**: files at least
-75% of the category's operators appear in but this one does not.
+75% of the category's operators appear in, outside Go comments, but
+this one does not (a doc comment walking per-operator special cases is
+no norm).
+
+`new-op` also prints **Operator subsets**: non-test composite literals
+whose elements or map keys spell at least two and under 75% of the
+category (`vectors.VectorAggregationTypes`). A new operator of the
+family a list selects joins it; the registry enumerators never reach
+it.
 `slot` warns about **per-slot walkers** (functions that reference many
 of the struct's fields) that skip this slot.
 
@@ -138,7 +189,7 @@ Nothing in the site list is hand-maintained:
   a site list; the tool's tests pin each rule on a fixture tree and the
   regression sites on the real one.
 - **Slot sites** are `go/types`-resolved references to the
-  `types.Request` / `types.Response` field (selectors, promoted fields
+  `types.Request` / `types.ComposedRequest` / `types.Response` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against
   `go list -export` data), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand
@@ -157,6 +208,10 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   function — shows up only through the **Enumerators** section (callers
   of the registry function) or the category gates. Read the
   update-demand slice for the contract.
+- Whole-repo runners and floors that never name the operator or slot
+  (the every-example runner, a `ReadSchema` call-site floor) are not
+  listed; grep for them when your change reaches examples or a read
+  path.
 - Predicate callers are matched by function name; a name with more than
   80 call sites is reported in the footer instead of expanded.
 - Contributor recipes describe a category in general and rarely name

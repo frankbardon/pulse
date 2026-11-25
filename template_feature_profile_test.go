@@ -85,7 +85,7 @@ func TestRenderTemplate_HiddenSlotRefusedAsUnknownField(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Same template name in two roots, so details.template agrees.
-			hiddenDir, neverDir := t.TempDir(), t.TempDir()
+			hiddenDir, neverDir := tmplDir(t), tmplDir(t)
 			body := strings.ReplaceAll(tc.body, "VALUE", tc.value)
 			doc := func(key string) string {
 				return `{"target": "` + tc.target + `", "body": ` + strings.ReplaceAll(body, "SLOT", key) + `}`
@@ -118,7 +118,7 @@ func TestRenderTemplate_HiddenSlotRefusedAsUnknownField(t *testing.T) {
 func TestRenderTemplate_HiddenSlotDocumentOrder(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "typo-first.json", `{"target": "request", "body": {"aaa_typo": 1, "crosstab": {}}}`)
 	writeTmpl(t, dir, "typo-last.json", `{"target": "request", "body": {"crosstab": {}, "zzz_typo": 1}}`)
 	p := profiledTemplatePulse(t, "minimal", dir)
@@ -140,7 +140,7 @@ func TestRenderTemplate_HiddenOperatorRendersLikeNeverRegistered(t *testing.T) {
 	t.Parallel()
 
 	const hiddenOp, neverOp = "AGG_AVERAGE", "AGG_ZZ_NEVER_REGISTERED"
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	doc := func(op string) string {
 		return `{"target": "request", "body": {"cohort": {"filename": "c.pulse"}, "aggregations": [{"type": "` + op + `", "field": "age"}]}}`
 	}
@@ -182,7 +182,7 @@ func TestRenderTemplate_HiddenOperatorRendersLikeNeverRegistered(t *testing.T) {
 func TestRenderTemplateRequest_HiddenSlotRefused(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := tmplDir(t)
 	writeTmpl(t, dir, "x.json", `{"target": "request", "body": {"cohort": {"filename": "c.pulse"}, "joins": []}}`)
 	_, err := profiledTemplatePulse(t, "minimal", dir).RenderTemplateRequest("x", nil)
 	ce := codedErr(t, err, perr.PULSE_TEMPLATE_RENDER_INVALID)

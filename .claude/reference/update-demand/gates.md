@@ -18,7 +18,7 @@ Enforced by their own packages and binding on every PR.
 
 Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-arch.md` (Cross-arch determinism gates).
 
-**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `buildApp()` tree is named under `skills/` or `docs/src/` and has a row in the `docs/src/cli/flags.md` command index, and every index row is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
+**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `internal/cli.App()` tree is named under `skills/` or `docs/src/` and has a row in the `docs/src/cli/flags.md` command index, and every index row is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
 
 **`TestFieldTypeAcceptance_PredictMatchesRuntime`**: every registered operator × every field type is accepted by predict exactly when `Process` accepts it, and every refusal carries one identical code from both sides (the `internal/fieldaccept` table's code wherever the slot is tabled). Siblings: `TestFieldTypeSlots_PredictMatchesRuntime`, `TestDecimalAggregation_PredictMatchesRuntime`, `TestUnregisteredOperator_PredictMatchesRuntime`. A new operator needs an `acceptanceTemplates` row when it is registered; a new field type is picked up automatically. Detail: `predict-inspect.md`.
 
@@ -39,7 +39,7 @@ Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-a
 
 **CI jobs that are not Go tests.**
 
-- `docs` job (`.github/workflows/ci.yml`) runs `mdbook build docs`, so a broken SUMMARY splice or generated page fails before merge.
+- `docs` job (`.github/workflows/ci.yml`) runs `mdbook build docs` and fails on any mdBook `WARN` / `ERROR` line, so a broken SUMMARY splice, a generated page or a search index past mdBook's 10 MB warning fails before merge; then `make doc-checks` (the fast doc checks, named in the Makefile's `DOC_CHECKS`; a new fast doc check joins it). The generated guide and coverage page are out of the search index (`docs/book.toml` `[output.html.search.chapter]`); fix a size warning by excluding generated pages or trimming, never by dropping the check.
 - `Embedder smoke module` step: `make smoke` builds, vets and tests `internal/embeddersmoke/`, a separate Go module that embeds Pulse through the exported surface only. Root `./...` never descends into it, so `make test` / `make lint` do not see it; when a public API changes spelling, or a migration-guide row lands, update the module in the same PR. `TestSmokeModuleImportAllowlist` fails on a non-stdlib import outside its allowlist.
 - `apidiff` job (dispatch only): diffs the exported API against the latest `v*` tag. Advisory until a stable `v1.0.0` exists; after that it fails on any incompatible change unless the PR carries the `api-break-ok` label.
 
@@ -66,5 +66,6 @@ What each structural gate checks.
 - `TestSkillsCoverProfileGet` — per shipped feature profile, a pruned skill or example lists, searches and reads exactly like a never-existing name.
 - `TestSkillsCoverFeatureFences` — an operator, feature-owned tool or `<kind>:<name>` mention in a skill body sits in a fence naming it, never in a `description` (`skill-pack.md`).
 - `TestSkillsCoverAllCrossReferences` — every skill stem named in CLAUDE.md, `.claude/reference/**` or the pack resolves, and a `` `skills/<stem>.md` (Section) `` pointer names a real heading. Deliberate non-skill kebab tokens ride the allowlist in `skill_xref_test.go`.
+- `TestSkillExampleTagPointersResolve` (`internal/descriptor`) — every `tags=[…]` list in a raw skill body (fenced spans included; `seeTags` parsing, `a|b` alternatives) matches ≥ 1 shipped example; fix a failure by pointing at a tag an example carries or tagging the example (tags come from `examples.CanonicalTags`), never by dropping the pointer's lead. `TestSkillSeeExampleTagsResolve` is the `## See`-only predecessor.
 
 **Atomic-skill structure.** `TestAtomicSkillHasRequiredSections` (required `##` set per family), `TestSkillTokenBudget` (per-family body size against the `skills.BodyBudget` tiers — `skill-pack.md` (Token budget)), `TestOperatorHasAtomicSkill` (every operator, MCP tool and field type has a file at its stem), `TestEveryOperatorHasAnExampleTag` (every operator is tagged on at least one `internal/examples/<dir>/*.json`), `TestSkillPurposeSectionsCurrent` (every built-in `op-*` skill carries the `use-when` marker, and the `reading-the-output` marker exactly when its operator has `Interpretation` entries — `skill-pack.md` (Generated sections)).

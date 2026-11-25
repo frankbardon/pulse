@@ -1,7 +1,6 @@
 package template_test
 
 import (
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/template"
+	"github.com/spf13/afero"
 )
 
 // touch pushes a file's modification time forward by d. Every rescan test
@@ -19,12 +19,12 @@ import (
 // the host filesystem.
 func touch(t *testing.T, path string, d time.Duration) {
 	t.Helper()
-	info, err := os.Stat(path)
+	info, err := tfs.Stat(path)
 	if err != nil {
 		t.Fatalf("Stat(%s): %v", path, err)
 	}
 	at := info.ModTime().Add(d)
-	if err := os.Chtimes(path, at, at); err != nil {
+	if err := tfs.Chtimes(path, at, at); err != nil {
 		t.Fatalf("Chtimes(%s): %v", path, err)
 	}
 }
@@ -96,7 +96,7 @@ func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
 		{
 			name: "a deleted file stops resolving",
 			mutate: func(t *testing.T, dir string) {
-				if err := os.Remove(filepath.Join(dir, "revenue.json")); err != nil {
+				if err := tfs.Remove(filepath.Join(dir, "revenue.json")); err != nil {
 					t.Fatalf("Remove: %v", err)
 				}
 			},
@@ -125,7 +125,7 @@ func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
 			name: "a file deleted and replaced under the same name",
 			mutate: func(t *testing.T, dir string) {
 				path := filepath.Join(dir, "revenue.json")
-				if err := os.Remove(path); err != nil {
+				if err := tfs.Remove(path); err != nil {
 					t.Fatalf("Remove: %v", err)
 				}
 				writeFile(t, dir, "revenue.json", validTemplate("replaced"))
@@ -138,7 +138,7 @@ func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := memDir(t)
 			writeFile(t, dir, "revenue.json", validTemplate("original"))
 
 			s := newStore(t, dir)
@@ -185,7 +185,7 @@ func TestStore_ReloadPicksUpDirectoryChanges(t *testing.T) {
 func TestStore_ReloadSkipsUnchangedFiles(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("one"))
 	writeFile(t, dir, "finance/cost.json", validTemplate("two"))
 	writeFile(t, dir, "deep/nested/margin.json", validTemplate("three"))
@@ -235,7 +235,7 @@ func TestStore_ReloadSkipsUnchangedFiles(t *testing.T) {
 func TestStore_RescanIntervalGatesTheWalk(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := memDir(t)
 	writeFile(t, dir, "revenue.json", validTemplate("original"))
 
 	s := newStore(t, dir)
@@ -298,7 +298,7 @@ func TestStore_RescanIntervalGatesTheWalk(t *testing.T) {
 func TestStore_ReloadReresolvesShadowing(t *testing.T) {
 	t.Parallel()
 
-	high, low := t.TempDir(), t.TempDir()
+	high, low := memDir(t), memDir(t)
 	lowPath := writeFile(t, low, "shared.json", validTemplate("from low"))
 
 	s := newStore(t, high, low)
@@ -330,7 +330,7 @@ func TestStore_ReloadReresolvesShadowing(t *testing.T) {
 
 	// The override is withdrawn: the lower root answers again, and the
 	// name never stops resolving.
-	if err := os.Remove(highPath); err != nil {
+	if err := tfs.Remove(highPath); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
 	reload(t, s)
@@ -384,7 +384,7 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 	t.Parallel()
 
 	t.Run("a malformed file does not fail the reload", func(t *testing.T) {
-		dir := t.TempDir()
+		dir := memDir(t)
 		writeFile(t, dir, "revenue.json", validTemplate("original"))
 
 		s := newStore(t, dir)
@@ -415,17 +415,17 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 	})
 
 	t.Run("a root that is not a directory fails the reload", func(t *testing.T) {
-		root := t.TempDir()
+		root := memDir(t)
 		dir := filepath.Join(root, "templates")
 		writeFile(t, dir, "revenue.json", validTemplate("original"))
 
 		s := newStore(t, dir)
 
 		// The directory is replaced by a regular file of the same name.
-		if err := os.RemoveAll(dir); err != nil {
+		if err := tfs.RemoveAll(dir); err != nil {
 			t.Fatalf("RemoveAll: %v", err)
 		}
-		if err := os.WriteFile(dir, []byte("not a directory"), 0o644); err != nil {
+		if err := afero.WriteFile(tfs, dir, []byte("not a directory"), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
 
@@ -454,7 +454,7 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 func TestStore_ConcurrentLookupDuringRescan(t *testing.T) {
 	t.Parallel()
 
-	high, low := t.TempDir(), t.TempDir()
+	high, low := memDir(t), memDir(t)
 	writeFile(t, low, "shared.json", validTemplate("from low"))
 	writeFile(t, low, "stable.json", validTemplate("stable"))
 
@@ -517,9 +517,9 @@ func TestStore_ConcurrentLookupDuringRescan(t *testing.T) {
 			path := filepath.Join(high, "shared.json")
 			for i := range iterations {
 				if (g+i)%2 == 0 {
-					_ = os.WriteFile(path, []byte(validTemplate("from high")), 0o644)
+					_ = afero.WriteFile(tfs, path, []byte(validTemplate("from high")), 0o644)
 				} else {
-					_ = os.Remove(path)
+					_ = tfs.Remove(path)
 				}
 				// A fault is legitimate here — a reader goroutine may
 				// be mid-write when the walk stats the file — so the

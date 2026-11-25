@@ -33,7 +33,7 @@ func reportFiles(rep *Report) map[string]bool {
 	out := map[string]bool{}
 	for _, s := range rep.Sections {
 		switch s.Class {
-		case "enumerators", "derived", "param-enums", "oracle", "spec":
+		case "enumerators", "derived", "param-enums", "oracle", "spec", "params", "primitives", "metric-consumers", "compose":
 			continue // derived from the named sites; they need not name the operator
 		}
 		for _, site := range s.Sites {
@@ -215,6 +215,7 @@ func TestManualPathsExist(t *testing.T) {
 	}
 	all = append(all, slotManual...)
 	all = append(all, slotManualResponse...)
+	all = append(all, slotManualCompose...)
 	for _, p := range all {
 		if _, err := os.Stat(path.Join(r.root, p)); err != nil {
 			t.Errorf("manual path %s: %v", p, err)

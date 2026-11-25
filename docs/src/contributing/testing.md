@@ -58,6 +58,8 @@ import cycle. `TestRootTestGraphExcludesCLI` checks both packages.
 These tests guard structural invariants. If one of them fails, the
 underlying conventions (not the test) are what need re-thinking. What
 each checks in detail: `.claude/reference/update-demand/gates.md`.
+How to run the documentation checks and work their allowlists:
+[Documentation Checks](doc-checks.md).
 
 | Gate | Guards |
 |---|---|
@@ -72,6 +74,7 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
+| `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
 | `TestPredict_Streamable_MatchesRuntime` | `PredictResult.Streamable` mirrors `internal/processing`'s `CanStreamRequest` |
 | `TestStreamability_*Known`              | Every `All*Types()` entry has a streamability table row |
@@ -80,6 +83,16 @@ each checks in detail: `.claude/reference/update-demand/gates.md`.
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
+| `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Known breaks sit in the shrink-only allowlist `internal/doccheck/allowlists/links.txt`; `make linkcheck-external` checks http(s) links by hand |
+| `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and `docs/src/cli/flags.md` name the same leaves and flags (global, persistent, per-leaf, aliases included), names only, both directions; known gaps sit in the shrink-only allowlist `internal/doccheck/allowlists/cli-flags.txt` |
+| `TestNoRemovedNamesInDocs`              | No served text (`docs/src/**` minus the coverage page, root README / CONTRIBUTING / SECURITY, a default instance's skills, MCP tool descriptions, manifest, error messages and fixups, examples) names a spelling from the removed-name denylist `removedNames` (whole word, a reason per entry); today's hits sit in the shrink-only allowlist `internal/doccheck/allowlists/removed-names.txt` |
+| `TestDocsSnippetsRun`                   | Every `json` block in `docs/src/**` that is a request root (by its keys — the shared `internal/requestroot` rule plus a `cohort` object or `requests` / `base` / `sweep` — or by strict-decoding as one) runs on the example fixture cohorts (predict valid, process no error, output not asserted); a keyed root that fails the strict decode fails, naming the decode error; `jsonc` blocks are not read. Fence tags: `json norun` opts out, `json cohort=<fixture>[,…]` picks cohorts, untagged runnable blocks fail; `go compile` blocks must build (`TestDocsSnippetsCompile`, heavy tier). Known failures sit in the shrink-only allowlists `internal/doccheck/allowlists/snippets.txt` and `snippets-go.txt` |
+| `TestDocsCoverageCurrent`               | The generated coverage matrix `docs/src/contract/coverage.md` matches a fresh build from its sources of truth (public API dump, CLI tree, manifest, MCP registrations, env vars, `Options` / Request / Response fields); lives in `internal/cli` (only it may walk the CLI tree); regenerate with `make docs` |
+| `TestDocsCoverageNoGaps`                | No required coverage cell (per row kind: mdBook, skill pack, GoDoc, CLI help; verbatim mention) is empty unless the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` names it |
+| `TestDocCoverageNotImportedByDescriptor` | The no-execute descriptor packages (`internal/descriptor`, `descriptor/`) never import the coverage generator `internal/doccoverage` |
+| `TestProfileServedTextNoHiddenFeature` | Heavy. Under every single-feature-hidden feature profile, no served text (manifest, MCP tools / prompts / resources, skills, examples, `docs export` tree) names a hidden operator, hidden feature's MCP tool or hidden slot token, and no core tool description loses a sentence to the prose scrub (its clause is feature-fenced). Shrink-only allowlist `internal/doccheck/allowlists/served-text.txt` (empty) |
+| `docs` CI job (not a Go test)          | `mdbook build docs` prints no `WARN` / `ERROR` line (this catches a broken page and a search index past mdBook's 10 MB warning), then `make doc-checks` runs the fast doc checks |
+| `TestFacadeExamplesPresent`             | The pinned runnable GoDoc task examples (`facadeExamples` in `facade_examples_test.go`: root `example_*_test.go`, `observe`, `mcpserve`) all exist and carry a checked `// Output:` (compile-only ones are named); an unpinned example in those packages fails too, so the set only grows |
 
 ## Running a subset of gates locally
 

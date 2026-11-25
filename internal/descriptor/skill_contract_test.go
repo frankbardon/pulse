@@ -370,6 +370,8 @@ func TestSkillContract_ProfileAware(t *testing.T) {
 	}{
 		{"AGG_SUM", "capability:weighting", []string{"- Weight:", "sum_weights", "n_eff", "n_weight_invalid"}, []string{"- Components: `n`, `n_null`, `sum`.", "- Types (`field`)"}},
 		{"MAT_CORRELATION", "capability:weighting", []string{"- Weight:", "sum_weights"}, []string{"- Multiplicity:"}},
+		// AGG_AVERAGE's own weighted moments are weighted-slot-only keys (#238)
+		{"AGG_AVERAGE", "capability:weighting", []string{"- Weight:", "sum_weighted", "weighted_mean", "m2_weighted", "sum_weights_sq", "weighted_variance"}, []string{"`sum`"}},
 		{"TEST_WELCH", "capability:multiplicity", []string{"- Multiplicity:", "p_adjusted"}, []string{"- Weight:"}},
 		{"TEST_WELCH", "capability:compose", []string{"compose"}, []string{"- Multiplicity: ", "`request` (default)."}},
 		{"OVERLAY_PAIRWISE_TWO_MEANS_Z", "OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z", []string{"OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z"}, []string{"- Weight: refused"}},

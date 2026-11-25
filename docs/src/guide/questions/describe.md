@@ -90,7 +90,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 The request (example `confidence_interval_normal`; `pulse examples show confidence_interval_normal` prints it):
 
-```json
+```json cohort=customers
 {
   "aggregations": [
     {

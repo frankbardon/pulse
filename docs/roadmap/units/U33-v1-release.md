@@ -5,10 +5,10 @@ title: "Pulse v1.0.0 is released with a written stability promise"
 track: API & release
 size: S
 status: not-started
-depends_on: [U32]
+depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756]
 branch: v1-release
 ---
 
@@ -16,7 +16,7 @@ branch: v1-release
 
 **Outcome:** Pulse v1.0.0 is released with a written stability promise.
 
-**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md) · **Soft:** all other units · **Unblocks:** —
+**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
 
 ## Summary
 
@@ -35,6 +35,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
 - [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
 - [ ] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3)
+- [ ] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4)
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](U33-v1-release.md)
@@ -66,7 +67,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 
 **Out of scope**
 - New features
-- Documentation work (U32)
+- Documentation work (U32, U32b, U32c)
 
 ## Epics & stories
 
@@ -206,3 +207,25 @@ Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO
 
 - [x] **#736** — **A fidelity `shape` for a `date` field.** A date twin's month volume is regenerated from `month_weights` but the report does not measure it; make `synth.TimeShapeFidelity.HourTVD` optional (`omitempty` pointer) so a date field can report `weekday_tvd` / `month_tvd` alone. Public-API golden moves; do it before the v1 freeze. *Done in U76 (E6-S4): `HourTVD` is a `*float64` (`omitempty`); a `date` entry carries `weekday_tvd` / `month_tvd` on the UTC clock, datetime reports byte-identical.*
 - [x] **#738** — **A request form for `pulse sample`.** The CLI takes only `--input`, so sampling a cohort union is library / MCP only; add a `--request` JSON form (as `facet` / `lookup` accept `request.union`) or record the limit as permanent in `docs/src/cli/flags.md`. *Done in U76 (E6-S6): `pulse api sample --request FILE|-` takes a whole `SampleRequest` (a `union` included) through the strict decoder; `--count` / `--labels` layer on top, `--input` beside it is a usage error (exit 2).*
+
+## Carried follow-ups (filed 2026-11-24)
+
+Recorded only in shipped efforts' notes and PR bodies; checked against the code and filed under this unit. Full text in [`TODO.md`](../TODO.md) §15; tick there when delivered.
+
+- [ ] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze.
+- [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
+- [ ] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document.
+- [ ] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks.
+- [ ] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect.
+- [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
+- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations.
+- [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
+- [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
+- [ ] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze.
+- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing.
+
+## Handed on from U32
+
+Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
+
+- [ ] **#756** — **The label, lookup, range-table and populations directory loaders read through `os`**, so an embedder on an in-memory `Options.FS` cannot use them; thread the template store's Fs.

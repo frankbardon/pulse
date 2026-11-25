@@ -261,7 +261,7 @@ func aggregatorCapabilities() []descriptor.Operator {
 // first build.
 var builtinAggregatorSchemaIndexes = [2]func() map[string]descriptor.ComponentSchema{
 	sync.OnceValue(func() map[string]descriptor.ComponentSchema {
-		return componentSchemaIndexOf(aggregatorCapabilityTable())
+		return componentSchemaIndexOf(unweightedAggregatorTable())
 	}),
 	sync.OnceValue(func() map[string]descriptor.ComponentSchema {
 		return componentSchemaIndexOf(aggregatorCapabilities())
@@ -293,6 +293,21 @@ func componentSchemaIndexOf(ops []descriptor.Operator) map[string]descriptor.Com
 
 // aggregatorCapabilityTable is the literal declaration table;
 // aggregatorCapabilities stamps the weight classification onto it.
+// unweightedAggregatorTable is the table as a capability:weighting-hidden
+// instance reads it: no weight stamp (no weight_aware flag, no weighted
+// floor keys) and no weighted-slot-only key of an operator's own
+// (AGG_AVERAGE's sum_weighted …, WeightedSlotOnlyKey), since no slot of
+// that instance can be weighted. The manifest, predict's component
+// schemas, the op-skill Contract and the generated Components page all
+// read it, so the four agree.
+func unweightedAggregatorTable() []descriptor.Operator {
+	ops := aggregatorCapabilityTable()
+	for i := range ops {
+		ops[i].ComponentSchema.Keys = withoutWeightedSlotOnly(ops[i].ComponentSchema.Keys)
+	}
+	return ops
+}
+
 func aggregatorCapabilityTable() []descriptor.Operator {
 	return []descriptor.Operator{
 		{

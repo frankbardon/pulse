@@ -109,7 +109,7 @@ The taxonomy spans four dimensions:
 | Matrices and multivariate tests | `matrix`, `covariance`, `multivariate` |
 | Risk / edge | `leakage-risk`, `small-sample` |
 | Cohort shape | `sharded`, `anchor` |
-| Result decoration | `overlay`, `byte-equal-test`, `compose`, `crosstab`, `welch`, `welford-triple`, `z` |
+| Result decoration | `overlay`, `byte-equal-test`, `compose`, `optimize`, `crosstab`, `welch`, `welford-triple`, `z` |
 
 The category (directory name) is **not** repeated in the tags — `_meta.category`
 carries that.

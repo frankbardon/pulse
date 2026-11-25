@@ -9,7 +9,6 @@ import (
 
 	pcli "github.com/frankbardon/pulse/internal/cli"
 
-	"github.com/frankbardon/pulse"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -42,53 +41,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	return status
 }
 
-func buildApp() *cli.Command {
-	return pcli.InstallExitPolicy(pcli.EnableCompletion(&cli.Command{
-		Name:    "pulse",
-		Usage:   "High-performance tabular data processing engine",
-		Version: pulse.Version(),
-		Flags: append([]cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
-			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
-			&cli.StringFlag{Name: "intent", Usage: "With --json, scope the manifest to one intent-taxonomy ID (e.g. compare_groups): only its operators and skills"},
-		}, append(append(append(pcli.LogFlags(), pcli.WorkerFlags()...), pcli.LimitFlags()...), pcli.MemoryLimitFlags()...)...),
-		// --log-level / --log-format, --shard-workers /
-		// --decode-workers, --limit and --memory-limit are persistent:
-		// every leaf accepts them, and Before hands the stderr logger, the
-		// worker caps and the limits layer to the leaf via ctx, and sets
-		// the process soft memory limit before any leaf runs.
-		Before: pcli.GlobalBefore,
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if cmd.Bool("json") {
-				return pcli.WriteManifest(cmd.Writer, cmd.Bool("slim"), cmd.String("intent"))
-			}
-			// Default: print usage.
-			cli.ShowAppHelp(cmd)
-			return nil
-		},
-		Commands: []*cli.Command{
-			pcli.ImportCommand(),
-			pcli.ExportCommand(),
-			pcli.ConvertCommand(),
-			pcli.CohortCommand(),
-			pcli.APICommand(),
-			pcli.SkillsCommand(),
-			pcli.ExamplesCommand(),
-			pcli.ErrorsCommand(),
-			pcli.MCPCommand(pulse.Version()),
-			pcli.SchemaCommand(),
-			pcli.SynthCommand(),
-			pcli.ProfileCommand(),
-			pcli.ShardCommand(),
-			pcli.IndexCommand(),
-			pcli.WidenCommand(),
-			pcli.DedupCommand(),
-			pcli.RakeCommand(),
-			pcli.RecommendCommand(),
-			pcli.ExplainCommand(),
-			pcli.VersionCommand(),
-			pcli.FeaturesCommand(),
-			pcli.DocsCommand(),
-		},
-	}))
-}
+// buildApp returns the root command; internal/cli owns the tree so
+// documentation tooling walks the same one.
+func buildApp() *cli.Command { return pcli.App() }

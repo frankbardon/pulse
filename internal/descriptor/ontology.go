@@ -45,7 +45,8 @@ import (
 //   - example _meta.intents           → example serves_intent intent
 //   - example _meta.capabilities      → example requires_capability feature
 //   - example structural detectors (exampleCapabilityDetectors: crosstab
-//     key, root requests, root stages, joins key, facet category/tag) →
+//     key, crosstab cells key, root requests, root stages, joins key,
+//     facet category/tag) →
 //     example requires_capability capability
 //   - example overlays[].kind         → operator exemplified_by example
 //   - example description naming an operator not otherwise linked →

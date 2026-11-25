@@ -280,9 +280,14 @@ func TestSlotRefusal_NestedRootsAreLocated(t *testing.T) {
 	if ce := asCoded(t, SlotRefusal(composedRoot, inst)); !reflect.DeepEqual(ce.Details["unknown_keys"], []string{"overlays"}) {
 		t.Errorf("composed root: %v", ce.Details)
 	}
-	// Unset slots pass.
-	if err := SlotRefusal(&types.ComposedRequest{Requests: []*types.Request{plain(), nil}}, inst); err != nil {
+	// Unset slots pass; a null Requests entry is the null-entry
+	// refusal (nilEntryGate), not a pass — the runtime would
+	// dereference it.
+	if err := SlotRefusal(&types.ComposedRequest{Requests: []*types.Request{plain()}}, inst); err != nil {
 		t.Errorf("unset slots refused: %v", err)
+	}
+	if ce := asCoded(t, SlotRefusal(&types.ComposedRequest{Requests: []*types.Request{plain(), nil}}, inst)); ce.Code != errors.PROCESSING_CONFIG || ce.Details["slot"] != "requests" {
+		t.Errorf("null Requests entry: %v", ce)
 	}
 }
 

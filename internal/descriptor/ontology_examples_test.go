@@ -71,6 +71,9 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		features: Features(),
 		examples: []ontologyExample{
 			{Name: "xt", Body: json.RawMessage(`{"crosstab":{"rows":[]}}`)},
+			{Name: "xtc", Body: json.RawMessage(`{"requests":[{"crosstab":{"rows":[],"cells":[]}}]}`)},
+			// a `cells` key outside a crosstab object is not the multi-measure slot
+			{Name: "strayCells", Body: json.RawMessage(`{"cells":[],"crosstab":{"rows":[]}}`)},
 			{Name: "cmp", Body: json.RawMessage(`{"requests":[{"joins":[{}]}]}`)},
 			{Name: "chain", Body: json.RawMessage(`{"stages":[]}`)},
 			{Name: "fct", Category: "facet", Body: json.RawMessage(`{"fields":["a"]}`)},
@@ -78,6 +81,10 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 			{Name: "st", Capabilities: []string{featStream}, Description: "Unlike TEST_T, uses TEST_WELCH.", Operators: []string{"TEST_WELCH"}},
 			// a nested `stages` key is not a chain root
 			{Name: "nested", Body: json.RawMessage(`{"x":{"stages":[]}}`)},
+			// a multiplicity block at any depth is the correction surface
+			{Name: "mult", Body: json.RawMessage(`{"crosstab":{"layers":[{"multiplicity":{"method":"holm"}}]}}`)},
+			// pulse_lookup's string-valued multiplicity is another slot
+			{Name: "lookupMult", Body: json.RawMessage(`{"key":{"id":1},"multiplicity":"first"}`)},
 		},
 	}
 	g := buildOntology(fx)
@@ -88,6 +95,7 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 	req := descriptor.OntologyEdgeRequiresCapability
 	for _, e := range []descriptor.OntologyEdge{
 		ontoEdge(ex("xt"), featCrosstab, req),
+		ontoEdge(ex("xtc"), featCrosstabCells, req),
 		ontoEdge(ex("cmp"), featCompose, req),
 		ontoEdge(ex("cmp"), featJoins, req),
 		ontoEdge(ex("chain"), featProcessChain, req),
@@ -95,6 +103,7 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		ontoEdge(opID("OVERLAY_INDEX_VS_POP"), ex("ov"), descriptor.OntologyEdgeExemplifiedBy),
 		ontoEdge(ex("st"), featStream, req),
 		ontoEdge(ex("st"), opID("TEST_T"), descriptor.OntologyEdgeRoutesTo),
+		ontoEdge(ex("mult"), featMultiplicity, req),
 	} {
 		if !hasEdge(g, e) {
 			t.Errorf("missing %+v", e)
@@ -103,6 +112,14 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 	// TEST_WELCH is already an operators edge: no duplicate routes_to.
 	if hasEdge(g, ontoEdge(ex("st"), opID("TEST_WELCH"), descriptor.OntologyEdgeRoutesTo)) {
 		t.Error("description mention duplicated an operators edge")
+	}
+	for _, n := range []string{"xt", "strayCells"} {
+		if hasEdge(g, ontoEdge(ex(n), featCrosstabCells, req)) {
+			t.Errorf("%s: crosstab_cells detected without a crosstab cells key", n)
+		}
+	}
+	if hasEdge(g, ontoEdge(ex("lookupMult"), featMultiplicity, req)) {
+		t.Error("a string-valued multiplicity (pulse_lookup) requires capability:multiplicity")
 	}
 	if out := g.Out(ex("nested"), ""); len(out) != 0 {
 		t.Errorf("nested stages produced edges %v", out)
@@ -113,6 +130,10 @@ func TestOntology_ExampleCapabilityEdges(t *testing.T) {
 		ontoEdge(ex("facet_simple_one_field"), featFacet, req),
 		ontoEdge(ex("facet-index-vs-pop"), featFacet, req),
 		ontoEdge(opID("OVERLAY_INDEX_VS_POP"), ex("facet-index-vs-pop"), descriptor.OntologyEdgeExemplifiedBy),
+		// detected from the body; the example declares no _meta.capabilities
+		ontoEdge(ex("crosstab_measures_as_stub_rows"), featCrosstabCells, req),
+		// detected from the body's layer multiplicity block (#238)
+		ontoEdge(ex("crosstab-pairwise-letters"), featMultiplicity, req),
 	} {
 		if !hasEdge(base, e) {
 			t.Errorf("base missing %+v", e)

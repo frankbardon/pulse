@@ -55,10 +55,15 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 			// helpers open the fixtures); any other only where it names it
 			testDecls[p] = testDecls[p][:0:0]
 			if normPath(p, op) == p {
+				// a declaration whose doc names the operator counts (its
+				// fixture serves it); a file-level comment opens nothing
 				for _, sh := range syms {
-					if !sh.CommentOnly {
+					if sh.Name != "(file comment)" {
 						testDecls[p] = append(testDecls[p], sh.Name)
 					}
+				}
+				if len(testDecls[p]) == 0 {
+					delete(testDecls, p) // never read the whole shared file
 				}
 			}
 		} else if strings.HasSuffix(p, ".go") && !contains(codeDirs, path.Dir(p)) {
@@ -109,12 +114,30 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 	if sec, ok := r.paramEnumSection(op); ok {
 		rep.Sections = append(rep.Sections, sec)
 	}
+	if sec, ok := r.paramIndexSection(op, paths); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
+	var depGates []Gate
+	var primitiveTests map[string][]string
+	if sec, gates, ok := r.primitiveSection(op, paths, listed); ok {
+		rep.Sections = append(rep.Sections, sec)
+		depGates = append(depGates, gates...)
+		primitiveTests = r.gateDecls(gates)
+	}
+	if r.isMetricConsumer(op) {
+		if sec, gates, ok := r.metricConsumerSection(); ok {
+			rep.Sections = append(rep.Sections, sec)
+			depGates = append(depGates, gates...)
+		}
+	} else if r.categoryConsumesMetrics(c) {
+		rep.Omitted = append(rep.Omitted, "metric consumers not listed: "+op.Name+" consumes no linalg/metric metric — if it starts to, run `sites new-op "+c.Name+"` for the consumer sites")
+	}
 	derived, notes := r.derivedSection(a, idx, listed)
 	if len(derived.Sites) > 0 {
 		rep.Sections = append(rep.Sections, derived)
 	}
 	rep.Omitted = append(rep.Omitted, notes...)
-	if oracle, fixtures := r.oracleSection(testDecls, regenPaths); len(oracle.Sites) > 0 {
+	if oracle, fixtures := r.oracleSection(testDecls, files, primitiveTests, regenPaths); len(oracle.Sites) > 0 {
 		rep.Sections = append(rep.Sections, oracle)
 		for _, f := range fixtures {
 			if !contains(regenPaths, f) {
@@ -139,7 +162,7 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 	var missing []string
 	for n, ops := range a.fileOps {
 		cl := classify(strings.ReplaceAll(n, "<op>", "x"))
-		if ops[idx] || !a.isEvery(len(ops)) || !classByID(cl).Edit {
+		if ops[idx] || !a.isEvery(a.codeOps(r, n)) || !classByID(cl).Edit {
 			continue
 		}
 		missing = append(missing, fmt.Sprintf("%s [%s] — absent for %s", n, a.cov(len(ops)), op.Name))
@@ -161,6 +184,7 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Gates = append(rep.Gates, Gate{Why: "test helpers that name " + op.Name + " (rerun their package)", Package: d,
 			Command: goTestCmd(d, nil) + "   # helpers: " + strings.Join(dedupe(hs), ", ")})
 	}
+	rep.Gates = append(rep.Gates, depGates...)
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
 	sort.Strings(codeDirs)

@@ -11,7 +11,7 @@ structural equation model in lavaan / semopy syntax). All are additive: a reques
 `vectors` / `matrices` is byte-identical to before, and `format_version`
 stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
-```json
+```json cohort=training_data
 {
   "cohort": {"filename": "training_data.pulse"},
   "vectors": [{"name": "money", "fields": ["price", "income", "label"]}],
@@ -457,7 +457,7 @@ line: `f =~ a + b + c` (measurement; `a`'s loading is fixed to 1),
 members, matched by label; absent, the model is one factor `F1` over
 every member.
 
-```json
+```json cohort=survey
 {
   "cohort": {"filename": "survey.pulse"},
   "vectors": [{"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}],
@@ -629,7 +629,7 @@ The invariance ladder is one slot per step, or a compose sweep over
 `group_equal` — which also reads one comma-separated string, so a sweep
 axis (a scalar) can carry it:
 
-```json
+```json cohort=brand_survey
 {"sweep": {"mode": "zip", "label": "{{step}}",
   "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
            {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
@@ -854,7 +854,7 @@ p, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
 A request names it like a built-in, and the engine-owned params work
 unchanged:
 
-```json
+```json norun
 {
   "cohort": {"filename": "training_data.pulse"},
   "matrices": [

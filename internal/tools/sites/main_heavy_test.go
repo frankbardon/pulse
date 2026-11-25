@@ -537,3 +537,216 @@ func TestSpecSites_Regression(t *testing.T) {
 		})
 	}
 }
+
+// TestSlotReport_ComposeLevel pins the Compose-level slot sites (#560,
+// #706): `slot request <name>` falls back to types.ComposedRequest and
+// lists the walkers, Explain, MCP bind, strict-acceptance families,
+// example profiles, limits-parity lists and the shared ResultCatalog.
+func TestSlotReport_ComposeLevel(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	common := []struct{ class, path, sym string }{
+		{"descriptor", "internal/descriptor/request_slots.go", "func setSlots"},
+		{"compose", "internal/cli/strict_acceptance_test.go", "func strictAcceptanceRows"},
+		{"compose", "examples/profiles/read-only-analyst.json", ""},
+		{"compose", "internal/service/limits_parity_test.go", "func parityCases"},
+		{"compose", "internal/descriptor/compose_optimize.go", "func ResultCatalog"},
+	}
+	for _, slot := range []string{"sweep", "optimize", "base", "banner", "fits", "post_fit"} {
+		t.Run(slot, func(t *testing.T) {
+			rep, err := slotReport(r, "request", slot, options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Target != "ComposedRequest."+slot {
+				t.Fatalf("target %q, want the ComposedRequest field", rep.Target)
+			}
+			for _, w := range common {
+				if _, ok := symbolNote(siteIn(rep, w.class, w.path), w.sym); !ok {
+					t.Errorf("%s section lacks %s · %q", w.class, w.path, w.sym)
+				}
+			}
+			if !contains(rep.Manual, ".claude/reference/update-demand/compose.md") {
+				t.Errorf("manual lacks the compose update-demand slice: %v", rep.Manual)
+			}
+		})
+	}
+	// the compose form, plus the sweep-specific walker, Explain and MCP sites
+	rep, err := slotReport(r, "compose", "sweep", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []struct{ path, sym string }{
+		{"internal/descriptor/request_reads.go", "func (readsWalker) compose"},
+		{"internal/mcp/return_default.go", ""},
+		{"internal/mcp/bind.go", ""},
+		{"internal/guide/explain_results.go", ""},
+	} {
+		s := findSite(rep, w.path)
+		if s == nil || w.sym != "" && !hasSymbol(s, w.sym) {
+			t.Errorf("compose sweep lacks %s · %q", w.path, w.sym)
+		}
+	}
+	if !gateTests(rep)["TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey"] {
+		t.Error("the strict-acceptance gate is not rerun")
+	}
+	// an item-level key resolves to every struct declaring it
+	rep, err = slotReport(r, "request", "for_each", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findSite(rep, "internal/template/for_each.go") == nil || len(rep.Summary) < 3 {
+		t.Errorf("for_each: summary %v, template site missing", rep.Summary)
+	}
+	// a NEW compose slot gets the ComposedRequest walker template
+	rep, err = slotReport(r, "compose", "not_a_slot_yet", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []struct{ path, sym string }{
+		{"types/types.go", "type ComposedRequest"},
+		{"internal/descriptor/request_slots.go", "func setSlots"},
+		{"internal/mcp/bind.go", "func buildComposeSchemaWithExtensions"},
+	} {
+		if !hasSymbol(findSite(rep, w.path), w.sym) {
+			t.Errorf("new compose slot template lacks %s · %q", w.path, w.sym)
+		}
+	}
+}
+
+// TestOpReport_ReachedThroughDeps pins the sites an operator reaches
+// through what it declares or calls (#715, #453a, #453b): the shared
+// series engines, the primitives its own files call, every capability
+// param with its decoders and forms, and the metric-registry consumers.
+func TestOpReport_ReachedThroughDeps(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	build := func(op string) *Report {
+		t.Helper()
+		rep, err := opReport(r, op, options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rep
+	}
+	// #715: the params.field / partition_by engines
+	for _, op := range []string{"OVERLAY_FORMULA", "OVERLAY_T_VS_PRIOR"} {
+		rep := build(op)
+		for _, p := range []string{"internal/seriesfield/seriesfield.go", "internal/seriespartition/seriespartition.go"} {
+			if findSite(rep, p) == nil {
+				t.Errorf("op %s lacks the series engine %s", op, p)
+			}
+		}
+	}
+	rep := build("OVERLAY_SYMMETRY")
+	if _, ok := symbolNote(siteIn(rep, "primitives", "internal/statdist/binomial.go"), "func BinomialTwoSidedP"); !ok {
+		t.Error("OVERLAY_SYMMETRY: statdist.BinomialTwoSidedP not a shared primitive")
+	}
+	if !gateTests(rep)["TestBinomialTwoSidedP_ClosedForms"] {
+		t.Error("OVERLAY_SYMMETRY: the statdist tests are not rerun")
+	}
+
+	// #453a: a non-enum param, its forms and their decoders
+	rep = build("ATTR_VEC_DISTANCE")
+	note, _ := symbolNote(siteIn(rep, "params", "internal/descriptor/capabilities_attributes.go"), "params.reference")
+	for _, form := range []string{"centroid", "population", "record"} {
+		if !strings.Contains(note, form) {
+			t.Errorf("params.reference note %q lacks form %s", note, form)
+		}
+	}
+	if note, _ := symbolNote(siteIn(rep, "params", "internal/vectors/compare.go"), "func comparisonReference"); !strings.Contains(note, `form {"centroid"}`) {
+		t.Errorf("comparisonReference note %q: the centroid form decoder is not attributed", note)
+	}
+	// #453b: every metric-registry consumer site
+	for _, w := range []struct{ path, sym string }{
+		{"linalg/metric/metric.go", "var consumerForms"},
+		{"linalg/metric/metric.go", "func Consumers"},
+		{"internal/descriptor/capabilities_matrix.go", "func metricCapabilities"},
+		{"internal/descriptor/manifest.go", "func assembleManifest"},
+		{"internal/vectors/compare.go", "func ComparisonConsumer"},
+		{"internal/processing/grouper_kmeans.go", "var kmeansMetric"},
+	} {
+		if _, ok := symbolNote(siteIn(rep, "metric-consumers", w.path), w.sym); !ok {
+			t.Errorf("metric consumers lack %s · %s", w.path, w.sym)
+		}
+	}
+	// a non-consumer prints a pointer, a new operator the full list
+	rep = build("ATTR_ZSCORE")
+	for _, s := range rep.Sections {
+		if s.Class == "metric-consumers" {
+			t.Error("ATTR_ZSCORE (no metric) lists the metric consumers")
+		}
+	}
+	if !strings.Contains(strings.Join(rep.Omitted, "\n"), "metric consumers not listed") {
+		t.Errorf("ATTR_ZSCORE omitted %v: no pointer to the consumer sites", rep.Omitted)
+	}
+	rep, err := newOpReport(r, "attribute", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if siteIn(rep, "metric-consumers", "internal/descriptor/manifest.go") == nil {
+		t.Error("new-op attribute lacks the metric consumer sites")
+	}
+}
+
+// TestPrecision_RealTree pins TODO #453 (3)-(5) on the real tree: no
+// false category-norm warning for MAT_RELIABILITY, the hand-kept
+// vector-aggregator subset in new-op, and oracle fixtures / generators
+// attributed to the operators they serve.
+func TestPrecision_RealTree(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	rep, err := opReport(r, "MAT_RELIABILITY", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range rep.Warnings {
+		if strings.Contains(w, "category-norm site missing") {
+			t.Errorf("MAT_RELIABILITY: false warning %q", w)
+		}
+	}
+	rep, err = newOpReport(r, "aggregator", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := symbolNote(siteIn(rep, "subsets", "internal/vectors/aggregations.go"), "func VectorAggregationTypes"); !ok {
+		t.Error("new-op aggregator lacks the VectorAggregationTypes subset")
+	}
+	oracle := func(op string) map[string]string {
+		rep, err := opReport(r, op, options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]string{}
+		for _, s := range rep.Sections {
+			if s.Class == "oracle" {
+				for _, site := range s.Sites {
+					out[site.Path] = site.Note
+				}
+			}
+		}
+		return out
+	}
+	ref := "internal/processing/testdata/reference/"
+	sym := oracle("OVERLAY_SYMMETRY")
+	if !strings.Contains(sym[ref+"binomial.json"], "shared primitive") {
+		t.Errorf("OVERLAY_SYMMETRY: binomial.json not attributed through statdist (%q)", sym[ref+"binomial.json"])
+	}
+	for _, p := range []string{ref + "markov.json", ref + "correspondence.json", ref + "margins.json", "scripts/reference/gen_glm_irls.R"} {
+		if _, ok := sym[p]; ok {
+			t.Errorf("OVERLAY_SYMMETRY: %s attributed (another operator's fixture or a family name)", p)
+		}
+	}
+	fa := oracle("MAT_FACTOR")
+	for _, p := range []string{ref + "mv_rotation.json", ref + "mv_factor.json", "scripts/reference/gen_rotation.R"} {
+		if _, ok := fa[p]; !ok {
+			t.Errorf("MAT_FACTOR: %s not attributed", p)
+		}
+	}
+	if _, ok := fa[ref+"normal_cdf.json"]; ok {
+		t.Error("MAT_FACTOR: a shared oracle file read whole (normal_cdf.json attributed)")
+	}
+}

@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/spf13/afero"
 )
 
 // templateExt is the only file extension the store recognises. Everything
@@ -51,9 +51,13 @@ const templateRescanInterval = time.Second
 //
 // # Discovery
 //
-// Each configured root is walked with filepath.WalkDir and every *.json
-// file under it becomes a template. Directories and non-.json files are
-// skipped silently. A configured root that does not exist is skipped too —
+// Each configured root is walked with afero.Walk over the store's
+// filesystem and every *.json file under it becomes a template. The
+// filesystem is the one handed to NewStore: an instance hands it
+// pulse.Options.FS when the embedder set one, else an unrooted
+// afero.NewOsFs() (template roots are host paths, not DataDir-relative),
+// so an embedder on an in-memory filesystem keeps its templates there
+// too. Directories and non-.json files are skipped silently. A configured root that does not exist is skipped too —
 // a layered setup routinely names an optional override directory that is
 // simply absent — but a configured path that exists and is NOT a directory
 // is an error, because that is a misconfiguration rather than an absence.
@@ -108,7 +112,7 @@ const templateRescanInterval = time.Second
 // appearing in a higher-precedence root starts shadowing a lower one and
 // removing it hands the name back.
 //
-// A rescan is a directory walk plus one os.Stat per candidate file. A file
+// A rescan is a directory walk plus one Stat per candidate file. A file
 // whose size AND modification time both match the parsed copy already held
 // is reused as-is, so a steady-state rescan over a directory of unchanged
 // templates costs syscalls and no JSON parsing at all.
@@ -152,6 +156,10 @@ const templateRescanInterval = time.Second
 // an ordinary answer rather than a nil check at every call site.
 type Store struct {
 	mu sync.RWMutex
+
+	// fsys is the filesystem every walk, stat and read goes through,
+	// fixed at construction. Never nil on a constructed store.
+	fsys afero.Fs
 
 	// dirs is the configured root list, in precedence order. Held as the
 	// store's own copy so a caller mutating the slice it passed in cannot
@@ -237,8 +245,8 @@ type fileEntry struct {
 	// name is the derived lookup name.
 	name string
 
-	// path is the source file, as reachable from the process's working
-	// directory (root-relative roots yield root-relative paths).
+	// path is the source file on the store's filesystem, as the
+	// configured root spells it (relative roots yield relative paths).
 	path string
 
 	// rootIndex is the position of the owning root in the configured
@@ -337,15 +345,22 @@ func (p *prevSnapshot) faultFor(path string) *fileFault {
 //
 // An empty dirs slice yields a usable empty store rather than an error:
 // "no template directories configured" is a normal deployment, not a fault.
-func NewStore(dirs []string) (*Store, error) {
-	return NewStoreWith(dirs, ValidateOptions{})
+//
+// Every directory walk, stat and file read goes through fsys, the
+// instance's afero.Fs; dirs are paths on it. A nil fsys is the host
+// filesystem (afero.NewOsFs).
+func NewStore(fsys afero.Fs, dirs []string) (*Store, error) {
+	return NewStoreWith(fsys, dirs, ValidateOptions{})
 }
 
 // NewStoreWith is NewStore validating every document — at construction
 // and on every later rescan — with the instance facts in opts.
-func NewStoreWith(dirs []string, opts ValidateOptions) (*Store, error) {
-	s := &Store{dirs: slices.Clone(dirs), clock: time.Now, validate: opts}
-	res, err := scanDirs(s.dirs, nil, true, s.validate)
+func NewStoreWith(fsys afero.Fs, dirs []string, opts ValidateOptions) (*Store, error) {
+	if fsys == nil {
+		fsys = afero.NewOsFs()
+	}
+	s := &Store{fsys: fsys, dirs: slices.Clone(dirs), clock: time.Now, validate: opts}
+	res, err := scanDirs(s.fsys, s.dirs, nil, true, s.validate)
 	if err != nil {
 		return nil, err
 	}
@@ -581,7 +596,7 @@ func (s *Store) refresh(force bool) error {
 	}
 	// Not strict: past construction a broken document degrades to a
 	// recorded fault rather than aborting the walk.
-	res, err := scanDirs(dirs, prev, false, s.validate)
+	res, err := scanDirs(s.fsys, dirs, prev, false, s.validate)
 	if err != nil {
 		return err
 	}
@@ -786,7 +801,7 @@ type scanResult struct {
 // that file's last-good parse forward if it has one, and keeps walking, so
 // one file mid-save cannot take the catalog down. Root-level faults abort
 // either way: there is no per-file scope to degrade a broken root to.
-func scanDirs(dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptions) (scanResult, error) {
+func scanDirs(fsys afero.Fs, dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptions) (scanResult, error) {
 	res := scanResult{
 		byName: make(map[string][]*fileEntry),
 		faults: make(map[string][]*fileFault),
@@ -797,9 +812,9 @@ func scanDirs(dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptio
 		if strings.TrimSpace(dir) == "" {
 			continue
 		}
-		info, err := os.Stat(dir)
+		info, err := fsys.Stat(dir)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if stderrors.Is(err, fs.ErrNotExist) {
 				// An absent root is an absent layer, not a fault: a
 				// layered setup routinely names an optional override
 				// directory nobody has created yet.
@@ -813,7 +828,7 @@ func scanDirs(dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptio
 					"each configured template root must be a directory of *.json template files",
 				map[string]any{detailPath: dir})
 		}
-		if err := scanDir(dir, i, prev, &res, seenPaths, strict, opts); err != nil {
+		if err := scanDir(fsys, dir, i, prev, &res, seenPaths, strict, opts); err != nil {
 			return scanResult{}, err
 		}
 	}
@@ -830,8 +845,8 @@ func scanDirs(dirs []string, prev *prevSnapshot, strict bool, opts ValidateOptio
 // against the file's derived name, carries that file's previous last-good
 // parse into the new index when it has one, and moves on — which is what
 // confines a half-written save to the one name it belongs to.
-func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, seenPaths map[string]struct{}, strict bool, opts ValidateOptions) error {
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
+func scanDir(fsys afero.Fs, dir string, rootIndex int, prev *prevSnapshot, res *scanResult, seenPaths map[string]struct{}, strict bool, opts ValidateOptions) error {
+	return afero.Walk(fsys, dir, func(path string, d fs.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return ioError(path, "walking template directory", walkErr)
 		}
@@ -857,12 +872,12 @@ func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, see
 		}
 		seenPaths[path] = struct{}{}
 
-		// os.Stat rather than the walk entry's own Info: WalkDir does not
-		// follow symlinks, so d.Info() describes the LINK, and a template
-		// symlinked into a directory would then look unchanged however
-		// often its target was edited. The reuse decision needs the
-		// identity of the bytes ReadFile will actually return.
-		info, err := os.Stat(path)
+		// Stat rather than the walk entry's own info: the walk lstats
+		// where the filesystem can, so d describes the LINK, and a
+		// template symlinked into a directory would then look unchanged
+		// however often its target was edited. The reuse decision needs
+		// the identity of the bytes ReadFile will actually return.
+		info, err := fsys.Stat(path)
 		if err != nil {
 			if strict {
 				return ioError(path, "reading template file", err)
@@ -893,7 +908,7 @@ func scanDir(dir string, rootIndex int, prev *prevSnapshot, res *scanResult, see
 
 		entry := unchangedEntry(prev, path, name, rootIndex, info)
 		if entry == nil {
-			entry, err = loadEntry(path, name, rootIndex, info, opts)
+			entry, err = loadEntry(fsys, path, name, rootIndex, info, opts)
 			res.parsed++
 			if err != nil {
 				if strict {
@@ -939,7 +954,7 @@ func (r *scanResult) degrade(prev *prevSnapshot, fault *fileFault) {
 // the same reason. The asymmetry is that a fault with no recorded identity
 // (a stat that failed, so there was nothing to record) never matches, which
 // makes retrying such a file the default.
-func unchangedFault(prev *prevSnapshot, path, name string, rootIndex int, info os.FileInfo) *fileFault {
+func unchangedFault(prev *prevSnapshot, path, name string, rootIndex int, info fs.FileInfo) *fileFault {
 	old := prev.faultFor(path)
 	if old == nil {
 		return nil
@@ -971,7 +986,7 @@ func unchangedFault(prev *prevSnapshot, path, name string, rootIndex int, info o
 // while the configured roots are fixed, but reusing an entry whose
 // provenance had drifted would mislabel a template rather than merely
 // serve it stale, so the check is cheap insurance.
-func unchangedEntry(prev *prevSnapshot, path, name string, rootIndex int, info os.FileInfo) *fileEntry {
+func unchangedEntry(prev *prevSnapshot, path, name string, rootIndex int, info fs.FileInfo) *fileEntry {
 	old := prev.entryFor(path)
 	if old == nil {
 		return nil
@@ -994,8 +1009,8 @@ func unchangedEntry(prev *prevSnapshot, path, name string, rootIndex int, info o
 // and mtime that no longer match the disk, so the next walk sees a
 // mismatch and re-reads it — the race resolves itself one rescan later
 // rather than latching stale content.
-func loadEntry(path, name string, rootIndex int, info os.FileInfo, opts ValidateOptions) (*fileEntry, error) {
-	data, err := os.ReadFile(path)
+func loadEntry(fsys afero.Fs, path, name string, rootIndex int, info fs.FileInfo, opts ValidateOptions) (*fileEntry, error) {
+	data, err := afero.ReadFile(fsys, path)
 	if err != nil {
 		return nil, ioError(path, "reading template file", err)
 	}

@@ -19,7 +19,8 @@ func hasKey(schema descriptor.ComponentSchema, name string) bool {
 // E1-S2): predict's built-in aggregator schema map is built once per
 // weighting variant — the same map on every call — and equals a fresh
 // build of the table it caches: the weighted floor keys spliced in when
-// capability:weighting is enabled, absent when it is hidden.
+// capability:weighting is enabled, absent when it is hidden (with every
+// weighted-slot-only key of an operator's own).
 // aggregatorComponentSchemaIndex picks the variant off the instance.
 func TestAggregatorSchemaIndex_BuiltOncePerWeightingVariant(t *testing.T) {
 	t.Parallel()
@@ -29,7 +30,7 @@ func TestAggregatorSchemaIndex_BuiltOncePerWeightingVariant(t *testing.T) {
 		if reflect.ValueOf(a).UnsafePointer() != reflect.ValueOf(b).UnsafePointer() {
 			t.Errorf("weighted=%v: two calls built two maps, want the one cached map", weighted)
 		}
-		fresh := aggregatorCapabilityTable()
+		fresh := unweightedAggregatorTable()
 		if weighted {
 			fresh = aggregatorCapabilities()
 		}
@@ -38,6 +39,9 @@ func TestAggregatorSchemaIndex_BuiltOncePerWeightingVariant(t *testing.T) {
 		}
 		if got := hasKey(a[string(types.AGG_SUM)], "sum_weights"); got != weighted {
 			t.Errorf("weighted=%v: AGG_SUM carries sum_weights = %v", weighted, got)
+		}
+		if got := hasKey(a[string(types.AGG_AVERAGE)], "sum_weighted"); got != weighted {
+			t.Errorf("weighted=%v: AGG_AVERAGE carries its weighted-only sum_weighted = %v", weighted, got)
 		}
 	}
 	if reflect.ValueOf(builtinAggregatorSchemaIndex(true)).UnsafePointer() == reflect.ValueOf(builtinAggregatorSchemaIndex(false)).UnsafePointer() {

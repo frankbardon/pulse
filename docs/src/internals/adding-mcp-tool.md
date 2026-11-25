@@ -34,6 +34,11 @@ The description opens with one `CALL …` sentence saying when to call the
 tool, and that sentence is the first line of the tool skill's
 `## When to use` section, word for word
 (`TestToolDescriptionsLeadWithWhenToUse`).
+A clause about one feature inside a sentence about others goes in a
+skill-pack feature fence (`<!-- feature: capability:matrices -->…<!-- /feature -->`),
+so an instance hiding that feature drops the clause rather than the
+whole sentence; the lead sentence carries none
+(`TestToolDescriptionFences_Valid`).
 The `internal/mcp/toolmeta` package is imported by `internal/descriptor/` (which assembles
 the manifest) and by the core, so this is the leaf-metadata package that
 lets the descriptor surface the tool without importing the MCP layer or

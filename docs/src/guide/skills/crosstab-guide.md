@@ -30,7 +30,7 @@ requires: [capability:crosstab]
 
 ## Axes, cell
 
-`rows`, `columns`: lists of groupers, any grouper on either axis; several = nested headers in composite-key order. No rows / cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_MISSING_CELL`.
+`rows`, `columns`: grouper lists, any type; several = nested headers in composite-key order. No rows / cell ⇒ `PULSE_CROSSTAB_EMPTY_ROWS` / `_MISSING_CELL`; `null` ⇒ `PROCESSING_CONFIG`.
 
 **No `columns` = one Total column** `["Total"]` (header type `TOTAL`) of every record whose row key resolved. Column % sums to 1; row-scope pairwise compares rows; column-axis `normalize_level` / `_within` is out of range.
 

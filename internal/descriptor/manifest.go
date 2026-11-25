@@ -308,10 +308,11 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 
 	// capability:weighting hidden: no aggregator is weight-aware on this
 	// instance (no weight can reach one), so the table is read without
-	// the weight stamp — no weight_aware flag, no weighted floor keys.
+	// the weight stamp — no weight_aware flag, no weighted floor keys,
+	// no weighted-slot-only keys.
 	aggTable := aggregatorCapabilities()
 	if !on(featWeighting) {
-		aggTable = aggregatorCapabilityTable()
+		aggTable = unweightedAggregatorTable()
 	}
 	aggs := filterOps(aggTable, on)
 	attrs := filterOps(attributeCapabilities(), on)
@@ -354,7 +355,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 		ErrorCodesCount:    len(errCodes),
 		ErrorDomains:       errorDomainsFor(errCodes),
 		ErrorCodes:         errCodes,
-		MCPTools:           filterMCPTools(mcpToolCapabilities(), on),
+		MCPTools:           filterMCPTools(mcpToolCapabilities(on), on),
 		CohortTypes:        cohortFieldTypesFrom(aggs, attrs, filts, grps, wins, feats),
 		Skills:             visibleSkills(disc),
 		ExamplesCount:      exCount,

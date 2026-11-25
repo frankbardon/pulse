@@ -386,9 +386,12 @@ unreadable file, or a root that is a regular file is an ordinary
 filesystem problem and reads better under the code every other
 filesystem fault in Pulse uses.
 
-Template directories are process **configuration**, not cohort data,
-so they are read through the `os` package rather than `afero` — the
-same sanctioned exception the label-table and range-table loaders use.
+Template roots are paths on the instance filesystem when
+`Options.FS` is set: an embedder on an in-memory `afero.Fs` writes its
+templates there and the store walks, stats and reads them through it.
+Without `Options.FS` the roots are host paths (absolute, or relative to
+the working directory) read from the OS filesystem, independent of
+`DataDir` — what the CLI and the MCP server use.
 
 ## The hot-reload lifecycle
 

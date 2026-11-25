@@ -143,6 +143,30 @@ func (a *catAnalysis) n() int { return len(a.c.Ops) }
 
 func (a *catAnalysis) cov(k int) string { return fmt.Sprintf("%d/%d ops", k, a.n()) }
 
+// codeOps counts the operators landing at normalised site n outside Go
+// comments: a file whose doc comments walk the operators one by one
+// (predict_return_sizes.go's per-operator shapes) is no norm an
+// operator without a special case must join. Non-Go sites count every
+// operator present.
+func (a *catAnalysis) codeOps(r *repo, n string) int {
+	k := 0
+	for i := range a.fileOps[n] {
+		p := a.actual[n][i]
+		if !strings.HasSuffix(p, ".go") {
+			k++
+			continue
+		}
+		g := r.parse(p)
+		for _, h := range a.byOp[i][p] {
+			if g == nil || !g.inComment(h.Off) {
+				k++
+				break
+			}
+		}
+	}
+	return k
+}
+
 func (a *catAnalysis) isEvery(k int) bool {
 	return k >= 2 && float64(k) >= everyThreshold*float64(a.n())
 }

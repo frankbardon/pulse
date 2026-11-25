@@ -1,4 +1,4 @@
-.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean vulncheck
+.PHONY: build clean dist test test-heavy smoke cover fmt fmt-check vet lint staticcheck staticcheck-fast staticcheck-heavy staticcheck-merge bench bench-scale sites tzdata reference reference-optimize reference-stan reference-stan-geo reference-mmm-hill-adstock reference-mcmc reference-statsmodels reference-sweep-de reference-sweep-bo reference-gp docs docs-generate docs-serve docs-clean doc-checks linkcheck-external vulncheck
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -374,7 +374,12 @@ reference-mcmc:
 # docgen:summary lines, then builds the book. The export runs with the
 # table/template directory env vars cleared so a developer's .env cannot
 # perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
-# tree is stale. Recipe: docs/src/internals/regenerating-goldens.md.
+# tree is stale. It then regenerates the documentation coverage matrix
+# (docs/src/contract/coverage.md, internal/doccoverage; internal/cli's
+# TestDocsCoverageCurrent with -update-coverage, since only internal/cli may
+# walk the CLI tree) after the guide, so
+# the matrix sees the fresh guide; TestDocsCoverageCurrent fails when it is
+# stale. Recipe: docs/src/internals/regenerating-goldens.md.
 DOCS_GUIDE_ENV=env -u PULSE_LABEL_TABLES_DIR -u PULSE_RANGE_TABLES_DIR -u PULSE_LOOKUP_TABLES_DIR -u PULSE_POPULATIONS_DIR -u PULSE_TEMPLATES_DIR -u PULSE_FEATURE_PROFILE
 
 docs: docs-generate
@@ -383,11 +388,41 @@ docs: docs-generate
 docs-generate:
 	$(DOCS_GUIDE_ENV) $(GO) run ./cmd/pulse docs export --out docs/src/guide
 	$(GO) run ./internal/tools/docsummary -book docs/src/SUMMARY.md -fragment docs/src/guide/SUMMARY.md -prefix guide/
+	$(DOCS_GUIDE_ENV) $(GO) test ./internal/cli -run '^TestDocsCoverageCurrent$$' -count=1 -args -update-coverage
 
 docs-serve:
 	mdbook serve docs --open
 
 docs-clean:
 	rm -rf docs/book
+
+# doc-checks runs the fast-tier documentation checks on their own (they
+# also run in `make test`); CI's `docs` job runs it after the mdBook
+# build. The heavy ones (TestDocsSnippetsCompile, the served-text sweep)
+# stay in `make test-heavy`. A new fast doc check is added to DOC_CHECKS.
+# docs/src/contributing/doc-checks.md lists what each one holds. Before
+# running, `go test -list` must find every DOC_CHECKS name in
+# DOC_CHECK_PKGS, so a renamed or moved check fails here instead of
+# silently matching nothing.
+DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
+DOC_CHECK_PKGS=. ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
+
+doc-checks:
+	@listed=$$($(GO) test -list '^($(DOC_CHECKS))$$' $(DOC_CHECK_PKGS)) || { echo "$$listed"; exit 1; }; \
+	missing=; for n in $$(echo '$(DOC_CHECKS)' | tr '|' ' '); do \
+		echo "$$listed" | grep -qx "$$n" || missing="$$missing $$n"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+		echo "doc-checks: DOC_CHECKS names no fast-tier test in DOC_CHECK_PKGS:$$missing (renamed, moved or heavy? fix the Makefile)"; exit 1; \
+	fi
+	$(DOCS_GUIDE_ENV) $(GO) test -count=1 -run '^($(DOC_CHECKS))$$' $(DOC_CHECK_PKGS)
+	$(GO) test -count=1 ./internal/doccheck
+
+# linkcheck-external HEAD-checks every http(s) link in docs/src/** and the
+# repo-root *.md files (GET when a server refuses HEAD) and lists each
+# broken URL with where it appears. It needs the network, so it is manual
+# only and never runs in CI; internal links are TestDocsLinksResolve's job.
+linkcheck-external:
+	$(GO) run ./internal/tools/linkcheck
 
 .DEFAULT_GOAL := build

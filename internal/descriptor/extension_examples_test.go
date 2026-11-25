@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"encoding/json"
 	stderrors "errors"
 	"slices"
 	"strings"
@@ -269,5 +270,40 @@ func TestDiscovery_ExtensionExamples(t *testing.T) {
 	}
 	if _, ok := d.Example("acme_two_slices"); !ok {
 		t.Error("compose example pruned, want kept")
+	}
+}
+
+// TestRequestRootRuleShared: the request read maps and the extension-
+// example validator name a document's root by the one shared rule
+// (internal/requestroot), so every compose root key — not only requests
+// — makes a compose, and the read maps' root spellings match its kinds.
+func TestRequestRootRuleShared(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		body      string
+		reads     descriptor.ReadsRoot
+		validator string
+	}{
+		{`{"cohort": {"filename": "a.pulse"}}`, descriptor.ReadsRootRequest, "process"},
+		{`{"requests": []}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"sweep": {}}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"banner": {}}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"fits": []}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"optimize": []}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"base": {}}`, descriptor.ReadsRootComposed, "compose"},
+		{`{"stages": []}`, descriptor.ReadsRootChain, "process_chain"},
+		{`{"fields": []}`, descriptor.ReadsRootFacet, "facet"},
+	}
+	for _, c := range cases {
+		var top map[string]any
+		if err := json.Unmarshal([]byte(c.body), &top); err != nil {
+			t.Fatal(err)
+		}
+		if got := detectReadsRoot(top); got != c.reads {
+			t.Errorf("%s: detectReadsRoot = %q, want %q", c.body, got, c.reads)
+		}
+		if got, _ := exampleRequestRoot(json.RawMessage(c.body)); got != c.validator {
+			t.Errorf("%s: exampleRequestRoot = %q, want %q", c.body, got, c.validator)
+		}
 	}
 }

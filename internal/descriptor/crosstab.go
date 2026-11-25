@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/aggconst"
+	"github.com/frankbardon/pulse/internal/crosstabaxis"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -25,6 +26,11 @@ func validateCrosstab(env *descriptor.Envelope, req *types.Request, schema *enco
 		env.AddError(string(errors.PULSE_CROSSTAB_EMPTY_ROWS),
 			"crosstab requires at least one row-axis grouper",
 			nil)
+	}
+	// A null axis slot: shared with the runtime validator
+	// (crosstabaxis.NilGrouperRefusals); every refusal reported.
+	for _, ce := range crosstabaxis.NilGrouperRefusals(spec) {
+		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 	// No column grouper is the implicit Total column
 	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/frankbardon/pulse/internal/aggconst"
+	"github.com/frankbardon/pulse/internal/crosstabaxis"
 	"github.com/frankbardon/pulse/internal/ddofspec"
 	"sort"
 	"strings"
@@ -1720,6 +1721,12 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 	if len(spec.Rows) == 0 {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_EMPTY_ROWS,
 			"crosstab requires at least one row-axis grouper")
+	}
+	// A null axis slot (`rows: [null]`) has no field to partition or key
+	// on. Shared with predict (crosstabaxis.NilGrouperRefusals); first
+	// refusal wins here.
+	if refusals := crosstabaxis.NilGrouperRefusals(spec); len(refusals) > 0 {
+		return refusals[0]
 	}
 	// No column grouper is the implicit Total column
 	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
