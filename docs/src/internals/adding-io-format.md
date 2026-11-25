@@ -1127,8 +1127,8 @@ for Excel, and as the four `.sav` write knobs did for SPSS). Registering
 a new `pulse import <fmt>` subcommand alone does not: that file carries
 per-format flags, not a format list.
 
-A new leaf **does** need a row in the command index in
-`docs/src/cli/flags.md`. `TestSkillsCoverAllCliLeaves`
+A new leaf **does** need `make docs`, which gives it a section in the
+generated [command and flag reference](../cli/reference.md). `TestSkillsCoverAllCliLeaves`
 (`cmd/pulse/cli_leaves_test.go`) walks the real command tree, `internal/cli.App()`,
 and fails if any runnable command path is named nowhere under `skills/`
 or `docs/src/`. It checks naming only — whether the prose is any good

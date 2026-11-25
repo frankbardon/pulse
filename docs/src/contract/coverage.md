@@ -39,7 +39,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
 | [CLI leaves](#cli-leaves) | 77 | 0 |
-| [CLI flags](#cli-flags) | 137 | 2 |
+| [CLI flags](#cli-flags) | 137 | 0 |
 | [MCP tools](#mcp-tools) | 27 | 4 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
 | [MCP resources](#mcp-resources) | 3 | 0 |
@@ -3304,10 +3304,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--weight-field` | yes |  | yes |
 | `--zone-field` | yes | yes | yes |
 | `-f` | yes |  | yes |
-| `-h` | **gap** |  | yes |
+| `-h` | yes |  | yes |
 | `-i` | yes | yes | yes |
 | `-k` | yes |  | yes |
-| `-m` | **gap** |  | yes |
+| `-m` | yes |  | yes |
 | `-n` | yes |  | yes |
 | `-o` | yes | yes | yes |
 | `-p` | yes |  | yes |

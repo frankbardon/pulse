@@ -84,8 +84,6 @@ api	types.WIN_ROW_NUMBER godoc	baseline (U32a): gap at U32a start; U32b document
 api	types.WIN_RUNNING_AVG godoc	baseline (U32a): gap at U32a start; U32b documents it
 api	types.WIN_RUNNING_SUM godoc	baseline (U32a): gap at U32a start; U32b documents it
 api	types.WIN_SHARE godoc	baseline (U32a): gap at U32a start; U32b documents it
-cli-flag	-h book	baseline (U32a): gap at U32a start; U32b documents it
-cli-flag	-m book	baseline (U32a): gap at U32a start; U32b documents it
 error-code	CLI_COMMAND book	baseline (U32a): gap at U32a start; U32b documents it
 error-code	CLI_INTERNAL book	baseline (U32a): gap at U32a start; U32b documents it
 error-code	CLI_OUTPUT book	baseline (U32a): gap at U32a start; U32b documents it

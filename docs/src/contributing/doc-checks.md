@@ -30,6 +30,7 @@ test, so a renamed or moved check cannot drop out silently.
 | `TestDocsSnippetsRun` | fast | `internal/integration` | `snippets.txt` |
 | `TestDocsSnippetsCompile` | heavy | `internal/integration` | `snippets-go.txt` |
 | `TestCliHelpMatchesFlagsDoc` | fast | `cmd/pulse` | `cli-flags.txt` |
+| `TestCLIReferenceCurrent` | fast | `internal/cli` | none: run `make docs` |
 | `TestNoRemovedNamesInDocs` | fast | root | `removed-names.txt` |
 | `TestNoRemovedNamesInPromptsAndReference` | heavy | `mcp/gosdk` | `removed-names-prompts.txt` |
 | `TestDocsCoverageCurrent`, `TestDocsCoverageNoGaps` | fast | `internal/cli` | `coverage.txt` |

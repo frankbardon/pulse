@@ -1,11 +1,13 @@
-# Flag Reference
+# CLI Concepts and Shared Flags
 
-**Audience:** CLI users who want one page that lists every flag and
-every environment variable in scope across the binary.
+**Audience:** CLI users who need what `--help` cannot say: the
+environment variables Pulse reads, the `--json` envelope, exit status,
+and the semantics of flags several commands share.
 
-The per-command pages list each command's full flag set; this page is
-the cross-cutting reference for flags that appear on multiple
-commands and for the environment variables Pulse reads.
+Every command and every flag it accepts, with its value type, default
+and help text, is listed in the generated
+[command and flag reference](reference.md). This page explains the
+concepts behind them.
 
 > **LLM agents using MCP:** there is no LLM-facing skill for the CLI
 > surface. Agents go via MCP tools (`pulse_process`, `pulse_inspect`,
@@ -14,27 +16,16 @@ commands and for the environment variables Pulse reads.
 
 ## Global flags
 
-Available on the bare `pulse` invocation:
-
-| Flag | Effect |
-|---|---|
-| `--json` | Print the root manifest as JSON (envelope-wrapped) |
-| `--slim` | With `--json`, drop prose descriptions for size-sensitive clients |
-| `--intent ID` | With `--json`, scope the manifest to one intent-taxonomy ID (e.g. `compare_groups`): only the operators serving it and its skills, the fixed sections dropped and listed in `elided`. An unknown ID is a `PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope |
-
-All default to off. `pulse --json` is the discovery entry point — it
-emits the manifest documented at [`pulse manifest`](manifest.md).
-
-Persistent on **every** leaf (accepted before or after the leaf name):
-
-| Flag | Effect |
-|---|---|
-| `--log-level off\|debug\|info\|warn\|error` | Structured log records on **stderr** at or above the level (default `off`: nothing). `debug` adds the per-operation plan record (execution arm, workers, shards, projection) |
-| `--log-format text\|json` | Log record encoding (default `text`); ignored while `--log-level` is `off` |
-| `--shard-workers N` | Per-shard parallel workers over a shard archive (`Options.ShardWorkers`): `0` (default) one per CPU, `1` serial |
-| `--decode-workers N` | Parallel decode workers over one large `.pulse` file (`Options.DecodeWorkers`): `0` (default) one per CPU, `1` serial |
-| `--memory-limit SIZE\|N%` | Go soft memory limit for the whole process (`debug.SetMemoryLimit`), set before the leaf runs: a byte size as `GOMEMLIMIT` spells it (`14GiB`, `14000MiB`; units `B`, `KiB`, `MiB`, `GiB`, `TiB`) or `N%` of the memory ceiling (`85%`, darwin and linux): physical RAM, or on linux the cgroup v2 `memory.max` when it is a byte count below that (a container's limit). Wins over `GOMEMLIMIT`; unset leaves the runtime untouched (no default). Zero, a negative, over `100%` or an unknown unit is a usage error carrying `CLI_INPUT` (details `{flag, value}`). See [Tuning Limits](../library/tuning-limits.md#large-archive-runs) |
-| `--limit NAME=VALUE` | Instance resource limit (`Options.Limits`), repeatable: a positive integer, a Go duration for `request_timeout` (`30s`), `unlimited` (or `-1`), or `0` for the default; a later flag for the same name wins (names and grammar: [Tuning Limits](../library/tuning-limits.md)) |
+The bare `pulse` invocation takes `--json` (print the manifest, the
+discovery entry point documented at [`pulse manifest`](manifest.md)),
+`--slim` (drop prose descriptions) and `--intent ID` (scope the manifest
+to one intent-taxonomy ID; an unknown ID is a
+`PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope). `--log-level`,
+`--log-format`, `--shard-workers`, `--decode-workers`, `--limit` and
+`--memory-limit` are persistent: every leaf accepts them, before or after
+the leaf name. Their values and defaults are in the
+[reference](reference.md#global-flags); limit names and grammar are in
+[Tuning Limits](../library/tuning-limits.md).
 
 Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
@@ -80,8 +71,8 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 
 `format_version` is currently `"1.1"`. `errors` and `warnings` are
 always arrays (never null) so JSON consumers can index without
-nullable-check overhead. `request` is opt-in (see
-[`--echo-request`](#--echo-request) below); `data.components` is the
+nullable-check overhead. `request` is opt-in (`--echo-request`, on the
+leaves the [flags by name](reference.md#flags-by-name) index lists); `data.components` is the
 additive `Response.Components` slot documented per leaf — see
 [`api process` → `--json`](api-process.md#-json).
 
@@ -109,13 +100,10 @@ pulse api process -r req.json --json > out.json || exit $?   # 1: errors[0] in o
 
 ## Shared per-command flags
 
-Several flags appear on multiple commands with identical semantics.
+The semantics of flags several commands share. Which commands mount
+each one is in the [flags by name](reference.md#flags-by-name) index.
 
 ### `--input` / `-i`
-
-Available on: every leaf that reads one cohort — `api sample`,
-`api facet`, `api lookup`, `cohort inspect`, `cohort filter`, `widen`,
-`dedup`, the `index` leaves, the `export` leaves, `profile create`.
 
 The cohort path, resolved against the working directory (an absolute
 path is used as-is). `cohort inspect`, `widen`, `dedup` and the `index`
@@ -126,47 +114,7 @@ flag **replaces** the request file's `cohort` outright — `filename` and
 `req.json` names. On `api sample` the two are mutually exclusive
 (exit 2): the request file names the cohort, or the union, itself.
 
-### `--no-defaults`
-
-Available on: `api process`, `api compose`.
-
-Disable the runtime smart-defaults pass that infers operator `Type`
-from the named field's schema type when the caller omits it. Forces
-the request to be source-of-truth. See [pulse.New &
-Options](../library/options.md) for the underlying library option.
-
-### `--stream`
-
-Available on: `api process`, `api compose`.
-
-Stream result rows as NDJSON (one row per line) instead of buffering
-the full result. For `compose`, each line carries an `{"index": N,
-"row": {...}}` shape so consumers know which sub-request produced
-each row. A run that warned ends with one `{"warnings": [...]}` line
-(compose: after the rows, before a ranked sweep's `ranking` line).
-A compose batch with `optimize` blocks ends with one
-`{"optimizations": [...]}` line — each block's optimum is one solve,
-written whole, never as rows — and one with `compare` entries with one
-`{"comparisons": [...]}` line after it (each nested-model test is one
-figure set over two fits). See [Streaming & ProcessStream](../library/streaming.md).
-
-### `--stream-fits`
-
-Available on: `api compose`.
-
-Under `--stream`, end the stream with one `{"fits": {...}}` line — the
-buffered `fits` object, keyed by fit name (sweep-bound fits included, a
-failed fit as its identity and `error`) — after every row and every
-other trailing line, the sweep `ranking` line included. Written only
-when the request declares `fits`; without the flag the stream is
-unchanged, and without `--stream` the flag does nothing. Library:
-`pulse.WriteComposeStream` with `ComposeStreamOptions{TerminalFits:
-true}`.
-
 ### `--strict`
-
-Available on: `api process`, `api predict`, `api predict-compose`,
-`api predict-facet`, `api predict-chain`.
 
 Treat request-validation warnings (e.g. numeric aggregation on a
 categorical field, low-quality field description) as errors. On
@@ -185,164 +133,7 @@ viability warnings — see [`--strict` (import)](#--strict-import). On
 on such a value (exit 1, `errors[0].code`) and writes no file — the CLI
 spelling of `Options.Strict` / `ExportJob.Strict`.
 
-### `--echo-request`
-
-Available on: `api process`, `api process-chain`, `api compose`,
-`api predict`, `api predict-compose`, `api predict-facet`,
-`api predict-chain`, `api sample`, `api facet`.
-
-Include the *normalized* request — smart defaults resolved, label
-bindings expanded — on `envelope.request`. Absent (and omitted from
-JSON) by default so the envelope shape is unchanged for callers that
-do not need it. Streaming output (`--stream`) skips the echo because
-NDJSON has no envelope.
-
-### `--full-dict`
-
-Available on: `cohort inspect`.
-
-Print full categorical dictionaries instead of truncating after 100
-entries. Pair with `--json` for programmatic consumption.
-
-### `--strict` / `--seed` / `--rows`
-
-`synth from-schema` and `synth from-profile` use `--seed` (for
-deterministic RNG) and `--rows` (override the spec's row count). See
-the per-command pages.
-
-### `--emit-spec` / `--rules`
-
-Available on: `synth from-profile`.
-
-`--emit-spec <path>` writes the profile-derived spec (after any
-`--rules` merge) as indented JSON. It is the spec that actually
-generated, so feeding it to `synth from-schema` at the same `--seed`
-reproduces the same rows — and it is the only way to see which captured
-models survived translation, which distribution each field reconstructed
-to, and which conditional pairs were retired.
-
-`--rules <path>` loads structural rules from a standalone JSON file — a
-bare array of rule objects, the same shape as a spec's `rules` key — and
-**replaces** the derived spec's rules with them. Refusals carry E1's own
-`PULSE_SYNTH_RULE_*` codes with the file path in `details.path`. See
-[synth from-profile](synth-from-profile.md).
-
-### `--synthetic-only` / `--constraints` / `--max-rejection-rate`
-
-Available on: `synth from-profile`.
-
-`--synthetic-only` writes the generated rows alone: no source row and
-no `_synthetic` column, so the output has the source's schema.
-`--source` is still read, and `--fidelity-report` still compares the
-generated rows with it.
-
-`--constraints <path>` loads row constraints from a standalone JSON
-file (a bare array of `{"expr": ...}` objects, the same shape as a
-spec's `constraints` key) and **replaces** the derived spec's
-constraints with them. A failing row is drawn again.
-`--max-rejection-rate` (in [0, 1); 0 keeps the default 0.5) caps the
-fraction of rows they may reject before the run is refused
-`PULSE_SYNTH_CONSTRAINT_INFEASIBLE`. A refusal names the file in
-`details.path`. See [synth from-profile](synth-from-profile.md).
-
-### `--disclosure-sample` / `--no-disclosure`
-
-Available on: `synth from-profile` (with `--fidelity-report`).
-
-The fidelity report carries a `disclosure` section by default: the
-exact-match rate over every output column and the Gower distance to
-closest record (median, 5th percentile) on a seeded sample of the
-generated rows. `--disclosure-sample N` caps that sample (0 keeps the
-default 10000; negative is `SERVICE_VALIDATION`); the sample never moves
-the generated rows. `--no-disclosure` leaves the section out. The
-section's working set is charged against `max_estimated_memory` before
-generation: past it the run is refused `PULSE_LIMIT_EXCEEDED` and
-writes nothing. See [synth from-profile](synth-from-profile.md).
-
-### `--fidelity-model`
-
-Available on: `synth from-profile` (with `--fidelity-report`).
-
-`--fidelity-model <path>` names a `pulse process` request (strictly
-decoded; its `cohort` is ignored) whose `regressions` are fitted on
-`--source` before generation and on the generated rows after it; the
-report's `utility.model_fits` carries both fit statistics
-(`pseudo_r2` for `REG_GLM`, `r2` otherwise), their `fit_ratio` and the
-coefficients side by side. No regressions, or no `--fidelity-report`:
-`PULSE_SYNTH_FIDELITY_MODEL_INVALID`. See
-[synth from-profile](synth-from-profile.md).
-
-### `--suggest-rules`
-
-Available on: `profile create`.
-
-`--suggest-rules <path>` detects structural rules on the same scan the
-profile already makes — no additional cohort read — and writes them to
-`<path>` as the bare rules array `synth from-profile --rules` consumes
-unmodified. Three detectors, one file: GATING relationships (a
-low-cardinality field whose levels split a target's null rate into ~1 and
-~0, proposed as `set_null`), CO-MISSING blocks (fields null on exactly
-the same rows, proposed as `null_together`) and EXACT DEPENDENCIES (a
-field that IS a function of one other, proposed as `set_expr`). An
-identical null RATE is never enough for a block — two unrelated fields
-can share one — so admission is identical null PATTERN; near misses,
-almost-determined pairs, always-null columns and constant columns are
-reported in `warnings` rather than proposed.
-
-**Dependency detection is bounded, deliberately, and the bounds are
-published** — in every candidate's `_evidence.note`, on stderr and in
-[profile create](profile-create.md). TARGETS are `packed_bool` and `u4`
-only; SOURCES are `categorical_*` / `packed_bool` / `u4` with at most 16
-observed levels; the dependency is on exactly ONE source. A field missing
-from the file was not cleared, it was not examined.
-
-PROPOSED, never applied. Detection finds the STATISTICAL gate; a human
-knows the SEMANTIC one, and the two are routinely different fields that
-move together. Each candidate carries its own measurement on `_evidence`
-— the one inert slot of a rule, which generation never reads — so a
-candidate the analyst deletes takes its evidence with it. Gating
-candidates are emitted first and dependency candidates LAST, because
-declaration order is applied order: a block that FOLLOWS a hand-narrowed
-`set_null` repairs it, and a `set_expr` derivation must re-resolve its
-own block after every null-state rule has run. The profile document
-itself gains no section: absent the flag it is byte-identical, and with
-it only `warnings` moves. See [profile create](profile-create.md).
-
-### `--run-continuation`
-
-Available on: `profile create`.
-
-`--run-continuation` measures, on the same scan the profile already
-makes, each field's run-continuation: the fraction of adjacent row pairs
-whose on-wire bytes (and, for a nullable field, null bit) repeat. That is
-exactly the hit rate of the run-skip decode, which rewrites only the
-fields that changed since the previous row — so a cohort that was sorted
-by its parent key upstream scans faster, and one re-imported without
-that `ORDER BY` silently loses the win. The additive `run_continuation`
-section carries the per-field rates, an overall figure, the
-high-continuation fields and a one-line advice; pairs never span a shard
-boundary. Absent the flag the document is byte-identical. See
-[profile create](profile-create.md).
-
-### `--time-zone` / `--time-zone-field` (profile create)
-
-Available on: `profile create`.
-
-`--time-zone Zone` captures every `datetime` field on `Zone`'s local
-clock (day range, weekday, hour and month counts); `--time-zone-field
-Field` reads each row in the zone its `categorical_*` field `Field`
-names. Exclusive (`SERVICE_VALIDATION`); an unknown zone is
-`PULSE_TIMEZONE_UNKNOWN`. With neither, a cohort declaring a default
-zone field is captured per row on it, else on UTC (byte-identical to
-before the flags). The profile records the clock, and
-`synth from-profile` rebuilds the field in that zone with
-`dst_policy: "earlier"`. See [profile create](profile-create.md).
-
 ### `--schema` / `--ignore-extra`
-
-Available on: `import csv`, `import tsv`, `import ndjson`,
-`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `import auto`, `convert`.
 
 `--schema FILE` supplies an explicit schema (a JSON array of
 `{name, type, description, nullable}`, plus `precision` / `scale` on a
@@ -381,11 +172,6 @@ unknown entry key or a schema on a `.pulse` source).
 
 ### `--float`
 
-Available on: `import csv`, `import tsv`, `import ndjson`,
-`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `import schema-template`, `import auto`,
-`convert`.
-
 The width schema inference gives an all-float column: `f64` (the
 default) keeps every decimal the source wrote exact, so `0.1` and
 `123456.789012` round-trip and a money column's sum matches the f64
@@ -403,10 +189,8 @@ Library: `ImportJob.FloatWidth` / `ConvertJob.FloatWidth` (`"f64"`,
 
 ### `--elide-constants`
 
-Available on: `import csv`, `import tsv`, `import ndjson`,
-`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict` (reports what would be elided and the
-bytes saved; writes nothing).
+`import predict` reports what would be elided and the bytes saved,
+and writes nothing.
 
 `--elide-constants` stores every field that holds exactly one value — or
 is null — on every imported row once, in the schema block, and drops it
@@ -421,9 +205,7 @@ elided fields are printed, and reported as `elided_constants` under
 
 ### `--group`
 
-Available on: `import csv`, `import tsv`, `import ndjson`,
-`import jsonarray`, `import parquet`, `import arrow`, `import excel`,
-`import spss`, `import predict`, `import auto`. Repeatable — one parent
+Repeatable — one parent
 group per flag. On `import auto` the group is judged at the default
 ratio floor and its findings are always warnings (`--json` puts them in
 `warnings`, the per-group figures under `data.groups`); the floor and
@@ -471,8 +253,6 @@ dictionary bytes and byte delta; `--json` reports them per group under
 `Groups` and the findings in `warnings`.
 
 ### `--suggest-groups`
-
-Available on: `import predict`.
 
 Finds candidate parent groups before you import, and measures each one.
 A candidate is a single key field plus every field it determines (the
@@ -568,18 +348,12 @@ fatal `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, and no intermediate is written.
 
 ### `--dedup-ratio-floor`
 
-Available on: every `import <format>` leaf, and `import predict`.
-Default `2`.
-
 The rows-per-distinct-tuple floor below which a `--group` draws
 `PULSE_DEDUP_LOW_RATIO`. A floor of `1` disables it, leaving only the
 check that the group actually makes the file smaller. The group is
 written either way unless `--strict` is set.
 
 ### `--strict` (import)
-
-Available on: every `import <format>` leaf, `import auto`, `convert`, and
-`import predict` (which then fails where the import would).
 
 A PARTIAL import — some rows imported, some skipped as
 `PULSE_IMPORT_ROW_ERROR` (a null in a non-nullable field, a value the
@@ -615,7 +389,6 @@ declarations as structured `groups: [{key, members}]` entries, plus
 
 ### `--vector` / `--vector-kind`
 
-Available on: every `import <format>` leaf, `import predict`, `import auto`.
 Repeatable — one vector per flag.
 
 `--vector NAME:COL1,COL2,...` folds sibling source columns into ONE
@@ -673,9 +446,6 @@ pulse import parquet -i embeddings.parquet -o emb.pulse \
 ```
 
 ### `--source-tz` / `--source-tz-field` / `--dst-policy`
-
-Available on: every `import <format>` leaf, `import auto`, `import predict`,
-`convert` and `convert predict`.
 
 `--source-tz Zone` reads every naive `datetime` value (no `Z`, no
 `±HH:MM`) as a wall clock in `Zone` and stores the UTC instant it names;
@@ -744,9 +514,6 @@ pulse import csv -i shipments.csv -o shipments.pulse \
 
 ### `--zone-field` (cohort default zone)
 
-Available on: every `import <format>` leaf, `import auto`, `import predict`
-and `convert` (with `--keep-pulse`).
-
 `--zone-field col` declares the written cohort's DEFAULT per-row zone
 field: `col` must import as a `categorical_*` column whose every value is
 `UTC` or an IANA `Area/Location` name (never a fixed offset). The cohort
@@ -775,8 +542,6 @@ pulse import csv -i shipments.csv -o shipments.pulse \
 ```
 
 ### `--tz` (export)
-
-Available on: every `export <format>` leaf and `export predict`.
 
 `--tz Zone` renders every `datetime` cell on `Zone`'s wall clock with
 its numeric offset — an RFC 3339 literal such as
@@ -807,8 +572,6 @@ pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
 
 ### `--time-zone` (cohort filter)
 
-Available on: `cohort filter`.
-
 `--time-zone Zone` is the zone a `to_day()` call in `--filter` reads,
 on both predicate shapes (`--filter` alone, and `--include-from` AND
 `--filter`): `to_day(ts) == d` keeps a row whose `ts` falls on `d` on
@@ -827,8 +590,6 @@ pulse cohort filter -i orders.pulse -o ny_same_day.pulse \
 ```
 
 ### `--flatten` (cohort filter)
-
-Available on: `cohort filter`.
 
 `--flatten` writes a shard archive input as ONE single-file `.pulse`
 instead of a per-shard archive: the surviving rows, shard by shard in
@@ -853,9 +614,6 @@ pulse cohort filter -i sales.pulse -o eu_flat.pulse --flatten --filter 'region =
 ```
 
 ### `--labels` (export)
-
-Available on: every `export <format>` leaf, `export predict`, `convert`
-and `convert predict`.
 
 `--labels FIELD=TABLE[:replace|augment]` binds a label table (from
 `PULSE_LABEL_TABLES_DIR`) to a field. On every row format (`csv`, `tsv`,
@@ -922,101 +680,6 @@ vector field, never an element column. An expanded name that another
 column already has refuses the export (`PULSE_EXPORT_COLUMN_COLLISION`),
 and `export predict --format F` prints the `Columns:` it would write.
 
-## Command index
-
-Every runnable leaf the binary exposes, with the page that documents it
-in depth. A leaf whose "Documented in" column names no dedicated page is
-covered by the surrounding topic page or by `--help`.
-
-The list itself is the contract, and it is enforced **in both
-directions** by `TestSkillsCoverAllCliLeaves`: a leaf added to
-`internal/cli.App()` (`internal/cli/app.go`) without a row here fails the gate, and a row here that names
-a command the binary does not actually mount fails it too. The second
-direction is the one that matters when a registration is deleted — the
-documented command would otherwise stay listed while answering "command
-not found". Group nodes that carry no action of their own (`pulse api`,
-`pulse shard`, `pulse index`) are not leaves and are deliberately absent.
-
-| Leaf | Purpose | Documented in |
-|---|---|---|
-| `pulse api compose` | Execute multiple processing requests in batch | [api compose](api-compose.md) |
-| `pulse api facet` | Distinct values for a field, or a rich multi-field summary | [api facet](api-facet.md) |
-| `pulse api lookup` | Key-exact row read against a prebuilt sidecar index | [api lookup](api-lookup.md) |
-| `pulse api materialize` | Write a request's derived columns (features, attributes, windows) as fields of a new cohort, laid out by its `output` block when present (`shards` writes a shard archive, listed in the report; `groups` keeps or declares parent groups, each verdict reported): `-r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`; refusals keep their own code. `--predict` (no `-o` needed, nothing written) prints the predict envelope instead — output columns, derived names, risks, the container plan (with its parent groups), every refusal with the run's code; exit status follows its errors, `--strict` promotes its warnings | [Materialize](../library/materialize.md) |
-| `pulse api predict` | Validate a request against a cohort without executing | [api predict](api-predict.md) |
-| `pulse api predict-chain` | Validate a process-chain request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
-| `pulse api predict-compose` | Validate a Compose batch without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
-| `pulse api predict-facet` | Validate a facet request without executing | [api predict](api-predict.md#compose-facet-and-chain-requests) |
-| `pulse api process` | Execute a processing request against a cohort | [api process](api-process.md) |
-| `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
-| `pulse api sample` | Return sample rows from a cohort: `--input PATH`, or `--request FILE\|-` holding a whole `SampleRequest` (a `union` of cohorts included; `--count` / `--labels` layer on top; never both, exit 2) | [api sample](api-sample.md) |
-| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file: `-i IN -o OUT` plus `--filter EXPR` and / or `--include-from FILE --include-field F` (AND-combined, set first); `--time-zone Zone` is the zone a `to_day()` in `--filter` reads (absent = UTC) | [`--time-zone`](#--time-zone-cohort-filter) |
-| `pulse cohort zone set` | Declare `FIELD` — a `categorical_*` field whose every entry is `UTC` or an IANA zone — as the cohort's DEFAULT per-row zone field (the `0x02` ZONE schema section `import --zone-field` writes): `pulse cohort zone set COHORT FIELD` (or `-i` / `-f`). A schema-only atomic rewrite (records copied verbatim, temp file + fsync + rename), so a refusal or a failure leaves the cohort byte-identical; re-declaring the same default writes nothing. A shard archive is rewritten whole — `_schema.pulse` and every shard, which must agree — with the mandatory `PULSE_SHARD_ZONE_REWRITTEN` warning; an anchored `archive#shard` path is refused. A bad field is `SERVICE_VALIDATION` (`details.option` `zone_field`), a non-zone entry `PULSE_TIMEZONE_UNKNOWN`. The SPSS metadata sidecar is carried; a stale point-lookup index is listed with its rebuild command (`data.invalidated_sidecars`) | `--help` |
-| `pulse cohort zone clear` | Remove the cohort's default per-row zone field: the same rewrite with no default, so set then clear returns the original bytes; a cohort declaring none is left untouched | `--help` |
-| `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
-| `pulse completion bash` | Print the bash completion script on stdout (`source <(pulse completion bash)`) | [completion](completion.md) |
-| `pulse completion fish` | Print the fish completion script on stdout (save it as `~/.config/fish/completions/pulse.fish`) | [completion](completion.md) |
-| `pulse completion zsh` | Print the zsh completion script on stdout (`source <(pulse completion zsh)`) | [completion](completion.md) |
-| `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
-| `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |
-| `pulse dedup` | Deduplicate an existing single-file cohort's repeated parent blocks into parent groups (format `0x02`) — the existing-cohort twin of `pulse import --group`, taking the same `--group`, `--elide-constants`, `--dedup-ratio-floor` and `--strict`. Rewrites in place (destructive, non-interactive, atomic: temp file, fsync, rename, so a refusal or failure leaves the cohort byte-identical) or, with `--out PATH`, writes a new file that must not exist. `--suggest-groups` detects candidates over the cohort's records; alone it writes nothing. An already-grouped cohort is regrouped from scratch. Refuses a shard archive (`SERVICE_VALIDATION`). An in-place rewrite names each invalidated sidecar and its rebuild command (`data.invalidated_sidecars`) and rebuilds nothing | [parent groups](../format/parent-groups.md) |
-| `pulse rake` | Compute survey weights — rim weighting (raking) to inline target margins, or cell weighting when a margin joins several fields — and write them, beside every source column, as a nullable `f64` column of a NEW cohort: `COHORT -o OUT --margins JSON\|FILE [--request JSON\|FILE] [--weight-field W] [--by F] [--base-weight F] [--missing refuse\|base] [--min-weight X] [--max-weight X] [--max-iter N] [--tol T] [--total T] [--overwrite] [--json]`. `--margins` / `--request` take a JSON literal or a file; flags override the request's keys. Atomic; every refusal (`PULSE_RAKE_*`, `SERVICE_VALIDATION`) keeps its own code and writes nothing; not converging still writes, with `PULSE_RAKE_NOT_CONVERGED` | [Rake](../library/rake.md) |
-| `pulse recommend` | Turn a question kind into ranked draft requests: `--intent ID` (required; an intent-taxonomy ID, `pulse skills show intents`), `--cohort PATH` to bind the drafts to the cohort's fields and predict-validate each one (omit for `<placeholder>` skeletons), `--field F` (repeatable, cohort only) to pin a field to the first role it fits, `--level basic\|intermediate\|advanced` to rank that level first, `--top N` (default 10; the request's `limit`). Reads the cohort's header, schema and sidecar only. Refusals keep their own code: `PULSE_RECOMMEND_INTENT_UNKNOWN`, `SERVICE_VALIDATION` (bad hint, level or limit), `DATA_FILE` | `--help`; skill `tool-recommend` |
-| `pulse explain` | Say in plain words what a request will do, what a result found, or how an operator is validated. `pulse explain OPERATOR` (a positional operator name, alone) returns its validation evidence: the external references its figures are pinned to, with tolerance and test files, any stated gap, a pinned weight refusal and the NIST certified digits; beside `--request` / `--response` or with a second name it is `CLI_INPUT`, and an operator the build does not offer is `SERVICE_VALIDATION`. `--request FILE` alone describes the request before it runs (never run; predict-checked over its cohort — header, schema and sidecar only — when it names one). `--response FILE` reads a result into findings (closed verdicts at the result's own alpha, strength bands with their convention, caveats); a `--json` envelope is unwrapped to its `data`, and a `null` figure stays undefined. `--request` beside `--response` is the request that produced it (without it an aggregation is described by count only). `--root request\|composed\|chain\|facet\|sample` (default `request`) names which root the files hold; `sample` has no response. `--detail terse\|full` (full adds narrative sentences, glossary refs, follow-ups and assumptions). Refusals keep their own code: `CLI_INPUT` (no file, bad `--root`, unreadable JSON), `SERVICE_VALIDATION` (bad `--detail`), `DATA_FILE` | `--help`; skill `tool-explain` |
-| `pulse docs export` | Write the analysis reference — question guides, operator catalog, "Reading your results" pages, glossary, skills and an mdBook `SUMMARY.md` fragment — as deterministic Markdown under `--out DIR` (required). Needs no data directory; `--feature-profile PATH` (host OS path; `PULSE_FEATURE_PROFILE` is not read) scopes it to a feature profile, `--no-skills` leaves the skill pages out. An unmarked non-empty `--out` is refused with `PULSE_DOCS_EXPORT_DIR_NOT_EMPTY` | [guided analysis](../library/guided-analysis.md#exporting-the-reference) |
-| `pulse errors list` | List error codes by domain and/or substring | `--help` |
-| `pulse errors lookup` | Message + fixups for one error code | `--help` |
-| `pulse examples search` | Search the embedded (built-in) request-example library — embedder examples are served per instance by `pulse_examples_*` and the facade, not by this leaf: `[--query Q \| WORDS...]` (plain words, as the flag or as arguments, not both — `CLI_INPUT`), `--intent ID` (examples must declare the intent-taxonomy ID; unknown or hidden is `PULSE_RECOMMEND_INTENT_UNKNOWN`, exit 1), `--tag T` (repeatable, ANDed), `--category C` (exact directory). Matching runs in tiers, the first with a hit answering: literal words, then operator aliases and intent phrasings, then near-miss spellings (a word of 4–7 letters within one edit, 8+ within two; 3 letters or fewer never) — `pulse examples search --intent compare_groups regon` finds the region examples | skill `tool-examples-search` |
-| `pulse examples show` | Print a named built-in example's runnable request JSON (embedder examples: `pulse_examples_get` / `p.ExampleGet`) | `--help` |
-| `pulse export arrow` | Export `.pulse` to Arrow IPC | `--help` |
-| `pulse export csv` | Export `.pulse` to CSV | `--help` |
-| `pulse export excel` | Export `.pulse` to Excel | `--help` |
-| `pulse export jsonarray` | Export `.pulse` to a JSON array | `--help` |
-| `pulse export ndjson` | Export `.pulse` to NDJSON | `--help` |
-| `pulse export parquet` | Export `.pulse` to Parquet | `--help` |
-| `pulse export predict` | Validate an export without writing output | [export spss](export-spss.md) |
-| `pulse export spss` | Export `.pulse` to SPSS `.sav` | [export spss](export-spss.md) |
-| `pulse export transfer` | Compress a cohort or shard archive (any format version) into a zstd transfer artifact, `<input>.zst` by default; `--level` 1..22 (default 3). Transport only — the artifact is never opened as a cohort | [transfer compression](../format/transfer.md) |
-| `pulse export tsv` | Export `.pulse` to TSV | `--help` |
-| `pulse features check` | Validate a feature profile file (host OS path) against this build exactly as `pulse.New` would; offline, so an unregistered extension-like name is a `PULSE_FEATURE_PROFILE_UNKNOWN` warning (`unverified_extension`), and any failure exits non-zero | [feature profiles](../library/feature-profiles.md) |
-| `pulse features diff` | List the features this build offers that a feature profile does not list (flagged new past its `written_with`) and the names it does not resolve | [feature profiles](../library/feature-profiles.md) |
-| `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
-| `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
-| `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, `--zone-field` (the cohort default zone), and deliberately not `--spss-missing` | [import spss](import-spss.md) |
-| `pulse import csv` | Import CSV into `.pulse` | `--help` |
-| `pulse import drop` | Remove a managed-import handle | `--help` |
-| `pulse import excel` | Import Excel into `.pulse` | `--help` |
-| `pulse import jsonarray` | Import a JSON array into `.pulse` | `--help` |
-| `pulse import list` | List managed-import handles and TTL status | `--help` |
-| `pulse import ndjson` | Import NDJSON into `.pulse` | `--help` |
-| `pulse import parquet` | Import Parquet into `.pulse` | `--help` |
-| `pulse import predict` | Validate an import without writing output | [import spss](import-spss.md) |
-| `pulse import schema-template` | Emit an editable schema template from input data | [import spss](import-spss.md) |
-| `pulse import spss` | Import SPSS `.sav` / `.zsav` into `.pulse` | [import spss](import-spss.md) |
-| `pulse import transfer` | Decompress a `pulse export transfer` artifact into a byte-identical `.pulse` at rest (temp file, fsync, rename); refuses an existing `--output` without `--overwrite` | [transfer compression](../format/transfer.md) |
-| `pulse import tsv` | Import TSV into `.pulse` | `--help` |
-| `pulse index build` | Build a point-lookup sidecar index | [index](index.md) |
-| `pulse index drop` | Remove a cohort's sidecar index (destructive, no prompt) | [index](index.md) |
-| `pulse index list` | List every sidecar index built for a cohort | [index](index.md) |
-| `pulse index verify` | Report whether a cohort's sidecar index is fresh | [index](index.md) |
-| `pulse mcp` | Run the MCP server over stdio; `--metrics-addr HOST:PORT` serves Prometheus metrics on `GET /metrics` (unset opens no port); `--return PRESET` sets the response preset for a tool request without its own `return` (default `standard`); the global `--limit NAME=VALUE` sets an instance resource limit over the feature profile's `limits` (`unlimited` / Go duration for `request_timeout`; a bad key or value is a `CLI_INPUT` usage error) | [mcp](mcp.md) |
-| `pulse profile create` | Create a profile JSON for an existing cohort; carries the capture flags `--include-correlations`, `--conditional`, `--fit-shape`, `--fit-models` (one linear model per numeric field, so several categoricals, set options and earlier-declared numerics can condition the same field) and `--residual-correlations` (the correlation submatrix among those models' residuals; requires `--fit-models`), plus `--suggest-rules <path>`, which detects structural gating relationships, co-missing question blocks and exact single-source dependencies on the same scan and writes them as a standalone rules file for review, and `--run-continuation`, which measures per-field run-continuation (the run-skip decode's hit rate) to show whether the cohort still has the sort order that makes scans fast, and `--time-zone` / `--time-zone-field`, which capture `datetime` fields on a local clock (default: the cohort's declared zone field, else UTC). Profiles a single-file cohort or a whole shard archive | [profile create](profile-create.md) |
-| `pulse schema` | Print the payload JSON Schema (raw, not envelope-wrapped) | [schema](schema.md) |
-| `pulse shard add` | Append a shard to an existing archive — in place at the archive's tail; an add whose append would leave more than half the file dead bytes (superseded `_schema.pulse` copies and old directories) rewrites the whole archive instead with a `PULSE_SHARD_DEAD_BYTES_RECLAIMED` warning. `--rewrite` forces that staged rewrite + rename (never opens the archive for writing: the `PULSE_SHARD_APPEND_REFUSED` fixup) | `--help` |
-| `pulse shard compact` | Rewrite an archive to reclaim the dead bytes in-place adds leave | `--help` |
-| `pulse shard create` | Create a shard archive from single-file shards | `--help` |
-| `pulse shard extract` | Write a shard's standalone `.pulse` bytes to stdout | `--help` |
-| `pulse shard list` | List shards inside an archive | `--help` |
-| `pulse shard remove` | Remove a shard from an archive by basename | `--help` |
-| `pulse shard verify` | Re-validate every shard against the canonical schema; `--repair` first rolls back an interrupted in-place `shard add` (the `<archive>.append` journal an open refuses with `PULSE_SHARD_APPEND_INCOMPLETE`), refusing with `PULSE_SHARD_REPAIR_REFUSED` when the journal does not match the archive; a repair that truncates warns `PULSE_SHARD_APPEND_ROLLED_BACK`; `--json` adds `data.repair`. `--json` `data.dead_schema_copies` / `data.dead_bytes` report the superseded `_schema.pulse` copies and the bytes no live directory record references (`compact` reclaims them) | `--help` |
-| `pulse skills list` | List every built-in embedded skill (embedder skills are served per instance by `pulse_skills_*` and `p.Skills()`) | `--help` |
-| `pulse skills show` | Print one built-in skill's markdown (not profile-scoped, no embedder content) | `--help` |
-| `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it and `--constraints` a row-constraints file; `--synthetic-only` writes the generated rows alone; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns, effect sizes beside the marginal p-values and a `utility` section against the source rows; `--fidelity-model` refits a supplied request's regressions on both; the report's `disclosure` section (`--disclosure-sample`, `--no-disclosure`) measures how close the twin sits to real records | [synth from-profile](synth-from-profile.md) |
-| `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
-| `pulse version` | Print the build version as `pulse <version>`; `--json` emits the standard envelope whose `data` carries the build version, Go version, VCS commit and commit time (both omitted when the binary carries no VCS metadata) and the envelope `format_version`. Same build version as `pulse --version` and the root manifest | `--help` |
-| `pulse widen` | Widen a set column of a single-file cohort to a wider set rung (`--field`, `--to`), rewriting the cohort in place. Destructive and non-interactive, but atomic — temp file, fsync, rename — so a refusal or a failure leaves the cohort byte-identical. Refuses a narrower or equal target, a non-set column, a column already at `set_u256`, and a shard archive (whose widen spans the canonical schema plus every shard payload, so it is not this leaf's operation); each refusal carries its own error code, usable with `pulse errors lookup`. On success it names any sidecar the rewrite invalidated — the point-lookup index, the SPSS metadata sidecar — and the exact command that rebuilds it (`data.invalidated_sidecars` under `--json`); it rebuilds nothing, and prints nothing when there are none | `--help` |
-
 ## Help
 
 Every command supports `--help`:
@@ -1035,6 +698,7 @@ description, flag list, and an examples block where applicable.
 
 | If you need… | Go to |
 |---|---|
+| Every command's flags, types and defaults | [Command and flag reference](reference.md) |
 | Per-command synopsis & examples | [CLI Tour](../getting-started/cli-tour.md) and each `cli/` page |
 | Library-side equivalents | [Library Embedding](../library/overview.md) |
 | MCP-side equivalents | [How LLMs Use Pulse](../mcp/index.md) |

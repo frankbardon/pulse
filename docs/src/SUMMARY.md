@@ -476,7 +476,8 @@
 - [Synth calibration & rationale](cli/synth-calibration.md)
 - [mcp](cli/mcp.md)
 - [completion](cli/completion.md)
-- [Flag Reference](cli/flags.md)
+- [CLI concepts & shared flags](cli/flags.md)
+- [Command & flag reference](cli/reference.md)
 
 # Library Embedding
 

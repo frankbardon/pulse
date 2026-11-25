@@ -43,7 +43,7 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
 - [x] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
 - [ ] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
-- [ ] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
+- [x] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
 - [ ] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
 - [x] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling
 - [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)

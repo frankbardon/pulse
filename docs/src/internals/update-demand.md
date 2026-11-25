@@ -31,7 +31,7 @@ are regenerated with `make docs` or `-update`, never hand-edited.
   `internal/examples/`, and `make docs`.
 - **An error code:** a `codeMetadata` entry in `errors/fixup_metadata.go` and an
   owner in `internal/descriptor/error_owners.go`.
-- **A CLI leaf:** a row in the command index in `docs/src/cli/flags.md`.
+- **A CLI leaf:** `make docs`, which regenerates its section in `docs/src/cli/reference.md`.
 - **An MCP tool:** `skills/tool-<kebab>.md` and `internal/mcp/toolmeta/meta.go`.
 - **An environment variable:** the table in
   [Options → Environment variables](../library/options.md#environment-variables).

@@ -18,7 +18,7 @@ Enforced by their own packages and binding on every PR.
 
 Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-arch.md` (Cross-arch determinism gates).
 
-**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `internal/cli.App()` tree is named under `skills/` or `docs/src/` and has a row in the `docs/src/cli/flags.md` command index, and every index row is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
+**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `internal/cli.App()` tree is named under `skills/` or `docs/src/` and has a section on the generated `docs/src/cli/reference.md`, and every section is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
 
 **`TestFieldTypeAcceptance_PredictMatchesRuntime`**: every registered operator × every field type is accepted by predict exactly when `Process` accepts it, and every refusal carries one identical code from both sides (the `internal/fieldaccept` table's code wherever the slot is tabled). Siblings: `TestFieldTypeSlots_PredictMatchesRuntime`, `TestDecimalAggregation_PredictMatchesRuntime`, `TestUnregisteredOperator_PredictMatchesRuntime`. A new operator needs an `acceptanceTemplates` row when it is registered; a new field type is picked up automatically. Detail: `predict-inspect.md`.
 
@@ -61,7 +61,7 @@ What each structural gate checks.
 
 - `TestSkillsCoverAllPurposes` — built-in Purposes valid; a missing one fails unless exempted (`guided-analysis.md`).
 - `TestSkillsCoverShardingTopics` — `skills/cohort-schema-design.md` carries a `Sharded` section.
-- `TestSkillsCoverAllCliLeaves` — two-way CLI leaf ↔ `docs/src/cli/flags.md` index (above).
+- `TestSkillsCoverAllCliLeaves` — two-way CLI leaf ↔ `docs/src/cli/reference.md` sections (above). `TestCLIReferenceCurrent` holds that generated page byte for byte (`make docs`); `TestCliHelpMatchesFlagsDoc` holds it to the tree per leaf, flag names both ways.
 - `TestSkillsCoverAllOperatorComponents` — each operator's `ComponentSchema` keys appear in its rendered atomic skill (the generated `## Contract` names every key, so the skill carries `<!-- generated: contract -->`).
 - `TestSkillsCoverProfileGet` — per shipped feature profile, a pruned skill or example lists, searches and reads exactly like a never-existing name.
 - `TestSkillsCoverFeatureFences` — an operator, feature-owned tool or `<kind>:<name>` mention in a skill body sits in a fence naming it, never in a `description` (`skill-pack.md`).

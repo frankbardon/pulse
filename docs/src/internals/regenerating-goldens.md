@@ -100,6 +100,9 @@ make docs
 output), then `go run ./internal/tools/docsummary`, which splices the
 export's `SUMMARY.md` into the book's (title line dropped, paths
 prefixed `guide/`), then `go test ./internal/cli -run
+TestCLIReferenceCurrent -args -update-cli-reference`, which rewrites the
+[command and flag reference](../cli/reference.md) from the command tree,
+then `go test ./internal/cli -run
 TestDocsCoverageCurrent -args -update-coverage`, which rewrites the
 [documentation coverage matrix](../contract/coverage.md)
 (`docs/src/contract/coverage.md`; the same test holds it current) — and then `mdbook build docs`. On a current tree it

@@ -374,7 +374,10 @@ reference-mcmc:
 # docgen:summary lines, then builds the book. The export runs with the
 # table/template directory env vars cleared so a developer's .env cannot
 # perturb the committed tree; TestDocsGeneratedCurrent fails CI when the
-# tree is stale. It then regenerates the documentation coverage matrix
+# tree is stale. It then regenerates the CLI command and flag reference
+# (docs/src/cli/reference.md, rendered from the command tree; internal/cli's
+# TestCLIReferenceCurrent with -update-cli-reference) and the documentation
+# coverage matrix
 # (docs/src/contract/coverage.md, internal/doccoverage; internal/cli's
 # TestDocsCoverageCurrent with -update-coverage, since only internal/cli may
 # walk the CLI tree) after the guide, so
@@ -388,6 +391,7 @@ docs: docs-generate
 docs-generate:
 	$(DOCS_GUIDE_ENV) $(GO) run ./cmd/pulse docs export --out docs/src/guide
 	$(GO) run ./internal/tools/docsummary -book docs/src/SUMMARY.md -fragment docs/src/guide/SUMMARY.md -prefix guide/
+	$(DOCS_GUIDE_ENV) $(GO) test ./internal/cli -run '^TestCLIReferenceCurrent$$' -count=1 -args -update-cli-reference
 	$(DOCS_GUIDE_ENV) $(GO) test ./internal/cli -run '^TestDocsCoverageCurrent$$' -count=1 -args -update-coverage
 
 docs-serve:
@@ -404,7 +408,7 @@ docs-clean:
 # running, `go test -list` must find every DOC_CHECKS name in
 # DOC_CHECK_PKGS, so a renamed or moved check fails here instead of
 # silently matching nothing.
-DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
+DOC_CHECKS=TestDocsGeneratedCurrent|TestDocsLinksResolve|TestDocsSnippetsRun|TestCliHelpMatchesFlagsDoc|TestCLIReferenceCurrent|TestNoRemovedNamesInDocs|TestDocsCoverageCurrent|TestDocsCoverageNoGaps|TestFacadeExamplesPresent|TestSkillExampleTagPointersResolve
 DOC_CHECK_PKGS=. ./cmd/pulse ./internal/integration ./internal/cli ./internal/descriptor
 
 doc-checks:

@@ -33,7 +33,7 @@ the cliff-notes are:
 | Registered aggregator / attribute / filterer / grouper | The matching skill file + the operator capability table |
 | Registered window / feature / synth distribution / statistical test | Same — skill + capability file |
 | Error code (added / removed / renamed) | `errors/codes.go`, `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups), `internal/descriptor/capabilities_errors.go` |
-| CLI leaf (added or flag added) | The command index in `docs/src/cli/flags.md` + `skills/session-bootstrap.md` if user-facing |
+| CLI leaf (added or flag added) | `make docs` (regenerates `docs/src/cli/reference.md`) + `skills/session-bootstrap.md` if user-facing |
 | `--json` envelope change | `CLAUDE.md` "Output Format Contract" |
 | `.pulse` file format change | `CLAUDE.md` "Byte-layout invariants" + `.claude/reference/byte-layout.md` + `skills/cohort-schema-design.md` |
 | New environment variable | `CLAUDE.md` "Build / Env" + `skills/session-bootstrap.md` |

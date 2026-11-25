@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	cli "github.com/urfave/cli/v3"
+
+	"github.com/frankbardon/pulse/internal/docgen"
 )
 
 // The command tree as data. Documentation tooling (the generated per-leaf
@@ -49,35 +51,13 @@ func WalkCommands(root *cli.Command, fn func(path []string, parent, c *cli.Comma
 	walk([]string{root.Name}, root)
 }
 
-// FlagDoc is one flag mount as documentation sees it.
-type FlagDoc struct {
-	// Names are the spellings a user can type, primary name first, then
-	// its aliases, without dashes.
-	Names []string
-	// Usage is the flag's help text.
-	Usage string
-	// Default is the flag's default value as help would show it; empty
-	// when the flag has no meaningful default (a zero value, false, an
-	// empty list).
-	Default string
-	// Env names the environment variables the flag reads, in order.
-	Env []string
-	// Required marks a flag the command refuses to run without.
-	Required bool
-	// TakesValue is false for a boolean switch.
-	TakesValue bool
-}
+// FlagDoc is one flag mount as documentation sees it (the generated flags
+// reference renders it; docgen owns the type so it never imports the CLI).
+type FlagDoc = docgen.CLIFlag
 
-// LeafDoc is one runnable command (a non-nil Action) with its own flags.
-type LeafDoc struct {
-	// Path is the full invocation path ("pulse cohort info").
-	Path string
-	// Usage is the command's one-line usage text.
-	Usage string
-	// Flags are the command's own flags in mount order (the root's
-	// persistent global flags are reported once, by GlobalFlags).
-	Flags []FlagDoc
-}
+// LeafDoc is one runnable command (a non-nil Action) with its own flags;
+// the root's persistent global flags are reported once, by GlobalFlags.
+type LeafDoc = docgen.CLILeaf
 
 // DescribeFlag reads f through urfave/cli's optional flag interfaces.
 func DescribeFlag(f cli.Flag) FlagDoc {
@@ -90,6 +70,14 @@ func DescribeFlag(f cli.Flag) FlagDoc {
 		if d.Default == "" && d.TakesValue {
 			d.Default = g.GetValue()
 		}
+	}
+	if d.TakesValue {
+		if tn, ok := f.(interface{ TypeName() string }); ok {
+			d.Type = tn.TypeName()
+		}
+	}
+	if m, ok := f.(cli.DocGenerationMultiValueFlag); ok {
+		d.Repeatable = m.IsMultiValueFlag()
 	}
 	if isZeroDefault(d.Default) {
 		d.Default = ""
@@ -133,7 +121,7 @@ func Leaves(root *cli.Command) []LeafDoc {
 		if c.Action == nil {
 			return
 		}
-		out = append(out, LeafDoc{Path: strings.Join(path, " "), Usage: c.Usage, Flags: describeFlags(c.Flags)})
+		out = append(out, LeafDoc{Path: strings.Join(path, " "), Usage: c.Usage, Args: c.ArgsUsage, Flags: describeFlags(c.Flags)})
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
