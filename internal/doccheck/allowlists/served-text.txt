@@ -1,0 +1,3 @@
+# TestProfileServedTextNoHiddenFeature baseline: served text naming a feature a single-feature-hidden profile hides.
+# Format: path<TAB>entry<TAB>reason (path = the profile, entry = "<surface> | <token> | <text>"). Shrink-only:
+# code-owned hits are fixed, never listed; only a prose-only hit U32b rewrites may be listed, with its reason.
