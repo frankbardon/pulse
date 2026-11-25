@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: []
 blocks: [U32c, U33]
-todo_items: [162, 163, 164, 371, 504, 505, 557, 666, 667]
+todo_items: [162, 163, 164, 165, 371, 504, 505, 557, 666, 667, 757, 758, 759, 760, 761, 762, 763, 764]
 branch: docs-content
 ---
 
@@ -40,12 +40,37 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [ ] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill
 - [ ] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM
 - [ ] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy; mirrored as a `STABILITY.md` MCP row
-- [ ] **#165** (content half; the item is listed under [U32](U32-docs-audit.md)) terminology and removed-name purge
+- [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
+- [ ] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
+- [ ] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
+- [ ] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
+- [ ] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
+- [ ] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling
+- [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
+- [ ] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
+- [ ] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
+
+## Baseline burn-down
+
+The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U32's close (entries, header lines excluded). E1 takes each to zero:
+
+| Check | Allowlist | Entries |
+|---|---|---|
+| `TestDocsLinksResolve` | `links.txt` | 6 |
+| `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 |
+| `TestDocsSnippetsRun` | `snippets.txt` | 30 (12 on generated skill pages, #763) |
+| `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 |
+| `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) |
+| `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 |
+| `TestNoRemovedNamesInDocs` | `removed-names.txt` | 1 (#762) |
+
+How the lists work: `docs/src/contributing/doc-checks.md`.
 
 ## Scope
 
 **In scope**
 - Burn every U32 baseline allowlist down to empty; add `TestDocsBaselinesEmpty` so none can return
+- The U32 hand-offs #757–#764 (checks to widen, examples and skills to fix, a superseded gate to retire)
 - Accuracy and currency passes over the mdBook, repo docs, skills, examples, MCP text, error fixups, manifest, `Purpose` / `Interpretation` / glossary
 - Getting Started for v1 and the single embedder guide
 - Library pages for the embedder surfaces that have none, including the three `PULSE_*_TABLES_DIR` variables (#666)

@@ -4,11 +4,11 @@ slug: docs-audit
 title: "Pulse goes live with the most helpful, current and comprehensive documentation we can produce"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56, U54, U57, U58, U59, U60, U61, U62, U63, U64, U65, U66, U67, U68, U69, U70, U71, U72, U73, U74, U75, U76, U77, U78, U79]
 soft_depends_on: [all feature units]
 blocks: [U32b, U32c, U33]
-todo_items: [159, 160, 161, 165, 238, 239, 257, 268, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 527, 556, 558, 560, 706, 715, 737]
+todo_items: [159, 160, 161, 238, 239, 257, 268, 412, 413, 435, 453, 463, 465, 472, 473, 474, 478, 527, 556, 558, 560, 706, 715, 737]
 branch: docs-audit
 ---
 
@@ -33,22 +33,21 @@ The pass runs in three units. **U32 (this unit, U32a)** builds the checks and fi
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR). #162–#164, #166, #167, #371, #504, #505, #557, #666 and #667 moved to [U32b](U32b-docs-content.md) and [U32c](U32c-docs-validation.md). #161, #268, #412, #413, #435, #463, #465, #472, #473, #527 and #737 were found delivered by later units and are ticked (evidence: the U32 reconcile, 2026-11-24):
 
-- [ ] **#159** (11. Documentation audit) Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented
-- [ ] **#160** (11. Documentation audit) Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan
+- [x] **#159** (11. Documentation audit) Documentation inventory and coverage matrix: every public API symbol, CLI leaf and flag, MCP tool / prompt / resource, operator, field type, error code, env var, `Options` field and request/response slot, mapped to where it is documented
+- [x] **#160** (11. Documentation audit) Automated checks in CI: link checker, runnable-snippet test, CLI help ↔ `flags.md` parity, GoDoc `Example*` functions for the public facade, removed-name scan
 - [x] **#161** (11. Documentation audit) `TestSkillTokenBudget` flipped from soft to hard-failing, with every skill within budget
-- [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. Split: this unit lands the removed-name scan (test half); [U32b](U32b-docs-content.md) does the content purge and ticks the item
-- [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged
+- **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. Split: this unit landed the removed-name scan (test half, `TestNoRemovedNamesInDocs`); the item moved to [U32b](U32b-docs-content.md), which does the content purge and ticks it
 - [x] **#465** (Inherited) Skill bodies within about 500 bytes of the topical hard budget; trim before the budget flips to hard-failing. Delivered; the hard budget gate passes
 - [x] **#527** (Inherited) The mdBook "unclosed HTML tag" warning on the Analysis Guide. Delivered by the generator escape (`internal/docgen/escape.go`)
-- [ ] **#238** (7. Guided analysis › Follow-ups from U21) Hidden-capability prose residue the slot-token filter does not reach (matrices-hidden `pulse_examples_search` / `pulse_manifest` sentences, unscrubbed topical and tool skill bodies, weighted aggregator keys on the Components page of a weighting-hidden instance)
-- [ ] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
-- [ ] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
+- [x] **#238** (7. Guided analysis › Follow-ups from U21) Hidden-capability prose residue the slot-token filter does not reach (matrices-hidden `pulse_examples_search` / `pulse_manifest` sentences, unscrubbed topical and tool skill bodies, weighted aggregator keys on the Components page of a weighting-hidden instance)
+- [x] **#239** (7. Guided analysis › Follow-ups from U21) The Analysis Guide's search-index size (about 12 MB warning) and whether the PR-time `docs` job becomes a required check
+- [x] **#257** (7. Guided analysis › Follow-ups from U23) `pulse_predict` description keeps the generic "send exactly one alternative root alone" sentence on profiles hiding compose, facet and process_chain (the per-root sentences are scrubbed)
 - [x] **#268** (10. Vector & matrix — operators › Follow-ups from U24) Trim the soft-budget overruns in the `op-mat-*` atomic skills (`op-mat-correlation` body 1970 B against 1200) with the other over-budget atomic bodies
 - [x] **#412** (10. Vector & matrix — operators › Follow-ups from U25) `skills/statistical-testing.md` sits within 15 B of its 6000 B hard budget, so no multivariate or other test can add a line; split the multivariate tests into their own topical skill or compress it
 - [x] **#413** (10. Vector & matrix — operators › Follow-ups from U25) Trim the soft-budget overruns in the `op-test-*` multivariate atomic skills (`op-test-hotelling-t2` 1633 B, `op-test-manova` 1435 B against 1200) with the other over-budget atomic bodies
-- [ ] **#556** Glossary terms for shadow price and marginal return, which `compose-optimize` and the `optimizations` result use; they need orphan-report exemptions. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
-- [ ] **#558** No canonical `optimize` tag in `internal/examples/library.go` `CanonicalTags`; the U60 optimize examples carry the `capability:compose_optimize` tag and the `drivers` intent only, so a search for "optimize" finds them only through the skill. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
-- [ ] **#560** `make sites` does not cover `ComposedRequest` sub-fields (`sweep`, `optimize`), so a change there lists no skill / example sites. Found in U60 (E2-S1) · [U32](U32-docs-audit.md)
+- [x] **#556** Glossary terms for shadow price and marginal return, which `compose-optimize` and the `optimizations` result use; they need orphan-report exemptions. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
+- [x] **#558** No canonical `optimize` tag in `internal/examples/library.go` `CanonicalTags`; the U60 optimize examples carry the `capability:compose_optimize` tag and the `drivers` intent only, so a search for "optimize" finds them only through the skill. Found in U60 (E3-S3) · [U32](U32-docs-audit.md)
+- [x] **#560** `make sites` does not cover `ComposedRequest` sub-fields (`sweep`, `optimize`), so a change there lists no skill / example sites. Found in U60 (E2-S1) · [U32](U32-docs-audit.md)
 
 ## Scope
 
@@ -85,16 +84,16 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(docs-audit/E
 
 ## Acceptance criteria
 
-- [ ] The coverage matrix has no blank cell for any public thing, or each blank is a baseline entry with a reason
-- [ ] Link checker, runnable-snippet, help-parity, GoDoc-example and removed-name checks are green in CI and remain there; each allowlist fails on a new violation and on a stale entry
-- [ ] Every skill is within budget with `TestSkillTokenBudget` hard-failing (delivered; verified 2026-11-24)
-- [ ] The roadmap lists U32b and U32c with their TODO items, and every item delivered by a later unit is ticked
-- [ ] Every open item above is delivered or re-filed under an owner unit with a reason
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] The coverage matrix has no blank cell for any public thing, or each blank is a baseline entry with a reason
+- [x] Link checker, runnable-snippet, help-parity, GoDoc-example and removed-name checks are green in CI and remain there; each allowlist fails on a new violation and on a stale entry
+- [x] Every skill is within budget with `TestSkillTokenBudget` hard-failing (delivered; verified 2026-11-24)
+- [x] The roadmap lists U32b and U32c with their TODO items, and every item delivered by a later unit is ticked
+- [x] Every open item above is delivered or re-filed under an owner unit with a reason
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
-- New: link check, `TestDocsSnippetsRun`, `TestCliHelpMatchesFlagsDoc`, `TestNoRemovedNamesInDocs`, GoDoc `Example*` tests, each with a committed baseline allowlist
+- New: `TestDocsLinksResolve`, `TestDocsSnippetsRun` (heavy `TestDocsSnippetsCompile`), `TestCliHelpMatchesFlagsDoc`, `TestNoRemovedNamesInDocs`, `TestDocsCoverageCurrent` / `TestDocsCoverageNoGaps`, `TestFacadeExamplesPresent`, `TestSkillExampleTagPointersResolve`, heavy `TestProfileServedTextNoHiddenFeature`, each with a committed shrink-only allowlist where it has baseline violations; the `docs` CI job fails on any mdBook warning and runs `make doc-checks`. How to run them: `docs/src/contributing/doc-checks.md`
 - `TestSkillTokenBudget` (hard, delivered)
 - The agent task evaluation moved to [U32c](U32c-docs-validation.md)
 
@@ -147,7 +146,7 @@ Filed from [U46](U46-grouped-analysis.md); tick in [`TODO.md`](../TODO.md) when 
 
 Filed from [U30](U30-matrix-extensions-hardening.md); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#453** (11. Documentation audit) `sites` change-site tool gaps found by the U30 story agents: no operator-param index beyond enums (`params.reference` forms), metric-registry consumers listed only in part, false `category-norm site missing` warnings, `new-op` missing hand lists that name an operator subset (`vectors.VectorAggregationTypes`), imprecise attribution of shared oracle fixtures and generators. Recipe: `docs/src/internals/finding-change-sites.md`. Found in U30 (E9-S4 annotation, E3–E7 hand-backs).
+- [x] **#453** (11. Documentation audit) `sites` change-site tool gaps found by the U30 story agents: no operator-param index beyond enums (`params.reference` forms), metric-registry consumers listed only in part, false `category-norm site missing` warnings, `new-op` missing hand lists that name an operator subset (`vectors.VectorAggregationTypes`), imprecise attribution of shared oracle fixtures and generators. Recipe: `docs/src/internals/finding-change-sites.md`. Found in U30 (E9-S4 annotation, E3–E7 hand-backs). *(1)–(5) delivered (E5-S2, E5-S3); the whole-repo runners and floors and the per-case-table attribution inside a shared generator are re-filed as #757 under [U32b](U32b-docs-content.md).*
 
 ## Human inputs & decisions
 
@@ -171,13 +170,13 @@ Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md
 
 - [x] **#472** Skill budgets after U47: `op-group-set-per-element` body 1,366 B over its 1,200 B soft atomic budget (pre-existing 1,306 B) and `crosstab-guide.md` at 5,999 / 6,000 B; trim in the docs audit. Found in U47 (E4-S5)
 - [x] **#473** Split `.claude/reference/weighting/inference-multivariate-and-overlays.md` (32,699 / 32,768 B, at its byte ceiling) into two slices, naming both in the `weighting.md` index, before the next edit that grows it. Found in U47 (E4-S5). Delivered by U59 (E3-S4): `weighting/inference-multivariate.md` + `weighting/overlays.md`
-- [ ] **#474** The ontology example detector has no `cells` entry (crosstab `cells` / `capability:crosstab_cells`), so example 19 declares `_meta.capabilities` by hand; add the detector entry. Found in U47 (E4-S5)
+- [x] **#474** The ontology example detector has no `cells` entry (crosstab `cells` / `capability:crosstab_cells`), so example 19 declares `_meta.capabilities` by hand; add the detector entry. Found in U47 (E4-S5)
 
 ## Handed on from U48
 
 Filed from [U48](U48-experiment-readout.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#478** Skill `pulse_examples_search tags=[…]` pointers that no example carries (`synth` in the 14 `op-synth-*` skills, `target-encoding` / `polynomial-regression` / `train-test-split`, `survey`, `ranking` / `moving-average` / `lag-lead`); repoint them at canonical tags an example carries and gate it. Found in U48 (E3-S3)
+- [x] **#478** Skill `pulse_examples_search tags=[…]` pointers that no example carries (`synth` in the 14 `op-synth-*` skills, `target-encoding` / `polynomial-regression` / `train-test-split`, `survey`, `ranking` / `moving-average` / `lag-lead`); repoint them at canonical tags an example carries and gate it. Found in U48 (E3-S3)
 
 ## Handed on from U31
 
@@ -187,8 +186,8 @@ Filed from [U48](U48-experiment-readout.md#handed-on); tick in [`TODO.md`](../TO
 
 Filed from [U79](U79-library-gaps.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#706** `make sites` covers `types.Request` only, not `ComposedRequest`: a change to a Compose-level slot lists none of `setSlots`, the request-reads walker, Explain, MCP bind / `return_default`, the strict-acceptance families, the example profiles, the limits-parity site lists or `ResultCatalog` (extends #560, which names `sweep` / `optimize`). Found in library-gaps E1-S1 and E6-S1 · [U32](units/U32-docs-audit.md)
-- [ ] **#715** `make sites ARGS="op OVERLAY_FORMULA"` does not list `internal/seriesfield` / `internal/seriespartition` (the shared `params.field` / `partition_by` engines) as sites. Found in U66 (E1-S1) · [U32](units/U32-docs-audit.md)
+- [x] **#706** `make sites` covers `types.Request` only, not `ComposedRequest`: a change to a Compose-level slot lists none of `setSlots`, the request-reads walker, Explain, MCP bind / `return_default`, the strict-acceptance families, the example profiles, the limits-parity site lists or `ResultCatalog` (extends #560, which names `sweep` / `optimize`). Found in library-gaps E1-S1 and E6-S1 · [U32](U32-docs-audit.md)
+- [x] **#715** `make sites ARGS="op OVERLAY_FORMULA"` does not list `internal/seriesfield` / `internal/seriespartition` (the shared `params.field` / `partition_by` engines) as sites. Found in U66 (E1-S1) · [U32](U32-docs-audit.md)
 
 ## Handed on from U76
 

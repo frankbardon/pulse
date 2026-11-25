@@ -230,7 +230,7 @@ the sum:
 | `fmt-vet` | `make fmt-check vet`: gofmt check and `go vet` over both tiers |
 | `staticcheck (fast)`, `staticcheck (heavy)` | `make staticcheck-fast` / `staticcheck-heavy`: one tier each, results uploaded as an artifact |
 | `lint` | needs the three above (fails, never skips, if one failed), then `make staticcheck-merge`; together the four jobs run exactly `make lint` |
-| `docs` | `mdbook build docs`, failing on any mdBook warning, then `make doc-checks` (the fast documentation checks) |
+| `docs` | `mdbook build docs`, failing on any mdBook warning, then `make doc-checks` (the fast documentation checks, [Documentation Checks](doc-checks.md)) |
 | `build` | `make build`, `make smoke` |
 | `test (1.26)` | the fast tier: `go test -count=1 -json ./...` (no coverage), plus `citest heavy-check` |
 | `coverage-fast (1)`, `coverage-fast (2)` | the fast tier again with `-coverpkg="$(citest cover-pkgs)" -coverprofile`, split in two by `citest cover-shard` |
