@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -121,6 +122,9 @@ func removedNameSources(t *testing.T, osFS afero.Fs) map[string]string {
 		if err != nil {
 			return err
 		}
+		// Slash form for the skip lookup and the allowlist key, as on
+		// every other doc walk: on Windows the walk yields backslashes.
+		p = filepath.ToSlash(p)
 		if info.IsDir() || path.Ext(p) != ".md" || removedNamesSkipDocs[p] {
 			return nil
 		}

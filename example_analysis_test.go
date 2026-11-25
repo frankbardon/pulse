@@ -8,6 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
@@ -250,8 +252,9 @@ func ExamplePulse_Recommend() {
 		fmt.Println("error:", err)
 		return
 	}
-	for _, v := range resp.Data[0] {
-		fmt.Println(top.Operator, v)
+	row := resp.Data[0]
+	for _, k := range slices.Sorted(maps.Keys(row)) { // a map: print in a fixed order
+		fmt.Println(top.Operator, row[k])
 	}
 	// Output:
 	// AGG_AVERAGE 17.5

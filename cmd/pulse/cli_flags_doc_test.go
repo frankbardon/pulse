@@ -73,6 +73,26 @@ func docFlagNames(doc string) map[string]bool {
 	return out
 }
 
+// containsLeaf reports whether doc names the command path leaf as a whole
+// token: `pulse api process` inside `pulse api process-chain` does not
+// count. A neighbouring letter, digit, '-' or '_' continues the name.
+func containsLeaf(doc, leaf string) bool {
+	nameByte := func(c byte) bool {
+		return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_'
+	}
+	for from := 0; ; {
+		i := strings.Index(doc[from:], leaf)
+		if i < 0 {
+			return false
+		}
+		start, end := from+i, from+i+len(leaf)
+		if (start == 0 || !nameByte(doc[start-1])) && (end == len(doc) || !nameByte(doc[end])) {
+			return true
+		}
+		from = start + 1
+	}
+}
+
 // commandList names up to three mounting commands, then a count.
 func commandList(cmds []string) string {
 	cmds = append([]string(nil), cmds...)
@@ -89,7 +109,7 @@ func commandList(cmds []string) string {
 func cliFlagsDocViolations(leaves []string, tree map[string][]string, doc string) []doccheck.Violation {
 	var vs []doccheck.Violation
 	for _, leaf := range leaves {
-		if !strings.Contains(doc, leaf) {
+		if !containsLeaf(doc, leaf) {
 			vs = append(vs, doccheck.Violation{Path: flagsDocPath, Entry: "undocumented leaf " + leaf,
 				Message: "the CLI leaf is not named on the flag reference page; add it to the Command index"})
 		}
@@ -160,12 +180,13 @@ func TestCliFlagsDocViolations(t *testing.T) {
 	}
 	doc := "# Flags\n| `--input` / `-i` | in |\n`--log-level off|debug`\n" +
 		"```\npulse api process --json --help\n```\n" +
-		"`--gone` and --also-gone; not flags: x--y, a-b, -1, e-mail, [see](#--input-anchor)\n"
+		"`--gone` and --also-gone; not flags: x--y, a-b, -1, e-mail, [see](#--input-anchor)\n" +
+		"a longer leaf is not a shorter one's mention: `pulse api chain-run`, xpulse api chain\n"
 	got := map[string]bool{}
-	for _, v := range cliFlagsDocViolations([]string{"pulse api process", "pulse api missing"}, tree, doc) {
+	for _, v := range cliFlagsDocViolations([]string{"pulse api process", "pulse api missing", "pulse api chain"}, tree, doc) {
 		got[v.Entry] = true
 	}
-	want := []string{"undocumented leaf pulse api missing", "undocumented flag -h", "unmounted flag --gone", "unmounted flag --also-gone"}
+	want := []string{"undocumented leaf pulse api missing", "undocumented leaf pulse api chain", "undocumented flag -h", "unmounted flag --gone", "unmounted flag --also-gone"}
 	for _, w := range want {
 		if !got[w] {
 			t.Errorf("missing violation %q in %v", w, got)
