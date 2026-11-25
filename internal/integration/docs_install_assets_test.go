@@ -23,7 +23,7 @@ var (
 	// distNameRe reads the archive_name lines: one per archive extension.
 	distNameRe = regexp.MustCompile(`echo "pulse_\$\{VERSION\}_\$\{1%/\*\}_\$\{1#\*/\}\.([a-z.]+)"`)
 	// docAssetRe is an asset name written with the page's placeholder.
-	docAssetRe = regexp.MustCompile("pulse_<version>_([a-z0-9]+)_([a-z0-9]+)\\.(tar\\.gz|zip)")
+	docAssetRe = regexp.MustCompile(`pulse_<version>_([a-z0-9]+)_([a-z0-9]+)\.(tar\.gz|zip)`)
 )
 
 // TestInstallDocAssetNamesMatchRelease holds the installation page's
