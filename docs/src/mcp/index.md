@@ -247,9 +247,11 @@ unchanged (`full`). Contract: [Response shaping](../library/response-shaping.md)
 | `PULSE_IMPORTS_DIR` | Subdirectory for managed-import handles. | `imports` |
 | `PULSE_IMPORT_TTL` | Default TTL for managed handles. Accepts Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. | `7d` |
 
-Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, ImportSourceJailRoot, FS, ImportSourceFS, BindOnOpen}` — see `pulse.go`.
+Embedders set the same per instance through `pulse.Options` (`DataDir`, `FS`, `ImportsDir`, `ImportTTL`, `ImportSourceFS`, `ImportSourceJailRoot`) and serve it with `mcpserve` or `gosdk.Register` ([Serving MCP](../library/mcp-serving.md)).
 
 ## Transport caveats
+
+Protocol revisions, negotiation and the upgrade policy: [Protocol Versions](protocol.md).
 
 - **Stdio.** The default and only transport `pulse mcp` ships today. Schema bind-on-inspect works on the single stdio session (see Limitations). Stdout is the JSON-RPC channel; stderr is the log channel — never write structured output to stdout outside the protocol.
 - **Streamable HTTP.** Not exposed by the `mcp` CLI leaf yet. The underlying go-sdk server supports it; embedders build their own `go-sdk` server and call `gosdk.Register(server, p, cfg)` (or use `mcpserve.Serve`), then serve over the transport of their choice. Bind-on-inspect has no per-session override on a shared HTTP server (see Limitations).
@@ -261,7 +263,7 @@ Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, Impo
 | `data directory required: set PULSE_DATA_DIR or pass --data-dir` | Neither env var nor flag set | Pass `PULSE_DATA_DIR` in the host's `env` block, or `--data-dir` in `args` |
 | Tools don't appear in the host UI after editing config | Host caches tool list | Restart the host fully (not just the conversation) |
 | `pulse_import` returns `PULSE_IMPORT_SOURCE_FORBIDDEN` for an absolute path | Path escapes the import jail (default = server's working dir) | Either move the file under the jail, launch the server from a higher-level directory, or set `pulse.Options.ImportSourceJailRoot` when embedding |
-| `pulse_inspect` succeeds but bound enums never fire | Stdio session — binding is a no-op there | Use `pulse_predict` for validation; the manifest's `accepts_types` lists give the LLM the same information |
+| `pulse_inspect` succeeds but bound enums never fire | Binding is off (`--bind-on-open=false`, `BindOnInspect: false`), or the host ignores `notifications/tools/list_changed` | Turn binding on, or rely on `pulse_predict` for validation; the manifest's `accepts_types` lists give the LLM the same information |
 | Tool calls hang | Host wrote non-protocol bytes to the server's stdin, or server wrote non-protocol bytes to stdout | Check server stderr; restart the session. `pulse mcp` itself only writes a one-line startup notice to stderr at boot |
 
 To see what the server registers without launching the host:

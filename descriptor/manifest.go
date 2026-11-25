@@ -110,6 +110,9 @@ type ComponentsSchemasBlock struct {
 // The payload is deterministic and free of cohort data. Clients cache it
 // for a session.
 type Manifest struct {
+	// FormatVersion versions the manifest document's own shape ("1.0"),
+	// independently of the envelope's format_version ("1.1") that wraps
+	// it. Additions do not bump it; a rename or removal would.
 	FormatVersion string `json:"format_version"`
 	// PulseVersion is the build version of the binary or library that
 	// produced the manifest (buildinfo.Version: ldflags, then module

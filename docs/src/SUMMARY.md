@@ -537,6 +537,7 @@
 # MCP Integration
 
 - [Server, Tools, Resources](mcp/index.md)
+- [Protocol Versions](mcp/protocol.md)
 
 # Payload Contract
 

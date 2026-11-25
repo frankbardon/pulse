@@ -53,6 +53,16 @@ From [`internal/descriptor/manifest.go`](https://github.com/frankbardon/pulse/bl
 }
 ```
 
+The manifest carries **two** `format_version` fields, and they differ on
+purpose. The top-level one (`"1.1"`) is the envelope's: it versions the
+`{format_version, data, request, errors, warnings}` wrapper and the
+request / response payload contract, and is the value
+[`pulse schema`](schema.md) reports. `data.format_version` (`"1.0"`)
+versions the manifest document's own shape. Each moves only when its own
+document has a rename or removal; additions bump neither, and neither
+bumps within v1. Check each against its own document, never one against
+the other.
+
 Every list is sorted deterministically (alphabetical or category +
 alphabetical). The same Pulse binary always emits the same manifest
 bytes (modulo `--slim`).

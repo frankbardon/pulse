@@ -19,7 +19,8 @@ one JSON-RPC line per request on stdout:
 
 The first line names the server (`"serverInfo":{"name":"pulse",…}`) and
 the protocol revision it agreed; the second lists the tools. A status
-line goes to stderr.
+line goes to stderr. Which revisions Pulse speaks:
+[Protocol Versions](../mcp/protocol.md).
 
 ## 2. Register it with a client
 
