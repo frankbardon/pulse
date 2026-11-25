@@ -7,6 +7,7 @@ This page shows, for every public thing Pulse ships, where it is documented. Row
 ## Rules
 
 - **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it.
+- **Stricter mdBook rule.** Operators, field types and MCP tools count only hand-written pages: the generated Analysis Guide (`docs/src/guide`) names every one by construction. A Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.
 - **GoDoc** is present when the declaration carries a non-empty doc comment. A declaration inside a grouped `const` / `var` / `type` block also counts the group's doc comment and its own trailing line comment; a method on an alias resolves to the aliased type, a promoted method to the embedded type that declares it.
 - **CLI help** is present for a leaf or a flag when it carries usage text (a flag on every command that mounts it); for an environment variable, when it appears verbatim in the help text.
 - Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on a gap the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` does not name, and on an entry whose gap is closed.
@@ -17,8 +18,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|---|---|---|---|
 | Go API symbols | `internal/apigolden/testdata/public_api.txt` (types, funcs, consts, vars, methods; struct fields are covered by their type) | `<package>.<Name>`, methods `<package>.<Type>.<Method>` | optional | optional | required | — |
 | Options fields | the `pulse.Options` fields in `public_api.txt` | the Go field name (`DataDir`) | required | optional | required | — |
-| Request slots | the `types.Request` fields in `public_api.txt` | the JSON key (`group_by`) | required | required | required | — |
-| Response slots | the `types.Response` fields in `public_api.txt` | the JSON key | required | optional | required | — |
+| Request slots | the `types.Request` fields in `public_api.txt` | the JSON key (`group_by`); in the mdBook a code span or `Request.<Field>` | required | required | required | — |
+| Response slots | the `types.Response` fields in `public_api.txt` | the JSON key; in the mdBook a code span or `Response.<Field>` | required | optional | required | — |
 | CLI leaves | every runnable command in the tree `internal/cli.App` builds | the full invocation path (`pulse cohort inspect`) | required | optional | — | required |
 | CLI flags | every flag name (aliases included) mounted anywhere in that tree | `--name`, or `-x` for a one-letter name | required | optional | — | required |
 | MCP tools | the default instance's manifest `mcp_tools` | the tool name | required | required | — | — |
@@ -39,10 +40,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [Response slots](#response-slots) | 12 | 0 |
 | [CLI leaves](#cli-leaves) | 77 | 0 |
 | [CLI flags](#cli-flags) | 137 | 2 |
-| [MCP tools](#mcp-tools) | 27 | 1 |
+| [MCP tools](#mcp-tools) | 27 | 4 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
 | [MCP resources](#mcp-resources) | 3 | 0 |
-| [Operators](#operators) | 218 | 0 |
+| [Operators](#operators) | 218 | 56 |
 | [Field types](#field-types) | 22 | 0 |
 | [Error codes](#error-codes) | 492 | 36 |
 | [Environment variables](#environment-variables) | 10 | 0 |
@@ -3330,8 +3331,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse_import` | yes | yes |
 | `pulse_imports_list` | yes | yes |
 | `pulse_inspect` | yes | yes |
-| `pulse_label_resolve` | yes | yes |
-| `pulse_label_tables` | yes | yes |
+| `pulse_label_resolve` | **gap** | yes |
+| `pulse_label_tables` | **gap** | yes |
 | `pulse_lookup` | yes | yes |
 | `pulse_lookup_tables` | yes | **gap** |
 | `pulse_manifest` | yes | yes |
@@ -3340,7 +3341,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse_process` | yes | yes |
 | `pulse_process_chain` | yes | yes |
 | `pulse_rake` | yes | yes |
-| `pulse_range_tables` | yes | yes |
+| `pulse_range_tables` | **gap** | yes |
 | `pulse_recommend` | yes | yes |
 | `pulse_sample` | yes | yes |
 | `pulse_skills_get` | yes | yes |
@@ -3388,9 +3389,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `AGG_DISTINCT_COUNT` | yes | yes |
 | `AGG_DISTINCT_SUM` | yes | yes |
 | `AGG_FREQUENCY` | yes | yes |
-| `AGG_KURTOSIS` | yes | yes |
-| `AGG_MAE` | yes | yes |
-| `AGG_MAPE` | yes | yes |
+| `AGG_KURTOSIS` | **gap** | yes |
+| `AGG_MAE` | **gap** | yes |
+| `AGG_MAPE` | **gap** | yes |
 | `AGG_MAX` | yes | yes |
 | `AGG_MEDIAN` | yes | yes |
 | `AGG_MIN` | yes | yes |
@@ -3398,16 +3399,16 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `AGG_MODE_COUNT` | yes | yes |
 | `AGG_NULL_COUNT` | yes | yes |
 | `AGG_PERCENTILE` | yes | yes |
-| `AGG_RANGE` | yes | yes |
+| `AGG_RANGE` | **gap** | yes |
 | `AGG_RATIO` | yes | yes |
-| `AGG_RMSE` | yes | yes |
-| `AGG_SET_CARDINALITY_AVG` | yes | yes |
+| `AGG_RMSE` | **gap** | yes |
+| `AGG_SET_CARDINALITY_AVG` | **gap** | yes |
 | `AGG_SET_CARDINALITY_SUM` | yes | yes |
 | `AGG_SET_DISTINCT_VALUES` | yes | yes |
 | `AGG_SET_FREQUENCY` | yes | yes |
 | `AGG_SET_INTERSECTION` | yes | yes |
 | `AGG_SET_UNION` | yes | yes |
-| `AGG_SKEWNESS` | yes | yes |
+| `AGG_SKEWNESS` | **gap** | yes |
 | `AGG_STDDEV` | yes | yes |
 | `AGG_SUM` | yes | yes |
 | `AGG_VARIANCE` | yes | yes |
@@ -3439,8 +3440,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `ATTR_REG_RESIDUAL` | yes | yes |
 | `ATTR_SCALE_SCORE` | yes | yes |
 | `ATTR_SEM_SCORE` | yes | yes |
-| `ATTR_SET_HAS` | yes | yes |
-| `ATTR_SET_POPCOUNT` | yes | yes |
+| `ATTR_SET_HAS` | **gap** | yes |
+| `ATTR_SET_POPCOUNT` | **gap** | yes |
 | `ATTR_TSCORE` | yes | yes |
 | `ATTR_VEC_DISTANCE` | yes | yes |
 | `ATTR_ZSCORE` | yes | yes |
@@ -3451,7 +3452,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|
 | `FEAT_BUCKETIZE` | yes | yes |
 | `FEAT_DATE_FEATURES` | yes | yes |
-| `FEAT_FREQUENCY_ENCODE` | yes | yes |
+| `FEAT_FREQUENCY_ENCODE` | **gap** | yes |
 | `FEAT_LOG` | yes | yes |
 | `FEAT_ONE_HOT` | yes | yes |
 | `FEAT_POLY` | yes | yes |
@@ -3470,10 +3471,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `FILTER_INCLUDE` | yes | yes |
 | `FILTER_NULL` | yes | yes |
 | `FILTER_RANGE` | yes | yes |
-| `FILTER_SET_CONTAINS_ALL` | yes | yes |
+| `FILTER_SET_CONTAINS_ALL` | **gap** | yes |
 | `FILTER_SET_CONTAINS_ANY` | yes | yes |
-| `FILTER_SET_CONTAINS_NONE` | yes | yes |
-| `FILTER_SET_EQUALS` | yes | yes |
+| `FILTER_SET_CONTAINS_NONE` | **gap** | yes |
+| `FILTER_SET_EQUALS` | **gap** | yes |
 | `FILTER_TRUE` | yes | yes |
 
 ### Operators groupers
@@ -3484,7 +3485,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `GROUP_DATE` | yes | yes |
 | `GROUP_DATE_RANGES` | yes | yes |
 | `GROUP_KMEANS` | yes | yes |
-| `GROUP_NUMERIC_RANGES` | yes | yes |
+| `GROUP_NUMERIC_RANGES` | **gap** | yes |
 | `GROUP_QUANTILE` | yes | yes |
 | `GROUP_RANGE` | yes | yes |
 | `GROUP_ROUNDED` | yes | yes |
@@ -3509,57 +3510,57 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Identifier | mdBook | Skill pack |
 |---|---|---|
-| `OVERLAY_CHISQ_COL` | yes | yes |
+| `OVERLAY_CHISQ_COL` | **gap** | yes |
 | `OVERLAY_CHISQ_MATRIX` | yes | yes |
 | `OVERLAY_CHISQ_ROW` | yes | yes |
 | `OVERLAY_CHISQ_VS_POP` | yes | yes |
-| `OVERLAY_CHISQ_VS_REF` | yes | yes |
+| `OVERLAY_CHISQ_VS_REF` | **gap** | yes |
 | `OVERLAY_CORRESPONDENCE` | yes | yes |
-| `OVERLAY_DELTA_VS_BASELINE` | yes | yes |
-| `OVERLAY_DELTA_VS_MARGIN` | yes | yes |
-| `OVERLAY_DELTA_VS_PRIOR` | yes | yes |
-| `OVERLAY_DELTA_VS_REF` | yes | yes |
-| `OVERLAY_DELTA_VS_SIBLING` | yes | yes |
+| `OVERLAY_DELTA_VS_BASELINE` | **gap** | yes |
+| `OVERLAY_DELTA_VS_MARGIN` | **gap** | yes |
+| `OVERLAY_DELTA_VS_PRIOR` | **gap** | yes |
+| `OVERLAY_DELTA_VS_REF` | **gap** | yes |
+| `OVERLAY_DELTA_VS_SIBLING` | **gap** | yes |
 | `OVERLAY_DELTA_VS_STAGE` | yes | yes |
 | `OVERLAY_FISHER_EXACT_CELL` | yes | yes |
 | `OVERLAY_FORMULA` | yes | yes |
-| `OVERLAY_INDEX_VS_BASELINE` | yes | yes |
-| `OVERLAY_INDEX_VS_MARGIN` | yes | yes |
-| `OVERLAY_INDEX_VS_POP` | yes | yes |
-| `OVERLAY_INDEX_VS_PRIOR` | yes | yes |
-| `OVERLAY_INDEX_VS_REF` | yes | yes |
-| `OVERLAY_INDEX_VS_ROLLING_MEAN` | yes | yes |
-| `OVERLAY_INDEX_VS_SIBLING` | yes | yes |
+| `OVERLAY_INDEX_VS_BASELINE` | **gap** | yes |
+| `OVERLAY_INDEX_VS_MARGIN` | **gap** | yes |
+| `OVERLAY_INDEX_VS_POP` | **gap** | yes |
+| `OVERLAY_INDEX_VS_PRIOR` | **gap** | yes |
+| `OVERLAY_INDEX_VS_REF` | **gap** | yes |
+| `OVERLAY_INDEX_VS_ROLLING_MEAN` | **gap** | yes |
+| `OVERLAY_INDEX_VS_SIBLING` | **gap** | yes |
 | `OVERLAY_INDEX_VS_STAGE` | yes | yes |
-| `OVERLAY_INDEX_VS_TOTAL` | yes | yes |
+| `OVERLAY_INDEX_VS_TOTAL` | **gap** | yes |
 | `OVERLAY_KS_VS_POP` | yes | yes |
-| `OVERLAY_MARKOV` | yes | yes |
-| `OVERLAY_MATRIX_GROUP_SUMMARY` | yes | yes |
-| `OVERLAY_PAIRWISE_PROBIT_T` | yes | yes |
+| `OVERLAY_MARKOV` | **gap** | yes |
+| `OVERLAY_MATRIX_GROUP_SUMMARY` | **gap** | yes |
+| `OVERLAY_PAIRWISE_PROBIT_T` | **gap** | yes |
 | `OVERLAY_PAIRWISE_PROP_Z` | yes | yes |
 | `OVERLAY_PAIRWISE_TWO_MEANS_Z` | yes | yes |
 | `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | yes | yes |
 | `OVERLAY_PAIRWISE_WELCH_T` | yes | yes |
-| `OVERLAY_PANEL_INDEX_VS_REF` | yes | yes |
-| `OVERLAY_PROP_Z_CELL` | yes | yes |
-| `OVERLAY_PROP_Z_PANEL` | yes | yes |
+| `OVERLAY_PANEL_INDEX_VS_REF` | **gap** | yes |
+| `OVERLAY_PROP_Z_CELL` | **gap** | yes |
+| `OVERLAY_PROP_Z_PANEL` | **gap** | yes |
 | `OVERLAY_PROP_Z_VS_PRIOR` | yes | yes |
 | `OVERLAY_RAKE` | yes | yes |
-| `OVERLAY_RANK` | yes | yes |
+| `OVERLAY_RANK` | **gap** | yes |
 | `OVERLAY_RETENTION` | yes | yes |
-| `OVERLAY_SHARE_OF_COL` | yes | yes |
+| `OVERLAY_SHARE_OF_COL` | **gap** | yes |
 | `OVERLAY_SHARE_OF_ROW` | yes | yes |
-| `OVERLAY_SHARE_OF_TOTAL` | yes | yes |
+| `OVERLAY_SHARE_OF_TOTAL` | **gap** | yes |
 | `OVERLAY_STD_RESIDUAL` | yes | yes |
 | `OVERLAY_SYMMETRY` | yes | yes |
 | `OVERLAY_T_CELL` | yes | yes |
 | `OVERLAY_T_VS_PRIOR` | yes | yes |
 | `OVERLAY_T_VS_REF` | yes | yes |
 | `OVERLAY_YOY` | yes | yes |
-| `OVERLAY_ZSCORE_VS_MARGIN` | yes | yes |
-| `OVERLAY_ZSCORE_VS_POP` | yes | yes |
-| `OVERLAY_ZSCORE_VS_ROLLING` | yes | yes |
-| `OVERLAY_ZSCORE_VS_TOTAL` | yes | yes |
+| `OVERLAY_ZSCORE_VS_MARGIN` | **gap** | yes |
+| `OVERLAY_ZSCORE_VS_POP` | **gap** | yes |
+| `OVERLAY_ZSCORE_VS_ROLLING` | **gap** | yes |
+| `OVERLAY_ZSCORE_VS_TOTAL` | **gap** | yes |
 | `OVERLAY_Z_CELL` | yes | yes |
 | `OVERLAY_Z_VS_PRIOR` | yes | yes |
 | `OVERLAY_Z_VS_REF` | yes | yes |
@@ -3603,12 +3604,12 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|
 | `TEST_ANOVA_F` | yes | yes |
 | `TEST_ANOVA_RM` | yes | yes |
-| `TEST_ANOVA_WELCH` | yes | yes |
+| `TEST_ANOVA_WELCH` | **gap** | yes |
 | `TEST_BARTLETT_SPHERICITY` | yes | yes |
 | `TEST_BOX_M` | yes | yes |
-| `TEST_BROWN_FORSYTHE` | yes | yes |
+| `TEST_BROWN_FORSYTHE` | **gap** | yes |
 | `TEST_CHISQ` | yes | yes |
-| `TEST_FISHER_EXACT` | yes | yes |
+| `TEST_FISHER_EXACT` | **gap** | yes |
 | `TEST_HOTELLING_T2` | yes | yes |
 | `TEST_KENDALL_TAU` | yes | yes |
 | `TEST_KRUSKAL_WALLIS` | yes | yes |
@@ -3616,7 +3617,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `TEST_MANN_WHITNEY_U` | yes | yes |
 | `TEST_MANOVA` | yes | yes |
 | `TEST_MARDIA` | yes | yes |
-| `TEST_PAIRED_T` | yes | yes |
+| `TEST_PAIRED_T` | **gap** | yes |
 | `TEST_PEARSON_R` | yes | yes |
 | `TEST_PROP_Z` | yes | yes |
 | `TEST_SHAPIRO_WILK` | yes | yes |
@@ -3625,28 +3626,28 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `TEST_TREND` | yes | yes |
 | `TEST_TUKEY_HSD` | yes | yes |
 | `TEST_WELCH` | yes | yes |
-| `TEST_WILCOXON_SR` | yes | yes |
-| `TEST_Z_TWO_SAMPLE` | yes | yes |
+| `TEST_WILCOXON_SR` | **gap** | yes |
+| `TEST_Z_TWO_SAMPLE` | **gap** | yes |
 
 ### Operators windows
 
 | Identifier | mdBook | Skill pack |
 |---|---|---|
-| `WIN_DELTA` | yes | yes |
-| `WIN_DENSE_RANK` | yes | yes |
+| `WIN_DELTA` | **gap** | yes |
+| `WIN_DENSE_RANK` | **gap** | yes |
 | `WIN_DISTRIBUTED_LAG` | yes | yes |
 | `WIN_EWMA` | yes | yes |
 | `WIN_FORMULA` | yes | yes |
 | `WIN_LAG` | yes | yes |
 | `WIN_LEAD` | yes | yes |
-| `WIN_LIFT` | yes | yes |
-| `WIN_MOVING_AVG` | yes | yes |
-| `WIN_PCT_CHANGE` | yes | yes |
+| `WIN_LIFT` | **gap** | yes |
+| `WIN_MOVING_AVG` | **gap** | yes |
+| `WIN_PCT_CHANGE` | **gap** | yes |
 | `WIN_RANK` | yes | yes |
-| `WIN_ROW_NUMBER` | yes | yes |
-| `WIN_RUNNING_AVG` | yes | yes |
+| `WIN_ROW_NUMBER` | **gap** | yes |
+| `WIN_RUNNING_AVG` | **gap** | yes |
 | `WIN_RUNNING_SUM` | yes | yes |
-| `WIN_SHARE` | yes | yes |
+| `WIN_SHARE` | **gap** | yes |
 
 ## Field types
 

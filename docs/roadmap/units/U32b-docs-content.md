@@ -49,7 +49,7 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
 - [ ] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
 - [ ] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
-- [ ] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
+- [x] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
 - [ ] **#766** (11. Documentation audit) The removed-name scan matches qualified `io.` entries whole-word only, so the `pio.` alias spelling slips through
 
 ## Baseline burn-down
