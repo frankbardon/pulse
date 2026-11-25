@@ -478,8 +478,11 @@ func ServedText(fsys afero.Fs) (map[string]string, error) {
 				}
 				return err
 			}
-			if info.IsDir() || !strings.HasSuffix(p, w.ext) || strings.HasSuffix(p, "_test.go") ||
-				strings.Contains(p, "/testdata/") {
+			// Slash form, so the testdata exclusion and the map keys
+			// match on every OS (afero walks in native separators).
+			key := filepath.ToSlash(p)
+			if info.IsDir() || !strings.HasSuffix(key, w.ext) || strings.HasSuffix(key, "_test.go") ||
+				strings.Contains(key, "/testdata/") {
 				return nil
 			}
 			b, err := afero.ReadFile(fsys, p)
@@ -487,9 +490,9 @@ func ServedText(fsys afero.Fs) (map[string]string, error) {
 				return err
 			}
 			if w.lit {
-				out[p] = goStrings(b)
+				out[key] = goStrings(b)
 			} else {
-				out[p] = string(b)
+				out[key] = string(b)
 			}
 			return nil
 		})
