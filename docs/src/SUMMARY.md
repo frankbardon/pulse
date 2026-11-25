@@ -6,6 +6,8 @@
 
 - [Installation](getting-started/installation.md)
 - [Your First Cohort](getting-started/first-cohort.md)
+- [Your First Analysis](getting-started/first-analysis.md)
+- [Your First MCP Session](getting-started/first-mcp-session.md)
 - [CLI Tour](getting-started/cli-tour.md)
 
 # Analysis Guide
@@ -482,6 +484,7 @@
 # Library Embedding
 
 - [Go API Overview](library/overview.md)
+- [Embedder Walkthrough](library/embedder-walkthrough.md)
 - [pulse.New & Options](library/options.md)
 - [Custom Filesystems](library/custom-fs.md)
 - [Streaming & ProcessStream](library/streaming.md)

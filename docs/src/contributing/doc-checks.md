@@ -39,6 +39,7 @@ test, so a renamed or moved check cannot drop out silently.
 | `TestFacadeExamplesPresent` | fast | root | none: the pinned list in the test |
 | `TestSkillExampleTagPointersResolve` | fast | `internal/descriptor` | none |
 | `TestDocsGeneratedCurrent` | fast | root | none: run `make docs` |
+| `TestInstallDocAssetNamesMatchRelease` | fast | `internal/integration` | none |
 
 The `docs` job also fails when `mdbook build` prints a `WARN` or `ERROR`
 line, so keep the build warning-free. CI pins mdBook to 0.5.4, the

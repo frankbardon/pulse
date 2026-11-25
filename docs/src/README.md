@@ -8,16 +8,16 @@ The library is the primary deliverable. The CLI is a thin adapter that exposes t
 
 | If you are... | Start with |
 |---|---|
-| New to Pulse | [Installation](getting-started/installation.md) → [Your First Cohort](getting-started/first-cohort.md) → [CLI Tour](getting-started/cli-tour.md) |
+| New to Pulse | [Installation](getting-started/installation.md) → [Your First Cohort](getting-started/first-cohort.md) → [Your First Analysis](getting-started/first-analysis.md) → [Your First MCP Session](getting-started/first-mcp-session.md) |
 | Driving Pulse from the shell | [Command Line Reference](cli/api-process.md) |
-| Embedding Pulse in a Go program | [Library Embedding](library/overview.md) |
+| Embedding Pulse in a Go program | [Go API Overview](library/overview.md), then the [Embedder Walkthrough](library/embedder-walkthrough.md) |
 | Curious about the binary format | [.pulse File Format](format/header.md) |
 | Hacking on Pulse itself | [Internals](internals/architecture.md) and [Contributing](contributing/setup.md) |
-| Wiring Pulse into an LLM agent | [MCP Integration (Pointer)](mcp/index.md), then the in-binary skill pack |
+| Wiring Pulse into an LLM agent | [MCP Integration](mcp/index.md), then the in-binary skill pack |
 
 ## LLM-facing surface
 
-LLM agents do **not** read this site. Pulse exposes a Model Context Protocol server (`pulse mcp`) and ships 19 embedded skills under `skills/` that LLMs load on demand via the `pulse_skills_list` and `pulse_skills_get` tools. The skill voice is MCP-only (tool calls, JSON payloads). This site is the human-facing counterpart — same engine, different idiom.
+LLM agents do **not** read this site. Pulse exposes a Model Context Protocol server (`pulse mcp`) and ships an embedded skill pack that LLMs load on demand via the `pulse_skills_list` and `pulse_skills_get` tools. The skill voice is MCP-only (tool calls, JSON payloads). This site is the human-facing counterpart — same engine, different idiom.
 
 See [How LLMs Use Pulse](mcp/index.md) for a short pointer table.
 

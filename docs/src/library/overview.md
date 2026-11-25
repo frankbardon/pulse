@@ -137,6 +137,9 @@ func main() {
 
 ## Where to go from here
 
+- [Embedder Walkthrough](embedder-walkthrough.md) — the decisions in
+  order: Options, extensions, profiles, limits, observability, response
+  shaping, MCP serving.
 - [pulse.New & Options](options.md) — full `Options` reference.
 - [Custom Filesystems](custom-fs.md) — in-memory testing pattern,
   custom storage backends.

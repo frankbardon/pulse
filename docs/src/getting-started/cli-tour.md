@@ -16,53 +16,36 @@ maintenance commands) are listed compactly.
 
 ```
 pulse [--json] [--slim]
-├── import      Tabular → .pulse (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, auto)
-├── export      .pulse  → tabular (same format set)
+├── import      Tabular → .pulse (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, auto)
+├── export      .pulse → tabular (the same formats)
 ├── convert     Tabular → tabular, with .pulse as the transparent middle
-├── cohort      Inspect or filter an existing .pulse file
-├── api         Processing operations (process, process-chain, compose, predict, sample, facet)
+├── cohort      Inspect, filter or set the zone field of a .pulse file
+├── api         Processing operations (process, process-chain, compose, predict*, sample, facet, lookup, materialize)
 ├── shard       Build and maintain shard archives
+├── index       Point-lookup sidecar indexes
+├── widen       Widen a set column in place
+├── dedup       Fold repeated parent blocks into parent groups
+├── rake        Compute survey weights into a new cohort
 ├── synth       Generate synthetic cohorts (from-schema, from-profile)
 ├── profile     Capture a statistical profile of a cohort
-├── skills      Read the embedded LLM skill pack
+├── recommend   Draft requests for a question kind
+├── explain     Say in plain words what a request or response does
+├── skills      Read the embedded skill pack
 ├── examples    Search and fetch the embedded runnable request library
 ├── errors      Look up an error code's message and recovery fixups
-└── mcp         Run the Model Context Protocol server over stdio
+├── features    Write, check and describe feature profiles
+├── schema      The request/response JSON Schema
+├── docs        Export the analysis reference as Markdown
+├── mcp         Run the Model Context Protocol server over stdio
+├── version     Build version
+└── completion  Shell completion script (bash, zsh, fish)
 ```
 
-Bare `pulse --json` prints the self-describing root manifest — commands,
-components, field types, and skill metadata in one envelope. Pass
-`--slim` to drop prose descriptions for size-sensitive clients.
-
-## End-to-end worked tour
-
-A complete read-aggregate cycle, one command per stage:
-
-```bash
-# 1. Import a CSV into a managed .pulse handle (TTL sidecar tracked).
-pulse import auto sales.csv --handle sales --ttl 30d
-
-# 2. Read the cohort's schema — types, descriptions, dictionaries.
-pulse cohort inspect sales.pulse
-
-# 3. Validate a request against the schema without running it.
-cat > req.json <<'EOF'
-{
-  "cohort": {"filename": "sales.pulse"},
-  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
-  "aggregations": [{"type": "AGG_SUM",        "field": "revenue", "label": "total"}]
-}
-EOF
-pulse api predict --request req.json --json | jq '.data | {valid, streamable, defaults_applied}'
-
-# 4. Execute the same request.
-pulse api process --request req.json --json
-```
-
-`api predict` reads only the header and schema, so it stays cheap even
-on multi-GB cohorts; the `streamable` / `streamable_reasons` fields
-tell you whether the request will run through the single-pass streaming
-path or be buffered. See [Performance Notes](../ops/performance.md).
+`pulse --help` prints the same list; every leaf, flag and default is on
+the generated [Command & flag reference](../cli/reference.md). Bare
+`pulse --json` prints the self-describing root manifest; `--slim` drops
+prose descriptions. An import → predict → process → export run is
+[Your First Analysis](first-analysis.md).
 
 ## Pipeline order
 
@@ -110,7 +93,7 @@ fails with `PULSE_CHAIN_EMPTY`.
 shape per format (`--input`, `--output`, `--schema` for import).
 Supported formats today:
 
-`csv` · `tsv` · `ndjson` · `jsonarray` · `parquet` · `arrow` · `excel`
+`csv` · `tsv` · `ndjson` · `jsonarray` · `parquet` · `arrow` · `excel` · `spss`
 
 Each format has a per-leaf command (e.g. `pulse import csv`). Run
 `pulse import --help` or `pulse export --help` for the full list.

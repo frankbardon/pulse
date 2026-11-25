@@ -8,22 +8,15 @@ LLM-native by design: every command supports `--json`, every operator declares i
 
 ## Installation
 
-### From source
-
-```bash
-git clone https://github.com/frankbardon/pulse.git
-cd pulse
-make build
-# Binary at ./bin/pulse
-```
-
-### Go install
+Download the archive for your platform from [GitHub Releases](https://github.com/frankbardon/pulse/releases): `pulse_<version>_<os>_<arch>.tar.gz` (Linux, macOS) or `pulse_<version>_windows_<arch>.zip`, for `amd64` and `arm64`, with `checksums.txt` beside them. Or, with Go 1.26.1+:
 
 ```bash
 go install github.com/frankbardon/pulse/cmd/pulse@latest
 ```
 
-Requires Go 1.22+.
+From source: `git clone https://github.com/frankbardon/pulse.git && cd pulse && make build` (binary at `./bin/pulse`).
+
+New here? Follow [Getting Started](https://frankbardon.github.io/pulse/getting-started/installation.html) (install → first cohort → first analysis → first MCP session). Embedding the library? Start at the [Embedder Walkthrough](https://frankbardon.github.io/pulse/library/embedder-walkthrough.html).
 
 ## Quickstart
 
