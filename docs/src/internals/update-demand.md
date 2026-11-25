@@ -9,8 +9,9 @@ next session reads stale docs and writes wrong code.
 ## Finding the companions
 
 1. **Run `sites`.** `make sites ARGS="op <TYPE>"` (an existing operator),
-   `make sites ARGS="new-op <category>"` (a new one) or
-   `make sites ARGS="slot <request|response> <name>"` prints every file and
+   `make sites ARGS="new-op <category>"` (a new one),
+   `make sites ARGS="slot <request|response> <name>"` or
+   `make sites ARGS="fixture <stem>"` (an example fixture cohort) prints every file and
    declaration the change lands in, the gates to rerun and the goldens to
    regenerate. See [Finding Change Sites](finding-change-sites.md).
 2. **Read the trigger row.** `.claude/reference/update-demand.md` is an index

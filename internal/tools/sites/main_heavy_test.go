@@ -823,3 +823,42 @@ func TestReports_WholeRepoSites(t *testing.T) {
 		t.Error("slot request cohort: internal/service/service.go's ReadSchema call is not listed under the floors")
 	}
 }
+
+// TestFixtureReport_KnownSites pins the real tree's fixture-cohort
+// registration lists: a new cohort must reach every one of them.
+func TestFixtureReport_KnownSites(t *testing.T) {
+	t.Parallel()
+
+	rep, err := fixtureReport(sharedRepo(t), "new_cohort", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, sec := range rep.Sections {
+		if sec.Class == "fixture-lists" {
+			for _, s := range sec.Sites {
+				got[s.Path+" "+s.Symbols[0].Name] = s.Coverage
+			}
+		}
+	}
+	for k, cov := range map[string]string{
+		"internal/integration/examples_test.go func buildExampleFixtures": "complete",
+		"internal/examples/README.md ## Available cohorts":                "complete",
+		"internal/examples/README.md ## One-time setup":                   "complete",
+		"internal/examples/fixtures/gen.go func Generate":                 "subset",
+		"request_fuzz_test.go var requestFuzzCohorts":                     "subset",
+	} {
+		if got[k] != cov {
+			t.Errorf("%s: coverage %q, want %q (lists: %v)", k, got[k], cov, got)
+		}
+	}
+	shell := false
+	for k, cov := range got {
+		if strings.HasPrefix(k, "internal/examples/fixtures/build.sh ") && cov == "complete" {
+			shell = true
+		}
+	}
+	if !shell {
+		t.Errorf("fixtures/build.sh's cohort loop not listed: %v", got)
+	}
+}

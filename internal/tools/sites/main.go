@@ -7,6 +7,7 @@
 //	go run ./internal/tools/sites new-op overlay      # a NEW operator of a category
 //	go run ./internal/tools/sites slot request matrices
 //	go run ./internal/tools/sites slot compose sweep    # a ComposedRequest slot
+//	go run ./internal/tools/sites fixture survey      # an example fixture cohort
 //	go run ./internal/tools/sites categories          # list categories + operators
 //	make sites ARGS="op OVERLAY_MARKOV"
 //
@@ -45,7 +46,9 @@
 //   - whole-repo runners and floors (runners.go) are found by shape: the
 //     tests that run every example (for a change with an example site),
 //     the call-site floors of a function a site file calls, and the
-//     case-table entry of each hit in a shared fixture generator.
+//     case-table entry of each hit in a shared fixture generator;
+//   - fixture-cohort registration lists (fixture.go) are found by shape:
+//     a declaration or run of lines naming several fixture cohorts.
 //
 // Only the inherently manual part — which contract to read — is a
 // table (categoryTable.Manual / slotManual), and its paths are pinned
@@ -70,6 +73,7 @@ modes:
   new-op <category>               template checklist for a NEW operator of a category
   slot <request|compose|response> <name>
                                   sites of a Request/ComposedRequest/Response slot (Go field or json name; unknown = new-slot template)
+  fixture <stem>                  registration sites of an example fixture cohort (existing, or a new stem)
   categories                      list categories and their operators`
 
 type options struct {
@@ -137,6 +141,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		rep, err = slotReport(r, pos[1], pos[2], opts)
+	case "fixture":
+		if len(pos) != 2 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		rep, err = fixtureReport(r, pos[1], opts)
 	case "categories":
 		rep, err = categoriesReport(r)
 	default:

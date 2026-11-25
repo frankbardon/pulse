@@ -1,7 +1,8 @@
 # Finding Change Sites
 
 **Audience:** Pulse internals contributors (human or agent) about to
-change an operator or a request/response slot.
+change an operator, a request/response slot or an example fixture
+cohort.
 
 A Pulse change rarely lives in one file: a new operator touches its
 type constant and registry, the engine, a capability declaration, a
@@ -19,6 +20,7 @@ make sites ARGS="new-op overlay"          # a NEW operator of a category
 make sites ARGS="slot request matrices"   # a Request / Response slot (Go or json name)
 make sites ARGS="slot request my_new_slot"  # unknown name = new-slot template
 make sites ARGS="slot compose sweep"      # a Compose-level slot (ComposedRequest)
+make sites ARGS="fixture survey"          # an example fixture cohort (or a new stem)
 make sites ARGS="categories"              # categories and their operators
 # or: go run ./internal/tools/sites [--json] [--all] <mode> ...
 ```
@@ -156,6 +158,28 @@ Every report also prints what reaches the change without naming it:
   `case == "ov_symmetry"` branch above it, or the first quoted key of
   the block a comment heads, prefixed with the enclosing function.
 
+`fixture <stem>` covers an example fixture cohort
+(`internal/examples/fixtures/<stem>.csv` with
+`internal/examples/fixtures/schemas/<stem>.json`), existing or new.
+Its sites never name an operator or a slot, so each is found by shape:
+
+- **Registration lists** — a Go declaration (comments excluded) or a
+  run of consecutive lines elsewhere naming at least three cohorts,
+  each quoted, backticked or spelled `<stem>.pulse` / `.csv` / `.json`
+  (or five bare stems on one line, a shell word list); a Markdown table
+  row counts only its first cell. That finds `buildExampleFixtures`,
+  the `fixtures/build.sh` loop, the README setup prose and cohort table,
+  the generator's `Generate` and a fuzz test's cohort subset. A list
+  naming at least 75% of the cohorts is **complete**; one that skips the
+  cohort warns. A smaller one is a **subset**: add the cohort only if
+  it belongs.
+- **Readers** (existing cohort) — files naming `<stem>.pulse`,
+  `<stem>.csv` or `schemas/<stem>.json`: examples, stories, tests.
+- **Gates** — the fixture package's tests, the `Test` / `Fuzz`
+  functions using a Go list's identifier, and the every-example
+  runners; **Regenerate** names the `main` package under
+  `internal/examples/fixtures/cmd/`.
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in, outside Go comments, but
 this one does not (a doc comment walking per-operator special cases is
@@ -243,6 +267,10 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   one operator, so the category's `adding-*.md` recipe and
   `extension-points.md` are appended to **Read before editing** rather
   than found by name.
+- A fixture-cohort list held some other way (one cohort per Go
+  declaration, a list built from a glob, a table keyed by a later
+  column) is not found; nor is a cohort named only as a bare word in
+  prose.
 - Synth distribution names are ordinary words, so they are matched only
   as `"quoted"` strings; a quoted `"normal"` in an unrelated parameter
   table is reported too.

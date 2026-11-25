@@ -200,6 +200,7 @@ bench-scale:
 #   make sites ARGS="op MAT_PCA"
 #   make sites ARGS="new-op overlay"
 #   make sites ARGS="slot request matrices"
+#   make sites ARGS="fixture survey"
 #   make sites ARGS="--json categories"
 # Recipe: docs/src/internals/finding-change-sites.md.
 sites:
