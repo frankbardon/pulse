@@ -230,7 +230,7 @@ func TestGuides_EveryAnalyticIntentHasAStory(t *testing.T) {
 			continue
 		}
 		seen++
-		if _, ok := g.guideStory(in.ID); !ok {
+		if len(g.guideStories(in.ID)) == 0 {
 			t.Errorf("%s: no story example (one whose first _meta.intents entry is %s, with question, interpretation and a golden)", in.ID, in.ID)
 		}
 	}

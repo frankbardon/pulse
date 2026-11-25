@@ -146,10 +146,16 @@ func (g *gen) renderGuide(qg questionGuide, guides []questionGuide, readingHome,
 
 	g.writePickAnalysis(&b, qg)
 
-	story, ok := g.guideStory(in.ID)
+	stories := g.guideStories(in.ID)
+	ok := len(stories) > 0
 	b.WriteString("\n## A worked example\n\n")
 	if ok {
-		g.writeStory(&b, story)
+		for i, story := range stories {
+			if i > 0 {
+				b.WriteString("\nAnother worked example:\n\n")
+			}
+			g.writeStory(&b, story)
+		}
 	} else {
 		b.WriteString("No worked example is published for this question yet.")
 		if g.inst.Enabled(descx.FeatureName(descx.FeatureKindCapability, "recommend")) {
@@ -159,7 +165,8 @@ func (g *gen) renderGuide(qg questionGuide, guides []questionGuide, readingHome,
 	}
 
 	b.WriteString("\n## How to read the result\n")
-	g.writeHowToRead(&b, story, ok, page, readingHome, homes)
+	storyOps := storyOperators(stories)
+	g.writeHowToRead(&b, storyOps, page, readingHome, homes)
 
 	b.WriteString("\n## Pitfalls\n\n")
 	if p := g.section(pf, sectionPitfalls); p != "" {
@@ -168,7 +175,7 @@ func (g *gen) renderGuide(qg questionGuide, guides []questionGuide, readingHome,
 		b.WriteString("Each operator's catalog entry lists its assumptions and when to reach for something else; read them before trusting a figure.\n")
 	}
 
-	g.writeNextSteps(&b, qg, guides, story, ok)
+	g.writeNextSteps(&b, qg, guides, storyOps)
 	return b.String()
 }
 
@@ -292,11 +299,13 @@ type guideStoryOf struct {
 	golden []byte
 }
 
-// guideStory returns the worked story of intent: the first story
-// example (by name) whose FIRST _meta.intents entry is intent, which
-// the instance shows (no operator hidden) and which has a committed
-// golden.
-func (g *gen) guideStory(intent string) (guideStoryOf, bool) {
+// guideStories returns the worked stories of intent, in example-name
+// order: every story example whose FIRST _meta.intents entry is
+// intent, which the instance shows (no operator hidden) and which has
+// a committed golden. Every one renders on the guide, so a story is
+// never silently dropped because an earlier one claims its intent.
+func (g *gen) guideStories(intent string) []guideStoryOf {
+	var out []guideStoryOf
 	for _, name := range examples.Stories() {
 		if !g.disc.ExampleVisible(name) {
 			continue
@@ -318,9 +327,26 @@ func (g *gen) guideStory(intent string) (guideStoryOf, bool) {
 		if !ok {
 			continue
 		}
-		return guideStoryOf{ex: ex, golden: golden}, true
+		out = append(out, guideStoryOf{ex: ex, golden: golden})
 	}
-	return guideStoryOf{}, false
+	return out
+}
+
+// storyOperators returns the operators of stories, deduplicated in
+// first-seen order: the operators the guide's reading and skill links
+// cover.
+func storyOperators(stories []guideStoryOf) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, s := range stories {
+		for _, op := range s.ex.Operators {
+			if !seen[op] {
+				seen[op] = true
+				out = append(out, op)
+			}
+		}
+	}
+	return out
 }
 
 // writeStory renders part 3: the story's question, its request, the
@@ -349,50 +375,48 @@ func (g *gen) writeStory(b *strings.Builder, s guideStoryOf) {
 }
 
 // writeHowToRead renders part 4: the Interpretation entries of the
-// story's operators, each field's meaning, bands, sign and caveats,
-// and a pointer to the operator's reading page. Without a story it
-// points at the reading pages.
-func (g *gen) writeHowToRead(b *strings.Builder, s guideStoryOf, ok bool, page string, readingHome, homes map[string]string) {
+// stories' operators (ops), each field's meaning, bands, sign and
+// caveats, and a pointer to the operator's reading page. Without a
+// story it points at the reading pages.
+func (g *gen) writeHowToRead(b *strings.Builder, ops []string, page string, readingHome, homes map[string]string) {
 	wrote := false
-	if ok {
-		for _, op := range s.ex.Operators {
-			var fields []descriptor.Interpretation
-			for _, in := range g.interpretationsOf(op) {
-				if g.fieldVisible(in) && g.fieldHasContent(in) {
-					fields = append(fields, in)
-				}
+	for _, op := range ops {
+		var fields []descriptor.Interpretation
+		for _, in := range g.interpretationsOf(op) {
+			if g.fieldVisible(in) && g.fieldHasContent(in) {
+				fields = append(fields, in)
 			}
-			if len(fields) == 0 {
-				continue
-			}
-			wrote = true
-			b.WriteString("\n### `")
-			b.WriteString(op)
-			b.WriteString("`\n")
-			for _, in := range fields {
-				b.WriteString("\n**`")
-				b.WriteString(in.Field)
-				b.WriteString("`**\n")
-				b.WriteString(g.renderField(in, "", nil))
-				if home, ok := homes[in.Shared]; ok && in.Shared != "" {
-					b.WriteString("\nFollows the shared reading: see [")
-					b.WriteString(sharedTitle(in.Shared))
-					b.WriteString("](")
-					b.WriteString(relPath(page, home))
-					b.WriteString("#")
-					b.WriteString(sharedAnchor(in.Shared))
-					b.WriteString(").\n")
-				}
-			}
-			if rp, ok := readingHome[op]; ok {
-				b.WriteString("\nMore on reading it: [")
-				b.WriteString(op)
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		wrote = true
+		b.WriteString("\n### `")
+		b.WriteString(op)
+		b.WriteString("`\n")
+		for _, in := range fields {
+			b.WriteString("\n**`")
+			b.WriteString(in.Field)
+			b.WriteString("`**\n")
+			b.WriteString(g.renderField(in, "", nil))
+			if home, ok := homes[in.Shared]; ok && in.Shared != "" {
+				b.WriteString("\nFollows the shared reading: see [")
+				b.WriteString(sharedTitle(in.Shared))
 				b.WriteString("](")
-				b.WriteString(relPath(page, rp))
+				b.WriteString(relPath(page, home))
 				b.WriteString("#")
-				b.WriteString(operatorAnchor(op))
+				b.WriteString(sharedAnchor(in.Shared))
 				b.WriteString(").\n")
 			}
+		}
+		if rp, ok := readingHome[op]; ok {
+			b.WriteString("\nMore on reading it: [")
+			b.WriteString(op)
+			b.WriteString("](")
+			b.WriteString(relPath(page, rp))
+			b.WriteString("#")
+			b.WriteString(operatorAnchor(op))
+			b.WriteString(").\n")
 		}
 	}
 	if !wrote {
@@ -411,7 +435,7 @@ func relPath(page, target string) string {
 // writeNextSteps renders part 6: related questions (the guides sharing
 // the most serving operators), the skills to read and the CLI leaves
 // that act on the question.
-func (g *gen) writeNextSteps(b *strings.Builder, qg questionGuide, guides []questionGuide, s guideStoryOf, hasStory bool) {
+func (g *gen) writeNextSteps(b *strings.Builder, qg questionGuide, guides []questionGuide, storyOps []string) {
 	b.WriteString("\n## Next steps\n")
 	own := map[string]bool{}
 	for _, op := range qg.ops {
@@ -473,10 +497,8 @@ func (g *gen) writeNextSteps(b *strings.Builder, qg questionGuide, guides []ques
 			}
 		}
 	}
-	if hasStory {
-		for _, op := range s.ex.Operators {
-			addSkill(g.operatorSkill(op))
-		}
+	for _, op := range storyOps {
+		addSkill(g.operatorSkill(op))
 	}
 	if len(skillLinks) > 0 {
 		b.WriteString("\n**Skills:** ")
