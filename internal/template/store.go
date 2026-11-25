@@ -53,9 +53,11 @@ const templateRescanInterval = time.Second
 //
 // Each configured root is walked with afero.Walk over the store's
 // filesystem and every *.json file under it becomes a template. The
-// filesystem is the one handed to NewStore — the instance's afero.Fs — so
-// an embedder on an in-memory filesystem keeps its templates there too. Directories and non-.json files are
-// skipped silently. A configured root that does not exist is skipped too —
+// filesystem is the one handed to NewStore: an instance hands it
+// pulse.Options.FS when the embedder set one, else an unrooted
+// afero.NewOsFs() (template roots are host paths, not DataDir-relative),
+// so an embedder on an in-memory filesystem keeps its templates there
+// too. Directories and non-.json files are skipped silently. A configured root that does not exist is skipped too —
 // a layered setup routinely names an optional override directory that is
 // simply absent — but a configured path that exists and is NOT a directory
 // is an error, because that is a misconfiguration rather than an absence.

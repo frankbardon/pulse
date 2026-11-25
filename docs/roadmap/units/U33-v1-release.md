@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756]
 branch: v1-release
 ---
 
@@ -223,3 +223,9 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 - [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
 - [ ] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze.
 - [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing.
+
+## Handed on from U32
+
+Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
+
+- [ ] **#756** — **The label, lookup, range-table and populations directory loaders read through `os`**, so an embedder on an in-memory `Options.FS` cannot use them; thread the template store's Fs.

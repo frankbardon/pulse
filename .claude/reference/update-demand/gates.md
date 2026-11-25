@@ -18,7 +18,7 @@ Enforced by their own packages and binding on every PR.
 
 Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-arch.md` (Cross-arch determinism gates).
 
-**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `buildApp()` tree is named under `skills/` or `docs/src/` and has a row in the `docs/src/cli/flags.md` command index, and every index row is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
+**`TestSkillsCoverAllCliLeaves`** (`cmd/pulse/`) is two-way: every runnable leaf in the real `internal/cli.App()` tree is named under `skills/` or `docs/src/` and has a row in the `docs/src/cli/flags.md` command index, and every index row is a mounted, actionable leaf. The reverse direction catches a deleted registration whose documentation stayed. It checks naming only, not prose quality.
 
 **`TestFieldTypeAcceptance_PredictMatchesRuntime`**: every registered operator × every field type is accepted by predict exactly when `Process` accepts it, and every refusal carries one identical code from both sides (the `internal/fieldaccept` table's code wherever the slot is tabled). Siblings: `TestFieldTypeSlots_PredictMatchesRuntime`, `TestDecimalAggregation_PredictMatchesRuntime`, `TestUnregisteredOperator_PredictMatchesRuntime`. A new operator needs an `acceptanceTemplates` row when it is registered; a new field type is picked up automatically. Detail: `predict-inspect.md`.
 

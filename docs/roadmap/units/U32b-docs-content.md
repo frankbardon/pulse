@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: []
 blocks: [U32c, U33]
-todo_items: [162, 163, 164, 165, 371, 504, 505, 557, 666, 667, 757, 758, 759, 760, 761, 762, 763, 764]
+todo_items: [162, 163, 164, 165, 371, 504, 505, 557, 666, 667, 757, 758, 759, 760, 761, 762, 763, 764, 765, 766]
 branch: docs-content
 ---
 
@@ -49,6 +49,8 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
 - [ ] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
 - [ ] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
+- [ ] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
+- [ ] **#766** (11. Documentation audit) The removed-name scan matches qualified `io.` entries whole-word only, so the `pio.` alias spelling slips through
 
 ## Baseline burn-down
 
@@ -58,7 +60,7 @@ The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U
 |---|---|---|
 | `TestDocsLinksResolve` | `links.txt` | 6 |
 | `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 |
-| `TestDocsSnippetsRun` | `snippets.txt` | 30 (12 on generated skill pages, #763) |
+| `TestDocsSnippetsRun` | `snippets.txt` | 31 (12 on generated skill pages, #763) |
 | `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 |
 | `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) |
 | `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 |
@@ -70,7 +72,7 @@ How the lists work: `docs/src/contributing/doc-checks.md`.
 
 **In scope**
 - Burn every U32 baseline allowlist down to empty; add `TestDocsBaselinesEmpty` so none can return
-- The U32 hand-offs #757–#764 (checks to widen, examples and skills to fix, a superseded gate to retire)
+- The U32 hand-offs #757–#766 (checks to widen, examples and skills to fix, a superseded gate to retire)
 - Accuracy and currency passes over the mdBook, repo docs, skills, examples, MCP text, error fixups, manifest, `Purpose` / `Interpretation` / glossary
 - Getting Started for v1 and the single embedder guide
 - Library pages for the embedder surfaces that have none, including the three `PULSE_*_TABLES_DIR` variables (#666)

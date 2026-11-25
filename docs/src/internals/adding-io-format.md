@@ -1129,7 +1129,7 @@ per-format flags, not a format list.
 
 A new leaf **does** need a row in the command index in
 `docs/src/cli/flags.md`. `TestSkillsCoverAllCliLeaves`
-(`cmd/pulse/cli_leaves_test.go`) walks the real `buildApp()` command tree
+(`cmd/pulse/cli_leaves_test.go`) walks the real command tree, `internal/cli.App()`,
 and fails if any runnable command path is named nowhere under `skills/`
 or `docs/src/`. It checks naming only — whether the prose is any good
 stays the author's judgement.
