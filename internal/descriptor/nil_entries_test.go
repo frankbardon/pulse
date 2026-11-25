@@ -10,9 +10,11 @@ import (
 )
 
 // TestNilEntryGate pins the null-entry rule SlotRefusal runs first: the
-// first null entry of a Request's operator lists in JSON order, a facet
-// root's filterers, a Compose root's null Requests entry, then each
-// slot's and each fit request's lists (details.request / details.fit);
+// first null entry of a Request's operator lists then labels in JSON
+// order, a facet root's filterers then labels, a sample root's labels,
+// a chain stage's labels (details.stage; its operator lists stay with
+// mergegate), a Compose root's null Requests entry, then each slot's and each fit
+// request's lists (details.request / details.fit);
 // a clean root, a nil root and another root type pass.
 func TestNilEntryGate(t *testing.T) {
 	t.Parallel()
@@ -33,8 +35,22 @@ func TestNilEntryGate(t *testing.T) {
 			"filterers contains a null filterer at index 0", `{"index":0,"slot":"filterers"}`},
 		{"post_tests", &types.Request{PostTests: []*types.Test{nil}},
 			"post_tests contains a null test at index 0", `{"index":0,"slot":"post_tests"}`},
+		{"labels", &types.Request{Labels: []*types.LabelBinding{{Field: "region", Table: "t"}, nil}},
+			"labels contains a null label binding at index 1", `{"index":1,"slot":"labels"}`},
+		{"operator list before labels", &types.Request{Labels: []*types.LabelBinding{nil}, Joins: []*types.JoinSpec{nil}},
+			"joins contains a null join at index 0", `{"index":0,"slot":"joins"}`},
 		{"facet", &types.FacetRequest{Filterers: []*types.Filterer{nil}},
 			"filterers contains a null filterer at index 0", `{"index":0,"slot":"filterers"}`},
+		{"facet labels", &types.FacetRequest{Labels: []*types.LabelBinding{nil}},
+			"labels contains a null label binding at index 0", `{"index":0,"slot":"labels"}`},
+		{"sample labels", &types.SampleRequest{Labels: []*types.LabelBinding{nil}},
+			"labels contains a null label binding at index 0", `{"index":0,"slot":"labels"}`},
+		{"nil sample", (*types.SampleRequest)(nil), "", ""},
+		{"chain stage labels", &types.ChainRequest{Stages: []*types.ChainStage{nil, {Request: &types.Request{}}, {Request: &types.Request{Labels: []*types.LabelBinding{nil}}}}},
+			"labels contains a null label binding at index 0", `{"index":0,"slot":"labels","stage":2}`},
+		{"chain stage operator lists pass", &types.ChainRequest{Stages: []*types.ChainStage{{Request: &types.Request{Groups: []*types.Group{nil}}}}}, "", ""},
+		{"compose slot labels", &types.ComposedRequest{Requests: []*types.Request{{Labels: []*types.LabelBinding{nil}}}},
+			"labels contains a null label binding at index 0", `{"index":0,"request":0,"slot":"labels"}`},
 		{"compose requests", &types.ComposedRequest{Requests: []*types.Request{{}, nil}},
 			"requests contains a null request at index 1", `{"index":1,"slot":"requests"}`},
 		{"compose slot", &types.ComposedRequest{Requests: []*types.Request{{}, {Windows: []*types.Window{nil}}}},

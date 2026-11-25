@@ -8,14 +8,15 @@ import (
 )
 
 // nil_entries.go is the null-entry rule for a request root's operator
-// lists: `groups: [null]` decodes to a nil *types.Group, and every
+// and label-binding lists: `groups: [null]` decodes to a nil *types.Group, and every
 // arm — predict's streamability gate, the runtime's canStream, the
 // buffered partitioner — would dereference it. SlotRefusal runs it
 // first, so every service funnel and every predict root refuse the
 // same entry with the same code, message and details before anything
 // else reads the lists (TestNilEntryRefusedOnEveryArm). The crosstab
-// axis twin is crosstabaxis.NilGrouperRefusals; a chain stage's lists
-// stay with mergegate (PULSE_CHAIN_NOT_MERGEABLE).
+// axis twin is crosstabaxis.NilGrouperRefusals; a chain stage's
+// operator lists stay with mergegate (PULSE_CHAIN_NOT_MERGEABLE), its
+// labels are judged here.
 
 // nilEntryNoun names one list element in the refusal message.
 var nilEntryNoun = map[string]string{
@@ -30,6 +31,7 @@ var nilEntryNoun = map[string]string{
 	"regressions":  "regression",
 	"joins":        "join",
 	"requests":     "request",
+	"labels":       "label binding",
 }
 
 // nilEntryRefusal is PROCESSING_CONFIG
@@ -50,8 +52,8 @@ func firstNil[T any](list []*T) int {
 	return -1
 }
 
-// requestNilEntryRefusal walks one Request's operator lists in JSON
-// order and refuses the first null entry. Nil for a nil request.
+// requestNilEntryRefusal walks one Request's operator lists, then its
+// labels, in JSON order and refuses the first null entry. Nil for a nil request.
 func requestNilEntryRefusal(req *types.Request) *errors.CodedError {
 	if req == nil {
 		return nil
@@ -70,6 +72,7 @@ func requestNilEntryRefusal(req *types.Request) *errors.CodedError {
 		{"post_tests", firstNil(req.PostTests)},
 		{"regressions", firstNil(req.Regressions)},
 		{"joins", firstNil(req.Joins)},
+		{"labels", firstNil(req.Labels)},
 	}
 	for _, l := range lists {
 		if l.at >= 0 {
@@ -80,8 +83,10 @@ func requestNilEntryRefusal(req *types.Request) *errors.CodedError {
 }
 
 // nilEntryGate is the null-entry gate SlotRefusal runs first. v is a
-// *types.Request (its operator lists), a *types.FacetRequest (its
-// filterers) or a *types.ComposedRequest (a null Requests entry, then
+// *types.Request (its operator lists and labels), a *types.FacetRequest
+// (its filterers, then labels), a *types.SampleRequest (its labels), a
+// *types.ChainRequest (each stage's labels, details.stage = i) or a
+// *types.ComposedRequest (a null Requests entry, then
 // each slot's lists with details.request = i, then each fit request's
 // with details.fit = i — the base, banner and sweep slots are judged
 // once expanded into Requests); anything else passes.
@@ -97,6 +102,31 @@ func nilEntryGate(v any) error {
 		}
 		if i := firstNil(r.Filterers); i >= 0 {
 			return nilEntryRefusal("filterers", i)
+		}
+		if i := firstNil(r.Labels); i >= 0 {
+			return nilEntryRefusal("labels", i)
+		}
+	case *types.SampleRequest:
+		if r == nil {
+			return nil
+		}
+		if i := firstNil(r.Labels); i >= 0 {
+			return nilEntryRefusal("labels", i)
+		}
+	case *types.ChainRequest:
+		// Only a stage's labels: its operator lists stay with mergegate
+		// (PULSE_CHAIN_NOT_MERGEABLE), a null stage or stage request
+		// with the chain's own PULSE_CHAIN_EMPTY.
+		if r == nil {
+			return nil
+		}
+		for i, st := range r.Stages {
+			if st == nil || st.Request == nil {
+				continue
+			}
+			if j := firstNil(st.Request.Labels); j >= 0 {
+				return RefusalAt(nilEntryRefusal("labels", j), "stage", i)
+			}
 		}
 	case *types.ComposedRequest:
 		if r == nil {

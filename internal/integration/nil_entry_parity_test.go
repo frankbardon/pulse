@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -61,6 +62,7 @@ func TestNilEntryRefusedOnEveryArm(t *testing.T) {
 		{"post_tests", "post_tests contains a null test at index 0", func(r *types.Request) { r.PostTests = []*types.Test{nil} }},
 		{"regressions", "regressions contains a null regression at index 0", func(r *types.Request) { r.Regressions = []*types.RegressionSpec{nil} }},
 		{"joins", "joins contains a null join at index 0", func(r *types.Request) { r.Joins = []*types.JoinSpec{nil} }},
+		{"labels", "labels contains a null label binding at index 0", func(r *types.Request) { r.Labels = []*types.LabelBinding{nil} }},
 	}
 	for _, disable := range []bool{false, true} {
 		p, err := pulse.New(pulse.Options{FS: fsys, DisablePanicRecovery: disable})
@@ -104,7 +106,9 @@ func TestNilEntryRefusedOnEveryArm(t *testing.T) {
 }
 
 // TestNilEntryRefusedOnOtherRoots: the same gate on the facet root's
-// filterers and the Compose root — a null Requests entry, a null entry
+// filterers and labels, a chain stage's labels (details.stage), the
+// sample root's labels (runtime only: sample has no predict) and the
+// Compose root — a null Requests entry, a null entry
 // in a slot's list (details.request), in the base merged into every
 // slot, and in a fit request's list (details.fit) — predict and runtime
 // identical, no panic.
@@ -133,6 +137,52 @@ func TestNilEntryRefusedOnOtherRoots(t *testing.T) {
 		requireCode(t, rerr, errors.PROCESSING_CONFIG)
 		sameEntry(t, env, rerr)
 	})
+	t.Run("facet/labels", func(t *testing.T) {
+		fr := &types.FacetRequest{Cohort: cohort, Fields: []string{"region"}, Labels: []*types.LabelBinding{nil}}
+		env, err := p.PredictFacet(ctx, fr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, rerr := p.FacetSchema(ctx, fr)
+		ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+		if ce.Details["slot"] != "labels" {
+			t.Errorf("runtime details = %v, want slot labels", ce.Details)
+		}
+		sameEntry(t, env, rerr)
+	})
+	// A chain stage's labels, located by details.stage — stage 0 (which
+	// the runtime would otherwise run as a Process request) and a later
+	// stage alike.
+	for _, at := range []int{0, 1} {
+		t.Run("chain/stage_labels/"+strconv.Itoa(at), func(t *testing.T) {
+			stages := []*types.ChainStage{
+				{Request: &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "score", Label: "n"}}}},
+				{Request: &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}}},
+			}
+			stages[at].Request.Labels = []*types.LabelBinding{nil}
+			cr := &types.ChainRequest{Cohort: cohort, Stages: stages}
+			env, err := p.PredictChain(ctx, cr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, rerr := p.ProcessChain(ctx, cr)
+			ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+			want, _ := json.Marshal(map[string]any{"slot": "labels", "index": 0, "stage": at})
+			if have, _ := json.Marshal(ce.Details); string(have) != string(want) {
+				t.Errorf("runtime details = %s, want %s", have, want)
+			}
+			sameEntry(t, env, rerr)
+		})
+	}
+	// Sample has no predict root; its runtime refuses the same entry.
+	t.Run("sample/labels", func(t *testing.T) {
+		_, rerr := p.SampleWithRequest(ctx, &types.SampleRequest{Cohort: cohort, N: 1, Labels: []*types.LabelBinding{nil}})
+		ce := requireCode(t, rerr, errors.PROCESSING_CONFIG)
+		if ce.Message != "labels contains a null label binding at index 0" || ce.Details["slot"] != "labels" || ce.Details["index"] != 0 {
+			t.Errorf("runtime = %q %v, want the labels null-entry refusal", ce.Message, ce.Details)
+		}
+	})
 
 	fit := &types.Request{Cohort: cohort, Filterers: []*types.Filterer{nil},
 		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Name: "m", Target: "score", Predictors: []string{"qty"}}}}
@@ -147,6 +197,8 @@ func TestNilEntryRefusedOnOtherRoots(t *testing.T) {
 			map[string]any{"slot": "groups", "index": 0, "request": 0}},
 		{"base_groups", &types.ComposedRequest{Base: &types.Request{Groups: []*types.Group{nil}}, Requests: []*types.Request{slot()}},
 			map[string]any{"slot": "groups", "index": 0, "request": 0}},
+		{"slot_labels", &types.ComposedRequest{Requests: []*types.Request{{Label: "a", Cohort: cohort, Aggregations: count(), Labels: []*types.LabelBinding{nil}}}},
+			map[string]any{"slot": "labels", "index": 0, "request": 0}},
 		{"fit_filterers", &types.ComposedRequest{Requests: []*types.Request{slot()}, Fits: []types.FitSpec{{Name: "f", Request: fit}}},
 			map[string]any{"slot": "filterers", "index": 0, "fit": 0}},
 	}

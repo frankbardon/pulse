@@ -42,13 +42,10 @@ func ValidateLabels(
 	}
 
 	seen := make(map[string]int, len(bindings))
+	// A null binding never reaches here: the null-entry gate
+	// (nilEntryGate, run first in SlotRefusal) refuses it as
+	// PROCESSING_CONFIG {slot: "labels", index}.
 	for i, b := range bindings {
-		if b == nil {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				fmt.Sprintf("labels[%d]: nil binding", i),
-				map[string]any{"index": i})
-			continue
-		}
 		if strings.TrimSpace(b.Field) == "" {
 			env.AddError(string(errors.SERVICE_VALIDATION),
 				fmt.Sprintf("labels[%d]: Field is required", i),
