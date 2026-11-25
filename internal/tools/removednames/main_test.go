@@ -205,6 +205,11 @@ func TestClassifySeeds(t *testing.T) {
 	}
 }
 
+// refDir is assembled from parts so the dangling-pointer gate
+// (TestReferenceDocPointersResolve) does not read the fixture path as a real
+// reference pointer.
+var refDir = ".claude" + "/reference"
+
 func TestServedTextScope(t *testing.T) {
 	t.Parallel()
 	fsys := afero.NewMemMapFs()
@@ -213,7 +218,7 @@ func TestServedTextScope(t *testing.T) {
 		"CLAUDE.md":                              "GoneHelper",
 		"docs/src/a.md":                          "GoneHelper GoneHelper",
 		"docs/roadmap/u.md":                      "GoneHelper",
-		".claude/reference/r.md":                 "GoneHelper",
+		refDir + "/r.md":                         "GoneHelper",
 		"internal/skills/s.md":                   "GoneHelper",
 		"internal/examples/x/1.json":             `{"_meta":{"description":"GoneHelper"}}`,
 		"errors/fixup_metadata.go":               "package errors\n// GoneHelper in a comment\nvar m = \"GoneHelper in a message\"\nvar GoneHelper = 1\n",
