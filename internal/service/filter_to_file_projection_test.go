@@ -169,7 +169,7 @@ func TestFieldFilterForPlan_PassesThroughEncodingFieldFilter(t *testing.T) {
 //     ≈ 5× wall time, 3.6× memory, 3.3× allocations.
 //
 // Savings scale with the unreferenced-field count — at 628 fields (the
-// BERA visa_custom shape that motivated this PR) the unprojected path
+// wide embedder schema that motivated this PR) the unprojected path
 // was the difference between an interactive filter and a five-minute
 // CPU burn on a single-column predicate.
 //

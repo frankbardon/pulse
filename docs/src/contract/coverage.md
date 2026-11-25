@@ -219,7 +219,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.MatrixOpRegistration` | yes |  | yes |
 | `pulse.MemberSet` |  |  | yes |
 | `pulse.New` | yes | yes | yes |
-| `pulse.NumericRangeSpec` |  |  | yes |
+| `pulse.NumericRangeSpec` | yes |  | yes |
 | `pulse.Options` | yes | yes | yes |
 | `pulse.OverlayRegistration` | yes |  | yes |
 | `pulse.ParamMeta` | yes |  | yes |
@@ -351,7 +351,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.RakeRequest` | yes |  | yes |
 | `pulse.RakeResult` |  |  | yes |
 | `pulse.RakeResult.MarshalJSON` |  |  | yes |
-| `pulse.RangeTable` |  |  | yes |
+| `pulse.RangeTable` | yes |  | yes |
 | `pulse.RangeTable.Kind` |  |  | yes |
 | `pulse.RangeTableInfo` |  |  | yes |
 | `pulse.Record` |  |  | yes |
@@ -2123,7 +2123,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `synth.FieldModel` |  |  | yes |
 | `synth.FieldModelSpec` |  |  | yes |
 | `synth.FieldProfile` |  |  | yes |
-| `synth.FieldSpec` |  |  | yes |
+| `synth.FieldSpec` | yes |  | yes |
 | `synth.LookupDigest` | yes | yes | yes |
 | `synth.LookupTable` |  |  | yes |
 | `synth.ModelFidelity` |  |  | yes |
@@ -2140,11 +2140,11 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `synth.ModelResidualUnmeasuredPair` |  |  | yes |
 | `synth.NumericPairProfile` |  |  | yes |
 | `synth.NumericProfile` |  |  | yes |
-| `synth.Options` |  |  | yes |
+| `synth.Options` | yes |  | yes |
 | `synth.PairArbitrationDeclared` |  |  | yes |
 | `synth.PairArbitrationStrength` |  |  | yes |
 | `synth.PairwiseFidelity` |  |  | yes |
-| `synth.ParseSpec` |  |  | yes |
+| `synth.ParseSpec` | yes |  | yes |
 | `synth.Profile` | yes | yes | yes |
 | `synth.Profile.FittedModels` | yes | yes | yes |
 | `synth.Profile.MarshalJSON` |  |  | yes |
@@ -2556,7 +2556,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.MAT_PARTIAL_CORRELATION` |  |  | yes |
 | `types.MAT_PCA` |  |  | yes |
 | `types.MAT_RELIABILITY` |  |  | yes |
-| `types.MAT_SEM` |  |  | yes |
+| `types.MAT_SEM` | yes |  | yes |
 | `types.MarginAggregationFault` |  |  | yes |
 | `types.MarginAggregationFaultDuplicateLabel` |  |  | yes |
 | `types.MarginAggregationFaultKind` |  |  | yes |
@@ -2884,7 +2884,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.RunComponents` |  |  | yes |
 | `types.SEMFitGroup` |  |  | yes |
 | `types.SEMFitGroupLevel` |  |  | yes |
-| `types.SEMFitResult` |  |  | yes |
+| `types.SEMFitResult` | yes |  | yes |
 | `types.SEMFitResult.MarshalJSON` |  |  | yes |
 | `types.SampleRequest` | yes |  | yes |
 | `types.SeriesEntry` |  |  | yes |
@@ -2969,7 +2969,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.VectorKindComposition` |  |  | yes |
 | `types.VectorKindMeasure` |  |  | yes |
 | `types.VectorKindScale` |  |  | yes |
-| `types.VectorSpec` |  |  | yes |
+| `types.VectorSpec` | yes |  | yes |
 | `types.VectorStandardize` |  |  | yes |
 | `types.VectorStandardizeZScore` |  |  | yes |
 | `types.VersionResponse` |  |  | yes |

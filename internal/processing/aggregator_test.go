@@ -1301,8 +1301,8 @@ func makeAggregator(t *testing.T, aggType types.AggregationType, field string, s
 // ---------------------------------------------------------------------
 // AGG_DISTINCT_SUM — sums a value field once per distinct key.
 //
-// field names the value summed (Orbit's use: `weight`); Params.distinct_by
-// names the key field (Orbit's use: `respondent`). The scalar return is the
+// field names the value summed; Params.distinct_by
+// names the key field. The scalar return is the
 // sum over distinct keys; Components() additionally carries the distinct
 // count so one operator yields both figures from one scan.
 // ---------------------------------------------------------------------

@@ -7,7 +7,7 @@
 // Pulse MCP from its own process — including any operators, expression
 // functions, or label tables registered via the constructed *pulse.Pulse's
 // Options.Extensions — without shelling out to the `pulse` binary. That is the
-// only way a domain layer (e.g. a BERA-flavored Pulse) can surface its
+// only way a domain layer (a Pulse carrying its own operators) can surface its
 // in-process Go extensions over MCP, since the stock binary cannot load them.
 package mcpserve
 

@@ -22,7 +22,8 @@ Operators, regression models, overlays, expression functions, lookup
 tables, skills and examples of your own go in `Options.Extensions`.
 Predict, the manifest, MCP and the runtime treat them exactly like
 built-ins, and `pulse.New` refuses a malformed one.
-[Extension Points](../internals/extension-points.md).
+[Writing Operators (extend)](extend.md),
+[Label, Range & Lookup Tables](tables.md).
 
 ## 3. Choose a feature profile
 
@@ -58,4 +59,4 @@ To expose the instance to an AI agent, run the ready-made server
 (`mcpserve`) on stdio, or mount Pulse's tools on a go-sdk server you
 already run (`mcp/gosdk`). The tools follow the instance: its
 extensions, profile and limits.
-[MCP Integration](../mcp/index.md).
+[Serving MCP](mcp-serving.md).

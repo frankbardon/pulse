@@ -67,7 +67,7 @@ func distinctMarginRecords() [][]uint64 {
 // gate) over the honest-sounding MarginRecompute, which would keep the
 // same numbers and silently cost the fused path.
 //
-// The measured Orbit-side counterpart on the live Visa cohort is a
+// The measured counterpart on a large production cohort is a
 // column margin of 109,013 distinct respondents against a cell sum of
 // 673,270 (research/weighted-distinct-feasibility.md §10). That cohort
 // is not reproducible here, so the fixture above reproduces the

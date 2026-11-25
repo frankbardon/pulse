@@ -149,3 +149,7 @@ func main() {
   per-request timeout.
 - [Feature Profiles](feature-profiles.md) — declare the instance's feature
   set; validation codes and the MCP server entry point.
+- Per package: [Readers, Writers & Jobs (io)](io.md),
+  [Synthetic Data (synth)](synth.md),
+  [Writing Operators (extend)](extend.md),
+  [Serving MCP (mcpserve, mcp/gosdk)](mcp-serving.md).
