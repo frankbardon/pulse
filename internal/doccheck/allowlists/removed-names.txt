@@ -1,3 +1,3 @@
-# TestNoRemovedNamesInDocs baseline: served text naming a removed or pre-1.0 spelling (denylist: removedNames in removed_names_test.go).
+# TestNoRemovedNamesInDocs baseline: served text naming a removed or pre-1.0 spelling (denylist: doccheck.RemovedNames in internal/doccheck/removed_names.go).
 # Format: path<TAB>name<TAB>reason (path = repo file, or "<surface> <name>" for instance-served text). Shrink-only: rewrite the mention, then delete its line.
 example crosstab-share-of-col-and-total	ApplyOverlays	baseline (U32a): example description names the removed processing helper; U32b rewrites it

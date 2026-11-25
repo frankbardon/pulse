@@ -31,6 +31,7 @@ test, so a renamed or moved check cannot drop out silently.
 | `TestDocsSnippetsCompile` | heavy | `internal/integration` | `snippets-go.txt` |
 | `TestCliHelpMatchesFlagsDoc` | fast | `cmd/pulse` | `cli-flags.txt` |
 | `TestNoRemovedNamesInDocs` | fast | root | `removed-names.txt` |
+| `TestNoRemovedNamesInPromptsAndReference` | heavy | `mcp/gosdk` | `removed-names-prompts.txt` |
 | `TestDocsCoverageCurrent`, `TestDocsCoverageNoGaps` | fast | `internal/cli` | `coverage.txt` |
 | `TestProfileServedTextNoHiddenFeature` | heavy | root | `served-text.txt` |
 | `TestFacadeExamplesPresent` | fast | root | none: the pinned list in the test |
