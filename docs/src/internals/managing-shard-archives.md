@@ -210,7 +210,8 @@ pulse shard list q1_2019.pulse
 ## 4. Verify
 
 Re-validates every shard's header + cohesion against the canonical
-schema. Useful after manual archive surgery or when a build pipeline
+schema. A shard whose own magic or format version is wrong fails with
+`PULSE_SHARD_HEADER_INVALID` (also on its first read). Useful after manual archive surgery or when a build pipeline
 appends shards from multiple producers. `--json` also reports the dead
 bytes in-place adds left (`data.dead_schema_copies`, `data.dead_bytes`;
 see "Dead bytes" below):

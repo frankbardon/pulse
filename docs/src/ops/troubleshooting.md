@@ -82,6 +82,26 @@ categorical field (error code `PULSE_FIELD_TYPE_UNSUPPORTED`, which
 combined with a feature (currently buffered, not invalid — predict
 will flag this in `streamable_reasons`).
 
+## `PULSE_CROSSTAB_*` errors
+
+Crosstab shape faults, refused by predict and the run alike:
+
+- `PULSE_CROSSTAB_MISSING_CELL` — the crosstab has no `cell` (or
+  `cells`) aggregation. Add one: it is the value at every row × column
+  intersection.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS` — `normalize_level` or
+  `normalize_within` is set but `normalize` is not `row` or `column`.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE` — either is set beside
+  `normalize: total`, whose grand-total denominator has no axis to
+  descend.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE` — the depth is outside
+  the axis: 0 is the first grouper, `len(axis) − 1` the leaf.
+  `normalize_level` counts on the normalized axis, `normalize_within` on
+  the other one.
+
 ## `PULSE_IMPORT_*` errors
 
 Import-time failures. The two most common:
@@ -93,6 +113,9 @@ Import-time failures. The two most common:
   Blocks](../format/dictionaries.md).
 - `PULSE_IMPORT_DESCRIPTION_TOO_LONG` — schema field description
   exceeds 1000 bytes. Trim it.
+- `PULSE_IMPORT_SCHEMA_AMBIGUOUS` — inference saw conflicting types in
+  one column within the sample window. Raise `--sample-rows` or pass an
+  explicit `--schema` for that column.
 - `PULSE_IMPORT_ROW_ERROR: null value in non-nullable field` — a null
   cell (`""` / `null` / `na` / `n/a`) landed in a field your **explicit
   `--schema`** declared non-nullable. Mark the field `"nullable": true`
@@ -145,6 +168,34 @@ empty, under ten characters, or a generic placeholder (`"n/a"`,
 
 **Fix:** edit the description in the schema JSON, re-import with
 `--schema`.
+
+## `PULSE_EXPORT_FIELD_UNKNOWN`
+
+An export or convert `--include` (`ExportJob.Includes` /
+`ConvertJob.Includes`) names a field the source schema does not have.
+List the field names with `pulse cohort inspect` and fix the spelling.
+
+## Domain-wide codes
+
+Each error domain has codes for failures no specific code describes.
+Look any code up with `pulse_errors_lookup` or `pulse errors lookup
+CODE`.
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `SERVICE_REGISTRY` | The request names an operator this instance does not register | Fix the `type` spelling; check `pulse manifest --json` (a feature profile may hide it) |
+| `DATA_PARSE` | Tabular input failed to parse at a row | Fix the source row, or the delimiter / format flags |
+| `DATA_CONFIG` | An import or export job is misconfigured (conflicting flags, unknown format, bad target) | Read the message's `details`; fix the job |
+| `DATA_CALCULATION` | A value-level read failed, such as a field missing from a record | Check the field names against the schema |
+| `CLI_COMMAND` | A CLI command failed to dispatch | Check the command and flags (`pulse <command> --help`) |
+| `CLI_OUTPUT` | Output could not be written (a file error, an unsupported format) | Check the output path and format |
+| `CLI_INTERNAL`, `DATA_INTERNAL`, `ENCODING_INTERNAL`, `PROCESSING_STATE` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
+
+Two codes are no longer raised and stay only so a lookup resolves:
+`PULSE_CROSSTAB_EMPTY_COLUMNS` (a crosstab without column groupers now
+runs with one implicit Total column) and
+`PULSE_INDEX_UNSUPPORTED_SHARDED` (point-lookup indexes accept shard
+archives).
 
 ## MCP "tool not found" / "no tools registered"
 

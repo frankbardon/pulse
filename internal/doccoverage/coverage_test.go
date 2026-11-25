@@ -165,6 +165,42 @@ func TestBookStricterRule(t *testing.T) {
 	}
 }
 
+// TestSkillSlotRule: the Skill column applies the slot rule too: a Request
+// slot named only as a bare word in a skill is a skill gap; a code span or
+// Request.<Field> closes it.
+func TestSkillSlotRule(t *testing.T) {
+	t.Parallel()
+	in := Inputs{
+		Rows: []Row{
+			{Kind: KindRequestSlot, ID: "label", Field: "Label", GoDoc: true},
+			{Kind: KindRequestSlot, ID: "sort", Field: "Sort", GoDoc: true},
+			{Kind: KindRequestSlot, ID: "weight", Field: "Weight", GoDoc: true},
+		},
+		Book:   map[string]string{"docs/src/concepts/x.md": "`label` `sort` `weight`"},
+		Skills: map[string]string{"s": "Give each slot a label; weight rows. Set `sort` and Request.Weight."},
+	}
+	m, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gaps := map[string]bool{}
+	for _, v := range m.Gaps() {
+		gaps[v.Path+"\t"+v.Entry] = true
+	}
+	for g, wantGap := range map[string]bool{
+		"request-slot\tlabel skill":  true,  // a bare word in prose
+		"request-slot\tsort skill":   false, // a code span
+		"request-slot\tweight skill": false, // Request.Weight
+	} {
+		if gaps[g] != wantGap {
+			t.Errorf("gap %q = %v, want %v (gaps: %v)", g, gaps[g], wantGap, gaps)
+		}
+	}
+	if page := string(m.Render()); !strings.Contains(page, "Slot rule") {
+		t.Error("page does not state the slot rule for the mdBook and Skill pack columns")
+	}
+}
+
 // TestKindsDeclareRequiredColumns: every kind requires at least one column
 // and names its source and spelling (they are printed as the page's rules).
 func TestKindsDeclareRequiredColumns(t *testing.T) {

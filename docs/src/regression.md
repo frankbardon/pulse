@@ -543,6 +543,9 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
 | `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty, `theta` off negative_binomial). |
+| `PULSE_REGRESSION_INVALID`                    | The slot's `type` resolves to no regression on this instance (unregistered, hidden by the feature profile, or an unregistered extension model). |
+| `PULSE_MODEL_STAT_UNKNOWN`                    | `coef(fit, term, stat)` names a stat other than `point`, `lower`, `upper` or `se`. |
+| `PULSE_MODEL_INTERVALS_UNAVAILABLE`           | `coef()` or a scoring `bound` reads an interval or SE from a bound fit that reports none (a degenerate fit); judged when the fit binds. |
 
 ## Worked examples
 

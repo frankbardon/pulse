@@ -106,6 +106,10 @@ The core tools below are registered at server start (the manifest's `mcp_tools` 
 | `pulse_explain` | Say in plain words what a request will do (never run; predict-checked when it names a cohort) or what a result found: `findings` with closed verdicts read at the result's own alpha, strength bands with their convention, and `caveats`. Pass a result exactly as returned, with its request beside it. |
 | `pulse_drop` | Delete a managed-import handle and its sidecar. |
 | `pulse_imports_list` | Enumerate managed handles with sidecar metadata (source, format, imported_at, expires_at, ttl, expired flag, pinned flag). |
+| `pulse_label_tables` | List the registered label tables (ID → display name), with each table's row count and whether it can be searched in reverse. |
+| `pulse_label_resolve` | Turn a display name a user typed (typos tolerated) into the raw categorical key a filter or grouper needs, ranked by score. |
+| `pulse_range_tables` | List the registered range tables (named date or numeric `{label, start, end}` sets) a range grouper or filter can name. |
+| `pulse_lookup_tables` | List the registered lookup tables and their key axes, before an expression calls `lookup("table", …)`. |
 | `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |
 | `pulse_examples_get` | Fetch one runnable example body by name. |
 | `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |

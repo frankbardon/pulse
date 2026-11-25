@@ -97,10 +97,11 @@ source (the skill, or `internal/docgen`). Then run `make docs`.
 - Adding or removing a mention on any page can change the coverage page.
   Run `make docs` before you commit.
 - The guide names every operator, field type and MCP tool, so for those
-  rows the coverage page's mdBook cell counts only hand-written pages. A
-  Request or Response slot counts only as a code span (`` `sort` ``) or
-  as `Request.<Field>` / `Response.<Field>`: many slot keys are common
-  words. The page's Rules section states the full rule.
+  rows the coverage page's mdBook cell counts only hand-written pages. In
+  the mdBook and skill-pack cells a Request or Response slot counts only
+  as a code span (`` `sort` ``) or as `Request.<Field>` /
+  `Response.<Field>`: many slot keys are common words. The page's Rules
+  section states the full rule.
 
 ## Search index
 

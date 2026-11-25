@@ -13,7 +13,7 @@ Rate grids, multipliers, per-segment constants: each table answers `lookup("tabl
 
 ## Input
 
-No arguments.
+`pulse_lookup_tables` takes no arguments.
 
 ## Output
 

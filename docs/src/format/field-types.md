@@ -112,6 +112,16 @@ makes these the landing type for an SPSS multiple-dichotomy battery.
   API: `ReadFieldValue` / `WriteFieldValue` refuse them with
   `ENCODING_TYPE_MISMATCH` rather than truncating to the low 64 bits
   (`FieldType.IsWideSet()`). Wide masks travel as `encoding.SetMask`.
+- **Operators that read a set** name labels, never bits. Filter with
+  `FILTER_SET_CONTAINS_ANY`, `FILTER_SET_CONTAINS_ALL`,
+  `FILTER_SET_CONTAINS_NONE` or `FILTER_SET_EQUALS`; group by the whole
+  mask (`GROUP_SET_VALUE`) or once per selected label
+  (`GROUP_SET_PER_ELEMENT`); derive `ATTR_SET_HAS` (is one label
+  selected) or `ATTR_SET_POPCOUNT` (how many are); aggregate with
+  `AGG_SET_FREQUENCY` (rows per label), `AGG_SET_UNION`,
+  `AGG_SET_INTERSECTION`, `AGG_SET_CARDINALITY_SUM`,
+  `AGG_SET_CARDINALITY_AVG` (mean selections per row) or
+  `AGG_SET_DISTINCT_VALUES` (distinct combinations).
 
 ### Decimal128
 

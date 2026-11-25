@@ -498,6 +498,8 @@
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Cohort Union](library/cohort-union.md)
 - [Request Templating](library/request-templating.md)
+- [Choosing an Operator](library/operators.md)
+- [Overlays](library/overlays.md)
 - [Response Shaping](library/response-shaping.md)
 - [Row Weighting](library/weighting.md)
 - [Computing Survey Weights (Rake)](library/rake.md)

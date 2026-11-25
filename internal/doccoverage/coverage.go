@@ -17,10 +17,11 @@
 //
 // Mentions are verbatim: an identifier counts as documented in the book or
 // the skill pack when its exact spelling appears there as a whole token.
-// The mdBook cell is stricter for two kinds of row: operators, field types
-// and MCP tools ignore the generated Analysis Guide (Kind.BookHandWritten),
-// and a Request / Response slot needs a code span or the qualified
-// Request.<Field> spelling (Kind.BookQualifier).
+// Two rules are stricter: operators, field types and MCP tools ignore the
+// generated Analysis Guide in the mdBook cell (Kind.BookHandWritten), and a
+// Request / Response slot needs a code span or the qualified
+// Request.<Field> spelling in the mdBook and skill-pack cells
+// (Kind.SlotQualifier).
 //
 // Import ceiling: this package builds a default *pulse.Pulse, so it sits
 // above the engine, but it never imports the CLI framework or internal/cli
@@ -90,11 +91,12 @@ type Kind struct {
 	// The generated Analysis Guide (GuideDir) names every row of this
 	// kind by construction, so a mention there proves nothing.
 	BookHandWritten bool
-	// BookQualifier: the mdBook cell needs the identifier as a whole code
-	// span (`group_by`) or the qualified Go spelling <BookQualifier>.<Field>
-	// (Request.GroupBy); a bare word in prose does not count, because many
-	// slot keys are common words (label, sort, weight).
-	BookQualifier string
+	// SlotQualifier: the mdBook and skill-pack cells need the identifier
+	// as a whole code span (`group_by`) or the qualified Go spelling
+	// <SlotQualifier>.<Field> (Request.GroupBy); a bare word in prose does
+	// not count, because many slot keys are common words (label, sort,
+	// weight).
+	SlotQualifier string
 }
 
 // GuideDir is the generated Analysis Guide under the book source
@@ -127,9 +129,9 @@ func Kinds() []Kind {
 		{ID: KindOptions, Title: "Options fields", Source: "the `pulse.Options` fields in `public_api.txt`",
 			Spelling: "the Go field name (`DataDir`)", Needs: [numSurfaces]Need{r, o, r, n}},
 		{ID: KindRequestSlot, Title: "Request slots", Source: "the `types.Request` fields in `public_api.txt`",
-			Spelling: "the JSON key (`group_by`); in the mdBook a code span or `Request.<Field>`", Needs: [numSurfaces]Need{r, r, r, n}, BookQualifier: "Request"},
+			Spelling: "the JSON key (`group_by`); in the mdBook and skills a code span or `Request.<Field>`", Needs: [numSurfaces]Need{r, r, r, n}, SlotQualifier: "Request"},
 		{ID: KindResponseSlot, Title: "Response slots", Source: "the `types.Response` fields in `public_api.txt`",
-			Spelling: "the JSON key; in the mdBook a code span or `Response.<Field>`", Needs: [numSurfaces]Need{r, o, r, n}, BookQualifier: "Response"},
+			Spelling: "the JSON key; in the mdBook and skills a code span or `Response.<Field>`", Needs: [numSurfaces]Need{r, o, r, n}, SlotQualifier: "Response"},
 		{ID: KindCLILeaf, Title: "CLI leaves", Source: "every runnable command in the tree `internal/cli.App` builds",
 			Spelling: "the full invocation path (`pulse cohort inspect`)", Needs: [numSurfaces]Need{r, o, n, r}},
 		{ID: KindCLIFlag, Title: "CLI flags", Source: "every flag name (aliases included) mounted anywhere in that tree",
@@ -244,13 +246,9 @@ func Build(in Inputs) (*Matrix, error) {
 				if k.BookHandWritten {
 					c = bookHand
 				}
-				if k.BookQualifier != "" {
-					has = c.has("`"+r.ID+"`") || r.Field != "" && c.has(k.BookQualifier+"."+r.Field)
-				} else {
-					has = c.has(r.ID)
-				}
+				has = mentioned(c, k, r)
 			case Skill:
-				has = skill.has(r.ID)
+				has = mentioned(skill, k, r)
 			case GoDoc:
 				has = r.GoDoc
 			case Help:
@@ -278,6 +276,16 @@ func Build(in Inputs) (*Matrix, error) {
 		return a.ID < b.ID
 	})
 	return m, nil
+}
+
+// mentioned reports whether c names row r under its kind's mention rule:
+// a whole token, or for a slot kind a code span or the qualified Go
+// spelling.
+func mentioned(c *corpus, k Kind, r Row) bool {
+	if k.SlotQualifier == "" {
+		return c.has(r.ID)
+	}
+	return c.has("`"+r.ID+"`") || r.Field != "" && c.has(k.SlotQualifier+"."+r.Field)
 }
 
 // handWritten drops the generated Analysis Guide's pages.
@@ -348,7 +356,8 @@ func (m *Matrix) Render() []byte {
 	b.WriteString("This page shows, for every public thing Pulse ships, where it is documented. Rows come from sources of truth (the frozen public API dump, the CLI command tree, the manifest, the MCP registrations, the Go source), so a new thing appears here the moment it exists.\n\n")
 	b.WriteString("## Rules\n\n")
 	b.WriteString("- **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it.\n")
-	b.WriteString("- **Stricter mdBook rule.** Operators, field types and MCP tools count only hand-written pages: the generated Analysis Guide (`docs/src/guide`) names every one by construction. A Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.\n")
+	b.WriteString("- **Stricter mdBook rule.** Operators, field types and MCP tools count only hand-written pages: the generated Analysis Guide (`docs/src/guide`) names every one by construction.\n")
+	b.WriteString("- **Slot rule.** In the mdBook and the Skill pack, a Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.\n")
 	b.WriteString("- **GoDoc** is present when the declaration carries a non-empty doc comment. A declaration inside a grouped `const` / `var` / `type` block also counts the group's doc comment and its own trailing line comment; a method on an alias resolves to the aliased type, a promoted method to the embedded type that declares it.\n")
 	b.WriteString("- **CLI help** is present for a leaf or a flag when it carries usage text (a flag on every command that mounts it); for an environment variable, when it appears verbatim in the help text.\n")
 	b.WriteString("- Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on a gap the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` does not name, and on an entry whose gap is closed.\n\n")

@@ -214,7 +214,9 @@ default is `MarginRecompute`, which keeps its crosstabs buffered). An
 extension aggregator declares the same class on its registration's
 `MarginReducibility` field (needs `Mergeable`; refused otherwise with
 `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`); undeclared, its
-crosstab cells run buffered.
+crosstab cells run buffered. A built-in the classifier does not name
+reaches the margin pass as `PULSE_CROSSTAB_AGG_UNCLASSIFIED`, an
+internal guard no request can trigger.
 
 Integer and sentinel aggregators (count, min, max, frequency,
 distinct_count, mode) produce byte-equal merge output. A float SUM must

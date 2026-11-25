@@ -94,7 +94,8 @@ The "processing facade" — these are the operations exposed via the
 `api process-chain` accepts a `ChainRequest` whose stages each see the
 previous stage's rows as their input cohort. Mergeable-only at v1 —
 non-mergeable stages fail with `PULSE_CHAIN_NOT_MERGEABLE` so callers
-can fall back to per-stage `api process` calls.
+can fall back to per-stage `api process` calls; a chain with no stage
+fails with `PULSE_CHAIN_EMPTY`.
 
 ## Cohort lifecycle
 
