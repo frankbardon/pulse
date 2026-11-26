@@ -12,6 +12,6 @@ Per-topic slice of the byte-layout reference (how a single-file cohort is mapped
 
 **A view another reader holds — the recorded decision.** While ANY other reader (another process, or an embedder's mapping or handle) holds a cohort, Windows refuses a rename over it ("Access is denied") whatever share mode that reader used, Pulse's own `FILE_SHARE_DELETE` included (measured: `TestMmapWindows_HeldViewOutcome`, `TestMmapHeldView_RewriteRefusedCoded*`).
 
-- The rewrite FAILS with its coded rename error, the cohort byte-identical, its stage removed, the reader still seeing the old bytes; once released, the same rewrite succeeds.
+- The rewrite FAILS with its coded rename error, the cohort byte-identical to its pre-rewrite file, its stage removed, the reader still seeing the old bytes; once released, the same rewrite succeeds.
 - No retry or backoff (a view can be held indefinitely; the caller can retry knowing why), and no POSIX-rename path (it would bypass `afero.Fs`, and a foreign reader without `FILE_SHARE_DELETE` would still refuse it).
 - A delete of a mapped cohort succeeds only when every opener allowed `FILE_SHARE_DELETE` (Pulse's views do, Go's `os.Open` does not). On unix a rename over or delete of a mapped file always succeeds and the view keeps the old inode; truncating a mapped file under a reader can `SIGBUS` it there (Windows refuses the truncation instead).

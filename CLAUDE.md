@@ -7,7 +7,7 @@ Pulse is a self-describing tabular data processing engine: a Go library (`github
 - **Library-first.** Business logic lives behind the library facade. `cmd/pulse/` parses flags, builds library objects, calls them and formats output — nothing else.
 - **Self-describing.** Every `.pulse` file carries its schema in its header. Predict, inspect and the manifest (`internal/descriptor/`) never execute a request and never read records.
 - **Embedder-first, consumer-agnostic.** Library embedders are a first-class audience; they extend Pulse through `pulse.Options.Extensions`, and predict, manifest, MCP and runtime treat extensions exactly like built-ins. Pulse never imports, names or special-cases a consumer: every public symbol is justified by a general embedder use case.
-- **Agents discover Pulse** through `pulse manifest --json` and the embedded skill pack (`internal/skills/`, addressed `skills/<stem>.md`). The filesystem walk is the skill index — never create a `skills/index.json` or hardcode a registered count.
+- **Agents discover Pulse** through `pulse --json` and the embedded skill pack (`internal/skills/`, addressed `skills/<stem>.md`). The filesystem walk is the skill index — never create a `skills/index.json` or hardcode a registered count.
 
 ## The Update Demand
 
@@ -55,7 +55,7 @@ The `.pulse` binary format. These fail silently when wrong; load `.claude/refere
 - A non-finite float is JSON `null` with its key kept; read back, `null` decodes to NaN, never 0.
 - A regression / test / matrix slot that fails on its data keeps its identity and `error`, drops its figures, and warns `PULSE_SLOT_FAILED`; config faults stay fatal.
 - `Response.Components` (optional) carries the counts behind each figure; disabling it leaves output byte-identical. Long form: `.claude/reference/response-components.md`.
-- The payload JSON Schema (`pulse schema`) and the manifest (`pulse manifest --json`) are deterministic and pinned by goldens under `descriptor/testdata/`.
+- The payload JSON Schema (`pulse schema`) and the manifest (`pulse --json`) are deterministic and pinned by goldens under `descriptor/testdata/`.
 
 ## Testing
 

@@ -11,6 +11,10 @@ to shell out to the binary from Go, stop and use the library directly
 > Go embedding directly. Agents speak MCP; this page is for the
 > programs that host them.
 
+## Conventions
+
+"Byte-identical" on the pages of this section means the serialized output compared with the output of the same request without the feature (the convention [the payload schema page](../contract/payload-schema.md) states): the same bytes, so a request that omits the feature gains no field and changes no hash. Where a page compares against something else, it names it.
+
 ## Module path
 
 ```go
