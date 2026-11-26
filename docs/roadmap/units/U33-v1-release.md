@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798]
 branch: v1-release
 ---
 
@@ -37,7 +37,6 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3)
 - [ ] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4)
 - [ ] **#767** (1. API surface & release pipeline) `make sites` has no mode for an I/O-path change: add an `io` mode in `internal/tools/sites` that finds a reader / importer change's companions by shape (format readers, `internal/io` import / convert / widen, byte-layout and io-import slices, import skills, migration doc), with a falsified fixture test and a recipe line. Found in docs-content (E4-S1)
-- [ ] **#768** (12. Release v1.0.0) `SECURITY.md` sends reporters to GitHub private vulnerability reporting, which is disabled on the repository: enable it (an owner action) or name a monitored contact before the v1.0.0 tag
 - [ ] **#769** (7. Guided analysis — docs, API & MCP) `pulse cohort inspect` text mode prints no `Zone field:` line for a cohort's default zone field (`--json` carries `zone_field`)
 - [ ] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table)
 - [x] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
@@ -124,6 +123,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Gates & tests
 
 - All non-skippable gates green; API-compat job enabled
+- Before tagging any release: `gh api repos/frankbardon/pulse/private-vulnerability-reporting` returns `enabled: true`, since `SECURITY.md`'s only reporting channel is GitHub private vulnerability reporting; if it is `false`, the owner enables it in the repository settings before the tag
 - Before tagging the rc and `v1.0.0`: rerun the agent evaluation on the release build ([Agent Evaluation](../../src/contributing/agent-eval.md)) and score it with `go run ./internal/tools/evalscore internal/eval/runs/<date>`; every task passes
 
 ## Update Demand companions
@@ -267,7 +267,6 @@ Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there wh
 Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
 
 - [ ] **#767** — **`make sites` has no mode for an I/O-path change**; add an `io` mode that finds a reader / importer change's companions by shape, with a falsified fixture test.
-- [ ] **#768** — **Private vulnerability reporting is disabled**, so `SECURITY.md`'s only reporting channel fails; enable it or name a monitored contact.
 - [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
 - [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.
 - [x] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry. *Done in U32b (E8-S4): both registered; `TestEmittedCodeLiteralsRegistered` gates emitted literals.*
