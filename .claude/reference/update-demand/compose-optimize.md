@@ -4,7 +4,7 @@ Per-area slice of the Update Demand trigger table. Index: `.claude/reference/upd
 
 Scope: the Compose `optimize` block (`types.OptimizeSpec`), its results (`ComposedResponse.Optimizations`), its rule set (`internal/optblock`), the solver and gradient (`internal/optsolve`, `internal/optgrad`), `result()` and its pre-phase, and `capability:compose_optimize`. A block's `for_each` is the optimize row in `update-demand/compose-expansion.md`.
 
-**Finding the sites.** `make sites ARGS="slot request optimize"` (and `slot response optimizations`) lists the wire types, predict and service call sites, MCP schema, error owners, feature row and goldens. **`internal/optblock` and `internal/resultcall` are each ONE rule set fed to predict and the runtime — never a second copy** (`TestOptBlock_ImportBoundary`, `TestResultCall_ImportBoundary`). The acceptance bodies every surface (library, CLI, MCP) runs live in `internal/optfixture`; a new behaviour adds a body there.
+**Finding the sites.** `make sites ARGS="slot compose optimize"` lists the wire types, predict and service call sites, MCP schema, error owners, feature row and goldens (`slot response` resolves `types.Response` only: grep `Optimizations` for the `ComposedResponse` side). **`internal/optblock` and `internal/resultcall` are each ONE rule set fed to predict and the runtime — never a second copy** (`TestOptBlock_ImportBoundary`, `TestResultCall_ImportBoundary`). The acceptance bodies every surface (library, CLI, MCP) runs live in `internal/optfixture`; a new behaviour adds a body there.
 
 | If you change... | You MUST also update... | Enforced by |
 |---|---|---|
