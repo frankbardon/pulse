@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32b]
 soft_depends_on: []
 blocks: [U33]
-todo_items: [166, 167]
+todo_items: [166, 167, 775]
 branch: docs-validation
 ---
 
@@ -31,6 +31,7 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 
 - [ ] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
+- [ ] **#775** (11. Documentation audit) Restructure `.claude/reference/guided-analysis/explain-and-skills.md` for readability (dense one-paragraph bullets), keeping every rule and the slice ceiling
 
 ## Scope
 
@@ -74,6 +75,12 @@ Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-validation/E
 ## Human inputs & decisions
 
 - Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
+
+## Handed on from U32b
+
+Found in docs-content (E6-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
+
+- [ ] **#775** — **`explain-and-skills.md` is accurate but hard to read**; restructure it without losing a rule or raising the ceiling.
 
 ## Notes
 
