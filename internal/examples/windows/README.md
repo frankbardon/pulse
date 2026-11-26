@@ -25,14 +25,14 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `05_dense_rank.json` | `WIN_DENSE_RANK` | Rank without gaps on ties |
 | `06_running_sum.json` | `WIN_RUNNING_SUM` | Cumulative total over a frame |
 | `07_running_avg.json` | `WIN_RUNNING_AVG` | Running mean over a frame |
-| `08_moving_avg.json` | `WIN_MOVING_AVG` | Bounded centered moving average |
+| `08_moving_avg.json` | `WIN_MOVING_AVG` | Bounded centred moving average over 7 rows (rows, not days) |
 | `09_ewma.json` | `WIN_EWMA` | Exponentially weighted moving average (`alpha=0.3`) |
 | `10_pct_change.json` | `WIN_PCT_CHANGE` | Percent change vs `params.periods` rows ago |
 | `11_delta.json` | `WIN_DELTA` | Point difference vs `params.periods` rows ago (same units as the field) |
 | `12_ewma_for_each.json` | `WIN_EWMA` | One item fanned out by `for_each` (zip of a label axis and a `decay` axis) into three EWMA columns |
-| `13_share_lift_gains.json` | `WIN_SHARE`, `WIN_LIFT` | Gains table on revenue quartiles: share of total, cumulative share and cumulative lift over the subscriber count (`order_by` only for the cumulative forms) |
+| `13_share_lift_gains.json` | `WIN_SHARE`, `WIN_LIFT` | Gains table on income quartiles: share of total, cumulative share and cumulative lift over the customer count (`order_by` only for the cumulative forms) |
 | `14_distributed_lag.json` | `WIN_DISTRIBUTED_LAG` | Distributed lag (media adstock): geometric (`decay`) and Weibull PDF (`shape`, `scale`) lag kernels over `max_lag` rows, normalised |
-| `15_window_column_aggregate.json` | `WIN_DELTA`, `AGG_AVERAGE`, `AGG_COUNT` | Windows-first, ungrouped: aggregate a window column (the mean order-to-order revenue change; the first order's null change is skipped) |
+| `15_window_column_aggregate.json` | `WIN_DELTA`, `AGG_AVERAGE`, `AGG_COUNT` | Windows-first, ungrouped: aggregate a window output (the mean order-to-order revenue change; the first order's null change is skipped) |
 | `16_window_column_by_quarter.json` | `WIN_RUNNING_SUM`, `GROUP_DATE`, `AGG_SUM`, `AGG_MAX` | Windows-first, grouped: the running revenue total reached by each quarter's end beside the quarter's own sum |
 | `17_formula.json` | `WIN_FORMULA`, `WIN_SHARE` | Gains table: a row-local formula over two earlier `WIN_SHARE` columns — their ratio (the lift) and their difference; no `order_by` |
 | `18_lag_category_flows.json` | `WIN_LAG`, `GROUP_CATEGORY`, `AGG_COUNT` | A lagged category: the customer's previous plan (a categorical on plan's dictionary) crossed with the current plan, plan names on both axes |

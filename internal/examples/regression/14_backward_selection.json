@@ -11,21 +11,27 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Backward stepwise selection: REG_OLS with selection=backward starts with the full predictor set and drops the BIC-worst candidate each round, halting when removing any further predictor degrades the criterion. Sibling shape to 13_forward_selection.json (forward) and 11_stepwise.json (bidirectional) — backward is the canonical \"start big, prune\" subset-selection strategy. Forces the buffered orchestrator path.",
+    "description": "Backward elimination: REG_OLS with selection backward starts from every predictor and drops the one whose removal improves BIC most, stopping when no removal does. On survey.pulse, q4 on the other five items ends with q3, q5 and q6 and drops q1 and q2, the same model as 13_forward_selection.json and 11_stepwise.json here. Selection buffers the request.",
     "intents": [
       "drivers"
     ]
   },
   "cohort": {
-    "filename": "training_data.pulse",
+    "filename": "survey.pulse",
     "data_dir": ".data"
   },
   "regressions": [
     {
       "type": "REG_OLS",
-      "name": "income_backward",
-      "target": "income",
-      "predictors": ["price", "label"],
+      "name": "q4_backward",
+      "target": "q4",
+      "predictors": [
+        "q1",
+        "q2",
+        "q3",
+        "q5",
+        "q6"
+      ],
       "selection": "backward",
       "criterion": "bic"
     }

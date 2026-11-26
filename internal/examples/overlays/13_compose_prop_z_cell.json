@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Compose batch of two crosstab slots (control and variant arms of an experiment) over region x segment decorated with an OVERLAY_PROP_Z_CELL matrix overlay that runs a per-cell two-proportion z-test against the matching control cell. Each cell's value becomes the two-sided p-value as a float64. Cells are treated as success counts; the matching row margin on each slot is the sample size (n_target on the variant side, n_ref on the control side). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay p-value matches the row-test surface byte-for-byte for the same (success, n) pair. Math: p_t = variant_cell / variant_row_margin; p_r = control_cell / control_row_margin; pooled = (variant + control) / (n_t + n_r); se = sqrt(pooled * (1 - pooled) * (1/n_t + 1/n_r)); z = (p_t - p_r) / se; p = 2 * (1 - Phi(|z|)). Degenerate inputs (pooled in {0, 1}, missing row margin) produce NaN p-values with one PULSE_OVERLAY_REF_ZERO warning per affected cell. Inherently buffered — inferential overlays as a family stay buffered until a streamable-test path is plumbed (PRD Non-Goals).",
+    "description": "Compose batch of two crosstab slots, the control and variant arms of experiment.pulse, over region x converted (count cells) decorated with an OVERLAY_PROP_Z_CELL cell overlay: a pooled two-proportion z-test of each variant cell against the matching control cell, the cell the successes and the row margin the n. The yes column so tests each region's conversion rate between the arms (p 0.42 to 0.99 here: no region converts differently) and the no column mirrors it. Each overlay cell is the two-sided p-value TEST_PROP_Z gives for the same counts. A degenerate cell (pooled proportion 0 or 1, no row margin) reads null with one PULSE_OVERLAY_REF_ZERO each. Buffered.",
     "intents": [
       "compare_groups",
       "benchmark"
@@ -32,7 +32,9 @@
         {
           "type": "FILTER_INCLUDE",
           "field": "treatment",
-          "values": ["control"]
+          "values": [
+            "control"
+          ]
         }
       ],
       "crosstab": {
@@ -45,13 +47,13 @@
         "columns": [
           {
             "type": "GROUP_CATEGORY",
-            "field": "segment"
+            "field": "converted"
           }
         ],
         "cell": {
           "type": "AGG_COUNT",
-          "field": "converted",
-          "label": "successes"
+          "field": "id",
+          "label": "n"
         },
         "margins": {
           "rows": true,
@@ -70,7 +72,9 @@
         {
           "type": "FILTER_INCLUDE",
           "field": "treatment",
-          "values": ["variant"]
+          "values": [
+            "variant"
+          ]
         }
       ],
       "crosstab": {
@@ -83,13 +87,13 @@
         "columns": [
           {
             "type": "GROUP_CATEGORY",
-            "field": "segment"
+            "field": "converted"
           }
         ],
         "cell": {
           "type": "AGG_COUNT",
-          "field": "converted",
-          "label": "successes"
+          "field": "id",
+          "label": "n"
         },
         "margins": {
           "rows": true,
@@ -105,7 +109,9 @@
       "kind": "OVERLAY_PROP_Z_CELL",
       "scope": "cell",
       "reference": "control",
-      "targets": ["variant"]
+      "targets": [
+        "variant"
+      ]
     }
   ]
 }

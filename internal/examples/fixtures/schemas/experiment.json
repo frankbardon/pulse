@@ -6,6 +6,6 @@
   {"name": "converted", "type": "categorical_u8", "description": "Conversion outcome: yes / no; rates depend on segment (independent of region by construction)"},
   {"name": "revenue_before", "type": "f64", "description": "Pre-treatment baseline revenue for each unit; log-normal base × region lift only (no treatment lift, no time drift) — pairs row-wise with revenue for paired tests"},
   {"name": "revenue", "type": "f64", "description": "Order revenue in USD; log-normal base with region and treatment lifts plus a mild upward drift over period"},
-  {"name": "session_minutes", "type": "f64", "description": "Session duration; half-normal distribution shifted slightly under variant treatment"},
+  {"name": "session_minutes", "type": "f64", "description": "Session duration in minutes; half-normal, stretched under variant treatment (most in the upper tail)"},
   {"name": "period", "type": "date", "description": "Day the unit was recorded; 90 consecutive days starting 2026-01-01 — supports trend tests"}
 ]

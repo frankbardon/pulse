@@ -12,21 +12,27 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Stepwise regression (Indeed #13): REG_OLS with selection=stepwise and criterion=bic drives a bidirectional greedy subset search; forces the buffered orchestrator path.",
+    "description": "Stepwise regression: REG_OLS with selection stepwise and criterion bic searches the predictor subsets in both directions, adding or dropping one predictor a step while BIC improves. On survey.pulse, q4 (a value item) on the other five items keeps q5, q3 and q6 (selected_features, in the order added) and drops the service items q1 and q2. Selection buffers the request.",
     "intents": [
       "drivers"
     ]
   },
   "cohort": {
-    "filename": "training_data.pulse",
+    "filename": "survey.pulse",
     "data_dir": ".data"
   },
   "regressions": [
     {
       "type": "REG_OLS",
-      "name": "income_stepwise",
-      "target": "income",
-      "predictors": ["price", "label"],
+      "name": "q4_stepwise",
+      "target": "q4",
+      "predictors": [
+        "q1",
+        "q2",
+        "q3",
+        "q5",
+        "q6"
+      ],
       "selection": "stepwise",
       "criterion": "bic"
     }

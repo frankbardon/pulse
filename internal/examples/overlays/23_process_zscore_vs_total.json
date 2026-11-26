@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Grouped Process aggregating revenue by region decorated with an OVERLAY_ZSCORE_VS_TOTAL group overlay that standardises each region's revenue against the per-region distribution's mean + POPULATION SD (sqrt(M2 / N)) folded across all present groups. Streamable — the Welford accumulator is one (count, mean, M2) triple carried alongside the per-group accumulators inside the streaming Process fold. Third and final streamable overlay in the E3 grouped-Process subset (siblings: OVERLAY_INDEX_VS_TOTAL / 06_process_index_vs_total.json, OVERLAY_SHARE_OF_TOTAL SERIES dispatch). Implicit-grand-total — Ref must be empty. Variance choice (POPULATION, not sample) intentional: the per-group aggregation set IS the whole population we are standardising against. Zero-variance emits PULSE_OVERLAY_REF_ZERO. Renderers centre diverging colour ramps on baseline = 0.",
+    "description": "Grouped Process summing revenue by region on experiment.pulse decorated with an OVERLAY_ZSCORE_VS_TOTAL group overlay: each region's sum standardised against the mean and population SD (divide by N: the regions are the whole set) of the four regional sums. Ref must be empty. Streamable: one running mean and variance rides the fold, as the grand total does for OVERLAY_INDEX_VS_TOTAL (06_process_index_vs_total.json). A zero variance emits PULSE_OVERLAY_REF_ZERO; renderers centre colour ramps on baseline 0.",
     "intents": [
       "benchmark",
       "distribution_shape"

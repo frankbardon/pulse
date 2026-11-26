@@ -96,16 +96,24 @@ func rebaseModelFiles(v any, dir string) {
 	}
 }
 
+// examplesDataDir is the data directory every example names: a
+// cohort's `data_dir` and the prefix of an overlay's
+// `population.cohort` path (which takes no data_dir of its own and
+// resolves from the working directory, so the examples spell it
+// `.data/<fixture>.pulse`).
+const examplesDataDir = ".data"
+
 // rebasePopulationCohorts rewrites every overlay `population.cohort`
-// reference anywhere in v — a bare filename with no data_dir — to its
-// path under dir, recording each name in out.
+// path anywhere in v from the examples' data directory to dir,
+// recording each rewritten path in out.
 func rebasePopulationCohorts(v any, dir string, out map[string]bool) {
 	switch x := v.(type) {
 	case map[string]any:
 		if pop, ok := x["population"].(map[string]any); ok {
 			if c, ok := pop["cohort"].(string); ok {
-				out[c] = true
-				pop["cohort"] = filepath.Join(dir, c)
+				p := filepath.Join(dir, strings.TrimPrefix(filepath.ToSlash(c), examplesDataDir+"/"))
+				out[p] = true
+				pop["cohort"] = p
 			}
 		}
 		for _, c := range x {
@@ -118,25 +126,14 @@ func rebasePopulationCohorts(v any, dir string, out map[string]bool) {
 	}
 }
 
-// seedPopulationCohort makes a FACET-host overlay's comparison cohort
-// resolvable: `<fixture>_population.pulse` is a copy of the imported
-// `<fixture>.pulse` (the unfiltered population of the same schema).
-func seedPopulationCohort(t *testing.T, fs afero.Fs, dir, name string) {
+// requirePopulationCohort fails unless a FACET-host overlay's
+// comparison cohort, rebased by rebasePopulationCohorts, is one of the
+// imported fixtures: an example naming a cohort build.sh never writes
+// would otherwise fail only for a reader.
+func requirePopulationCohort(t *testing.T, fs afero.Fs, path string) {
 	t.Helper()
-	path := filepath.Join(dir, name)
-	if ok, _ := afero.Exists(fs, path); ok {
-		return
-	}
-	base, found := strings.CutSuffix(name, "_population.pulse")
-	if !found {
-		t.Fatalf("population cohort %q is not a <fixture>_population.pulse name", name)
-	}
-	data, err := afero.ReadFile(fs, filepath.Join(dir, base+".pulse"))
-	if err != nil {
-		t.Fatalf("population cohort %q: %v", name, err)
-	}
-	if err := afero.WriteFile(fs, path, data, 0o644); err != nil {
-		t.Fatal(err)
+	if ok, _ := afero.Exists(fs, path); !ok {
+		t.Fatalf("population cohort %s is not a built fixture", path)
 	}
 }
 

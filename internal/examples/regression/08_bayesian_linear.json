@@ -10,7 +10,7 @@
     "operators": [
       "REG_BAYES_LINEAR"
     ],
-    "description": "Bayesian linear regression (Indeed #9): REG_BAYES_LINEAR with the conjugate Normal-Inverse-Gamma prior; 95% credible intervals replace frequentist p-values.",
+    "description": "Bayesian linear regression: REG_BAYES_LINEAR with the conjugate Normal-Inverse-Gamma prior; 95% credible intervals (credible_intervals, mirrored in ci_lower / ci_upper) take the place of p-values. Streamable.",
     "intents": [
       "drivers"
     ]

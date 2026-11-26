@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "regression",
-    "description": "Credit-risk logistic fit straight on a packed_bool default flag (REG_GLM binomial, no 0/1 twin column), then the fitted coefficients scored per row with exp in ATTR_FORMULA: 1 / (1 + exp(-(b0 + b1 * late_payment))). The mean score equals the observed default rate.",
+    "description": "Credit-risk logistic fit straight on a packed_bool default flag (REG_GLM binomial, no 0/1 twin field), then the fitted coefficients scored per row with exp in ATTR_FORMULA: 1 / (1 + exp(-(b0 + b1 * late_payment))). The mean score equals the observed default rate.",
     "intents": [
       "drivers"
     ],

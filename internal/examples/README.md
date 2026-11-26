@@ -102,9 +102,16 @@ A category-specific runner exercises everything in its folder:
 ./internal/examples/features/run-all.sh
 ./internal/examples/filterers/run-all.sh
 ./internal/examples/groupers/run-all.sh
-./internal/examples/windows/run-all.sh
+./internal/examples/materialize/run-all.sh
+./internal/examples/matrices/run-all.sh
 ./internal/examples/tests/run-all.sh
+./internal/examples/windows/run-all.sh
 ```
+
+Run from the repo root: a facet overlay's `ref.population.cohort`
+(`overlays/10`, `18`, `21`, `30`) is a path such as
+`.data/experiment.pulse`, resolved from the working directory rather
+than the host cohort's `data_dir`.
 
 Or invoke individual requests:
 

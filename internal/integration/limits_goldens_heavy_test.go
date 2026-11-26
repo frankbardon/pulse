@@ -82,8 +82,8 @@ func TestLimitsDefaultsNeverTripGoldens(t *testing.T) {
 			rebaseModelFiles(tree, tmp)
 			pops := map[string]bool{}
 			rebasePopulationCohorts(tree, tmp, pops)
-			for name := range pops {
-				seedPopulationCohort(t, fs, tmp, name)
+			for path := range pops {
+				requirePopulationCohort(t, fs, path)
 			}
 			body, err := json.Marshal(tree)
 			if err != nil {

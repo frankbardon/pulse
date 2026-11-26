@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Tier-2 Mann-Kendall trend test applied to a 7-day windowed moving average of daily revenue.",
+    "description": "Tier-2 Mann-Kendall trend test on a 7-day trailing moving average (WIN_MOVING_AVG, 6 preceding rows) of daily mean revenue (GROUP_DATE day). Smoothing makes neighbouring points share most of their days, so they are not independent and the test's p-value comes out smaller than it should (tau about 0.24, p about 0.001 here); read it as a description of the smoothed curve, and run the trend test on the unsmoothed series (09_post_trend_on_dates.json) for the inference.",
     "intents": [
       "change_over_time"
     ],

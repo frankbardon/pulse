@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Point difference versus the row one period earlier in the date-ordered partition — the same comparison as 10_pct_change, in the field's own units instead of as a ratio.",
+    "description": "Point difference against the row params.periods (1) rows earlier in the date-ordered orders: the comparison 10_pct_change.json makes, in the field's own units instead of as a ratio; the first row reads null.",
     "intents": [
       "change_over_time"
     ],

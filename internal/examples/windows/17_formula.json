@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Gains table on grouped rows with WIN_FORMULA: subscribers bucketed into revenue quartiles, WIN_SHARE takes each quartile's share of revenue and its share of subscribers, then WIN_FORMULA divides one share by the other (the quartile's lift, equal to WIN_LIFT) and subtracts them (the concentration gap). A formula reads the row's group keys and aggregation labels and only the windows listed before it; a null input reads null.",
+    "description": "Gains table on grouped rows with WIN_FORMULA: customers.pulse bucketed into income quartiles, WIN_SHARE takes each quartile's share of income and its share of customers, then WIN_FORMULA divides one share by the other (the quartile's lift, as WIN_LIFT gives it; about 1.87 for the top quarter) and subtracts them (the concentration gap). A formula reads the row's group keys and aggregation labels and only the windows listed before it; a null input reads null.",
     "intents": [
       "composition",
       "benchmark"
@@ -22,43 +22,58 @@
     ]
   },
   "cohort": {
-    "filename": "subscribers.pulse",
+    "filename": "customers.pulse",
     "data_dir": ".data"
   },
   "groups": [
     {
       "type": "GROUP_QUANTILE",
-      "field": "revenue",
+      "field": "income",
       "interval": 4
     }
   ],
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id", "label": "subscribers"},
-    {"type": "AGG_SUM", "field": "revenue", "label": "revenue_total"}
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "customers"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "income",
+      "label": "income_total"
+    }
   ],
   "windows": [
     {
       "type": "WIN_SHARE",
-      "field": "revenue_total",
-      "label": "revenue_share"
+      "field": "income_total",
+      "label": "income_share"
     },
     {
       "type": "WIN_SHARE",
-      "field": "subscribers",
-      "label": "subscriber_share"
+      "field": "customers",
+      "label": "customer_share"
     },
     {
       "type": "WIN_FORMULA",
       "label": "lift",
-      "params": {"expression": "revenue_share / subscriber_share"}
+      "params": {
+        "expression": "income_share / customer_share"
+      }
     },
     {
       "type": "WIN_FORMULA",
       "label": "concentration_gap",
-      "params": {"expression": "revenue_share - subscriber_share"}
+      "params": {
+        "expression": "income_share - customer_share"
+      }
     }
   ],
   "sort": [
-    {"field": "revenue_total", "desc": true}
+    {
+      "field": "income_total",
+      "desc": true
+    }
   ]
 }

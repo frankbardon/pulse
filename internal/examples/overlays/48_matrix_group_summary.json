@@ -8,9 +8,9 @@
     ],
     "name": "matrix-group-summary",
     "operators": [
-      "MAT_CORRELATION",
+      "AGG_COUNT",
       "GROUP_CATEGORY",
-      "AGG_COUNT"
+      "MAT_CORRELATION"
     ],
     "tags": [
       "matrix",

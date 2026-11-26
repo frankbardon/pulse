@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Grouped Process aggregating revenue by month decorated with TWO overlay layers — OVERLAY_DELTA_VS_BASELINE and OVERLAY_INDEX_VS_BASELINE — both anchored on the same fixed positional baseline (Ref.BaselineIndex.Position=0, the first month). DELTA emits (point - baseline) per group (absolute subtractive difference in revenue units). INDEX emits (point / baseline * 100) per group (multiplicative ratio scaled to 100). Sibling shapes — DELTA is additive twin, INDEX is the ratio twin; together they form the canonical positional-anchor comparison pair. Both windowed-Process kinds consume the Ref.BaselineIndex.Position arm. Buffered (the baseline resolver reads host.ValueAt after finalize). Out-of-range Position fires PULSE_OVERLAY_REF_UNKNOWN. INDEX emits PULSE_OVERLAY_REF_ZERO on zero baseline; DELTA does not (subtraction by zero is well-defined). Renderers centre INDEX colour ramps on baseline = 100, DELTA on baseline = 0.",
+    "description": "Grouped Process summing revenue by month on orders.pulse with two overlays anchored on the first month (ref.baseline_index.position 0): OVERLAY_DELTA_VS_BASELINE gives point - baseline in revenue units, OVERLAY_INDEX_VS_BASELINE point / baseline * 100 (July about 194). A position past the series emits PULSE_OVERLAY_REF_UNKNOWN; a zero baseline emits PULSE_OVERLAY_REF_ZERO for the index only. Buffered: the baseline is read from the finished series. Renderers centre the index on 100, the delta on 0.",
     "intents": [
       "change_over_time",
       "benchmark"

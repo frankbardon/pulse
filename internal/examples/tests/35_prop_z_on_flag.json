@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Two-proportion z-test on a conversion flag stored as packed_bool: success \"1\" names the converted level, split_by the A/B arm. No yes/no categorical twin column is needed.",
+    "description": "Two-proportion z-test on a conversion flag stored as packed_bool: success \"1\" names the converted level, split_by the A/B arm. No yes/no categorical twin field is needed.",
     "intents": [
       "compare_groups"
     ],

@@ -8,8 +8,8 @@
       "buffered-pipeline"
     ],
     "operators": [
-      "REG_MMM_HILL",
-      "FILTER_INCLUDE"
+      "FILTER_INCLUDE",
+      "REG_MMM_HILL"
     ],
     "capabilities": [
       "capability:regression_order"

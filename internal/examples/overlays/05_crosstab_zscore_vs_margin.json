@@ -1,14 +1,14 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Crosstab count of region x segment decorated with an OVERLAY_ZSCORE_VS_MARGIN cell overlay that scores each cell as the standardised deviation from its row margin ((cell - row_mean) / row_stddev).",
+    "description": "Crosstab of mean revenue by region x segment (an AGG_AVERAGE cell) decorated with an OVERLAY_ZSCORE_VS_MARGIN cell overlay: each cell's distance from its row margin in units of the row's cell SD, (cell - row_margin) / sd, the SD taken over the row's cells (divide by N). The row margin of a mean cell is the region's mean revenue, so each z says how far a segment sits above or below its region's average. Use a mean or rate cell: on a count cell the row margin is the row total, and every z comes out large and negative.",
     "intents": [
       "benchmark",
       "relationship"
     ],
     "name": "crosstab-zscore-vs-margin",
     "operators": [
-      "AGG_COUNT",
+      "AGG_AVERAGE",
       "GROUP_CATEGORY"
     ],
     "tags": [
@@ -36,9 +36,9 @@
       }
     ],
     "cell": {
-      "type": "AGG_COUNT",
-      "field": "id",
-      "label": "n"
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "mean_revenue"
     },
     "margins": {
       "rows": true,

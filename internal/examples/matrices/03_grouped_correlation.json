@@ -8,11 +8,11 @@
       "experiment-analysis"
     ],
     "operators": [
-      "MAT_CORRELATION",
+      "AGG_COUNT",
       "GROUP_CATEGORY",
-      "AGG_COUNT"
+      "MAT_CORRELATION"
     ],
-    "description": "Per-arm Pearson correlation matrices on experiment.pulse: matrices follow Request.Groups, so GROUP_CATEGORY on treatment returns one MAT_CORRELATION result per non-empty arm, in the grouped data-row order, each carrying group_key and group_header. Predict reports bucket_basis dictionary with estimated_buckets 2 and the estimated cells and bytes before the run.",
+    "description": "Per-arm Pearson correlation matrices on experiment.pulse: matrices follow groups, so GROUP_CATEGORY on treatment returns one MAT_CORRELATION result per non-empty arm, in the grouped data-row order, each carrying group_key and group_header. Predict reports bucket_basis dictionary with estimated_buckets 2 and the estimated cells and bytes before the run.",
     "intents": [
       "relationship",
       "compare_groups"

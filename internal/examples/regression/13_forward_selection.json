@@ -11,21 +11,27 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Forward stepwise selection: REG_OLS with selection=forward grows the predictor set greedily by starting empty and adding the AIC-optimal candidate each round, halting when no remaining predictor improves the criterion. Sibling shape to 11_stepwise.json (bidirectional) — the forward arm is the canonical \"start small, add as needed\" subset-selection strategy. Forces the buffered orchestrator path.",
+    "description": "Forward selection: REG_OLS with selection forward starts from the intercept and adds the candidate that improves AIC most, stopping when none does. On survey.pulse, q4 on the other five items adds q5, q3 and q6 (selected_features, in order) and never q1 or q2; compare 11_stepwise.json (both directions) and 14_backward_selection.json. Selection buffers the request.",
     "intents": [
       "drivers"
     ]
   },
   "cohort": {
-    "filename": "training_data.pulse",
+    "filename": "survey.pulse",
     "data_dir": ".data"
   },
   "regressions": [
     {
       "type": "REG_OLS",
-      "name": "income_forward",
-      "target": "income",
-      "predictors": ["price", "label"],
+      "name": "q4_forward",
+      "target": "q4",
+      "predictors": [
+        "q1",
+        "q2",
+        "q3",
+        "q5",
+        "q6"
+      ],
       "selection": "forward",
       "criterion": "aic"
     }

@@ -134,14 +134,13 @@ func (g *generator) add(name string, write func(*csv.Writer) error) {
 // statistical test type in internal/examples/tests/ has a clean, non-trivial
 // signal:
 //
-//   - treatment vs control: variant has ≈22% higher revenue mean and
-//     a right-tail-heavy lift on session_minutes (median moves little,
-//     upper deciles stretch). The first yields a clear two-sample
-//     t-test reject; the second yields a clear KS reject while the
-//     mean t-test stays ambiguous — a useful split that demonstrates
-//     why distribution-shape tests still matter alongside mean tests.
-//   - region: four regions with planted mean-revenue differences so
-//     ANOVA across regions rejects clearly.
+//   - treatment vs control: variant has a planted 22% revenue lift and
+//     a right-tail-heavy lift on session_minutes (each variant row is
+//     stretched by 1 + 0.35|z|, so the upper deciles move most). Both
+//     the two-sample t-test and the KS test reject on the 400 rows.
+//   - region: four regions with planted mean-revenue lifts (1.00 to
+//     1.35); on the 400 rows the one-way ANOVA rejects at 0.05, only
+//     just.
 //   - segment × converted: segments_a / b / c have different conversion
 //     base rates (0.20 / 0.35 / 0.50) producing a dependent contingency.
 //   - period: 90 sequential dates; revenue carries a mild upward drift
@@ -201,8 +200,7 @@ func writeExperiment(w *csv.Writer, r *rand.Rand, n int) error {
 		// session_minutes: half-normal with treatment lift.
 		sessionBase := math.Abs(detmath.NormFloat64(r)) * 15.0
 		// Asymmetric treatment effect on session_minutes: variant shifts
-		// the right tail more than the median, so KS detects a clear
-		// distribution change even though mean differences stay modest.
+		// the right tail more than the median.
 		sessionTreatLift := 1.0
 		if treatment == "variant" {
 			sessionTreatLift = 1.0 + float64(0.35*math.Abs(detmath.NormFloat64(r)))
@@ -304,7 +302,8 @@ func writeOrders(w *csv.Writer, r *rand.Rand, n int) error {
 	return nil
 }
 
-// writeTrainingData covers every field referenced by examples 07-10.
+// writeTrainingData covers every field the features examples 07-10
+// read; signup dates span the 500 days from 2024-01-01.
 // label is binary (0/1) with class imbalance ~30% positives so
 // stratified split has a meaningful effect.
 func writeTrainingData(w *csv.Writer, r *rand.Rand, n int) error {
@@ -573,7 +572,7 @@ func writeIntake(w *csv.Writer, r *rand.Rand, n int) error {
 	return nil
 }
 
-// writeSubscribers produces the flag-and-money cohort the U45 showcase
+// writeSubscribers produces the flag-and-money cohort the showcase
 // examples read: binary outcomes stored as packed_bool (no 0/1 twin
 // column), a signup and a first-repeat-order date for calendar
 // retention flags, and decimal128 money for exact ratios. Every value
