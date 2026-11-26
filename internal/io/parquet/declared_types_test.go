@@ -108,3 +108,50 @@ func TestParquetImport_DeclaredWidthsArePinned(t *testing.T) {
 		}
 	}
 }
+
+// TestParquet_U4PinRoundTrips: a u4 column the Parquet writer exports
+// (a Uint8 carrying the pulse:type=u4 field metadata) reads back pinned
+// u4 on import, while a plain Uint8 column pins u8. The marker survives
+// only through the stored Arrow schema; a writer that drops it reads
+// both columns back as u8.
+func TestParquet_U4PinRoundTrips(t *testing.T) {
+	t.Parallel()
+
+	w := NewWriterToBuffer()
+	w.SetPulseSchema(&encoding.Schema{Fields: []encoding.Field{
+		{Name: "nib", Type: encoding.FieldTypeU4},
+		{Name: "byte", Type: encoding.FieldTypeU8},
+	}})
+	if err := w.WriteHeader([]string{"nib", "byte"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range [][]any{{"1", "1"}, {"2", "2"}} {
+		if err := w.WriteRow(row); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	pins, err := NewReaderFromBytes(w.Bytes()).DeclaredColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pins["nib"].Type != encoding.FieldTypeU4 || pins["byte"].Type != encoding.FieldTypeU8 {
+		t.Errorf("pins nib=%s byte=%s, want u4 / u8", pins["nib"].Type, pins["byte"].Type)
+	}
+
+	job := pio.NewImportJob(NewReaderFromBytes(w.Bytes()), "out.pulse")
+	job.FS = afero.NewMemMapFs()
+	rep, err := job.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := rep.Schema.Field("nib"); f == nil || f.Type != encoding.FieldTypeU4 {
+		t.Errorf("imported nib = %v, want u4", f)
+	}
+	if rep.RowsImported != 2 {
+		t.Errorf("imported %d rows, want 2", rep.RowsImported)
+	}
+}
