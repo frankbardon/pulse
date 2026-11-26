@@ -26,15 +26,15 @@ field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128
 
 ## Output
 
-Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CDF: `xm / U^(1/alpha)` where `U = 1 - rng.Float64()`.
+Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CDF: `xm / U^(1/alpha)`, `U` uniform on `(0, 1]`.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
 - `alpha <= 1` → no finite mean. `alpha <= 2` → no finite variance. Document the choice if downstream tests assume moments.
-- `xm <= 0 || alpha <= 0` → `SERVICE_VALIDATION` at spec parse.
-- Tail dominates the buffered moments — the mean over Pareto cohorts converges slowly; prefer the median for centre estimates.
+- `xm <= 0` or `alpha <= 0` → `SERVICE_VALIDATION` before any row is written.
+- The tail dominates the moments — a Pareto mean converges slowly; prefer the median for the centre.
 - Common synthetic-wealth pattern: `xm = 10_000`, `alpha = 1.16` reproduces an 80/20 Pareto split.
 - No clamp param — use `constraints` to bound the tail when needed (e.g. `wealth < 1e9`).
 

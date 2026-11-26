@@ -32,15 +32,15 @@ Use something else:
 | `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). |
 | `frequency` | enum | — | `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`. |
 
-`Scope` must be `group`. `Ref.YoY` (empty marker) — tags ref family.
+`scope` must be `group`. `ref.yoy` (empty object) required; an empty `ref` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-SERIES Process host with EXACTLY ONE `GROUP_DATE` grouper, anywhere in `groups`. Over N ≥ 2 `groups` it runs once per combination of every OTHER key; each entry keeps its full key. `params.partition_by`, if set, must name exactly the non-date keys (`PULSE_OVERLAY_PARTITION_INVALID`, `reason: not_non_date_keys`). Zero or 2+ `GROUP_DATE` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.date_groupers`), predict and runtime. `frequency` from `spec.Params`, else the `GROUP_DATE` grouper's `Params`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
+SERIES Process host with EXACTLY ONE `GROUP_DATE` grouper, anywhere in `groups`. Over N ≥ 2 `groups` it runs once per combination of every OTHER key; each entry keeps its full key. `params.partition_by`, if set, must name exactly the non-date keys (`PULSE_OVERLAY_PARTITION_INVALID`, `reason: not_non_date_keys`). Zero or 2+ `GROUP_DATE` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`details.date_groupers`), predict and runtime. `frequency` from the overlay's `params`, else the `GROUP_DATE` grouper's `params.frequency`. No `tz` — follows the host grouper's zone (`zone: following`): keys are the host's local labels.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host key, `yoy = point / prior × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+SERIES — one entry per host key, `summary.statistic` = `point / prior-year point × 100`. Layer `summary.baseline` = `100`.
 
 ## Contract
 
@@ -50,9 +50,9 @@ SERIES — one `SeriesEntry` per host key, `yoy = point / prior × 100` on `Summ
 ## Gotchas
 
 - Strides: annual `-1`, quarterly `-4`, monthly `-12`, weekly `-52`; daily/hourly exact-key lookup one year back.
-- Feb 29 with a non-leap prior year → NaN (no realignment).
+- Feb 29 with a non-leap prior year → `null` (no realignment).
 - Missing `frequency` → `PULSE_OVERLAY_YOY_FREQUENCY_MISSING`; unsupported → `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY`.
-- First year of data → NaN, no warning. Zero prior value → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
+- First year of data → `null`, no warning. Zero prior value → `null` + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 
 ## See
 

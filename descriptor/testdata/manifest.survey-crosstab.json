@@ -1527,15 +1527,15 @@
       },
       {
         "name": "op-test-chisq",
-        "description": "Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions."
+        "description": "Chi-square independence test on a 2D rows × cols contingency table, or goodness of fit of rows against expected proportions."
       },
       {
         "name": "op-test-t",
-        "description": "One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant."
+        "description": "One-sample or two-sample Welch t-test on a numeric field; split_by switches to the two-sample variant."
       },
       {
         "name": "op-test-welch",
-        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
+        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical split_by partition."
       },
       {
         "name": "overlay-pairwise",
@@ -2487,4 +2487,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 62fdbb729e157074d02d28c42d9e0e24b2cd751543f3741cfbda944aa1407ea3
+// golden-hash: 869578fb48c29d57239b3eb426fc7901d79c1a50ccf098310670781d0c23f13c

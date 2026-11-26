@@ -31,15 +31,15 @@ Use something else:
 | `field` | string | — | OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `scale` | float | `100` | Multiplier on target / reference; 1 gives a raw ratio. |
 
-`Scope` required — `cell` (matrix host) or `group` (series host). `Reference` = shared reference slot. `Targets` — one layer per target. `OverlayOptions.MaxPanelTargets` int, default `16`, caps `len(Targets)`.
+`scope` required — `cell` (matrix host) or `group` (series host). `reference` = shared reference slot. `targets` — one layer per target. `options.max_panel_targets` (default `16`) caps the target count.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Schema-match + key-alignment + dict-prefix gates per (ref, target). Sibling to the proportion-z panel.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Every (reference, target) pair must match on schema, keys and dictionaries. Sibling to the proportion-z panel.
 
 ## Output
 
-ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to the two-slot reference index on each `(reference, target[i])`.
+ONE layer per target, named `<name>__<target>` (no `name`: `OVERLAY_PANEL_INDEX_VS_REF__<target>`), in `targets` order. Payload shape mirrors the reference slot's; each layer equals the reference index on that `(reference, target)` pair.
 
 ## Contract
 
@@ -49,11 +49,8 @@ ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Paylo
 ## Gotchas
 
 - An undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is MISSING, as on the request host: series — the entry keeps its key with NO `statistic` (absent, not `null`); matrix — the cell stays absent; no warning, out of `summary.count`.
-- `len(Targets) > MaxPanelTargets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
-- Empty `spec.Name` → label becomes `OVERLAY_PANEL_INDEX_VS_REF__<target_label>`.
-- Streamable: SERIES fold-only; MATRIX forced buffered by the slot barrier.
-- Shared coord space is enforced before dispatch.
-- Layer slice order matches `spec.Targets`, stable across re-runs.
+- More targets than `options.max_panel_targets` → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+- The SERIES form is streamable (manifest `buffered: false`); the MATRIX form buffers.
 - Weighted slots → weighted figures (reads the slot payloads).
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 

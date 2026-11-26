@@ -30,15 +30,15 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | list | (required) | Strings: dictionary entries to draw from; non-empty. |
-| `weights` | list | — | Per-value weight; length MUST match `values`. Non-negative; sum `> 0`. Absent: the sampler installs equal weights. |
+| `weights` | list | — | Per-value weight; length MUST match `values`. Non-negative; sum `> 0`. Absent: equal weights. |
 
 ## Inputs
 
-field `type:` — `categorical_u8`/`u16`/`u32` (the writer registers `values` as the inline dictionary).
+field `type:` — `categorical_u8`/`u16`/`u32`; the dictionary holds the values actually drawn.
 
 ## Output
 
-Per-row sampled string from `values`, looked up via binary search over the cumulative-weight table. Encoded as a dictionary index in the host `categorical_*` field.
+Per-row string from `values`, at its weight's share; stored as the field's dictionary code.
 
 ## Contract
 
@@ -46,11 +46,11 @@ Per-row sampled string from `values`, looked up via binary search over the cumul
 
 ## Gotchas
 
-- `weights` length mismatch → `SERVICE_VALIDATION` at spec parse.
+- `weights` length mismatch → `SERVICE_VALIDATION` before any row is written.
 - Negative weight or zero-sum → `SERVICE_VALIDATION`.
 - Empty `values` → `SERVICE_VALIDATION` ("requires non-empty values").
-- Dictionary cardinality at write time must fit the declared categorical width — over-`u8` (>256 values) → cohesion check fails at encode.
-- For boolean-like coin flips use `bernoulli` instead — avoids the dictionary block.
+- More distinct values drawn than the width holds (256 for `categorical_u8`) → `PULSE_IMPORT_CATEGORICAL_OVERFLOW` at write.
+- For a coin flip use `bernoulli` on a `packed_bool` — no dictionary.
 
 ## See
 

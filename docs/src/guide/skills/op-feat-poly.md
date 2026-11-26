@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, polynomial, pre-filter, streaming-friendly]
 ```
 
-Feature operators emit derived columns; no `Response.Components`.
+Feature operators write derived fields before filters run; no `Response.Components`.
 
 ## Use when
 
@@ -28,15 +28,15 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `degree` | int | (required) | `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream. |
+| `degree` | int | (required) | `>= 2` AND `<= 10`. Degree 1 is the source field; reference it directly downstream. |
 
 ## Inputs
 
-`Field` — numeric (types: `## Contract`); `decimal128` via f64.
+`field` (required) — numeric (types: `## Contract`); `decimal128` reads as its float64 echo.
 
 ## Output
 
-`Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
+`degree − 1` derived fields `<prefix>_<k>` for `k = 2..degree`, `prefix` default `<field>_poly` (override via `label`). Each holds `x^k` by repeated multiplication. The source field is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
 
 ## Reading the output
 
@@ -53,7 +53,7 @@ Use something else:
 ## Gotchas
 
 - `degree` outside `[2, 10]` → `PROCESSING_CONFIG`.
-- OVERFLOW WITHOUT STANDARDISATION: `x^10` at `|x| = 100` is already `1e20`. Centre / standardise first; an orthogonal basis is out of scope for v1.
+- OVERFLOW WITHOUT STANDARDISATION: `x^10` at `|x| = 100` is already `1e20`. Centre / standardise first; there is no orthogonal basis.
 - Null inputs → null on every emitted column. Streamable per-row.
 
 ## See

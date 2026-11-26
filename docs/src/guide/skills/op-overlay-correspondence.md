@@ -26,12 +26,12 @@ Use something else:
 
 ## Params
 
-`Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
+`scope` `matrix`. `ref` empty. `level`/`within` `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `dimensions` | int | `2` | Default 2, capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`. |
-| `normalization` | `column_principal` \| `row_principal` \| `symmetric` | `symmetric` | `symmetric` (default) \| `row_principal` \| `column_principal`. |
+| `dimensions` | int | `2` | Capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`. |
+| `normalization` | enum | `symmetric` | `symmetric` (both principal) \| `row_principal` \| `column_principal`. |
 
 ## Host shape
 
@@ -39,7 +39,7 @@ MATRIX crosstab of count or sum cells.
 
 ## Output
 
-SERIES of `K` inertias, keys `dim_k` (`share`, `cumulative_share`, `singular_value`); `Summary.statistic` = total inertia. Parts: `row_` / `column_coordinates`, `row_` / `column_contribution` (MATRIX); `row_` / `column_quality` (SERIES); `row_` / `column_distance` (MATRIX, kept keys × kept keys) — pairwise chi-square profile distances, metric `chi_square` over the other axis's masses: symmetric, 0 diagonal, full-space (ignore `dimensions` / `normalization`).
+SERIES of `K` inertias, keys `dim_k` (`share`, `cumulative_share`, `singular_value`); `summary.statistic` = total inertia. Parts: `row_` / `column_coordinates`, `row_` / `column_contribution` (MATRIX); `row_` / `column_quality` (SERIES); `row_` / `column_distance` (MATRIX, kept keys × kept keys) — pairwise chi-square profile distances, metric `chi_square` over the other axis's masses: symmetric, 0 diagonal, full-space (ignore `dimensions` / `normalization`).
 
 ## Reading the output
 

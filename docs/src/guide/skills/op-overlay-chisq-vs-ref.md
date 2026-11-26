@@ -26,16 +26,16 @@ Use something else:
 
 ## Params
 
-`Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one or more target slot labels.
+`scope` must be `matrix`. `reference` required — reference slot label. `targets` required — one or more target slot labels.
 
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment gates at the slot barrier; `OverlayOptions.DictPrefixFast` enables the byte-equal dictionary prefix probe.
+COMPOSE — MATRIX crosstab on reference + target. Slots must match on schema and keys; `options.dict_prefix_fast` enables the dictionary-prefix probe.
 
 ## Output
 
-SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+SCALAR — `payload.scalar` carries the p-value (= `summary.p_value`), NOT χ²; χ² is on `summary.statistic`, plus `summary.parameters.df`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Reading the output
 
@@ -51,12 +51,12 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 
 ## Gotchas
 
-- Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `Summary.Parameters` adds the target's `sum_weights` (+ `n_eff`). A probability TARGET with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
-- Compared cells C = reference count > 0; reference scaled to the target's total over C: `expected = ref_cell × (target_N / ref_N)`, `df = |C| - 1` — R `chisq.test(target[C], p = ref[C], rescale.p = TRUE)`, pinned at 1e-10. A target count in a zero-reference cell is dropped from χ², N and `df` + one `PULSE_OVERLAY_REF_ZERO` per cell (the vs-population rule).
+- Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `summary.parameters` adds the target's `sum_weights` (+ `n_eff`). A probability TARGET with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
+- Compared cells C = reference count > 0; reference scaled to the target's total over C: `expected = ref_cell × (target_N / ref_N)`, `df = |C| - 1` — R `chisq.test(target[C], p = ref[C], rescale.p = TRUE)`. A target count in a zero-reference cell is dropped from χ², N and `df` + one `PULSE_OVERLAY_REF_ZERO` per cell (the vs-population rule).
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).
 - `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.
-- Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `DictPrefixFast`).
-- Buffered (inferential; the Compose slot barrier always buffers).
+- Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `dict_prefix_fast`).
+- Buffered (inferential; the Compose fold always buffers).
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See

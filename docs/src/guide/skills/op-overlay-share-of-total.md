@@ -31,15 +31,15 @@ Use something else:
 | `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `partition_by` | list | — | A leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`. |
 
-`Scope` required — `cell` (MATRIX) or `group` (SERIES). `Ref.Margin.Axis` required on MATRIX dispatch (grand-axis-locked, value ignored), empty on SERIES. `Level` / `Within` must be `0`.
+`scope` required — `cell` (MATRIX) or `group` (SERIES). `ref.margin` required on a MATRIX host (the axis value is ignored: the grand total), an empty `ref` on SERIES. `level` / `within` are accepted and inert.
 
 ## Host shape
 
-Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit total, empty `Ref`) → `group_val / total`. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality.
+Dual-shape: **MATRIX** crosstab (`ref.margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit total, empty `ref`) → `group_val / total`. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality.
 
 ## Output
 
-MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition sums to 1.0 within ULP. Layer `Baseline = 1`.
+MATRIX or SERIES — raw share (no ×100); a whole matrix / complete partition sums to 1. Layer `summary.baseline` = `1`.
 
 ## Contract
 
@@ -48,11 +48,11 @@ MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition s
 
 ## Gotchas
 
-- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any Level / Within bucket sum.
-- Streamable via SERIES dispatch — same `computeSeriesGrandTotal` accumulator as the total index; MATRIX buffers.
-- `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`: MATRIX without `Ref.Margin` or with any other `Ref` arm; SERIES with any `Ref`.
-- Zero total → NaN + ONE `PULSE_OVERLAY_REF_ZERO` per layer (`details.partitions` on SERIES).
-- Absent host coordinate → unset entry, no contribution to the grand total.
+- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any bucket sum.
+- The SERIES form streams (the total index's accumulator); the MATRIX form buffers.
+- `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`: MATRIX without `ref.margin` or with any other `ref` arm; SERIES with any `ref`.
+- Zero total → `null` + ONE `PULSE_OVERLAY_REF_ZERO` per layer (`details.partitions` on SERIES).
+- Absent host coordinate → no `statistic`, no part of the total.
 - A share, not an index (×100).
 - Weighted host → weighted figure (reads the host payload).
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.

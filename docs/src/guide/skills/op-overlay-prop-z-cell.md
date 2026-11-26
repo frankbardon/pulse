@@ -26,16 +26,16 @@ Use something else:
 
 ## Params
 
-`Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
+`scope` must be `cell`. `reference` (string, required) — reference slot label. `targets` (list, required) — target slot labels.
 
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = success count; matching row margin = sample size. Sample reference reuses the two-proportion z-test's pooled-SE recurrence.
+COMPOSE — MATRIX crosstab on both reference + target slot. Cell value = success count; its row margin = sample size.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors reference matrix's RowKeys / ColumnKeys. Layer `Baseline` unset (inferential). One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+MATRIX — `payload.matrix.cells[r][c].value` = the two-sided p-value, on the reference matrix's keys. `summary.baseline` unset (inferential). One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Reading the output
 
@@ -52,10 +52,10 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
 ## Gotchas
 
 - An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.
-- Weighted slots (both kinds): p̂ = cell/row margin (Σw); n = the row base's N*: the margin Σw under frequency, its Kish `n_eff` under probability (never Σw; no readable floor ⇒ missing margin). A probability slot with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
-- Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. Reuses `normalTwoSidedP` — byte-equal to the two-proportion z-test on the same `(success, n)` pair.
-- Degenerate inputs (`pooled ∈ {0,1}`, `se == 0`, missing/zero row margin on EITHER side — never the cell value as n) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected cell.
-- Schema-match + key-alignment gates at the slot barrier.
+- Weighted slots (both kinds): p̂ = cell/row margin (Σw); n = the row base's N*: the margin Σw under frequency, its Kish `n_eff` under probability (never Σw; no readable floor ⇒ missing margin). A probability slot with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime). `summary.parameters` adds `sum_weights` (+ `n_eff`).
+- Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. p equals the two-proportion z-test's on the same `(success, n)` pair.
+- Degenerate inputs (`pooled ∈ {0,1}`, `se == 0`, missing/zero row margin on EITHER side — never the cell value as n) → `null` cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected cell.
+- Slots must match on schema and keys.
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See

@@ -31,15 +31,15 @@ Use something else:
 |---|---|---|---|
 | `field` | string | — | OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 
-`Scope` (enum, required) — `cell` (matrix host) or `group` (series host). `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels (one or more). Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+`scope` (enum, required) — `cell` (matrix host) or `group` (series host). `reference` (string, required) — reference slot label. `targets` (list, required) — target slot labels (one or more). Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Schema-match, key-alignment and dict-prefix gates run at the slot barrier. Subtractive twin of the reference index.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Slots must match on schema, keys and dictionaries. Subtractive twin of the reference index.
 
 ## Output
 
-MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - ref`. Preserves target slot's units. Layer `Baseline = 0`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+MATRIX (cell host) or SERIES (group host) — per-coordinate `target − reference`, in the target slot's units. Layer `summary.baseline` = `0`. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Contract
 
@@ -49,9 +49,9 @@ MATRIX (cell host) or SERIES (group host) — per-coordinate `delta = target - r
 ## Gotchas
 
 - An undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is MISSING, as on the request host: series — the entry keeps its key with NO `statistic` (absent, not `null`); matrix — the cell stays absent; no warning, out of `summary.count`.
-- No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO` (mirrors per-Request DELTA family).
+- No division — a zero reference never raises `PULSE_OVERLAY_REF_ZERO`.
 - Target key absent from the reference → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`; no entry is emitted for it (series: the entry is DROPPED; matrix: the cell stays absent) — never a NaN entry.
-- SERIES dispatch is fold-only (one accumulator per group), streamable per `OverlayStreamability`; MATRIX is forced buffered by the slot barrier.
+- The SERIES form is streamable (manifest `buffered: false`); the MATRIX form buffers.
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See

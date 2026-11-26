@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-fisher-exact
-description: Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
+description: Exact two-sided p-value for a 2×2 rows × cols contingency table; small-sample CHISQ alternative.
 kind: operator
 category: TEST
 operator: TEST_FISHER_EXACT
@@ -34,11 +34,11 @@ Use something else:
 
 ## Inputs
 
-`Rows` / `Cols` (both required, 2 levels each) — categorical (`packed_bool` levels `"0"`/`"1"`) (a yes/no x yes/no table is the natural 2x2). `Field` ignored.
+`rows` / `cols` (both required, 2 levels each) — categorical (`packed_bool` levels `"0"`/`"1"`) (a yes/no x yes/no table is the natural 2x2). `field` ignored.
 
 ## Output
 
-`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed × (1 + 1e-7), `fisher.test`'s tie rule). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` (= `Statistic`) is the conditional MLE R's `fisher.test` reports, not ad/bc: zero a or d -> 0, else zero b or c -> +Inf (`null` on the wire). `ci_low` / `ci_high` = `fisher.test`'s exact conditional interval on it at `1 − alpha`: lower exactly 0 with a zero a or d, upper +Inf (`null`, key kept) with a zero b or c.
+`statistic` = odds ratio; `p_value` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed × (1 + 1e-7), `fisher.test`'s tie rule). `details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` (= `statistic`) is the conditional MLE R's `fisher.test` reports, not ad/bc: zero a or d -> 0, else zero b or c -> +Inf (`null` on the wire). `ci_low` / `ci_high` = `fisher.test`'s exact conditional interval on it at `1 − alpha`: lower exactly 0 with a zero a or d, upper +Inf (`null`, key kept) with a zero b or c.
 
 ## Reading the output
 

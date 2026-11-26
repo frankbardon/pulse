@@ -117,8 +117,8 @@ const (
 	// probability weights.
 	MAT_FACTOR MatrixType = "MAT_FACTOR"
 	// MAT_DISTANCE is the k × k distance matrix between the centroids of
-	// the buckets a grouper (params.between: any built-in grouper but
-	// the date family, GROUP_KMEANS included) cuts the rows into. A
+	// the buckets a grouper (params.between: any built-in grouper, the
+	// date family and GROUP_KMEANS included) cuts the rows into. A
 	// centroid is the bucket's (weighted) mean of every member; the
 	// primary is square symmetric, keyed by the bucket labels in the
 	// grouper's emission order, with a zero diagonal. params.metric is

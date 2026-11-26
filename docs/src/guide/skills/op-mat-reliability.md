@@ -28,12 +28,12 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `reverse` | [fields] | — | Reverse-keyed items: x' = min + max − x before the fold. |
+| `reverse` | list | — | Reverse-keyed items: x' = min + max − x before the fold. |
 | `scale_min` | float | — | Battery range, with `scale_max`; required with `reverse` unless the vector declares `kind: "scale"` bounds. |
 | `scale_max` | float | — | See `scale_min`. |
-| `repair` | `nearest` | — | Fit omega on the nearest correlation matrix. |
-| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `repair` | enum | — | `nearest`: fit omega on the nearest correlation matrix. |
+| `missing` | enum | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 | `fit` | string | — | Emit from a bound vector fit ([`vector-row-scores`](vector-row-scores.md)). |
 
 ## Inputs

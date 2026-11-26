@@ -1,6 +1,6 @@
 ```yaml
 name: op-feat-sqrt
-description: Per-row sqrt(x) of a numeric field; emits one f64 column.
+description: Per-row sqrt(x) of a numeric field into one derived field.
 kind: operator
 category: FEAT
 operator: FEAT_SQRT
@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, distribution-shape, pre-filter, streaming-friendly]
 ```
 
-Feature operators emit derived columns; no `Response.Components`.
+Feature operators write derived fields before filters run; no `Response.Components`.
 
 ## Use when
 
@@ -26,15 +26,15 @@ Use something else:
 
 ## Params
 
-None. `Field` (required, numeric) — `params` block is unused.
+None; `params` is unused.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` (required) — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
-One `f64` column written to `Label` (default `SQRT_<field>`). Formula `sqrt(x)`.
+One derived field at `label` (default `SQRT_<field>`). Formula `sqrt(x)`.
 
 ## Reading the output
 

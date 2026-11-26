@@ -15,11 +15,11 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
+`scope` `matrix`. `ref` empty. `level`/`within` `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `steps` | list | — | Distinct integers 1–1000 (≤ 64). |
+| `steps` | list | — | Distinct integers 1–1000 (≤ 64); absent: `[1, 3, 6, 12]`. |
 | `absorbing` | list | — | State keys, e.g. `["churned"]`. |
 | `initial` | object | — | `"margin"` or `{state: share}`. |
 
@@ -37,7 +37,7 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## Gotchas
 
-- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` (unit row synthesized, `REF_ZERO` warning).
+- Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` (unit row synthesized, `PULSE_OVERLAY_REF_ZERO` warning).
 - Reducible / periodic ⇒ `PULSE_OVERLAY_MARKOV_NOT_ERGODIC`, no `steady_state`.
 - Zero row ⇒ absorbing + `PULSE_OVERLAY_REF_ZERO`.
 - Never-absorbed state ⇒ `null` time.

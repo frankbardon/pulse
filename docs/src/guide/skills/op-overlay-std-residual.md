@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`Scope` must be `cell`. `Ref` empty (implicit-margin). `Level`/`Within` `0`.
+`scope` must be `cell`. `ref` empty (implicit-margin). `level`/`within` `0`.
 
 
 ## Host shape
@@ -35,7 +35,7 @@ MATRIX crosstab.
 
 ## Output
 
-MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R `chisq.test()$stdres`). Parts `expected` and `p` (two-sided normal), MATRIX on the same keys. `Summary`: `Baseline` 0, `Min`/`Max`/`Count` of defined residuals.
+MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R `chisq.test()$stdres`). Parts `expected` and `p` (two-sided normal), MATRIX on the same keys. Layer `summary`: `baseline` 0, `min` / `max` / `count` of defined residuals.
 
 ## Reading the output
 
@@ -52,7 +52,7 @@ MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R 
 
 - Weights as [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md) (Kish-scaled under probability).
 - Absent or undefined (NaN) cell = 0 (missing). `E = 0` ⇒ residual, p `null`. Any `E < 5` ⇒ one `PULSE_OVERLAY_EXPECTED_LOW`.
-- Host < 2×2, zero total or a `Ref` ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Host < 2×2, zero total or a `ref` ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Code cell (`AGG_MODE`) ⇒ `PROCESSING_CONFIG` `categorical_code`.
 
 ## See

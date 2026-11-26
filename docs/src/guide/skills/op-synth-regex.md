@@ -1,6 +1,6 @@
 ```yaml
 name: op-synth-regex
-description: String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition.
+description: String samples generated from a Perl/RE2 regex pattern, with open-ended repeats capped at max_repeat.
 kind: operator
 category: SYNTH
 operator: regex
@@ -30,7 +30,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `pattern` | string | (required) | Non-empty Perl/RE2 source via `regexp/syntax.Parse`. |
+| `pattern` | string | (required) | Non-empty Perl/RE2 source. |
 | `max_repeat` | int | `8` | Floored at 1. Bounds unbounded `*` / `+` / `{m,}`. |
 
 ## Inputs
@@ -39,7 +39,7 @@ Field `type:` — `categorical_u8`/`u16`/`u32`. Distinct generated strings becom
 
 ## Output
 
-Per-row string from the parsed AST: literals copy, char classes draw uniformly, alternations pick a branch, repeats expand under `max_repeat`. Stored as a dictionary index. Ops: `OpLiteral`, `OpCharClass`, `OpAnyChar(NotNL)`, `OpCapture`, `OpConcat`, `OpAlternate`, `OpStar`, `OpPlus`, `OpQuest`, `OpRepeat`, anchors (emit nothing).
+Per-row string matching the pattern: literals copy, character classes draw uniformly, alternations pick a branch, groups and `?` / `*` / `+` / `{m,n}` repeat under `max_repeat`, anchors emit nothing. Stored as the field's dictionary code.
 
 ## Contract
 
@@ -48,9 +48,9 @@ Per-row string from the parsed AST: literals copy, char classes draw uniformly, 
 ## Gotchas
 
 - No backreferences (`\1`, `(?P=name)`); invalid pattern → `SERVICE_VALIDATION` with the syntax error.
-- `OpAnyChar` emits printable ASCII (33–126), for cross-platform stability.
+- `.` emits printable ASCII (33–126).
 - Unbounded `*` / `+` clamps to `max_repeat`; bounded `{m,n}` to `min(n, min + max_repeat)`.
-- An empty character class produces no character. Write-time dictionary cardinality must fit the declared categorical width — wide patterns + tall cohorts overflow `categorical_u8`.
+- An empty character class produces no character. More distinct strings than the width holds (256 for `categorical_u8`) → `PULSE_IMPORT_CATEGORICAL_OVERFLOW` at write.
 
 ## See
 

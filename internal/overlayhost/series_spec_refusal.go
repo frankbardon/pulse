@@ -168,7 +168,7 @@ func SeriesSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index i
 	switch rule.arm {
 	case seriesPrior:
 		if set && spec.Ref.Prior.Lag != 0 {
-			return ref("Ref.Prior.Lag must be zero (v1 ships lag-1 only; the slot is reserved for future window-N priors)", "lag", spec.Ref.Prior.Lag)
+			return ref("ref.prior.lag must be 0: the prior is always the immediately preceding point", "lag", spec.Ref.Prior.Lag)
 		}
 	case seriesRollingMean, seriesYoY, seriesBaseline, seriesSibling:
 		if !set {

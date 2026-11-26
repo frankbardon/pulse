@@ -8666,7 +8666,7 @@
             "type": "enum",
             "required": false,
             "default": "mann_kendall",
-            "description": "Trend test variant; only mann_kendall in v1.",
+            "description": "Trend test variant; mann_kendall is the only one.",
             "enum_values": [
               "mann_kendall"
             ]
@@ -10981,7 +10981,7 @@
       },
       {
         "name": "MAT_DISTANCE",
-        "description": "Distances between the centroids of the buckets a grouper cuts the rows into (params.between: any built-in grouper but GROUP_DATE / GROUP_DATE_RANGES, GROUP_KMEANS included). A centroid is the bucket's (weighted) mean of every member. The primary is the k x k distance matrix (square, keyed by the bucket labels in the grouper's emission order, zero diagonal) under params.metric; auxiliary.centroids the k x p centroids (rows the buckets, columns the members), auxiliary.centroids_standardized under standardize and auxiliary.pooled_covariance under mahalanobis; vectors.sizes each bucket's weight mass and vectors.counts its rows. Rows the grouper puts in no bucket (a null key, an include rejection) are excluded and counted (components operator.n_null_key); a row with a null member is dropped (listwise only). Streamable and mergeable when the between grouper is (one co-moment per bucket); GROUP_KMEANS and GROUP_QUANTILE buffer the rows and run serially. Weighted under frequency and probability weights (a GROUP_KMEANS between: frequency only). No p-values.",
+        "description": "Distances between the centroids of the buckets a grouper cuts the rows into (params.between: any built-in grouper, the date family and GROUP_KMEANS included, or a registered extension grouper). A centroid is the bucket's (weighted) mean of every member. The primary is the k x k distance matrix (square, keyed by the bucket labels in the grouper's emission order, zero diagonal) under params.metric; auxiliary.centroids the k x p centroids (rows the buckets, columns the members), auxiliary.centroids_standardized under standardize and auxiliary.pooled_covariance under mahalanobis; vectors.sizes each bucket's weight mass and vectors.counts its rows. Rows the grouper puts in no bucket (a null key, an include rejection) are excluded and counted (components operator.n_null_key); a row with a null member is dropped (listwise only). Streamable and mergeable when the between grouper is (one co-moment per bucket); GROUP_KMEANS and GROUP_QUANTILE buffer the rows and run serially. Weighted under frequency and probability weights (a GROUP_KMEANS between: frequency only). No p-values.",
         "accepts_types": [
           "f32",
           "f64",
@@ -14946,11 +14946,11 @@
       },
       {
         "name": "op-feat-bucketize",
-        "description": "Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles."
+        "description": "Bin a numeric field into ordered buckets — explicit boundaries or N equal-population quantiles."
       },
       {
         "name": "op-feat-date-features",
-        "description": "Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns."
+        "description": "Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) derived fields."
       },
       {
         "name": "op-feat-frequency-encode",
@@ -14958,11 +14958,11 @@
       },
       {
         "name": "op-feat-log",
-        "description": "Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer."
+        "description": "Per-row log1p(x) of a numeric field into one derived field. Standard skew-tamer."
       },
       {
         "name": "op-feat-one-hot",
-        "description": "One-hot encode a categorical or packed_bool field as one f64 column per level."
+        "description": "One-hot encode a categorical or packed_bool field as one derived 0/1 field per level."
       },
       {
         "name": "op-feat-poly",
@@ -14970,15 +14970,15 @@
       },
       {
         "name": "op-feat-sqrt",
-        "description": "Per-row sqrt(x) of a numeric field; emits one f64 column."
+        "description": "Per-row sqrt(x) of a numeric field into one derived field."
       },
       {
         "name": "op-feat-target-encode",
-        "description": "Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas."
+        "description": "Replace each categorical value with the smoothed mean of a numeric target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas."
       },
       {
         "name": "op-feat-train-test-split",
-        "description": "Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows."
+        "description": "Deterministic split-assignment field (0=train, 1=val, 2=test) for ML workflows."
       },
       {
         "name": "op-filter-date-ranges",
@@ -15074,11 +15074,11 @@
       },
       {
         "name": "op-mat-correlation",
-        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method)."
+        "description": "Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one result per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method)."
       },
       {
         "name": "op-mat-covariance",
-        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped)."
+        "description": "Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one result per spec (per group bucket when grouped)."
       },
       {
         "name": "op-mat-distance",
@@ -15118,7 +15118,7 @@
       },
       {
         "name": "op-overlay-chisq-vs-pop",
-        "description": "χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution."
+        "description": "χ² goodness-of-fit comparing the facet subset distribution against the resolved population distribution."
       },
       {
         "name": "op-overlay-chisq-vs-ref",
@@ -15138,7 +15138,7 @@
       },
       {
         "name": "op-overlay-delta-vs-prior",
-        "description": "Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host."
+        "description": "Per-point streamable additive delta against the immediately preceding point of an ordered SERIES host."
       },
       {
         "name": "op-overlay-delta-vs-ref",
@@ -15146,7 +15146,7 @@
       },
       {
         "name": "op-overlay-delta-vs-sibling",
-        "description": "Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host."
+        "description": "Per-group additive delta against a sibling group named by (field, value) on the SERIES host."
       },
       {
         "name": "op-overlay-delta-vs-stage",
@@ -15158,7 +15158,7 @@
       },
       {
         "name": "op-overlay-formula",
-        "description": "Expression-driven projection computed via expr-lang against a per-host-shape variable namespace."
+        "description": "Expression-driven overlay evaluated per host coordinate against a per-host-shape variable namespace."
       },
       {
         "name": "op-overlay-index-vs-baseline",
@@ -15170,11 +15170,11 @@
       },
       {
         "name": "op-overlay-index-vs-pop",
-        "description": "Per-value population-comparison index for a Facet host (subset_freq / pop_freq × 100)."
+        "description": "Per-value population-comparison index for a facet host (subset_freq / pop_freq × 100)."
       },
       {
         "name": "op-overlay-index-vs-prior",
-        "description": "Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100)."
+        "description": "Per-point streamable index against the immediately preceding point of an ordered SERIES host (×100)."
       },
       {
         "name": "op-overlay-index-vs-ref",
@@ -15186,7 +15186,7 @@
       },
       {
         "name": "op-overlay-index-vs-sibling",
-        "description": "Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100)."
+        "description": "Per-group ratio index against a sibling group named by (field, value) on the SERIES host (×100)."
       },
       {
         "name": "op-overlay-index-vs-stage",
@@ -15198,7 +15198,7 @@
       },
       {
         "name": "op-overlay-ks-vs-pop",
-        "description": "Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population."
+        "description": "Kolmogorov-Smirnov distance + p-value comparing the facet NUMERIC distribution against the resolved population."
       },
       {
         "name": "op-overlay-markov",
@@ -15278,7 +15278,7 @@
       },
       {
         "name": "op-overlay-t-cell",
-        "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents."
+        "description": "Compose-host per-cell Welch t-test against the reference slot's matching cell; reads each cell's mean, variance and n from its components."
       },
       {
         "name": "op-overlay-t-vs-prior",
@@ -15286,7 +15286,7 @@
       },
       {
         "name": "op-overlay-t-vs-ref",
-        "description": "Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
+        "description": "Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); reads each group's mean, variance and n from its components."
       },
       {
         "name": "op-overlay-yoy",
@@ -15294,7 +15294,7 @@
       },
       {
         "name": "op-overlay-z-cell",
-        "description": "Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents."
+        "description": "Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; reads each cell's mean, variance and n from its components."
       },
       {
         "name": "op-overlay-z-vs-prior",
@@ -15302,7 +15302,7 @@
       },
       {
         "name": "op-overlay-z-vs-ref",
-        "description": "Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents."
+        "description": "Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); reads each group's mean, variance and n from its components."
       },
       {
         "name": "op-overlay-zscore-vs-margin",
@@ -15310,7 +15310,7 @@
       },
       {
         "name": "op-overlay-zscore-vs-pop",
-        "description": "Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop."
+        "description": "Per-value population-comparison z-score for a facet host — (subset_freq − pop_freq) / sd_pop."
       },
       {
         "name": "op-overlay-zscore-vs-rolling",
@@ -15398,7 +15398,7 @@
       },
       {
         "name": "op-synth-regex",
-        "description": "String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition."
+        "description": "String samples generated from a Perl/RE2 regex pattern, with open-ended repeats capped at max_repeat."
       },
       {
         "name": "op-synth-set-bernoulli",
@@ -15422,11 +15422,11 @@
       },
       {
         "name": "op-test-anova-f",
-        "description": "One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy."
+        "description": "One-way ANOVA F-test comparing the means of a numeric field across k groups defined by split_by."
       },
       {
         "name": "op-test-anova-rm",
-        "description": "Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition."
+        "description": "Repeated-measures one-way ANOVA; rows pivoted on subject_field × split_by condition."
       },
       {
         "name": "op-test-anova-welch",
@@ -15438,7 +15438,7 @@
       },
       {
         "name": "op-test-box-m",
-        "description": "Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check."
+        "description": "Box's M test of one shared covariance across a split_by of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check."
       },
       {
         "name": "op-test-brown-forsythe",
@@ -15446,19 +15446,19 @@
       },
       {
         "name": "op-test-chisq",
-        "description": "Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions."
+        "description": "Chi-square independence test on a 2D rows × cols contingency table, or goodness of fit of rows against expected proportions."
       },
       {
         "name": "op-test-fisher-exact",
-        "description": "Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative."
+        "description": "Exact two-sided p-value for a 2×2 rows × cols contingency table; small-sample CHISQ alternative."
       },
       {
         "name": "op-test-hotelling-t2",
-        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance."
+        "description": "Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level split_by with pooled or unequal covariance."
       },
       {
         "name": "op-test-kendall-tau",
-        "description": "Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction."
+        "description": "Concordance-based correlation between field and field2; buffered O(n²) pair count under tie correction."
       },
       {
         "name": "op-test-kruskal-wallis",
@@ -15466,7 +15466,7 @@
       },
       {
         "name": "op-test-ks",
-        "description": "Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy."
+        "description": "Kolmogorov-Smirnov two-sample distribution test on field partitioned by split_by."
       },
       {
         "name": "op-test-mann-whitney-u",
@@ -15474,7 +15474,7 @@
       },
       {
         "name": "op-test-manova",
-        "description": "One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details."
+        "description": "One-way MANOVA of a mean vector of p numeric members across a split_by of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details."
       },
       {
         "name": "op-test-mardia",
@@ -15482,7 +15482,7 @@
       },
       {
         "name": "op-test-paired-t",
-        "description": "Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d."
+        "description": "Paired-sample t-test on the per-row difference d = field − field2; streamable via Welford on d."
       },
       {
         "name": "op-test-pearson-r",
@@ -15490,19 +15490,19 @@
       },
       {
         "name": "op-test-prop-z",
-        "description": "Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts."
+        "description": "Two-proportion z-test on the success rate of field across two split_by groups, or one-proportion against params.p0; streamable via success / total counts."
       },
       {
         "name": "op-test-shapiro-wilk",
-        "description": "Shapiro-Francia (W′) normality test on Field (= nortest::sf.test); runs per-group when SplitBy is set; needs n ≥ 5."
+        "description": "Shapiro-Francia (W′) normality test on field (= nortest::sf.test); runs per-group when split_by is set; needs n ≥ 5."
       },
       {
         "name": "op-test-spearman-r",
-        "description": "Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson."
+        "description": "Rank-based correlation between field and field2 (monotonic association); buffered mid-ranks then Pearson."
       },
       {
         "name": "op-test-t",
-        "description": "One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant."
+        "description": "One-sample or two-sample Welch t-test on a numeric field; split_by switches to the two-sample variant."
       },
       {
         "name": "op-test-trend",
@@ -15514,15 +15514,15 @@
       },
       {
         "name": "op-test-welch",
-        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
+        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical split_by partition."
       },
       {
         "name": "op-test-wilcoxon-sr",
-        "description": "Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank."
+        "description": "Wilcoxon signed-rank test on per-row difference d = field − field2; buffered tie-corrected sign-rank."
       },
       {
         "name": "op-test-z-two-sample",
-        "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ."
+        "description": "Two-sample z-test on field means across two split_by groups; identical SE to Welch's t-test but p-value via standard normal Φ."
       },
       {
         "name": "op-win-delta",
@@ -17052,7 +17052,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17169,7 +17169,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17221,7 +17221,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17252,7 +17252,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17277,7 +17277,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17310,7 +17310,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17356,7 +17356,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17399,7 +17399,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17451,7 +17451,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17476,7 +17476,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17507,7 +17507,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "scale",
@@ -17539,7 +17539,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17582,7 +17582,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17615,7 +17615,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17638,7 +17638,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -17671,7 +17671,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -17815,13 +17815,28 @@
             "name": "n_source",
             "type": "enum",
             "required": false,
-            "description": "Where each leg's sample size is read (default cell_n_unweighted)."
+            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*).",
+            "enum_values": [
+              "cell_n_unweighted",
+              "cell_value_weighted",
+              "cell_weight_sum",
+              "row_margin_n",
+              "column_margin_n",
+              "n_within",
+              "n_within_distinct",
+              "row_margin_distinct",
+              "column_margin_distinct"
+            ]
           },
           {
             "name": "p_source",
             "type": "enum",
             "required": false,
-            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."
+            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading).",
+            "enum_values": [
+              "cell_value",
+              "cell_value_pct"
+            ]
           }
         ]
       },
@@ -17876,13 +17891,28 @@
             "name": "n_source",
             "type": "enum",
             "required": false,
-            "description": "Where each leg's sample size is read (default cell_n_unweighted)."
+            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*).",
+            "enum_values": [
+              "cell_n_unweighted",
+              "cell_value_weighted",
+              "cell_weight_sum",
+              "row_margin_n",
+              "column_margin_n",
+              "n_within",
+              "n_within_distinct",
+              "row_margin_distinct",
+              "column_margin_distinct"
+            ]
           },
           {
             "name": "p_source",
             "type": "enum",
             "required": false,
-            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."
+            "description": "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading).",
+            "enum_values": [
+              "cell_value",
+              "cell_value_pct"
+            ]
           }
         ]
       },
@@ -18060,7 +18090,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "scale",
@@ -18116,7 +18146,13 @@
             "type": "enum",
             "required": false,
             "default": "row_margin_value",
-            "description": "Where each slot's sample size is read (types.PanelNSources)."
+            "description": "Where each slot's sample size is read (panel-n-sources).",
+            "enum_values": [
+              "row_margin_value",
+              "cell_n_unweighted",
+              "row_margin_value_within",
+              "row_margin_distinct_within"
+            ]
           },
           {
             "name": "n_within_depth",
@@ -18152,7 +18188,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18344,7 +18380,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18394,7 +18430,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for every pair of states, moves i -\u003e j are as frequent as moves j -\u003e i. chi-square = sum over pairs i \u003c j of (n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept (k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact (1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW. On k x k params.exact runs the exact conditional Bowker test: given each pair's total, n_ij ~ Binomial(n_ij + n_ji, 1/2), p = P(chi-square \u003e= observed) by exact convolution; statistic the uncorrected chi-square, Parameters exact, states, discordant, pairs_dropped, continuity_corrected 0 (no df, odds ratio or conf_level); past 2^20 enumeration terms PULSE_OVERLAY_PARAM_MISSING (reason exact_too_large), an explicit conf_level reason needs_2x2 (both runtime only). exact over a probability-weighted cell is PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights table; under kind probability scaled to its Kish n_eff first).",
+        "description": "Test of symmetry for a from-state (rows) x to-state (columns) crosstab of PAIRED observations (the same units measured twice): McNemar's test on a 2 x 2 table, Bowker's on k x k — R's mcnemar.test. H0: for every pair of states, moves i -\u003e j are as frequent as moves j -\u003e i. chi-square = sum over pairs i \u003c j of (n_ij - n_ji)^2 / (n_ij + n_ji); a pair with n_ij + n_ji = 0 is dropped and df = the number of pairs kept (k(k - 1)/2 when none is); a 2 x 2 table takes Edwards' continuity correction (|n_12 - n_21| - 1)^2 unless params.correct is false (R's default correct = TRUE; inert on k x k). params.exact true runs the exact binomial McNemar on a 2 x 2 instead (R binom.test(n_12, n_12 + n_21)): statistic n_12, an exact p, Parameters exact (1) and no df, the discordant odds_ratio n_12 / n_21 with odds_ratio_ci_lower / _upper (binom.test's exact conf.int at params.conf_level, default 0.95, echoed as conf_level, mapped to p / (1 - p); n_21 = 0 makes the ratio and upper bound null), no PULSE_OVERLAY_EXPECTED_LOW. On k x k params.exact runs the exact conditional Bowker test: given each pair's total, n_ij ~ Binomial(n_ij + n_ji, 1/2), p = P(chi-square \u003e= observed) by exact convolution; statistic the uncorrected chi-square, Parameters exact, states, discordant, pairs_dropped, continuity_corrected 0 (no df, odds ratio or conf_level); past 2^22 enumeration terms PULSE_OVERLAY_PARAM_MISSING (reason exact_too_large), an explicit conf_level reason needs_2x2 (both runtime only). exact over a probability-weighted cell is PULSE_WEIGHT_UNSUPPORTED, on non-whole discordant counts PULSE_OVERLAY_NONNEGATIVE_REQUIRED. With no pair kept, the statistic and p-value are null and df is 0. MATRIX scope over a MATRIX (crosstab) host with SCALAR payload = the chi-square, plus OverlaySummary{Statistic, PValue, Parameters{df, states, discordant, pairs_dropped, continuity_corrected}}; a multiplicity block adjusts the one p-value. States align by key, never by position (rows first, then column-only keys); a state on one axis only is a row / column of zeros. A different grouper count per axis is PULSE_OVERLAY_MATRIX_NOT_SQUARE; a cell aggregation other than AGG_COUNT / AGG_SUM, or a negative cell, is PULSE_OVERLAY_NONNEGATIVE_REQUIRED; fewer than 2 states or a zero total is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; a bad or unknown param is PULSE_OVERLAY_PARAM_MISSING. Any pair whose expected count under symmetry ((n_ij + n_ji) / 2) is below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Weighted hosts follow OVERLAY_CHISQ_MATRIX (the sum-of-weights table; under kind probability scaled to its Kish n_eff first).",
         "intents": [
           "flows"
         ],
@@ -18416,7 +18452,7 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Exact p, no df. 2 x 2: binomial McNemar (R binom.test(n_12, n_12 + n_21)), statistic n_12, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). k x k: exact conditional Bowker test (each pair's split binomial given its total), statistic the uncorrected chi-square; past 2^20 enumeration terms refused (reason exact_too_large). Refused on a probability-weighted cell and on non-whole discordant counts."
+            "description": "Exact p, no df. 2 x 2: binomial McNemar (R binom.test(n_12, n_12 + n_21)), statistic n_12, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). k x k: exact conditional Bowker test (each pair's split binomial given its total), statistic the uncorrected chi-square; past 2^22 enumeration terms refused (reason exact_too_large). Refused on a probability-weighted cell and on non-whole discordant counts."
           },
           {
             "name": "conf_level",
@@ -18511,7 +18547,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18545,7 +18581,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "variance_target",
@@ -18607,7 +18643,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18673,7 +18709,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           }
         ]
       },
@@ -18698,7 +18734,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18739,7 +18775,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18833,7 +18869,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "partition_by",
@@ -18867,7 +18903,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the FacetRequest.Fields entry to score (required with two or more fields). A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
           },
           {
             "name": "variance_target",
@@ -22159,4 +22195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b40ea61d2223a5d16826599735bdd68f92bb23046fe723abf170e1dbf43c6240
+// golden-hash: 6f1e165e70f16856d90f182d0c35d296ac12944b462c9537b22eefa0461d9f44

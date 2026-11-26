@@ -33,7 +33,7 @@ Use something else:
 | `window` | int | (required) | Rolling window width in rows, a positive integer. |
 | `min_periods` | int | — | Present priors a point needs for a figure. |
 
-`Scope` must be `group`. `Ref.RollingMean` empty marker tags the ref family; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.window` required, positive width `W`. `Level` / `Within` must be `0`.
+`scope` must be `group`. `ref.rolling_mean` (empty object) required; an empty `ref` or another arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `W` = `params.window`. `level` / `within` must be `0`.
 
 ## Host shape
 
@@ -41,7 +41,7 @@ SERIES ordered grouped Process host. Over two or more `groups` it runs once per 
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order carrying `index = point / mean(prior ≤W) × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+SERIES — one entry per host group key in host order, `summary.statistic` = `point / mean(up to W priors) × 100`. Layer `summary.baseline` = `100`.
 
 ## Contract
 
@@ -51,7 +51,7 @@ SERIES — one `SeriesEntry` per host group key in host order carrying `index = 
 ## Gotchas
 
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` or `min_periods` outside 1..`W` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`, predict and runtime. Window 1 indexes each point against the previous present one.
-- Under `min_periods` present priors → `null`, no warning (default: until the window fills); below `W` the mean is over the priors held. Absent host point → no `statistic` key, ring does NOT advance. Zero rolling mean → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
+- Under `min_periods` present priors → `null`, no warning (default: until the window fills); below `W` the mean is over the priors held. Absent host point → no `statistic`, and it does not enter the window. Zero rolling mean → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Weighted host → weighted figure (reads the host payload).
 
 ## See

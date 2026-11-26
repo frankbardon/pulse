@@ -9,7 +9,7 @@ applies_to: process
 examples_tags: [overlay, comparison]
 ```
 
-Lives on `ChainRequest.Overlays` (dual-slot host — `ChainOverlaySpec`). Decorates `ChainResponse.Overlays`; per-stage overlays untouched. Overlays emit no `Response.Components`.
+Lives on a chain request's `overlays`; layers land on the chain response's `overlays`, per-stage overlays untouched. No `Response.Components`.
 
 ## Use when
 
@@ -30,15 +30,15 @@ Use something else:
 |---|---|---|---|
 | `field` | string | — | OUTPUT LABEL of the aggregation to score on the target and the reference stage (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each stage's `aggregations[0]`; rows key on group columns only; a stage lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN` (`details.which` / `stage_index`). |
 
-`Scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). `ChainOverlaySpec` has no `Level` / `Within`. `Ref` (a `StageRef`) required — `{Index: N}` or `{Name: "stage-id"}`. `Target` — `{Index}` or `{Name}`, default the latest stage.
+`scope` required, echoed verbatim — the capability declares `total` (there is no `chain` scope). A chain overlay has no `level` / `within`. `ref` required — `{"index": N}` or `{"name": "stage-id"}`. `target` — same form, default the latest stage.
 
 ## Host shape
 
-CHAIN — `ProcessChain`; reference + target stages' host shape (scalar / series / matrix). Consumes the `StageRef` reference family.
+CHAIN — a process chain; the reference and target stages' result shape (scalar / series / matrix).
 
 ## Output
 
-Shape inherited from target stage. Per-coordinate `index = target / ref × 100`. Layer `Baseline = 100`.
+Shape inherited from target stage. Per-coordinate `target / reference × 100`. Layer `summary.baseline` = `100`.
 
 ## Contract
 
@@ -48,11 +48,10 @@ Shape inherited from target stage. Per-coordinate `index = target / ref × 100`.
 ## Gotchas
 
 - Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
-- Zero `ref_val_k` → NaN at that coordinate + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
-- `Target` defaults to the latest stage when `Index` is nil and `Name` empty; `Ref` has no default.
+- Zero reference value → `null` at that coordinate + ONE `PULSE_OVERLAY_REF_ZERO` per layer.
 - Stage shape divergence → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain and at runtime (chain stays valid and runs; empty layer).
-- Unknown stage → `PULSE_OVERLAY_REF_UNKNOWN` (`PULSE_OVERLAY_TARGET_UNKNOWN` when it lands).
-- Buffered (whole-chain barrier post stage loop).
+- An empty or unknown `ref` (no default) → `PULSE_OVERLAY_REFERENCE_UNKNOWN`; unknown `target` → `PULSE_OVERLAY_TARGET_UNKNOWN`.
+- Buffered (runs after every stage finalizes).
 
 ## See
 

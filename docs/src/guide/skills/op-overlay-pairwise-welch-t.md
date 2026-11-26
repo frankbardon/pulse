@@ -32,15 +32,15 @@ Use something else:
 | `n_within_depth` | int | `0` | Accepted and inert here (n comes from the Welford triple). |
 | `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1`: adds the `letters` part. |
 
-`Scope` (required) — `row` or `column`. `Ref` empty. `n_source` / `p_source` are NOT accepted: predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), every mode; runtime leaves them inert.
+`scope` (required) — `row` or `column`. `ref` empty. `n_source` / `p_source` are NOT accepted: predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), every mode; runtime leaves them inert.
 
 ## Host shape
 
-MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Components.Crosstab`, read for the `{mean, variance, n}` triple per cell. A cell without `mean` + `variance` components → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime. Multi-measure host (`cells`): a measure without the triple is refused ALONE — its rows null, a same-code warning (`details.measure`); every measure refused → the layer refuses. A population-variance cell is converted to the sample variance ([`overlay-pairwise`](overlay-pairwise.md)).
+MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `components.crosstab`, read for the `{mean, variance, n}` triple per cell. A cell without `mean` + `variance` components → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`; components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime. Multi-measure host (`cells`): a measure without the triple is refused ALONE — its rows null, a same-code warning (`details.measure`); every measure refused → the layer refuses. A population-variance cell is converted to the sample variance ([`overlay-pairwise`](overlay-pairwise.md)).
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout: [`overlay-pairwise`](overlay-pairwise.md)). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))`, two-sided via the `statdist.StudentTTwoSidedP` helper the t-tests use. `letters`: `higher` from the sign of `t`.
+MATRIX — pair × opposite-axis grid of two-sided p-values (layout: [`overlay-pairwise`](overlay-pairwise.md)). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))`, two-sided Student-t p, as the t-tests. `letters`: `higher` from the sign of `t`.
 
 ## Reading the output
 
@@ -58,7 +58,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values (layout: [`overlay-p
 
 - Either leg with `n <= 1`, or a `null` Welford variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
 - Weighted host: legs read N* (`sum_weights` frequency, `n_eff` probability), variance from `m2` on w*, df on N*.
-- The HOST is buffered too: the Welford cell is non-mergeable, so the crosstab never fuses (`TestCrosstabWelfordCell_StaysBufferedWithCorrectOverlays`).
+- The HOST is buffered too: the Welford cell is non-mergeable, so the crosstab never fuses.
 
 ## See
 

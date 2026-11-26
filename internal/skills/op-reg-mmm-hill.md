@@ -21,8 +21,8 @@ examples_tags: [regression, time-series, buffered-pipeline]
 |---|---|---|---|
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
-| `channels` | array | (required) | Hill-curve predictors; the rest are controls. |
-| `nonnegative` | boolean | `true` | Channel β ≥ 0. |
+| `channels` | list | (required) | Hill-curve predictors; the rest are controls. |
+| `nonnegative` | bool | `true` | Channel β ≥ 0. |
 | `prior` | object | — | Gaussian `{channel, mean, precision}` on one β. |
 | `adstock` | string | — | `geometric`, `delayed`, `weibull_cdf`, `weibull_pdf`: in-model. |
 | `max_lag` | int | `13` | Window; non-geometric needs it. |
@@ -33,12 +33,12 @@ examples_tags: [regression, time-series, buffered-pipeline]
 | `jackknife_by` | field | — | Resample. |
 | `rng_seed` | int | — | Resample. |
 | `conf_level` | float | `0.95` | CI coverage. |
-| `vcov` | bool | `false` | `Vcov`, `Correlation`, `dispersion`. |
+| `vcov` | bool | `false` | `vcov`, `correlation`, `dispersion`. |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Replicate p-values join a family. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `holdout`. |
 <!-- /feature -->
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
@@ -56,7 +56,7 @@ Numeric `target`; channels ≥ 0 (else `PROCESSING_CONFIG`). Null rows drop list
 
 Each channel records its kernel (`adstock.<ch>`, saved too) for `response()`: the fitted one, or its<!-- feature: WIN_DISTRIBUTED_LAG --> `WIN_DISTRIBUTED_LAG`'s<!-- /feature -->.
 
-`StdErrors`: Gauss-Newton, joint with kernel; `null` on a bound and a β-0 channel's k / s / kernel. `PValues`: `resample`. `Vcov`: NaN where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
+`std_errors`: Gauss-Newton, joint with kernel; `null` on a bound and a β-0 channel's k / s / kernel. `p_values`: `resample`. `vcov`: `null` where held. `outputs.condition_number` (`adstock`) above 1e6 adds `PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`.
 
 <!-- generated: reading-the-output -->
 

@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, multinomial, buffered-pipeline]
 ```
 
-Rides `Response.Regressions[i]`; no `Response.Components`.
+Rides `regressions[i]`; no `Response.Components`.
 
 ## Use when
 
@@ -42,7 +42,7 @@ Flat keys (no `params`); shared: [`regression-spec`](regression-spec.md).
 | `margins` | object | — | [`regression-margins`](regression-margins.md). |
 | `term_tests` | bool | `false` | — |
 | `weight` | slot weight | — | — |
-| `multiplicity` | object | — | Every non-intercept key. |
+| `multiplicity` | object | — | Non-intercept keys. |
 | `holdout` | expr | — | Scores: [`regression-row-scores`](regression-row-scores.md). |
 | `resample` | enum | — | [`op-reg-mod-resample`](op-reg-mod-resample.md). |
 | `bootstrap_iters` | int | `1000` | — |
@@ -61,7 +61,7 @@ Flat keys (no `params`); shared: [`regression-spec`](regression-spec.md).
 
 ## Output
 
-`Reference`, `Categories`; `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance`, `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`. `exponentiate`: `Exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `TermTests`, per predictor, df K−1: `wald_*`, `lr_*` (vs the refit without it).
+`reference`, `categories`; `coefficients` / `std_errors` / `p_values` (Wald z) / `ci_lower` / `ci_upper` keyed `"<level>:<term>"` per non-reference level; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik`, `aic`. `exponentiate`: `exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `term_tests`, per predictor, df K−1: `wald_*`, `lr_*` (vs the refit without it).
 
 ## Reading the output
 
@@ -84,8 +84,8 @@ Flat keys (no `params`); shared: [`regression-spec`](regression-spec.md).
 - Refused (`PROCESSING_CONFIG`): GLM knobs, `bounds`, a prior, `solver`, `intercept: false`, `collinearity`; `term_tests` beside a modifier, `margins` beside `selection`, both beside `penalty`.
 - `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI unless `resample`; no `vcov`.
 - `resample` / `selection` keep the categories: a bootstrap draw lacking one skips, a jackknife fails (`replicate_empty_level`).
-- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `Categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
-- Probability weight: no `TwoLogLik` / `AIC` / `lr_*`.
+- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
+- Probability weight: no `two_log_lik` / `aic` / `lr_*`.
 - `compare`: df (K−1)·terms; same `reference`.
 - Separation → `PROCESSING_REGRESSION_SEPARATION`.
 

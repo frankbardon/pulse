@@ -22,7 +22,7 @@ Overlays decorate the host; no `Response.Components`.
 | `window` | int | (required) | Rolling window width in rows, a positive integer. |
 | `min_periods` | int | — | Present priors a point needs for a figure. |
 
-`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, width `W` ≥ 2. `Level` / `Within` must be `0`.
+`scope` required, must be `group`. `ref.rolling_mean` (empty object) required. `W` = `params.window`, ≥ 2. `level` / `within` must be `0`.
 
 ## Host shape
 
@@ -30,7 +30,7 @@ SERIES ordered grouped Process host. Over two or more `groups` it runs once per 
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_mean) / rolling_sd` on `Summary.Statistic`, `rolling_sd = sqrt(M2 / (count - 1))` (**SAMPLE SD**, n-1). Layer `Baseline = 0`.
+SERIES — one entry per host group key, `summary.statistic` = `(point − rolling_mean) / rolling_sd`, `rolling_sd` the **SAMPLE SD** (n − 1) of the window. Layer `summary.baseline` = `0`.
 
 <!-- generated: reading-the-output -->
 
@@ -40,7 +40,7 @@ SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_m
 
 - **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast the total z-score (population SD, ÷N).
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window < 2` or `min_periods` outside 2..`W` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (`details.min`), predict and runtime.
-- Under `min_periods` present priors → `null`, no warning (default: a full window); an absent point gets no figure and never advances the ring. Zero rolling SD → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
+- Under `min_periods` present priors → `null`, no warning (default: a full window); an absent point gets no figure and never enters the window. Zero rolling SD → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
 
 ## See
 

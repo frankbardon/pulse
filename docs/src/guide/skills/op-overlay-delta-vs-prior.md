@@ -3,7 +3,7 @@ name: op-overlay-delta-vs-prior
 kind: operator
 category: OVERLAY
 operator: OVERLAY_DELTA_VS_PRIOR
-description: Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host.
+description: Per-point streamable additive delta against the immediately preceding point of an ordered SERIES host.
 type: reference
 applies_to: process
 examples_tags: [overlay, time-series, trend-detection, streaming-friendly]
@@ -31,15 +31,15 @@ Use something else:
 | `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `partition_by` | list | — | A leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`. |
 
-`Scope` must be `group`. `Ref.Prior` (object, empty) — implicit-default — empty `Ref` also accepted. `Level`/`Within` must be `0`.
+`scope` must be `group`. `ref.prior` (empty object) or an empty `ref`. `level`/`within` must be `0`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Family: windowed prior (`Ref.Prior`).
+SERIES — ordered grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Family: windowed prior (`ref.prior`).
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order, carrying `delta = point − prior` on `Summary.Statistic`, in the metric's own units. Layer `Baseline = 0`.
+SERIES — one entry per host group key in host order, `summary.statistic` = `point − prior`, in the metric's own units. Layer `summary.baseline` = `0`.
 
 ## Choosing between this and the index twin
 
@@ -52,12 +52,11 @@ Absolute-difference twin of the prior-period index (same host, ref arm and carri
 
 ## Gotchas
 
-- Single-state lag carrier (one `float64`), so it streams inside the Process fold.
-- First ordinal → NaN, no warning. A delta of `0` would CLAIM nothing changed about a comparison that was never made.
-- Absent host point → NaN + carrier does NOT advance (next present point still subtracts the last present value).
-- **NEVER emits `PULSE_OVERLAY_REF_ZERO`** — unlike the index twin. A prior of exactly zero is a valid subtrahend (`value − 0 = value`); there is no degenerate-denominator branch to hit. Its absence is deliberate, not an omission.
-- `Ref.Prior.Lag` reserved for future window-N priors; v1 ships lag-1 only.
-- Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Carries one prior value, so it streams inside the Process fold.
+- First point → `statistic` `null`, no warning. A delta of `0` would CLAIM nothing changed about a comparison that was never made.
+- Absent host point → no `statistic`; the next present point subtracts the last present value.
+- **NEVER emits `PULSE_OVERLAY_REF_ZERO`** — unlike the index twin. A prior of exactly zero is a valid subtrahend (`value − 0 = value`); there is no denominator.
+- A non-zero `ref.prior.lag`, or another `ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict too).
 
 ## See
 

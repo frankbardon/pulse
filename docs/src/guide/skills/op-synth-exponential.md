@@ -37,7 +37,7 @@ Use something else:
 
 ## Output
 
-Per-row `float64` sample from `Exp(lambda)`, a portable rate-1 ziggurat variate divided by `lambda`. Tail is unbounded — heavy enough to inflate `u4`/`u8` overflow risk under low lambda.
+Per-row `float64` sample from `Exp(lambda)` (machine-independent). The tail is unbounded: under a low `lambda` an integer field saturates at its type's maximum (`u4` 15, `u8` 255).
 
 ## Contract
 
@@ -45,9 +45,9 @@ Per-row `float64` sample from `Exp(lambda)`, a portable rate-1 ziggurat variate 
 
 ## Gotchas
 
-- `lambda <= 0` → `SERVICE_VALIDATION` at spec parse.
-- Memoryless property: hazard rate is constant. Pair with `monotonic_from` for inter-arrival timestamps (cumulative sum captured downstream via a window operator).
-- No clamp param — bound via `constraints` (e.g. `delay_s < 86400`) if a runaway tail breaks the host field's cast.
+- `lambda <= 0` → `SERVICE_VALIDATION` before any row is written.
+- Memoryless: the hazard rate is constant. For inter-arrival times, sum the draws downstream (a running-sum window).
+- No clamp param — bound via `constraints` (e.g. `delay_s < 86400`) if a runaway tail breaks the field's range.
 - Common pattern: `exponential` lifetimes / wait-times, log-transformed for distribution-shape work.
 
 ## See

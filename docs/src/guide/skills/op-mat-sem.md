@@ -29,7 +29,7 @@ Questions it answers:
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
 | `group_levels` | array | — | [`sem-groups`](sem-groups.md). |
-| `resample` | `bootstrap` | — | SE, p, CI. |
+| `resample` | enum | — | `bootstrap`: SE, p, CI. |
 | `bootstrap_iters` | int | 1000 | B. |
 | `rng_seed` | int | 0 | — |
 | `ci_level` | float | 0.95 | — |
@@ -43,7 +43,7 @@ Questions it answers:
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
 | `missing` | enum | `listwise` | — |
-| `max_drop_share` | 0–1 | — | Warn. |
+| `max_drop_share` | float | — | Warn. |
 | `fit` | string | — | Bound fit. |
 
 ## Inputs

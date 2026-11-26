@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, resampling, jackknife, buffered-pipeline]
 ---
 
-Overwrites `StdErrors` / `PValues` in `Response.Regressions[i]`; the point estimate stays the full-data fit.
+Overwrites `std_errors` / `p_values` in `regressions[i]`; the point estimate stays the full-data fit.
 
 <!-- generated: use-when -->
 
@@ -31,11 +31,11 @@ Inherits `target` / `predictors` from an OLS, GLM (any penalty) or model host<!-
 
 ## Output
 
-- `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
-- NB re-estimates θ per replicate; `ThetaStdErr` is θ̂'s replicate SE.
+- `std_errors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
+- NB re-estimates θ per replicate; `theta_std_err` is θ̂'s replicate SE.
 - A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
-- `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
-- `Resample` echoes back; `Coefficients` unchanged; `margins` are re-estimated per replicate (`regression-margins`). Under `l1` / `elasticnet` it supplies the null SE / p (penalized refits) and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
+- `p_values[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
+- `resample` echoes back; `coefficients` unchanged; `margins` are re-estimated per replicate (`regression-margins`). Under `l1` / `elasticnet` it supplies the null SE / p (penalized refits) and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
 - Bootstrap echoes `bootstrap_requested` and `bootstrap_succeeded` (SE / p / vcov use only successes). A failed refit is skipped (`succeeded < requested`: unstable fit); under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas

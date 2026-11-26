@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` `matrix`. `Ref` `{"matrix": {"name": "<spec name>"}}` — the spec's `name`, else `<TYPE>_<vector>` / `<TYPE>`. `Level`/`Within` `0`. No params.
+`scope` `matrix`. `ref` `{"matrix": {"name": "<spec name>"}}` — the spec's `name`, else `<TYPE>_<vector>` / `<TYPE>`. `level`/`within` `0`. No params.
 
 ## Host shape
 

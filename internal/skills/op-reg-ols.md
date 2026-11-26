@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, streaming-friendly]
 ---
 
-Fits ride `Response.Regressions[i]`; no `Response.Components`.
+Fits ride `regressions[i]`; no `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -38,16 +38,16 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `selection` | enum | — | `backward`, `forward`, `stepwise`. |
 | `criterion` | enum | — | `aic`, `bic`. |
 | `conf_level` | float | `0.95` | CI coverage. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | Adds `vcov` + `correlation`. |
 | `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | Effects = βs (`regression-margins`). |
 | `collinearity` | object | — | VIFs (`regression-collinearity`). |
 | `weight` | slot weight | — | `null` opts out; WLS. |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | — | p-values join a family; adds `PAdjusted`. |
+| `multiplicity` | object | — | p-values join a family; adds `p_adjusted`. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `holdout`. |
 <!-- /feature -->
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
@@ -61,7 +61,7 @@ See `## Contract`; null / NaN / ±Inf drops the row.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `TwoLogLik` / `AIC`, `NObs` (+ weighted `SumWeights`). Robust `covariance` adds a `Covariance` echo.
+`coefficients["(intercept)"]` + per-predictor βs; `std_errors`, `p_values` (Student-t); `ci_lower` / `ci_upper`, `df`, `conf_level`; `r2`, `adj_r2`, `residual_std_err`, `two_log_lik` / `aic`, `n_obs` (+ weighted `sum_weights`). Robust `covariance` adds a `covariance` echo.
 
 <!-- generated: reading-the-output -->
 

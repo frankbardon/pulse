@@ -4134,7 +4134,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEST_REFERENCE_MISSING` | yes | yes |
 | `PULSE_TEST_SHAPIRO_N_BOUND` | yes | yes |
 | `PULSE_TEST_SPLIT_GROUPS_LT_2` | yes | yes |
-| `PULSE_TEST_SUBJECT_MISSING` | yes |  |
+| `PULSE_TEST_SUBJECT_MISSING` | yes | yes |
 | `PULSE_TEST_SUCCESS_VALUE_MISSING` | yes | yes |
 | `PULSE_TEST_TIES_DOMINATE` | yes | yes |
 | `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | yes |  |

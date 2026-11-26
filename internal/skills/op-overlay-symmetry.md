@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
+`scope` `matrix`. `ref` empty. `level`/`within` `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -29,7 +29,7 @@ MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one 
 
 ## Output
 
-SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`. `exact` (`exact: 1`, no `df`): 2 × 2 statistic / scalar `n_12` + discordant `odds_ratio` `n_12 / n_21`, `odds_ratio_ci_lower` / `_upper` (at `conf_level`, echoed: `binom.test` `conf.int` → `p / (1 − p)`); k × k the χ², exact conditional p.
+SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `summary.parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`. `exact` (`exact: 1`, no `df`): 2 × 2 statistic / scalar `n_12` + discordant `odds_ratio` `n_12 / n_21`, `odds_ratio_ci_lower` / `_upper` (at `conf_level`, echoed: `binom.test` `conf.int` → `p / (1 − p)`); k × k the χ², exact conditional p.
 
 <!-- generated: reading-the-output -->
 

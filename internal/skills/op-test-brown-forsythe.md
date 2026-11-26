@@ -17,20 +17,18 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `partition_by` | list | — | Post-test over 2+ groupers: one run per partition, the rows sharing these leading group keys (default all but the last; `[]` = one run). |
 
-- `weight` — frequency only: weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `Details` add `sum_weights` beside `n` (raw rows).
-
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
+- `weight` — frequency only: weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `details` add `sum_weights` beside `n` (raw rows).
 
 ## Inputs
 
-`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` — categorical (`packed_bool` levels `"0"`/`"1"`).
+`field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `split_by` (required, ≥ 2 groups) — categorical (`packed_bool` levels `"0"`/`"1"`).
 
 ## Output
 
-`Statistic` = F (ANOVA on absolute deviations from per-group medians); `DF` = k-1 (`df_within` = N-k in Details); `PValue` via F-distribution survival. Flat `Details`: `groups`, `n`, `group_medians`, `abs_dev_means`, `ss_between`, `ss_within`.
+`statistic` = F (ANOVA on absolute deviations from per-group medians); `df` = k-1 (`df_within` = N-k in `details`); `p_value` via F-distribution survival. Flat `details`: `groups`, `n`, `group_medians`, `abs_dev_means`, `ss_between`, `ss_within`.
 
 <!-- generated: reading-the-output -->
 
@@ -40,7 +38,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 
 - Buffered — per-group medians require a sort.
 - Not a pre-ANOVA gate: a large p is not evidence of equal spread.
-- More robust than Levene (mean-based) under non-normality — that's the whole point.
+- More robust than mean-based Levene under non-normality.
 - Tier-2 variant `TEST_BROWN_FORSYTHE/median_post` runs over result columns. A row with a null in a used column drops listwise (R's NA default); `details.n` counts the rows used.
 - Tiny groups destabilize the median; `n_i < 2` or N ≤ k → `PULSE_TEST_INSUFFICIENT_N`.
 - Zero within-group spread (each group's `|x − median|` constant, `ss_within` = 0): F = +Inf (`null` on the wire), p = 0 when groups differ; F and p `null` (no rejection) when all deviations are equal — R `anova(lm(...))`'s exact limit.

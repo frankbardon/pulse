@@ -17,12 +17,12 @@ Weighted pairwise two-means z: pairs rows (`row` scope) or columns (`column`) on
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `pair_along_dim` | int | — | Same-bucket pairs. `n_source` / `p_source` / bad `n_basis` → `PULSE_OVERLAY_PARAM_MISSING`; `weights` on a probability-weighted cell (incl. `weight_field`) → `PROCESSING_CONFIG`. |
+| `pair_along_dim` | int | — | Restrict pairs to same-bucket comparisons on the pair axis. |
 | `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
 | `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
-| `n_basis` | `kish` \| `weights` | (required) | `weights` or `kish`. |
+| `n_basis` | enum | (required) | `weights` or `kish`. |
 
-`Scope` (required) — `row` or `column`. `Ref` empty.
+`scope` (required) — `row` or `column`. `ref` empty. `n_source` / `p_source` / a bad or missing `n_basis` → `PULSE_OVERLAY_PARAM_MISSING`; `weights` on a probability-weighted cell (incl. `weight_field`) → `PROCESSING_CONFIG`.
 
 ## Host shape
 

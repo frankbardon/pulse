@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-box-m
-description: Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
+description: Box's M test of one shared covariance across a split_by of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
 kind: operator
 category: TEST
 operator: TEST_BOX_M
@@ -28,8 +28,8 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `missing` | enum | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`, `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`), ≥ 2 levels.
@@ -37,11 +37,11 @@ Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`, `vecto
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`.
+Members: numeric (`## Contract`).
 
 ## Output
 
-`Statistic` = Box's χ², `DF` = p(p + 1)/2·(k − 1), `PValue`. `Details`: `m`, `f`, `df1`, `df2`, `f_p_value` (F form), `members`, `groups`, `n`, `n_dropped`, `log_det` (per level), `log_det_pooled`.
+`statistic` = Box's χ², `df` = p(p + 1)/2·(k − 1), `p_value`. `details`: `m`, `f`, `df1`, `df2`, `f_p_value` (F form), `members`, `groups`, `n`, `n_dropped`, `log_det` (per level), `log_det_pooled`.
 
 ## Reading the output
 

@@ -15,7 +15,7 @@ import (
 // fieldClauseEnds are the markers that close an atomic skill's `field`
 // clause: the next slot it names, a newline, or the `;` that opens the
 // refusal prose (which names the types it does NOT accept).
-var fieldClauseEnds = []string{"\n", ";", "`SplitBy`", "`Field2`", "`SubjectField`"}
+var fieldClauseEnds = []string{"\n", ";", "`split_by`", "`field2`", "`subject_field`"}
 
 var backticked = regexp.MustCompile("`([a-z0-9_]+)`")
 
@@ -34,11 +34,7 @@ func skillFieldTypes(t *testing.T, stem string) []string {
 		t.Fatalf("%s: no ## Inputs section", stem)
 	}
 	inputs, _, _ = strings.Cut(inputs, "\n## ")
-	// The slot is the wire key `field` (some skills still spell it `Field`).
 	_, clause, ok := strings.Cut(inputs, "`field`")
-	if !ok {
-		_, clause, ok = strings.Cut(inputs, "`Field`")
-	}
 	if !ok {
 		t.Fatalf("%s: ## Inputs names no `field`", stem)
 	}

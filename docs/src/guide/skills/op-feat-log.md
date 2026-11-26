@@ -1,6 +1,6 @@
 ```yaml
 name: op-feat-log
-description: Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer.
+description: Per-row log1p(x) of a numeric field into one derived field. Standard skew-tamer.
 kind: operator
 category: FEAT
 operator: FEAT_LOG
@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, distribution-shape, pre-filter, streaming-friendly]
 ```
 
-Feature operators emit derived columns; no `Response.Components`.
+Feature operators write derived fields before filters run; no `Response.Components`.
 
 ## Use when
 
@@ -22,15 +22,15 @@ Questions it answers:
 
 ## Params
 
-None. `Field` (required, numeric) — `params` block is unused.
+None; `params` is unused.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` (required) — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
-One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 + x)` — the +1 shift keeps `x=0 -> 0` instead of `-inf`. Bit-identical to the formula attribute's `log1p(x)` on every machine (`log(x + 1)` is not: it rounds `1 + x` first).
+One derived field at `label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 + x)` — the +1 shift keeps `x=0 -> 0` instead of `-inf`. Bit-identical to the formula attribute's `log1p(x)` on every machine (`log(x + 1)` is not: it rounds `1 + x` first).
 
 ## Reading the output
 
@@ -50,7 +50,7 @@ One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) =
 - Inputs with `x <= -1` (where `1 + x <= 0`) produce a `null`, not an error — the rest of the cohort keeps going.
 - Null inputs propagate to null outputs.
 - Streamable per-row — pairs cleanly with online aggregators downstream.
-- Pre-filter slot: a range filter on the log column references `LOG_<field>` (default label).
+- Runs before filters: a range filter on the output references `LOG_<field>` (default label).
 
 ## See
 

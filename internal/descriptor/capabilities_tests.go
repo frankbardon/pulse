@@ -336,7 +336,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Streamable:  false,
 			Params: []descriptor.Param{
 				alphaParam,
-				{Name: "variant", Type: "enum", Required: false, Default: "mann_kendall", EnumValues: []string{"mann_kendall"}, Description: "Trend test variant; only mann_kendall in v1."},
+				{Name: "variant", Type: "enum", Required: false, Default: "mann_kendall", EnumValues: []string{"mann_kendall"}, Description: "Trend test variant; mann_kendall is the only one."},
 				partitionByParam,
 			},
 			Requires: []string{"Field", "OrderBy"},

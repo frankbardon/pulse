@@ -3,7 +3,7 @@ name: op-overlay-index-vs-sibling
 kind: operator
 category: OVERLAY
 operator: OVERLAY_INDEX_VS_SIBLING
-description: Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100).
+description: Per-group ratio index against a sibling group named by (field, value) on the SERIES host (×100).
 type: reference
 applies_to: process
 examples_tags: [overlay, comparison]
@@ -31,7 +31,7 @@ Use something else:
 | `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `partition_by` | list | — | A leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`. |
 
-`Scope` must be `group`. `Ref.Sibling.Field` (string, required) — grouper field on the host. `Ref.Sibling.Value` (string, required) — axis-key value identifying the sibling group. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+`scope` must be `group`. `ref.sibling.field` (string, required) — grouper field on the host. `ref.sibling.value` (string, required) — axis-key value identifying the sibling group. Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
@@ -39,7 +39,7 @@ SERIES — grouped Process host. Over two or more `groups` it runs once per part
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling × 100` on `Summary.Statistic`. Sibling group itself emits `100.0` (self-vs-self). Layer `Baseline = 100`.
+SERIES — one entry per host group, `summary.statistic` = `group / sibling × 100` (the sibling itself: `100`). Layer `summary.baseline` = `100`.
 
 ## Contract
 
@@ -48,10 +48,10 @@ SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling �
 
 ## Gotchas
 
-- Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN entries.
-- Zero sibling value → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. The subtractive twin does not warn on zero.
-- Absent host group → `SeriesEntry` with unset `Statistic`.
-- Buffered — the resolver needs materialised per-group accumulators (`ApplyOverlaysSeries`).
+- Unknown `(field, value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer, `null` entries.
+- Zero sibling value → `null` entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer. The subtractive twin does not warn on zero.
+- Absent host group → its entry keeps the key, no `statistic`.
+- Buffered — the sibling resolves after every group finalizes.
 - Weighted host → weighted figure (reads the host payload).
 
 ## See

@@ -32,11 +32,11 @@ Use something else:
 | `mu` | float | `0` | Log-space mean (mean of `ln(X)`). |
 | `sigma` | float | `1` | Log-space standard deviation; must be `> 0`. |
 
-Spec defaults mirror the standard log-normal. Mean of the emitted distribution is `exp(mu + sigma²/2)`.
+The defaults are the standard log-normal. The emitted mean is `exp(mu + sigma²/2)`.
 
 ## Inputs
 
-field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`, so signed-clamp casts are safe.
+field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`.
 
 ## Output
 
@@ -49,9 +49,9 @@ Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to decl
 ## Gotchas
 
 - Right tail is heavy; larger `sigma` increases dispersion exponentially. Use `pareto` for true power-law tails.
-- `sigma <= 0` → `SERVICE_VALIDATION` at spec parse.
+- `sigma <= 0` → `SERVICE_VALIDATION` before any row is written.
 - No built-in clamp — pair with a `constraint` (`amount < 1_000_000`) to bound outliers.
-- Common synthetic-money pattern: `lognormal` over `f64`, then cast to `decimal128` with a constraint enforcing the precision floor.
+- Synthetic money: `lognormal` on a `decimal128` field; each draw is written at the field's `scale`.
 
 ## See
 

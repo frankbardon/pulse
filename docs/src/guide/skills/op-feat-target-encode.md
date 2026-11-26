@@ -1,6 +1,6 @@
 ```yaml
 name: op-feat-target-encode
-description: Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
+description: Replace each categorical value with the smoothed mean of a numeric target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
 kind: operator
 category: FEAT
 operator: FEAT_TARGET_ENCODE
@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, feature-pipeline, leakage-risk, pre-filter]
 ```
 
-Derived column; no `Response.Components`.
+Runs before filters; no `Response.Components`.
 
 ## Use when
 
@@ -36,11 +36,11 @@ Use something else:
 
 ## Inputs
 
-`Field` — see `## Contract` (`packed_bool` levels `"0"`/`"1"`). `params.target` — numeric.
+`field` (required) — see `## Contract` (`packed_bool` levels `"0"`/`"1"`). `params.target` — numeric.
 
 ## Output
 
-One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `target` over the training rows sharing the categorical value.
+One derived field at `label` (default `TARGET_<field>`): the (smoothed) mean of `target` over the training rows sharing the categorical value.
 
 ## Reading the output
 
@@ -58,7 +58,7 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 
 - **LEAKAGE:** without `fit_on`, `PULSE_FEAT_TARGET_LEAKAGE_RISK` (strict refuses; `folds` alone rewords it) — the trap: [`feature-engineering`](feature-engineering.md).
 - `folds` 1 / >100, `rng_seed` without `folds`, blank `fit_on`, missing `target` or `smoothing < 0` → `PROCESSING_CONFIG`; a categorical / `set_*` `target` → `PULSE_FIELD_TYPE_UNSUPPORTED`.
-- GLOBAL-PASS, streams — unless `field`, `target` or a `fit_on` name is an earlier feature's column: then buffered (`streamable_reasons`).
+- GLOBAL-PASS, streams — unless `field`, `target` or a `fit_on` name is an earlier feature's output: then buffered.
 - No training target → every row null. Weights are ignored.
 
 ## See

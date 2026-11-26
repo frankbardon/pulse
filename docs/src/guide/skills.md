@@ -110,15 +110,15 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score — z-score rescaled to mean 50, stddev 10.
 - [`op-attr-vec-distance`](skills/op-attr-vec-distance.md): Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
 - [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score — (value − mean) / stddev via two-pass Welford.
-- [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles.
-- [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
+- [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric field into ordered buckets — explicit boundaries or N equal-population quantiles.
+- [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) derived fields.
 - [`op-feat-frequency-encode`](skills/op-feat-frequency-encode.md): Replace each categorical value with its observed relative frequency in the cohort.
-- [`op-feat-log`](skills/op-feat-log.md): Per-row log1p(x) of a numeric field; emits one f64 column. Standard skew-tamer.
-- [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical or packed_bool field as one f64 column per level.
+- [`op-feat-log`](skills/op-feat-log.md): Per-row log1p(x) of a numeric field into one derived field. Standard skew-tamer.
+- [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical or packed_bool field as one derived 0/1 field per level.
 - [`op-feat-poly`](skills/op-feat-poly.md): Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
-- [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field; emits one f64 column.
-- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
-- [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows.
+- [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field into one derived field.
+- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
+- [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment field (0=train, 1=val, 2=test) for ML workflows.
 - [`op-filter-date-ranges`](skills/op-filter-date-ranges.md): Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
 - [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied `values` list.
 - [`op-filter-expression`](skills/op-filter-expression.md): Keep records for which an expr-lang expression evaluates truthy against record fields.
@@ -142,8 +142,8 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-set-per-element`](skills/op-group-set-per-element.md): Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount.
 - [`op-group-set-value`](skills/op-group-set-value.md): Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with "|".
 - [`op-mat-collinearity`](skills/op-mat-collinearity.md): Collinearity check of candidate regression predictors (no response) — VIF and tolerance per predictor, Belsley's condition indices and variance-decomposition proportions (uncentered with the intercept, or centered), listwise or pairwise, weighted.
-- [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one MatrixResult per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method).
-- [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one MatrixResult per spec (per group bucket when grouped).
+- [`op-mat-correlation`](skills/op-mat-correlation.md): Correlation matrix of a vector's numeric members — Pearson (default), Spearman or Kendall tau-b via params.method — listwise or pairwise, weighted; one result per spec (per group bucket when grouped); per-pair p-values and confidence intervals on request (params.inference, every method).
+- [`op-mat-covariance`](skills/op-mat-covariance.md): Covariance matrix of a vector's numeric members (listwise or pairwise, sample by default), weighted under frequency and probability weights; one result per spec (per group bucket when grouped).
 - [`op-mat-distance`](skills/op-mat-distance.md): Distances between segment centroids — a k × k matrix over the buckets a grouper (params.between: any built-in, date family included, or a registered extension grouper) cuts the rows into; any registry metric MAT_DISTANCE accepts (euclidean, sq_euclidean, manhattan, chebyshev, cosine, hellinger, aitchison, mahalanobis); optional standardize; weighted centroids.
 - [`op-mat-factor`](skills/op-mat-factor.md): Exploratory factor analysis of a battery — minres, principal-axis or maximum-likelihood extraction from the SMC, orthogonal or oblique rotation, loadings (p × k), communalities, uniquenesses, variance accounted, rmsr, the empirical chi-square, KMO and Bartlett, ML's likelihood chi-square, TLI, RMSEA with its interval and BIC; listwise or pairwise, weighted.
 - [`op-mat-partial-correlation`](skills/op-mat-partial-correlation.md): Partial correlation matrix of a vector's numeric members — each pair with every other member, or the params.control fields, held fixed — listwise or pairwise, weighted; non-PSD input refused unless repair "nearest", singular input refused; p-values and confidence intervals on request (params.inference).
@@ -153,27 +153,27 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-chisq-col`](skills/op-overlay-chisq-col.md): Per-column χ² goodness-of-fit test across the host crosstab's contingency table.
 - [`op-overlay-chisq-matrix`](skills/op-overlay-chisq-matrix.md): Whole-matrix χ² independence test across the host crosstab's row × column contingency table.
 - [`op-overlay-chisq-row`](skills/op-overlay-chisq-row.md): Per-row χ² goodness-of-fit test across the host crosstab's contingency table.
-- [`op-overlay-chisq-vs-pop`](skills/op-overlay-chisq-vs-pop.md): χ² goodness-of-fit comparing host Facet subset distribution against the resolved population distribution.
+- [`op-overlay-chisq-vs-pop`](skills/op-overlay-chisq-vs-pop.md): χ² goodness-of-fit comparing the facet subset distribution against the resolved population distribution.
 - [`op-overlay-chisq-vs-ref`](skills/op-overlay-chisq-vs-ref.md): Compose-host whole-matrix χ² comparing target slot's matrix against the reference slot's matrix (rescaled to target N).
 - [`op-overlay-correspondence`](skills/op-overlay-correspondence.md): Correspondence analysis of the host crosstab — inertia per dimension, row and column map coordinates, quality, contribution and chi-square profile distances as parts.
 - [`op-overlay-delta-vs-baseline`](skills/op-overlay-delta-vs-baseline.md): Per-point additive delta against a fixed positional baseline of an ordered SERIES host.
 - [`op-overlay-delta-vs-margin`](skills/op-overlay-delta-vs-margin.md): Per-cell additive delta against the matching axis margin (cell − margin).
-- [`op-overlay-delta-vs-prior`](skills/op-overlay-delta-vs-prior.md): Per-point streamable windowed additive delta against the immediately preceding point of an ordered SERIES host.
+- [`op-overlay-delta-vs-prior`](skills/op-overlay-delta-vs-prior.md): Per-point streamable additive delta against the immediately preceding point of an ordered SERIES host.
 - [`op-overlay-delta-vs-ref`](skills/op-overlay-delta-vs-ref.md): Compose-host additive delta of target slot value against the matching reference slot value (matrix or series).
-- [`op-overlay-delta-vs-sibling`](skills/op-overlay-delta-vs-sibling.md): Per-group additive delta against a sibling group named by (Field, Value) on the SERIES host.
+- [`op-overlay-delta-vs-sibling`](skills/op-overlay-delta-vs-sibling.md): Per-group additive delta against a sibling group named by (field, value) on the SERIES host.
 - [`op-overlay-delta-vs-stage`](skills/op-overlay-delta-vs-stage.md): Whole-chain additive delta of target stage's result against the reference stage's result.
 - [`op-overlay-fisher-exact-cell`](skills/op-overlay-fisher-exact-cell.md): Per-cell Fisher's exact two-sided p-value over a 2×2 contingency formed from each host crosstab cell + its margins.
-- [`op-overlay-formula`](skills/op-overlay-formula.md): Expression-driven projection computed via expr-lang against a per-host-shape variable namespace.
+- [`op-overlay-formula`](skills/op-overlay-formula.md): Expression-driven overlay evaluated per host coordinate against a per-host-shape variable namespace.
 - [`op-overlay-index-vs-baseline`](skills/op-overlay-index-vs-baseline.md): Per-point ratio index against a fixed positional baseline of an ordered SERIES host (×100).
 - [`op-overlay-index-vs-margin`](skills/op-overlay-index-vs-margin.md): Per-cell index against the matching axis margin (100 × cell / margin).
-- [`op-overlay-index-vs-pop`](skills/op-overlay-index-vs-pop.md): Per-value population-comparison index for a Facet host (subset_freq / pop_freq × 100).
-- [`op-overlay-index-vs-prior`](skills/op-overlay-index-vs-prior.md): Per-point streamable windowed index against the immediately preceding point of an ordered SERIES host (×100).
+- [`op-overlay-index-vs-pop`](skills/op-overlay-index-vs-pop.md): Per-value population-comparison index for a facet host (subset_freq / pop_freq × 100).
+- [`op-overlay-index-vs-prior`](skills/op-overlay-index-vs-prior.md): Per-point streamable index against the immediately preceding point of an ordered SERIES host (×100).
 - [`op-overlay-index-vs-ref`](skills/op-overlay-index-vs-ref.md): Compose-host ratio index of target slot value against the matching reference slot value (matrix or series).
 - [`op-overlay-index-vs-rolling-mean`](skills/op-overlay-index-vs-rolling-mean.md): Per-point windowed index against the arithmetic mean of the W preceding points of an ordered SERIES host.
-- [`op-overlay-index-vs-sibling`](skills/op-overlay-index-vs-sibling.md): Per-group ratio index against a sibling group named by (Field, Value) on the SERIES host (×100).
+- [`op-overlay-index-vs-sibling`](skills/op-overlay-index-vs-sibling.md): Per-group ratio index against a sibling group named by (field, value) on the SERIES host (×100).
 - [`op-overlay-index-vs-stage`](skills/op-overlay-index-vs-stage.md): Whole-chain ratio index of target stage's result against the reference stage's result (×100).
 - [`op-overlay-index-vs-total`](skills/op-overlay-index-vs-total.md): Per-group streamable ratio index against the SERIES host's grand total (×100).
-- [`op-overlay-ks-vs-pop`](skills/op-overlay-ks-vs-pop.md): Kolmogorov-Smirnov distance + p-value comparing host Facet NUMERIC distribution against the resolved population.
+- [`op-overlay-ks-vs-pop`](skills/op-overlay-ks-vs-pop.md): Kolmogorov-Smirnov distance + p-value comparing the facet NUMERIC distribution against the resolved population.
 - [`op-overlay-markov`](skills/op-overlay-markov.md): Markov chain of a from × to transition crosstab — transition matrix, n-step powers, projections, steady state and time to absorption.
 - [`op-overlay-matrix-group-summary`](skills/op-overlay-matrix-group-summary.md): Summarize a grouped matrix result across its group buckets — per-cell mean, min, max, range and contributing-group count; the results are never changed.
 - [`op-overlay-pairwise-probit-t`](skills/op-overlay-pairwise-probit-t.md): Intra-matrix axis-pairwise probit t-test (Φ⁻¹ transform of each leg's proportion, Student-t tail).
@@ -193,15 +193,15 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-share-of-total`](skills/op-overlay-share-of-total.md): Share-of-grand-total ratio — dual-shape (matrix per-cell or series per-group); raw share sums to 1.0.
 - [`op-overlay-std-residual`](skills/op-overlay-std-residual.md): Per-cell Haberman adjusted standardized residual of the host crosstab, with expected counts and two-sided p-values as parts.
 - [`op-overlay-symmetry`](skills/op-overlay-symmetry.md): Paired-change test on a before × after crosstab — McNemar (2 × 2) or Bowker (k × k): are moves one way as common as moves back?
-- [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-t-cell`](skills/op-overlay-t-cell.md): Compose-host per-cell Welch t-test against the reference slot's matching cell; reads each cell's mean, variance and n from its components.
 - [`op-overlay-t-vs-prior`](skills/op-overlay-t-vs-prior.md): Welch t-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only.
-- [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
+- [`op-overlay-t-vs-ref`](skills/op-overlay-t-vs-ref.md): Compose-host per-group Welch t-test against the reference slot's matching group (SERIES); reads each group's mean, variance and n from its components.
 - [`op-overlay-yoy`](skills/op-overlay-yoy.md): Per-point year-over-year ratio against the same period one year prior; requires one GROUP_DATE grouper, partitions by the other keys.
-- [`op-overlay-z-cell`](skills/op-overlay-z-cell.md): Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; parity overlay reading from CellComponents.
+- [`op-overlay-z-cell`](skills/op-overlay-z-cell.md): Compose-host per-cell two-sample z-test on the means against the reference slot's matching cell; reads each cell's mean, variance and n from its components.
 - [`op-overlay-z-vs-prior`](skills/op-overlay-z-vs-prior.md): Large-sample z-test of each period's mean against the period before it on an ordered SERIES host or a crosstab with no column grouper; independent samples only.
-- [`op-overlay-z-vs-ref`](skills/op-overlay-z-vs-ref.md): Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
+- [`op-overlay-z-vs-ref`](skills/op-overlay-z-vs-ref.md): Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); reads each group's mean, variance and n from its components.
 - [`op-overlay-zscore-vs-margin`](skills/op-overlay-zscore-vs-margin.md): Per-cell standardized-margin z-score — (cell − margin) / sd where sd is the population SD within the same margin slice.
-- [`op-overlay-zscore-vs-pop`](skills/op-overlay-zscore-vs-pop.md): Per-value population-comparison z-score for a Facet host — (subset_freq − pop_freq) / sd_pop.
+- [`op-overlay-zscore-vs-pop`](skills/op-overlay-zscore-vs-pop.md): Per-value population-comparison z-score for a facet host — (subset_freq − pop_freq) / sd_pop.
 - [`op-overlay-zscore-vs-rolling`](skills/op-overlay-zscore-vs-rolling.md): Per-point windowed z-score against the rolling-window mean + SAMPLE SD of the W preceding points.
 - [`op-overlay-zscore-vs-total`](skills/op-overlay-zscore-vs-total.md): Per-group streamable z-score against the SERIES host's grand-total distribution (population SD).
 - [`op-reg-bayes-linear`](skills/op-reg-bayes-linear.md): Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit.
@@ -223,38 +223,38 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-synth-normal`](skills/op-synth-normal.md): Gaussian samples with optional [min, max] clamp; default mean=0, std=1.
 - [`op-synth-pareto`](skills/op-synth-pareto.md): Heavy-tailed Pareto samples; xm is the scale (minimum), alpha the shape (tail weight).
 - [`op-synth-poisson`](skills/op-synth-poisson.md): Poisson-distributed non-negative integer counts with mean lambda; Knuth multiplicative below 30, normal-approximation above.
-- [`op-synth-regex`](skills/op-synth-regex.md): String samples generated from a Perl/RE2 regex pattern; walks regexp/syntax AST with bounded repetition.
+- [`op-synth-regex`](skills/op-synth-regex.md): String samples generated from a Perl/RE2 regex pattern, with open-ended repeats capped at max_repeat.
 - [`op-synth-set-bernoulli`](skills/op-synth-set-bernoulli.md): Multi-select set_* bitmask generation — independent per-option Bernoulli draws, or a joint-structure resample when a paired field is declared.
 - [`op-synth-uniform`](skills/op-synth-uniform.md): Uniform real-valued samples in [min, max); default [0, 1).
 - [`op-synth-uniform-date`](skills/op-synth-uniform-date.md): Uniform calendar-date samples in [start, end] inclusive; days-since-epoch internally.
 - [`op-synth-uniform-datetime`](skills/op-synth-uniform-datetime.md): Zone-aware datetime samples — a local wall-clock time drawn by weekday and hour-of-day weights, stored as the UTC epoch second it names in a fixed or per-row zone; DST gaps / overlaps per dst_policy.
 - [`op-synth-weighted-categorical`](skills/op-synth-weighted-categorical.md): Discrete categorical draws from a values list with optional weights; uniform when weights absent.
-- [`op-test-anova-f`](skills/op-test-anova-f.md): One-way ANOVA F-test comparing the means of a numeric Field across k groups defined by SplitBy.
-- [`op-test-anova-rm`](skills/op-test-anova-rm.md): Repeated-measures one-way ANOVA; rows pivoted on SubjectField × SplitBy condition.
+- [`op-test-anova-f`](skills/op-test-anova-f.md): One-way ANOVA F-test comparing the means of a numeric field across k groups defined by split_by.
+- [`op-test-anova-rm`](skills/op-test-anova-rm.md): Repeated-measures one-way ANOVA; rows pivoted on subject_field × split_by condition.
 - [`op-test-anova-welch`](skills/op-test-anova-welch.md): Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction; streamable per-group Welford.
 - [`op-test-bartlett-sphericity`](skills/op-test-bartlett-sphericity.md): Bartlett's sphericity test on a vector's correlation matrix (is it the identity?); the factorability check, bit-equal to the PCA operator's Bartlett scalars.
-- [`op-test-box-m`](skills/op-test-box-m.md): Box's M test of one shared covariance across a SplitBy of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
+- [`op-test-box-m`](skills/op-test-box-m.md): Box's M test of one shared covariance across a split_by of 2+ levels; chi-square headline, F approximation in details. The MANOVA / Hotelling assumption check.
 - [`op-test-brown-forsythe`](skills/op-test-brown-forsythe.md): Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.
-- [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions.
-- [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 Rows × Cols contingency table; small-sample CHISQ alternative.
-- [`op-test-hotelling-t2`](skills/op-test-hotelling-t2.md): Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level SplitBy with pooled or unequal covariance.
-- [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between Field and Field2; buffered O(n²) pair count under tie correction.
+- [`op-test-chisq`](skills/op-test-chisq.md): Chi-square independence test on a 2D rows × cols contingency table, or goodness of fit of rows against expected proportions.
+- [`op-test-fisher-exact`](skills/op-test-fisher-exact.md): Exact two-sided p-value for a 2×2 rows × cols contingency table; small-sample CHISQ alternative.
+- [`op-test-hotelling-t2`](skills/op-test-hotelling-t2.md): Hotelling's T² on a mean vector of p numeric members; one-sample or paired (difference vector) against params.mu, or two-sample over a 2-level split_by with pooled or unequal covariance.
+- [`op-test-kendall-tau`](skills/op-test-kendall-tau.md): Concordance-based correlation between field and field2; buffered O(n²) pair count under tie correction.
 - [`op-test-kruskal-wallis`](skills/op-test-kruskal-wallis.md): Nonparametric k-group location test; ANOVA-like rank sums under tie correction.
-- [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on Field partitioned by SplitBy.
+- [`op-test-ks`](skills/op-test-ks.md): Kolmogorov-Smirnov two-sample distribution test on field partitioned by split_by.
 - [`op-test-mann-whitney-u`](skills/op-test-mann-whitney-u.md): Nonparametric two-sample location test; buffered tie-corrected rank sum (Mann-Whitney U).
-- [`op-test-manova`](skills/op-test-manova.md): One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
+- [`op-test-manova`](skills/op-test-manova.md): One-way MANOVA of a mean vector of p numeric members across a split_by of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
 - [`op-test-mardia`](skills/op-test-mardia.md): Mardia's multivariate normality test on a vector — skewness χ² and kurtosis z; buffered.
-- [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
+- [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = field − field2; streamable via Welford on d.
 - [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
-- [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts.
-- [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on Field (= nortest::sf.test); runs per-group when SplitBy is set; needs n ≥ 5.
-- [`op-test-spearman-r`](skills/op-test-spearman-r.md): Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson.
-- [`op-test-t`](skills/op-test-t.md): One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant.
+- [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of field across two split_by groups, or one-proportion against params.p0; streamable via success / total counts.
+- [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on field (= nortest::sf.test); runs per-group when split_by is set; needs n ≥ 5.
+- [`op-test-spearman-r`](skills/op-test-spearman-r.md): Rank-based correlation between field and field2 (monotonic association); buffered mid-ranks then Pearson.
+- [`op-test-t`](skills/op-test-t.md): One-sample or two-sample Welch t-test on a numeric field; split_by switches to the two-sample variant.
 - [`op-test-trend`](skills/op-test-trend.md): Mann-Kendall trend test over an ordered numeric series; tier-2 over windowed result rows.
 - [`op-test-tukey-hsd`](skills/op-test-tukey-hsd.md): Tier-2 post-hoc pairwise comparison of group means using Tukey's Honestly Significant Difference (Tukey-Kramer).
-- [`op-test-welch`](skills/op-test-welch.md): Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition.
-- [`op-test-wilcoxon-sr`](skills/op-test-wilcoxon-sr.md): Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank.
-- [`op-test-z-two-sample`](skills/op-test-z-two-sample.md): Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ.
+- [`op-test-welch`](skills/op-test-welch.md): Explicit two-sample Welch t-test on a numeric field across a categorical split_by partition.
+- [`op-test-wilcoxon-sr`](skills/op-test-wilcoxon-sr.md): Wilcoxon signed-rank test on per-row difference d = field − field2; buffered tie-corrected sign-rank.
+- [`op-test-z-two-sample`](skills/op-test-z-two-sample.md): Two-sample z-test on field means across two split_by groups; identical SE to Welch's t-test but p-value via standard normal Φ.
 - [`op-win-delta`](skills/op-win-delta.md): Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change.
 - [`op-win-dense-rank`](skills/op-win-dense-rank.md): Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition.
 - [`op-win-distributed-lag`](skills/op-win-distributed-lag.md): Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, delayed, Weibull CDF or Weibull PDF) convolved over the ordered partition.

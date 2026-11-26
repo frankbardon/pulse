@@ -34,11 +34,11 @@ Use something else:
 | `min` | float | — | Lower clamp; absent: `-inf`. |
 | `max` | float | — | Upper clamp; absent: `+inf`. |
 
-Setting EITHER bound flips an internal `clamped` flag; once on, BOTH bounds apply.
+Each bound clamps its own side; an absent one leaves that side open.
 
 ## Inputs
 
-Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (days-since-epoch); `u4` writes one byte per row. Categorical / `packed_bool` unsupported — use `weighted_categorical` or `bernoulli`.
+Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (days-since-epoch). Not for a categorical (fails `ENCODING_TYPE_MISMATCH` at generation) or a `packed_bool` (a draw ≥ 0.5 writes true; use `bernoulli` for a prevalence).
 
 ## Output
 
@@ -51,9 +51,9 @@ Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared type at wr
 ## Gotchas
 
 - Heavy clamping distorts pairwise correlations — `|rho|_actual < |rho|_requested` when a partner field is clamp-narrow.
-- `std <= 0` → `SERVICE_VALIDATION` at spec parse.
+- `std <= 0` → `SERVICE_VALIDATION` before any row is written.
 - Nullable fields draw the inner value first, then the null mask, so the seeded stream is invariant to which rows end up null.
-- Same `(spec, opts.Seed)` ⇒ byte-identical output. `Seed == 0` is stable, not random.
+- Same spec and seed (`--seed`) ⇒ the same rows; seed `0` is a fixed seed, not a random one.
 
 ## See
 
