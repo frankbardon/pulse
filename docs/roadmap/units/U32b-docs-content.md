@@ -4,7 +4,7 @@ slug: docs-content
 title: "Every surface a reader or agent reads is accurate, current, complete and concise, and the docs baselines are empty"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: [U32]
 soft_depends_on: []
 blocks: [U32c, U33]
@@ -31,8 +31,8 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#162** (11. Documentation audit) Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/`
-- [ ] **#163** (11. Documentation audit) Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary
+- [x] **#162** (11. Documentation audit) Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/`
+- [x] **#163** (11. Documentation audit) Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary
 - [x] **#164** (11. Documentation audit) Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping)
 - [x] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent; the showcase READMEs are re-verified after the units that simplify them land
 - [x] **#504** (Handed on from U31) The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it
@@ -40,7 +40,7 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 - [x] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill
 - [x] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM
 - [x] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy; mirrored as a `STABILITY.md` MCP row
-- [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
+- [x] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
 - [x] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
 - [x] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
 - [x] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
@@ -107,12 +107,12 @@ Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-content/E<n>
 
 ## Acceptance criteria
 
-- [ ] Every baseline allowlist is empty and `TestDocsBaselinesEmpty` is green
-- [ ] Each item in `todo_items` is delivered and ticked, and #165 is ticked
-- [ ] The manifest / envelope `format_version` difference is reconciled or documented
-- [ ] The Arrow / Parquet wording matches what the code honours
-- [ ] Prose follows "informative but concise": no page restates code or another page without a reason
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Every baseline allowlist is empty and `TestDocsBaselinesEmpty` is green
+- [x] Each item in `todo_items` is delivered and ticked, and #165 is ticked
+- [x] The manifest / envelope `format_version` difference is reconciled or documented
+- [x] The Arrow / Parquet wording matches what the code honours
+- [x] Prose follows "informative but concise": no page restates code or another page without a reason
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 

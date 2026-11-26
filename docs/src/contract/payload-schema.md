@@ -19,6 +19,8 @@ The schema is reachable three ways, all backed by the same generator
 
 The CLI and MCP surfaces emit byte-identical output to the published file.
 
+On this page, "byte-identical" beside an additive key means identical to the output of the same request before the key existed: a request that omits the key neither gains a field nor changes its hash.
+
 ## Per-instance schema
 
 The root `$comment` carries the describing instance's feature-set digest,

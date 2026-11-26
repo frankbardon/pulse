@@ -117,7 +117,7 @@ func seriesFieldNoteFor(k types.OverlayKind) string {
 // seriesFieldNote closes the Description of every series kind that
 // scores one host aggregation (internal/seriesfield): the params.field
 // rule, stated once so the twelve rows cannot drift.
-const seriesFieldNote = " Measure: on a grouped process host the overlay scores the aggregation whose output label " +
+const seriesFieldNote = " Measure: on a SERIES host the overlay scores the aggregation whose output label " +
 	"params.field names (its label, else TYPE_field)" + elementFieldNote + "; absent, aggregations[0]. " +
 	"A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime)."
 
@@ -355,7 +355,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// descriptor.validateOverlayDeltaVsBaseline gates the shape at
 			// predict time.
 			RefKinds: []string{"BaselineIndex"},
-			Description: "Per-point difference from one fixed baseline point of a grouped process host's series: point_value − " +
+			Description: "Per-point difference from one fixed baseline point of a SERIES host: point_value − " +
 				"baseline_value, on each entry's summary.statistic, in the host value's units. " +
 				"ref.baseline_index.position (required) is the 0-based baseline point; the baseline point itself " +
 				"scores 0. A zero baseline is valid (no warning). A negative or out-of-range position is " +
@@ -410,7 +410,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			RefKinds: []string{"Sibling"},
-			Description: "Per-group difference from one sibling group of a grouped process host: group_val − sibling_val, on " +
+			Description: "Per-group difference from one sibling group of a SERIES host: group_val − sibling_val, on " +
 				"each entry's summary.statistic, in the host value's units. ref.sibling {field, value} (both " +
 				"required) names a grouper field and the key value to compare against; the sibling itself scores 0. " +
 				"An unknown field or unobserved value is PULSE_OVERLAY_REF_UNKNOWN with every statistic null. A zero " +
@@ -564,7 +564,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"sqrt / log / exp / pow, the set helpers, lookup() over a registered lookup table and embedder " +
 				"functions) evaluated per cell, entry or scalar over a namespace set by the host. On a request's " +
 				"overlays: a crosstab host binds cell, margin_row, margin_col, margin_grand, sd_row, sd_col, " +
-				"sd_grand; a grouped process host (scope group, empty ref) binds, per row, value, total (the " +
+				"sd_grand; a SERIES host (scope group, empty ref) binds, per row, value, total (the " +
 				"partition's sum), prior (the previous present row's value, null on the first) and baseline, " +
 				"reachable only when params.baseline_position names a 0-based row (a non-negative integer, else " +
 				"PULSE_OVERLAY_LEVEL_OUT_OF_RANGE; past the partition PULSE_OVERLAY_REF_UNKNOWN — at predict too when " +
@@ -593,7 +593,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// descriptor.validateOverlayIndexVsBaseline gates the shape at
 			// predict time.
 			RefKinds: []string{"BaselineIndex"},
-			Description: "Per-point index against one fixed baseline point of a grouped process host's series: (point_value / " +
+			Description: "Per-point index against one fixed baseline point of a SERIES host: (point_value / " +
 				"baseline_value) · 100, on each entry's summary.statistic. ref.baseline_index.position (required) is " +
 				"the 0-based baseline point, which scores 100. A zero or missing baseline warns " +
 				"PULSE_OVERLAY_REF_ZERO once (baseline ordinal and group count in details) and every statistic is " +
@@ -654,7 +654,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// consumes the Prior arm even though the v1 authoring shape
 			// can leave Ref entirely empty.
 			RefKinds: []string{"Prior"},
-			Description: "Per-point index against the previous present point of a grouped process host's series: (point_value " +
+			Description: "Per-point index against the previous present point of a SERIES host: (point_value " +
 				"/ prior_value) · 100, on each entry's summary.statistic. ref.prior (lag 0) or an empty ref. The " +
 				"first present point is null (no warning); a zero prior warns PULSE_OVERLAY_REF_ZERO and that entry " +
 				"is null. A missing point keeps its key with no statistic and does not advance the prior. level / " +
@@ -672,7 +672,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// Same Prior arm as the index twin above, and the same v1
 			// lag-1-only shape.
 			RefKinds: []string{"Prior"},
-			Description: "Per-point difference from the previous present point of a grouped process host's series: point_value " +
+			Description: "Per-point difference from the previous present point of a SERIES host: point_value " +
 				"− prior_value, on each entry's summary.statistic — \"how much did this change\", where " +
 				"OVERLAY_INDEX_VS_PRIOR answers \"what proportion of the prior is this\". ref.prior (lag 0) or an " +
 				"empty ref. The first present point is null; a zero prior is valid (no warning). A missing point " +
@@ -715,8 +715,8 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// on OverlaySpec.Params["window"] per the WIN_* operator
 			// convention.
 			RefKinds: []string{"RollingMean"},
-			Description: "Per-point index against the mean of the W previous present points of a grouped process host's " +
-				"series: point_value / mean(point[i-W] .. point[i-1]) · 100, on each entry's summary.statistic. " +
+			Description: "Per-point index against the mean of the W previous present points of a SERIES host" +
+				":  point_value / mean(point[i-W] .. point[i-1]) · 100, on each entry's summary.statistic. " +
 				"ref.rolling_mean (required, an empty object) and params.window (W, a positive integer: missing is " +
 				"PULSE_OVERLAY_PARAM_MISSING, non-positive or non-integer PULSE_OVERLAY_LEVEL_OUT_OF_RANGE). A " +
 				"point with fewer than params.min_periods present prior points (default W) is null (no warning); a zero rolling mean warns PULSE_OVERLAY_REF_ZERO once " +
@@ -733,7 +733,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				types.OverlayScopeGroup,
 			},
 			RefKinds: []string{"Sibling"},
-			Description: "Per-group index against one sibling group of a grouped process host: (group_val / sibling_val) · " +
+			Description: "Per-group index against one sibling group of a SERIES host: (group_val / sibling_val) · " +
 				"100, on each entry's summary.statistic. ref.sibling {field, value} (both required) names a grouper " +
 				"field and the key value to compare against; the sibling itself scores 100. An unknown field or " +
 				"unobserved value is PULSE_OVERLAY_REF_UNKNOWN, and a zero sibling PULSE_OVERLAY_REF_ZERO, each with " +
@@ -787,7 +787,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time —
 			// mirrors the CHISQ_* implicit-margin contract.
 			RefKinds: []string{},
-			Description: "Per-group index against the grand total of a grouped process host: (group_val / grand_total) · 100, " +
+			Description: "Per-group index against the grand total of a SERIES host: (group_val / grand_total) · 100, " +
 				"on each entry's summary.statistic. No ref. A zero grand total warns PULSE_OVERLAY_REF_ZERO and every " +
 				"statistic is null. A missing group keeps its key with no statistic.",
 		}
@@ -976,7 +976,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{"Margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Share of the grand total. On a crosstab host, per cell: cell / grand total (cell scope; ref.margin, " +
-				"its axis ignored; level / within accepted but inert). On a grouped process host, per group: " +
+				"its axis ignored; level / within accepted but inert). On a SERIES host, per group: " +
 				"group_val / grand_total on each entry's summary.statistic, summing to 1 over a complete partition " +
 				"(group scope, empty ref). A zero grand total warns PULSE_OVERLAY_REF_ZERO and every statistic is " +
 				"null; a missing group keeps its key with no statistic. The series form streams; the crosstab form is " +
@@ -1234,7 +1234,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// (wherever it sits in groups) per the WIN_* operator
 			// convention.
 			RefKinds: []string{"YoY"},
-			Description: "Per-point year-over-year index of a grouped process host's series against the same period one year " +
+			Description: "Per-point year-over-year index of a SERIES host against the same period one year " +
 				"earlier: point_value / prior_year_value · 100, on each entry's summary.statistic. ref.yoy (required, " +
 				"an empty object). The host must carry exactly one GROUP_DATE grouper, anywhere in groups; none or " +
 				"several is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details groupers, date_groupers; predict and " +
@@ -1305,7 +1305,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// OverlaySpec.Params["window"] per the WIN_* operator
 			// convention.
 			RefKinds: []string{"RollingMean"},
-			Description: "Per-point z-score against the W previous present points of a grouped process host's series: " +
+			Description: "Per-point z-score against the W previous present points of a SERIES host: " +
 				"(point_value − rolling_mean) / rolling_sd, the SAMPLE SD (n − 1: a window is a sample of the series, " +
 				"where OVERLAY_ZSCORE_VS_TOTAL uses the population SD), on each entry's summary.statistic. " +
 				"ref.rolling_mean (required, an empty object) and params.window (W, a positive integer: missing is " +
@@ -1330,7 +1330,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE at predict time —
 			// mirrors the INDEX_VS_TOTAL / SHARE_OF_TOTAL SERIES contract.
 			RefKinds: []string{},
-			Description: "Per-group z-score against the distribution of a grouped process host's group values: (group_val − " +
+			Description: "Per-group z-score against the distribution of a SERIES host's group values: (group_val − " +
 				"mean) / sd, sd the POPULATION SD (sqrt(M2 / N)) over the N present groups, on each entry's " +
 				"summary.statistic. No ref. Zero variance (all present groups equal, or one group) warns " +
 				"PULSE_OVERLAY_REF_ZERO and every statistic is null. A missing group keeps its key with no statistic " +

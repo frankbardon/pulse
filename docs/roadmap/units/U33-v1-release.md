@@ -264,8 +264,9 @@ Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there wh
 
 ## Handed on from U32b
 
-Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
+Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
 
+- [ ] **#767** — **`make sites` has no mode for an I/O-path change**; add an `io` mode that finds a reader / importer change's companions by shape, with a falsified fixture test.
 - [ ] **#768** — **Private vulnerability reporting is disabled**, so `SECURITY.md`'s only reporting channel fails; enable it or name a monitored contact.
 - [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
 - [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.

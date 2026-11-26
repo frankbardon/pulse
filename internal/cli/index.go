@@ -58,11 +58,11 @@ type indexBuildOutput struct {
 func indexBuildCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "build",
-		Usage:     "Build a point-lookup sidecar index for one or more key columns",
+		Usage:     "Build a point-lookup sidecar index for one or more key fields",
 		ArgsUsage: "COHORT",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
-			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column(s) to build the index over; comma-separated for a composite key (e.g. region,date)", Required: true},
+			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key field(s) to build the index over; comma-separated for a composite key (e.g. region,date)", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -246,7 +246,7 @@ func indexVerifyCmd() *cli.Command {
 		ArgsUsage: "COHORT",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
-			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column(s) the index was built over; comma-separated for a composite key (e.g. region,date)", Required: true},
+			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key field(s) the index was built over; comma-separated for a composite key (e.g. region,date)", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -332,7 +332,7 @@ func indexDropCmd() *cli.Command {
 		ArgsUsage: "COHORT",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
-			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column(s) the index was built over; comma-separated for a composite key (e.g. region,date). Removes the sidecar immediately — no confirmation prompt.", Required: true},
+			&cli.StringFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key field(s) the index was built over; comma-separated for a composite key (e.g. region,date). Removes the sidecar immediately — no confirmation prompt.", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

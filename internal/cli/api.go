@@ -732,7 +732,7 @@ func apiLookupCmd() *cli.Command {
 		Usage: "Look up row(s) by an indexed key against a cohort's prebuilt sidecar index (see `pulse index build`)",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
-			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column=value pair to match; repeat for a composite key in the same column order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
+			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key field=value pair to match; repeat for a composite key in the same field order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
 			&cli.StringFlag{Name: "return", Usage: "Comma-separated field names to project into the result row(s); omit for every schema field"},
 			&cli.StringFlag{Name: "mode", Usage: lookupModeFlagUsage},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full LookupRequest JSON file (flags layer on top of the file)"},

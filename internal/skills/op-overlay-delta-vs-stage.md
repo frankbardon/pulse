@@ -33,7 +33,7 @@ Shape inherited from target stage. Per-coordinate `target − reference`, in the
 
 ## Gotchas
 
-- Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
+- SERIES host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
 - No division — zero reference never raises `PULSE_OVERLAY_REF_ZERO`. Distinct from the ratio twin.
 - Target shape ≠ ref shape → `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain and at runtime (chain stays valid and runs; empty layer).
 - An empty or unknown `ref` → `PULSE_OVERLAY_REFERENCE_UNKNOWN`; unknown `target` → `PULSE_OVERLAY_TARGET_UNKNOWN`.

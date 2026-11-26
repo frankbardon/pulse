@@ -14,7 +14,7 @@ itself is never modified by any `index` subcommand.
 `build` additionally maintains a **keyless catalog** beside the cohort,
 `cohort.pulse.indexes.json`, recording each index's ordered key tuple.
 It exists because `<keyhash>` is a hash **of** the key tuple, so a
-sidecar cannot be opened without already knowing its key columns — and
+sidecar cannot be opened without already knowing its key fields — and
 object storage cannot list a directory, so globbing `.idx` files is not
 an option where cohorts are usually served from. `list` reads the
 catalog first.
@@ -41,7 +41,7 @@ pulse index drop   --input PATH --key FIELD[,FIELD...] [--json]
 Scans the cohort once and writes a sidecar index keyed on `--key`
 (comma-separated for a composite key; order is significant and is
 what `pulse api lookup --key` must match). Idempotent — rebuilding
-with the same key columns over an unchanged cohort produces a
+with the same key fields over an unchanged cohort produces a
 byte-identical sidecar.
 
 ```bash
@@ -79,7 +79,7 @@ without knowing the tuple already.
 ## `pulse index list`
 
 Enumerates every sidecar index built for a cohort, with each one's
-ordered key columns. An empty result is not an error.
+ordered key fields. An empty result is not an error.
 
 ```bash
 pulse index list --input sales.pulse
@@ -206,7 +206,7 @@ Every verb takes `--input` / `-i` (or the positional path) and `--json`;
   rebuild.
 - **Equality-only, full-key required.** No range or partial-key
   lookups in v1.
-- `set_*` and `vec_*` fields cannot be key columns — see the
+- `set_*` and `vec_*` fields cannot be key fields — see the
   [keyable-type policy](api-lookup.md#keyable-type-policy).
 
 ## Related

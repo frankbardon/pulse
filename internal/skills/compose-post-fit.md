@@ -1,6 +1,6 @@
 ---
 name: compose-post-fit
-description: ComposedRequest.post_fit — run an embedder-registered POSTFIT_<NS>_<NAME> operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says.
+description: Compose `post_fit` — run an embedder-registered POSTFIT_<NS>_<NAME> operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says.
 kind: design
 type: guide
 applies_to: compose, predict

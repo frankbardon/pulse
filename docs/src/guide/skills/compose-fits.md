@@ -1,6 +1,6 @@
 ```yaml
 name: compose-fits
-description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
+description: Compose `fits` — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 type: guide
 kind: design
 applies_to: compose, predict

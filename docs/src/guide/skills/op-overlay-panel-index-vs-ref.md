@@ -31,7 +31,7 @@ Use something else:
 | `field` | string | — | OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `scale` | float | `100` | Multiplier on target / reference; 1 gives a raw ratio. |
 
-`scope` required — `cell` (matrix host) or `group` (series host). `reference` = shared reference slot. `targets` — one layer per target. `options.max_panel_targets` (default `16`) caps the target count.
+`scope` required — `cell` (matrix host) or `group` (SERIES host). `reference` = shared reference slot. `targets` — one layer per target. `options.max_panel_targets` (default `16`) caps the target count.
 
 ## Host shape
 

@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads. Absent `return` (or `preset: full`) the response is byte-identical (same hash). Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`); with `composed`, per slot as `slots[*].sizes`, a `label` section first.
+`return` trims a response to what the caller reads. Absent `return` (or `preset: full`) the response is unchanged (same hash). Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`); with `composed`, per slot as `slots[*].sizes`, a `label` section first.
 
 ```json norun fragment
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -51,7 +51,7 @@ Instance default: `Options.DefaultReturn`, else the feature profile's `return`, 
 
 MCP tools default to `standard`: request `return` > host `pulse mcp --return` / `DefaultReturn` > instance default > `standard`. Send `"return": {"preset": "full"}` for components or everything.
 
-`disable_components` is shorthand: alone it only skips computing components (byte-identical, no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
+`disable_components` is shorthand: alone it only skips computing components (no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
 
 ## Excluded means not computed
 
@@ -61,7 +61,7 @@ An excluded `components` part (aggregations incl. `groups`, groupers, filterers,
 
 - Process: shapes the one response.
 <!-- feature: capability:compose -->
-- Compose: each slot's `return` (else the instance default) shapes `responses[i]`; `ComposedRequest.return` shapes top-level overlays only (`overlays…` paths), `responses` stays whole.
+- Compose: each slot's `return` (else the instance default) shapes `responses[i]`; Compose `return` shapes top-level overlays only (`overlays…` paths), `responses` stays whole.
 <!-- /feature -->
 <!-- feature: capability:process_chain -->- Chain: each stage has its own `return`, applied AFTER the whole chain, so a stage excluding `data` still feeds the next stage; `final` follows the last stage.<!-- /feature -->
 - Streaming (CLI `--stream`, library iterator): rows carry only selected columns, `returned` rides the terminal chunk only, excluding `data` emits no rows; no `PULSE_RETURN_PATH_UNMATCHED` (predict `unresolved_includes` instead). MCP has no streaming. Details: `streaming-and-watching`.

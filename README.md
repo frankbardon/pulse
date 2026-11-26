@@ -314,7 +314,7 @@ p, _ := pulse.New(pulse.Options{
 
 ### Operator catalogue
 
-The manifest is the source of truth for what is registered — `pulse manifest --json` (or the `pulse_manifest` MCP tool) lists every operator with its params and capabilities. This README keeps categories and representative members only, never counts:
+The manifest is the source of truth for what is registered — `pulse --json` (or the `pulse_manifest` MCP tool) lists every operator with its params and capabilities. This README keeps categories and representative members only, never counts:
 
 - **Aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, PERCENTILE, FREQUENCY, DISTINCT_COUNT, WEIGHTED_MEAN, RATIO, set aggregators (SET_FREQUENCY, SET_UNION, …), …
 - **Attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, regression diagnostics (REG_FITTED, REG_RESIDUAL, …), set attributes, …

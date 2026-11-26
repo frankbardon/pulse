@@ -62,12 +62,12 @@ A multi-output kind (pairwise under `params.letters`) adds `payload.parts`: name
 The carrying request decides the host, the host the legal kinds (an ungrouped or aggregation-free request runs none):
 
 - **MATRIX** — a crosstab (`Request.Crosstab`): share, margin compare, cell tests, intra-matrix pairwise.
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
+- **SERIES** — the SERIES host, a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
 - **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or Compose slot (not chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused.
 - **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays` ([`facet-design`](facet-design.md)).
 - **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` ([`process-chain`](process-chain.md)).
 - **FORMULA** — expression over a crosstab, grouped Process or any Compose shape (SERIES partitioned, `field` per slot).
-- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `ComposedResponse.Overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`) ([`compose-requests`](compose-requests.md)).
+- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`) ([`compose-requests`](compose-requests.md)).
 
 A cell-VALUE reader (MATRIX, Compose slot) over a code cell (`AGG_MODE` of a categorical) ⇒ `PROCESSING_CONFIG` `categorical_code`.
 

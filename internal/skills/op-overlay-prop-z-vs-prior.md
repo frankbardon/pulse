@@ -24,7 +24,7 @@ Inferential prior-period test of a share. Overlays decorate the host; no `Respon
 
 ## Host shape
 
-Two hosts: an ordered grouped Process (SERIES) or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures, → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`). The scored measure must be `AGG_AVERAGE` of a 0/1 indicator (any other built-in, a moment measure included → same code, `measure_type`); on a crosstab `normalize` must be none (`normalize` detail). p̂ is the measure's value, n its components' n: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+Two hosts: an ordered SERIES host or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures, → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`). The scored measure must be `AGG_AVERAGE` of a 0/1 indicator (any other built-in, a moment measure included → same code, `measure_type`); on a crosstab `normalize` must be none (`normalize` detail). p̂ is the measure's value, n its components' n: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
 
 ## Output
 

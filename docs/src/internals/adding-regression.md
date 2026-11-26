@@ -277,7 +277,7 @@ instead.
 ## 7. The registration probe
 
 `pulse.New` builds the factory against a synthetic schema (`probe_y` ~
-`probe_x1` + `probe_x2`, plus a weight column), hands it params satisfying
+`probe_x1` + `probe_x2`, plus a weight field), hands it params satisfying
 your declaration (every `Required` param, and the first member of each
 `ExactlyOneOf` group, gets its `ParamMeta.Example` when you declare one,
 else a placeholder of its `JSONType`; a `Required` array gets the probe's

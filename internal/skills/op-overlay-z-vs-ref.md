@@ -29,7 +29,7 @@ Compose-only parity overlay: the two-means z per group, target slot against the 
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. Reads `{n, mean, variance}` from the per-group components of `AGG_WELFORD` or another moment-carrying measure (off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else `params`. Crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
+COMPOSE — SERIES host on both slots. Reads `{n, mean, variance}` from the per-group components of `AGG_WELFORD` or another moment-carrying measure (off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else `params`. Crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
 
 ## Output
 

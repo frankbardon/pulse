@@ -24,7 +24,7 @@ Inferential prior-period test. Overlays decorate the host; no `Response.Componen
 
 ## Host shape
 
-Two hosts: an ordered grouped Process (SERIES; partitions as the delta twin) or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures, → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`). The scored measure must carry the Welford triple {mean, variance, n} (<!-- feature: AGG_WELFORD -->`AGG_WELFORD`<!-- /feature --><!-- feature: AGG_VARIANCE -->, `AGG_VARIANCE`<!-- /feature --><!-- feature: AGG_STDDEV -->, `AGG_STDDEV`<!-- /feature -->), else the same code with `measure_type`. Legs `{n, mean, variance}` come from the measure's per-group (or per-cell) components: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
+Two hosts: an ordered SERIES host (partitions as the delta twin) or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures, → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`). The scored measure must carry the Welford triple {mean, variance, n} (<!-- feature: AGG_WELFORD -->`AGG_WELFORD`<!-- /feature --><!-- feature: AGG_VARIANCE -->, `AGG_VARIANCE`<!-- /feature --><!-- feature: AGG_STDDEV -->, `AGG_STDDEV`<!-- /feature -->), else the same code with `measure_type`. Legs `{n, mean, variance}` come from the measure's per-group (or per-cell) components: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`.
 
 ## Output
 

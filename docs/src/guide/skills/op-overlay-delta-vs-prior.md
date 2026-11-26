@@ -35,7 +35,7 @@ Use something else:
 
 ## Host shape
 
-SERIES — ordered grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Family: windowed prior (`ref.prior`).
+Ordered SERIES host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Family: windowed prior (`ref.prior`).
 
 ## Output
 

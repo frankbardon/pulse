@@ -1,6 +1,6 @@
 ---
 name: compose-requests
-description: ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
+description: Compose batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -74,7 +74,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 ## Post-slot Compose-overlay fold
 
-`ComposedRequest.Overlays` runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates (`overlay-system`).
+`overlays` on a Compose request runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates (`overlay-system`).
 
 Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them in the manifest `overlays[]` entries serving `compare_groups` or `benchmark`. The usual refusal is schema divergence (reference and target group or crosstab on different axes): keep compared slots' shapes identical, vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
@@ -83,7 +83,7 @@ Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
 
-`ComposedRequest.multiplicity` is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections (`multiplicity-correction`).
+`multiplicity` on a Compose request is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections (`multiplicity-correction`).
 <!-- /feature -->
 
 ## Per-slot Components contract

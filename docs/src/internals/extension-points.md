@@ -848,7 +848,7 @@ A matrix registration has no `ComponentsFunc`: its components ride
 
 The probe at `pulse.New` is the one that feeds data: it builds the
 factory against a synthetic schema of three `f64` members (plus a
-weight column) with a spec naming them, and runs `Finalize` over a
+weight field) with a spec naming them, and runs `Finalize` over a
 small well-conditioned listwise co-moment of six rows with every part
 wanted — rows attached only on the `Streamable: false` tier. A
 `WeightAware` registration is probed a second time with a weight on the
@@ -1214,7 +1214,7 @@ its own coefficients); a model without `PValues` counts none. The fit statistics
 exact 0 ranks in a compose `sweep` rank.
 
 **Probe.** `pulse.New` builds the factory against a synthetic schema
-(`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
+(`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight field), with
 `vcov` set when the registration declares it, the probe params
 (see [Probe params](#probe-validation-full-surface): a `Required` array
 gets `["probe_x1", "probe_x2"]`), and fits it over eight
@@ -1843,7 +1843,7 @@ flowchart TD
     E -->|emitter, no schema| F3[PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA]
     E -->|emitter, key divergence| F4[PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH]
     E -->|all clear| G[snapshot + runtime overlay]
-    C -->|MatrixOps| M[build factory on 3 f64 members + weight column]
+    C -->|MatrixOps| M[build factory on 3 f64 members + weight field]
     M -->|panic / error / nil| F1
     M --> M1[Finalize over a six-row listwise CoMoment, every part wanted]
     M1 -->|panic / error| F1

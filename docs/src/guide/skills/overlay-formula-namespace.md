@@ -17,7 +17,7 @@ requires: [OVERLAY_FORMULA]
 | Host | `Scope` | Variables |
 |---|---|---|
 | crosstab (`Request.Overlays`, MATRIX) | `cell` | `cell`, `margin_row` / `margin_col` / `margin_grand`, `sd_row` / `sd_col` / `sd_grand` |
-| grouped Process (SERIES, empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
+| SERIES host (empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
 | Compose, MATRIX | `cell` | the crosstab variables + `ref_cell` |
 | Compose, SERIES | `group` | `value`, `total`, `prior`, `ref_value` |
 | Compose, SCALAR | `total` | `value`, `ref` |

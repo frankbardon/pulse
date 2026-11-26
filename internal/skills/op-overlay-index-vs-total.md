@@ -24,7 +24,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality. The grand-total share scaled ×100.
+SERIES host. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality. The grand-total share scaled ×100.
 
 ## Output
 

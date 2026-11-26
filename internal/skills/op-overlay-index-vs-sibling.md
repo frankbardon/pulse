@@ -24,7 +24,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-SERIES — grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment; the sibling resolves inside each partition. Ratio twin of the sibling delta.
+SERIES host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment; the sibling resolves inside each partition. Ratio twin of the sibling delta.
 
 ## Output
 

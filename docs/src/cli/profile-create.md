@@ -140,7 +140,7 @@ without it reconstructs through the clamped normal.
 
 ## Vector fields
 
-A vector column is profiled as ONE joint field, never as `dim` unrelated
+A vector field is profiled as ONE joint field, never as `dim` unrelated
 numerics:
 
 ```json

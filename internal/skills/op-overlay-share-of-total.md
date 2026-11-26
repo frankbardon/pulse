@@ -24,7 +24,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-Dual-shape: **MATRIX** crosstab (`ref.margin` required, grand-axis) → `cell / grand_total`; **SERIES** grouped Process host (implicit total, empty `ref`) → `group_val / total`. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality.
+Dual-shape: **MATRIX** crosstab (`ref.margin` required, grand-axis) → `cell / grand_total`; **SERIES** host (a grouped Process) (implicit total, empty `ref`) → `group_val / total`. Over two or more `groups` the total is each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = the grand total over every row), matched by key equality.
 
 ## Output
 

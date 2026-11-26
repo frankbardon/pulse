@@ -68,7 +68,7 @@ Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis 
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process`<!-- feature: capability:process_chain --> / `process-chain`<!-- /feature --><!-- feature: capability:compose --> / `compose`<!-- /feature -->; request JSON `"disable_components"` wins over it |
 
-Disabled ⇒ `Response.Components` is `nil` (byte-identical, work skipped); tolerate `nil`.<!-- feature: capability:compose --> Compose: per `requests[i]`.<!-- /feature --> MCP tools take the request key.
+Disabled ⇒ `Response.Components` is `nil` (work skipped); tolerate `nil`.<!-- feature: capability:compose --> Compose: per `requests[i]`.<!-- /feature --> MCP tools take the request key.
 
 ## Manifest declaration
 

@@ -37,7 +37,7 @@ fields off by more than 0.05.
 Per-cell, the conditional-pair arm recurred once per cell and was worst exactly
 where the signal is: a 5% cell generated at **41%**. A hand-authored continuous
 distribution on a `packed_bool` is still biased (22.7% for a 0.2 field, because
-clamping piles asymmetric mass on the near bound) but no longer inverted, since
+clamping piles asymmetric mass on the near bound) but not inverted, since
 `toBool` rounds at 0.5.
 
 ### The small-integer defect (`discrete` marginals)

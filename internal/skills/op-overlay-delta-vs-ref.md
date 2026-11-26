@@ -19,11 +19,11 @@ Compose-only dual-shape. Overlays decorate the host; no `Response.Components`.
 |---|---|---|---|
 | `field` | string | — | OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 
-`scope` (enum, required) — `cell` (matrix host) or `group` (series host). `reference` (string, required) — reference slot label. `targets` (list, required) — target slot labels (one or more). Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+`scope` (enum, required) — `cell` (matrix host) or `group` (SERIES host). `reference` (string, required) — reference slot label. `targets` (list, required) — target slot labels (one or more). Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-COMPOSE dual-shape: MATRIX crosstab OR SERIES grouped Process on reference + target. Slots must match on schema, keys and dictionaries. Subtractive twin of the reference index.
+COMPOSE dual-shape: MATRIX crosstab OR SERIES host on reference + target. Slots must match on schema, keys and dictionaries. Subtractive twin of the reference index.
 
 ## Output
 

@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL WHEN A COHORT REPEATS PARENT ATTRIBUTES ON EVERY CHILD ROW.
-A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte row index: smaller file, byte-identical answers. The existing-cohort twin of `pulse_import` `groups`.
+A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte row index: smaller file, identical answers. The existing-cohort twin of `pulse_import` `groups`.
 
 ## Input
 

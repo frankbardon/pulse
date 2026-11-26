@@ -19,7 +19,7 @@ requires: [OVERLAY_FORMULA]
 <!-- feature: capability:crosstab -->
 | crosstab (`Request.Overlays`, MATRIX) | `cell` | `cell`, `margin_row` / `margin_col` / `margin_grand`, `sd_row` / `sd_col` / `sd_grand` |
 <!-- /feature -->
-| grouped Process (SERIES, empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
+| SERIES host (empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
 <!-- feature: capability:compose -->
 | Compose, MATRIX | `cell` | the crosstab variables + `ref_cell` |
 <!-- /feature -->

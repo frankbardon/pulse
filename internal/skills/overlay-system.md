@@ -80,7 +80,7 @@ The carrying request decides the host, the host the legal kinds (an ungrouped or
 <!-- feature: capability:crosstab -->
 - **MATRIX** — a crosstab (`Request.Crosstab`): share, margin compare, cell tests, intra-matrix pairwise.
 <!-- /feature -->
-- **SERIES** — a grouped Process<!-- feature: capability:crosstab --> with no crosstab<!-- /feature -->: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
+- **SERIES** — the SERIES host, a grouped Process<!-- feature: capability:crosstab --> with no crosstab<!-- /feature -->: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
 <!-- feature: capability:matrices -->- **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or Compose slot (not chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused.<!-- /feature -->
 <!-- feature: capability:facet -->
 - **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays` (`facet-design`).
@@ -90,7 +90,7 @@ The carrying request decides the host, the host the legal kinds (an ungrouped or
 <!-- /feature -->
 - **FORMULA** — expression over a<!-- feature: capability:crosstab --> crosstab,<!-- /feature --> grouped Process<!-- feature: capability:compose --> or any Compose shape (SERIES partitioned, `field` per slot)<!-- /feature -->.
 <!-- feature: capability:compose -->
-- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `ComposedResponse.Overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`) (`compose-requests`).
+- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`) (`compose-requests`).
 <!-- /feature -->
 
 A cell-VALUE reader (MATRIX<!-- feature: capability:compose -->, Compose slot<!-- /feature -->) over a code cell<!-- feature: AGG_MODE --> (`AGG_MODE` of a categorical)<!-- /feature --> ⇒ `PROCESSING_CONFIG` `categorical_code`.

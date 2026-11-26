@@ -1,6 +1,6 @@
 ---
 name: compose-optimize
-description: ComposedRequest.optimize — maximise or minimise an expression over bounded decision variables, subject to equality and inequality constraints, using fitted coefficients. How to read the optimum, the marginals (marginal ROI), the multipliers (shadow prices) and the active bounds, the fits-then-optimize pattern, and the failures.
+description: Compose `optimize` — maximise or minimise an expression over bounded decision variables, subject to equality and inequality constraints, using fitted coefficients. How to read the optimum, the marginals (marginal ROI), the multipliers (shadow prices) and the active bounds, the fits-then-optimize pattern, and the failures.
 type: guide
 kind: design
 applies_to: compose, predict

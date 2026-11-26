@@ -27,14 +27,14 @@ The cell kinds (MATRIX, `Scope` `cell`) and the vs-reference kinds (SERIES, `Sco
 
 **Missing and degenerate.** An undefined (NaN) target or reference figure is MISSING: a cell stays absent; a series entry keeps its key with NO `statistic` (absent, not `null`). No warning; out of `summary.count`. A missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 
-Buffered, unlike the streamable SERIES arm of the descriptive reference index / delta.
+Buffered, unlike the streamable SERIES-host form of the descriptive reference index / delta.
 
 ## Prior-period tests
 
 The t, z and proportion-z prior kinds test each period against the one before it.
 
 - **Spec.** `Scope` must be `group`. `Ref.Prior` (an empty `Ref` accepted; lag 1 only); other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0` (`PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`). `params.field` / `params.partition_by` as on the descriptive prior delta (unknown → `PULSE_OVERLAY_FIELD_UNKNOWN` / `PULSE_OVERLAY_PARTITION_INVALID`).
-- **Hosts.** An ordered grouped Process (SERIES; partitions as the prior delta) or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`); a measure the kind cannot read → the same code with `measure_type`. Legs come from the measure's per-group (or per-cell) components: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`. Predict raises every refusal with the runtime's code.
+- **Hosts.** An ordered SERIES host (partitions as the prior delta) or a crosstab with NO `columns` — its rows are the periods of the implicit Total column. A crosstab with columns, or several measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`reason: column_grouper`); a measure the kind cannot read → the same code with `measure_type`. Legs come from the measure's per-group (or per-cell) components: components disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`. Predict raises every refusal with the runtime's code.
 - **Output.** SERIES — one `SeriesEntry` per period in host order: `Summary.Statistic` (this period minus the prior), `Summary.PValue` two-sided. Layer `Summary`: `count` (periods tested), `min` / `max` of the statistic.
 - **Independence assumed.** The two periods must be separate samples; a panel (the same respondents both waves) makes the p-value wrong — Pulse cannot detect it.
 - First period → `statistic` null, no `p_value` (null, never 0), not a multiplicity member. A missing period keeps its key with no statistic and the carrier does not advance.

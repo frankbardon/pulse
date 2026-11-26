@@ -35,7 +35,7 @@ Use something else:
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. a date grouper). Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Subtractive twin of the baseline index.
+Ordered SERIES host (e.g. a date grouper). Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Subtractive twin of the baseline index.
 
 ## Output
 

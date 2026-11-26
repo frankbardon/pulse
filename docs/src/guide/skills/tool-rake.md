@@ -1,7 +1,7 @@
 ```yaml
 name: tool-rake
 kind: tool
-description: Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight column of a new cohort.
+description: Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight field of a new cohort.
 type: reference
 applies_to: mcp
 ```
@@ -31,4 +31,4 @@ The report (no envelope): `target`, `records`, `weight_field`, `iterations`, `co
 ## See
 
 - [`survey-weights`](survey-weights.md) — targets, `by`, caps, convergence and the efficiency report.
-- [`weighting`](weighting.md) — using the column as a request weight.
+- [`weighting`](weighting.md) — using the field as a request weight.

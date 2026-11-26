@@ -79,7 +79,7 @@ In depth: [api lookup](api-lookup.md), [point lookup](../library/point-lookup.md
 | Flag | Value | Default | Description |
 |---|---|---|---|
 | `--input`, `-i` | string |  | Input .pulse cohort file path |
-| `--key`, `-k` | string, repeatable |  | Key column=value pair to match; repeat for a composite key in the same column order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01) |
+| `--key`, `-k` | string, repeatable |  | Key field=value pair to match; repeat for a composite key in the same field order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01) |
 | `--return` | string |  | Comma-separated field names to project into the result row(s); omit for every schema field |
 | `--mode` | string |  | Multiplicity mode when the key matches more than one row, one of assert_unique, first or all: assert_unique (default; also spelled assert-unique) errors PULSE_LOOKUP_AMBIGUOUS |
 | `--request`, `-r` | string |  | Full LookupRequest JSON file (flags layer on top of the file) |
@@ -998,7 +998,7 @@ Usage: `pulse import tsv [options]`
 
 ### `pulse index build`
 
-Build a point-lookup sidecar index for one or more key columns
+Build a point-lookup sidecar index for one or more key fields
 
 Usage: `pulse index build [options] COHORT`
 
@@ -1007,7 +1007,7 @@ In depth: [index](index.md)
 | Flag | Value | Default | Description |
 |---|---|---|---|
 | `--input`, `-i` | string |  | Input .pulse cohort file path (or pass as the positional argument) |
-| `--key`, `-k` | string |  | **Required.** Key column(s) to build the index over; comma-separated for a composite key (e.g. region,date) |
+| `--key`, `-k` | string |  | **Required.** Key field(s) to build the index over; comma-separated for a composite key (e.g. region,date) |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse index drop`
@@ -1021,7 +1021,7 @@ In depth: [index](index.md)
 | Flag | Value | Default | Description |
 |---|---|---|---|
 | `--input`, `-i` | string |  | Input .pulse cohort file path (or pass as the positional argument) |
-| `--key`, `-k` | string |  | **Required.** Key column(s) the index was built over; comma-separated for a composite key (e.g. region,date). Removes the sidecar immediately — no confirmation prompt. |
+| `--key`, `-k` | string |  | **Required.** Key field(s) the index was built over; comma-separated for a composite key (e.g. region,date). Removes the sidecar immediately — no confirmation prompt. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse index list`
@@ -1048,7 +1048,7 @@ In depth: [index](index.md)
 | Flag | Value | Default | Description |
 |---|---|---|---|
 | `--input`, `-i` | string |  | Input .pulse cohort file path (or pass as the positional argument) |
-| `--key`, `-k` | string |  | **Required.** Key column(s) the index was built over; comma-separated for a composite key (e.g. region,date) |
+| `--key`, `-k` | string |  | **Required.** Key field(s) the index was built over; comma-separated for a composite key (e.g. region,date) |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse mcp`

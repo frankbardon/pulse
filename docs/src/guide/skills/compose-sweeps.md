@@ -1,6 +1,6 @@
 ```yaml
 name: compose-sweeps
-description: ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity.
+description: Compose `sweep` — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity.
 type: guide
 kind: design
 applies_to: compose, predict

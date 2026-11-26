@@ -35,7 +35,7 @@ Use something else:
 
 ## Host shape
 
-SERIES grouped Process host. Over two or more `groups` the mean and SD are each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = every row), matched by key equality. Streamable alongside the total index and grand-total share.
+SERIES host. Over two or more `groups` the mean and SD are each partition's own — the rows sharing the leading keys `params.partition_by` names (default all but the last; `[]` = every row), matched by key equality. Streamable alongside the total index and grand-total share.
 
 ## Output
 

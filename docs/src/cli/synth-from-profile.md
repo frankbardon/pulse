@@ -496,7 +496,7 @@ the never-fired warning's job. A spec without rules never carries it.
 `pairwise` reports, for every numeric-numeric correlation the profile
 captured (`--conditional`'s `Conditional.NumericPairs`, or the plain
 `--include-correlations` stats as a fallback — whichever
-`SpecFromProfile` used to populate `spec.Correlations`), the delta
+`SpecFromProfile` populated into `spec.Correlations`), the delta
 between that pair's captured/target correlation (`source_rho` — the
 same figure the copula reconstruction targeted) and its REALIZED
 Pearson correlation over just the newly generated rows
