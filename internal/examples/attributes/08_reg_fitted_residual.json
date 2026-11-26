@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "attributes",
-    "description": "Per-row OLS fitted values and residuals on customers.pulse with target=income and predictors=[age] via ATTR_REG_FITTED + ATTR_REG_RESIDUAL. The regression attributes are siblings: REG_FITTED emits hat(y_i) = X_i . beta + beta_0 per row; REG_RESIDUAL emits (y_i - hat(y_i)). Together they let downstream slots reason about per-row model quality without re-fitting (e.g. surfacing residual outliers via ATTR_ZSCORE on the residual column).",
+    "description": "Per-row OLS fitted values and residuals on customers.pulse (target income, predictors [age]) via ATTR_REG_FITTED and ATTR_REG_RESIDUAL: REG_FITTED emits hat(y_i) = X_i . beta + beta_0 per row, REG_RESIDUAL y_i - hat(y_i). Later slots can read either derived field without re-fitting, e.g. ATTR_ZSCORE on the residual to surface outliers.",
     "intents": [
       "drivers",
       "relationship"

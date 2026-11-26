@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "crosstab",
-    "description": "Same region × segment count crosstab as the canonical example, but emitted in shape=long. Response.Data carries one tuple per cell; margin rows are flagged via the `_margin` field (\"row\", \"column\", or \"grand\") so downstream consumers can distinguish data rows from margins.",
+    "description": "Same region × segment count crosstab as the canonical example, emitted in shape long: data carries one row per cell, and margin rows are flagged by the `_margin` field (\"row\", \"column\" or \"grand\") so a reader can tell cells from margins.",
     "intents": [
       "composition"
     ],

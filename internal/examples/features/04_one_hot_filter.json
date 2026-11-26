@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "features",
-    "description": "Expand a categorical region column into one-hot indicators, then filter on a derived indicator before counting survivors.",
+    "description": "Expand the categorical region field into one-hot indicators with FEAT_ONE_HOT, then filter on one derived indicator (region_north) before counting the rows that remain.",
     "intents": [
       "prepare"
     ],

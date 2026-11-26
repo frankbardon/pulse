@@ -1,7 +1,8 @@
 # Crosstab examples
 
-Runnable `Request.Crosstab` shapes against the shared `experiment.pulse`
-A/B-test cohort. Every example resolves its cohort from `.data/` so the
+Runnable shapes of the `crosstab` Request slot, mostly against the shared
+`experiment.pulse` A/B-test cohort (15 reads `card_issuers.pulse`, 17
+`survey.pulse`). Every example resolves its cohort from `.data/` so the
 JSON runs unmodified after the one-time fixture build.
 
 ## One-time setup
@@ -25,7 +26,7 @@ Prints one line per example with the resolved shape and axis sizes.
 bin/pulse api process --request internal/examples/crosstab/04_mean_revenue_arpu.json --json
 ```
 
-Add `--predict` to see the streamability verdict, applied defaults, and
+`pulse api predict` shows the streamability verdict, applied defaults and
 warnings without executing.
 
 ```sh
@@ -51,7 +52,7 @@ bin/pulse api predict --request internal/examples/crosstab/05_median_revenue_rec
 | 13 | `means_with_mann_whitney_robust` | means + TEST_MANN_WHITNEY_U (nonparametric) |
 | 14 | `partial_column_normalize_level` | partial-depth column normalization on a nested column axis (`normalize_level`) |
 | 15 | `set_frequency_map_cells` | map-valued cells via AGG_SET_FREQUENCY (`{label: count}` per cell) |
-| 16 | `welford_components_revenue_by_region_treatment` | AGG_WELFORD cells carrying the streaming (n, mean, variance) triple, with margins |
+| 16 | `welford_components_revenue_by_region_treatment` | AGG_WELFORD cells (the cell mean; the full Welford state in `components.crosstab.cell_components`), with margins |
 | 17 | `vector_element_cells` | one vector member as a scalar cell (`params.element` on AGG_VEC_MEAN) + an element margin aggregation (AGG_VEC_SD) on `survey.pulse` |
 | 18 | `total_column_no_columns` | no `columns`: one implicit Total column (key `["Total"]`) per row, column % summing to 1 |
 | 19 | `measures_as_stub_rows` | several measures in `cells`: a count and a mean revenue as stub rows under each region, per-measure column margins in `matrix.measures` |

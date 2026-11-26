@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "features",
-    "description": "Log-transform a skewed numeric column and summarize the resulting distribution.",
+    "description": "Log-transform (log1p) a skewed numeric field with FEAT_LOG and summarize the transformed distribution.",
     "intents": [
       "prepare",
       "distribution_shape"

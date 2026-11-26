@@ -38,6 +38,24 @@ done
 echo "==> indexing experiment.pulse on id"
 "$PULSE_BIN" index build "$DATA_DIR/experiment.pulse" --key id --json > /dev/null
 
+# The shard archive the anchor example (aggregations/06_sharded_anchor.json)
+# reads: transactions split evenly into wave1.pulse and wave2.pulse, the
+# split internal/integration's buildShardedTransactionsFixture writes.
+echo "==> building transactions_sharded.pulse"
+SHARD_TMP=$(mktemp -d)
+trap 'rm -rf "$SHARD_TMP"' EXIT
+total=$(( $(wc -l < "$FIXTURES/transactions.csv") - 1 ))
+half=$(( total / 2 ))
+head -n $(( half + 1 )) "$FIXTURES/transactions.csv" > "$SHARD_TMP/wave1.csv"
+{ head -n 1 "$FIXTURES/transactions.csv"; tail -n +$(( half + 2 )) "$FIXTURES/transactions.csv"; } > "$SHARD_TMP/wave2.csv"
+for wave in wave1 wave2; do
+  "$PULSE_BIN" import csv --input "$SHARD_TMP/$wave.csv" --output "$SHARD_TMP/$wave.pulse" \
+    --schema "$FIXTURES/schemas/transactions.json" --json > /dev/null
+done
+rm -f "$DATA_DIR/transactions_sharded.pulse"
+"$PULSE_BIN" shard create "$DATA_DIR/transactions_sharded.pulse" \
+  -i "$SHARD_TMP/wave1.pulse" -i "$SHARD_TMP/wave2.pulse" --json > /dev/null
+
 # The synthetic twin of customers.pulse the union example
 # (tests/38_union_source_vs_twin.json) compares with its source: a
 # default profile, its spec at 200 rows, generated rows only, seed 7 —

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "crosstab",
-    "description": "AGG_WELFORD cell aggregator on revenue grouped by region x treatment with row/column/grand margins. Every cell value carries the streaming Welford-Pebay triple {Mean, Variance, N}; the full operator projection {n, n_null, mean, m2, variance, stddev} rides under Response.Components.Crosstab.CellComponents[r][c] in matching (r, c) coordinates. RowKeyComponents / ColumnKeyComponents carry the GROUP_CATEGORY per-axis components, MarginRowComponents / MarginColumnComponents carry the per-axis recompute-from-raw triples, and GrandTotalComponents carries the all-records triple. Canonical example of crosstab Components indexing — see skills/response-components.md and skills/crosstab-guide.md.",
+    "description": "AGG_WELFORD as the crosstab cell on revenue by region × treatment, with row, column and grand margins. Each cell value is the cell mean; the full Welford state {n, n_null, mean, m2, variance, stddev, origin, shifted_mean} sits in components.crosstab.cell_components[r][c] at the same (r, c) coordinates. row_key_components / column_key_components carry the GROUP_CATEGORY axis components, row_margin_components / column_margin_components the margin states recomputed from raw records, and grand_total_components the all-records state. The reference example for crosstab component indexing (skills: response-components, crosstab-guide).",
     "intents": [
       "describe",
       "compare_groups"

@@ -15,21 +15,22 @@ internal/examples/
 │   ├── build.sh               # CSV -> .pulse importer (writes ./.data)
 │   ├── *.csv                  # checked-in source data
 │   └── schemas/*.json         # hand-tuned schemas with descriptions
-├── aggregations/              # AGG_* aggregations, incl. vector aggregators (21)
-├── attributes/                # ATTR_* per-record derivations (23)
-├── compose/                   # Compose batches: sweeps, fits, populations, the MMM decay sweep, the SEM invariance ladder, SEM scores from a bound fit (10)
-├── crosstab/                  # Crosstab tables, margins and inference (17)
-├── facet/                     # Facet requests (3)
-├── features/                  # FEAT_* feature engineering (12)
-├── filterers/                 # FILTER_* row-level predicates (9)
-├── groupers/                  # GROUP_* partitioning (11)
-├── matrices/                  # MAT_* matrix operators over virtual vectors (16)
-├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts (48)
-├── regression/                # REG_* regressions (21)
-├── synth/                     # synth specs (7)
-├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (37)
-├── windows/                   # WIN_* per-row analytics (12)
-└── <new-category>/            # each: README.md + run-all.sh + *.json
+├── aggregations/              # AGG_* aggregations, incl. vector aggregators
+├── attributes/                # ATTR_* per-record derivations
+├── compose/                   # Compose batches: sweeps, fits, populations, the MMM decay sweep, the SEM invariance ladder, SEM scores from a bound fit
+├── crosstab/                  # Crosstab tables, margins and inference
+├── facet/                     # Facet requests
+├── features/                  # FEAT_* feature engineering
+├── filterers/                 # FILTER_* row-level predicates
+├── groupers/                  # GROUP_* partitioning
+├── materialize/               # `pulse api materialize` output-slot requests
+├── matrices/                  # MAT_* matrix operators over virtual vectors
+├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts
+├── regression/                # REG_* regressions
+├── synth/                     # synth specs
+├── tests/                     # TEST_* tier-1 and tier-2 statistical tests
+├── windows/                   # WIN_* per-row analytics
+└── <new-category>/            # *.json, plus README.md (+ run-all.sh for process-host requests)
 ```
 
 ## One-time setup
@@ -45,7 +46,10 @@ That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 `training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
 `repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`,
 `survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse`, `plan_history_wide.pulse`, `battery.pulse`, `intake.pulse`, `mmm_weekly.pulse`, `brand_survey.pulse` and `brand_ratings.pulse` into `.data/` at the repo root, plus the point-lookup
-index on `experiment.pulse` (`id`). Every example request has
+index on `experiment.pulse` (`id`), the shard archive `transactions_sharded.pulse`
+(`wave1.pulse` / `wave2.pulse`, the anchor example's) and the synthetic
+twin `customers_twin.pulse`. `compose/06_population_score.json` loads the
+population `compose/05_vector_fit_save.json` saves, so run 05 first. Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
 ## Available cohorts
@@ -56,7 +60,7 @@ index on `experiment.pulse` (`id`). Every example request has
 | `customers.pulse` | `id` (u32), `age` (u8), `income` (f64), `region` (categorical), `city` (categorical) |
 | `orders.pulse` | `id` (u32), `order_date` (date), `revenue` (f64), `ordered_at` (datetime) |
 | `training_data.pulse` | `id` (u32), `region`/`occupation`/`category` (categorical), `label` (u8 binary), `price`/`income` (f64), `signup_date` (date) |
-| `all_types.pulse` | One column for every one of the 17 supported types (u8/u16/u32/u64, f32/f64, nullable_bool/u4/u8/u16, date, packed_bool, categorical_u8/u16/u32, decimal128, nullable_decimal128). Hand-curated 5-row CSV — exists so a single fixture exercises every type-aware code path. |
+| `all_types.pulse` | One field per scalar type the aggregation examples exercise: `id` (u32), `small_int` (u8), `medium_int` (u16), `big_int` (u32), `huge_int` (u64), `measurement` (f32), `precise_value` (f64), `small_grade` (u4), `event_date` (date), `active` (packed_bool), `region` / `city` / `sku` (categorical_u8 / u16 / u32), `amount` (decimal128, scale 2). Hand-curated 5-row CSV. |
 | `experiment.pulse` | A/B test cohort: `id` (u32), `treatment`/`region`/`segment`/`converted` (categorical), `revenue`/`session_minutes` (f64), `period` (date). Planted effects across treatment, region, segment, and time so every `TEST_*` example produces a meaningful, non-trivial result. |
 | `repeated_measures.pulse` | A balanced repeated-measures design (40 subjects x 3 conditions, 120 rows): `subject_id` / `condition` (categorical; `baseline`, `treatment_a`, `treatment_b`), `metric` (f64). Planted for a clean `TEST_ANOVA_RM` reject. |
 | `card_issuers.pulse` | 20 respondents with a multi-select: `respondent_id` (u32), `age` (u8), `region` (categorical), `issuers` (set_u8, pipe-delimited `VISA` / `MC` / `AMEX` / `DISC`). Hand-curated; the set examples read it. |
@@ -92,7 +96,9 @@ path ([Regenerating Goldens](../../docs/src/internals/regenerating-goldens.md)).
 A category-specific runner exercises everything in its folder:
 
 ```
+./internal/examples/aggregations/run-all.sh
 ./internal/examples/attributes/run-all.sh
+./internal/examples/crosstab/run-all.sh
 ./internal/examples/features/run-all.sh
 ./internal/examples/filterers/run-all.sh
 ./internal/examples/groupers/run-all.sh
@@ -178,18 +184,21 @@ the generated docs quote real figures without executing a request.
    `fixtures/schemas/`. Re-run the generator (`go run ./internal/examples/fixtures/cmd/genfixtures`) and check in the new CSV.
 5. Drop in a `run-all.sh` for the category (copy from `features/` and
    adjust the glob).
-6. Optionally add an end-to-end test in `internal/integration/examples_test.go` mirroring
-   `TestFeatureExamples_RunEndToEnd`.
+6. Add the category to the `categories` slice of `TestExamples_RunEndToEnd`
+   (`internal/integration/examples_heavy_test.go`) when its requests run
+   through `pulse.Process`.
 
 ## CI coverage
 
-`TestExamples_RunEndToEnd` (in `internal/integration/examples_test.go`) builds the shared
-fixtures into a temp directory and runs every example across every
-category through `pulse.Process`, asserting no errors. Adding a new
-category is one line in the test's `categories` slice.
+The heavy `TestExamples_RunEndToEnd` (`internal/integration/examples_heavy_test.go`)
+builds the shared fixtures into a temp directory and runs every
+Request-host example of each category in its `categories` slice through
+predict and `pulse.Process`, asserting no errors; compose examples run
+in `TestExamples_ComposeRunClean`. Adding a new category is one line in
+the `categories` slice.
 
 ```
-go test -run TestExamples -v ./internal/integration/
+go test -tags heavy -run TestExamples_RunEndToEnd -v ./internal/integration/
 ```
 
 One sub-test runs per example file, grouped by category.

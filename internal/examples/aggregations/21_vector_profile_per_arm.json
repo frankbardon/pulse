@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Average and total spend profile per treatment arm on experiment.pulse in one slot each: a named vector lists revenue_before, revenue and session_minutes with display labels, AGG_VEC_MEAN returns one mean per member as a JSON array (in member order) and AGG_VEC_SUM one total per member. Missing data is per element: a null member skips only that element, so components.aggregations[i].operator.element_n can differ by member while the floor n counts rows where any member answered. An element no row answered is null in the mean and 0 in the sum. Array-valued: never a crosstab cell, a Sort key or an overlay host.",
+    "description": "Spend profile and revenue totals per treatment arm on experiment.pulse, one slot each: AGG_VEC_MEAN over a named vector (revenue_before, revenue, session_minutes with display labels) returns one mean per member as a JSON array in member order, and AGG_VEC_SUM over inline fields (revenue_before, revenue, labelled by params.labels) one total per member. A null member skips only that element, so components.aggregations[i].operator.element_n can differ by member while the floor n counts rows where any member answered; an element no row answered is null in the mean and 0 in the sum. Array-valued: never a crosstab cell, a Sort key or an overlay host.",
     "intents": [
       "describe",
       "compare_groups"

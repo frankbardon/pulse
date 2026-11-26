@@ -20,7 +20,7 @@ if [[ ! -d .data ]]; then
 fi
 
 shopt -s nullglob
-for f in internal/examples/features/0*.json internal/examples/features/10_*.json; do
+for f in internal/examples/features/*.json; do
   printf '%-60s' "$f"
   out=$("$PULSE_BIN" api process --request "$f" --json 2>&1)
   if echo "$out" | python3 -c '
@@ -43,8 +43,9 @@ done
 
 echo
 echo "Predict-only leakage check:"
-"$PULSE_BIN" api predict --request internal/examples/features/09_target_encode_leaky.json --json --strict | \
-  python3 -c '
+# --strict turns the warning into an error, so predict exits 1 by design.
+strict_out=$("$PULSE_BIN" api predict --request internal/examples/features/09_target_encode_leaky.json --json --strict || true)
+echo "$strict_out" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 codes = [e["code"] for e in (d.get("errors") or [])]

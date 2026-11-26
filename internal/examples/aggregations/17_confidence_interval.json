@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Normal-approximation 95% confidence interval for the mean of customers.pulse income via AGG_CI_LOWER + AGG_CI_UPPER (paired with AGG_AVERAGE for the centre point). Params.confidence defaults to 0.95 when omitted; Params.method defaults to \"normal\" (the streaming-friendly z-quantile path; \"bootstrap\" is reserved for a buffered follow-up). Streamable — the CI bounds ride alongside Welford state.",
+    "description": "Normal-approximation 95% confidence interval for the mean of customers.pulse income via AGG_CI_LOWER and AGG_CI_UPPER, beside AGG_AVERAGE for the centre. params.confidence defaults to 0.95 and params.method to normal (the z-quantile path; bootstrap is refused at run time). Streamable.",
     "intents": [
       "describe"
     ],

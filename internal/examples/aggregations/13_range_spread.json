@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Two spread metrics on customers.pulse income — AGG_RANGE (max - min) and AGG_STDDEV (Welford SD) — surfaced side-by-side. RANGE is the extreme-points spread; STDDEV the population-second-moment spread. Together they characterise the income distribution's width in one streaming pass.",
+    "description": "Two spread measures of customers.pulse income side by side in one streaming pass: AGG_RANGE (max - min, the extreme-point spread) and AGG_STDDEV (population standard deviation by default).",
     "intents": [
       "distribution_shape",
       "describe"

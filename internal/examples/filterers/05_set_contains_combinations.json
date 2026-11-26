@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "filterers",
-    "description": "Chain three set filterers (CONTAINS_ALL, CONTAINS_NONE, EQUALS) on a multi-select issuers column. Filterers compose with AND semantics — survivors must hold VISA, lack DISC, and carry exactly the {VISA, MC} pair. Count survivors by region.",
+    "description": "Chain three set filterers (FILTER_SET_CONTAINS_ALL, FILTER_SET_CONTAINS_NONE, FILTER_SET_EQUALS) on the set_u8 issuers field. Filterers combine with AND: survivors hold VISA, lack DISC and carry exactly the {VISA, MC} pair. Counts survivors by region.",
     "intents": [
       "segment",
       "composition"

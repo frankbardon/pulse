@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Run DISTINCT_COUNT and MODE across categorical_u8/u16/u32 widths and a date column to exercise every dictionary lookup path.",
+    "description": "AGG_DISTINCT_COUNT across categorical_u8 / u16 / u32 fields and a date field, plus AGG_MODE on region, exercising every dictionary width. AGG_MODE over a categorical returns the modal level's dictionary index, not its label.",
     "intents": [
       "describe",
       "composition"
@@ -13,7 +13,6 @@
     ],
     "tags": [
       "cardinality-analysis",
-      "cross-tabulation",
       "streaming-friendly"
     ]
   },

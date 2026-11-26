@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "crosstab",
-    "description": "Continuous-variable crosstab: revenue_before binned via GROUP_RANGE on the row axis, treatment on the column axis, count cells. Demonstrates that binning groupers work on either axis with zero new operator code.",
+    "description": "Continuous-variable crosstab: revenue_before binned by GROUP_RANGE (interval 100) on the row axis, treatment on the column axis, count cells. Any grouper, binning ones included, works on either axis.",
     "intents": [
       "composition",
       "distribution_shape"

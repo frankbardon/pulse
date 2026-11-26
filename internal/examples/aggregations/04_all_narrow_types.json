@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Exercise every narrow numeric type (u8 through f64 plus u4 and packed_bool) in one request via per-column SUM and AVERAGE.",
+    "description": "One AGG_SUM or AGG_AVERAGE on each narrow numeric field type (u8, u16, u32, u64, f32, f64, u4 and packed_bool) of all_types.pulse in one request; a packed_bool sums as 0/1, and every figure is a float64, so the u64 sum (past 2^53) is rounded.",
     "intents": [
       "describe"
     ],

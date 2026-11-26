@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Compute the 95th percentile of transactions.pulse amount and contrast it with AGG_AVERAGE and AGG_MAX to surface the tail vs mean gap. AGG_PERCENTILE requires Params.percentile in 0..100 (50 is the median); omitting it is refused. Non-mergeable buffered aggregator — needs the full value set.",
+    "description": "The 95th percentile of transactions.pulse amount beside AGG_AVERAGE and AGG_MAX, to show the gap between the tail and the mean. AGG_PERCENTILE requires params.percentile in 0..100 (50 is the median); a missing one is PROCESSING_CONFIG. Buffered: it needs every value.",
     "intents": [
       "distribution_shape",
       "describe"

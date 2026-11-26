@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "attributes",
-    "description": "Derive three per-row metrics from a set_* multi-select column: ATTR_SET_POPCOUNT yields wallet size, ATTR_SET_HAS yields a 0/1 indicator for a single label (VISA), and ATTR_FORMULA uses the always-on has_any expr helper to yield a 0/1 indicator for the {VISA, MC} disjunction. Aggregate all three across the cohort.",
+    "description": "Three per-row metrics from a set_u8 multi-select field: ATTR_SET_POPCOUNT gives wallet size, ATTR_SET_HAS a 0/1 indicator for one label (VISA), and ATTR_FORMULA's built-in has_any helper a 0/1 indicator for VISA or MC. All three are aggregated across the cohort.",
     "intents": [
       "prepare",
       "describe"

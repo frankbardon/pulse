@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "features",
-    "description": "Replace a high-cardinality categorical with its empirical frequency so it can feed a numeric model without column blow-up.",
+    "description": "Replace a high-cardinality categorical (city) with its empirical frequency via FEAT_FREQUENCY_ENCODE, one numeric derived field a model can read instead of one indicator per level.",
     "intents": [
       "prepare"
     ],

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "filterers",
-    "description": "Keep only orders whose order_date falls inside the launch or growth fiscal phases using FILTER_DATE_RANGES inline labeled ranges, then summarize the kept cohort.",
+    "description": "Keep only orders whose order_date falls in the launch (2025 Q1) or growth (2025 Q2-Q3) phase with FILTER_DATE_RANGES inline labelled ranges, then summarize the kept orders.",
     "intents": [
       "change_over_time",
       "segment"
@@ -39,8 +39,8 @@
       "field": "order_date",
       "params": {
         "ranges": [
-          { "label": "launch", "start": "2024-01-01", "end": "2024-03-31" },
-          { "label": "growth", "start": "2024-04-01", "end": "2024-09-30" }
+          { "label": "launch", "start": "2025-01-01", "end": "2025-03-31" },
+          { "label": "growth", "start": "2025-04-01", "end": "2025-09-30" }
         ]
       }
     }

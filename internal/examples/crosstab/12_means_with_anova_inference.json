@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "crosstab",
-    "description": "Mean session_minutes per (region, treatment) cell paired with TEST_ANOVA_F across the four region groups. The crosstab shows the per-cell means; the F-test reports whether region means differ significantly. Combines the visualization (crosstab) with the inference (ANOVA) in one Process call.",
+    "description": "Mean session_minutes per (region, treatment) cell paired with TEST_ANOVA_F across the four regions: the crosstab shows the cell means, the F-test whether the region means differ, in one request.",
     "intents": [
       "compare_groups"
     ],

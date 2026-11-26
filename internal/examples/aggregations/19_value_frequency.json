@@ -8,8 +8,8 @@
     ],
     "name": "value_frequency",
     "operators": [
-      "AGG_FREQUENCY",
       "AGG_COUNT",
+      "AGG_FREQUENCY",
       "GROUP_CATEGORY"
     ],
     "tags": [

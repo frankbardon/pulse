@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "compose",
-    "description": "Per-row contribution of one driver, with its coefficient interval, read from a shared fit: a compose `fits` entry fits income ~ age by OLS once; the slot scores only the age term with ATTR_REG_PREDICT `terms: [\"age\"]` (beta x age), then the same term at `bound: lower` and `bound: upper` (the fit's own 95% t-interval bound x age), and reads the coefficient itself with coef(\"income_model\", \"age\") in ATTR_FORMULA for a per-decade effect. Averages per region. No coefficient or bound is typed into the request: every figure comes from the fit at full precision. The bounds are a coefficient interval scaled by the column, not a prediction interval.",
+    "description": "Per-row contribution of one driver, with its coefficient interval, read from a shared fit: a compose `fits` entry fits income ~ age by OLS once; the slot scores only the age term with ATTR_REG_PREDICT `terms: [\"age\"]` (beta x age), then the same term at `bound: lower` and `bound: upper` (the fit's own 95% t-interval bound x age), and reads the coefficient itself with coef(\"income_model\", \"age\") in ATTR_FORMULA for a per-decade effect. Averages per region. No coefficient or bound is typed into the request: every figure comes from the fit at full precision. The bounds are a coefficient interval scaled by the predictor, not a prediction interval.",
     "capabilities": [
       "capability:compose_fits"
     ],

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "attributes",
-    "description": "Derive monthly income via the expr-lang formula engine and aggregate the resulting per-record value.",
+    "description": "Derive monthly income (income / 12) per record with ATTR_FORMULA and aggregate the derived field.",
     "intents": [
       "prepare"
     ],

@@ -6,17 +6,17 @@ set documented in [`../README.md`](../README.md).
 
 ## One-time setup
 
-Build the binary and the four `.pulse` fixture cohorts:
+Build the binary and the shared `.pulse` fixture cohorts:
 
 ```
 make build
 ./internal/examples/fixtures/build.sh
 ```
 
-That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`, and
-`training_data.pulse` into `.data/` under the repo root. Each example's
-`cohort.data_dir` already points at `.data`, so the requests run
-unmodified.
+That writes every fixture cohort (these examples read `transactions.pulse`,
+`customers.pulse`, `orders.pulse` and `training_data.pulse`) into `.data/`
+under the repo root. Each example's `cohort.data_dir` already points at
+`.data`, so the requests run unmodified.
 
 ## Running
 
@@ -48,13 +48,14 @@ errors.
 | `01_log_transform.json` | `FEAT_LOG` | Per-row log1p on a skewed numeric |
 | `02_bucketize_quantile.json` | `FEAT_BUCKETIZE` | Equal-frequency deciles |
 | `03_bucketize_explicit.json` | `FEAT_BUCKETIZE` | Explicit boundary edges |
-| `04_one_hot_filter.json` | `FEAT_ONE_HOT` | Multi-output + downstream filter on derived column |
+| `04_one_hot_filter.json` | `FEAT_ONE_HOT` | Multi-output + a filter on one derived indicator |
 | `05_date_features_seasonality.json` | `FEAT_DATE_FEATURES` | Calendar decomposition + group-by-quarter |
 | `06_frequency_encode.json` | `FEAT_FREQUENCY_ENCODE` | Replace high-cardinality categorical with frequency |
 | `07_train_test_split.json` | `FEAT_TRAIN_TEST_SPLIT` | Stratified 70/15/15 partition by category |
 | `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` | Split, then encode with `fit_on: "split == 0"` + `folds: 5` — leakage-safe, no warning |
 | `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
-| `10_full_ml_pipeline.json` | All eight | Compose the full preprocessing graph |
+| `10_full_ml_pipeline.json` | Six together | Compose the full preprocessing graph |
+| `11_sqrt_transform.json` | `FEAT_SQRT` | Per-row square root on a skewed numeric |
 | `12_date_features_datetime.json` | `FEAT_DATE_FEATURES` | Local calendar features + `hour` of a `datetime` (request `time_zone`) |
 | `13_train_test_split_temporal.json` | `FEAT_TRAIN_TEST_SPLIT` | Temporal 80/20 holdout on `order_date` (`mode: "temporal"`) |
 
@@ -72,6 +73,7 @@ errors.
 | 08 | categorical `category`, numeric `price`, identifier `id` |
 | 09 | categorical `category`, numeric `price` |
 | 10 | categorical `region`/`occupation`/`category`, numeric `income`/`label`, date `signup_date`, identifier `id` |
+| 11 | numeric `amount` |
 | 12 | datetime `ordered_at`, identifier `id` |
 | 13 | date `order_date`, identifier `id` |
 
@@ -95,7 +97,7 @@ every mean includes validation/test rows and the row's own target. Pass
 training rows feed the means, and `folds` to encode the training rows
 out-of-fold; `folds` without `fit_on` keeps a reworded warning.
 
-## Default output column names
+## Default derived-field labels
 
 | Operator | Default label |
 |---|---|
@@ -106,20 +108,19 @@ out-of-fold; `folds` without `fit_on` keeps a reworded warning.
 | `FEAT_TARGET_ENCODE` | `TARGET_<field>` |
 | `FEAT_TRAIN_TEST_SPLIT` | `split` |
 | `FEAT_ONE_HOT` | `<field>_<category>` (per category) |
-| `FEAT_DATE_FEATURES` | `<field>_year`, `<field>_month`, `<field>_day`, `<field>_dow`, `<field>_quarter` |
+| `FEAT_DATE_FEATURES` | `<field>_year`, `<field>_month`, `<field>_day`, `<field>_dow`, `<field>_quarter`, plus `<field>_hour` on a `datetime` |
 
 Set `label` to override single-output names or change the prefix on
 multi-output operators.
 
 ## CI coverage
 
-`TestFeatureExamples_RunEndToEnd` (in `internal/integration/examples_test.go`) builds the
-fixtures into a temp directory and runs every example through
-`pulse.Process`, asserting no errors. Added to catch example bitrot
-(schema drift) and operator regressions.
+The heavy `TestExamples_RunEndToEnd` (`internal/integration/examples_heavy_test.go`)
+builds the fixtures into a temp directory and runs every example through
+predict and `pulse.Process`, asserting no errors.
 
 ```
-go test -run TestFeatureExamples -v ./internal/integration/
+go test -tags heavy -run TestExamples_RunEndToEnd/features -v ./internal/integration/
 ```
 
 See `pulse skills show feature-engineering` for the full operator
