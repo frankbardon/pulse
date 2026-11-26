@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780]
 branch: v1-release
 ---
 
@@ -47,6 +47,8 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders
 - [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
 - [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
+- [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
+- [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](U33-v1-release.md)
@@ -255,3 +257,5 @@ Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5); full t
 - [ ] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not.
 - [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.
 - [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
+- [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.
+- [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
