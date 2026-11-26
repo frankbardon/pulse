@@ -338,8 +338,8 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 //
 // The current implementation drives the buffered synth pipeline behind
 // the scenes and yields rows from the materialized result; it does not
-// expose true row-at-a-time generation yet but is API-stable so callers
-// can adopt the streaming shape today.
+// expose true row-at-a-time generation; the streaming shape is the
+// stable API.
 //
 // Observability is ProcessStreamResult's: the operation ends exactly
 // once, just before the terminator is delivered, and its scan phase
@@ -453,7 +453,7 @@ var synthStreamBytes = synth.SynthBytes
 
 // testWrapStreamIter, when non-nil (tests only), wraps the iterator
 // ProcessStreamResult's producer goroutine drains, so the panic suite
-// can make that goroutine panic (no operator code runs there today).
+// can make that goroutine panic (no operator code runs there).
 var testWrapStreamIter func(RowIter) RowIter
 
 // decodeSynthRows reads a complete synth .pulse byte buffer into a
@@ -577,7 +577,7 @@ func grpMergeabilityVector(req *Request) []descriptor.ComponentsMergeability {
 //     carry no algorithmic dependence on a sorted full input and the
 //     buffered shim has them at hand.
 //
-// Today the only None-mergeability operators are AGG_MEDIAN,
+// The only None-mergeability operators are AGG_MEDIAN,
 // AGG_PERCENTILE (aggregator axis) and GROUP_QUANTILE (grouper axis).
 // All three need a sorted view of the full input — the Operator key
 // map is meaningless mid-stream.

@@ -77,7 +77,7 @@ type FacetRequest struct {
 	// FacetResult.Overlays in matching order. Per-kind semantics,
 	// required Ref fields, and host-field selection live in the
 	// overlay catalog (see types/overlay.go) and skills/overlay-system.md.
-	// The four FACET-host kinds ship today; the host-field the overlay
+	// The four FACET-host kinds are registered; the host-field the overlay
 	// decorates is read from OverlaySpec.Params["field"] (which MUST
 	// reference one of FacetRequest.Fields) — when the FacetRequest
 	// declares exactly one Field the slot may be omitted.

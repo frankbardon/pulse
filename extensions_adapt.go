@@ -30,9 +30,9 @@ import (
 // implements the matching extend sibling (or, for Meta*, iff the
 // registration supplies a ComponentsFunc). Embedding an INTERFACE in a
 // wrapper would promote only that interface's method set and silently
-// hide every sibling — the historical meta-wrapper bug where a
-// Streamable aggregator with a ComponentsFunc fell back to the buffered
-// path. Embedding the small concrete forwarders below is safe: a
+// hide every sibling — the failure where a
+// Streamable aggregator with a ComponentsFunc would fall back to the
+// buffered path. Embedding the small concrete forwarders below is safe: a
 // struct's promoted methods are its full method set.
 
 // extRecord is the extend.Record view of an engine row
@@ -47,8 +47,8 @@ var echoToUint64 = processing.EchoToUint64
 
 // readFault is the result error of an extension call over rec: the
 // fault its StringValue latched on rec (taken, so a reused row never
-// carries it on), else err. The fault wins — an embedder that answered
-// the ("", false) with its own error was answering the corrupt code.
+// carries it on), else err. The fault wins — an embedder that answers
+// the ("", false) with its own error is answering the corrupt code.
 func readFault(rec *processing.Record, err error) error {
 	if f := rec.TakeReadFault(); f != nil {
 		return f
@@ -1343,7 +1343,7 @@ func adaptPostTestFactory(reg TestRegistration) processing.PostTestFactory {
 // adaptWindowFactory turns a registration's extend factory into the
 // engine factory. extend.WindowComputer has the engine's method set
 // exactly, so the instance is handed over as-is; the options value is
-// translated (both are empty today).
+// translated (both are empty).
 func adaptWindowFactory(reg WindowRegistration) window.WindowFactory {
 	inner, validate := reg.Factory, reg.Validate
 	return func(w *types.Window, _ window.WindowOptions) (window.WindowComputer, error) {

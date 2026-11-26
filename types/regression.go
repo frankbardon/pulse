@@ -303,8 +303,8 @@ type RegressionSpec struct {
 	// unbounded fit: "qr" (the default; empty selects it) solves on a
 	// streaming Givens QR of the design, at κ(X); "normal" solves the
 	// normal equations by Cholesky on the centred Gram matrix, at κ(X)²,
-	// the method Pulse used before v1.0.0-alpha.35 (reproduce an older
-	// result, or match a package that solves the normal equations). Any
+	// the method to match a package that solves the normal equations
+	// (or to reproduce an older result). Any
 	// other value, a non-REG_OLS type, a penalty or bounds alongside a
 	// non-empty Solver are refused with PROCESSING_CONFIG
 	// (internal/regsolve.Check).
@@ -1165,7 +1165,7 @@ type RegressionResult struct {
 
 	// Advisories lists the coded, non-blocking notes the analysis
 	// choice raises on this fit (PULSE_ADVISORY_* codes, the ones
-	// predict raises for the same spec): today
+	// predict raises for the same spec):
 	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED on an l1 / elasticnet
 	// fit without Resample, whose StdErrors, PValues, CILower and
 	// CIUpper are null on every coefficient, and
@@ -1176,7 +1176,7 @@ type RegressionResult struct {
 	// dropped. Absent when none applies.
 	Advisories []Advisory `json:"advisories,omitempty"`
 
-	// Warnings are the fit's own coded diagnostics — today an extension
+	// Warnings are the fit's own coded diagnostics — an extension
 	// regression's extend.RegressionOutput.Warnings (a sampler that did
 	// not mix, …). Each is also lifted onto Response.Warnings (details
 	// regression / index added), so it reaches the envelope; under
@@ -1307,7 +1307,7 @@ func (t RegressionType) Streamable() bool {
 }
 
 // Streamable reports whether this concrete RegressionSpec can run via
-// the streaming execution path today. The check folds the type-level
+// the streaming execution path. The check folds the type-level
 // Streamable() value with one layer:
 //
 //   - modifier downgrade: any non-empty Resample or Selection, or a

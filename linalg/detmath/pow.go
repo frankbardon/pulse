@@ -116,7 +116,7 @@ func Pow(x, y float64) float64 {
 		}
 	}
 
-	// ans = a1 * 2**ae (= 1 for now).
+	// ans = a1 * 2**ae (initially 1).
 	a1 := 1.0
 	ae := 0
 

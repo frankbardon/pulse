@@ -167,7 +167,7 @@ func resolveFeatureProfile(opts Options, fsys afero.Fs) (*FeatureProfile, error)
 
 // validateOptionsAgainstFeatureProfile refuses an Options value that
 // needs a feature the (already valid) profile omits — it would act on a
-// surface the instance hides. Today two: Options.DefaultWeight needs
+// surface the instance hides. Two cases: Options.DefaultWeight needs
 // capability:weighting (.claude/reference/weighting.md, Feature
 // profile); a hidden weighting refuses every request `weight`, so an
 // instance default would weight requests that could not opt out — and

@@ -5,13 +5,10 @@ package types
 // orchestrator down a buffered route. Mirrors the per-aggregator,
 // per-attribute, per-test tables in streamability.go.
 //
-// Today every registered overlay rides on the buffered crosstab
-// orchestrator (margins are recomputed from raw rows, see CLAUDE.md
-// "Execution modes" → Crosstab and skills/crosstab-guide.md), so every
-// row is false. Later epics that add streamable overlay families (e.g.
-// a row-share overlay that can be folded into the streaming fused
-// crosstab pass) flip the matching row to true and add the gate-side
-// plumbing alongside.
+// Every crosstab-hosted overlay rides on the buffered crosstab
+// orchestrator (margins are recomputed from raw rows, see
+// skills/crosstab-guide.md), so its row is false; only the SERIES-host
+// kinds the rows below name are streamable.
 //
 // Adding a new OverlayKind:
 //
@@ -30,7 +27,7 @@ package types
 // SCREAMING_SNAKE OverlayKind value.
 //
 // Per kind-catalog-v1.md "Streaming-capable subset", INDEX_VS_MARGIN
-// is NOT in the streamable set today — its host crosstab is always
+// is NOT in the streamable set — its host crosstab is always
 // buffered.
 var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_CHISQ_COL is inherently buffered — mechanical column-axis
@@ -44,8 +41,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// test consumes the whole-matrix observed × expected contingency
 	// table, every margin recurrence is buffered on the host crosstab
 	// path, and the runtime handler walks the materialised matrix
-	// directly. Inferential overlays as a family stay buffered until a
-	// future streamable-test path is plumbed.
+	// directly. Inferential overlays as a family are buffered.
 	OverlayKindChiSqMatrix: false,
 	// OVERLAY_CHISQ_ROW is inherently buffered — each per-row goodness-
 	// of-fit test consumes the row's observed column distribution AND
@@ -86,11 +82,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// handler runs at the buffered post-host-finalize exit via
 	// ApplyOverlaysSeries (mirrors OverlayKindIndexVsBaseline — the
 	// absolute-difference twin of the same windowed positional-baseline
-	// family). Forward-compat: future work may lift the baseline
-	// resolver into a streaming-aware shape (carrying the resolved baseline
-	// inline as a kind-specific accumulator advanced during the streaming
-	// pass once the orchestrator hits the baseline ordinal); when that
-	// lands the flag flips to true.
+	// family). The row is false.
 	OverlayKindDeltaVsBaseline: false,
 	OverlayKindDeltaVsMargin:   false,
 	// OVERLAY_DELTA_VS_REF is streamable via its SERIES-host dispatch
@@ -113,10 +105,8 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// Process pass cannot satisfy until finalize time. The handler runs at
 	// the post-host-finalize exit (ApplyOverlaysSeries route) once the
 	// host series is fully materialised. Mirrors OverlayKindIndexVsSibling.
-	// Forward-compat: lifting the sibling resolver into a
-	// streaming-aware shape (carrying the resolved sibling key inline as a
-	// kind-specific accumulator) will flip the streamability flag to true
-	// for both kinds.
+	// The sibling resolver needs the whole host series, so both kinds
+	// are buffered.
 	OverlayKindDeltaVsSibling: false,
 	// OVERLAY_DELTA_VS_STAGE is buffered — second whole-chain kind,
 	// sibling subtractive twin of OVERLAY_INDEX_VS_STAGE. Whole-chain
@@ -173,11 +163,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// baseline (Ref.BaselineIndex.Position) requires the materialised host
 	// series (`host.ValueAt(Position)` is consulted after finalize). The
 	// handler runs at the buffered post-host-finalize exit via
-	// ApplyOverlaysSeries (mirrors OVERLAY_INDEX_VS_SIBLING). Forward-compat:
-	// future work may lift the baseline resolver into a streaming-aware
-	// shape (carrying the resolved baseline inline as a kind-specific
-	// accumulator advanced during the streaming pass once the orchestrator
-	// hits the baseline ordinal); when that lands the flag flips to true.
+	// ApplyOverlaysSeries (mirrors OVERLAY_INDEX_VS_SIBLING). The row is false.
 	OverlayKindIndexVsBaseline: false,
 	OverlayKindIndexVsMargin:   false,
 	// OVERLAY_INDEX_VS_REF is streamable via its SERIES-host dispatch
@@ -216,8 +202,8 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// inside the streaming Process fold: each present point divides by
 	// the carrier and then advances it to its own value (absent host
 	// points do NOT advance the carrier — the "prior" stays the last
-	// PRESENT value). The post-host finalize step is the divide. v1
-	// ships lag-1 only via the implicit-default `Ref.Prior` arm.
+	// PRESENT value). The post-host finalize step is the divide. Only
+	// lag-1 ships via the implicit-default `Ref.Prior` arm.
 	OverlayKindIndexVsPrior: true,
 	// OVERLAY_DELTA_VS_PRIOR is streamable for the identical reason and
 	// with the identical carrier: one f64 lag alongside the per-group
@@ -227,16 +213,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindDeltaVsPrior: true,
 	// OVERLAY_INDEX_VS_ROLLING_MEAN is buffered — the per-group ring buffer
 	// carries the full window of present values, which the streaming
-	// Process pass cannot maintain inline with the per-record fold today
+	// Process pass cannot maintain inline with the per-record fold
 	// (the carrier widens beyond a single f64 — OVERLAY_INDEX_VS_PRIOR's
 	// streamable lag carrier is one f64; rolling-mean's ring is W f64s and
-	// grows the streaming-fold state past v1's single-state lag
+	// grows the streaming-fold state past a single-state lag
 	// accumulator). The handler runs at the buffered post-host-finalize
-	// exit via ApplyOverlaysSeries. Forward-compat: future work may lift
-	// the rolling-mean ring into a streaming-aware shape (the streaming
-	// orchestrator's per-group accumulator carries the ring inline
-	// alongside the per-group online aggregator); when that lands the flag
-	// flips to true.
+	// exit via ApplyOverlaysSeries.
 	OverlayKindIndexVsRollingMean: false,
 	// OVERLAY_INDEX_VS_SIBLING is buffered — the SERIES sibling-reference
 	// family resolves its comparison anchor via a (Field, Value) lookup
@@ -244,10 +226,8 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// Process pass cannot satisfy until finalize time. The handler runs at
 	// the post-host-finalize exit (ApplyOverlaysSeries route) once the
 	// host series is fully materialised. Mirrors OverlayKindDeltaVsSibling.
-	// Forward-compat: lifting the sibling resolver into a
-	// streaming-aware shape (carrying the resolved sibling key inline as a
-	// kind-specific accumulator) will flip the streamability flag to true
-	// for both kinds.
+	// The sibling resolver needs the whole host series, so both kinds
+	// are buffered.
 	OverlayKindIndexVsSibling: false,
 	// OVERLAY_INDEX_VS_STAGE is buffered — first whole-chain kind,
 	// first consumer of the StageRef discriminated reference family.
@@ -397,15 +377,12 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// OVERLAY_ZSCORE_VS_ROLLING is buffered — sibling windowed-rolling kind
 	// to OVERLAY_INDEX_VS_ROLLING_MEAN. Both kinds share the per-
 	// group ring buffer + Welford (count, mean, M2) trio carrier; the
-	// ring is W f64s and grows the streaming-fold state past v1's single-
+	// ring is W f64s and grows the streaming-fold state past a single-
 	// state lag accumulator the same way the sibling kind does. The
 	// handler runs at the buffered post-host-finalize exit via
-	// ApplyOverlaysSeries. Forward-compat: when the sibling
-	// OVERLAY_INDEX_VS_ROLLING_MEAN flips streamable (future work
-	// lifts the rolling carrier into the streaming-Process orchestrator's
-	// per-group accumulator surface), this kind flips with it — the two
-	// kinds share the same carrier and the streaming finalize is one
-	// divide step per group for each variant.
+	// ApplyOverlaysSeries. It stays in step with the sibling
+	// OVERLAY_INDEX_VS_ROLLING_MEAN: the two kinds share the same
+	// carrier, so both are buffered.
 	OverlayKindZScoreVsRolling: false,
 	// OVERLAY_ZSCORE_VS_TOTAL is streamable — streamable SERIES-host
 	// overlay in the grouped-Process subset (sibling to

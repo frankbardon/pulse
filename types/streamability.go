@@ -340,7 +340,7 @@ func (t AttributeType) Streamable() bool {
 }
 
 // Streamable reports whether this filterer type evaluates per-row without
-// looking at other rows. All registered filterers are row-local today.
+// looking at other rows. All registered filterers are row-local.
 func (t FiltererType) Streamable() bool {
 	switch t {
 	case FILTER_INCLUDE, FILTER_EXCLUDE, FILTER_RANGE,
@@ -406,7 +406,7 @@ func (t GroupType) FansOut() bool {
 
 // Streamable reports whether this window type can be computed without
 // buffering. All window operators run over the post-aggregate row set in
-// a final pass; none stream today.
+// a final pass; none stream.
 func (t WindowType) Streamable() bool {
 	return false
 }

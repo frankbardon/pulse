@@ -35,7 +35,7 @@ type Regression interface{}
 // the concrete type succeeds — into the receiver, which then finalizes
 // the merged state. A streaming value without Merge is not a
 // StreamingRegression and is refused at pulse.New. Regressions run on
-// the serial arm today, so the engine does not call Merge yet; the
+// the serial arm, so the engine does not call Merge; the
 // requirement keeps the contract open for a parallel fold without a
 // breaking change.
 //

@@ -2,7 +2,7 @@ package types
 
 // ChainRequest bundles a source-rooted linear chain of Requests. Each
 // stage after the first feeds off the previous stage's output rows
-// rather than re-opening the cohort file. Mergeable-only at v1: see
+// rather than re-opening the cohort file. Mergeable-only: see
 // processing.CanChainRequest for the gate; non-mergeable stages
 // surface PULSE_CHAIN_NOT_MERGEABLE with the offending index so the
 // caller can fall back to per-stage Process calls.

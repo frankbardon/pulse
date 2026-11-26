@@ -31,14 +31,11 @@ type CohortSource = iocore.CohortSource
 // CohortValidator is an optional extension of Writer for targets that
 // can decide whether they COULD encode a cohort without encoding it.
 //
-// It exists because `pulse export predict` was target-blind. ExportJob.Predict
-// read the source header and schema and answered "this export is fine" no
-// matter what the target was, which was harmless only for as long as every
-// writer was infallible at the target boundary — CSV / TSV / NDJSON /
-// JSONArray stringify anything handed to them. internal/io/spss is the first writer
-// that can REFUSE, so predict was claiming an export would work and the real
-// export was then failing. Predict has to be able to answer the question it
-// appears to answer.
+// It exists so `pulse export predict` is target-aware. ExportJob.Predict
+// reads the source header and schema and asks the target whether it could
+// encode them: CSV / TSV / NDJSON / JSONArray stringify anything handed to
+// them and never refuse, but internal/io/spss can REFUSE, so predict must
+// consult the writer to answer the question it appears to answer.
 //
 // # Dispatch, and the promise to every other format
 //
@@ -143,7 +140,7 @@ type ConvertReport = iio.ConvertReport
 // source yields `[]string` rows and the target consumes them. That is
 // sufficient for a text target, and insufficient for a target that has to
 // rebuild a cohort in order to emit at all — internal/io/spss's `.sav` writer is the
-// only one today (see its pio.CohortWriter row path). Such a target
+// only one (see its pio.CohortWriter row path). Such a target
 // re-derives a schema by INFERRING it from the very text the source just
 // rendered, and inference cannot recover what the source DECLARED:
 //

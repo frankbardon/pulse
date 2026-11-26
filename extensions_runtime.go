@@ -157,7 +157,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Filterers {
 			r.Filterers[reg.Name] = adaptFiltererFactory(reg)
 			addScalarParams(r, "filterer", string(reg.Name), reg.Params)
-			// Custom filterers are always row-local streamable today.
+			// Custom filterers are always row-local streamable.
 			r.Streamable[processing.StreamabilityKey("filterer", string(reg.Name))] = true
 			addFieldInputs("filterer", string(reg.Name), reg.FieldInputs)
 		}
@@ -186,7 +186,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 		for _, reg := range ext.Windows {
 			r.Windows[reg.Name] = adaptWindowFactory(reg)
 			addScalarParams(r, "window", string(reg.Name), reg.Params)
-			// Custom windows run buffered today; the runtime path
+			// Custom windows run buffered; the runtime path
 			// reflects the built-in behaviour.
 			r.Streamable[processing.StreamabilityKey("window", string(reg.Name))] = false
 			addFieldInputs("window", string(reg.Name), reg.FieldInputs)

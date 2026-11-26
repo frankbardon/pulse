@@ -468,8 +468,8 @@ type Options struct {
 	// Strict promotes request-validation warnings into hard errors at
 	// runtime (the weighting and vector advisories, and a
 	// FEAT_TARGET_ENCODE's PULSE_FEAT_TARGET_LEAKAGE_RISK, refused
-	// before any record is read); future runtime
-	// validations follow the same flag. (A numeric aggregation over a
+	// before any record is read); any other request-validation warning
+	// follows the same flag. (A numeric aggregation over a
 	// categorical is refused PULSE_FIELD_TYPE_UNSUPPORTED whatever the
 	// flag.) Defaults to false — Process
 	// runs the request and emits warnings through the descriptor
@@ -1709,10 +1709,9 @@ func (p *Pulse) inspect(ctx context.Context, path string) (*descriptor.InspectRe
 // multiple of the record stride reports its floored record count with
 // an ENCODING_INVALID warning beside it, and Inspect drops that
 // warning on the floor. `pulse cohort inspect --json` / `--full-dict`
-// used to hand bytes from its own os.ReadFile to descriptor's
-// byte-level inspect for exactly this reason, which cost it anchor resolution
-// (archive.pulse#shard.pulse resolved in text mode and failed under
-// --json) and the injected filesystem along with it.
+// therefore reads through this path rather than handing raw bytes to
+// descriptor's byte-level inspect, which keeps anchor resolution
+// (archive.pulse#shard.pulse) and the injected filesystem.
 //
 // A returned error is a READ failure (missing file, unresolvable
 // anchor). An envelope-level fault — a bad header, a corrupt archive —
@@ -1830,10 +1829,9 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 // (envelope.Request carries the normalized request) from the instance.
 //
 // It is the path twin of PredictBytes for a caller that holds a path,
-// not the bytes: `pulse api predict` used to read the whole cohort into
-// memory to hand PredictBytes, which on a multi-gigabyte archive cost
-// the archive's size in resident memory and bypassed the injected
-// filesystem. Over a cohort without an SPSS sidecar the envelope equals
+// not the bytes: it reads the header and schema through the
+// injected filesystem instead of loading the whole cohort into memory,
+// so resident memory does not scale with the archive's size. Over a cohort without an SPSS sidecar the envelope equals
 // PredictBytes' over the same bytes; with one it adds the sidecar's
 // suggested weight and advisories, as Predict does.
 //
