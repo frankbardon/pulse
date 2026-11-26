@@ -112,6 +112,42 @@ func TestBuildAndGaps(t *testing.T) {
 // tool) mentioned only in the generated Analysis Guide is a book gap, and a
 // Request / Response slot named only as a bare word in prose is one too;
 // a hand-written page, a code span or Request.<Field> closes the gap.
+// TestAPIAliasMention: an `io.<Name>` row counts as mentioned when the
+// docs spell it with the public io package's import alias, `pio.<Name>`;
+// the bare alias name alone, or another package's selector, does not.
+func TestAPIAliasMention(t *testing.T) {
+	t.Parallel()
+	in := Inputs{
+		Rows: []Row{
+			{Kind: KindAPI, Group: "io", ID: "io.AliasOnly", GoDoc: true},
+			{Kind: KindAPI, Group: "io", ID: "io.Plain", GoDoc: true},
+			{Kind: KindAPI, Group: "io", ID: "io.Missing", GoDoc: true},
+			{Kind: KindAPI, Group: "types", ID: "types.Other", GoDoc: true},
+		},
+		Book:   map[string]string{"a.md": "Call pio.AliasOnly, then io.Plain. xpio.Missing and ptypes.Other do not count."},
+		Skills: map[string]string{"s": "pio.AliasOnly io.Plain"},
+	}
+	m, err := Build(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Cell{}
+	for _, l := range m.Lines {
+		got[l.ID] = l.Cells[Book]
+	}
+	want := map[string]Cell{
+		"io.AliasOnly": CellPresent,
+		"io.Plain":     CellPresent,
+		"io.Missing":   CellMissing,
+		"types.Other":  CellMissing,
+	}
+	for id, w := range want {
+		if got[id] != w {
+			t.Errorf("%s book cell = %v, want %v", id, got[id], w)
+		}
+	}
+}
+
 func TestBookStricterRule(t *testing.T) {
 	t.Parallel()
 	in := Inputs{

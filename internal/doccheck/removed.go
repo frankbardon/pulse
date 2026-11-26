@@ -19,13 +19,17 @@ type DeniedName struct {
 // standard library's, so it is imported as pio.
 var ImportAliases = map[string]string{"io": "pio"}
 
-// Spellings returns every spelling the scan matches for d: its Name and,
-// when Name is a selector `<pkg>.<Name>` whose package has an import alias
-// in ImportAliases, the aliased selector (`io.InferSchema` also matches
-// `pio.InferSchema`).
-func (d DeniedName) Spellings() []string {
-	out := []string{d.Name}
-	pkg, rest, ok := strings.Cut(d.Name, ".")
+// Spellings returns every spelling the scan matches for d: AliasSpellings
+// of its Name.
+func (d DeniedName) Spellings() []string { return AliasSpellings(d.Name) }
+
+// AliasSpellings returns name and, when name is a selector `<pkg>.<Name>`
+// whose package has an import alias in ImportAliases, the aliased selector
+// (`io.InferSchema` also yields `pio.InferSchema`). TestNoRemovedNamesInDocs
+// and the doc-coverage matcher (internal/doccoverage) both match through it.
+func AliasSpellings(name string) []string {
+	out := []string{name}
+	pkg, rest, ok := strings.Cut(name, ".")
 	if !ok || pkg == "" || rest == "" || strings.ContainsFunc(pkg, func(r rune) bool { return r > 0x7f || !isIdentByte(byte(r)) }) {
 		return out
 	}

@@ -6,7 +6,7 @@ This page shows, for every public thing Pulse ships, where it is documented. Row
 
 ## Rules
 
-- **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it.
+- **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it. An `io.<Name>` row also counts when spelled with the public io package's import alias, `pio.<Name>`.
 - **Stricter mdBook rule.** Operators, field types and MCP tools count only hand-written pages: the generated Analysis Guide (`docs/src/guide`) names every one by construction.
 - **Slot rule.** In the mdBook and the Skill pack, a Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.
 - **GoDoc** is present when the declaration carries a non-empty doc comment. A declaration inside a grouped `const` / `var` / `type` block also counts the group's doc comment and its own trailing line comment; a method on an alias resolves to the aliased type, a promoted method to the embedded type that declares it.
@@ -1540,16 +1540,16 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|---|
 | `io.BufferWriter` |  |  | yes |
 | `io.CohortSource` |  |  | yes |
-| `io.CohortValidator` | yes |  | yes |
-| `io.CohortWriter` | yes |  | yes |
+| `io.CohortValidator` | yes | yes | yes |
+| `io.CohortWriter` | yes | yes | yes |
 | `io.ColumnAwareWriter` | yes |  | yes |
 | `io.ColumnFields` | yes |  | yes |
-| `io.ConvertJob` |  |  | yes |
+| `io.ConvertJob` | yes |  | yes |
 | `io.ConvertJob.Hash` |  |  | yes |
 | `io.ConvertJob.Predict` |  |  | yes |
 | `io.ConvertJob.Run` |  |  | yes |
 | `io.ConvertReport` |  |  | yes |
-| `io.ConvertSource` |  |  | yes |
+| `io.ConvertSource` | yes | yes | yes |
 | `io.DSTPolicies` |  |  | yes |
 | `io.DSTPolicy` |  |  | yes |
 | `io.DSTPolicyEarlier` |  |  | yes |
@@ -1577,7 +1577,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.Format.CanWrite` |  |  | yes |
 | `io.Format.String` |  |  | yes |
 | `io.FormatArrow` |  |  | yes |
-| `io.FormatCSV` |  |  | yes |
+| `io.FormatCSV` | yes |  | yes |
 | `io.FormatExcel` |  |  | yes |
 | `io.FormatFromPath` | yes | yes | yes |
 | `io.FormatJSONArray` |  |  | yes |
@@ -1611,10 +1611,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.ListNull` | yes |  | yes |
 | `io.ListState` |  |  | yes |
 | `io.ListValues` | yes |  | yes |
-| `io.NewExportJob` |  |  | yes |
-| `io.NewImportJob` |  |  | yes |
+| `io.NewExportJob` | yes |  | yes |
+| `io.NewImportJob` | yes |  | yes |
 | `io.NewReader` | yes | yes | yes |
-| `io.NewReaderFromBytes` |  |  | yes |
+| `io.NewReaderFromBytes` | yes |  | yes |
 | `io.NewWriter` | yes |  | yes |
 | `io.NewWriterToBuffer` |  |  | yes |
 | `io.NullAwareReader` | yes | yes | yes |
@@ -1638,14 +1638,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.SchemaAwareReader` | yes | yes | yes |
 | `io.SchemaAwareWriter` | yes |  | yes |
 | `io.SidecarEmitter` | yes | yes | yes |
-| `io.SourceAwareWriter` | yes |  | yes |
+| `io.SourceAwareWriter` | yes | yes | yes |
 | `io.SourceWarningEmitter` | yes | yes | yes |
 | `io.TargetWarningEmitter` | yes |  | yes |
-| `io.TransferExportJob` |  |  | yes |
+| `io.TransferExportJob` | yes |  | yes |
 | `io.TransferExportJob.Run` |  |  | yes |
-| `io.TransferImportJob` |  |  | yes |
+| `io.TransferImportJob` | yes |  | yes |
 | `io.TransferImportJob.Run` |  |  | yes |
-| `io.TransferReport` |  |  | yes |
+| `io.TransferReport` | yes |  | yes |
 | `io.VectorDecl` |  |  | yes |
 | `io.Writer` | yes |  | yes |
 | `io.WriterOptions` | yes | yes | yes |
