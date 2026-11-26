@@ -386,7 +386,7 @@ The root manifest (`pulse --json`) includes a `skills[]` array so agents can dis
 Binary, self-describing, fully transportable:
 
 - **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x02` when the schema declares a parent group, a vector or a default zone field, else `0x01`)
-- **Schema block**: per field — name, type, nullable flag, byte offset, bit position, optional description (≤ 1000 bytes)
+- **Schema block**: per field — name, type, nullable flag, byte offset, bit position, source column index (`u16`), optional description (≤ 1000 bytes)
 - **Dictionary blocks**: one per categorical or set field
 - **Record data**: fixed-width binary records, then a per-record null bitmap when any field is nullable
 
