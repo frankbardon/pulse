@@ -29,7 +29,7 @@ A fractional day is floored; a non-finite day or instant → NaN (`null` on the 
 
 ## The datetime guard
 
-A `datetime` field passed bare as the day of `weekday`, `month_index` or `date_trunc` would read seconds as days, so the compile refuses it: `PULSE_FORMULA_COMPILE_ERROR`, the reason naming `to_day()`, at predict and at the run alike. Wrap it — `weekday(to_day(created_at))`. A literal unit outside the four (`"weeks"`, `"Month"`) is refused at compile the same way; a unit read from a field that is not one of them is `PROCESSING_CONFIG` on the row. A string or decimal day fails the compile's type check; a wrong argument count is `PROCESSING_CONFIG` (build + predict).
+A `datetime` field passed bare as the day of `weekday`, `month_index` or `date_trunc` would read seconds as days, so the compile refuses it: `PULSE_FORMULA_COMPILE_ERROR`, the reason naming `to_day()`, at predict and at the run alike. Wrap it — `weekday(to_day(created_at))`. A literal unit outside the four (`"weeks"`, `"Month"`) is refused at compile the same way; a unit read from a field that is not one of them is `PROCESSING_CONFIG` on the row. A string or decimal day, or a wrong argument count, fails the compile the same way (predict also names the count as `PROCESSING_CONFIG`).
 
 ## Patterns
 

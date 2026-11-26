@@ -14534,7 +14534,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the field-type matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -14614,7 +14614,7 @@
       },
       {
         "name": "facet-design",
-        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics."
+        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, FACET-host overlay kinds against a Population. Per-OVERLAY math in op-overlay-* atomics."
       },
       {
         "name": "feature-engineering",
@@ -14622,7 +14622,7 @@
       },
       {
         "name": "financial-cohorts",
-        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
+        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, the decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_DECIMAL_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
         "name": "formula-totals",
@@ -14654,7 +14654,7 @@
       },
       {
         "name": "join-design",
-        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it."
+        "description": "Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, limits, and validating a join before running it."
       },
       {
         "name": "label-display",
@@ -22159,4 +22159,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e5f6e09811ec09a9ad0cb54420edca3bd0bba5bae93f030393b21cbacc5e3574
+// golden-hash: fb04727f6d958415ee4715b620a7d593b6b2401f7b7c45b512e15ad856d366f0

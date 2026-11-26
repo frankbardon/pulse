@@ -17,11 +17,11 @@ A naive literal (no `Z`, no offset) is UTC unless the import names a source zone
 
 `--dst-policy error|earlier|later` (default `error`): a wall time the zone skips is `PULSE_IMPORT_DST_NONEXISTENT`, one it shows twice is `PULSE_IMPORT_DST_AMBIGUOUS`; both name row, column, value, zone; no file written. `earlier`/`later` resolve it and warn `PULSE_IMPORT_DST_RESOLVED` with counts. `earlier` = PRE-transition offset, `later` = POST: overlap: first / second occurrence; GAP inverts — Berlin `02:30` on 2026-03-29: `earlier` = `01:30Z` = `03:30` local, `later` = `00:30Z` = `01:30` local. Predict reports the same refusal.
 
-Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Arrow types and UTC-adjusted Parquet are instants (the source zone never moves them); zone-less Arrow, non-adjusted Parquet and legacy INT96 are wall clocks (source zone applies). Sub-second values floor (`PULSE_IMPORT_TIMESTAMP_TRUNCATED`). SPSS `DATETIME` is a wall clock (source zone applies); SPSS `TIME`/`DTIME` are durations, `f64` seconds, never a datetime.
+Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Arrow types and UTC-adjusted Parquet are instants (the source zone never moves them); zone-less Arrow, non-adjusted Parquet and INT96 are wall clocks (source zone applies). Sub-second values floor (`PULSE_IMPORT_TIMESTAMP_TRUNCATED`). SPSS `DATETIME` is a wall clock (source zone applies); SPSS `TIME`/`DTIME` are durations, `f64` seconds, never a datetime.
 
 ## Per-row zones and dropped rows
 
-- The `source_tz_field` column imports as a normal column too; DST policy applies per row.
+- The `source_tz_field` column imports as a normal field too; DST policy applies per row.
 - A row it cannot zone — an empty cell with no `source_tz`, or an unknown name (`PULSE_TIMEZONE_UNKNOWN`) — is skipped, not fatal: `rows_dropped` with details `row` and `zone_column` (fatal under `--strict`).
 - A missing zone column, or one typed `datetime`, is `SERVICE_VALIDATION`.
 - `date` columns are never zoned; a `col=Zone` naming one is `CLI_INPUT`.

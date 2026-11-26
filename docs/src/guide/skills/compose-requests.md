@@ -42,7 +42,7 @@ Shared parts go once in `base`, merged into every `requests` entry (never sweep,
 
 ## Order-preserving slot dispatch
 
-The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in (a slot an optimize block's `result()` reads runs first, still once: [`compose-optimize`](compose-optimize.md)). Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
+The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in (a slot an optimize block's `result()` reads runs first, still once: [`compose-optimize`](compose-optimize.md)). Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
 
 ```jsonc
 {
@@ -84,7 +84,7 @@ Every slot's `components` is emitted independently (the universal floor plus eac
 
 ## Validate before executing
 
-`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked only after the slots run: check every `SlotLabel` against your labels.
+`pulse_predict` with the batch alone under `composed` (`PredictCompose`, `pulse api predict-compose`) predicts each slot over its own cohort, then the Compose overlays from headers alone (kinds, slot labels, shapes, panel cap); data faults surface at the run.
 
 ## See
 

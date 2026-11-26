@@ -9,7 +9,7 @@ requires: [capability:matrices]
 ---
 # Vectors and matrices
 
-A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result. Both are additive (`format_version` stays `"1.1"`).
+A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result.
 
 ## 1. Name the vector
 
@@ -18,7 +18,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).
 - `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no slot or expression uses warns `PULSE_VECTOR_UNREFERENCED`.
-- `pulse predict` echoes the members (`resolved_vectors`).
+- Predict (`pulse_predict`, `pulse api predict`) echoes the members (`resolved_vectors`).
 
 ## 2. Ask for the matrix
 
@@ -75,7 +75,7 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 
 `components.matrices[i]` is the floor: `n`, `n_null`, `n_listwise_dropped`, pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->, weighted `sum_weights` / `n_eff` / `n_weight_invalid`<!-- /feature --> (`response-components`).
 
-`pulse predict` returns `matrices[]` before any row is read: `shape`, `axis_keys`, `accumulator_bytes`, `pairwise_psd_risk` (false guarantees no NOT_PSD warning), `streamable`. For a grouped request it adds:
+Predict returns `matrices[]` before any row is read: `shape`, `axis_keys`, `accumulator_bytes`, `pairwise_psd_risk` (false guarantees no NOT_PSD warning), `streamable`. For a grouped request it adds:
 
 | Key | Meaning |
 |---|---|

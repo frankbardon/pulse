@@ -30,7 +30,7 @@ Features run **before** filters: `features → filterers → attributes → grou
 ## Composition rules
 
 1. **Order matters.** Later features can reference earlier features' labels.
-2. **Labels unique** within the slot. Collision → `PROCESSING_CONFIG`.
+2. **Labels unique** — never a schema field or earlier output: `SERVICE_VALIDATION`.
 3. **Naming** — one-to-one ops emit one column (`<PREFIX>_<field>` unless labelled); fan-out ops (one-hot, date parts, polynomial) emit a prefixed column family. The atomic skill names them; predict resolves them but lists only source fields in `schema_info`.
 4. **Two cost classes:**
    - **Per-row** — the value depends only on this row (log / sqrt, one-hot, date parts, polynomial, bucketize with explicit boundaries). One pass.
@@ -58,7 +58,7 @@ Downstream: keep `split == 0` with a value filter for train-only; group by `spli
 
 ## Components
 
-**Features emit per-record columns, not `Response.Components`.** To audit a feature column, read it from `Response.Data` or wrap it in an aggregation.
+Features emit per-record values, never `Response.Components`; to audit one, aggregate it.
 
 ## Gotchas
 

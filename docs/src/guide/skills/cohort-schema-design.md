@@ -1,6 +1,6 @@
 ```yaml
 name: cohort-schema-design
-description: Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
+description: Entry point for .pulse cohort schemas — the field-type matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
@@ -26,7 +26,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | Naive datetimes recorded in a local zone | [`import-source-zones`](import-source-zones.md) |
 | One type's bytes, range, null and dictionary rules | atomic `type-<kebab>` |
 
-## Field-type matrix (all 22)
+## Field-type matrix
 
 | Name | Bytes | Dict? | Bit-packed? | Notes |
 |---|---|---|---|---|
@@ -53,7 +53,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `vec_f32` | 4 × dim | no | no | fixed-dim vector, dim 2..1024 in the `0x02` VECTORS section; **not** index-keyable |
 | `vec_f64` | 8 × dim | no | no | |
 
-`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 22 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
+`set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; every type participates identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
 
 `date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which read a `datetime` on its local calendar day ([`time-zones`](time-zones.md)). Sub-second timestamps: `u64` microseconds. Detail: [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
 

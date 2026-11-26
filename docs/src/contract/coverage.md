@@ -3103,7 +3103,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse api materialize` | yes | yes | yes |
 | `pulse api predict` | yes | yes | yes |
 | `pulse api predict-chain` | yes |  | yes |
-| `pulse api predict-compose` | yes |  | yes |
+| `pulse api predict-compose` | yes | yes | yes |
 | `pulse api predict-facet` | yes |  | yes |
 | `pulse api process` | yes | yes | yes |
 | `pulse api process-chain` | yes | yes | yes |

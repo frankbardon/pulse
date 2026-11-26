@@ -9,7 +9,7 @@ covers: [ATTR, attributes]
 
 # Attribute composition
 
-`attributes` add derived COLUMNS per record: one new value per row from existing fields; the cohort is never modified. Per-ATTR detail (formulas, null rules, regression diagnostics): atomic `op-attr-*` skills.
+`attributes` add one value per record, derived from existing fields, as an output column named by `label`; the cohort is never modified. Per-ATTR detail (formulas, null rules, regression diagnostics): atomic `op-attr-*` skills.
 
 ## Slot position
 
@@ -25,7 +25,7 @@ Entry shape: `{type, field?, label, params?, expression?}`; `label` is the new c
 
 Decide what the new column must say about a row, then pick from the manifest `components.attributes` whose [`intents`](intents.md) match (`pulse_skills_get intents`) and read `op-attr-<name>`; its guidance names alternatives.
 
-- **Position against the column** (standard deviations, a 0–1 range, a percentile rank) — a two-pass score. Skewed data or extreme values distort mean-based scores; a rank-based one resists them.
+- **Position against the field** (standard deviations, a 0–1 range, a percentile rank) — a two-pass score. Skewed data or extreme values distort mean-based scores; a rank-based one resists them.
 - **Position against a model** (fitted value, residual, leverage) — a regression diagnostic; for the model's own coefficients run a regression instead.
 - **A rule over this row's fields** (ratio, flag, recode) — the formula attribute.
 - **A calendar part or a multi-select test** — the dedicated row-local attributes.
@@ -35,7 +35,7 @@ Decide what the new column must say about a row, then pick from the manifest `co
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
 2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one. To stage a value across requests, use a process chain.
-3. **Two-pass attributes** — scoring a row against the column or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row; no full buffering.
+3. **Two-pass attributes** — scoring a row against the field or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row; no full buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
 5. **Null inputs propagate.** Null source → null output (`n_null`); a 0/1 membership flag reads `0`. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.
 6. **Output is coerced to a scalar.** Numbers pass through; `bool` → `1.0` / `0.0`; a formula's `nil` → null; anything else errors. Attributes do not emit Rich payloads.

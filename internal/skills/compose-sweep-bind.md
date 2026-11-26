@@ -39,7 +39,7 @@ A `fits` entry may bind the winner of the batch's ranked `sweep` instead of runn
 
 ## Static signature
 
-The regression's `type`, `target` and `predictors` (and a model regression's term catalog) must be identical in every sweep slot: vary a window, a filter or a param, never the model's shape. Predict reads the signature off the first sweep slot, so coefficient terms, predictor columns and the names `optimize` reads validate with no data.
+The regression's `type`, `target` and `predictors` (and a model regression's term catalog) must be identical in every sweep slot: vary a window, a filter or a param, never the model's shape. Predict reads the signature off the first sweep slot, so coefficient terms, predictor fields and the names `optimize` reads validate with no data.
 
 ## Refusals
 

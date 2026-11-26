@@ -1,6 +1,6 @@
 ```yaml
 name: facet-design
-description: FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics.
+description: FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, FACET-host overlay kinds against a Population. Per-OVERLAY math in op-overlay-* atomics.
 type: guide
 kind: design
 applies_to: facet

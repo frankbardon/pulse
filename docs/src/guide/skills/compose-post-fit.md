@@ -34,7 +34,7 @@ A **post-fit entry** runs a computation over models the batch has already fitted
 
 ## Phase and reads
 
-The batch runs slots and sweeps → fits → optimize → **post-fit** → nested-model comparisons. Each entry runs once. The operator reads only:
+The batch runs fits → optimize → slots → **post-fit** → nested-model comparisons (a slot an optimize block's `result()` reads runs before optimize). Each entry runs once. The operator reads only:
 
 - each named fit: coefficients and standard errors by term, the `vcov` matrix when the fit computed one (`vcov: true`), each channel's adstock record (kernel, parameters, lag weights) and a Bayesian media-mix fit's pooled posterior draws when it ran with `params.return_draws`;
 - any ungrouped slot value, by the `result(slot, aggregation)` reader's rules;

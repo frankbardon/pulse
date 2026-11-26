@@ -33,7 +33,7 @@ covers: [posterior draws, return_draws, draws_thin, thinning, per-draw ROI, draw
 
 ## Size limit
 
-The payload is chains × kept draws × (coefficients + roi entries) values, capped by `Limits.MaxMMMDrawValues` (`max_mmm_draw_values`, default 10,000,000). Over it the fit is refused with `PULSE_LIMIT_EXCEEDED` before any sampling, never truncated: raise `draws_thin` or the limit. Predict reports the same figure: `certain` (and the same refusal) on one market, `possible` on a geo panel, whose count grows with the geos it reads.
+The payload is chains × kept draws × (coefficients + roi entries) values, capped by `Limits.MaxMMMDrawValues` (`max_mmm_draw_values` in the manifest `limits`). Over it the fit is refused with `PULSE_LIMIT_EXCEEDED` before any sampling, never truncated: raise `draws_thin` or the limit. Predict reports the same figure: `certain` (and the same refusal) on one market, `possible` on a geo panel, whose count grows with the geos it reads.
 
 ## Response shaping
 

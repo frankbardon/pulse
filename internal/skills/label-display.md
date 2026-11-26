@@ -114,9 +114,9 @@ Validated before any record is read; predict (`PredictConvert` too) reports the 
 
 - `docs/src/internals/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
 <!-- feature: capability:facet -->
-- `skills/facet-design.md` — surfacing labels on `FacetField` values.
+- `facet-design` — surfacing labels on `FacetField` values.
 <!-- /feature -->
-- `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+- `tool-label-tables` / `tool-label-resolve` — `pulse_label_tables` / `pulse_label_resolve` schemas.
 <!-- feature: io_format:spss -->
-- `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.
+- `spss-cohorts` — why an SPSS cohort stores codes, and where its labels live.
 <!-- /feature -->

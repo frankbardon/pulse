@@ -34,7 +34,7 @@ A filter makes columns constant: materializing one region writes that region's c
 
 ## Parent groups: `groups`
 
-A grouped source (format `0x02`) keeps its parent groups through an `output` block: with `groups` absent, each source group whose members are ALL written unchanged — renamed is fine — is declared again under the written names (same key). A member dropped, or re-coded by `type`, `recode` or `bucket`, leaves its group out with `PULSE_MATERIALIZE_GROUP_NOT_INHERITED` (`details.member`, `change`); its members become row fields. Without an `output` block nothing is inherited: the output stays ungrouped, as it always was.
+A grouped source (format `0x02`) keeps its parent groups through an `output` block: with `groups` absent, each source group whose members are ALL written unchanged — renamed is fine — is declared again under the written names (same key). A member dropped, or re-coded by `type`, `recode` or `bucket`, leaves its group out with `PULSE_MATERIALIZE_GROUP_NOT_INHERITED` (`details.member`, `change`); its members become row fields. Without an `output` block nothing is inherited: the output is ungrouped.
 
 `groups: [{key, members}]` declares exactly these groups over WRITTEN names (the import `groups` shape), replacing inheritance; `groups: []` writes none. A name the output does not write is `PULSE_GROUP_FIELD_UNKNOWN` (`details.path`), a field in two groups `PULSE_GROUP_FIELD_CONFLICT` — before anything is read. A keyed group whose member varies within its key fails the run (`PULSE_GROUP_MEMBER_NOT_CONSTANT`).
 
