@@ -122,7 +122,11 @@ of site is found by its shape:
 name is not a `types.Request` field (`sweep`, `base`, `fits`, `banner`,
 `compare`, `optimize`, `post_fit`, …); `slot compose <name>` asks for
 it directly, and is the only way to reach a name both roots declare
-(`overlays`, `multiplicity`, `return`, `params`).
+(`overlays`, `multiplicity`, `return`, `params`). `slot response <name>`
+likewise falls back to `types.ComposedResponse` (`optimizations`,
+`comparisons`, `fits`, `ranking`, `banner`, `sweep_trace`, `post_fit`,
+…); a name both declare (`overlays`, `returned`, `warnings`) resolves to
+`types.Response`.
 A name declared on neither root but on structs reachable from it (an
 item-level key such as `for_each`) reports every declaring field. A
 Compose-level slot also prints **Compose sites**, each found by shape:
@@ -234,7 +238,8 @@ Nothing in the site list is hand-maintained:
   a site list; the tool's tests pin each rule on a fixture tree and the
   regression sites on the real one.
 - **Slot sites** are `go/types`-resolved references to the
-  `types.Request` / `types.ComposedRequest` / `types.Response` field (selectors, promoted fields
+  `types.Request` / `types.ComposedRequest` / `types.Response` /
+  `types.ComposedResponse` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against
   `go list -export` data), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand

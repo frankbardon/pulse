@@ -38,6 +38,20 @@ type ComposedRequest struct {
 type SweepSpec struct {
 	Request *Request ` + "`json:\"request\"`" + `
 }
+
+type Response struct {
+	Warnings []string ` + "`json:\"warnings\"`" + `
+}
+
+type ComposedResponse struct {
+	Responses     []*Response         ` + "`json:\"responses\"`" + `
+	Warnings      []string            ` + "`json:\"warnings\"`" + `
+	Optimizations []*OptimizeResult   ` + "`json:\"optimizations\"`" + `
+}
+
+type OptimizeResult struct {
+	Objective float64 ` + "`json:\"objective\"`" + `
+}
 `,
 	"internal/cli/strict_acceptance_test.go": `package cli
 
@@ -156,6 +170,13 @@ func TestResolveSlot(t *testing.T) {
 		{"request", "for_each", "", []string{"Aggregation.ForEach", "Window.ForEach"}, false},
 		{"request", "not_yet", "Request", nil, false},
 		{"compose", "not_yet", "ComposedRequest", nil, false},
+		// a `response` slot not on types.Response is looked up on
+		// types.ComposedResponse (optimizations, fits, ranking, …)
+		{"response", "warnings", "Response", []string{"Response.Warnings"}, false},
+		{"response", "optimizations", "ComposedResponse", []string{"ComposedResponse.Optimizations"}, false},
+		{"resp", "Optimizations", "ComposedResponse", []string{"ComposedResponse.Optimizations"}, false},
+		{"response", "objective", "", []string{"OptimizeResult.Objective"}, false},
+		{"response", "not_yet", "Response", nil, false},
 		{"neither", "x", "", nil, true},
 	}
 	for _, tc := range cases {

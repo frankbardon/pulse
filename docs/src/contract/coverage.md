@@ -2383,7 +2383,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ComposeOverlaySpec` | yes |  | yes |
 | `types.ComposedRequest` | yes | yes | yes |
 | `types.ComposedRequest.Hash` |  |  | yes |
-| `types.ComposedResponse` |  |  | yes |
+| `types.ComposedResponse` | yes |  | yes |
 | `types.ComposedResponse.MarshalJSON` |  |  | yes |
 | `types.CovarianceClassical` |  |  | yes |
 | `types.CovarianceCluster` |  |  | yes |

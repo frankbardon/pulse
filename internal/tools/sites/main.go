@@ -38,8 +38,9 @@
 //     forms, the shared primitives its own files call, and — for a
 //     linalg/metric consumer — every metric-registry consumer site;
 //   - slot sites are go/types-resolved references to the types.Request /
-//     types.ComposedRequest / types.Response field (a request name not
-//     on Request falls back to ComposedRequest; an item-level key such
+//     types.ComposedRequest / types.Response / types.ComposedResponse
+//     field (a request name not on Request falls back to ComposedRequest,
+//     a response name not on Response to ComposedResponse; an item-level key such
 //     as for_each to every reachable struct declaring it), plus its
 //     wire-name string literals and the update-demand rows that name
 //     it; a Compose-level slot adds the compose sites (compose.go);
@@ -72,7 +73,7 @@ modes:
   op <TYPE>                       sites of an existing operator (AGG_SUM, MAT_PCA, OVERLAY_MARKOV, normal)
   new-op <category>               template checklist for a NEW operator of a category
   slot <request|compose|response> <name>
-                                  sites of a Request/ComposedRequest/Response slot (Go field or json name; unknown = new-slot template)
+                                  sites of a Request/ComposedRequest/Response/ComposedResponse slot (Go field or json name; unknown = new-slot template)
   fixture <stem>                  registration sites of an example fixture cohort (existing, or a new stem)
   categories                      list categories and their operators`
 
